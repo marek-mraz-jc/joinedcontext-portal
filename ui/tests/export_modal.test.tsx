@@ -164,12 +164,17 @@ describe("export modal", () => {
     );
   });
 
-  it("keeps the plain YAML and JSON forms under other formats", async () => {
+  it("offers_every_form_of_the_whole_project_at_once_with_the_archive_first", async () => {
+    // The plain forms used to sit behind a `details` nobody opened, which is also how the arrow
+    // keys stopped walking the group (T-1816). All three are on screen; the archive leads.
     const fetchMock = renderEndpoints();
 
     await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByText(en.export.otherFormats));
+    const radios = within(dialog).getAllByRole("radio");
+    expect(radios).toHaveLength(3);
+    expect(radios[0]).toBeChecked();
+    expect(radios[0].closest("label")).toHaveTextContent(en.export.formats.whole);
     expect(within(dialog).getByText(en.export.formats.json)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("radio", { name: /^YAML/ }));
     expect(await downloaded(fetchMock)).toBe(

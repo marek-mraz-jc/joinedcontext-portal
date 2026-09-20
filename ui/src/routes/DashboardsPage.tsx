@@ -12,7 +12,7 @@ import { takeEditRequest } from "../assistant/state";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
 import { rendersWithDeckGl } from "../components/dashboards/rendering";
-import { RAMP } from "../components/dashboards/MapLibreView";
+import { RAMP } from "../components/dashboards/mapColours";
 import type { Bbox, MapLayer } from "../components/dashboards/MapLibreView";
 import type { DenseLayer } from "../components/dashboards/DeckGlOverlay";
 import { GridWidget } from "../components/dashboards/GridWidget";
