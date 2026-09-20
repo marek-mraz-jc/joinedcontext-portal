@@ -12,8 +12,7 @@ import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { SYNC_ORIGINS, syncSourceSchema } from "../../schemas/kinds";
 import type { SyncOriginKind } from "../../schemas/kinds";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { EditResourceAction } from "../../components/EditResourceDialog";
+import { ResourceRowActions } from "../../components/ResourceRowActions";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -289,9 +288,13 @@ function SyncSourceCard({
         </h2>
         <LifecycleBadge kind="phase" value={status.data?.phase} />
         <span className="text-caption">{scheduleOf(spec, t)}</span>
+        {/* Sync now, Pause and Detach are what this card is for and stay in its body; editing
+            and deleting the source itself are one menu at the end of the header (T-2288). */}
         <span className="ml-auto flex items-center gap-1.5">
-          <EditResourceAction target={{ project, kind: "SyncSource", plural: "syncsources", name }} />
-          <DeleteResourceAction target={{ project, kind: "SyncSource", plural: "syncsources", name }} />
+          <ResourceRowActions
+            project={project}
+            target={{ project, kind: "SyncSource", plural: "syncsources", name }}
+          />
         </span>
       </header>
 

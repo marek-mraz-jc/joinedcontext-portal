@@ -10,7 +10,7 @@ import { asManifests, localized } from "../api/manifest";
 import type { Change, Manifest } from "../api/manifest";
 import { takeEditRequest } from "../assistant/state";
 import { ChangeNotice } from "../components/ChangeNotice";
-import { DeleteResourceAction } from "../components/DeleteResourceDialog";
+import { ResourceRowActions } from "../components/ResourceRowActions";
 import { rendersWithDeckGl } from "../components/dashboards/rendering";
 import { RAMP } from "../components/dashboards/mapColours";
 import type { Bbox, MapLayer } from "../components/dashboards/MapLibreView";
@@ -489,20 +489,23 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                 </Select>
               </label>
             ) : null}
-            <PermissionGuard project={project} kind="Dashboard" verb="propose">
-              <Button
-                size="sm"
-                onClick={() => {
-                  setIsNew(false);
-                  setOpenedAs(dashboard.metadata.name);
-                  setEditingDashboard(dashboardFromManifest(dashboard));
-                }}
-              >
-                {t("dashboards.edit")}
-              </Button>
-            </PermissionGuard>
-            <DeleteResourceAction
-              target={{ project, kind: "Dashboard", plural: "dashboards", name: dashboard.metadata.name }}
+            {/* This dashboard's own four — edit, save as, work on a copy, delete — behind one
+                menu, so the header carries the chooser and what makes a new one, and not five
+                controls in a row (T-2288, UI-26). */}
+            <ResourceRowActions
+              project={project}
+              target={{
+                project,
+                kind: "Dashboard",
+                plural: "dashboards",
+                name: dashboard.metadata.name,
+                label: title,
+              }}
+              onEdit={() => {
+                setIsNew(false);
+                setOpenedAs(dashboard.metadata.name);
+                setEditingDashboard(dashboardFromManifest(dashboard));
+              }}
             />
             {newButtons}
           </div>
