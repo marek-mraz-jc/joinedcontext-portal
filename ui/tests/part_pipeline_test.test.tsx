@@ -75,6 +75,8 @@ describe("the pipeline sample test against the UI contract", () => {
   });
 
   it("runs the mapping once both are there, and never before", async () => {
+    // The parameters are declared although the body ignores them: `mock.lastCall[0]` below is
+    // typed from this signature, and `vi.fn(() => …)` would make the call tuple empty.
     const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
       Promise.resolve(
         new Response(JSON.stringify(TRACE), { status: 200, headers: { "Content-Type": "application/json" } }),
