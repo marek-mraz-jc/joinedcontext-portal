@@ -1562,7 +1562,8 @@
     "nameReserved": "'org' is the organization's own namespace, never a project.",
     "displayNameLabel": "Display name",
     "descriptionLabel": "Description",
-    "notAllowed": "This organization does not let you open a project."
+    "notAllowed": "This organization does not let you open a project.",
+    "nameNeeded": "A usable name is needed to open a project."
   },
   "entities": {
     "type": "Entity type",

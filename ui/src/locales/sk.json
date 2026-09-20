@@ -1562,7 +1562,8 @@
     "nameReserved": "„org“ je vlastný menný priestor organizácie, nikdy nie projekt.",
     "displayNameLabel": "Zobrazovaný názov",
     "descriptionLabel": "Popis",
-    "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt."
+    "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
+    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno."
   },
   "entities": {
     "type": "Typ entity",

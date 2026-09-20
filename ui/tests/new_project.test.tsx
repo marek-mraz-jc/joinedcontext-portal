@@ -10,6 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
+import { expectDenied, expectOpen } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -79,17 +80,15 @@ describe("the New project control in the sidebar", () => {
   it("is disabled with the API's own reason when the organization does not let this caller open a project", async () => {
     renderShell({ allowed: false, reason: REFUSED });
 
-    // The control is remounted inside the wrapper once the document arrives, so it is queried
-    // after the wait, never held from before.
+    // Refused, never hidden, and reachable so the reason can be read (UI-44, T-1758). It used
+    // to be a hard-`disabled` button inside a bare `tabIndex={0}` span: an unnamed tab stop, a
+    // `title` the disabled button swallowed, and a `role="tooltip"` nothing referenced.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New project" })).toBeDisabled();
+      expectDenied(screen.getByRole("button", { name: "New project" }), REFUSED);
     });
     const button = screen.getByRole("button", { name: "New project" });
-    expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(button.parentElement).toHaveAttribute("title", REFUSED);
-    // Disabled, never hidden: the reason is readable by keyboard too (UI-44).
-    // The page behind has disabled controls with their own reasons, so this one is read in place.
-    expect(within(button.parentElement as HTMLElement).getByRole("tooltip")).toHaveTextContent(REFUSED);
+    expect(button).toHaveAttribute("title", REFUSED);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("checks the name while it is typed and proposes the project as one change", async () => {
@@ -99,8 +98,8 @@ describe("the New project control in the sidebar", () => {
     await user.click(await screen.findByRole("button", { name: "New project" }));
     const dialog = await screen.findByRole("dialog", { name: /Open a project/ });
     const open = within(dialog).getByRole("button", { name: "Open project" });
-    // Nothing typed yet: nothing to send.
-    expect(open).toBeDisabled();
+    // Nothing typed yet: nothing to send, and the button says so where it stands.
+    expectDenied(open, "A usable name is needed to open a project.");
 
     const name = within(dialog).getByLabelText(/Name/);
     await user.type(name, "Doprava Mesta");
@@ -109,12 +108,12 @@ describe("the New project control in the sidebar", () => {
         "Lowercase letters, digits and hyphens, starting and ending with a letter or a digit.",
       ),
     ).toBeTruthy();
-    expect(open).toBeDisabled();
+    expectDenied(open);
     expect(posted).toHaveLength(0);
 
     await user.clear(name);
     await user.type(name, "doprava");
-    expect(open).toBeEnabled();
+    expectOpen(open);
     await user.click(open);
 
     await screen.findByText(/chg-0000002a/);

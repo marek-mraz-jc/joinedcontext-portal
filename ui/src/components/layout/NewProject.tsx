@@ -110,7 +110,15 @@ export function NewProjectDialog({
             </Button>
             <Button
               variant="primary"
-              disabled={problem !== null || openProject.isPending}
+              // `loading`, not `disabled`: a button that leaves the tab order while the POST is
+              // in flight moves focus somewhere nobody chose, and there was no spinner and no
+              // `aria-busy` to say anything was happening at all (T-1758, UI-15).
+              loading={openProject.isPending}
+              disabled={problem !== null}
+              // Refused and reachable, saying that the name is what stands in the way (UI-44).
+              // Not the field's own message repeated: the Field above already carries which of
+              // the three it is, and a screen reader would otherwise read it twice.
+              disabledReason={problem === null ? undefined : t("projects.nameNeeded")}
               onClick={() => openProject.mutate()}
             >
               {t("projects.open")}
@@ -181,31 +189,26 @@ export function NewProjectButton({ project }: { project: string }): JSX.Element 
   const creation = permissions.data?.projects?.creation;
   const allowed = creation?.allowed !== false;
   const reason = creation?.reason ?? t("projects.notAllowed");
-  const button = (
-    <Button
-      variant="secondary"
-      size="sm"
-      className="w-full justify-center"
-      disabled={!allowed}
-      aria-disabled={allowed ? undefined : "true"}
-      icon={<Icon name="plus" className="size-4" />}
-      onClick={() => setWriting(true)}
-    >
-      {t("projects.new")}
-    </Button>
-  );
   return (
     <>
-      {allowed ? (
-        button
-      ) : (
-        <span tabIndex={0} title={reason} className="inline-flex w-full cursor-not-allowed">
-          {button}
-          <span role="tooltip" className="sr-only">
-            {reason}
-          </span>
-        </span>
-      )}
+      {/* The reason goes to the button, which makes itself `aria-disabled` and keeps its place
+          in the tab order (`Button.disabledReason`). The wrapper this used to render — a bare
+          `tabIndex={0}` span with no role and no name, around a hard-`disabled` button whose
+          `disabled:pointer-events-none` swallowed the `title`, with a `role="tooltip"` nothing
+          referenced — is the exact shape `PermissionGuard.tsx:15-19` names as the bug: a
+          keyboard user landed on an unnamed stop, a mouse user got no tooltip, and nobody was
+          told why (T-1758, UI-44). */}
+      <Button
+        variant="secondary"
+        size="sm"
+        className="w-full justify-center"
+        disabled={!allowed}
+        disabledReason={allowed ? undefined : reason}
+        icon={<Icon name="plus" className="size-4" />}
+        onClick={() => setWriting(true)}
+      >
+        {t("projects.new")}
+      </Button>
       <NewProjectDialog open={writing} onOpenChange={setWriting} />
     </>
   );

@@ -43,6 +43,22 @@ export const FormActionsContext = createContext<ReactNode>(null);
 /** What a caller puts under the last field and above the submit line (a panel, a preview). */
 export const FormAfterFieldsContext = createContext<ReactNode>(null);
 
+/**
+ * The state of the submit button itself: in flight, and why it is closed (T-2322, PL-49, UI-44).
+ *
+ * It does not travel through `ui:submitButtonOptions` like `submitText` does. rjsf copies the
+ * uiSchema into its own state and, in a form whose schema has a `required` field, stops
+ * re-deriving that state from props once it has validated — so the button was rendered for ever
+ * with the options of its first render: it never spun, and it never said why it was closed.
+ * Nearly every form of the Portal has a required field. A context cannot go stale.
+ */
+export interface SubmitState {
+  loading?: boolean;
+  /** Why the submit is closed right now; the button carries it as `disabledReason`. */
+  reason?: string;
+}
+export const FormSubmitStateContext = createContext<SubmitState>({});
+
 // ---------------------------------------------------------------------------------------------
 // Templates
 
@@ -405,14 +421,22 @@ export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): Reac
 export function SubmitButton(props: SubmitButtonProps): React.JSX.Element | null {
   const secondary = useContext(FormActionsContext);
   const after = useContext(FormAfterFieldsContext);
+  const live = useContext(FormSubmitStateContext);
   // rjsf hands the button its options under `ui:options`, never the raw key the caller wrote.
   const options = getSubmitButtonOptions(props.uiSchema);
   if (options.norender) {
     return null;
   }
-  // A gate the caller closes (PL-49, UI-47): the button stays visible, disabled, with the reason
-  // beside it, never hidden.
-  const gate = (options.props ?? {}) as { disabled?: boolean; title?: string; loading?: boolean };
+  // A gate the caller closes (PL-49, UI-47): the button stays visible, refused, with the reason
+  // beside it, never hidden. The gate comes from the context rather than from the uiSchema, which
+  // rjsf caches (T-2322); `ui:submitButtonOptions.props.disabled` is still honoured for a caller
+  // that closes the button through rjsf itself.
+  const cached = (options.props ?? {}) as { disabled?: boolean; title?: string; loading?: boolean };
+  const gate = {
+    disabled: Boolean(live.reason) || cached.disabled,
+    title: live.reason ?? cached.title,
+    loading: live.loading ?? cached.loading,
+  };
   return (
     <>
       {after ? <div className="mt-4 flex flex-col gap-3">{after}</div> : null}

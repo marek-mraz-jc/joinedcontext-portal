@@ -1562,7 +1562,8 @@
     "nameReserved": "„org“ je vlastní jmenný prostor organizace, nikdy ne projekt.",
     "displayNameLabel": "Zobrazovaný název",
     "descriptionLabel": "Popis",
-    "notAllowed": "Tato organizace vám neumožňuje otevřít projekt."
+    "notAllowed": "Tato organizace vám neumožňuje otevřít projekt.",
+    "nameNeeded": "K otevření projektu je potřeba použitelné jméno."
   },
   "entities": {
     "type": "Typ entity",
