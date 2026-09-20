@@ -100,6 +100,30 @@ describe("Table", () => {
     expect(frame).toHaveFocus();
   });
 
+  it("a_table_given_a_max_height_scrolls_in_place_in_the_same_named_frame", () => {
+    // T-1775: the pipeline studio's sample used to sit in a wrapper of its own
+    // (`max-h-64 overflow-auto`). A second scrolling box around the frame would be an unnamed,
+    // unreachable scroll region, so the cap belongs on the frame that is already the tab stop.
+    wrap(
+      <Table caption="Sample" maxHeight="max-h-64">
+        <TableHead>
+          <TableHeaderCell>Name</TableHeaderCell>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableCell primary>ep-bikes</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    const frame = screen.getByRole("group", { name: "Sample" });
+    expect(frame.className).toContain("max-h-64");
+    expect(frame.className).toContain("overflow-y-auto");
+    expect(frame).toHaveAttribute("tabindex", "0");
+    // Without it, nothing caps the height and the page grows with the data.
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
   it("the_frame_is_not_a_landmark_beside_the_section_that_already_names_the_table", () => {
     // `region` is a landmark. Most tables sit in a `<section aria-labelledby>` whose name is the
     // caption, so a region here put two identically named landmarks one inside the other —

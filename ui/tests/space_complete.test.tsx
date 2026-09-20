@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
+import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 import { SpaceComplete } from "../src/pages/spaces/SpaceComplete";
 import { rememberPrefill, takePrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
@@ -29,8 +30,10 @@ function renderComponent(strict = false) {
 }
 
 describe("SpaceComplete page", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
+    // The page's own words, not the bundle that happened to still be English (T-1776).
+    await i18n.changeLanguage("en");
   });
 
   it("renders inputs and runs completion when Complete is clicked", async () => {
@@ -252,5 +255,116 @@ describe("SpaceComplete page", () => {
     expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/pipelines?draft=city-bikes-load" });
     await open("Endpoint");
     expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/endpoints?draft=city-bikes-public" });
+  });
+});
+
+/**
+ * The UI contract of the page (T-1776, UI-04, UI-15, UI-16, UI-44, UI-48): axe over the form and
+ * over the drafts it proposes, Complete refused with its reason on the button rather than greyed
+ * out in silence, every control reachable in the order it is read, and four locales that carry
+ * the page's own words.
+ */
+describe("the complete-a-space page against the UI contract", () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    await i18n.changeLanguage("en");
+  });
+
+  function stubFetch(body: unknown, status = 200) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+  }
+
+  const COMPLETED = {
+    space: "bikes",
+    found: [],
+    drafts: [
+      {
+        kind: "DataModel",
+        name: "bikes",
+        inferred: true,
+        manifest: { kind: "DataModel", metadata: { name: "bikes" } },
+        verdict: { ok: true, findings: [], inputDigest: "abc" },
+      },
+    ],
+    proposeReady: true,
+    lane: "yellow",
+    change: null,
+  };
+
+  it("has no axe violation with the form empty and with the drafts on the screen", async () => {
+    const user = userEvent.setup();
+    stubFetch(COMPLETED);
+    const { container } = renderComponent();
+
+    await expectNoViolations(container);
+
+    await user.type(screen.getByLabelText(en.spaces.complete.url), "https://example.org/x.json");
+    await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+    await screen.findByTestId("complete-draft-DataModel");
+
+    await expectNoViolations(container);
+  });
+
+  /// UI-44: with nothing to read from, Complete is refused, keeps its place in the tab order and
+  /// says on itself what is missing.
+  it("refuses Complete with its reason until there is an address or a file", async () => {
+    const user = userEvent.setup();
+    stubFetch(COMPLETED);
+    renderComponent();
+
+    const complete = screen.getByRole("button", { name: en.spaces.complete.action });
+    expectDenied(complete, en.spaces.complete.needInput);
+
+    await user.type(screen.getByLabelText(en.spaces.complete.url), "https://example.org/x.json");
+    expect(complete).toBeEnabled();
+    expect(complete).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("reaches the space name, the address and the file picker by keyboard in that order", async () => {
+    const user = userEvent.setup();
+    stubFetch(COMPLETED);
+    const { container } = renderComponent();
+
+    const form = screen.getByLabelText(en.spaces.complete.space).closest("div.flex") as HTMLElement;
+    await expectTabOrder(user, form);
+
+    // The file input is the browser's own picker, so it stays native — and it is still labelled.
+    const files = container.querySelector("#complete-files") as HTMLInputElement;
+    expect(files.type).toBe("file");
+    expect(files).toHaveAccessibleName(en.spaces.complete.files);
+  });
+
+  it.each(SUPPORTED_LOCALES)("writes the page in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    stubFetch(COMPLETED);
+    const { container } = renderComponent();
+
+    expect(
+      screen.getByRole("heading", { name: i18n.t("spaces.complete.title"), level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(i18n.t("spaces.complete.url"))).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: i18n.t("spaces.complete.action") }),
+    ).toBeInTheDocument();
+    expectNoRawKeys(container);
+  });
+
+  it("says the page in Slovak rather than leaving it in English", async () => {
+    await i18n.changeLanguage("sk");
+    stubFetch(COMPLETED);
+    renderComponent();
+
+    // Nine of this page's strings stood in the sk, cs and de bundles as their English originals.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Doplniť tento priestor");
+    expect(screen.getByRole("button", { name: "Doplniť" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });
 });

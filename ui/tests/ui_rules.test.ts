@@ -18,7 +18,8 @@ import { describe, expect, it } from "vitest";
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const allowPath = join(ui, "tests/ui_rules.allow.json");
 
-type Allowed = Record<string, Record<string, { lines: number; group: string }>>;
+/** `reason` is on a line that stays for good: a native file input, a suppression that has to be. */
+type Allowed = Record<string, Record<string, { lines: number; group: string; reason?: string }>>;
 const allow = JSON.parse(readFileSync(allowPath, "utf8")) as Allowed;
 
 interface Source {
@@ -249,9 +250,11 @@ describe("the allow-list", () => {
     // a file is cleaned; a change that raises one is a new violation, which is what this number
     // is here to refuse.
     const budget: Record<string, { files: number; lines: number }> = {
-      hand_made_control: { files: 36, lines: 83 },
+      // The lower of the two sides at every merge: the ui-forms batch (T-1769…T-1776) and the
+      // nine pages of T-1788…T-1796 emptied different files, and neither may lift the other's.
+      hand_made_control: { files: 34, lines: 73 },
       colour_is_a_token: { files: 5, lines: 41 },
-      size_is_on_the_scale: { files: 19, lines: 53 },
+      size_is_on_the_scale: { files: 18, lines: 49 },
       focus_is_not_stolen: { files: 3, lines: 6 },
       check_is_not_suppressed: { files: 6, lines: 7 },
       // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.

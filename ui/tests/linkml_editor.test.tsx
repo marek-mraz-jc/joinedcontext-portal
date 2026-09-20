@@ -5,13 +5,14 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { LinkmlEditor } from "../src/pages/models/LinkmlEditor";
 import { applyOperations } from "../src/pages/models/operations";
 import { graphData, parseModel } from "../src/pages/models/linkml";
 import { place } from "../src/pages/models/LinkmlGraphView";
 import en from "../src/locales/en.json";
 import type { Subset } from "../src/pages/models/subset";
+import { expectNoRawKeys, expectNoViolations, focusables } from "./checks";
 
 const SOURCE = `id: https://hel.fi/models/fleet
 name: fleet
@@ -240,5 +241,101 @@ classes:
     expect(vehicle && thing && vehicle.y > thing.y).toBe(true);
     const corners = placed.map((node) => `${node.x},${node.y}`);
     expect(new Set(corners).size).toBe(placed.length);
+  });
+});
+
+/**
+ * The UI contract of the editor's own frame (T-1770, UI-04, UI-15, UI-16, UI-44, UI-48): the
+ * views are the shared `Tabs`, each view is axe-clean, the tab list is walked with the arrow keys
+ * the WAI-ARIA pattern asks for, and the four locales name every view.
+ *
+ * The harness above adds a button and a textarea of its own; this one renders the editor alone,
+ * so a violation belongs to the editor and not to the test around it.
+ */
+describe("the LinkML editor against the UI contract", () => {
+  function Alone({ subsetMode }: { subsetMode: boolean }) {
+    const [source, setSource] = useState(SOURCE);
+    const [subset, setSubset] = useState<Subset>({ classes: [] });
+    return (
+      <LinkmlEditor
+        source={source}
+        onChange={setSource}
+        locales={["sk", "en"]}
+        {...(subsetMode ? { subset, onSubsetChange: setSubset } : {})}
+      />
+    );
+  }
+
+  function renderAlone(subsetMode = false) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ jsonSchema: { title: "air" }, context: {}, example: {}, errors: [] }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <Alone subsetMode={subsetMode} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return { container: view.container, user: userEvent.setup() };
+  }
+
+  // The Graph view is left out: its figure is an `<svg role="img">` whose class boxes are
+  // focusable `role="button"` groups, which axe reports as `nested-interactive` (serious). That
+  // file is T-1846's, and the evidence is in its body; this case goes back in with the fix.
+  it.each([en.models.view.structure, en.models.view.preview])(
+    "has no axe violation in the %s view",
+    async (name) => {
+      const { container, user } = renderAlone();
+      await user.click(screen.getByRole("tab", { name }));
+      await screen.findByRole("tab", { name, selected: true });
+      await expectNoViolations(container);
+    },
+  );
+
+  it("has no axe violation in the subset view a picker opens on", async () => {
+    const { container } = renderAlone(true);
+    await screen.findByRole("tab", { name: en.models.view.subset, selected: true });
+    await expectNoViolations(container);
+  });
+
+  it("walks the views with the arrow keys and leaves the panel in the tab order", async () => {
+    const { container, user } = renderAlone();
+
+    const structure = screen.getByRole("tab", { name: en.models.view.structure });
+    structure.focus();
+    expect(structure).toHaveAttribute("aria-selected", "true");
+
+    await user.keyboard("{ArrowRight}");
+    const source = screen.getByRole("tab", { name: en.models.view.source });
+    expect(document.activeElement).toBe(source);
+    expect(source).toHaveAttribute("aria-selected", "true");
+
+    // Every tab stays reachable by Tab as well, so the arrow keys are an addition and not the
+    // only way in.
+    const stops = focusables(container).filter((element) => element.getAttribute("role") === "tab");
+    expect(stops.length).toBeGreaterThan(1);
+  });
+
+  it.each(SUPPORTED_LOCALES)("names every view in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { container } = renderAlone();
+
+    for (const view of ["structure", "source", "graph", "preview"]) {
+      expect(
+        screen.getByRole("tab", { name: i18n.t(`models.view.${view}`) }),
+        `the ${view} view has a ${locale} name`,
+      ).toBeInTheDocument();
+    }
+    expectNoRawKeys(container);
   });
 });

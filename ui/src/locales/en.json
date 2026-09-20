@@ -326,7 +326,8 @@
       "action": "Complete",
       "proposeAll": "Propose all",
       "open": "Open",
-      "noDrafts": "No drafts completed yet."
+      "noDrafts": "No drafts completed yet.",
+      "needInput": "Give an endpoint URL or add a file first."
     },
     "segment": "ids: {segment}"
   },
@@ -885,6 +886,7 @@
   },
   "access": {
     "title": "Access",
+    "lead": "Who holds which role in this project, which accounts are not people, and what any of them may actually read and write.",
     "roles": {
       "title": "People and roles",
       "lead": "Who may propose, approve and remove what in this project. A grant is a change another person approves.",
@@ -1627,6 +1629,7 @@
     "export": "Export this page"
   },
   "agentRun": {
+    "title": "Application run",
     "loading": "Reading the run…",
     "notFound": "That run is not in this project.",
     "subtitle": "Built against endpoint {endpoint}, as a {appClass} app.",

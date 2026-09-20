@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import i18n from "./i18n";
 import { api, unwrap } from "./api/client";
+import { setInstanceName } from "./documentTitle";
 import type { components } from "./api/schema";
 
 export type Branding = components["schemas"]["Branding"];
@@ -94,7 +95,7 @@ export function withBundledFont(stack: string): string {
  * default it already had rather than taking something unreadable.
  */
 export function applyBranding(branding: Branding, doc: Document = document): void {
-  doc.title = branding.instanceName;
+  setInstanceName(branding.instanceName, doc);
   const root = doc.documentElement;
   const colours: Record<string, string | undefined> = {
     "--portal-color-primary": branding.colours?.primary,
