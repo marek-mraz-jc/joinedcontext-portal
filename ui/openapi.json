@@ -7090,10 +7090,20 @@
             "description": "The legal publisher, which is also the DCAT-AP `dcterms:publisher`.",
             "default": ""
           },
+          "primaryDark": {
+            "type": "string",
+            "description": "The primary colour as a dark page paints it: the brand lightened towards white, because\na navy button on a navy page is not a button. Computed, never authored.",
+            "default": "#5985e7"
+          },
           "primaryForeground": {
             "type": "string",
             "description": "Readable text on top of the primary colour. Always computed from that colour, never\ntaken from the file: the block names a primary colour but no foreground, and white on\na light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.",
             "default": "#ffffff"
+          },
+          "primaryForegroundDark": {
+            "type": "string",
+            "description": "Readable text on top of `primary_dark` — on the lightened colour, not on the configured\none. The dark theme used to rule that this is always the branded text pushed to black,\nwhich left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,\nUI-30). Computed here because the choice needs the ratio of the lightened colour.",
+            "default": "#0f172a"
           },
           "shortName": {
             "type": "string",

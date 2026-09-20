@@ -211,6 +211,19 @@ describe("what nothing in the UI may do", () => {
     expect(everywhere(/window\.open\(/)).toEqual([]);
   });
 
+  it("no_text_is_painted_in_the_raw_brand_colour", () => {
+    // `text-primary` and `text-accent` are the installation's brand colour exactly as it was
+    // configured, and a brand colour is chosen to be seen on a page, not read on one: the
+    // default amber accent is 2.15:1 as text on white and a pale civic primary 1.67:1 (T-2323,
+    // UI-30). The derived tones are what text takes — `text-primary-soft-fg` for a link, the
+    // status tones for a status — because they are mixed towards the ink and clear 4.5:1 for
+    // every brand `token_contrast.test.ts` measures. A brand colour stays a background
+    // (`bg-primary`), which carries its own foreground token.
+    expect(
+      everywhere(/(?<![\w-])(?:text|fill|stroke|decoration)-(?:primary|secondary|accent)(?![\w-])/),
+    ).toEqual([]);
+  });
+
   it("browser_storage_holds_preferences_only", () => {
     // What a viewer may keep in their own browser: how they like the UI, never platform state
     // and never anything a session could be resumed from (UI-09, PF-50).

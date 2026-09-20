@@ -100,6 +100,7 @@ export const UNLISTABLE = new Set([
   "browser_storage_holds_preferences_only",
   "no_file_reaches_for_a_colour_family_the_theme_never_defined",
   "no_file_paints_with_half_of_a_token_name",
+  "no_text_is_painted_in_the_raw_brand_colour",
 ]);
 
 /** Every line of `file` that `pattern` matches, as `path:line`. */

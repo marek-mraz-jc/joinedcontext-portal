@@ -17,6 +17,9 @@ export type Rgb = [number, number, number];
 export interface Brand {
   primary: string;
   primaryForeground: string;
+  /** The dark theme's pair, computed by the API from `primary` (T-2324). */
+  primaryDark: string;
+  primaryForegroundDark: string;
   secondary: string;
   accent: string;
   background: string;
@@ -140,6 +143,8 @@ export function colourOf(name: string, block: Block, brand: Brand, seen: string[
   const branded: Record<string, string | undefined> = {
     "--portal-color-primary": brand.primary,
     "--portal-color-primary-fg": brand.primaryForeground,
+    "--portal-color-primary-dark": brand.primaryDark,
+    "--portal-color-primary-fg-dark": brand.primaryForegroundDark,
     "--portal-color-secondary": brand.secondary,
     "--portal-color-accent": brand.accent,
     "--portal-color-surface": brand.background,

@@ -16,17 +16,48 @@ import { NEUTRAL_BRANDING } from "../src/branding";
 const DEFAULT: Brand = {
   primary: NEUTRAL_BRANDING.colours!.primary!,
   primaryForeground: NEUTRAL_BRANDING.primaryForeground!,
+  primaryDark: NEUTRAL_BRANDING.primaryDark!,
+  primaryForegroundDark: NEUTRAL_BRANDING.primaryForegroundDark!,
   secondary: NEUTRAL_BRANDING.colours!.secondary!,
   accent: NEUTRAL_BRANDING.colours!.accent!,
   background: NEUTRAL_BRANDING.colours!.background!,
   text: NEUTRAL_BRANDING.colours!.text!,
 };
 
+/**
+ * Three more installations, each with the pair the API computes for it —
+ * `branding.rs::the_dark_primary_is_the_oklab_mix_the_stylesheet_used_to_compute` is where those
+ * four values are asserted against this file's own arithmetic, so a brand here answers what a
+ * running Portal would answer for it.
+ */
 /** A city that brands the Portal in a pale civic colour, which is what broke the info chip. */
-const PALE: Brand = { ...DEFAULT, primary: "#7dd3fc", secondary: "#7dd3fc", accent: "#fde68a", primaryForeground: "#0f172a" };
+const PALE: Brand = {
+  ...DEFAULT,
+  primary: "#7dd3fc",
+  secondary: "#7dd3fc",
+  accent: "#fde68a",
+  primaryForeground: "#0f172a",
+  primaryDark: "#a5e0fd",
+  primaryForegroundDark: "#0f172a",
+};
 /** One that brands it nearly black, and one in a saturated red-orange. */
-const INK: Brand = { ...DEFAULT, primary: "#111827", secondary: "#1f2937", accent: "#374151" };
-const HOT: Brand = { ...DEFAULT, primary: "#dc2626", secondary: "#ea580c", accent: "#f97316" };
+const INK: Brand = {
+  ...DEFAULT,
+  primary: "#111827",
+  secondary: "#1f2937",
+  accent: "#374151",
+  primaryDark: "#4a505d",
+  // White, where the dark theme's own rule wrote near-black and left the label at 2.31:1.
+  primaryForegroundDark: "#ffffff",
+};
+const HOT: Brand = {
+  ...DEFAULT,
+  primary: "#dc2626",
+  secondary: "#ea580c",
+  accent: "#f97316",
+  primaryDark: "#ee7266",
+  primaryForegroundDark: "#0f172a",
+};
 
 const BRANDS: [string, Brand][] = [
   ["the neutral default", DEFAULT],
@@ -38,10 +69,6 @@ const BRANDS: [string, Brand][] = [
 /**
  * Every pair a component puts text on, as the components write them: `text-fg-muted` on
  * `bg-surface`, `text-info` on `bg-info-soft`, and so on.
- *
- * `text-primary` on a surface is not here, and neither is the focus ring: both are the brand
- * colour raw, both fail for a pale brand, and both are T-2323, which changes them in one commit
- * with the visual baselines they move.
  */
 const TEXT_ON: [string, string][] = [
   ["--portal-fg", "--portal-bg"],
@@ -59,20 +86,35 @@ const TEXT_ON: [string, string][] = [
   ["--portal-primary-soft-fg", "--portal-primary-soft"],
   ["--portal-primary-fg", "--portal-primary"],
   ["--portal-danger-fg", "--portal-danger"],
+  // The link tone, on every paper a link sits on. It replaced `text-primary` — the brand raw,
+  // 1.67:1 for a pale civic brand — in the twenty-three files that wrote it (T-2323, UI-30).
+  ["--portal-primary-soft-fg", "--portal-surface"],
+  ["--portal-primary-soft-fg", "--portal-bg"],
+  ["--portal-primary-soft-fg", "--portal-surface-raised"],
+  ["--portal-primary-soft-fg", "--portal-surface-muted"],
+];
+
+/**
+ * What is seen rather than read: the focus ring, and the outline of a selected node. WCAG 2.2
+ * asks 3:1 of a focus indicator and of any graphic a person has to make out (1.4.11, 2.4.11),
+ * not the 4.5:1 of text — and the ring has to clear it against every paper a control sits on,
+ * because the ring is drawn outside the control, on whatever is behind it.
+ */
+const SEEN_ON: [string, string][] = [
+  ["--portal-ring", "--portal-bg"],
+  ["--portal-ring", "--portal-surface"],
+  ["--portal-ring", "--portal-surface-raised"],
+  ["--portal-ring", "--portal-surface-muted"],
 ];
 
 /**
  * Pairs another task owns, named one by one so nothing is quietly excluded and the entry has to
  * be deleted the day it is fixed: `knows_its_own_gaps` below fails if one of these starts passing.
+ *
+ * Empty. The one entry it held was the dark theme's label on a near-black brand, and T-2324
+ * closed it by letting the API choose that label against the colour the dark theme paints.
  */
-const KNOWN_GAPS = new Map<string, string>([
-  [
-    // The dark theme lightens the brand by 72 % and prints a near-black label on it, which a brand
-    // that is already near-black leaves at 2.31:1.
-    "a near-black brand|dark|--portal-primary-fg on --portal-primary",
-    "T-2324",
-  ],
-]);
+const KNOWN_GAPS = new Map<string, string>();
 
 const { light, dark } = blocksOf();
 const THEMES: [string, Record<string, string>][] = [
@@ -95,6 +137,17 @@ describe("what a person can read", () => {
       }
     }
     expect(failing, "derive the tone from the ink instead of using the brand colour raw").toEqual([]);
+  });
+
+  it.each(BRANDS)("the focus ring clears 3:1 for %s, on every paper and in both themes", (_name, brand) => {
+    const failing: string[] = [];
+    for (const [theme, block] of THEMES) {
+      for (const [tone, behind] of SEEN_ON) {
+        const ratio = ratioOf(tone, behind, block, brand);
+        if (ratio < 3) failing.push(`${theme}: ${tone} on ${behind} is ${round(ratio)}:1`);
+      }
+    }
+    expect(failing, "a keyboard user has nothing else to go by; derive the ring from the ink").toEqual([]);
   });
 
   it("knows its own gaps: a pair another task owns is still the pair it was", () => {

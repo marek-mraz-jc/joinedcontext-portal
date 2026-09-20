@@ -172,7 +172,7 @@ export function AgentRunPage({
                 href={preview}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-block text-sm text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+                className="inline-block text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
               >
                 {t("agentRun.preview.open")}
               </a>

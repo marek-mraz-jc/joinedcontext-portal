@@ -185,7 +185,7 @@ export function ExplorePage({
         <Button
           variant="ghost"
           size="xs"
-          className="px-0 font-mono text-primary underline-offset-2 hover:bg-transparent hover:underline"
+          className="px-0 font-mono text-primary-soft-fg underline-offset-2 hover:bg-transparent hover:underline"
           onClick={() => setSelected(row.id)}
         >
           {row.id}

@@ -843,7 +843,7 @@ export function ResourceFormDialog<T>({
               href={safe}
               target="_blank"
               rel="noreferrer"
-              className="text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="text-primary-soft-fg underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               {t("form.guideLink", { kind })}
             </a>

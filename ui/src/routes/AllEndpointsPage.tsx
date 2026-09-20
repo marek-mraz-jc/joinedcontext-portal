@@ -148,7 +148,7 @@ export function AllEndpointsPage(): JSX.Element {
                           to="/projects/$project/spaces/$name"
                           params={{ project, name: space }}
                           aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
-                          className="focus-ring inline-flex items-center gap-1 rounded-sm text-caption text-primary hover:underline"
+                          className="focus-ring inline-flex items-center gap-1 rounded-sm text-caption text-primary-soft-fg hover:underline"
                         >
                           {t("spaces.inside.open")}
                           <Icon name="chevronRight" className="size-3.5" />

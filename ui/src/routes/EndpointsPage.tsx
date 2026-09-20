@@ -1047,7 +1047,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 <Link
                   to="/projects/$project/endpoints/$name"
                   params={{ project, name: endpoint.metadata.name }}
-                  className="text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+                  className="text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
                 >
                   {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
                 </Link>
@@ -1164,7 +1164,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                           <Link
                             to="/projects/$project/spaces/$name"
                             params={{ project: source, name: space }}
-                            className="focus-ring inline-flex items-center gap-1 rounded-sm font-mono text-caption text-primary hover:underline"
+                            className="focus-ring inline-flex items-center gap-1 rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
                           >
                             {space}
                             <Icon name="chevronRight" className="size-3.5" />

@@ -343,7 +343,7 @@ export function ConversationPanel({
                               // `javascript:` preview ran on the Portal's own origin, with the
                               // reader's session, the moment they clicked it (PF-50).
                               <ExternalLink
-                                className="focus-ring rounded-sm text-primary underline"
+                                className="focus-ring rounded-sm text-primary-soft-fg underline"
                                 href={preview}
                               >
                                 {t("agentRun.line.previewLink")}

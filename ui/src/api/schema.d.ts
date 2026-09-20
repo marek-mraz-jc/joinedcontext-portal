@@ -1543,12 +1543,26 @@ export interface components {
              */
             organisation: string;
             /**
+             * @description The primary colour as a dark page paints it: the brand lightened towards white, because
+             *     a navy button on a navy page is not a button. Computed, never authored.
+             * @default #5985e7
+             */
+            primaryDark: string;
+            /**
              * @description Readable text on top of the primary colour. Always computed from that colour, never
              *     taken from the file: the block names a primary colour but no foreground, and white on
              *     a light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.
              * @default #ffffff
              */
             primaryForeground: string;
+            /**
+             * @description Readable text on top of `primary_dark` — on the lightened colour, not on the configured
+             *     one. The dark theme used to rule that this is always the branded text pushed to black,
+             *     which left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,
+             *     UI-30). Computed here because the choice needs the ratio of the lightened colour.
+             * @default #0f172a
+             */
+            primaryForegroundDark: string;
             /**
              * @description Short name: sidebars, tabs, e-mail subjects. A block that omits it gets the full name,
              *     so the field default is empty rather than the struct's.

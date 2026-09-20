@@ -29,13 +29,13 @@
   "colour_is_a_token": {
     "_max": 4,
     "src/api/schema.d.ts": {
-      "lines": 11,
+      "lines": 15,
       "group": "ui-parts"
     },
     "src/branding.tsx": {
-      "lines": 6,
+      "lines": 8,
       "group": "ui-parts",
-      "reason": "the default branding an installation without a ConfigMap gets: the six values mirror the API's own defaults and are written into the colour tokens, so they are data the API answers in hex, not a colour chosen here"
+      "reason": "the default branding an installation without a ConfigMap gets: the eight values mirror the API's own defaults and are written into the colour tokens, so they are data the API answers in hex, not a colour chosen here"
     },
     "src/components/dashboards/mapColours.ts": {
       "lines": 7,
