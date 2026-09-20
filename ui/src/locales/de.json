@@ -406,7 +406,12 @@
       "fileLimits": "Dateigrenzen",
       "ckanInstance": "Open-Data-Portal",
       "ckanOrganization": "Herausgeber",
-      "catalogue": "Katalogeintrag"
+      "catalogue": "Katalogeintrag",
+      "publish": "Veröffentlichung",
+      "openData": "Offene Daten",
+      "datastore": "Datentabelle",
+      "sheetFrom": "Tabelle gelesen aus",
+      "sheetRefresh": "Aktualisierung der Tabelle"
     },
     "rateClass": {
       "strict": "Streng",
@@ -492,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Wenn sich eine Entität ändert",
+      "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -988,10 +997,15 @@
       "new": "Neue Rolle",
       "newTitle": "Neue Rolle",
       "newLead": "Eine Rolle des Projekts {project}. Sie darf nur die Arten dieses Projekts nennen und nur die Verben, die Sie hier selbst halten; die Änderung genehmigt jemand anderes.",
-      "sourceLabel": "Das Rollenmanifest",
+      "field": {
+        "name": "Name der Rolle",
+        "rules": "Regeln",
+        "kinds": "Arten",
+        "verbs": "Verben"
+      },
+      "beyondRights": "Eine Rolle gewährt nicht mehr, als Sie hier selbst halten: fehlt {missing}.",
       "propose": "Rolle vorschlagen",
-      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt.",
-      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie ihm einen Namen und führen Sie die Arten und Verben auf, die er gewährt; die Form steht schon da."
+      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
     },
     "accounts": {
       "title": "Dienstkonten",
@@ -1073,17 +1087,20 @@
       "new": "Neue Gruppe",
       "newTitle": "Neue Gruppe",
       "newLead": "Mitglieder sind E-Mail-Adressen, die Namen, unter denen Keycloak sie führt. Die Gruppe wird als Änderung der roten Spur vorgeschlagen, wie eine Rollenbindung.",
-      "sourceLabel": "Das Manifest",
+      "field": {
+        "name": "Name der Gruppe",
+        "description": "Was diese Gruppe ist",
+        "members": "Mitglieder",
+        "memberUser": "Adresse"
+      },
       "propose": "Gruppe vorschlagen",
       "reason": {
         "DriftCorrected": "Korrigiert",
         "MemberUnknown": "Wartet auf erste Anmeldung",
         "RealmRefused": "Nicht geschrieben"
       },
-      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt.",
-      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie der Gruppe einen Namen und führen Sie die E-Mail-Adressen ihrer Mitglieder auf; die Form steht schon da."
-    },
-    "nameFirst": "Dies ist ein Beispiel. Geben Sie ihm einen Namen (Kleinbuchstaben, Ziffern und Bindestriche) und passen Sie den Rest an; dann kann es vorgeschlagen werden."
+      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt."
+    }
   },
   "flows": {
     "title": "Abläufe",

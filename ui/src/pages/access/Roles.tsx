@@ -1,22 +1,22 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { parse as parseYaml } from "yaml";
-import { manifestName } from "./manifestName";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
+import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
   Alert,
   Button,
   Dialog,
   EmptyState,
-  Field,
   Table,
   TableBody,
   TableCell,
@@ -25,7 +25,6 @@ import {
   TableHeaderCell,
   TableRow,
   TableSkeleton,
-  Textarea,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
@@ -42,18 +41,40 @@ interface Row {
   rules: Rule[];
 }
 
-/** What a new role starts from: the shape of a rule, so nobody has to remember it (PF-49). */
-function skeleton(project: string): string {
-  return [
-    "apiVersion: joinedcontext.com/v1alpha1",
-    "kind: Role",
-    `metadata: { name: "", namespace: ${project} }`,
-    "spec:",
-    "  rules:",
-    "    - kinds: [Pipeline, DataSource]",
-    "      verbs: [propose]",
-    "",
-  ].join("\n");
+/** What the role form holds: the name it is filed under, and the rules it grants. */
+export interface RoleForm {
+  name: string;
+  rules: Rule[];
+}
+
+/** The form as the manifest the API stores. A rule keeps the constraints it came with (PF-49). */
+export function toRoleEnvelope(namespace: string, form: RoleForm): unknown {
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Role",
+    metadata: { name: form.name, namespace },
+    spec: {
+      rules: (form.rules ?? []).map((rule) => ({
+        kinds: rule.kinds ?? [],
+        verbs: rule.verbs ?? [],
+        ...(rule.constraints && rule.constraints.length > 0
+          ? { constraints: rule.constraints }
+          : {}),
+      })),
+    },
+  };
+}
+
+/** The stored manifest back as the form, so the fields and the YAML view hold the same role. */
+export function fromRoleEnvelope(manifest: unknown): RoleForm {
+  const envelope = (manifest ?? {}) as {
+    metadata?: { name?: string };
+    spec?: { rules?: Rule[] };
+  };
+  return {
+    name: envelope.metadata?.name ?? "",
+    rules: envelope.spec?.rules ?? [],
+  };
 }
 
 function useRoles(project: string) {
@@ -70,8 +91,13 @@ function useRoles(project: string) {
 
 /**
  * A role of this project, proposed as a change (PF-68, PF-52): a role written here names the
- * project's kinds and only the verbs its author already holds, which the Portal checks and says
- * plainly when it refuses.
+ * project's kinds and only the verbs its author already holds.
+ *
+ * The rules used to be typed as YAML into one textarea, which asked a steward for the right
+ * indentation and the right key before it asked them what the role should grant (T-2400). The
+ * fields are the same `ResourceFormDialog` every other kind uses, so the YAML view is still there
+ * for somebody who prefers it, and the lists offer what the author holds: proposing a verb the
+ * API would refuse is said here, in the same words, before it is sent (PF-52, PF-51).
  */
 export function NewRoleDialog({
   project,
@@ -83,15 +109,19 @@ export function NewRoleDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const ids = useId();
   const queryClient = useQueryClient();
-  const [source, setSource] = useState(() => skeleton(project));
-  const [invalid, setInvalid] = useState<string | null>(null);
+  const permissions = usePermissions(project);
+  const [form, setForm] = useState<RoleForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
 
   const propose = useMutation({
-    mutationFn: async (manifest: unknown) =>
-      proposeChecked(project, "roles", manifest as { metadata: { name: string } }, true),
+    mutationFn: async (role: RoleForm) =>
+      proposeChecked(
+        project,
+        "roles",
+        toRoleEnvelope(project, role) as { metadata: { name: string } },
+        true,
+      ),
     onSuccess: (result) => {
       if (isChange(result)) {
         setChange(result);
@@ -101,104 +131,75 @@ export function NewRoleDialog({
     },
   });
 
-  const named = manifestName(source) !== "";
+  const rights = ownRights(permissions.data);
+  const schema = roleSchema(
+    t,
+    rights.kinds,
+    rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS,
+  );
+  // PF-52 as the form reads it: the rules of the role in hand against the grants the caller holds.
+  // The server runs the same comparison; this one only says it before the proposal is sent.
+  const missing = beyondOwnRights(permissions.data, form?.rules);
 
-  const submit = () => {
-    let manifest: unknown;
-    try {
-      manifest = parseYaml(source);
-    } catch (error) {
-      setInvalid(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    setInvalid(null);
-    propose.mutate(manifest);
-  };
+  const failure =
+    propose.error instanceof ApiError
+      ? (propose.error.problem?.detail ?? propose.error.message)
+      : propose.error
+        ? t("app.error.generic")
+        : null;
 
   const close = (next: boolean) => {
     if (!next) {
-      setSource(skeleton(project));
-      setInvalid(null);
+      setForm(undefined);
       setChange(null);
       propose.reset();
     }
     onOpenChange(next);
   };
 
-  const failure =
-    invalid ??
-    (propose.error instanceof ApiError
-      ? (propose.error.problem?.detail ?? propose.error.message)
-      : propose.error
-        ? t("app.error.generic")
-        : null);
+  if (change) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={close}
+        size="lg"
+        title={t("access.projectRoles.newTitle")}
+        description={t("access.projectRoles.newLead", { project })}
+        closeLabel={t("resourceDelete.close")}
+        footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
+      >
+        <ChangeNotice change={change} project={project} />
+      </Dialog>
+    );
+  }
 
   return (
-    <Dialog
+    <ResourceFormDialog<RoleForm>
+      kind="Role"
       open={open}
       onOpenChange={close}
-      size="lg"
       title={t("access.projectRoles.newTitle")}
       description={t("access.projectRoles.newLead", { project })}
-      closeLabel={t("resourceDelete.close")}
-      footer={
-        change ? (
-          <Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={() => close(false)}>
-              {t("form.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={propose.isPending || !named}
-              // The hint used to be wired with `aria-describedby` on a hard-disabled button,
-              // which is out of the tab order: nobody could reach it to have it read. The
-              // reason belongs on the control, which then stays reachable (T-1743, UI-44).
-              disabledReason={named ? undefined : t("access.nameFirst")}
-              loading={propose.isPending}
-              onClick={submit}
-            >
-              {t("access.projectRoles.propose")}
-            </Button>
-          </>
-        )
+      schema={schema}
+      formData={form}
+      onChange={setForm}
+      project={project}
+      draftKind="Role"
+      plural="roles"
+      source={{
+        toManifest: (role) => toRoleEnvelope(project, role),
+        fromManifest: (manifest) => fromRoleEnvelope(manifest),
+      }}
+      submitLabel={t("access.projectRoles.propose")}
+      submitting={propose.isPending}
+      submitDisabledReason={
+        missing.length > 0
+          ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
+          : undefined
       }
-    >
-      {change ? (
-        <ChangeNotice change={change} project={project} />
-      ) : (
-        <div className="flex flex-col gap-4">
-          {failure ? (
-            <Alert tone="danger" role="alert">
-              {failure}
-            </Alert>
-          ) : null}
-          <Field
-            id={`${ids}-source`}
-            label={t("access.projectRoles.sourceLabel")}
-            description={t("access.projectRoles.sourceHelp")}
-            required
-          >
-            <Textarea
-              id={`${ids}-source`}
-              rows={12}
-              spellCheck={false}
-              value={source}
-              onChange={(event) => {
-                setSource(event.target.value);
-                setInvalid(null);
-              }}
-            />
-          </Field>
-          {named ? null : (
-            <p id={`${ids}-name-first`} className="text-sm text-fg-muted">
-              {t("access.nameFirst")}
-            </p>
-          )}
-        </div>
-      )}
-    </Dialog>
+      error={failure}
+      onSubmit={(role) => propose.mutate(role)}
+    />
   );
 }
 
@@ -211,6 +212,9 @@ export function Roles({ project }: { project: string }): JSX.Element {
   const organization = useRoles(ORG_NAMESPACE);
   const here = useRoles(project);
   const [writing, setWriting] = useState(false);
+  // A role already written may name a kind the editor does not hold; the lists offer what they
+  // hold and the schema keeps the rest, so editing one rule never silently drops another (PF-52).
+  const editSchema = roleSchema(t, [], ROLE_VERBS);
 
   const rows: Row[] = [
     ...asManifests(here.data?.items ?? []).map((role: Manifest) => ({
@@ -292,6 +296,13 @@ export function Roles({ project }: { project: string }): JSX.Element {
                             plural: "roles",
                             name: row.name,
                             label: row.name,
+                          }}
+                          form={{
+                            schema: editSchema,
+                            fromManifest: (manifest) =>
+                              fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
+                            toManifest: (edited) =>
+                              toRoleEnvelope(row.home, edited as unknown as RoleForm),
                           }}
                         />
                         <DeleteResourceAction

@@ -56,3 +56,65 @@ export function usePermissions(project: string) {
     can: (kind: string, verb: Verb) => allows(query.data, kind, verb),
   };
 }
+
+/** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
+export interface GrantedRule {
+  kinds?: string[];
+  verbs?: string[];
+  constraints?: unknown[];
+}
+
+/**
+ * What a proposed `Role` would grant beyond what the caller holds, as `verb on Kind` (PF-52).
+ *
+ * The same rule as `permissions::within_own_rights` on the server, read here so the form says it
+ * before the proposal is sent: every verb on every kind a rule grants has to be one the caller
+ * already holds, under no constraint their own grant adds. It never decides — an empty list means
+ * "nothing this side can see is missing", and the API is still the refusal (PF-51).
+ */
+export function beyondOwnRights(
+  effective: Effective | undefined,
+  rules: GrantedRule[] | undefined,
+): string[] {
+  if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
+    return [];
+  }
+  const missing: string[] = [];
+  for (const rule of rules ?? []) {
+    const constraints = JSON.stringify(rule.constraints ?? []);
+    for (const kind of rule.kinds ?? []) {
+      for (const verb of rule.verbs ?? []) {
+        const holds = effective.grants.some((grant) => {
+          const held = grant.rule as GrantedRule;
+          return (
+            Boolean(held.kinds?.includes(kind)) &&
+            Boolean(held.verbs?.includes(verb)) &&
+            (held.constraints ?? []).every((constraint) =>
+              constraints.includes(JSON.stringify(constraint)),
+            )
+          );
+        });
+        const item = `${verb} on ${kind}`;
+        if (!holds && !missing.includes(item)) {
+          missing.push(item);
+        }
+      }
+    }
+  }
+  return missing;
+}
+
+/** The kinds and the verbs the caller may grant in `project`, for the lists a role form offers. */
+export function ownRights(effective: Effective | undefined): { kinds: string[]; verbs: string[] } {
+  if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
+    return { kinds: [], verbs: [] };
+  }
+  const kinds = new Set<string>();
+  const verbs = new Set<string>();
+  for (const grant of effective.grants) {
+    const rule = grant.rule as GrantedRule;
+    for (const kind of rule.kinds ?? []) kinds.add(kind);
+    for (const verb of rule.verbs ?? []) verbs.add(verb);
+  }
+  return { kinds: [...kinds].sort(), verbs: [...verbs].sort() };
+}

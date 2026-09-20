@@ -426,7 +426,12 @@
       "fileLimits": "Limity souborů",
       "ckanInstance": "Portál otevřených dat",
       "ckanOrganization": "Vydavatel",
-      "catalogue": "Záznam v katalogu"
+      "catalogue": "Záznam v katalogu",
+      "publish": "Publikování",
+      "openData": "Otevřená data",
+      "datastore": "Tabulka dat",
+      "sheetFrom": "Tabulka se čte z",
+      "sheetRefresh": "Obnova tabulky"
     },
     "rateClass": {
       "strict": "Přísná",
@@ -492,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Když se entita změní",
+      "onReconcile": "Při každé rekonciliaci"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -988,10 +997,15 @@
       "new": "Nová role",
       "newTitle": "Nová role",
       "newLead": "Role projektu {project}. Může jmenovat jen druhy tohoto projektu a jen slovesa, která zde sami máte; změnu schvaluje někdo jiný.",
-      "sourceLabel": "Manifest role",
+      "field": {
+        "name": "Název role",
+        "rules": "Pravidla",
+        "kinds": "Druhy",
+        "verbs": "Operace"
+      },
+      "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
       "propose": "Navrhnout roli",
-      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu.",
-      "sourceHelp": "Manifest tak, jak se zapíše. Dejte mu název a vypište druhy a slovesa, která uděluje; tvar je už připravený."
+      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
     },
     "accounts": {
       "title": "Servisní účty",
@@ -1073,17 +1087,20 @@
       "new": "Nová skupina",
       "newTitle": "Nová skupina",
       "newLead": "Členové jsou e-mailové adresy, pod kterými je vede Keycloak. Skupina se navrhuje jako změna v červené dráze, stejně jako vazba role.",
-      "sourceLabel": "Manifest",
+      "field": {
+        "name": "Název skupiny",
+        "description": "Co je tato skupina",
+        "members": "Členové",
+        "memberUser": "Adresa"
+      },
       "propose": "Navrhnout skupinu",
       "reason": {
         "DriftCorrected": "Opraveno",
         "MemberUnknown": "Čeká na první přihlášení",
         "RealmRefused": "Nezapsáno"
       },
-      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde.",
-      "sourceHelp": "Manifest tak, jak se zapíše. Dejte skupině název a vypište e-mailové adresy jejích členů; tvar je už připravený."
-    },
-    "nameFirst": "Toto je příklad. Dejte mu název (malá písmena, číslice a spojovníky) a upravte zbytek; potom jej lze navrhnout."
+      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde."
+    }
   },
   "flows": {
     "title": "Toky",
