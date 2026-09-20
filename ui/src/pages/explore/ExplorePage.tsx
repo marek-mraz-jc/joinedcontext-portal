@@ -180,13 +180,16 @@ export function ExplorePage({
       // The identifier opens the entity as the endpoint holds it: the whole JSON-LD, and the one
       // place the removal of UI-60 is offered from.
       id: (_cell: unknown, row: RichRow) => (
-        <button
-          type="button"
-          className="focus-ring font-mono text-primary underline-offset-2 hover:underline"
+        // `xs` with no side padding: the id has to sit on the row's own line rather than in a
+        // button-shaped box, and that is the one size of the shared control that fits a cell.
+        <Button
+          variant="ghost"
+          size="xs"
+          className="px-0 font-mono text-primary underline-offset-2 hover:bg-transparent hover:underline"
           onClick={() => setSelected(row.id)}
         >
           {row.id}
-        </button>
+        </Button>
       ),
     }),
     [],

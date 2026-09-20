@@ -1348,6 +1348,7 @@
       "addEndpoint": "+ Add data from another endpoint",
       "moreEndpoints": "Also read",
       "moreEndpointsHint": "The app reads these endpoints too, every type and attribute they publish, and never writes to them.",
+      "moreEndpointsFull": "At most {count} endpoints go into one app; clear one to add another.",
       "prompt": "What should the app do?",
       "promptHint": "A description, not an instruction the platform obeys: it cannot reach data the list below does not carry.",
       "submit": "Generate the app",

@@ -11,7 +11,7 @@ import { fetchJson, publishedTypes } from "../endpoints/SchemaProjectionPanel";
 import type { PublishedType } from "../endpoints/SchemaProjectionPanel";
 import { EndpointPreview, accessWords } from "./EndpointPreview";
 import { useAccess } from "../../components/entities/AccessPanel";
-import { Button, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import { Button, Checkbox, Input, PageHeader, Select, Textarea } from "../../components/ui";
 
 /** The blueprint that turns a description into an app (AP-22, Architecture/16 §3). */
 export const BLUEPRINT = "app-from-prompt";
@@ -367,13 +367,9 @@ export function AppGenerator({
         {endpointName !== "" && choices.length > 1 && (
           <div className="mt-2">
             {!addingEndpoint && extra.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => setAddingEndpoint(true)}
-                className="text-sm text-primary underline hover:no-underline"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setAddingEndpoint(true)}>
                 {t("apps.generate.addEndpoint")}
-              </button>
+              </Button>
             ) : (
               <fieldset>
                 <legend className="text-sm font-medium">{t("apps.generate.moreEndpoints")}</legend>
@@ -386,21 +382,25 @@ export function AppGenerator({
                       const checked = extra.includes(candidateName);
                       return (
                         <li key={candidateName}>
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={!checked && extra.length + 1 >= MAX_ENDPOINTS}
-                              onChange={(event) => {
-                                setExtra((current) =>
-                                  event.target.checked
-                                    ? [...current, candidateName]
-                                    : current.filter((name) => name !== candidateName),
-                                );
-                              }}
-                            />
-                            {localized(candidate.metadata.title, i18n.language, candidateName)}
-                          </label>
+                          <Checkbox
+                            label={localized(
+                              candidate.metadata.title,
+                              i18n.language,
+                              candidateName,
+                            )}
+                            checked={checked}
+                            disabled={!checked && extra.length + 1 >= MAX_ENDPOINTS}
+                            disabledReason={t("apps.generate.moreEndpointsFull", {
+                              count: MAX_ENDPOINTS,
+                            })}
+                            onChange={(event) => {
+                              setExtra((current) =>
+                                event.target.checked
+                                  ? [...current, candidateName]
+                                  : current.filter((name) => name !== candidateName),
+                              );
+                            }}
+                          />
                         </li>
                       );
                     })}
@@ -541,16 +541,13 @@ function NeedsChecklist({
       )}
       <p className="text-sm text-fg-muted">{t("apps.generate.needs.loginOnly")}</p>
       {writes.length > 0 && (
-        <label className="flex items-center gap-1.5 text-sm">
-          <input
-            type="checkbox"
-            checked={write}
-            onChange={(event) => {
-              onWrite(event.target.checked);
-            }}
-          />
-          {t("apps.generate.needs.write", { actions: writes.join(", ") })}
-        </label>
+        <Checkbox
+          label={t("apps.generate.needs.write", { actions: writes.join(", ") })}
+          checked={write}
+          onChange={(event) => {
+            onWrite(event.target.checked);
+          }}
+        />
       )}
       {state === "loading" && <p role="status">{t("apps.generate.needs.loading")}</p>}
       {state === "unavailable" && (
@@ -566,16 +563,14 @@ function NeedsChecklist({
             {type.attributes.map((attribute) => {
               const id = `${type.name}.${attribute}`;
               return (
-                <label key={id} className="flex items-center gap-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={!dropped.includes(id)}
-                    onChange={() => {
-                      onToggle(id);
-                    }}
-                  />
-                  {attribute}
-                </label>
+                <Checkbox
+                  key={id}
+                  label={attribute}
+                  checked={!dropped.includes(id)}
+                  onChange={() => {
+                    onToggle(id);
+                  }}
+                />
               );
             })}
           </div>

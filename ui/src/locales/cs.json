@@ -1348,6 +1348,7 @@
       "addEndpoint": "+ Přidat data z dalšího endpointu",
       "moreEndpoints": "Číst také",
       "moreEndpointsHint": "Aplikace čte také tyto endpointy, každý typ a atribut, který zveřejňují, a nikdy do nich nezapisuje.",
+      "moreEndpointsFull": "Do jedné aplikace jdou nejvýše {count} endpointy; chcete-li přidat další, jeden odškrtněte.",
       "prompt": "Co má aplikace dělat?",
       "promptHint": "Je to popis, ne příkaz, který platforma vykoná: nedostane se k datům, která nejsou v seznamu níže.",
       "submit": "Vygenerovat aplikaci",

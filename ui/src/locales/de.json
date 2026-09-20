@@ -1348,6 +1348,7 @@
       "addEndpoint": "+ Daten aus einem weiteren Endpoint hinzufügen",
       "moreEndpoints": "Auch lesen",
       "moreEndpointsHint": "Die App liest auch diese Endpoints, jeden Typ und jedes Attribut, das sie veröffentlichen, und schreibt nie in sie.",
+      "moreEndpointsFull": "Höchstens {count} Endpunkte gehen in eine App; nehmen Sie einen heraus, um einen anderen hinzuzufügen.",
       "prompt": "Was soll die Anwendung tun?",
       "promptHint": "Eine Beschreibung, keine Anweisung, der die Plattform folgt: sie erreicht keine Daten, die die Liste unten nicht enthält.",
       "submit": "Anwendung erzeugen",
