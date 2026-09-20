@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ChangeEvent, FocusEvent, JSX } from "react";
+import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -67,6 +68,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       id={id}
       required={required}
       disabled={disabled || readonly}
+      aria-describedby={ariaDescribedByIds(id)}
       aria-invalid={rawErrors && rawErrors.length > 0 ? "true" : undefined}
       value={typeof value === "string" ? value : ""}
       onChange={(event: ChangeEvent<HTMLSelectElement>) =>
