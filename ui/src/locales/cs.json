@@ -105,7 +105,8 @@
     "askAboutField": "Zeptat se na toto pole",
     "askAboutFieldQuestion": "Ve formuláři {kind}: co patří do „{label}“ a co se stane, když to zůstane prázdné?",
     "fillFromSentence": "Vyplnit z jedné věty",
-    "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: "
+    "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: ",
+    "guideLink": "Přečtěte si o {kind} v uživatelské příručce"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",

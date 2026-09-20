@@ -6,6 +6,7 @@ metadata:
   name: contextspace
 spec:
   for: ContextSpace
+  guide: User-Guide/02-organizations-projects-spaces
   about:
     en: >-
       A context space is where this project's entities live: the stations, sensors, vehicles or

@@ -6,6 +6,7 @@ metadata:
   name: policy
 spec:
   for: Policy
+  guide: User-Guide/05-endpoints-and-sharing
   about:
     en: >-
       A policy says who may do what with the context data of one space. Pick the space, who it is

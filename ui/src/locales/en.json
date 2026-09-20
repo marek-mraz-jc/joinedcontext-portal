@@ -105,7 +105,8 @@
     "askAboutField": "Ask about this field",
     "askAboutFieldQuestion": "In the {kind} form: what goes in “{label}”, and what happens when it is left empty?",
     "fillFromSentence": "Fill this from a sentence",
-    "fillFromSentenceQuestion": "Fill in the open {kind} form from this: "
+    "fillFromSentenceQuestion": "Fill in the open {kind} form from this: ",
+    "guideLink": "Read about {kind} in the User Guide"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",

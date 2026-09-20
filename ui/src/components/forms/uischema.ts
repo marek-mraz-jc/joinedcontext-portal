@@ -80,6 +80,14 @@ export interface UiSchemaSpec {
    */
   about?: LanguageMap;
   /**
+   * The kind's page in the User Guide, as a path inside it: `User-Guide/05-endpoints-and-sharing`
+   * (Architecture/09 section 2). Never an address — the installation's `documentationBaseUrl`
+   * says where the guide is served, and a form shows the link only when both halves are there.
+   * A value with a scheme, an authority, a leading slash or a `..` segment is dropped, so a
+   * committed arrangement cannot point the link at a site of its own.
+   */
+  guide?: string;
+  /**
    * Top-level fields of which the form renders one at a time: a data source's `mqtt`, `http`,
    * `webSocket`, `gtfsRt`, a sync source's `git`, `bundle`, `platformApi`. One manifest arranges
    * every branch, so the ones the person did not pick are absent from the schema in front of them
@@ -118,12 +126,41 @@ export interface Arranged {
   uiSchema: UiSchema;
   /** What the kind is for, in the caller's locale, when the manifest says. */
   about?: string;
+  /** The guide page this kind's arrangement names, when it names a usable one. */
+  guide?: string;
   /** Everything the manifest asked for that this form cannot do, each in one clause. */
   problems: string[];
 }
 
 /** The default locale of the platform, and the fallback of every language map. */
 const DEFAULT_LOCALE = "sk";
+
+/**
+ * A `guide` the form may build a link from: a relative path inside the documentation site.
+ *
+ * The link is the installation's base URL joined with this, so anything that could leave that
+ * site is refused rather than trimmed — a scheme, an authority, a leading slash, a `..` segment,
+ * a backslash or whitespace. A manifest names a page; it never names a place (Architecture/09
+ * section 2).
+ */
+function guidePath(value: string | undefined, problems: string[]): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const path = value.trim().replace(/^\/+|\/+$/g, "");
+  const leaves =
+    path === "" ||
+    path.includes("://") ||
+    path.startsWith("//") ||
+    path.split("/").includes("..") ||
+    /[\\\s]/.test(path) ||
+    /^[a-z][a-z0-9+.-]*:/i.test(path);
+  if (leaves) {
+    problems.push(`guide ${JSON.stringify(value)} is not a path inside the documentation site`);
+    return undefined;
+  }
+  return path;
+}
 
 /** A plain string as written; a legacy map in the caller's locale, then Slovak, then anything. */
 export function localized(map: LanguageMap | undefined, locale?: string): string | undefined {
@@ -347,7 +384,9 @@ export function arrange(manifest: UiSchemaManifest, options: ArrangeOptions = {}
     uiSchema["ui:options"] = { ...(uiSchema["ui:options"] as object | undefined), groups };
   }
 
-  return { uiSchema, about: localized(spec.about, options.locale), problems };
+  const guide = guidePath(spec.guide, problems);
+
+  return { uiSchema, about: localized(spec.about, options.locale), guide, problems };
 }
 
 /**

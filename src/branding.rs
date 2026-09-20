@@ -60,6 +60,13 @@ pub struct Branding {
     /// green verdict; in lax mode, Green-lane proposals proceed with a warning.
     #[serde(default)]
     pub validation: Validation,
+    /// Where this installation serves the User Guide, or empty when it serves none (UI-02,
+    /// DP-11). A create form joins it with the page its kind's arrangement names and offers one
+    /// link; an installation that leaves it empty shows no link at all, because a dead link is
+    /// worse than none. Nothing follows it: it becomes an `href` a person may click and never a
+    /// request the Portal makes.
+    #[serde(default)]
+    pub documentation_base_url: String,
 }
 
 /// The five colours a page is built from. Each is validated as a hex triplet or sextet before
@@ -119,6 +126,8 @@ impl Default for Branding {
             languages: Languages::default(),
             primary_foreground: "#ffffff".into(),
             validation: Validation::default(),
+            // An installation that says nothing serves no guide, so no form offers a link.
+            documentation_base_url: String::new(),
         }
     }
 }
@@ -185,6 +194,7 @@ impl Branding {
         self.logo = same_origin(&self.logo, "logo");
         self.favicon = same_origin(&self.favicon, "favicon");
         self.languages = self.languages.sanitised(&fallback.languages);
+        self.documentation_base_url = absolute_web_url(&self.documentation_base_url);
         self.primary_foreground = self.primary_foreground().to_owned();
         if self.instance_name.trim().is_empty() {
             self.instance_name = fallback.instance_name.clone();
@@ -289,6 +299,41 @@ fn same_origin(value: &str, field: &'static str) -> String {
         return String::new();
     }
     trimmed.to_owned()
+}
+
+/// An absolute `http` or `https` address, or the empty string (UI-02, OPS-46).
+///
+/// The value reaches the page as an `href`, which is an attribute a browser acts on, so it is
+/// checked the way a colour is checked before it becomes a custom property: anything carrying
+/// another scheme — `javascript:`, `data:`, `file:` — is dropped and logged rather than served.
+/// A trailing slash is removed so the path the arrangement names joins on exactly one.
+fn absolute_web_url(value: &str) -> String {
+    let trimmed = value.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let scheme = trimmed
+        .split_once("://")
+        .map(|(scheme, rest)| (scheme.to_ascii_lowercase(), rest));
+    match scheme {
+        Some((scheme, rest))
+            if matches!(scheme.as_str(), "http" | "https")
+                && !rest.is_empty()
+                && !rest.starts_with('/')
+                && !trimmed.contains(char::is_whitespace)
+                && !trimmed.contains(['<', '>', '"', '\'']) =>
+        {
+            trimmed.to_owned()
+        }
+        _ => {
+            tracing::warn!(
+                field = "documentationBaseUrl",
+                value = %trimmed,
+                "branding documentation URL is not an absolute http(s) address, no form will link"
+            );
+            String::new()
+        }
+    }
 }
 
 /// A BCP 47 tag as far as the switcher needs it: letters, digits and hyphens.
@@ -582,6 +627,64 @@ languages:
         assert_eq!(luminance("not a colour"), None);
         // White on black is the widest a screen goes.
         assert!((contrast(1.0, 0.0) - 21.0).abs() < 0.001);
+    }
+
+    /// UI-02, OPS-46: the documentation URL becomes an `href`, so only an absolute `http` or
+    /// `https` address survives; anything else is dropped and the forms show no link.
+    #[test]
+    fn a_documentation_url_that_is_not_an_absolute_web_address_is_dropped() {
+        // An installation that says nothing serves no guide.
+        assert_eq!(Branding::default().documentation_base_url, "");
+        let quiet: Branding = serde_yaml_ng::from_str("instanceName: \"Test\"\n").unwrap();
+        assert_eq!(quiet.sanitised().documentation_base_url, "");
+
+        for value in [
+            "javascript:alert(1)",
+            "data:text/html,<script>alert(1)</script>",
+            "file:///etc/passwd",
+            "vbscript:msgbox(1)",
+            "docs.example.com",
+            "/docs",
+            "//docs.example.com",
+            "https://",
+            "https:///docs",
+            "https://docs.example.com/a b",
+            "https://docs.example.com/\"onmouseover=\"alert(1)",
+            "  ",
+        ] {
+            let branding = Branding {
+                documentation_base_url: value.to_owned(),
+                ..Branding::default()
+            }
+            .sanitised();
+            assert_eq!(
+                branding.documentation_base_url, "",
+                "{value:?} reached the page"
+            );
+        }
+
+        for (value, served) in [
+            ("https://docs.example.com", "https://docs.example.com"),
+            ("https://docs.example.com/", "https://docs.example.com"),
+            // The trailing slash goes, so the arrangement's path joins on exactly one.
+            (
+                "https://docs.example.com/guide///",
+                "https://docs.example.com/guide",
+            ),
+            (
+                "  https://docs.example.com/guide  ",
+                "https://docs.example.com/guide",
+            ),
+            ("HTTPS://docs.example.com", "HTTPS://docs.example.com"),
+            ("http://localhost:3000", "http://localhost:3000"),
+        ] {
+            let branding = Branding {
+                documentation_base_url: value.to_owned(),
+                ..Branding::default()
+            }
+            .sanitised();
+            assert_eq!(branding.documentation_base_url, served, "{value:?}");
+        }
     }
 
     #[test]

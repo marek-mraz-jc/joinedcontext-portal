@@ -14,7 +14,7 @@ import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { Alert, Badge, Button, Dialog, DialogClose } from "./ui";
 import type { DialogSize } from "./ui";
-import { useBranding } from "../branding";
+import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { askAbout, standingIn } from "../assistant/state";
 import type { Draft, Verdict } from "../api/drafts";
@@ -216,6 +216,7 @@ export function ResourceFormDialog<T>({
       return {
         uiSchema: undefined,
         about: undefined,
+        guide: undefined,
         problems: answered ? indexed.problems : [],
         advancedFields: false,
       };
@@ -231,6 +232,7 @@ export function ResourceFormDialog<T>({
     return {
       uiSchema: result.uiSchema,
       about: result.about,
+      guide: result.guide,
       problems: answered ? [...indexed.problems, ...result.problems] : [],
       advancedFields,
     };
@@ -264,6 +266,7 @@ export function ResourceFormDialog<T>({
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
   const isLax = (branding as { validation?: string })?.validation === "lax";
+  const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
   const [view, setView] = useState<View>("form");
@@ -820,6 +823,27 @@ export function ResourceFormDialog<T>({
         {arranged?.about ? (
           <p data-testid="form-about" className="text-body text-fg-muted">
             {arranged.about}
+          </p>
+        ) : null}
+
+        {/*
+          One link to the kind's page in the User Guide, and only when this installation serves
+          one: `guideUrl` answers nothing without both the base URL and the page, so an instance
+          without a guide shows no dead link (UI-02, DP-11, T-2252). It names the page it opens,
+          so a screen reader announces where it goes rather than "link", and it opens in a new
+          tab with `rel="noreferrer"` because the form behind it may hold typing.
+        */}
+        {guideHref ? (
+          <p className="text-body">
+            <a
+              data-testid="form-guide"
+              href={guideHref}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              {t("form.guideLink", { kind })}
+            </a>
           </p>
         ) : null}
 

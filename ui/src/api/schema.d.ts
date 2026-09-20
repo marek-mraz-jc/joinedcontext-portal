@@ -1397,6 +1397,15 @@ export interface components {
              */
             contactEmail: string;
             /**
+             * @description Where this installation serves the User Guide, or empty when it serves none (UI-02,
+             *     DP-11). A create form joins it with the page its kind's arrangement names and offers one
+             *     link; an installation that leaves it empty shows no link at all, because a dead link is
+             *     worse than none. Nothing follows it: it becomes an `href` a person may click and never a
+             *     request the Portal makes.
+             * @default
+             */
+            documentationBaseUrl: string;
+            /**
              * @description The platform host.
              * @default
              */

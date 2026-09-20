@@ -105,7 +105,8 @@
     "askAboutField": "Zu diesem Feld fragen",
     "askAboutFieldQuestion": "Im {kind}-Formular: Was gehört in „{label}“, und was passiert, wenn es leer bleibt?",
     "fillFromSentence": "Aus einem Satz ausfüllen",
-    "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: "
+    "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
+    "guideLink": "Über {kind} im Benutzerhandbuch lesen"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",

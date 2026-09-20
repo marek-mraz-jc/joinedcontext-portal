@@ -6704,6 +6704,11 @@
             "description": "The DCAT-AP contact point and the footer's address.",
             "default": ""
           },
+          "documentationBaseUrl": {
+            "type": "string",
+            "description": "Where this installation serves the User Guide, or empty when it serves none (UI-02,\nDP-11). A create form joins it with the page its kind's arrangement names and offers one\nlink; an installation that leaves it empty shows no link at all, because a dead link is\nworse than none. Nothing follows it: it becomes an `href` a person may click and never a\nrequest the Portal makes.",
+            "default": ""
+          },
           "domain": {
             "type": "string",
             "description": "The platform host.",
