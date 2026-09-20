@@ -8,6 +8,9 @@
  * The definition is in the document whether or not it is on screen, because `aria-describedby`
  * cannot point at an element that is not rendered — that is what these cases hold.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/Term.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync, readdirSync, statSync } from "node:fs";

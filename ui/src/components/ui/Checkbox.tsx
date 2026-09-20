@@ -9,9 +9,11 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   /** A quiet word after the label, such as "required"; part of the accessible name. */
   hint?: ReactNode;
   /**
-   * Why this box cannot be ticked, in words (UI-44).
+   * Why this box cannot be ticked, in words (UI-44). Passed beside `disabled`, never instead of
+   * it: a reason on its own changes nothing, and a list may hand every box the same reason for a
+   * `disabled` it computes per box (`AppGenerator`, T-2428).
    *
-   * With a reason the box is `aria-disabled` rather than `disabled`, so it keeps its place in
+   * With `disabled` beside it the box is `aria-disabled` rather than `disabled`, so it keeps its place in
    * the tab order and somebody who cannot see that it is greyed out can reach it and be told
    * why. The tick is refused either way — this is `Button`'s `disabledReason`, for the control
    * that is a box rather than a button.

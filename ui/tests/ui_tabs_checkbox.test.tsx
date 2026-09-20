@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/Checkbox.tsx, src/components/ui/Tabs.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 // UI-16, UI-01 (T-1727): the shared tab list and checkbox every page uses instead of its own.
 import { useState } from "react";
 import { render, screen } from "@testing-library/react";

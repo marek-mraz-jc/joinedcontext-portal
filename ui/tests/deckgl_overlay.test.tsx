@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/dashboards/DeckGlOverlay.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";

@@ -248,7 +248,8 @@ export function Roles({ project }: { project: string }): JSX.Element {
           <p className="text-body text-fg-muted">{t("access.projectRoles.lead")}</p>
         </div>
         <PermissionGuard project={project} kind="Role" verb="propose">
-          <Button variant="primary" onClick={() => setWriting(true)}>
+          {/* One primary per view: the Access page's own action is "Grant a role" (T-1731). */}
+          <Button variant="secondary" onClick={() => setWriting(true)}>
             {t("access.projectRoles.new")}
           </Button>
         </PermissionGuard>

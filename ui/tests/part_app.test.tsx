@@ -6,6 +6,9 @@
  * quietly — an anonymous visitor let through a route guard because the tree mounted before the
  * session settled, or a blank screen that says nothing while the answer is on its way.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/api/projects.ts through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";

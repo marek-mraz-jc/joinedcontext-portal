@@ -4,6 +4,9 @@
  * caller reaches least often. The contract cases live in contract_card_dialog_menu_table.test.tsx;
  * these are the ones that break a page rather than a rule.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/Menu.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";

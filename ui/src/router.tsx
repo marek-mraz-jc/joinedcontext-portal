@@ -32,6 +32,7 @@ import { WorkspacesPage } from "./routes/WorkspacesPage";
 import { ComparePage } from "./pages/workspaces/ComparePage";
 import { BringBackPage } from "./pages/workspaces/BringBackPage";
 import { TryItPage } from "./pages/workspaces/TryItPage";
+import { Gallery } from "./pages/gallery/Gallery";
 import type { AuthState } from "./auth/AuthProvider";
 
 export interface RouterContext {
@@ -507,8 +508,25 @@ const resourceListRoute = createRoute({
   },
 });
 
+/**
+ * The component gallery (T-1729), development only: no session, no project, no API. The route is
+ * built only when `import.meta.env.DEV`, which a production build replaces with `false` — the
+ * branch goes, the import with it, and `gallery_axe.test.tsx` holds that nothing else imports
+ * the module.
+ */
+const devRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__gallery",
+        component: Gallery,
+      }),
+    ]
+  : [];
+
 export const routeTree = rootRoute.addChildren([
   loginRoute,
+  ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
     activityRoute,

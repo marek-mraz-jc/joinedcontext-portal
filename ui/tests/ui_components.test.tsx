@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/Badge.tsx, src/components/ui/Button.tsx, src/components/ui/Switch.tsx, src/components/ui/Table.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";

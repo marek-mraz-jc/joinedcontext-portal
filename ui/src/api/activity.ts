@@ -43,6 +43,29 @@ export interface ActivityQuery {
   cursor?: string;
 }
 
+/**
+ * The tail is the one thing the Portal renders that it did not type: a frame is JSON off an
+ * EventSource. An event with no `time`, or a `time` no `Date` can read, reaches
+ * `Intl.DateTimeFormat.format`, which throws `RangeError: Invalid time value` — and with the
+ * only error boundary around the whole app, that one frame blanks the Portal (T-2427). So a
+ * frame is checked before anything renders it, against what the row actually draws: a `time`
+ * `Date` can read, and words where words are printed (an object handed to React as a child
+ * throws as surely as a bad date). A field nobody draws — `project`, `correlationId` — is not
+ * asked for: the feed is scoped by the request it made, and dropping a readable event over a
+ * field that never reaches the screen would hide what the person came to see.
+ */
+export function isActivityEvent(value: unknown): value is ActivityEvent {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const event = value as Record<string, unknown>;
+  const said = (field: string) => typeof event[field] === "string" && event[field] !== "";
+  return (
+    ["kind", "severity", "source", "summary", "time"].every(said) &&
+    !Number.isNaN(Date.parse(event.time as string))
+  );
+}
+
 export function activitySearch(query: ActivityQuery): Record<string, string> {
   return Object.fromEntries(
     Object.entries(query)
@@ -71,7 +94,10 @@ export function subscribeActivity(
   );
   const handle = (message: MessageEvent<string>) => {
     try {
-      onEvent(JSON.parse(message.data) as ActivityEvent);
+      const event: unknown = JSON.parse(message.data);
+      if (isActivityEvent(event)) {
+        onEvent(event);
+      }
     } catch {
       // A keep-alive comment is not an event.
     }
@@ -98,12 +124,13 @@ export function mergeActivity(
   known: ActivityEvent[],
   arriving: ActivityEvent[],
 ): ActivityEvent[] {
-  const seen = new Set(known.map(identity));
-  const fresh = arriving.filter((event) => !seen.has(identity(event)));
+  const readable = known.filter(isActivityEvent);
+  const seen = new Set(readable.map(identity));
+  const fresh = arriving.filter((event) => isActivityEvent(event) && !seen.has(identity(event)));
   if (fresh.length === 0) {
-    return known;
+    return readable.length === known.length ? known : readable;
   }
-  return [...fresh, ...known]
+  return [...fresh, ...readable]
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, TAIL_WINDOW);
 }
