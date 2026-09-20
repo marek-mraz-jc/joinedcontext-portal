@@ -786,12 +786,22 @@ pub(crate) async fn visible(
     name: &str,
 ) -> Result<Workspace, ApiError> {
     readable(state, identity, project)?;
-    let workspace = state.workspaces.live(name).await?;
+    // One sentence for every miss (T-2296, R20, PF-59). A workspace name is unique across the
+    // whole organization, so the two wordings this used to have — "no workspace named 'x'" for a
+    // name nobody holds and "…in project 'y'" for one held elsewhere — told a caller with a
+    // binding in any one project whether a name is in use in every other, one guess at a time.
+    let missing = || {
+        ApiError::NotFound(format!(
+            "no workspace named '{name}' in project '{project}'"
+        ))
+    };
+    let workspace = state.workspaces.live(name).await.map_err(|err| match err {
+        WorkspaceError::NotFound(_) => missing(),
+        other => ApiError::from(other),
+    })?;
     let effective = crate::permissions::for_request(state, identity, project);
     if workspace.project != project || !may_see(state, &effective, &workspace, identity) {
-        return Err(ApiError::NotFound(format!(
-            "no workspace named '{name}' in project '{project}'"
-        )));
+        return Err(missing());
     }
     Ok(workspace)
 }
@@ -853,7 +863,7 @@ pub async fn open(
     let main = gitea.default_branch().await?;
     let base = gitea.branch_head(&main).await?;
     let owner = owner_of(identity);
-    let workspace = state
+    let workspace = match state
         .workspaces
         .create(Opening {
             name: &request.name,
@@ -864,7 +874,33 @@ pub async fn open(
             scope: request.scope.unwrap_or(Scope::Project {}),
             ttl_hours: days * 24,
         })
-        .await?;
+        .await
+    {
+        Ok(workspace) => workspace,
+        // The name is organization-wide, so a conflict with a workspace the caller may not see
+        // would otherwise confirm that name to anybody who may propose anywhere — an existence
+        // oracle over every workspace in the organization, one name at a time (T-2296, PF-59,
+        // R20). The status stays 409, because the request cannot be honoured either way and the
+        // person has to pick another name; they are only not told whose name it is. A collision
+        // with one the caller may see keeps the plain sentence, because that is the one a person
+        // can act on — reopen it, or ask its owner.
+        Err(WorkspaceError::Conflict(taken)) => {
+            let held = state.workspaces.get(&taken).await.map_err(ApiError::from)?;
+            let seen = held.is_some_and(|workspace| {
+                let there = crate::permissions::for_request(state, identity, &workspace.project);
+                there.may_read_project() && may_see(state, &there, &workspace, identity)
+            });
+            return Err(match seen {
+                true => ApiError::Conflict(format!("a workspace named '{taken}' already exists")),
+                false => ApiError::Conflict(
+                    "that name is not available; workspace names are unique across the \
+                     organization, so choose another one"
+                        .to_owned(),
+                ),
+            });
+        }
+        Err(other) => return Err(other.into()),
+    };
     // A branch of this name outlived a workspace that was reaped or discarded without it: the
     // record is new and unique, so the branch is nobody's and starts again from main.
     let branch = workspace.branch();

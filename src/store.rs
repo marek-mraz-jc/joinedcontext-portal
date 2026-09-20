@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use crate::resource::selector::{FieldSelector, LabelSelector};
-use crate::resource::{ResourceEnvelope, ResourceKey};
+use crate::resource::{is_dns1123, ResourceEnvelope, ResourceKey};
 
 #[derive(Debug, Default)]
 pub struct ListOptions {
@@ -48,8 +48,27 @@ impl Mirror {
         }
     }
 
+    /// Holds one resource, unless its namespace is not a namespace (T-2298, MF-02).
+    ///
+    /// The mirror's key is the namespace as the manifest spells it, and the reconciler builds a
+    /// runner URL by putting that string into an operator's template: a manifest committed with
+    /// `metadata.namespace: "a@evil.example"` would move the Portal's own scrape to another host.
+    /// A namespace that is not a DNS-1123 label names no project the Portal can serve, so nothing
+    /// is lost by leaving it out — and every consumer of the mirror is closed at once rather than
+    /// each one being taught to check.
     pub fn upsert(&self, env: ResourceEnvelope) {
         let key = env.key();
+        if !is_dns1123(&key.namespace) {
+            // Loud in the log and silent towards callers: a dropped manifest is an operator's
+            // problem to find, never a 500 on somebody's page.
+            tracing::warn!(
+                namespace = %key.namespace,
+                kind = %key.kind,
+                name = %key.name,
+                "a manifest whose namespace is not a DNS-1123 label is left out of the mirror"
+            );
+            return;
+        }
         let mut lock = self.resources.write().unwrap_or_else(|p| p.into_inner());
         lock.insert(key, env);
     }

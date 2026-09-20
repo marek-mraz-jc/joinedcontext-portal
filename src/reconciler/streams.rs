@@ -97,17 +97,33 @@ impl StreamDeployer {
     /// a mapping that throws on every message — and the counters are the only place that shows
     /// (T-0914).
     pub async fn metrics(&self, project: &str) -> Option<String> {
-        let url = format!(
-            "{}/metrics",
-            self.runner_url
-                .replace("{project}", project)
-                .trim_end_matches('/')
-        );
+        let runner = self.runner_for(project)?;
+        let url = format!("{runner}/metrics");
         let response = self.http.get(&url).send().await.ok()?;
         if !response.status().is_success() {
             return None;
         }
         response.text().await.ok()
+    }
+
+    /// The runner's base URL for one project, or nothing when the name is not a project name.
+    ///
+    /// The template may carry `{project}` in its authority — `http://bento-{project}.streams.svc`
+    /// is the natural shape of a runner service per project — so an unchecked name moves the
+    /// request to another host, and one carrying `/` moves it outside the project's own path
+    /// (T-2298). The check is here as well as at the mirror's door, because either one alone
+    /// leaves the other caller open.
+    fn runner_for(&self, project: &str) -> Option<String> {
+        if !crate::resource::is_dns1123(project) {
+            tracing::warn!(project = %project, "the runner is not asked about a name that is not a project");
+            return None;
+        }
+        Some(
+            self.runner_url
+                .replace("{project}", project)
+                .trim_end_matches('/')
+                .to_owned(),
+        )
     }
 
     /// Renders and PUTs every eligible Pipeline of `mirror`; returns (namespace, name, outcome).
@@ -468,11 +484,9 @@ impl StreamDeployer {
 
     /// DELETE {runner}/streams/{name} for pipelines that were deployed last run and are gone or disabled now.
     pub async fn retire(&self, project: &str, names: &[String]) {
-        let runner = self
-            .runner_url
-            .replace("{project}", project)
-            .trim_end_matches('/')
-            .to_owned();
+        let Some(runner) = self.runner_for(project) else {
+            return;
+        };
         for name in names {
             let url = format!("{runner}/streams/{name}");
             match self.http.delete(&url).send().await {
@@ -512,8 +526,8 @@ impl StreamDeployer {
     /// A body without the `active` flag counts as running, because a runner whose answer this does
     /// not understand must not have all of its streams restarted on every pass.
     async fn running(&self, project: &str) -> Option<HashMap<String, bool>> {
-        let runner = self.runner_url.replace("{project}", project);
-        let url = format!("{}/streams", runner.trim_end_matches('/'));
+        let runner = self.runner_for(project)?;
+        let url = format!("{runner}/streams");
         let response = self.http.get(&url).send().await.ok()?;
         if !response.status().is_success() {
             return None;
@@ -531,11 +545,9 @@ impl StreamDeployer {
     }
 
     async fn deploy_stream(&self, project: &str, name: &str, stream_json: &Value) -> StreamOutcome {
-        let runner = self
-            .runner_url
-            .replace("{project}", project)
-            .trim_end_matches('/')
-            .to_owned();
+        let Some(runner) = self.runner_for(project) else {
+            return StreamOutcome::Error(format!("`{project}` is not a project name"));
+        };
         let url = format!("{runner}/streams/{name}");
 
         let mut response = match self.http.put(&url).json(stream_json).send().await {
