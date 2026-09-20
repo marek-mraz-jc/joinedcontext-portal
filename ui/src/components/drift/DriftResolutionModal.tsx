@@ -3,7 +3,18 @@ import type { JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
-import { Alert, Badge, Button, Dialog } from "../ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Dialog,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../ui";
 
 /** One drifted seed entity, as `GET /api/v1/projects/{project}/drift` serves it (API/01 §20). */
 export interface DriftedEntity {
@@ -136,24 +147,24 @@ export function DriftResolutionModal({
         </div>
 
         {entity.diff.length > 0 ? (
-          <table className="w-full text-caption">
-            <thead>
-              <tr className="text-left text-fg-muted">
-                <th scope="col" className="py-1">{t("drift.modal.attribute")}</th>
-                <th scope="col" className="py-1">{t("drift.modal.declared")}</th>
-                <th scope="col" className="py-1">{t("drift.modal.live")}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table caption={t("drift.modal.tableCaption", { space: entity.space })}>
+            <TableHead>
+              <TableHeaderCell>{t("drift.modal.attribute")}</TableHeaderCell>
+              <TableHeaderCell>{t("drift.modal.declared")}</TableHeaderCell>
+              <TableHeaderCell>{t("drift.modal.live")}</TableHeaderCell>
+            </TableHead>
+            <TableBody>
               {entity.diff.map((one) => (
-                <tr key={one.path} className="border-t border-border">
-                  <td className="py-1 font-mono">{one.path}</td>
-                  <td className="py-1 font-mono">{shown(one.declared)}</td>
-                  <td className="py-1 font-mono">{shown(one.live)}</td>
-                </tr>
+                <TableRow key={one.path}>
+                  <TableCell primary className="font-mono">
+                    {one.path}
+                  </TableCell>
+                  <TableCell className="font-mono">{shown(one.declared)}</TableCell>
+                  <TableCell className="font-mono">{shown(one.live)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         ) : null}
 
         {/* The resolution that is not offered says why on the line, rather than being a

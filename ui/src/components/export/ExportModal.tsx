@@ -2,9 +2,8 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import * as Dialog from "@radix-ui/react-dialog";
 import { api, ApiError, unwrap } from "../../api/client";
-import { Button, Select } from "../ui";
+import { Button, Dialog, DialogClose, Field, RadioGroup, Select } from "../ui";
 
 export type ExportFormat = "yaml" | "json" | "zip";
 
@@ -132,112 +131,90 @@ export function ExportModal({
   });
 
   const whole = !target.name && !target.plural;
-  const formats: ExportFormat[] = ["yaml", "json", "zip"];
-
-  const option = (value: ExportFormat, label: string, help: string) => (
-    <label key={value} className="flex items-start gap-2 text-sm">
-      <input
-        type="radio"
-        name="export-format"
-        value={value}
-        checked={format === value}
-        onChange={() => setFormat(value)}
-        className="mt-1"
-      />
-      <span>
-        <span className="font-medium">{label}</span>
-        <span className="block text-xs text-surface-fg/60">{help}</span>
-      </span>
-    </label>
-  );
+  // The whole project reads best as one archive, a single resource as one file; either way all
+  // three are on screen. They used to be one visible radio and two behind a `details` nobody
+  // opened, which is also how the arrow keys stopped walking the group.
+  const formats: ExportFormat[] = whole ? ["zip", "yaml", "json"] : ["yaml", "json", "zip"];
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(48rem,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded border border-border bg-surface p-6 text-surface-fg shadow-lg">
-          <Dialog.Title className="text-lg font-bold">{t("export.title")}</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-surface-fg/70">
-            {target.name
-              ? t("export.hintResource", { name: target.name })
-              : t("export.hintProject", { project })}
-          </Dialog.Description>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="lg"
+      title={t("export.title")}
+      description={
+        target.name
+          ? t("export.hintResource", { name: target.name })
+          : t("export.hintProject", { project })
+      }
+      closeLabel={t("form.cancel")}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button variant="secondary">{t("form.cancel")}</Button>
+          </DialogClose>
+          <Button
+            variant="primary"
+            loading={preparing}
+            onClick={() => {
+              void download();
+            }}
+          >
+            {preparing ? t("export.preparing") : t("export.download")}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <RadioGroup
+          name="export-format"
+          legend={t("export.format")}
+          value={format}
+          onChange={setFormat}
+          options={formats.map((value) => ({
+            value,
+            label: value === "zip" && whole ? t("export.formats.whole") : t(`export.formats.${value}`),
+            description:
+              value === "zip" && whole
+                ? t("export.formats.wholeHelp")
+                : t(`export.formats.${value}Help`),
+          }))}
+        />
 
-          <fieldset className="mt-4">
-            <legend className="text-sm font-medium">{t("export.format")}</legend>
-            {whole ? (
-              <div className="mt-2 space-y-2">
-                {option("zip", t("export.formats.whole"), t("export.formats.wholeHelp"))}
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-xs text-surface-fg/70">
-                    {t("export.otherFormats")}
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    {(["yaml", "json"] as const).map((value) =>
-                      option(value, t(`export.formats.${value}`), t(`export.formats.${value}Help`)),
-                    )}
-                  </div>
-                </details>
-              </div>
-            ) : (
-              <div className="mt-2 space-y-2">
-                {formats.map((value) =>
-                  option(value, t(`export.formats.${value}`), t(`export.formats.${value}Help`)),
-                )}
-              </div>
-            )}
-          </fieldset>
-
-          <label className="mt-4 block text-sm font-medium">
-            {t("export.revision")}
-            <Select
-              value={revision}
-              onChange={(event) => setRevision(event.target.value)}
-              className="mt-1"
-            >
-              <option value="">{t("export.currentRevision")}</option>
-              {(revisions.data?.items ?? []).map((commit) => (
-                <option key={commit.sha} value={commit.sha}>
-                  {`${commit.sha.slice(0, 7)} · ${commit.message} · ${
-                    commit.date ? new Date(commit.date).toLocaleDateString(locale) : ""
-                  }`}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {revisions.isError ? (
-            <p role="status" className="mt-1 text-xs text-surface-fg/60">
-              {revisions.error instanceof ApiError && revisions.error.status === 503
+        <Field
+          id="export-revision"
+          label={t("export.revision")}
+          help={
+            revisions.isError
+              ? revisions.error instanceof ApiError && revisions.error.status === 503
                 ? t("export.noForge")
-                : t("export.noHistory")}
-            </p>
-          ) : null}
+                : t("export.noHistory")
+              : undefined
+          }
+        >
+          <Select
+            id="export-revision"
+            value={revision}
+            onChange={(event) => setRevision(event.target.value)}
+          >
+            <option value="">{t("export.currentRevision")}</option>
+            {(revisions.data?.items ?? []).map((commit) => (
+              <option key={commit.sha} value={commit.sha}>
+                {`${commit.sha.slice(0, 7)} · ${commit.message} · ${
+                  commit.date ? new Date(commit.date).toLocaleDateString(locale) : ""
+                }`}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-          <p className="mt-4 text-xs text-surface-fg/60">{t("export.secretsNote")}</p>
-          {refused ? (
-            <p role="alert" className="mt-2 text-caption text-danger">
-              {t("export.refused", { reason: refused })}
-            </p>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
-            <Dialog.Close asChild>
-              <Button variant="secondary" size="sm">
-                {t("form.cancel")}
-              </Button>
-            </Dialog.Close>
-            <Button
-              size="md"
-              disabled={preparing}
-              onClick={() => {
-                void download();
-              }}
-            >
-              {preparing ? t("export.preparing") : t("export.download")}
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        <p className="text-caption text-fg-muted">{t("export.secretsNote")}</p>
+        {refused ? (
+          <p role="alert" className="text-caption text-danger">
+            {t("export.refused", { reason: refused })}
+          </p>
+        ) : null}
+      </div>
+    </Dialog>
   );
 }

@@ -4,6 +4,7 @@ import { Map as MapLibreMap, NavigationControl, Popup } from "maplibre-gl";
 import type { MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { basemapColour, outlineColour, plainColour, RAMP } from "./mapColours";
 
 /** One Layer manifest, resolved against the Endpoint it reads from. */
 export interface MapLayer {
@@ -46,11 +47,14 @@ export interface MapLibreViewProps {
  * The ground when no basemap is reachable: one background layer and nothing fetched, since the
  * Portal's policy lets a page connect to its own origin only.
  */
-export const BLANK_STYLE: StyleSpecification = {
+export const blankStyle = (): StyleSpecification => ({
   version: 8,
   sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": "#eef1f4" } }],
-};
+  layers: [
+    { id: "background", type: "background", paint: { "background-color": basemapColour() } },
+  ],
+});
+
 
 /**
  * The style a map starts from: the project's basemap route on the Portal's own origin (AP-67),
@@ -58,7 +62,7 @@ export const BLANK_STYLE: StyleSpecification = {
  */
 export function mapStyleFor(project?: string): string | StyleSpecification {
   if (!project) {
-    return BLANK_STYLE;
+    return blankStyle();
   }
   return new URL(
     `/api/v1/projects/${encodeURIComponent(project)}/basemap/default/style.json`,
@@ -69,9 +73,6 @@ export function mapStyleFor(project?: string): string | StyleSpecification {
 /** Banská Bystrica: the demo city, and a better first view than null island. */
 const DEFAULT_CENTER: [number, number] = [19.146, 48.736];
 const DEFAULT_ZOOM = 11;
-
-/** Yellow→orange→red, the "YlOrRd" ramp the Layer manifests name, as four stops. */
-export const RAMP = ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"];
 
 function paintFor(layer: MapLayer): Record<string, unknown> {
   const color = layer.colorBy
@@ -84,13 +85,13 @@ function paintFor(layer: MapLayer): Record<string, unknown> {
           return [min + ((max - min) * index) / (RAMP.length - 1), stop];
         }),
       ]
-    : "#2563eb";
+    : plainColour();
 
   if (layer.style === "line") {
     return { "line-color": color, "line-width": 2 };
   }
   if (layer.style === "fill") {
-    return { "fill-color": color, "fill-opacity": 0.5, "fill-outline-color": "#1f2937" };
+    return { "fill-color": color, "fill-opacity": 0.5, "fill-outline-color": outlineColour() };
   }
 
   const [minRadius, maxRadius] = layer.sizeBy?.range ?? [5, 5];
@@ -105,7 +106,12 @@ function paintFor(layer: MapLayer): Record<string, unknown> {
         maxRadius,
       ]
     : minRadius;
-  return { "circle-color": color, "circle-radius": radius, "circle-stroke-width": 1, "circle-stroke-color": "#1f2937" };
+  return {
+    "circle-color": color,
+    "circle-radius": radius,
+    "circle-stroke-width": 1,
+    "circle-stroke-color": outlineColour(),
+  };
 }
 
 function popupHtml(feature: MapGeoJSONFeature, properties?: string[]): string {
@@ -202,7 +208,7 @@ export function MapLibreView({
     instance.on("error", () => {
       if (!fellBack && !instance.isStyleLoaded()) {
         fellBack = true;
-        instance.setStyle(BLANK_STYLE);
+        instance.setStyle(blankStyle());
       }
     });
     instance.on("moveend", () => {
@@ -288,7 +294,7 @@ export function MapLibreView({
       ref={container}
       role="application"
       aria-label={label}
-      className="h-[28rem] w-full overflow-hidden rounded border border-border"
+      className="h-112 w-full overflow-hidden rounded border border-border"
     />
   );
 }

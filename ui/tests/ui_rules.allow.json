@@ -37,17 +37,14 @@
       "group": "ui-parts",
       "reason": "the default branding an installation without a ConfigMap gets: the six values mirror the API's own defaults and are written into the colour tokens, so they are data the API answers in hex, not a colour chosen here"
     },
-    "src/components/dashboards/DeckGlOverlay.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/components/dashboards/MapLibreView.tsx": {
-      "lines": 8,
-      "group": "ui-parts"
-    },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "lines": 15,
       "group": "ui-forms"
+    },
+    "src/components/dashboards/mapColours.ts": {
+      "lines": 7,
+      "group": "ui-parts",
+      "reason": "The map's palette, and the only colour values left in the dashboards folder. Four of the seven are the YlOrRd ramp the Layer manifests name - a data scale that must read the same in both themes and must not move when an installation changes its primary. The other three are what a renderer with no stylesheet falls back to; a browser resolves the token every time."
     }
   },
   "focus_is_not_stolen": {
@@ -75,17 +72,9 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/components/drift/DriftResolutionModal.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/components/entities/EntityFilters.tsx": {
       "lines": 1,
       "group": "ui-forms"
-    },
-    "src/components/export/ExportModal.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
     },
     "src/components/forms/theme.tsx": {
       "lines": 4,
@@ -199,14 +188,6 @@
       "lines": 1,
       "group": "ui-parts",
       "reason": "the filled part of the quota bar is used/limit as a percentage: a computed size, and the line says so"
-    },
-    "src/components/dashboards/MapLibreView.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/components/export/ExportModal.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
     },
     "src/components/forms/theme.tsx": {
       "lines": 1,

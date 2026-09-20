@@ -6,8 +6,9 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Layer } from "@deck.gl/core";
 import type { Feature } from "geojson";
 import type { IControl, Map as MapLibreMap } from "maplibre-gl";
-import { MapLibreView, RAMP } from "./MapLibreView";
+import { MapLibreView } from "./MapLibreView";
 import type { MapLayer } from "./MapLibreView";
+import { plainColour, RAMP, rgbOf } from "./mapColours";
 
 /**
  * A layer whose features have been fetched, which is what the count is read from.
@@ -20,16 +21,10 @@ export interface DenseLayer extends Omit<MapLayer, "style"> {
   features: Feature[];
 }
 
-/** `#rrggbb` as the RGB triple deck.gl accessors return. */
-function rgb(hex: string): [number, number, number] {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
+const PALETTE = RAMP.map(rgbOf);
 
-const PALETTE = RAMP.map(rgb);
-
-/** The same blue the native paint falls back to when a layer encodes no value. */
-const PLAIN: [number, number, number] = [37, 99, 235];
+/** The same colour the native paint falls back to when a layer encodes no value (UI-15). */
+const plain = (): [number, number, number] => rgbOf(plainColour());
 
 function scaled(layer: DenseLayer, feature: Feature): number {
   const encoding = layer.colorBy ?? layer.sizeBy;
@@ -46,7 +41,7 @@ function scaled(layer: DenseLayer, feature: Feature): number {
 
 function colorOf(layer: DenseLayer, feature: Feature): [number, number, number] {
   if (!layer.colorBy) {
-    return PLAIN;
+    return plain();
   }
   return PALETTE[Math.round(scaled(layer, feature) * (PALETTE.length - 1))];
 }

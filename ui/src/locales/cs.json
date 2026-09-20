@@ -880,7 +880,8 @@
       "noHistory": "Není historie k vykreslení.",
       "latest": "Poslední hodnota {property}: {value} ({count} měření)",
       "chartLabel": "{property} entity {entity} v čase",
-      "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}"
+      "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}",
+      "historyFailed": "Tuto historii se nepodařilo načíst: {reason}"
     },
     "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete."
   },
@@ -996,7 +997,8 @@
       "may": "Smíte {action} {type}",
       "mayNot": "Nesmíte {action} {type}",
       "attrDenied": "mimo vaše oprávnění",
-      "attrProhibited": "výslovně zakázaný"
+      "attrProhibited": "výslovně zakázaný",
+      "checkFailed": "Tato oprávnění se nepodařilo ověřit: {reason}"
     },
     "groups": {
       "title": "Skupiny",
@@ -2103,7 +2105,8 @@
       "live": "Živé",
       "noAdopt": "Není co převzít: odstranění entity z repozitáře je výslovné smazání, ne tlačítko.",
       "source": "Deklarováno v {file}",
-      "proposed": "Navrženo. Schvalovatel to posoudí jako každou jinou změnu."
+      "proposed": "Navrženo. Schvalovatel to posoudí jako každou jinou změnu.",
+      "tableCaption": "Co {space} deklaruje oproti tomu, co obsahuje"
     },
     "kind": {
       "modified": "Změněno",
