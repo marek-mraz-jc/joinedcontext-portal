@@ -594,6 +594,19 @@ pub async fn logout(
     // the first half of a single logout, and the edge's own `/logout` clears none of them
     // (ADR-N-019, AP-29).
     let session = session::load(&jar);
+    // Clearing the cookies tells *this* browser to forget the session; a copy taken off the
+    // wire or out of a backup would otherwise keep working until the cookie's own expiry,
+    // because a portal session is an encrypted cookie and nothing server-side (T-1678, PF-46).
+    // The mark is at the session's own `issued_at`, not at `now`: it kills this session and
+    // every older one of the same person, leaves a session they started later on another
+    // device alone, and can never refuse the login they make next. Ending the sessions on
+    // those other devices is the SSO logout at `endSessionUrl`, which comes back as a
+    // back-channel logout and marks the subject at `now`.
+    if let Some(ref session) = session {
+        state
+            .revoke_subject(&session.identity.subject, session.issued_at)
+            .await;
+    }
     let jar = session::clear(jar);
     let cookies = cookies.add(csrf::removal());
 
