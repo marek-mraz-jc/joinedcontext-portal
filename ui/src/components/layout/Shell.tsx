@@ -272,6 +272,9 @@ export function Shell({
           size="sm"
           className="md:hidden"
           aria-label={t("nav.menu")}
+          // An icon-only control says what it is to a pointer as well as to a screen reader
+          // (T-1731): the glyph alone is a guess for everybody.
+          title={t("nav.menu")}
           aria-expanded={navOpen}
           aria-controls="portal-sidebar"
           onClick={() => setNavOpen((open) => !open)}

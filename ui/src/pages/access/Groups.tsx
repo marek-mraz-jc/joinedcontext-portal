@@ -221,7 +221,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
         </div>
         {/* The organization is where a group lives, so the right to propose one is read there. */}
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
-          <Button variant="primary" onClick={() => setWriting(true)}>
+          {/* One primary per view: the Access page's own action is "Grant a role" (T-1731). */}
+          <Button variant="secondary" onClick={() => setWriting(true)}>
             {t("access.groups.new")}
           </Button>
         </PermissionGuard>

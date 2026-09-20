@@ -139,7 +139,11 @@ export function Gallery(): JSX.Element {
           <Button>{SHORT}</Button>
         </State>
         <State is="icon only, named">
-          <Button aria-label="Read it again" icon={<Icon name="refresh" className="size-4" />} />
+          <Button
+            aria-label="Read it again"
+            title="Read it again"
+            icon={<Icon name="refresh" className="size-4" />}
+          />
         </State>
       </Specimen>
 
