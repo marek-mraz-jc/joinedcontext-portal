@@ -101,6 +101,7 @@ export function endpointSchema(
   spaces: string[],
   projects: string[] = [],
   perMinute?: number,
+  catalogues: string[] = [],
 ): JsonSchema {
   // A limit set outside the form (YAML, the API, the assistant) is valid on the wire, so it
   // stays a choice of its own instead of an invalid field nobody can propose past.
@@ -201,9 +202,85 @@ export function endpointSchema(
           },
         },
       },
+      // Publication to the open-data catalogue (EP-62…EP-65). Naming a catalogue is what turns it
+      // on: the page writes no `publish` block while the field is empty, so an endpoint nobody
+      // published stays out of the catalogue rather than carrying an empty declaration. The
+      // dataset's visibility is not a field here: it follows `audience`, closed by default, and a
+      // form that offered it would be offering to contradict the endpoint (EP-69).
+      publish: {
+        type: "object",
+        title: t("endpoints.field.publish"),
+        properties: {
+          ckan: {
+            type: "object",
+            title: t("endpoints.field.openData"),
+            properties: {
+              instanceRef: {
+                type: "string",
+                title: t("endpoints.field.ckanInstance"),
+                ...(catalogues.length > 0
+                  ? { enum: catalogues }
+                  : { pattern: DNS1123, maxLength: 63 }),
+              },
+              organization: {
+                type: "string",
+                title: t("endpoints.field.ckanOrganization"),
+                pattern: CKAN_ORGANIZATION,
+                maxLength: 100,
+              },
+              name: {
+                type: "string",
+                title: t("endpoints.field.catalogue"),
+                pattern: DNS1123,
+                maxLength: 63,
+              },
+              datastore: {
+                type: "object",
+                title: t("endpoints.field.datastore"),
+                properties: {
+                  // No default: a sheet is a full copy of the rows inside the catalogue, so it
+                  // exists when a person chose the representation it is read through and not
+                  // because a default filled itself in (EP-65).
+                  representation: {
+                    type: "string",
+                    title: t("endpoints.field.sheetFrom"),
+                    enum: [...DATASTORE_REPRESENTATIONS],
+                  },
+                  refresh: {
+                    type: "string",
+                    title: t("endpoints.field.sheetRefresh"),
+                    oneOf: DATASTORE_REFRESH.map((refresh) => ({
+                      const: refresh,
+                      title: t(`endpoints.refreshOption.${refresh}`),
+                    })),
+                    default: "onChange",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   };
 }
+
+/**
+ * The representations a DataStore sheet can be filled from (EP-65).
+ *
+ * `csv` alone: the publisher reads the tabular file and refuses `xlsx` and `file` with the fix
+ * named, because a spreadsheet is a binary the gateway builds and the JSON file is not a tabular
+ * projection (`crates/jcctl/src/commands/publish_ckan.rs`). The manifest validator admits all
+ * three, so offering the two that fail would be a form that writes a manifest the publisher stops
+ * on.
+ */
+export const DATASTORE_REPRESENTATIONS = ["csv"] as const;
+
+/** How the sheet is kept current (EP-65): by the endpoint's subscription, or on every tick. */
+export const DATASTORE_REFRESH = ["onChange", "onReconcile"] as const;
+
+/** A CKAN organization slug: lowercase letters, digits and hyphens, as CKAN itself accepts. */
+export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 
 /** Checkboxes for the representation set, a slider for the cache TTL; the rest is default. */
 export const endpointUiSchema: UiSchema = {

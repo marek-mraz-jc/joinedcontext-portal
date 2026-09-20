@@ -421,7 +421,12 @@
       "fileLimits": "Limity souborů",
       "ckanInstance": "Portál otevřených dat",
       "ckanOrganization": "Vydavatel",
-      "catalogue": "Záznam v katalogu"
+      "catalogue": "Záznam v katalogu",
+      "publish": "Publikování",
+      "openData": "Otevřená data",
+      "datastore": "Tabulka dat",
+      "sheetFrom": "Tabulka se čte z",
+      "sheetRefresh": "Obnova tabulky"
     },
     "rateClass": {
       "strict": "Přísná",
@@ -487,6 +492,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Když se entita změní",
+      "onReconcile": "Při každé rekonciliaci"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",

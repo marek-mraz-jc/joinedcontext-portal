@@ -421,7 +421,12 @@
       "fileLimits": "Limity súborov",
       "ckanInstance": "Portál otvorených dát",
       "ckanOrganization": "Vydavateľ",
-      "catalogue": "Záznam v katalógu"
+      "catalogue": "Záznam v katalógu",
+      "publish": "Publikovanie",
+      "openData": "Otvorené údaje",
+      "datastore": "Tabuľka údajov",
+      "sheetFrom": "Tabuľka sa číta z",
+      "sheetRefresh": "Obnova tabuľky"
     },
     "rateClass": {
       "strict": "Prísna",
@@ -487,6 +492,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Keď sa entita zmení",
+      "onReconcile": "Pri každej rekonciliácii"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",

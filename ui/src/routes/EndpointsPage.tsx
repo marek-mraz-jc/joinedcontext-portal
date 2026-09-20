@@ -72,6 +72,70 @@ interface EndpointForm {
   allowedProjects?: string[];
   rateLimits?: { requestsPerMinute?: number; burst?: number };
   caching?: { maxAgeSeconds?: number };
+  /** The open-data publication; the catalogue's name is what turns it on (EP-62). */
+  publish?: {
+    ckan?: {
+      instanceRef?: string;
+      organization?: string;
+      name?: string;
+      datastore?: { representation?: string; refresh?: string };
+    };
+  };
+}
+
+/** The `publish` block of the manifest, or nothing when no catalogue is named (EP-62). */
+function publishOf(form: EndpointForm): { publish?: Record<string, unknown> } {
+  const ckan = form.publish?.ckan;
+  const catalogue = ckan?.instanceRef?.trim();
+  if (!ckan || !catalogue) {
+    return {};
+  }
+  const organization = ckan.organization?.trim();
+  const dataset = ckan.name?.trim();
+  const sheet = ckan.datastore;
+  return {
+    publish: {
+      ckan: {
+        instanceRef: { kind: "CkanInstance", name: catalogue },
+        ...(organization ? { organization } : {}),
+        ...(dataset ? { name: dataset } : {}),
+        ...(sheet?.representation
+          ? {
+              datastore: {
+                representation: sheet.representation,
+                ...(sheet.refresh ? { refresh: sheet.refresh } : {}),
+              },
+            }
+          : {}),
+      },
+    },
+  };
+}
+
+/** The stored `publish` block as the form holds it: the reference is its name. */
+function publishForm(spec: {
+  publish?: {
+    ckan?: {
+      instanceRef?: string | { name?: string };
+      organization?: string;
+      name?: string;
+      datastore?: { representation?: string; refresh?: string };
+    };
+  };
+}): EndpointForm["publish"] {
+  const ckan = spec.publish?.ckan;
+  if (!ckan) {
+    return undefined;
+  }
+  const reference = ckan.instanceRef;
+  return {
+    ckan: {
+      instanceRef: (typeof reference === "string" ? reference : reference?.name) ?? "",
+      ...(ckan.organization ? { organization: ckan.organization } : {}),
+      ...(ckan.name ? { name: ckan.name } : {}),
+      ...(ckan.datastore ? { datastore: ckan.datastore } : {}),
+    },
+  };
 }
 
 function toSpec(
@@ -80,12 +144,14 @@ function toSpec(
   hiddenAttributes: string[],
   projectionRefName?: string,
 ) {
-  const { allowedProjects, rateLimits, caching, ...rest } = form;
+  const { allowedProjects, rateLimits, caching, publish, ...rest } = form;
+  void publish;
   delete (rest as Partial<EndpointForm>).name;
   delete (rest as Partial<EndpointForm>).title;
   return {
     ...rest,
     slug,
+    ...publishOf(form),
     ...(form.audience === "project-list" && allowedProjects && allowedProjects.length > 0
       ? { allowedProjects }
       : {}),
@@ -118,6 +184,7 @@ const OWNED_SPEC = [
   "caching",
   "projection",
   "projectionRef",
+  "publish",
 ];
 
 export function toEnvelope(
@@ -153,6 +220,14 @@ export function toForm(endpoint: Manifest): EndpointForm {
     allowedProjects?: string[];
     rateLimits?: { requestsPerMinute?: number; burst?: number };
     caching?: { maxAgeSeconds?: number };
+    publish?: {
+      ckan?: {
+        instanceRef?: string | { name?: string };
+        organization?: string;
+        name?: string;
+        datastore?: { representation?: string; refresh?: string };
+      };
+    };
   };
   return {
     name: endpoint.metadata.name,
@@ -164,6 +239,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
     allowedProjects: spec.allowedProjects ?? [],
     rateLimits: spec.rateLimits,
     caching: spec.caching,
+    publish: publishForm(spec),
   };
 }
 
@@ -462,6 +538,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
           params: { path: { project, plural: "spaces" } },
+        }),
+      ),
+  });
+
+  // The catalogues this project may publish to (EP-62). A project with none leaves the open-data
+  // field free text, which is what a manifest written before the catalogue carries anyway.
+  const cataloguesQuery = useQuery({
+    queryKey: queryKeys.list(project, "ckaninstances"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "ckaninstances" } },
         }),
       ),
   });
@@ -847,7 +935,23 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           ),
         ]
       : [];
-  const baseSchema = endpointSchema(t, spaceNames, pickable, editing?.rateLimits?.requestsPerMinute);
+  const catalogueNames = asManifests(cataloguesQuery.data?.items ?? []).map(
+    (instance) => instance.metadata.name,
+  );
+  // A catalogue the endpoint already names and this list does not: the manifest keeps it, so the
+  // form opens every endpoint the API accepted rather than dropping its publication (T-2400).
+  const named = editing?.publish?.ckan?.instanceRef;
+  const catalogues =
+    named && named.length > 0 && !catalogueNames.includes(named)
+      ? [...catalogueNames, named]
+      : catalogueNames;
+  const baseSchema = endpointSchema(
+    t,
+    spaceNames,
+    pickable,
+    editing?.rateLimits?.requestsPerMinute,
+    catalogues,
+  );
   const schema =
     editing?.audience === "project-list" ? baseSchema : withoutAllowedProjects(baseSchema);
   const uiSchema = {

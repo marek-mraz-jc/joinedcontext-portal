@@ -401,7 +401,12 @@
       "fileLimits": "Dateigrenzen",
       "ckanInstance": "Open-Data-Portal",
       "ckanOrganization": "Herausgeber",
-      "catalogue": "Katalogeintrag"
+      "catalogue": "Katalogeintrag",
+      "publish": "Veröffentlichung",
+      "openData": "Offene Daten",
+      "datastore": "Datentabelle",
+      "sheetFrom": "Tabelle gelesen aus",
+      "sheetRefresh": "Aktualisierung der Tabelle"
     },
     "rateClass": {
       "strict": "Streng",
@@ -487,6 +492,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Wenn sich eine Entität ändert",
+      "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
