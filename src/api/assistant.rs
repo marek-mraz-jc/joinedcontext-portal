@@ -42,14 +42,18 @@ pub struct CatalogQuery {
     pub scope: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// What a search of the project's own catalogue answered (API/01 §18, AG-58).
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Catalog {
+    /// The words the search ran on, with the function words removed.
     pub q: String,
     pub items: Vec<CatalogItem>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// One manifest the search matched. A restricted item carries its kind and name and nothing
+/// else: what the caller may not read is not described to them (AG-58).
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogItem {
     pub kind: String,
@@ -67,7 +71,8 @@ pub struct CatalogItem {
     hits: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// Whether the caller may read the item, and why.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Access {
     /// `allowed` or `restricted`.
     pub verdict: String,
@@ -75,7 +80,7 @@ pub struct Access {
 }
 
 /// The runner's counters for the pipeline that feeds an endpoint, read when the search ran.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Freshness {
     pub pipeline: String,
@@ -418,6 +423,24 @@ fn item(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/assistant/catalog",
+    tag = "assistant",
+    params(
+        ("project" = String, Path, description = "The project the search runs in"),
+        ("q" = String, Query, description = "What to look for; the function words are dropped"),
+        ("scope" = Option<String>, Query,
+         description = "One kind to search, from the kinds the catalogue holds")
+    ),
+    responses(
+        (status = 200, description = "What the search matched, restricted items included", body = Catalog),
+        (status = 400, description = "`q` is empty, or `scope` names no kind",
+         body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project, or the caller may not read it",
+         body = crate::error::ProblemDetails)
+    )
+)]
 pub async fn get_catalog(
     user: CurrentUser,
     State(state): State<AppState>,

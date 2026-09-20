@@ -328,6 +328,36 @@ impl AppState {
                      manifests are read, no broker is written"
                 ),
             }
+            // An Endpoint that declares `spec.publish.ckan` becomes a dataset in its catalogue on
+            // every run, and one that stopped declaring it loses the dataset (EP-62, T-2405). The
+            // host is this Portal's own public host, which is where the endpoints answer; the
+            // token comes from the instance's `apiTokenRef`, through the repository's encrypted
+            // secrets when this Portal holds the age identity, and otherwise from the variable the
+            // reference itself names.
+            {
+                let age_key_file = match state.config.pipeline_secrets.as_ref() {
+                    Some(crate::pipeline_secrets::Backend::Sops { age_key_file }) => {
+                        Some(age_key_file.clone())
+                    }
+                    _ => None,
+                };
+                let host = state
+                    .config
+                    .public_base_url
+                    .host_str()
+                    .unwrap_or("localhost")
+                    .to_owned();
+                let mut catalogue =
+                    crate::reconciler::ckan::CkanSync::new(host).with_age_key_file(age_key_file);
+                let organisation =
+                    crate::branding::Branding::load(state.config.branding_file.as_deref())
+                        .organisation;
+                if !organisation.trim().is_empty() {
+                    catalogue = catalogue.titled(organisation);
+                }
+                syncer = syncer.with_ckan(Arc::new(catalogue));
+            }
+
             // A declared ContextSourceRegistration is written straight at the broker, in the
             // tenant of its hub space (T-0345, SP-08): it is a control-plane act with no
             // gateway operation behind it and no credential on the hop. Without the broker's
