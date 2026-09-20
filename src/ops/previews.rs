@@ -140,6 +140,9 @@ fn files_under(root: &Path) -> BTreeMap<String, String> {
 /// Only the organization's own files and the workspace project's travel: the preview is the
 /// project's, and another project's Endpoints get no preview copy. A render the loader
 /// refuses is kept too, with its reason, so asking again does not stage the branch again.
+///
+/// `JC_ENVIRONMENT` names the overlay the branch is rendered with, the same one the reconciler
+/// applies for this installation (CC-73); unset renders the manifests as they are written.
 async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, ApiError> {
     let gitea = state
         .gitea
