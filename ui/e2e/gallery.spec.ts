@@ -13,23 +13,28 @@
  * here would be a red lane rather than a check. They are generated once from the `ci-full` e2e
  * lane and committed — the task that does it is named in T-1729.
  *
- * There is no dark size because the Portal defines no dark theme: no `prefers-color-scheme`
- * block, no `.dark` variant and no `data-theme` hook in `src/index.css`. The second colour way
- * that does exist is a different brand, and `tests/page_contract.tsx` renders pages in one.
+ * The dark theme is `@media (prefers-color-scheme: dark)` in `src/tokens.css`, so it is a size
+ * here like any other: the same page with `colorScheme: "dark"`.
  */
 import { expect, test } from "@playwright/test";
 
 const SIZES = [
   // The recording: 1920×1080 at zoom 1.5 lays the page out at 1280 CSS px.
-  { name: "1920x1080-zoom1.5", viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 },
-  { name: "400px", viewport: { width: 400, height: 860 }, deviceScaleFactor: 1 },
+  { name: "1920x1080-zoom1.5", viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5, colorScheme: "light" as const },
+  { name: "400px", viewport: { width: 400, height: 860 }, deviceScaleFactor: 1, colorScheme: "light" as const },
   // WCAG 1.4.4: the page at twice the text size, laid out at 640 CSS px.
-  { name: "text-200", viewport: { width: 640, height: 900 }, deviceScaleFactor: 2 },
+  { name: "text-200", viewport: { width: 640, height: 900 }, deviceScaleFactor: 2, colorScheme: "light" as const },
+  // The same controls in the other colour way (`prefers-color-scheme: dark`, src/tokens.css).
+  { name: "dark", viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, colorScheme: "dark" as const },
 ];
 
 for (const size of SIZES) {
   test.describe(size.name, () => {
-    test.use({ viewport: size.viewport, deviceScaleFactor: size.deviceScaleFactor });
+    test.use({
+      viewport: size.viewport,
+      deviceScaleFactor: size.deviceScaleFactor,
+      colorScheme: size.colorScheme,
+    });
 
     test(`every control is drawn inside the page at ${size.name}`, async ({ page }) => {
       await page.route("**/api/v1/**", (route) =>
