@@ -17,6 +17,9 @@
       "success": "Done",
       "warning": "Warning",
       "danger": "Error"
+    },
+    "field": {
+      "required": "required"
     }
   },
   "nav": {

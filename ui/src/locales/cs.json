@@ -17,6 +17,9 @@
       "success": "Hotovo",
       "warning": "Varování",
       "danger": "Chyba"
+    },
+    "field": {
+      "required": "povinné"
     }
   },
   "nav": {

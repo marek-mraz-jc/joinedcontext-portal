@@ -52,12 +52,15 @@ describe("ui components", () => {
         help="Lower case, dashes."
         errors={["This field is required"]}
       >
-        <Input id="slug" aria-invalid="true" aria-describedby="slug__help slug__error" />
+        {/* No hand-wiring: the Field puts the ids on the control itself now (T-1739). */}
+        <Input id="slug" />
       </Field>,
     );
     const input = screen.getByLabelText(/Slug/);
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveAccessibleDescription("Lower case, dashes. This field is required");
+    expect(input).toHaveAccessibleDescription(
+      "Part of the public URL. Lower case, dashes. This field is required",
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("This field is required");
     expect(screen.getByText("Part of the public URL.")).toHaveAttribute("id", "slug__description");
   });

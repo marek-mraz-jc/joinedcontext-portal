@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { Children, cloneElement, isValidElement } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 
 export interface FieldProps {
@@ -29,10 +31,28 @@ export function fieldIds(id: string) {
   };
 }
 
+/** What a control the Field wires may already carry, and what the Field adds to it. */
+interface Wired {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
+  required?: boolean;
+  "aria-required"?: boolean | "true" | "false";
+}
+
 /**
- * Label, description, control, help and errors, in that order, with the ids wired so a
- * screen reader hears all of it (UI-01). The control is the caller's: an Input, a Select, a
- * widget of rjsf, whatever the form needs.
+ * Label, description, control, help and errors, in that order, with the ids wired so a screen
+ * reader hears all of it (UI-01, UI-44).
+ *
+ * **The Field does the wiring, not the caller.** It used to mint the ids and stamp them on its
+ * own paragraphs, leaving each page to reconstruct `${id}__help` by hand and name it in the
+ * control's `aria-describedby`. Two of the twenty message-bearing Fields did; the other eighteen
+ * rendered help and error text that no screen reader was ever told about — and `aria-invalid`,
+ * which is what draws the red border, was the caller's job as well, so a Field with `errors`
+ * commonly showed a normal control. Now the Field clones its child and adds what is missing.
+ *
+ * What the child already carries wins: a control with its own `aria-describedby` keeps it and
+ * the Field's ids are appended, and an explicit `aria-invalid` is never overwritten. The
+ * control is the caller's — an Input, a Select, a widget of rjsf, whatever the form needs.
  */
 export function Field({
   id,
@@ -46,19 +66,51 @@ export function Field({
   className,
   children,
 }: FieldProps): React.JSX.Element {
+  const { t } = useTranslation();
   const ids = fieldIds(id);
   const hasErrors = Boolean(errors && errors.length > 0);
+
+  const described = [
+    description ? ids.description : "",
+    help ? ids.help : "",
+    hasErrors ? ids.error : "",
+  ].filter(Boolean);
+
+  // One element child is the shape at all 83 call sites; anything else passes through untouched
+  // rather than being guessed at.
+  const only = Children.count(children) === 1 ? Children.only(children) : null;
+  const control =
+    isValidElement(only) && (described.length > 0 || hasErrors || required)
+      ? cloneElement(only as ReactElement<Wired>, {
+          // Deduped: a caller that already named one of these ids by hand does not get it twice.
+          "aria-describedby":
+            [
+              ...new Set(
+                `${(only.props as Wired)["aria-describedby"] ?? ""} ${described.join(" ")}`
+                  .split(/\s+/)
+                  .filter(Boolean),
+              ),
+            ].join(" ") || undefined,
+          "aria-invalid": (only.props as Wired)["aria-invalid"] ?? (hasErrors || undefined),
+          "aria-required":
+            (only.props as Wired)["aria-required"] ??
+            (only.props as Wired).required ??
+            (required || undefined),
+        })
+      : children;
+
   return (
-    <div
-      data-invalid={hasErrors ? "true" : undefined}
-      className={clsx("flex flex-col gap-1.5", className)}
-    >
+    <div className={clsx("flex flex-col gap-1.5", className)}>
       {label && !hideLabel ? (
         <div className="flex items-baseline justify-between gap-2">
           <label htmlFor={id} className="text-body font-medium text-fg">
             {label}
             {required ? (
-              <span aria-hidden="true" className="ml-0.5 text-danger">
+              // Decoration only. A screen reader learns the field is required from the
+              // `aria-required` this Field puts on the control, which is the mechanism for it;
+              // a hidden word in the label would be folded into the field's own name instead
+              // ("Name(required)"), because the name computation trims each part before joining.
+              <span aria-hidden="true" className="ml-0.5 text-danger" title={t("app.field.required")}>
                 *
               </span>
             ) : null}
@@ -71,16 +123,20 @@ export function Field({
           {description}
         </p>
       ) : null}
-      {children}
+      {control}
       {help ? (
         <p id={ids.help} className="text-caption text-fg-muted">
           {help}
         </p>
       ) : null}
       {hasErrors ? (
-        <p id={ids.error} role="alert" className="text-caption font-medium text-danger">
-          {errors!.join(", ")}
-        </p>
+        <ul id={ids.error} role="alert" className="text-caption font-medium text-danger">
+          {/* One per line, as the prop says: they used to be comma-spliced into a run-on
+              sentence with a separator no locale could change. */}
+          {errors!.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

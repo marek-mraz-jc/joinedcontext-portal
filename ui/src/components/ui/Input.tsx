@@ -8,7 +8,7 @@ export const CONTROL =
 
 /** The one checkbox of the Portal: the form theme and every hand-placed tick box share it. */
 export const CHECKBOX =
-  "focus-ring size-4 shrink-0 cursor-pointer rounded-sm border-border-strong accent-[var(--portal-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+  "focus-ring size-4 shrink-0 cursor-pointer rounded-sm border-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50";
 
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 

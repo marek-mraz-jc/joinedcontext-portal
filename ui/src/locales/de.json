@@ -17,6 +17,9 @@
       "success": "Erledigt",
       "warning": "Warnung",
       "danger": "Fehler"
+    },
+    "field": {
+      "required": "Pflichtfeld"
     }
   },
   "nav": {

@@ -1,0 +1,126 @@
+/**
+ * T-1739, T-1740: the Field/Input contract (UI-01, UI-15, UI-16, UI-44).
+ *
+ * A Field renders a label, a description, a control, a hint and the errors. Until now it minted
+ * the ids for those messages and stamped them on its own paragraphs, and left every page to
+ * reconstruct `${id}__help` by hand and name it in the control's `aria-describedby`. Two of the
+ * twenty message-bearing Fields did. These cases are the other eighteen.
+ */
+import { render, screen } from "@testing-library/react";
+import { I18nextProvider } from "react-i18next";
+import { beforeEach, describe, expect, it } from "vitest";
+import i18n from "../src/i18n";
+import { Field, Input, Select, fieldIds } from "../src/components/ui";
+
+const wrap = (node: React.ReactNode) => render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
+
+beforeEach(async () => {
+  await i18n.changeLanguage("en");
+});
+
+describe("a Field wires what it renders", () => {
+  it("the_help_a_field_shows_is_announced_without_the_page_repeating_the_id", () => {
+    wrap(
+      <Field id="slug" label="Endpoint name" help="Lower case, digits and hyphens.">
+        <Input id="slug" />
+      </Field>,
+    );
+    const control = screen.getByLabelText("Endpoint name");
+    expect(control).toHaveAccessibleDescription("Lower case, digits and hyphens.");
+    expect(control.getAttribute("aria-describedby")).toContain(fieldIds("slug").help);
+  });
+
+  it("a_description_is_read_before_the_control_and_the_error_after_it", () => {
+    wrap(
+      <Field
+        id="ns"
+        label="Namespace"
+        description="Where the entities are written."
+        help="It cannot be changed later."
+        errors={["A namespace is required.", "It must be a DNS label."]}
+      >
+        <Input id="ns" />
+      </Field>,
+    );
+    const control = screen.getByLabelText(/Namespace/);
+    const described = control.getAttribute("aria-describedby")?.split(" ") ?? [];
+    const ids = fieldIds("ns");
+    expect(described).toEqual([ids.description, ids.help, ids.error]);
+  });
+
+  it("a_field_with_errors_marks_its_own_control_invalid", () => {
+    // `aria-invalid` is what draws the red border — `Input`'s own `aria-[invalid=true]:border-danger`
+    // — and it was the caller's job, so a Field with errors commonly showed a normal control.
+    wrap(
+      <Field id="port" label="Port" errors={["Not a number."]}>
+        <Input id="port" />
+      </Field>,
+    );
+    expect(screen.getByLabelText("Port")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("every_error_is_its_own_line_not_a_comma_spliced_sentence", () => {
+    wrap(
+      <Field id="ns" label="Namespace" errors={["A namespace is required.", "It must be a DNS label."]}>
+        <Input id="ns" />
+      </Field>,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert.tagName).toBe("UL");
+    expect(alert.querySelectorAll("li")).toHaveLength(2);
+    expect(alert.textContent).not.toContain("required., It");
+  });
+
+  it("a_required_field_says_so_through_aria_required_not_a_red_asterisk_alone", () => {
+    // The asterisk is `aria-hidden` and nothing else said so: a screen reader was told nothing
+    // at all, because the Field never put `aria-required` on the control and no caller did.
+    wrap(
+      <Field id="name" label="Name" required>
+        <Input id="name" />
+      </Field>,
+    );
+    const control = screen.getByLabelText(/Name/);
+    expect(control).toHaveAttribute("aria-required", "true");
+    // And the name stays the field's name — a hidden word in the label joins it.
+    expect(control).toHaveAccessibleName("Name");
+  });
+
+  it("what_the_control_already_carries_is_kept_and_never_overwritten", () => {
+    wrap(
+      <Field id="q" label="Filter" help="An NGSI-LD query." errors={["Bad query."]}>
+        <Input id="q" aria-describedby="page-hint" aria-invalid="false" />
+      </Field>,
+    );
+    const control = screen.getByLabelText("Filter");
+    const described = control.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(described[0], "the caller's own id stays first").toBe("page-hint");
+    expect(described).toContain(fieldIds("q").help);
+    // An explicit `aria-invalid` from the page is the page's decision, not the Field's.
+    expect(control).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("a_field_with_nothing_to_say_touches_its_control_at_all", () => {
+    wrap(
+      <Field id="plain" label="Title">
+        <Input id="plain" />
+      </Field>,
+    );
+    const control = screen.getByLabelText("Title");
+    expect(control).not.toHaveAttribute("aria-describedby");
+    expect(control).not.toHaveAttribute("aria-invalid");
+    expect(control).not.toHaveAttribute("aria-required");
+  });
+
+  it("it_wires_a_select_the_same_way_it_wires_an_input", () => {
+    wrap(
+      <Field id="rep" label="Representation" help="How the data is served.">
+        <Select id="rep">
+          <option value="ngsi-ld">NGSI-LD</option>
+        </Select>
+      </Field>,
+    );
+    expect(screen.getByLabelText("Representation")).toHaveAccessibleDescription(
+      "How the data is served.",
+    );
+  });
+});
