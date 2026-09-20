@@ -29,11 +29,14 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   EmptyState,
   Icon,
   PageHeader,
   Select,
   Skeleton,
+  Tabs,
+  tabPanelProps,
 } from "../components/ui";
 
 // MapLibre is about half of the bundle; nobody downloads it before opening a dashboard.
@@ -158,7 +161,8 @@ function useResourceList(project: string, plural: string) {
 /** The map's frame while its features or its bundle are on the way. */
 function MapPlaceholder({ label }: { label: string }): JSX.Element {
   return (
-    <div role="status" aria-label={label} className="relative h-[60vh] min-h-[20rem] w-full">
+    // The map's height is a fraction of the window, and the spacing scale has no viewport step.
+    <div role="status" aria-label={label} className="relative h-[60vh] min-h-80 w-full">
       <Skeleton className="absolute inset-0 rounded-none" />
       <span className="sr-only">{label}</span>
     </div>
@@ -170,6 +174,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const [selected, setSelected] = useState<string | null>(null);
   const selectId = useId();
+  const pagesId = useId();
   // The viewport after the reader moved the map, and the layers switched off in the legend.
   const [bbox, setBbox] = useState<Bbox | undefined>(undefined);
   const [hidden, setHidden] = useState<string[] | null>(null);
@@ -474,7 +479,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                     setHidden(null);
                     setPageIndex(0);
                   }}
-                  className="min-w-[14rem]"
+                  className="min-w-56"
                 >
                   {all.map((item: Manifest) => (
                     <option key={item.metadata.name} value={item.metadata.name}>
@@ -513,29 +518,28 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
       ) : null}
 
       {(spec.pages ?? []).length > 1 ? (
-        <div role="tablist" aria-label={t("dashboards.pages")} className="flex flex-wrap gap-1">
-          {(spec.pages ?? []).map((page, index) => (
-            <button
-              key={page.title ?? index}
-              type="button"
-              role="tab"
-              aria-selected={index === pageIndex}
-              onClick={() => {
-                setPageIndex(index);
-                setHidden(null);
-              }}
-              className={
-                index === pageIndex
-                  ? "rounded border border-border bg-surface-subtle px-3 py-1 text-body font-medium"
-                  : "rounded border border-transparent px-3 py-1 text-body hover:bg-surface-subtle"
-              }
-            >
-              {page.title ?? t("dashboards.page", { number: index + 1 })}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          id={pagesId}
+          variant="pill"
+          label={t("dashboards.pages")}
+          value={String(pageIndex)}
+          onChange={(next) => {
+            setPageIndex(Number(next));
+            setHidden(null);
+          }}
+          tabs={(spec.pages ?? []).map((page, index) => ({
+            value: String(index),
+            label: page.title ?? t("dashboards.page", { number: index + 1 }),
+          }))}
+        />
       ) : null}
 
+      {/* The one page the tabs above select: named by its tab, so a screen reader that lands
+          here is told which of them it is reading (UI-16). */}
+      <div
+        {...((spec.pages ?? []).length > 1 ? tabPanelProps(pagesId, String(pageIndex)) : {})}
+        className="flex flex-col gap-section"
+      >
       <Card flush className="overflow-hidden">
         <Suspense fallback={<MapPlaceholder label={t("app.loading")} />}>
           {features.isPending && mapLayers.length > 0 ? (
@@ -596,18 +600,19 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
               key={entry.name}
               className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-body shadow-1"
             >
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  aria-label={`${t("dashboards.show")}: ${entry.name}`}
-                  checked={!entry.off}
-                  onChange={(event) => toggle(entry.name, event.target.checked)}
-                />
-                <Badge tone="primary" mono>
-                  {entry.spec.style ?? "circle"}
-                </Badge>
-                <span className="font-medium">{entry.name}</span>
-              </label>
+              <Checkbox
+                aria-label={`${t("dashboards.show")}: ${entry.name}`}
+                checked={!entry.off}
+                onChange={(event) => toggle(entry.name, event.target.checked)}
+                label={
+                  <>
+                    <Badge tone="primary" mono>
+                      {entry.spec.style ?? "circle"}
+                    </Badge>{" "}
+                    <span className="font-medium">{entry.name}</span>
+                  </>
+                }
+              />
               {entry.spec.colorBy ? (
                 <span className="inline-flex items-center gap-1 text-caption text-fg-muted">
                   <span>{entry.spec.colorBy.domain?.[0] ?? 0}</span>
@@ -647,6 +652,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
           ))}
         </ul>
       ) : null}
+      </div>
       {editors}
     </div>
   );

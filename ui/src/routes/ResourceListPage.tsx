@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
+import { humanizeName } from "../pages/apps/appTitle";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
   EmptyState,
+  PageHeader,
   TableCell,
   TableHead,
   TableHeaderCell,
@@ -82,10 +84,16 @@ function GenericListPage({
   });
 
   const items = asManifests(list.data?.items ?? []);
+  // A kind with no page of its own still opens under a heading that names it, in the person's
+  // own language where the navigation already has a word for it, and read as words where it
+  // does not — never the bare URL segment the table used as its caption (UI-01, UI-16).
+  const title = t(`nav.${plural}`, { defaultValue: humanizeName(plural) });
   return (
-    <ResourceList
+    <div className="flex flex-col gap-section">
+      <PageHeader title={title} description={t("resourceList.lead", { kind: title })} />
+      <ResourceList
       query={list}
-      caption={plural}
+      caption={title}
       head={
         <TableHead>
           <TableHeaderCell>{t("resourceList.name")}</TableHeaderCell>
@@ -120,6 +128,7 @@ function GenericListPage({
             </TableRow>
           );
         })}
-    </ResourceList>
+      </ResourceList>
+    </div>
   );
 }

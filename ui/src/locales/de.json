@@ -237,7 +237,8 @@
     "name": "Name",
     "phase": "Zustand",
     "empty": "Hier ist noch nichts.",
-    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag."
+    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
   },
   "spaces": {
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",

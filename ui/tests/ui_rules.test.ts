@@ -246,14 +246,16 @@ describe("what nothing in the UI may do", () => {
 
 describe("the allow-list", () => {
   it("the_allow_list_only_shrinks", () => {
-    // The measured state of 2026-09-20. Lower these when a file is cleaned; a change that raises
-    // one is a new violation, which is what this number is here to refuse.
+    // The measured state of 2026-09-20, after the nine pages of T-1788…T-1796. Lower these when
+    // a file is cleaned; a change that raises one is a new violation, which is what this number
+    // is here to refuse.
     const budget: Record<string, { files: number; lines: number }> = {
-      // 37/77 after the ui-forms batch (T-1769…T-1776) and main's own cleaning met here.
-      hand_made_control: { files: 37, lines: 77 },
+      // The lower of the two sides at every merge: the ui-forms batch (T-1769…T-1776) and the
+      // nine pages of T-1788…T-1796 emptied different files, and neither may lift the other's.
+      hand_made_control: { files: 34, lines: 73 },
       colour_is_a_token: { files: 5, lines: 41 },
-      size_is_on_the_scale: { files: 18, lines: 51 },
-      focus_is_not_stolen: { files: 4, lines: 7 },
+      size_is_on_the_scale: { files: 18, lines: 49 },
+      focus_is_not_stolen: { files: 3, lines: 6 },
       check_is_not_suppressed: { files: 6, lines: 7 },
       // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.
       asks_with_a_shared_dialog: { files: 0, lines: 0 },
