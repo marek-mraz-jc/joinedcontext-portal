@@ -2223,7 +2223,9 @@
       "keepOurs": "Ponechat z kopie",
       "takeTheirs": "Převzít z projektu",
       "update": "Aktualizovat z projektu",
+      "updateBlocked": "Před aktualizací odpovězte na každé pole, které změnil i projekt.",
       "propose": "Navrhnout jako jednu změnu",
+      "proposeBlocked": "Před návrhem kopie jako jedné změny vyřešte soubory, které změnil i projekt.",
       "proposed": "Navrženo jako",
       "notOwner": "Kopii vrací jen ten, kdo ji začal."
     },

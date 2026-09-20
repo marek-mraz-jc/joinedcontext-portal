@@ -206,10 +206,6 @@
       "lines": 1,
       "group": "ui-parts"
     },
-    "src/pages/workspaces/BringBackPage.tsx": {
-      "lines": 2,
-      "group": "ui-pages"
-    },
     "src/routes/ApprovalDetailPage.tsx": {
       "lines": 1,
       "group": "ui-parts"

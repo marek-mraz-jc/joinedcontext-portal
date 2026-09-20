@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { FileList } from "./ComparePage";
-import { Alert, Button, EmptyState, PageHeader } from "../../components/ui";
+import { Alert, Button, EmptyState, PageFailed, PageHeader, PageLoading, RadioGroup } from "../../components/ui";
 import { useAuth } from "../../auth/AuthProvider";
 
 
@@ -123,15 +123,32 @@ export function BringBackPage({
   const resolvedCount = Object.keys(resolutions).length;
   const allResolved = totalConflictFields === 0 || resolvedCount >= totalConflictFields;
 
+  // The heading stands while the copy and its comparison are read and when either could not be:
+  // a refusal, an outage and a copy that is gone used to be one red line of the same words with
+  // nothing to press (UI-15, UI-16, UI-44).
+  const header = <PageHeader title={t("workspaces.bringBack.title")} />;
+
   if (workspace.isPending || comparison.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return (
+      <section aria-label={t("workspaces.bringBack.title")} className="space-y-6">
+        {header}
+        <PageLoading label={t("app.loading")} />
+      </section>
+    );
   }
 
   if (workspace.isError || comparison.isError) {
+    const failed = workspace.isError ? workspace : comparison;
     return (
-      <div className="p-4">
-        <p className="text-danger">{t("app.error.generic")}</p>
-      </div>
+      <section aria-label={t("workspaces.bringBack.title")} className="space-y-6">
+        {header}
+        <PageFailed
+          error={failed.error}
+          onRetry={() => {
+            void failed.refetch();
+          }}
+        />
+      </section>
     );
   }
 
@@ -199,61 +216,43 @@ export function BringBackPage({
               key={`${conflict.path}-${idx}`}
               className="rounded-lg border border-warning/30 bg-warning-soft p-4"
             >
-              <p className="font-mono text-sm font-medium mb-2">
+              <p className="font-mono text-body font-medium mb-2">
                 {conflict.path}
               </p>
               {conflict.fields.length === 0 ? (
-                <p className="text-sm">{t("workspaces.bringBack.mergeable")}</p>
+                <p className="text-body">{t("workspaces.bringBack.mergeable")}</p>
               ) : (
                 <div className="space-y-3">
                   {conflict.fields.map((field) => {
                     const key = `${conflict.path}::${field.path}`;
                     return (
-                      <fieldset key={key} className="border-t border-border pt-2">
-                        <legend className="text-sm font-medium">
-                          {field.path === ""
+                      <RadioGroup
+                        key={key}
+                        name={key}
+                        layout="row"
+                        legend={
+                          field.path === ""
                             ? t("workspaces.bringBack.wholeFile")
-                            : field.path}
-                        </legend>
-                        <div className="flex items-center gap-4 mt-1">
-                          <label className="flex items-center gap-1 text-sm">
-                            <input
-                              type="radio"
-                              name={key}
-                              value="ours"
-                              checked={resolutions[key] === "ours"}
-                              onChange={() =>
-                                setResolutions((prev) => ({
-                                  ...prev,
-                                  [key]: "ours",
-                                }))
-                              }
-                            />
-                            {t("workspaces.bringBack.keepOurs")}:{" "}
-                            <span className="font-mono">
-                              {valueText(field.ours)}
-                            </span>
-                          </label>
-                          <label className="flex items-center gap-1 text-sm">
-                            <input
-                              type="radio"
-                              name={key}
-                              value="theirs"
-                              checked={resolutions[key] === "theirs"}
-                              onChange={() =>
-                                setResolutions((prev) => ({
-                                  ...prev,
-                                  [key]: "theirs",
-                                }))
-                              }
-                            />
-                            {t("workspaces.bringBack.takeTheirs")}:{" "}
-                            <span className="font-mono">
-                              {valueText(field.theirs)}
-                            </span>
-                          </label>
-                        </div>
-                      </fieldset>
+                            : field.path
+                        }
+                        value={resolutions[key]}
+                        options={[
+                          {
+                            value: "ours",
+                            label: t("workspaces.bringBack.keepOurs"),
+                            description: valueText(field.ours),
+                          },
+                          {
+                            value: "theirs",
+                            label: t("workspaces.bringBack.takeTheirs"),
+                            description: valueText(field.theirs),
+                          },
+                        ]}
+                        onChange={(choice) =>
+                          setResolutions((prev) => ({ ...prev, [key]: choice }))
+                        }
+                        className="border-t border-border pt-2"
+                      />
                     );
                   })}
                 </div>
@@ -265,9 +264,15 @@ export function BringBackPage({
 
       {isOwner ? (
         <div className="flex flex-wrap gap-3">
+          {/*
+            Refused with a reason rather than hard-disabled: a `disabled` button leaves the tab
+            order, so the sentence saying what is still missing could never be read by the person
+            most likely to need it (T-1743, UI-44). The click is refused either way.
+          */}
           <Button
             variant="secondary"
             disabled={!allResolved || update.isPending}
+            disabledReason={allResolved ? undefined : t("workspaces.bringBack.updateBlocked")}
             loading={update.isPending}
             onClick={() => update.mutate()}
           >
@@ -276,6 +281,9 @@ export function BringBackPage({
           <Button
             variant="primary"
             disabled={conflicts.length > 0 || propose.isPending}
+            disabledReason={
+              conflicts.length > 0 ? t("workspaces.bringBack.proposeBlocked") : undefined
+            }
             loading={propose.isPending}
             onClick={() => propose.mutate()}
           >

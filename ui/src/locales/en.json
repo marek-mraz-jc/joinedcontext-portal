@@ -2223,7 +2223,9 @@
       "keepOurs": "Keep the copy's",
       "takeTheirs": "Take the project's",
       "update": "Update from the project",
+      "updateBlocked": "Answer every field that the project changed too before updating from it.",
       "propose": "Propose as one change",
+      "proposeBlocked": "Resolve the files the project changed too before proposing the copy as one change.",
       "proposed": "Proposed as",
       "notOwner": "Only the person who started this copy brings it back."
     },
