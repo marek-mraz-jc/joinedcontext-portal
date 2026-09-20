@@ -306,6 +306,82 @@ describe("what a button is, in the source", () => {
     expect(iconOnlyButtons, "no icon-only button in the whole UI?").toBeGreaterThan(2);
   });
 
+  /** The `footer={…}` of every Dialog and ConfirmDialog, with the line it sits on. */
+  function footers(text: string): { body: string; line: number }[] {
+    const found: { body: string; line: number }[] = [];
+    for (const match of text.matchAll(/footer=\{/g)) {
+      let index = match.index + match[0].length - 1;
+      let depth = 0;
+      for (; index < text.length; index += 1) {
+        if (text[index] === "{") depth += 1;
+        else if (text[index] === "}") {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      found.push({
+        body: text.slice(match.index + match[0].length, index),
+        line: text.slice(0, match.index).split("\n").length,
+      });
+    }
+    return found;
+  }
+
+  /**
+   * A label key that means "leave this alone": the way out a dialog offers first. The last
+   * segment is the word — `form.cancel`, `drift.modal.close`, and `approvals.rejectCancel`,
+   * where the cancel is spelled into the name of the thing it cancels.
+   */
+  const leavesIt = (key: string): boolean => {
+    const word = key.split(".").pop() ?? key;
+    return /^(cancel|close)$/.test(word) || /[a-z](Cancel|Close)$/.test(word);
+  };
+
+  it("a_dialog_offers_cancel_before_the_action", () => {
+    const wrong: string[] = [];
+    let checked = 0;
+    for (const file of sources(join(UI, "src"))) {
+      const text = readFileSync(file, "utf8");
+      for (const { body, line } of footers(text)) {
+        // The label of each button in the footer, in the order a person tabs through them: the
+        // first catalogue key inside the button itself, so a label written as a condition
+        // (`{preparing ? t("export.preparing") : t("export.download")}`) is read like any other
+        // and a reason in an attribute is not mistaken for one.
+        const labels = elements(body)
+          .map(({ body: label }) => /t\("([^"]+)"/.exec(label)?.[1])
+          .filter((key): key is string => Boolean(key));
+        if (labels.length < 2) continue;
+        checked += 1;
+        const where = `${file.slice(UI.length + 1)}:${line}`;
+        if (!leavesIt(labels[0])) {
+          wrong.push(`${where} opens with "${labels[0]}" and not with the way out`);
+        }
+        if (leavesIt(labels[labels.length - 1])) {
+          wrong.push(`${where} ends with "${labels[labels.length - 1]}": the action is not last`);
+        }
+      }
+    }
+    expect(wrong, wrong.join("\n")).toEqual([]);
+    // Every dialog in the Portal, not the few a fixture happens to open.
+    expect(checked, "no dialog footer with two buttons in the whole UI?").toBeGreaterThan(5);
+  });
+
+  it("a_destructive_action_is_never_what_a_dialog_opens_on", () => {
+    // The security line of T-1731: a confirmation is a decision a person makes, not one that
+    // `Enter` makes for them on a dialog that has just appeared. Nothing in a footer takes the
+    // focus to itself.
+    const focused: string[] = [];
+    for (const file of sources(join(UI, "src"))) {
+      const text = readFileSync(file, "utf8");
+      for (const { body, line } of footers(text)) {
+        if (/\bautoFocus\b/.test(body)) {
+          focused.push(`${file.slice(UI.length + 1)}:${line} focuses a button in the footer`);
+        }
+      }
+    }
+    expect(focused, focused.join("\n")).toEqual([]);
+  });
+
   it("a_button_target_is_24_px", () => {
     // WCAG 2.5.8: every size the shared button offers states its own height, and the smallest
     // is 24 px. A page that needs something smaller does not get it by writing its own button.
