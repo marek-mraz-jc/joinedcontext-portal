@@ -231,7 +231,12 @@ export function MappingsEditor({
           <Button
             size="sm"
             variant="primary"
-            disabled={refusal !== null || proposal.mutation.isPending}
+            // UI-44, T-1743: the reason travels with the button. A hard-disabled Propose left the
+            // tab order and the refusal stood in a paragraph somewhere below it, so a reader who
+            // could not see it greyed out never learned what was missing.
+            disabled={refusal !== null}
+            disabledReason={refusal ?? undefined}
+            loading={proposal.mutation.isPending}
             onClick={() => {
               if (refusal !== null || !sourceModel || !targetModel || !space) {
                 return;

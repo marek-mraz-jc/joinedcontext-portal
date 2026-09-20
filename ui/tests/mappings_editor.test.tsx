@@ -14,7 +14,7 @@ import { I18nextProvider } from "react-i18next";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Change } from "../src/api/manifest";
 import { beforeEach, describe, expect, it } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { MappingsEditor } from "../src/pages/models/MappingsEditor";
 import type { MappingModel } from "../src/pages/models/MappingsEditor";
 import { parseModel } from "../src/pages/models/linkml";
@@ -27,7 +27,14 @@ import {
   unfilledRequired,
 } from "../src/pages/models/mapping";
 import type { Derivation } from "../src/pages/models/mapping";
-import { answeringChecks, checksSoFar } from "./checks";
+import {
+  answeringChecks,
+  checksSoFar,
+  expectDenied,
+  expectNoRawKeys,
+  expectNoViolations,
+  expectTabOrder,
+} from "./checks";
 
 /** What the city measures: micrograms, a Slovak band name and a station label. */
 const CITY = `id: https://banskabystrica.sk/models/air
@@ -417,11 +424,89 @@ describe("the editor on screen", () => {
     const example = screen.getByLabelText("Input example (JSON)");
     await user.clear(example);
     await user.type(example, "{{ not json");
-    await waitFor(() => expect(propose).toBeDisabled());
+    // Refused with the reason on the button, and still reachable to be told why (UI-44, T-1743).
+    await waitFor(() => expectDenied(propose, /not valid JSON/));
   });
 
   it("will not propose a model onto itself or into no space", async () => {
     render(<Harness project="banskabystrica" spaceOf={() => undefined} />);
-    expect(screen.getByRole("button", { name: "Propose the mapping" })).toBeDisabled();
+    expectDenied(
+      screen.getByRole("button", { name: "Propose the mapping" }),
+      /Required target slots nothing fills/,
+    );
+  });
+});
+
+/**
+ * The UI contract of the mapping canvas (T-1773, UI-04, UI-15, UI-16, UI-44, UI-48): axe over the
+ * canvas and over the golden test, every control of a row reachable in the order it is read, the
+ * refusal on the Propose button itself, and the four locales on the canvas's own words.
+ */
+describe("the mappings editor against the UI contract", () => {
+  function renderAlone(project?: string) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <MappingsEditor
+            models={MODELS}
+            alignments={[]}
+            onChange={() => {}}
+            project={project}
+            spaceOf={() => "ovzdusie"}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return { container: view.container, user: userEvent.setup() };
+  }
+
+  it("has no axe violation with the canvas and the golden test on the screen", async () => {
+    await i18n.changeLanguage("en");
+    const { container } = renderAlone("banskabystrica");
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByLabelText("Input example (JSON)")).toBeInTheDocument();
+    await expectNoViolations(container);
+  });
+
+  it("has no axe violation once a row is mapped and a unit is converted", async () => {
+    await i18n.changeLanguage("en");
+    const { container, user } = renderAlone("banskabystrica");
+
+    await user.selectOptions(screen.getByLabelText("Source slot for quality"), "band");
+    await expectNoViolations(container);
+  });
+
+  it("reaches every control of the canvas by keyboard in the order it is read", async () => {
+    await i18n.changeLanguage("en");
+    const { user } = renderAlone("banskabystrica");
+
+    const canvas = screen.getByRole("table").closest("section") as HTMLElement;
+    await expectTabOrder(user, canvas);
+  });
+
+  it("keeps the refused Propose reachable and says what is missing on it", async () => {
+    await i18n.changeLanguage("en");
+    renderAlone("banskabystrica");
+
+    // Nothing fills the required target slot yet, which is why it cannot be proposed.
+    expectDenied(
+      screen.getByRole("button", { name: "Propose the mapping" }),
+      /Required target slots nothing fills/,
+    );
+  });
+
+  it.each(SUPPORTED_LOCALES)("writes the canvas in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { container } = renderAlone("banskabystrica");
+
+    expect(screen.getByRole("table", { name: i18n.t("mappings.canvas") })).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: i18n.t("mappings.targetSlot") }),
+    ).toBeInTheDocument();
+    expectNoRawKeys(container);
   });
 });
