@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -13,7 +13,17 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { logoUrl, useBranding } from "../../branding";
-import { Button, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "../ui";
+import {
+  Button,
+  Icon,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuTrigger,
+  safeHref,
+} from "../ui";
 import type { IconName } from "../ui";
 import { NAV_SECTIONS } from "./navigation";
 import { NewProjectButton } from "./NewProject";
@@ -31,10 +41,11 @@ function ProjectSelector({ active }: { active: string }) {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="lg"
           aria-label={t("nav.projects")}
-          className="focus-ring flex w-full items-center gap-2.5 rounded-md border border-border bg-surface px-2.5 py-2 text-left shadow-1 hover:bg-surface-subtle"
+          className="w-full justify-start gap-2.5 px-2.5 text-left"
         >
           <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-caption font-bold uppercase text-primary-fg">
             {active.slice(0, 2)}
@@ -43,8 +54,10 @@ function ProjectSelector({ active }: { active: string }) {
             <span className="block truncate text-body font-semibold text-fg">{active}</span>
           </span>
           <Icon name="chevronDown" className="size-4 text-fg-subtle" />
-        </button>
+        </Button>
       </MenuTrigger>
+      {/* The trigger's own width, which Radix measures and publishes: a computed size, not one
+          the spacing scale could name. */}
       <MenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
         <MenuLabel>{t("nav.projects")}</MenuLabel>
         {projects.map((project) => (
@@ -75,21 +88,21 @@ function UserMenu() {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           aria-label={t("auth.signedInAs", { name: display })}
-          className="focus-ring inline-flex h-9 items-center gap-2 rounded-md px-1.5 hover:bg-surface-muted"
+          className="gap-2 px-1.5"
         >
           <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary-soft text-caption font-bold text-primary-soft-fg">
             {initial}
           </span>
-          <span className="hidden max-w-[10rem] truncate text-body font-medium text-fg sm:block">
+          <span className="hidden max-w-40 truncate text-body font-medium text-fg sm:block">
             {display}
           </span>
           <Icon name="chevronDown" className="hidden size-4 text-fg-subtle sm:block" />
-        </button>
+        </Button>
       </MenuTrigger>
-      <MenuContent align="end" className="min-w-[13rem]">
+      <MenuContent align="end" className="min-w-52">
         <MenuLabel>
           <span className="block truncate text-body font-medium text-fg">{display}</span>
           {identity.name ? <span className="block truncate font-mono">{identity.username}</span> : null}
@@ -116,7 +129,7 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
   return (
     <span className="inline-flex items-center gap-2.5">
       {logo ? (
-        <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-[8rem] object-contain" />
+        <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-32 object-contain" />
       ) : (
         <span
           aria-hidden="true"
@@ -192,6 +205,27 @@ export function Shell({
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
   const closeNav = () => setNavOpen(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+
+  // At phone width the navigation is a sheet over the page, and the scrim that closes it is
+  // `aria-hidden` and pointer-only by design — a second control in the tab order named "close
+  // the menu" beside the toggle that opened it would be a duplicate. Escape is the way out for
+  // the keyboard, and the focus goes back to the toggle that opened it (UI-15).
+  useEffect(() => {
+    if (!navOpen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNavOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [navOpen]);
 
   // Approvals has its own routes, so the generic `$plural` match never fires for it.
   const approvalDetail = matchRoute({ to: "/projects/$project/approvals/$id" });
@@ -230,6 +264,7 @@ export function Shell({
 
       <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface/95 px-3 backdrop-blur sm:px-4">
         <Button
+          ref={menuButton}
           variant="ghost"
           size="sm"
           className="md:hidden"
@@ -279,6 +314,7 @@ export function Shell({
           aria-label={t("nav.main")}
           className={clsx(
             "z-40 w-sidebar shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3",
+            // The viewport minus the 14 (3.5rem) header: a computed height, so it stays inline.
             "md:sticky md:top-14 md:flex md:h-[calc(100vh-3.5rem)]",
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
@@ -449,7 +485,7 @@ export function Shell({
           ) : null}
           {branding.contactEmail ? (
             <a
-              href={`mailto:${branding.contactEmail}`}
+              href={safeHref(`mailto:${branding.contactEmail}`)}
               className="focus-ring rounded-sm underline hover:text-fg hover:no-underline"
             >
               {branding.contactEmail}

@@ -27,7 +27,7 @@
     }
   },
   "colour_is_a_token": {
-    "_max": 5,
+    "_max": 4,
     "src/api/schema.d.ts": {
       "lines": 11,
       "group": "ui-parts"
@@ -48,18 +48,14 @@
     }
   },
   "focus_is_not_stolen": {
-    "_max": 2,
+    "_max": 1,
     "src/components/DeleteResourceDialog.tsx": {
       "lines": 1,
       "group": "ui-forms"
-    },
-    "src/components/forms/theme.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
     }
   },
   "hand_made_control": {
-    "_max": 32,
+    "_max": 24,
     "src/assistant/AssistantDock.tsx": {
       "lines": 12,
       "group": "ui-forms"
@@ -76,28 +72,8 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/components/forms/theme.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
-    },
-    "src/components/forms/widgets/EntityPicker.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
     "src/components/forms/widgets/ListFailed.tsx": {
       "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/components/forms/widgets/ResourcePicker.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
-    "src/components/forms/widgets/SecretRef.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
-    "src/components/layout/Shell.tsx": {
-      "lines": 2,
       "group": "ui-parts"
     },
     "src/pages/apps/AppGenerator.tsx": {
@@ -179,7 +155,7 @@
     }
   },
   "size_is_on_the_scale": {
-    "_max": 16,
+    "_max": 13,
     "src/assistant/AssistantDock.tsx": {
       "lines": 10,
       "group": "ui-forms"
@@ -189,13 +165,10 @@
       "group": "ui-parts",
       "reason": "the filled part of the quota bar is used/limit as a percentage: a computed size, and the line says so"
     },
-    "src/components/forms/theme.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/components/layout/Shell.tsx": {
-      "lines": 5,
-      "group": "ui-parts"
+      "lines": 2,
+      "group": "ui-parts",
+      "reason": "two computed sizes: the project menu takes the trigger's own width, which Radix measures and publishes, and the sidebar is the viewport minus the 14 header; both say so on the line"
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "lines": 1,
