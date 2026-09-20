@@ -72,6 +72,30 @@ jobs:
       - name: the extractor reads what it is meant to read
         run: python3 scripts/ci/check-readme-commands.py --selftest
       - run: python3 scripts/ci/check-readme-commands.py
+  ui-coverage:
+    # What the UI suite covers, measured and never targeted (T-2136, TS-01). The thresholds in
+    # `ui/vite.config.ts` are what it reached when they were written, so the number can rise and
+    # cannot fall. Not in the fast lane: instrumenting every module costs more than its budget.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: has
+        run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ui == 'yes'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - if: steps.has.outputs.ui == 'yes'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
+      # The SDK first, for the reason the fast lane gives: the UI links its sources (T-1439).
+      - if: steps.has.outputs.ui == 'yes'
+        run: cd sdk && pnpm install --frozen-lockfile
+      - if: steps.has.outputs.ui == 'yes'
+        run: cd ui && pnpm install --frozen-lockfile && pnpm vitest run --coverage
+      - if: steps.has.outputs.ui == 'yes'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: ui-coverage, path: ui/coverage, if-no-files-found: error }
   supply-chain:
     runs-on: ubuntu-latest
     timeout-minutes: 15

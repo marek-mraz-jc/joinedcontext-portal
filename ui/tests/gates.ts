@@ -1,0 +1,217 @@
+/**
+ * T-2136: the three inventories of the UI test gate (UI-15, UI-16, UI-44, TS-19).
+ *
+ * Every function here reads text and returns a verdict. Nothing renders, nothing touches the
+ * network, and each one takes its input as an argument rather than reading the tree itself, so
+ * the gate tests can hold the rule to a synthetic tree where the answer is known: a gate whose
+ * own logic is untested is a gate that can stop biting without anybody noticing.
+ *
+ * The three gates that use these are `gate_modules.test.ts` (every module is imported by a
+ * test), `gate_routes.test.ts` (every route is opened by a spec) and `gate_controls.test.tsx`
+ * (every control is used by a test). Each carries an allow-list of what is still missing, and
+ * each asserts that its list only ever shrinks.
+ */
+
+/** Every `from "…"` and `import("…")` specifier of one source file, in order. */
+const SPECIFIER = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g;
+
+export function importSpecifiers(source: string): string[] {
+  return [...source.matchAll(SPECIFIER)].map((match) => match[1]);
+}
+
+/** Comments removed, so a specifier inside a doc comment is not an import. */
+export function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
+/**
+ * A file that only re-exports: `components/ui/index.ts` is the one the Portal has, and every
+ * page imports its controls through it (UI-01). A test that imports the barrel is a test that
+ * names what the barrel re-exports, which is why the module gate follows one.
+ */
+export function isBarrel(source: string): boolean {
+  const statements = withoutComments(source)
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  return statements.length > 0 && statements.every((statement) => statement.startsWith("export "));
+}
+
+/** The repository-relative module a relative specifier names, or `undefined` when it is a package. */
+export function resolveSpecifier(
+  fromFile: string,
+  specifier: string,
+  modules: ReadonlySet<string>,
+): string | undefined {
+  if (!specifier.startsWith(".")) return undefined;
+  const parts = fromFile.split("/").slice(0, -1).concat(specifier.split("/"));
+  const stack: string[] = [];
+  for (const part of parts) {
+    if (part === "." || part === "") continue;
+    if (part === "..") stack.pop();
+    else stack.push(part);
+  }
+  const base = stack.join("/");
+  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`]) {
+    if (modules.has(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+export interface Tree {
+  /** Every source module, repository-relative (`src/components/ui/Button.tsx`), with its text. */
+  modules: Readonly<Record<string, string>>;
+  /** Every test file, the same way (`tests/button_rules.test.tsx`). */
+  tests: Readonly<Record<string, string>>;
+}
+
+/**
+ * The modules at least one test imports, directly or through a barrel.
+ *
+ * Transitive imports do not count on purpose: a module reached only because a page imports it
+ * is a module no test names, and naming it is what the per-file tasks of the `ui-*` groups do.
+ */
+export function modulesNamedByTests(tree: Tree): Set<string> {
+  const names = new Set(Object.keys(tree.modules));
+  const named = new Set<string>();
+  const follow = (module: string): void => {
+    if (named.has(module)) return;
+    named.add(module);
+    const source = tree.modules[module];
+    if (!isBarrel(source)) return;
+    for (const specifier of importSpecifiers(source)) {
+      const target = resolveSpecifier(module, specifier, names);
+      if (target) follow(target);
+    }
+  };
+  for (const [file, source] of Object.entries(tree.tests)) {
+    for (const specifier of importSpecifiers(withoutComments(source))) {
+      const target = resolveSpecifier(file, specifier, names);
+      if (target) follow(target);
+    }
+  }
+  return named;
+}
+
+export interface Verdict {
+  /** Uncovered and not in the allow-list: the build is red and these are why. */
+  missing: string[];
+  /** In the allow-list and covered now, or gone from the tree: the entry has to go. */
+  stale: string[];
+}
+
+/** What the allow-list still has to carry, and what it may no longer carry. */
+export function verdict(
+  subjects: readonly string[],
+  covered: ReadonlySet<string>,
+  allowed: readonly string[],
+): Verdict {
+  const allowedSet = new Set(allowed);
+  return {
+    missing: subjects.filter((subject) => !covered.has(subject) && !allowedSet.has(subject)).sort(),
+    stale: allowed.filter((entry) => !subjects.includes(entry) || covered.has(entry)).sort(),
+  };
+}
+
+/** Every `path:` of the router, in the order the file declares them. */
+export function routerPaths(source: string): string[] {
+  return [...withoutComments(source).matchAll(/path:\s*"([^"]+)"/g)].map((match) => match[1]);
+}
+
+/** A router path as the matcher of an address: `$name` stands for one segment. */
+export function routeMatcher(path: string): RegExp {
+  const segments = path
+    .split("/")
+    .map((segment) =>
+      segment.startsWith("$") ? "[^/]+" : segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+  return new RegExp(`^${segments.join("/")}/?$`);
+}
+
+/**
+ * Which route an address belongs to: the most specific one that matches it.
+ *
+ * `/projects/helsinki/models` matches both `/projects/$project/models` and the generic
+ * `/projects/$project/$plural`, and the router resolves it to the first. Counting it for both
+ * would let the generic route stand in for every page the Portal has.
+ */
+export function routeOf(address: string, paths: readonly string[]): string | undefined {
+  const matches = paths.filter((path) => routeMatcher(path).test(address));
+  if (matches.length === 0) return undefined;
+  const parameters = (path: string) => path.split("/").filter((segment) => segment.startsWith("$")).length;
+  return matches.sort(
+    (a, b) => parameters(a) - parameters(b) || b.length - a.length,
+  )[0];
+}
+
+/** Every address a spec names, from any string literal that starts with a slash. */
+export function addressesIn(source: string): string[] {
+  return [...withoutComments(source).matchAll(/["'`](\/[A-Za-z0-9$_./?&=%{}-]*)["'`]/g)].map((match) =>
+    match[1].split("?")[0],
+  );
+}
+
+/** Route -> the spec files that open it, for one set of specs. */
+export function routesOpenedBy(
+  paths: readonly string[],
+  specs: Readonly<Record<string, string>>,
+): Map<string, string[]> {
+  const opened = new Map<string, string[]>();
+  for (const [file, source] of Object.entries(specs)) {
+    for (const address of addressesIn(source)) {
+      const route = routeOf(address, paths);
+      if (!route) continue;
+      const list = opened.get(route) ?? [];
+      if (!list.includes(file)) list.push(file);
+      opened.set(route, list.sort());
+    }
+  }
+  return opened;
+}
+
+/**
+ * The controls one module declares, counted by kind.
+ *
+ * Every control a person operates in the Portal is one of these elements: the shared components
+ * on Radix (`Button`, `Switch`, `Checkbox`, `RadioGroup`, `FilePicker`, a `Menu.Item`, a tab
+ * trigger) or a plain form element where a page needs one. A module that gains one has changed
+ * what a person can do, which is what `controls.json` records and the control gate compares.
+ */
+const CONTROL = /<(Button|button|Switch|Checkbox|RadioGroup|FilePicker|Menu\.Item|TabsTrigger|select|textarea|input)\b/g;
+
+export function controlsIn(source: string): Record<string, number> {
+  const counted: Record<string, number> = {};
+  for (const match of withoutComments(source).matchAll(CONTROL)) {
+    counted[match[1]] = (counted[match[1]] ?? 0) + 1;
+  }
+  return Object.fromEntries(Object.entries(counted).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** Which test files name a module, directly or through a barrel. */
+export function testsNaming(tree: Tree): Map<string, string[]> {
+  const names = new Set(Object.keys(tree.modules));
+  const naming = new Map<string, Set<string>>();
+  const follow = (module: string, test: string): void => {
+    const already = naming.get(module) ?? new Set<string>();
+    if (already.has(test)) return;
+    already.add(test);
+    naming.set(module, already);
+    if (!isBarrel(tree.modules[module])) return;
+    for (const specifier of importSpecifiers(tree.modules[module])) {
+      const target = resolveSpecifier(module, specifier, names);
+      if (target) follow(target, test);
+    }
+  };
+  for (const [file, source] of Object.entries(tree.tests)) {
+    for (const specifier of importSpecifiers(withoutComments(source))) {
+      const target = resolveSpecifier(file, specifier, names);
+      if (target) follow(target, file);
+    }
+  }
+  return new Map(
+    [...naming].map(([module, files]) => [
+      module,
+      [...files].filter((file) => /\.test\.tsx?$/.test(file)).sort(),
+    ]),
+  );
+}
