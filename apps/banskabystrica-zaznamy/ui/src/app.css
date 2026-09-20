@@ -1,0 +1,18 @@
+/*
+ * The page around the grid. The table brings its own stylesheet from the SDK (`grid.css`), so
+ * nothing here touches it: what is left is the heading, the two sentences that say what may be
+ * edited and why, and the source line.
+ */
+.page {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--jc-space-4, 1rem);
+}
+
+.subtitle,
+.note,
+.source {
+  color: var(--jc-color-text-muted, #555);
+  margin: 0 0 var(--jc-space-3, 0.75rem);
+  max-width: 60rem;
+}

@@ -6,7 +6,12 @@ members = ["apps/*"]
 # A `static` app (AP-01) is a bundle and nothing else, so it has no crate for `apps/*` to load;
 # cargo's glob refuses a member directory without a `Cargo.toml` rather than skipping it, so every
 # such app is named here. The app's screens are covered by the `apps/*/ui` lane in CI.
-exclude = ["apps/bbsk-ukazovatele"]
+exclude = [
+  "apps/bbsk-ukazovatele",
+  "apps/banskabystrica-ovzdusie",
+  "apps/banskabystrica-zaznamy",
+  "apps/bbsk-zaznamy",
+]
 
 [package]
 name = "joinedcontext-portal"

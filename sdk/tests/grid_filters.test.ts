@@ -103,6 +103,19 @@ describe("the grid's filter row as an NGSI-LD query", () => {
     expect(askedBy(ID, { op: "pattern", value: "hel.*" }).idPattern).toBe("hel\\.\\*");
   });
 
+  it("quotes a text column's value even when it reads as a number (T-2436)", () => {
+    // `refPeriod` holds "2023" and "2025Q2"; a period asked for as the number 2023 matches no
+    // string, and the grid would show an empty page as if the endpoint had answered it.
+    const period: FilterColumn = { key: "refPeriod", attr: "refPeriod", meta: null, kind: "text" };
+    expect(askedBy(period, { op: "equals", value: "2023" }).q).toBe('refPeriod=="2023"');
+    expect(askedBy(period, { op: "notEquals", value: "2023" }).q).toBe('refPeriod!="2023"');
+    // A number column still asks for a number, and a date column for a timestamp.
+    expect(askedBy(BIKES, { op: "gte", value: "5" }).q).toBe("availableBikeNumber>=5");
+    expect(askedBy(BIKES, { op: "between", value: "5", value2: "9" }).q).toBe(
+      "availableBikeNumber>=5;availableBikeNumber<=9",
+    );
+  });
+
   it("keeps a Unicode value as it was typed", () => {
     expect(askedBy(NAME, { op: "equals", value: "Töölö" }).q).toBe('name=="Töölö"');
     expect(askedBy(NAME, { op: "contains", value: "Kalasatama 東" }).q).toBe('name~="Kalasatama 東"');
