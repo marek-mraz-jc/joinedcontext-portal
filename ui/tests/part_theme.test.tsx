@@ -191,9 +191,9 @@ describe("the form theme against the UI contract", () => {
 
     await user.clear(screen.getByLabelText(/Name/));
     await user.click(screen.getByRole("button", { name: i18n.t("form.submit") }));
-    // The error line itself is `Field`'s own `<ul role="alert">`, which no list may carry:
-    // T-2319 splits the live region from the list in the shared component.
-    await expectNoViolations(container, ["#root_name__error"]);
+    // Nothing excluded: `Field`'s error used to be a `<ul role="alert">`, which no list may
+    // carry, and T-2319 split the live region from the list it holds.
+    await expectNoViolations(container);
   });
 
   it.each(SUPPORTED_LOCALES)("writes the theme's own words in %s", async (locale) => {

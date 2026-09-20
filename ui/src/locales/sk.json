@@ -252,7 +252,10 @@
     "referenced": "Stále sa používa",
     "button": "Odstrániť",
     "action": "Odstrániť {name}",
-    "close": "Zavrieť"
+    "close": "Zavrieť",
+    "exact": "Presne tak, ako je napísané, bez medzier.",
+    "mismatch": "Toto nie je {name}.",
+    "needName": "Odstránenie navrhnete napísaním {name}."
   },
   "resourceEdit": {
     "title": "Upraviť {name}",
@@ -260,7 +263,9 @@
     "propose": "Navrhnúť zmenu",
     "renamed": "Ponechajte názov {name}; iný názov by bol nový zdroj.",
     "button": "Upraviť",
-    "action": "Upraviť {name}"
+    "action": "Upraviť {name}",
+    "loading": "Načítava sa {name}…",
+    "unreadable": "{name} sa nepodarilo načítať."
   },
   "resourceList": {
     "name": "Názov",
@@ -421,7 +426,12 @@
       "fileLimits": "Limity súborov",
       "ckanInstance": "Portál otvorených dát",
       "ckanOrganization": "Vydavateľ",
-      "catalogue": "Záznam v katalógu"
+      "catalogue": "Záznam v katalógu",
+      "publish": "Publikovanie",
+      "openData": "Otvorené údaje",
+      "datastore": "Tabuľka údajov",
+      "sheetFrom": "Tabuľka sa číta z",
+      "sheetRefresh": "Obnova tabuľky"
     },
     "rateClass": {
       "strict": "Prísna",
@@ -487,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Keď sa entita zmení",
+      "onReconcile": "Pri každej rekonciliácii"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -983,10 +997,15 @@
       "new": "Nová rola",
       "newTitle": "Nová rola",
       "newLead": "Rola projektu {project}. Môže menovať iba druhy tohto projektu a iba slovesá, ktoré tu sami máte; zmenu schvaľuje niekto iný.",
-      "sourceLabel": "Manifest roly",
+      "field": {
+        "name": "Názov roly",
+        "rules": "Pravidlá",
+        "kinds": "Druhy",
+        "verbs": "Operácie"
+      },
+      "beyondRights": "Rola nesmie udeliť viac, než tu držíte sami: chýba {missing}.",
       "propose": "Navrhnúť rolu",
-      "emptyHint": "Rola je množina činností nad množinou druhov — podať endpoint, schváliť zmenu, čítať priestor. Roly platformy fungujú všade; rola deklarovaná tu funguje v tomto projekte.",
-      "sourceHelp": "Manifest tak, ako sa zapíše. Dajte mu názov a vypíšte druhy a slovesá, ktoré udeľuje; tvar je už pripravený."
+      "emptyHint": "Rola je množina činností nad množinou druhov — podať endpoint, schváliť zmenu, čítať priestor. Roly platformy fungujú všade; rola deklarovaná tu funguje v tomto projekte."
     },
     "accounts": {
       "title": "Servisné účty",
@@ -1068,17 +1087,20 @@
       "new": "Nová skupina",
       "newTitle": "Nová skupina",
       "newLead": "Členovia sú e-mailové adresy, pod ktorými ich vedie Keycloak. Skupina sa navrhuje ako zmena v červenej dráhe, tak ako väzba roly.",
-      "sourceLabel": "Manifest",
+      "field": {
+        "name": "Názov skupiny",
+        "description": "Čo je táto skupina",
+        "members": "Členovia",
+        "memberUser": "Adresa"
+      },
       "propose": "Navrhnúť skupinu",
       "reason": {
         "DriftCorrected": "Opravené",
         "MemberUnknown": "Čaká na prvé prihlásenie",
         "RealmRefused": "Nezapísané"
       },
-      "emptyHint": "Skupina je názov pre viac ľudí, takže rolu dáte raz namiesto človeka po človeku. Skupiny prichádzajú z poskytovateľa identity alebo sa deklarujú tu.",
-      "sourceHelp": "Manifest tak, ako sa zapíše. Dajte skupine názov a vypíšte e-mailové adresy jej členov; tvar je už pripravený."
-    },
-    "nameFirst": "Toto je príklad. Dajte mu názov (malé písmená, číslice a spojovníky) a upravte zvyšok; potom ho možno navrhnúť."
+      "emptyHint": "Skupina je názov pre viac ľudí, takže rolu dáte raz namiesto človeka po človeku. Skupiny prichádzajú z poskytovateľa identity alebo sa deklarujú tu."
+    }
   },
   "flows": {
     "title": "Toky",
@@ -1348,6 +1370,7 @@
       "addEndpoint": "+ Pridať dáta z ďalšieho endpointu",
       "moreEndpoints": "Čítať aj",
       "moreEndpointsHint": "Aplikácia číta aj tieto endpointy, každý typ a atribút, ktorý zverejňujú, a nikdy do nich nezapisuje.",
+      "moreEndpointsFull": "Do jednej aplikácie idú najviac {count} endpointy; ak chcete pridať ďalší, jeden odškrtnite.",
       "prompt": "Čo má aplikácia robiť?",
       "promptHint": "Je to opis, nie príkaz, ktorý platforma vykoná: nedostane sa k údajom, ktoré nie sú v zozname nižšie.",
       "submit": "Vygenerovať aplikáciu",
@@ -1556,7 +1579,8 @@
     "nameReserved": "„org“ je vlastný menný priestor organizácie, nikdy nie projekt.",
     "displayNameLabel": "Zobrazovaný názov",
     "descriptionLabel": "Popis",
-    "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt."
+    "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
+    "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno."
   },
   "entities": {
     "type": "Typ entity",
@@ -2210,7 +2234,14 @@
     "check": "Skontrolovať",
     "propose": "Navrhnúť",
     "checked": "Skontrolované: kópiu možno navrhnúť.",
-    "mayNotPropose": "V projekte {project} nemôžete navrhovať tento druh."
+    "mayNotPropose": "V projekte {project} nemôžete navrhovať tento druh.",
+    "reading": "Načítava sa {name}…",
+    "unreadable": "{name} sa nepodarilo načítať.",
+    "chooseSpace": "Najprv vyberte priestor cieľového projektu.",
+    "checkFirst": "Pred návrhom kópiu skontrolujte.",
+    "readingSpaces": "Načítavajú sa priestory cieľového projektu…",
+    "noSpaces": "Projekt {project} zatiaľ nemá priestor, na ktorý sa dá namapovať.",
+    "spacesUnreadable": "Priestory projektu {project} sa nepodarilo načítať."
   },
   "workspaces": {
     "title": "Kópie",
@@ -2253,7 +2284,10 @@
       "scopeSpace": "Priestor {name}",
       "ttl": "Ponechať",
       "ttlDays": "{days, plural, one {# deň} few {# dni} many {# dňa} other {# dní}}",
-      "submit": "Začať kópiu"
+      "submit": "Začať kópiu",
+      "titleField": "Názov",
+      "titleHint": "Voliteľné; zobrazí sa namiesto mena.",
+      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu."
     },
     "bar": {
       "label": "Kópia",

@@ -117,12 +117,9 @@ describe("a blueprint that asks for parameters", () => {
     });
   });
 
-  // UI-01: a dimmed button that says nothing is pressed twice. The page now passes `submitting`
-  // as well as `disabled`, but the spinner cannot be asserted yet: rjsf stops re-deriving the
-  // submit's options from props once a form with a required field has validated, so `loading`
-  // never reaches the button (T-2322, reproduced from this test). What is asserted here is what
-  // holds today — the press is refused while the change is in flight, and the form with it — and
-  // T-2322 turns the busy assertion on.
+  // UI-01: a dimmed button that says nothing is pressed twice. `submitting` reaches the button
+  // now that the submit's state travels by context instead of through rjsf's cached uiSchema
+  // (T-2322, reproduced from this test), so the busy state is asserted here as well.
   it("refuses a second press while the change is on its way", async () => {
     const user = userEvent.setup();
     let answer!: () => void;
@@ -143,6 +140,9 @@ describe("a blueprint that asks for parameters", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: en.flows.instantiate.submit })).toBeDisabled();
     });
+    const busy = screen.getByRole("button", { name: en.flows.instantiate.submit });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(busy.querySelector("svg"), "the spinner is drawn").not.toBeNull();
     expect(await screen.findByLabelText(/Space name/)).toBeDisabled();
     expect(sent.length).toBe(1);
     answer();

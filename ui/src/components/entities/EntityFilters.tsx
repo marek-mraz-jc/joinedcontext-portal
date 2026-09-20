@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
-import { Button, Field, Input, Select } from "../ui";
+import { Button, Checkbox, Field, Input, Select } from "../ui";
 import { filtersFromQ, opsFor, qFromFilters } from "./filters";
 import type { EntityQuery, Filter, FilterSlot } from "./filters";
 
@@ -165,24 +165,24 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {} }
       {value.type && slots.length > 0 ? (
         <fieldset className="flex flex-wrap gap-2">
           <legend className="mb-1 text-caption text-fg-muted">{t("entities.attrs")}</legend>
+          {/* The shared `Checkbox`, not a hand-written label around a bare input: a refused
+              attribute used to be hard-`disabled`, so it left the tab order and the reason
+              survived only in a `title` on a label a keyboard can never land on. Somebody
+              working by keyboard saw a struck-through name and could not find out why
+              (T-1756, UI-44, `PermissionGuard.tsx:16-19`). */}
           {slots.map((slot) => (
-            <label
+            <Checkbox
               key={slot.name}
-              title={denied[slot.name]}
+              label={slot.name}
               className={clsx(
-                "inline-flex items-center gap-1 font-mono text-caption",
+                "gap-1 font-mono text-caption",
                 denied[slot.name] && "text-fg-muted line-through",
               )}
-            >
-              <input
-                type="checkbox"
-                aria-label={denied[slot.name] ? `${slot.name}: ${denied[slot.name]}` : slot.name}
-                disabled={Boolean(denied[slot.name])}
-                checked={(value.attrs ?? []).includes(slot.name)}
-                onChange={(event) => toggleAttribute(slot.name, event.target.checked)}
-              />
-              {slot.name}
-            </label>
+              disabled={Boolean(denied[slot.name])}
+              disabledReason={denied[slot.name]}
+              checked={(value.attrs ?? []).includes(slot.name)}
+              onChange={(event) => toggleAttribute(slot.name, event.target.checked)}
+            />
           ))}
         </fieldset>
       ) : null}

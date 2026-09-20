@@ -296,7 +296,7 @@ export function ConversationPanel({
   return (
     <section
       aria-labelledby="run-conversation"
-      className="flex min-h-[28rem] flex-col rounded border border-border"
+      className="flex min-h-96 flex-col rounded border border-border"
     >
       <div className="flex items-baseline justify-between border-b border-border px-4 py-2">
         <h2 id="run-conversation" className="text-base font-semibold">

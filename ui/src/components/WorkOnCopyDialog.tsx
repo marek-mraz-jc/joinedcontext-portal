@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { components } from "../api/schema";
 import { api, unwrap } from "../api/client";
+import { usePermissions } from "../api/permissions";
 import { Alert, Button, Dialog, Field, Input, Select } from "./ui";
 import { useWorkspace } from "./layout/WorkspaceContext";
 
@@ -91,32 +92,41 @@ export function WorkOnCopyDialog({
     },
   });
 
-  const canSubmit = isValidName(name) && !create.isPending;
+  const canSubmit = isValidName(name);
+
+  // Closing forgets what was typed, whichever way it is closed. Cancel used to call
+  // `onOpenChange(false)` straight past this, so only the Escape key and the X reset the dialog
+  // (T-1755).
+  const close = (next: boolean) => {
+    if (!next) {
+      setName(defaultName(scope));
+      setTitle("");
+      setTtlDays(7);
+      setError(null);
+    }
+    onOpenChange(next);
+  };
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          setName(defaultName(scope));
-          setTitle("");
-          setTtlDays(7);
-          setError(null);
-        }
-        onOpenChange(next);
-      }}
+      onOpenChange={close}
       size="md"
       title={t("workspaces.open.title")}
       description={t("workspaces.open.description")}
-      closeLabel={t("form.cancel")}
+      // Not "Cancel": the footer already has a Cancel, and two controls in one dialog answering
+      // to the same name is a dialog nobody can drive by voice or by a screen reader's list.
+      closeLabel={t("app.close")}
       footer={
         <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => close(false)}>
             {t("form.cancel")}
           </Button>
           <Button
             variant="primary"
             disabled={!canSubmit}
+            // Reachable while it is refused, saying what the name has to be (UI-44).
+            disabledReason={canSubmit ? undefined : t("workspaces.open.nameInvalid")}
             loading={create.isPending}
             onClick={() => create.mutate()}
           >
@@ -131,7 +141,16 @@ export function WorkOnCopyDialog({
             {error}
           </Alert>
         ) : null}
-        <Field id="ws-name" label={t("workspaces.open.name")} required>
+        {/* The hint and the refusal are the Field's, so the Input goes `aria-invalid` and both
+            are in its `aria-describedby`. They used to be loose paragraphs beside it: somebody
+            returning to fix the name heard the label and nothing about what was wrong (T-1755). */}
+        <Field
+          id="ws-name"
+          label={t("workspaces.open.name")}
+          required
+          help={t("workspaces.open.nameHint")}
+          errors={name !== "" && !isValidName(name) ? [t("workspaces.open.nameInvalid")] : undefined}
+        >
           <Input
             id="ws-name"
             value={name}
@@ -139,27 +158,23 @@ export function WorkOnCopyDialog({
               setName(e.target.value);
               setError(null);
             }}
-            aria-describedby="ws-name-hint"
-          />
-          <p id="ws-name-hint" className="text-caption text-fg-muted">
-            {t("workspaces.open.nameHint")}
-          </p>
-          {name && !isValidName(name) ? (
-            <p role="alert" className="text-caption text-danger">
-              {t("workspaces.open.nameInvalid")}
-            </p>
-          ) : null}
-        </Field>
-        <Field id="ws-title" label={t("workspaces.open.title")}>
-          <Input
-            id="ws-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
           />
         </Field>
-        <Field id="ws-scope" label={t("workspaces.open.scope")}>
+        {/* Its own label: it used to borrow `workspaces.open.title`, which is the dialog's own
+            heading, so the second box was called "Work on a copy" as well. */}
+        <Field
+          id="ws-title"
+          label={t("workspaces.open.titleField")}
+          help={t("workspaces.open.titleHint")}
+        >
+          <Input id="ws-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        {/* Not a Field: a Field always renders `<label htmlFor>`, and there is no control here
+            for the label to point at — "Covers" was an orphan label over static text. */}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-body font-medium text-fg">{t("workspaces.open.scope")}</p>
           <p className="text-body text-fg-muted">{scopeText}</p>
-        </Field>
+        </div>
         <Field id="ws-ttl" label={t("workspaces.open.ttl")}>
           <Select
             id="ws-ttl"
@@ -197,6 +212,10 @@ export function WorkOnCopyAction({
   trigger?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
+  // Opening a copy proposes into the project, and the API refuses it without a role that may
+  // propose something there (`ops/workspaces.rs`, `may_propose_anything`). The refusal used to
+  // arrive after the work, as a raw server sentence in the dialog's Alert (T-1755).
+  const mayOpen = usePermissions(project).can("*", "propose");
   const [ownOpen, setOwnOpen] = useState(false);
   // The row may open this, and so may the URL (`?edit=`/`?delete=`) or the assistant's hand-off: both
   // are honoured, and closing clears both, so a page opened on one resource still opens its dialog
@@ -209,7 +228,13 @@ export function WorkOnCopyAction({
   return (
     <>
       {trigger ? (
-        <Button variant={variant} size="sm" onClick={() => setOpen(true)}>
+        <Button
+          variant={variant}
+          size="sm"
+          disabled={!mayOpen}
+          disabledReason={mayOpen ? undefined : t("workspaces.open.denied")}
+          onClick={() => setOpen(true)}
+        >
           {label ?? t("workspaces.open.action")}
         </Button>
       ) : null}

@@ -251,7 +251,11 @@ export function ActivityFeed({
                     {time.format(new Date(event.time))}
                   </TableCell>
                   <TableCell>
-                    <Badge tone={SEVERITY_TONE[event.severity] ?? "neutral"} mono>
+                    <Badge
+                      tone={SEVERITY_TONE[event.severity] ?? "neutral"}
+                      mono
+                      data-testid="activity-kind"
+                    >
                       {event.kind}
                     </Badge>
                   </TableCell>

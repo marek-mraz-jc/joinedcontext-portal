@@ -9,6 +9,7 @@ import type { JsonSchema, UiSchema } from "./types";
 import {
   FormActionsContext,
   FormAfterFieldsContext,
+  FormSubmitStateContext,
   portalTemplates,
   portalThemeWidgets,
 } from "./theme";
@@ -141,22 +142,20 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
       "ui:submitButtonOptions": {
         ...(uiSchema?.["ui:submitButtonOptions"] as
           Record<string, unknown> | undefined),
-        // rjsf's own default is the untranslated word "Submit".
+        // rjsf's own default is the untranslated word "Submit", and `submitText` is all that
+        // still travels this way. The button's own state — in flight, and why it is closed — goes
+        // through `FormSubmitStateContext` instead, because rjsf caches the uiSchema in its
+        // state and stops re-deriving it once a form with a required field has validated
+        // (T-2322): the button was rendered for ever with the options of its first render.
         submitText: submitLabel ?? t("form.submit"),
-        ...(submitDisabledReason || submitting
-          ? {
-              props: {
-                disabled: Boolean(submitDisabledReason) || Boolean(submitting),
-                ...(submitDisabledReason
-                  ? { title: submitDisabledReason }
-                  : {}),
-                ...(submitting ? { loading: true } : {}),
-              },
-            }
-          : {}),
       },
     }),
-    [uiSchema, submitLabel, submitDisabledReason, submitting, t],
+    [uiSchema, submitLabel, t],
+  );
+
+  const submitState = React.useMemo(
+    () => ({ loading: Boolean(submitting), reason: submitDisabledReason }),
+    [submitting, submitDisabledReason],
   );
 
   const transformErrors = React.useCallback(
@@ -191,27 +190,29 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
       }
     >
       <FormAfterFieldsContext.Provider value={afterFields ?? null}>
-        <Form<T>
-          validator={validator}
-          schema={schema}
-          uiSchema={effectiveUiSchema}
-          formData={formData}
-          disabled={disabled}
-          liveValidate
-          extraErrors={extraErrors}
-          showErrorList={false}
-          noHtml5Validate
-          transformErrors={transformErrors}
-          templates={portalTemplates}
-          widgets={widgets}
-          onSubmit={(data) => {
-            onSubmit(data.formData as T);
-          }}
-          onChange={(data) => {
-            setHeld(data.formData);
-            onChange?.(data.formData as T | undefined);
-          }}
-        />
+        <FormSubmitStateContext.Provider value={submitState}>
+          <Form<T>
+            validator={validator}
+            schema={schema}
+            uiSchema={effectiveUiSchema}
+            formData={formData}
+            disabled={disabled}
+            liveValidate
+            extraErrors={extraErrors}
+            showErrorList={false}
+            noHtml5Validate
+            transformErrors={transformErrors}
+            templates={portalTemplates}
+            widgets={widgets}
+            onSubmit={(data) => {
+              onSubmit(data.formData as T);
+            }}
+            onChange={(data) => {
+              setHeld(data.formData);
+              onChange?.(data.formData as T | undefined);
+            }}
+          />
+        </FormSubmitStateContext.Provider>
       </FormAfterFieldsContext.Provider>
     </FormActionsContext.Provider>
   );

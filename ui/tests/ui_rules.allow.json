@@ -44,11 +44,7 @@
     }
   },
   "focus_is_not_stolen": {
-    "_max": 1,
-    "src/components/DeleteResourceDialog.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    }
+    "_max": 1
   },
   "hand_made_control": {
     "_max": 24,
@@ -60,38 +56,14 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/components/SaveAsDialog.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    },
-    "src/components/entities/EntityFilters.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    },
     "src/components/forms/widgets/ListFailed.tsx": {
       "lines": 1,
       "group": "ui-parts"
-    },
-    "src/pages/apps/AppGenerator.tsx": {
-      "lines": 4,
-      "group": "ui-forms"
-    },
-    "src/pages/apps/KpiCard.tsx": {
-      "lines": 4,
-      "group": "ui-forms"
     },
     "src/pages/apps/QuestionOptions.tsx": {
       "lines": 1,
       "group": "ui-parts",
       "reason": "T-1839: the choice chip is a roving-tabindex radio (single answer) or toggle (several) whose body is a title over a description. The shared Button fixes a height (h-6..h-11) and centres one line of content; a class passed to override that would win or lose by CSS source order rather than by being written last, so the chip stays hand-made and keeps the Portal ring from the global :focus-visible rule."
-    },
-    "src/pages/endpoints/SchemaProjectionPanel.tsx": {
-      "lines": 3,
-      "group": "ui-forms"
-    },
-    "src/pages/explore/ExplorePage.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
     },
     "src/pages/import/ImportPage.tsx": {
       "lines": 1,
@@ -124,8 +96,9 @@
       "reason": "two computed sizes: the project menu takes the trigger's own width, which Radix measures and publishes, and the sidebar is the viewport minus the 14 header; both say so on the line"
     },
     "src/pages/apps/ConversationPanel.tsx": {
-      "lines": 2,
-      "group": "ui-forms"
+      "lines": 1,
+      "group": "ui-forms",
+      "reason": "the width of a chat bubble is a share of the column it sits in, so the person sees at a glance which side said it; a percentage is on no spacing scale and the line says so"
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "lines": 1,

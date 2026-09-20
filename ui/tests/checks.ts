@@ -159,13 +159,21 @@ const RAW_KEY = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9_]+)+$/;
 /**
  * No visible text is a raw translation key (UI-48): a key that reached the screen is a string
  * missing from the bundle of the locale under test, in every locale the organisation offers.
+ *
+ * `exclude` names the subtrees that render a dotted *identifier* rather than a sentence — an
+ * activity kind (`access.denied`), an entity type, a JSON path — which no bundle translates and
+ * which is shaped exactly like a key. As with {@link expectNoViolations}, the caller says in a
+ * comment what the subtree holds, so nothing is quietly exempted.
  */
-export function expectNoRawKeys(container: HTMLElement): void {
+export function expectNoRawKeys(container: HTMLElement, exclude: string[] = []): void {
+  const exempt = exclude.flatMap((selector) =>
+    Array.from(container.querySelectorAll<HTMLElement>(selector)),
+  );
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   const leaked: string[] = [];
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
     const text = (node.textContent ?? "").trim();
-    if (RAW_KEY.test(text)) {
+    if (RAW_KEY.test(text) && !exempt.some((element) => element.contains(node))) {
       leaked.push(text);
     }
   }
