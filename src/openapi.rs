@@ -76,6 +76,11 @@ use crate::tools::model_tools::{
         crate::api::import::import,
         crate::api::export::revisions,
         crate::api::permissions::permissions_me,
+        // The map of a generated application loads these two directly, without the typed
+        // client, which is how they came to carry `utoipa::path` annotations and still be
+        // absent from the document (T-2168). A route a person can call is in the contract.
+        crate::api::basemap::get_style,
+        crate::api::basemap::get_tile,
         crate::api::agent_runs::create_run,
         crate::api::agent_runs::list_runs,
         crate::api::agent_runs::get_run,
@@ -276,7 +281,8 @@ use crate::tools::model_tools::{
         (name = "ops", description = "One operation registry behind every door (AG-59, ADR-N-021)"),
         (name = "drafts", description = "Shared manifest drafts every window shares (AG-61, UI-47)"),
         (name = "preferences", description = "The signed-in person's own UI preferences"),
-        (name = "access", description = "ServiceAccounts, their API keys and effective grants")
+        (name = "access", description = "ServiceAccounts, their API keys and effective grants"),
+        (name = "basemap", description = "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)")
     ),
     modifiers(&JcCoreSchemas)
 )]

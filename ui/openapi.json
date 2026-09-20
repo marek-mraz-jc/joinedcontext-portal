@@ -2026,6 +2026,159 @@
         }
       }
     },
+    "/api/v1/projects/{project}/basemap/{style}/style.json": {
+      "get": {
+        "tags": [
+          "basemap"
+        ],
+        "operationId": "get_style",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "style",
+            "in": "path",
+            "description": "Basemap style (default)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MapLibre style v8 JSON",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "404": {
+            "description": "Not found or basemap not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/basemap/{style}/{z}/{x}/{tile}": {
+      "get": {
+        "tags": [
+          "basemap"
+        ],
+        "operationId": "get_tile",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "style",
+            "in": "path",
+            "description": "Basemap style (default)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "z",
+            "in": "path",
+            "description": "Zoom level",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "description": "Tile X coordinate",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "tile",
+            "in": "path",
+            "description": "Tile Y coordinate with extension, e.g. 0.png",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tile image",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "400": {
+            "description": "Invalid tile coordinates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or basemap not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad gateway from upstream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/changes": {
       "get": {
         "tags": [
@@ -10033,6 +10186,10 @@
     {
       "name": "access",
       "description": "ServiceAccounts, their API keys and effective grants"
+    },
+    {
+      "name": "basemap",
+      "description": "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)"
     }
   ]
 }

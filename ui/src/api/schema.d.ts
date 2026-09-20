@@ -499,6 +499,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/basemap/{style}/style.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_style"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/basemap/{style}/{z}/{x}/{tile}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_tile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/changes": {
         parameters: {
             query?: never;
@@ -4166,6 +4198,107 @@ export interface operations {
             };
             /** @description No agent runner, or no such profile */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_style: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Basemap style (default) */
+                style: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description MapLibre style v8 JSON */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Not found or basemap not configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_tile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Basemap style (default) */
+                style: string;
+                /** @description Zoom level */
+                z: number;
+                /** @description Tile X coordinate */
+                x: number;
+                /** @description Tile Y coordinate with extension, e.g. 0.png */
+                tile: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tile image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Invalid tile coordinates */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found or basemap not configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Bad gateway from upstream */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
