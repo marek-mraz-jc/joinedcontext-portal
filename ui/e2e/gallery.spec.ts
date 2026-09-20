@@ -155,3 +155,40 @@ for (const size of SIZES) {
     });
   });
 }
+
+/**
+ * The failure that only ever appeared on the CI runner (T-2446), as a test that fails anywhere.
+ *
+ * A badge holding an entity id is one token with no space in it, so its minimum width is the
+ * whole string and every ancestor inherits it. Where the monospace font draws a shade wider —
+ * the runner, not this machine — that minimum passed what the viewport had and the page scrolled
+ * sideways against UI-27. Widening the font here is what makes the difference reproducible: the
+ * pill wraps instead of growing, and nothing below it moves.
+ */
+test.describe("a label with no spaces in it", () => {
+  test.use({ viewport: { width: 400, height: 900 } });
+
+  test("wraps instead of pushing the page sideways", async ({ page }) => {
+    await page.route("**/api/v1/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ grants: [], bootstrap: true }),
+      }),
+    );
+    await page.goto("/__gallery?lang=en", { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { level: 1, name: "Component gallery" })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    // Wider than any machine draws it, so the test does not depend on whose font is installed.
+    await page.addStyleTag({ content: ".font-mono { letter-spacing: 0.08em; font-size: 115% }" });
+    const overflow = await page.evaluate(() => {
+      const doc = document.documentElement;
+      return doc.scrollWidth - doc.clientWidth;
+    });
+    expect(
+      overflow,
+      `an id in a badge pushed the page ${overflow}px sideways when the font drew wider`,
+    ).toBeLessThanOrEqual(1);
+  });
+});
