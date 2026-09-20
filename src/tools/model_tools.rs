@@ -313,8 +313,27 @@ pub async fn sdm_catalog(
 /// (`csv`, `xlsx`, `json`, `pdf`; the extension decides otherwise). The bytes go to Model Tools'
 /// `/infer-schema` base64-encoded in JSON, are parsed there in memory and written nowhere, and
 /// the draft comes back as Model Tools wrote it: `linkml`, `operations`, `detectedTypes`,
-/// `matches`, `untyped`, `rows` (API/01 §11). Not in the OpenAPI document: the snapshot the UI
-/// pins cannot be regenerated here, so the UI calls this route directly.
+/// `matches`, `untyped`, `rows` (API/01 §11).
+#[utoipa::path(
+    post,
+    path = "/api/v1/tools/infer-schema",
+    tag = "tools",
+    request_body(
+        content = String,
+        description = "`multipart/form-data`: the sample under `file`, and an optional `format` \
+                       (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say",
+        content_type = "multipart/form-data"
+    ),
+    responses(
+        (status = 200, description = "The draft model as Model Tools wrote it: `linkml`, \
+                                      `operations`, `detectedTypes`, `matches`, `untyped`, `rows`", body = Object),
+        (status = 400, description = "No `file` field, an upload that does not parse, or a \
+                                      sample past the byte limit", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 413, description = "Sample larger than the body limit", body = ProblemDetails),
+        (status = 503, description = "No model tools service configured, or it did not answer", body = ProblemDetails)
+    )
+)]
 pub async fn infer_schema(
     _user: CurrentUser,
     State(state): State<AppState>,

@@ -121,6 +121,35 @@ pub async fn oauth_protected_resource(State(state): State<AppState>) -> Response
 }
 
 /// JSON-RPC 2.0 dispatcher for the Configuration MCP server.
+///
+/// One operation in the document, with an opaque body, because that is what the route is
+/// (T-2402): a single POST whose meaning is the JSON-RPC `method` inside it, not the path. The
+/// alternative — leaving it out because it is not REST — made the API page and the published
+/// contract disagree, and a route a person can call belongs in the contract whatever shape its
+/// body has. The methods themselves are listed on the page (API/01 §21), where a JSON-RPC
+/// surface can be written down properly.
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp",
+    tag = "mcp",
+    request_body(
+        content = Object,
+        description = "A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The \
+                       method decides what happens; the path never does (AG-60, ADR-N-021).",
+        content_type = "application/json"
+    ),
+    responses(
+        (status = 200, description = "The JSON-RPC response object. A refusal the protocol owns \
+                                      — an unknown method, a bad parameter — is an `error` \
+                                      member here and not an HTTP status", body = Object),
+        (status = 401, description = "No bearer, or one this realm did not sign; the answer \
+                                      carries `WWW-Authenticate` with the metadata document", body = Object),
+        (status = 403, description = "The token is valid and its account may not use this door", body = Object),
+        (status = 405, description = "Method not allowed: the door takes POST"),
+        (status = 429, description = "Past the per-subject rate limit of this minute (AG-60)", body = Object)
+    ),
+    security(("mcp_bearer" = []))
+)]
 pub async fn handle_mcp(
     State(state): State<AppState>,
     headers: HeaderMap,
