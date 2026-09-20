@@ -884,6 +884,7 @@
   },
   "access": {
     "title": "Přístup",
+    "lead": "Kdo má v tomto projektu jakou roli, které účty nejsou lidé a co z toho kterýkoli z nich skutečně smí číst a zapisovat.",
     "roles": {
       "title": "Lidé a role",
       "lead": "Kdo smí v tomto projektu navrhovat, schvalovat a odstraňovat. Přidělení je změna, kterou schválí jiná osoba.",

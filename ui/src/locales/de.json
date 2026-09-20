@@ -884,6 +884,7 @@
   },
   "access": {
     "title": "Zugriff",
+    "lead": "Wer in diesem Projekt welche Rolle hält, welche Konten keine Personen sind und was davon jedes tatsächlich lesen und schreiben darf.",
     "roles": {
       "title": "Personen und Rollen",
       "lead": "Wer in diesem Projekt vorschlagen, genehmigen und entfernen darf. Eine Vergabe ist eine Änderung, die eine andere Person genehmigt.",

@@ -884,6 +884,7 @@
   },
   "access": {
     "title": "Prístup",
+    "lead": "Kto má v tomto projekte akú rolu, ktoré účty nie sú ľudia a čo z toho ktorýkoľvek z nich naozaj smie čítať a zapisovať.",
     "roles": {
       "title": "Ľudia a roly",
       "lead": "Kto smie v tomto projekte navrhovať, schvaľovať a odstraňovať. Pridelenie je zmena, ktorú schváli iná osoba.",

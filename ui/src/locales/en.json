@@ -884,6 +884,7 @@
   },
   "access": {
     "title": "Access",
+    "lead": "Who holds which role in this project, which accounts are not people, and what any of them may actually read and write.",
     "roles": {
       "title": "People and roles",
       "lead": "Who may propose, approve and remove what in this project. A grant is a change another person approves.",

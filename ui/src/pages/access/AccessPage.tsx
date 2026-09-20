@@ -12,7 +12,7 @@ export function AccessPage({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="space-y-8">
-      <PageHeader title={t("access.title")} />
+      <PageHeader title={t("access.title")} description={t("access.lead")} />
       <RoleBindings project={project} />
       <Roles project={project} />
       <Groups project={project} />
