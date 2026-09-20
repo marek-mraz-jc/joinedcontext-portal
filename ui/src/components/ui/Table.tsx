@@ -9,6 +9,12 @@ export interface TableProps extends HTMLAttributes<HTMLTableElement> {
   zebra?: boolean;
   /** Announced to a screen reader while the rows are a skeleton: "Loading endpoints". */
   status?: string;
+  /**
+   * A Tailwind max-height class (`max-h-64`) for a table whose length is the caller's data: the
+   * frame then scrolls vertically as well, so a long list scrolls in place instead of growing
+   * the page. The frame is one focusable, named stop either way (WCAG 2.1.1).
+   */
+  maxHeight?: string;
 }
 
 /**
@@ -19,6 +25,7 @@ export function Table({
   caption,
   zebra = true,
   status,
+  maxHeight,
   className,
   children,
   ...rest
@@ -37,7 +44,10 @@ export function Table({
       role="group"
       aria-label={caption}
       tabIndex={0}
-      className="focus-ring overflow-x-auto rounded-lg border border-border bg-surface shadow-1"
+      className={clsx(
+        "focus-ring overflow-x-auto rounded-lg border border-border bg-surface shadow-1",
+        maxHeight && ["overflow-y-auto", maxHeight],
+      )}
     >
       {status ? (
         <p role="status" className="sr-only">

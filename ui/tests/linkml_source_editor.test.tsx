@@ -4,7 +4,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
+import { expectNoRawKeys, expectNoViolations, focusables } from "./checks";
 
 // Monaco draws on a canvas and starts a worker, neither of which exists in jsdom. The stand-in
 // is a textarea with the same contract, so what the test exercises is this component's own
@@ -184,5 +185,62 @@ describe("LinkML source editor", () => {
   it("says so when the model has no open problem", async () => {
     renderEditor(SOURCE);
     expect(await screen.findByText("The model has no open problems.")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The UI contract of the source view (T-1771, UI-04, UI-15, UI-16, UI-44, UI-48): the editor and
+ * its diagnostics are axe-clean with and without findings, the editor is reachable by keyboard,
+ * and the summary and the empty state are written in all four locales.
+ *
+ * The Monaco stand-in above is a `<textarea>` with the same contract, so what is measured here
+ * is this component's own markup: the region around the editor and the diagnostics list.
+ */
+describe("the LinkML source editor against the UI contract", () => {
+  function renderAlone(initial: string) {
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <LinkmlSourceEditor source={initial} onChange={() => {}} diagnostics={diagnose(initial)} />
+      </I18nextProvider>,
+    );
+    return { container: view.container, user: userEvent.setup() };
+  }
+
+  it("has no axe violation with a clean document", async () => {
+    const { container } = renderAlone(SOURCE);
+    await expectNoViolations(container);
+  });
+
+  it("has no axe violation when the document has an error and a warning", async () => {
+    // A slot the class names but nothing defines, and a class with no `class_uri`: one of each
+    // severity, so both colours and both list items are on the screen.
+    const broken = SOURCE.replace("      - pm10", "      - pm10\n      - missing").replace(
+      "    class_uri: bb:AirQualityObserved\n",
+      "",
+    );
+    const { container } = renderAlone(broken);
+    expect(diagnose(broken).length).toBeGreaterThan(0);
+    await expectNoViolations(container);
+  });
+
+  it("gives the document itself to the keyboard, named as the source", async () => {
+    const { container, user } = renderAlone(SOURCE);
+
+    const area = screen.getByLabelText("LinkML source");
+    expect(focusables(container)[0]).toBe(area);
+    area.focus();
+    await user.type(area, " ");
+    expect(document.activeElement).toBe(area);
+  });
+
+  it.each(SUPPORTED_LOCALES)("counts the diagnostics in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { container } = renderAlone(SOURCE);
+
+    expect(
+      screen.getByRole("heading", { name: i18n.t("models.diagnostics", { errors: 0, warnings: 0 }) }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("models.noDiagnostics"))).toBeInTheDocument();
+    expectNoRawKeys(container);
   });
 });

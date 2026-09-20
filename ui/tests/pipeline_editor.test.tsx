@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
+import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
@@ -823,5 +824,113 @@ it("tells a feed from a space and reads the attributes of a class from an inline
         .find((request) => request.method === "PUT" && request.url.includes("/drafts/Pipeline/aq-derived"));
       expect(drafted).toBeDefined();
     });
+  });
+});
+
+/**
+ * The UI contract of the pipeline dialog (T-1774, UI-04, UI-15, UI-16, UI-44, UI-48): axe over
+ * the dialog as it opens and over an existing pipeline, every control reachable in the order it
+ * is read, an address the API wrote checked before it is a link, and the four locales on the
+ * dialog's own words.
+ */
+describe("the pipeline editor against the UI contract", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/banskabystrica/pipelines");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("has no axe violation with the dialog open on a new pipeline", async () => {
+    renderPipelines();
+    const dialog = await openNew();
+    // The flow canvas is left out: it is an `<svg role="img">` with focusable nodes inside, which
+    // axe reports as `nested-interactive` (serious). That file is T-1852's, evidence in its body.
+    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+  });
+
+  it("has no axe violation with the dialog open on an existing pipeline", async () => {
+    renderPipelines();
+
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("link", { name: /bento\.yaml/ });
+
+    // The flow canvas is T-1852's (`nested-interactive`), as above.
+    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+  });
+
+  it("reaches the controls of the dialog's first step by keyboard in the order they are read", async () => {
+    renderPipelines();
+    const dialog = await openNew();
+
+    const name = within(dialog).getByLabelText(/^Name/);
+    const step = name.closest("section, form, div[class*=grid]") as HTMLElement;
+    await expectTabOrder(userEvent, step);
+  });
+
+  /// UI-48: `status.sourceUrl` is written by the workspace, so it is checked before it is a link.
+  it("offers no link when the address the API wrote is not one a browser may follow", async () => {
+    renderPipelines([
+      {
+        ...EXISTING,
+        status: { phase: "Live", sourceUrl: "javascript:alert(document.cookie)" },
+      } as Manifest,
+    ]);
+
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await screen.findByRole("dialog");
+
+    // The hint about the Bloblang file stays; only the address is refused.
+    expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("link", { name: /bento\.yaml/ })).toBeNull();
+    expect(dialog.querySelector('a[href^="javascript:"]')).toBeNull();
+  });
+
+  /// T-1775: the sampled entities are the shared `Table`, so the caption names it, the headers
+  /// carry their scope, and each tick is named by the entity it ticks.
+  it("reads the sampled entities as a table with a caption and a named tick per row", async () => {
+    renderPipelines();
+    const dialog = await openNew();
+    const studio = within(dialog).getByTestId("pipeline-studio");
+
+    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "space");
+    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.space), "ovzdusie");
+    await userEvent.selectOptions(within(studio).getByLabelText(en.entities.type), "AirQualityObserved");
+    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.studio.loadSample }));
+
+    const table = await within(studio).findByRole("table", { name: en.pipelines.studio.sample });
+    // A long sample scrolls in its own frame instead of growing the studio (T-1775).
+    const frame = within(studio).getByRole("group", { name: en.pipelines.studio.sample });
+    expect(frame.className).toContain("max-h-64");
+    const headers = within(table).getAllByRole("columnheader");
+    expect(headers.every((header) => header.getAttribute("scope") === "col")).toBe(true);
+    expect(headers[0]).toHaveTextContent(en.pipelines.studio.tick);
+
+    const tick = within(table).getByRole("checkbox", { name: SAMPLE[0].id });
+    await userEvent.click(tick);
+    expect(tick).toBeChecked();
+    expect(within(studio).getByText(/1 entity ticked|1 entities ticked/)).toBeInTheDocument();
+  });
+
+  it.each(SUPPORTED_LOCALES)("writes the dialog in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    renderPipelines();
+
+    await userEvent.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("option", { name: "mqtt-mesto" });
+
+    // The dialog carries the form/YAML tabs; the studio inside it has a set of its own, so both
+    // answer to this name and what matters is that the name is the locale's, not English.
+    expect(within(dialog).getAllByRole("tab", { name: i18n.t("form.view.form") }).length)
+      .toBeGreaterThan(0);
+    expectNoRawKeys(dialog);
   });
 });

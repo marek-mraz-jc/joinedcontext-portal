@@ -9,7 +9,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
+import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
@@ -335,5 +336,89 @@ describe("from a sample to a proposal", () => {
     await waitFor(() => expect(propose()).toBeDisabled());
     expect(within(dialog).getByText(en.pipelines.test.gate)).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The UI contract of the studio (T-1775, UI-04, UI-15, UI-16, UI-44, UI-48).
+ *
+ * The Bloblang box was a hand-made `<textarea>` carrying its own `aria-label` and its own border
+ * classes, and the sampled entities were a hand-made `<table>` with a hand-made tick per row;
+ * both are the shared controls now, so the label, the focus ring, the header scope and the
+ * caption come from one place. These tests hold that, plus axe and the four locales.
+ */
+describe("the pipeline studio against the UI contract", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function renderAlone(initial?: PipelineForm, dataSources?: Manifest[]) {
+    const onForm = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <Harness initial={initial} onForm={onForm} dataSources={dataSources} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return { container: view.container, onForm, user: userEvent.setup() };
+  }
+
+  it("has no axe violation with the studio open on a file source", async () => {
+    const { container } = renderAlone(undefined, [HTTP_SOURCE]);
+
+    // The flow canvas is left out: `<svg role="img">` with focusable nodes inside is
+    // `nested-interactive` (serious), and that file is T-1852's; evidence in its body.
+    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+  });
+
+  it("names the Bloblang box through its Field and keeps what is typed in the draft", async () => {
+    const { onForm, user } = renderAlone({ compute: { kind: "bloblang", bloblang: "root = this" } });
+
+    await user.click(screen.getByTestId("flow-node-compute"));
+    const box = screen.getByTestId("flow-bloblang");
+    expect(box.tagName).toBe("TEXTAREA");
+    // One name, from the Field's label, rather than a hand-written `aria-label` beside it.
+    expect(box).toHaveAccessibleName(en.pipelines.flow.nodeBloblang);
+    expect(screen.getByLabelText(en.pipelines.flow.nodeBloblang)).toBe(box);
+
+    box.focus();
+    expect(document.activeElement).toBe(box);
+    await user.type(box, "\nroot.x = 1");
+    expect(onForm).toHaveBeenCalled();
+    const last = onForm.mock.calls[onForm.mock.calls.length - 1][0] as PipelineForm;
+    expect(last.compute?.bloblang).toContain("root.x = 1");
+  });
+
+  it("has no axe violation with the compute node's editor open", async () => {
+    const { container, user } = renderAlone({
+      compute: { kind: "bloblang", bloblang: "root = this" },
+    });
+
+    await user.click(screen.getByTestId("flow-node-compute"));
+    await screen.findByTestId("flow-bloblang");
+    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+  });
+
+  it("reaches the controls of the source section by keyboard in the order they are read", async () => {
+    const { user } = renderAlone(undefined, [HTTP_SOURCE]);
+
+    const source = screen
+      .getByLabelText(en.pipelines.studio.sourceKind)
+      .closest("section") as HTMLElement;
+    await expectTabOrder(user, source);
+  });
+
+  it.each(SUPPORTED_LOCALES)("writes the studio in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { container } = renderAlone(undefined, [HTTP_SOURCE]);
+
+    expect(screen.getByLabelText(i18n.t("pipelines.studio.sourceKind"))).toBeInTheDocument();
+    expectNoRawKeys(container);
   });
 });

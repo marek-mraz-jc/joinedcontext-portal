@@ -316,16 +316,17 @@
         "Dashboard": "Mapový dashboard s {count, plural, one {# stránkou} other {# stránkami}}"
       },
       "onApproval": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení se zdroj začne načítat a prostor se naplní.",
-      "title": "Complete this space",
+      "title": "Doplnit tento prostor",
       "lead": "Zadejte vzorový soubor nebo adresu zdroje. Portál navrhne datový model, prostor, zdroj dat a pipeline a každý návrh zkontroluje.",
-      "space": "Space name",
-      "url": "Endpoint URL",
-      "files": "Files",
-      "dropHint": "Drop files here or browse",
-      "action": "Complete",
-      "proposeAll": "Propose all",
-      "open": "Open",
-      "noDrafts": "No drafts completed yet."
+      "space": "Název prostoru",
+      "url": "URL endpointu",
+      "files": "Soubory",
+      "dropHint": "Přetáhněte soubory sem nebo je vyberte",
+      "action": "Doplnit",
+      "proposeAll": "Navrhnout vše",
+      "open": "Otevřít",
+      "noDrafts": "Zatím nejsou doplněny žádné návrhy.",
+      "needInput": "Zadejte URL endpointu nebo přidejte soubor."
     },
     "segment": "identifikátory: {segment}"
   },

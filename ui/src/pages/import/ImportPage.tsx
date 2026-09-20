@@ -6,7 +6,16 @@ import { readCsrfToken } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
-import { Alert, Button, Field, Input, PageHeader, safeHref, Select } from "../../components/ui";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  PageHeader,
+  safeHref,
+  Select,
+} from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 
@@ -318,9 +327,8 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
               <ul className="flex flex-col gap-1 text-caption">
                 {(report.needs ?? []).map((need) => (
                   <li key={`${need.kind} ${need.where}`} className="flex flex-wrap items-baseline gap-2">
-                    <input type="checkbox" aria-label={need.where} />
+                    <Checkbox label={<span className="font-mono">{need.where}</span>} />
                     <span className="font-medium">{t(`import.report.need.${need.kind}`)}</span>
-                    <span className="font-mono">{need.where}</span>
                     <span className="text-fg-muted">{need.why}</span>
                     <a className="underline" href={safeHref(need.link)}>
                       {t("import.report.needSet")}

@@ -18,7 +18,8 @@
     },
     "src/pages/spaces/SpaceComplete.tsx": {
       "lines": 1,
-      "group": "ui-forms"
+      "group": "ui-forms",
+      "reason": "taking the prefill empties it, so it is taken once in an effect after mount (T-0894); the reason is on the line"
     },
     "src/routes/EndpointsPage.tsx": {
       "lines": 1,
@@ -167,12 +168,9 @@
       "group": "ui-parts"
     },
     "src/pages/import/ImportPage.tsx": {
-      "lines": 2,
-      "group": "ui-forms"
-    },
-    "src/pages/models/LinkmlVisualEditor.tsx": {
-      "lines": 6,
-      "group": "ui-forms"
+      "lines": 1,
+      "group": "ui-forms",
+      "reason": "a native file input: the browser owns the file picker, and no shared control wraps it"
     },
     "src/pages/models/ModelFileDrop.tsx": {
       "lines": 1,
@@ -190,17 +188,14 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/pages/pipelines/PipelineStudio.tsx": {
-      "lines": 3,
-      "group": "ui-forms"
-    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "lines": 1,
       "group": "ui-parts"
     },
     "src/pages/spaces/SpaceComplete.tsx": {
       "lines": 1,
-      "group": "ui-forms"
+      "group": "ui-forms",
+      "reason": "a native file input: the browser owns the file picker, and no shared control wraps it"
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "lines": 1,
