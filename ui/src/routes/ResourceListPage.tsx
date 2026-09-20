@@ -19,6 +19,7 @@ import { SpacesPage } from "./SpacesPage";
 import { EndpointsPage } from "./EndpointsPage";
 import { DashboardsPage } from "./DashboardsPage";
 import { PipelinesPage } from "./PipelinesPage";
+import { PoliciesPage } from "./PoliciesPage";
 import { DataSourcesPage } from "../pages/datasources/DataSourcesPage";
 import { AccessPage } from "../pages/access/AccessPage";
 import { FlowGallery } from "../pages/flows/Gallery";
@@ -29,6 +30,8 @@ const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.E
   spaces: SpacesPage,
   endpoints: EndpointsPage,
   pipelines: PipelinesPage,
+  // A Policy is authored through a form like every other kind, not as YAML (T-2326).
+  policies: PoliciesPage,
   datasources: DataSourcesPage,
   dashboards: DashboardsPage,
   // "flows" is a section too: the gallery reads organization-level Blueprints, not a project

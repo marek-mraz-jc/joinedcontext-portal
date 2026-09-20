@@ -51,7 +51,8 @@
     "sync": "Sync",
     "activity": "Activity",
     "import": "Import",
-    "workspaces": "Copies"
+    "workspaces": "Copies",
+    "policies": "Policies"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -2282,5 +2283,44 @@
   },
   "rowActions": {
     "more": "More actions for {name}"
+  },
+  "policies": {
+    "title": "Policies",
+    "lead": "Who may read and write the context data of this project's spaces, and on which entities.",
+    "empty": "This project has no Policy yet.",
+    "add": "New Policy",
+    "addHint": "Saving proposes a change; the grant takes effect once the change is approved.",
+    "propose": "Propose change",
+    "effect": {
+      "permission": "Grant",
+      "prohibition": "Refusal"
+    },
+    "operations": {
+      "writes": "changes data",
+      "covers": "{count, plural, one {covers # operation:} other {covers # operations:}}",
+      "total": "{count, plural, =0 {nothing granted yet} one {# operation in all} other {# operations in all}}",
+      "none": "Nothing is granted until an operation is ticked.",
+      "more": "Individual operations",
+      "moreHint": "The operations the five groups are made of; a grant normally names a group instead."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context Space",
+      "effect": "Effect",
+      "assignee": "Granted to",
+      "assigneeKind": "Kind of grantee",
+      "assigneeId": "Grantee",
+      "operations": "Operations",
+      "information": "Entities and attributes",
+      "entities": "Entity selectors",
+      "entityType": "Entity type",
+      "idPattern": "Identifier pattern",
+      "propertyNames": "Properties",
+      "relationshipNames": "Relationships",
+      "validity": "Validity",
+      "validFrom": "Valid from",
+      "validTo": "Valid to",
+      "grants": "Grants"
+    }
   }
 }
