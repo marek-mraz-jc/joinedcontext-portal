@@ -54,16 +54,37 @@ for (const size of SIZES) {
       // pushes a row out of the page, and it is on every specimen.
       const { overflow, offenders } = await page.evaluate(() => {
         const doc = document.documentElement;
+        // An element inside a horizontal scroller is not what pushes the page sideways — a wide
+        // table in its own `overflow-x-auto` is the design (`components/ui/Table.tsx`). Naming
+        // those as offenders sent two sessions after a table that was never the cause, so each
+        // one now says how far past the edge it reaches and whether anything clips it.
+        const clipped = (element: HTMLElement) => {
+          for (let node = element.parentElement; node; node = node.parentElement) {
+            if (getComputedStyle(node).overflowX !== "visible") {
+              return true;
+            }
+          }
+          return false;
+        };
         const wide: string[] = [];
         document.querySelectorAll<HTMLElement>("main *").forEach((element) => {
           const box = element.getBoundingClientRect();
           if (box.right > doc.clientWidth + 1 && element.offsetParent !== null) {
-            wide.push(`${element.tagName}.${String(element.className).slice(0, 60)}`);
+            const past = Math.round(box.right - doc.clientWidth);
+            const where = clipped(element) ? "inside a scroller" : "NOT CLIPPED";
+            wide.push(
+              `${element.tagName}.${String(element.className).slice(0, 40)} +${past}px ${where}`,
+            );
           }
         });
+        // The unclipped ones first: those are the page's own width, and the rest are context.
+        wide.sort((a, b) => Number(b.includes("NOT CLIPPED")) - Number(a.includes("NOT CLIPPED")));
         return { overflow: doc.scrollWidth - doc.clientWidth, offenders: wide.slice(0, 6) };
       });
-      expect(overflow, `the gallery scrolls sideways: ${offenders.join(" | ")}`).toBeLessThanOrEqual(1);
+      expect(
+        overflow,
+        `the gallery scrolls sideways by ${overflow}px: ${offenders.join(" | ")}`,
+      ).toBeLessThanOrEqual(1);
 
       // Every specimen is on the page: one section per component, each with its heading.
       const sections = await page.getByRole("region").count();
