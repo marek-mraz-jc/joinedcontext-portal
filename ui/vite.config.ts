@@ -33,6 +33,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Transforming this suite's modules takes about 7 s and was redone on every invocation; the
+    // fast lane runs a handful of files at a time, dozens of times a day. Cached on disk under
+    // node_modules/.vite, keyed by content, so a changed file still transforms.
+    fsModuleCache: true,
     // i18next-icu's ESM build default-imports intl-messageformat, whose CJS entry has no
     // __esModule marker — Node's interop then hands back the namespace object and
     // `new IntlMessageFormat()` throws. Inlining makes vitest resolve both through Vite,

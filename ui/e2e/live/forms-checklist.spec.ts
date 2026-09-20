@@ -1,11 +1,14 @@
-import { writeFileSync } from "node:fs";
-import { test } from "@playwright/test";
+import { readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { STEWARD, VIEWER, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 const REPORT = process.env.FORMS_REPORT ?? "test-results/forms-checklist.json";
+const ALLOWED = join(dirname(fileURLToPath(import.meta.url)), "forms-checklist.allowed.json");
 
 interface Finding {
   page: string;
@@ -14,11 +17,43 @@ interface Finding {
 }
 
 /**
- * The form checklist of goal.md, "Forms people trust", measured on dev (UI-44, UI-45, UI-61).
- * A survey, not a gate: it never fails on a finding, it writes them down, and each becomes a
- * task somebody reads before building. Nothing is submitted with valid data, so nothing is
- * proposed: the only button it clicks inside a form is Check, which is a dry run.
+ * What each page is still allowed to fail, per rule: how many of that finding stand today, and
+ * the task that removes them. Measured on dev, and it only ever shrinks — the second case below
+ * fails when a page is cleaner than its entry, so an entry cannot outlive the defect it names.
  */
+type Allowed = Record<string, Record<string, { findings: number; task: string }>>;
+
+// Empty on purpose until the live lane can run: the demo people are absent from the `dev`
+// realm, so nothing has been measured yet (T-2230). Empty means every finding fails, which is
+// the end state; the first successful run against dev fills it, one entry per page and rule.
+const allowed = JSON.parse(readFileSync(ALLOWED, "utf8")) as Allowed;
+
+/** The findings the first test collected, read by the second (`workers: 1`, serial). */
+let collected: Finding[] | null = null;
+
+/** Every finding beyond what the allow-list grants that page and rule, as a line to read. */
+function unexpected(findings: Finding[]): string[] {
+  const seen = new Map<string, number>();
+  return findings.flatMap((finding) => {
+    const key = `${finding.page}\u0000${finding.check}`;
+    const nth = (seen.get(key) ?? 0) + 1;
+    seen.set(key, nth);
+    const budget = allowed[finding.page]?.[finding.check]?.findings ?? 0;
+    return nth > budget ? [`${finding.page} — ${finding.check}: ${finding.detail || "(no detail)"}`] : [];
+  });
+}
+
+/**
+ * TS-19, UI-44: the form checklist of goal.md, "Forms people trust", measured on dev
+ * (UI-44, UI-45, UI-61) — and now held.
+ *
+ * It was a survey that asserted nothing, so a regression in any create form was written to a
+ * file nobody reads while the lane stayed green (T-2230). The walk is unchanged; what is new is
+ * that every finding it makes has to be one `forms-checklist.allowed.json` already names, with
+ * the task that closes it. Nothing is submitted with valid data, so nothing is proposed: the
+ * only button it clicks inside a form is Check, which is a dry run.
+ */
+test.describe.serial("the create forms of a project", () => {
 test("every create form, against the checklist", async ({ browser }) => {
   const findings: Finding[] = [];
   const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
@@ -100,6 +135,32 @@ test("every create form, against the checklist", async ({ browser }) => {
 
   writeFileSync(REPORT, JSON.stringify({ pages, findings }, null, 2));
   console.log(`forms checklist: ${pages.length} pages, ${findings.length} findings -> ${REPORT}`);
+  collected = findings;
+
+  // The survey keeps discovering; the allow-list is what stops a new finding hiding in it.
+  expect(
+    unexpected(findings),
+    "a create form broke a checklist rule that forms-checklist.allowed.json does not name",
+  ).toEqual([]);
+});
+
+test("the allow-list names no page that is already clean", () => {
+  expect(collected, "the walk above did not finish, so there is nothing to compare").not.toBeNull();
+  const counted = new Map<string, number>();
+  for (const finding of collected ?? []) {
+    const key = `${finding.page}\u0000${finding.check}`;
+    counted.set(key, (counted.get(key) ?? 0) + 1);
+  }
+  const stale = Object.entries(allowed).flatMap(([page, rules]) =>
+    Object.entries(rules).flatMap(([check, entry]) => {
+      const now = counted.get(`${page}\u0000${check}`) ?? 0;
+      return now < entry.findings
+        ? [`${page} — ${check}: allows ${entry.findings}, found ${now} (${entry.task})`]
+        : [];
+    }),
+  );
+  expect(stale, "lower or delete these entries; the allow-list only shrinks").toEqual([]);
+});
 });
 
 /** Every page of the project the navigation links to. */
