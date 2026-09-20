@@ -15,7 +15,14 @@ import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { components } from "../../api/schema";
-import { Alert, Button, EmptyState, PageHeader, Select } from "../../components/ui";
+import {
+  Alert,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  PageHeader,
+  Select,
+} from "../../components/ui";
 
 export function syncStatusKey(project: string, name: string) {
   return ["projects", project, "syncsources", name, "status"] as const;
@@ -204,6 +211,8 @@ function SyncSourceCard({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [detached, setDetached] = useState<string | null>(null);
+  // Open while the dialog names the source and asks; detaching is not undone by asking again.
+  const [detaching, setDetaching] = useState(false);
 
   const status = useQuery({
     queryKey: syncStatusKey(project, name),
@@ -352,14 +361,21 @@ function SyncSourceCard({
           size="sm"
           disabled={busy}
           onClick={() => {
-            if (window.confirm(t("syncSources.detachConfirm", { name }))) {
-              detach.mutate();
-            }
+            setDetaching(true);
           }}
         >
           {t("syncSources.detach")}
         </Button>
       </div>
+      <ConfirmDialog
+        open={detaching}
+        onOpenChange={setDetaching}
+        title={t("syncSources.detach")}
+        description={t("syncSources.detachConfirm", { name })}
+        confirmLabel={t("syncSources.detach")}
+        pending={detach.isPending}
+        onConfirm={() => detach.mutate(undefined, { onSettled: () => setDetaching(false) })}
+      />
     </article>
   );
 }

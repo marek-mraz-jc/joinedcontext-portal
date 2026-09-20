@@ -5,7 +5,8 @@
     "error": {
       "generic": "The Portal did not answer. Check the connection and try again.",
       "retry": "Retry"
-    }
+    },
+    "opensNewTab": "Opens in a new tab"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",

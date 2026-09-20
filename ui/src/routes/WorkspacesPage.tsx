@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -8,6 +9,7 @@ import { WorkOnCopyAction } from "../components/WorkOnCopyDialog";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   PageHeader,
   Table,
@@ -33,6 +35,8 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
       search: { workspace: name } as never,
     });
   const queryClient = useQueryClient();
+  // The copy a person asked to discard, while the dialog names it and asks (UI-16).
+  const [discarding, setDiscarding] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "workspaces"),
@@ -64,6 +68,24 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
     !!identity && (w.owner === identity.email || w.owner === identity.username);
   const mine = items.filter(isMine);
   const others = items.filter((w) => !isMine(w));
+
+  const confirmDiscard = discarding ? (
+    <ConfirmDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) setDiscarding(null);
+      }}
+      title={t("workspaces.discard")}
+      description={t("workspaces.discardConfirm", { name: discarding })}
+      confirmLabel={t("workspaces.discard")}
+      pending={discard.isPending}
+      onConfirm={() =>
+        discard.mutate(discarding, {
+          onSettled: () => setDiscarding(null),
+        })
+      }
+    />
+  ) : null;
 
   return (
     <section aria-label={t("workspaces.title")} className="space-y-6">
@@ -100,11 +122,7 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
                 workspaces={mine}
                 isMine
                 onOpen={openIn}
-                onDiscard={(name) => {
-                  if (window.confirm(t("workspaces.discardConfirm", { name }))) {
-                    discard.mutate(name);
-                  }
-                }}
+                onDiscard={setDiscarding}
               />
             </section>
           ) : null}
@@ -123,6 +141,7 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
           ) : null}
         </div>
       )}
+      {confirmDiscard}
     </section>
   );
 }

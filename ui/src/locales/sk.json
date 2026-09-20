@@ -5,7 +5,8 @@
     "error": {
       "generic": "Portál neodpovedal. Skontrolujte pripojenie a skúste to znova.",
       "retry": "Skúsiť znova"
-    }
+    },
+    "opensNewTab": "Otvorí sa na novej karte"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",

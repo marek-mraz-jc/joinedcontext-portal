@@ -167,7 +167,8 @@ describe("the allow-list", () => {
       size_is_on_the_scale: { files: 19, lines: 55 },
       focus_is_not_stolen: { files: 4, lines: 7 },
       check_is_not_suppressed: { files: 6, lines: 7 },
-      asks_with_a_shared_dialog: { files: 2, lines: 2 },
+      // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.
+      asks_with_a_shared_dialog: { files: 0, lines: 0 },
     };
     for (const [rule, ceiling] of Object.entries(budget)) {
       const entries = Object.values(allow[rule] ?? {});

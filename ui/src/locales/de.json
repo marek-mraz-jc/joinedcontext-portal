@@ -5,7 +5,8 @@
     "error": {
       "generic": "Das Portal hat nicht geantwortet. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
       "retry": "Erneut versuchen"
-    }
+    },
+    "opensNewTab": "Wird in einem neuen Tab geöffnet"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",

@@ -194,16 +194,18 @@ describe("sync sources view", () => {
   });
 
   it("asks before detaching, and answers with the merge request that removes it", async () => {
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const calls = renderSyncSources();
     await screen.findByText("regional-datamodels");
 
     await userEvent.click(screen.getByRole("button", { name: en.syncSources.detach }));
-    expect(confirm).toHaveBeenCalled();
+    // Cancelling detaches nothing: the source is still attached after the dialog closes.
+    const asking = await screen.findByRole("dialog");
+    expect(asking).toHaveAccessibleDescription(expect.stringContaining("regional-datamodels"));
+    await userEvent.click(within(asking).getByTestId("confirm-cancel"));
     expect(calls.some((call) => call.path.endsWith("/detach"))).toBe(false);
 
-    confirm.mockReturnValue(true);
     await userEvent.click(screen.getByRole("button", { name: en.syncSources.detach }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByTestId("confirm-accept"));
 
     await waitFor(() => {
       expect(calls.some((call) => call.path.endsWith("/detach"))).toBe(true);

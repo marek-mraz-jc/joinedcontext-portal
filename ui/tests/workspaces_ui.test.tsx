@@ -375,7 +375,6 @@ describe("the list of copies", () => {
       }
       return url.pathname.endsWith("/workspaces") ? json({ items }) : undefined;
     };
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     show(<WorkspacesPage project="helsinki" />);
     const mine = (await screen.findByRole("heading", { name: "My copies" })).closest("section")!;
     const others = screen.getByRole("heading", { name: "Other people's copies" }).closest("section")!;
@@ -383,10 +382,14 @@ describe("the list of copies", () => {
     expect(within(others).getByText("bikes")).toBeInTheDocument();
     expect(within(others).queryByRole("button", { name: "Discard" })).toBeNull();
     await userEvent.click(within(mine).getByRole("button", { name: "Discard" }));
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("air-v2"));
+    // The shared dialog asks, names the copy, and nothing is deleted until it is answered.
+    const asking = await screen.findByRole("dialog");
+    expect(asking).toHaveAccessibleDescription(expect.stringContaining("air-v2"));
+    expect(requests.some((r) => r.method === "DELETE")).toBe(false);
+
+    await userEvent.click(within(asking).getByTestId("confirm-accept"));
     await waitFor(() => expect(screen.queryByText("Air cleanup")).toBeNull());
     expect(requests.some((r) => r.method === "DELETE" && r.path.endsWith("/workspaces/air-v2"))).toBe(true);
-    confirm.mockRestore();
   });
 
   it("opens a copy at the project's spaces with the copy in the address", async () => {
