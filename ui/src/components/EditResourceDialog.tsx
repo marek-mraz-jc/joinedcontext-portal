@@ -14,7 +14,7 @@ import { ChangeNotice } from "./ChangeNotice";
 import { SchemaForm } from "./forms/SchemaForm";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
-import { Alert, Button, Dialog } from "./ui";
+import { Alert, Button, Dialog, PageFailed, PageLoading } from "./ui";
 
 const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
 
@@ -128,11 +128,14 @@ export function EditResourceDialog({
     onOpenChange(next);
   };
 
+  // What the edit itself was refused for. A manifest that could not be read is its own state
+  // below, with the API's sentence and a retry, rather than a red line over a dialog that says
+  // "Loading…" for ever (T-1752).
   const failure =
     invalid ??
     (propose.error instanceof ApiError
       ? (propose.error.problem?.detail ?? propose.error.message)
-      : propose.error || current.error
+      : propose.error
         ? t("app.error.generic")
         : null);
 
@@ -157,7 +160,21 @@ export function EditResourceDialog({
             <Button variant="secondary" onClick={() => close(false)}>
               {t("form.cancel")}
             </Button>
-            <Button variant="primary" disabled={!current.data || propose.isPending} onClick={submit}>
+            <Button
+              variant="primary"
+              loading={propose.isPending}
+              disabled={!current.data}
+              // Reachable while it is refused, with the reason read out beside it: there is
+              // nothing to propose until the stored manifest has arrived (UI-44).
+              disabledReason={
+                current.data
+                  ? undefined
+                  : current.isError
+                    ? t("resourceEdit.unreadable", { name })
+                    : t("resourceEdit.loading", { name })
+              }
+              onClick={submit}
+            >
               {t("resourceEdit.propose")}
             </Button>
           </>
@@ -173,7 +190,15 @@ export function EditResourceDialog({
               {failure}
             </Alert>
           ) : null}
-          {form ? (
+          {current.isPending ? (
+            // The wait and the failure are two states, not one (T-1752). They used to be the
+            // same `current.data ? … : "Loading…"` branch, so a GET that failed left the dialog
+            // saying "Loading…" for ever beside a red line, with nothing to press and no way out
+            // but closing it — and the word was in no live region, so nobody was told at all.
+            <PageLoading label={t("resourceEdit.loading", { name })} lines={1} />
+          ) : current.isError ? (
+            <PageFailed error={current.error} onRetry={() => void current.refetch()} />
+          ) : form ? (
             current.data ? (
               <SchemaForm<Record<string, unknown>>
                 schema={form.schema}
@@ -194,13 +219,10 @@ export function EditResourceDialog({
                 }}
                 onSubmit={(next) => proposeManifest(form.toManifest(next))}
               />
-            ) : (
-              <p className="text-body">{t("app.loading")}</p>
-            )
+            ) : null
           ) : (
-          <div className="overflow-hidden rounded-md border border-border">
-            {current.data ? (
-              <Suspense fallback={<p className="p-3 text-body">{t("models.loadingEditor")}</p>}>
+            <div className="overflow-hidden rounded-md border border-border">
+              <Suspense fallback={<PageLoading label={t("models.loadingEditor")} lines={1} className="p-3" />}>
                 <MonacoSourceView
                   value={source}
                   onChange={(next) => {
@@ -211,10 +233,7 @@ export function EditResourceDialog({
                   height="24rem"
                 />
               </Suspense>
-            ) : (
-              <p className="p-3 text-body">{t("app.loading")}</p>
-            )}
-          </div>
+            </div>
           )}
         </div>
       )}

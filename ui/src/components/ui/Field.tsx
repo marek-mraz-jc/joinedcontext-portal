@@ -138,13 +138,20 @@ export function Field({
         </p>
       ) : null}
       {hasErrors ? (
-        <ul id={ids.error} role="alert" className="text-caption font-medium text-danger">
+        // The live region and the list are two elements (T-2319). `alert` allows no child with a
+        // list role, so a `<ul role="alert">` is a role no list may carry: axe reports
+        // `aria-allowed-role` on it, and a screen reader is free to drop the list semantics —
+        // on the one message a person needs when the form refuses what they typed. The id stays
+        // on the announced element, so every `aria-describedby` the Field mints still resolves.
+        <div id={ids.error} role="alert" className="text-caption font-medium text-danger">
           {/* One per line, as the prop says: they used to be comma-spliced into a run-on
               sentence with a separator no locale could change. */}
-          {errors!.map((message) => (
-            <li key={message}>{message}</li>
-          ))}
-        </ul>
+          <ul>
+            {errors!.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </div>
   );

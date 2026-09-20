@@ -6,11 +6,12 @@
  * reconstruct `${id}__help` by hand and name it in the control's `aria-describedby`. Two of the
  * twenty message-bearing Fields did. These cases are the other eighteen.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import { Field, Input, Select, fieldIds } from "../src/components/ui";
+import { expectNoViolations } from "./checks";
 
 const wrap = (node: React.ReactNode) => render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
 
@@ -66,8 +67,11 @@ describe("a Field wires what it renders", () => {
       </Field>,
     );
     const alert = screen.getByRole("alert");
-    expect(alert.tagName).toBe("UL");
-    expect(alert.querySelectorAll("li")).toHaveLength(2);
+    // The live region holds the list; it is not the list itself (T-2319): `alert` allows no
+    // child with a list role, so a `<ul role="alert">` loses the list semantics it was written
+    // for and axe reports `aria-allowed-role` on it.
+    expect(alert.tagName).toBe("DIV");
+    expect(within(alert).getByRole("list").querySelectorAll("li")).toHaveLength(2);
     expect(alert.textContent).not.toContain("required., It");
   });
 
@@ -122,5 +126,54 @@ describe("a Field wires what it renders", () => {
     expect(screen.getByLabelText("Representation")).toHaveAccessibleDescription(
       "How the data is served.",
     );
+  });
+});
+
+/**
+ * T-2319: the refused field is announced, keeps its list, and is clean under axe (UI-16, UI-44).
+ *
+ * `Field` marked its error list `<ul role="alert">`. `alert` allows no child with a list role, so
+ * axe reported `aria-allowed-role` on every refused field in the Portal — one violation in the
+ * shared component, hundreds on the pages — and a screen reader was free to drop the list on the
+ * one message a person needs when the form refuses what they typed.
+ */
+describe("a refused field is announced without losing its list", () => {
+  it("a_refused_field_has_no_axe_violation", async () => {
+    const { container } = wrap(
+      <Field id="port" label="Port" help="Between 1 and 65535." errors={["Not a number.", "It is required."]}>
+        <Input id="port" />
+      </Field>,
+    );
+    await expectNoViolations(container);
+  });
+
+  it("the_announced_element_is_the_one_the_control_is_described_by", () => {
+    wrap(
+      <Field id="ns" label="Namespace" errors={["A namespace is required."]}>
+        <Input id="ns" />
+      </Field>,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveAttribute("id", fieldIds("ns").error);
+    expect(screen.getByLabelText("Namespace")).toHaveAccessibleDescription(
+      "A namespace is required.",
+    );
+  });
+
+  it("one_message_is_still_one_line_and_two_are_still_two", () => {
+    const { rerender } = wrap(
+      <Field id="a" label="A" errors={["One."]}>
+        <Input id="a" />
+      </Field>,
+    );
+    expect(within(screen.getByRole("alert")).getAllByRole("listitem")).toHaveLength(1);
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <Field id="a" label="A" errors={["One.", "Two."]}>
+          <Input id="a" />
+        </Field>
+      </I18nextProvider>,
+    );
+    expect(within(screen.getByRole("alert")).getAllByRole("listitem")).toHaveLength(2);
   });
 });

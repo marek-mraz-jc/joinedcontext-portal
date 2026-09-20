@@ -252,7 +252,10 @@
     "referenced": "Still in use",
     "button": "Remove",
     "action": "Remove {name}",
-    "close": "Close"
+    "close": "Close",
+    "exact": "Exactly as it is written, without spaces.",
+    "mismatch": "This is not {name}.",
+    "needName": "Type {name} to propose its removal."
   },
   "resourceEdit": {
     "title": "Edit {name}",
@@ -260,7 +263,9 @@
     "propose": "Propose change",
     "renamed": "Keep the name {name}; a different name would be a new resource.",
     "button": "Edit",
-    "action": "Edit {name}"
+    "action": "Edit {name}",
+    "loading": "Reading {name}…",
+    "unreadable": "{name} could not be read."
   },
   "resourceList": {
     "name": "Name",
@@ -2253,7 +2258,10 @@
       "scopeSpace": "Space {name}",
       "ttl": "Keep it for",
       "ttlDays": "{days, plural, one {# day} other {# days}}",
-      "submit": "Start the copy"
+      "submit": "Start the copy",
+      "titleField": "Title",
+      "titleHint": "Optional; shown instead of the name.",
+      "denied": "Your role may not propose anything in this project, so it cannot open a copy."
     },
     "bar": {
       "label": "Copy",

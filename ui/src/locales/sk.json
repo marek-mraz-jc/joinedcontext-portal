@@ -252,7 +252,10 @@
     "referenced": "Stále sa používa",
     "button": "Odstrániť",
     "action": "Odstrániť {name}",
-    "close": "Zavrieť"
+    "close": "Zavrieť",
+    "exact": "Presne tak, ako je napísané, bez medzier.",
+    "mismatch": "Toto nie je {name}.",
+    "needName": "Odstránenie navrhnete napísaním {name}."
   },
   "resourceEdit": {
     "title": "Upraviť {name}",
@@ -260,7 +263,9 @@
     "propose": "Navrhnúť zmenu",
     "renamed": "Ponechajte názov {name}; iný názov by bol nový zdroj.",
     "button": "Upraviť",
-    "action": "Upraviť {name}"
+    "action": "Upraviť {name}",
+    "loading": "Načítava sa {name}…",
+    "unreadable": "{name} sa nepodarilo načítať."
   },
   "resourceList": {
     "name": "Názov",
@@ -2253,7 +2258,10 @@
       "scopeSpace": "Priestor {name}",
       "ttl": "Ponechať",
       "ttlDays": "{days, plural, one {# deň} few {# dni} many {# dňa} other {# dní}}",
-      "submit": "Začať kópiu"
+      "submit": "Začať kópiu",
+      "titleField": "Názov",
+      "titleHint": "Voliteľné; zobrazí sa namiesto mena.",
+      "denied": "Vaša rola nemôže v tomto projekte nič navrhnúť, takže nemôže otvoriť kópiu."
     },
     "bar": {
       "label": "Kópia",

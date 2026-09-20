@@ -252,7 +252,10 @@
     "referenced": "Stále se používá",
     "button": "Odstranit",
     "action": "Odstranit {name}",
-    "close": "Zavřít"
+    "close": "Zavřít",
+    "exact": "Přesně tak, jak je napsáno, bez mezer.",
+    "mismatch": "Toto není {name}.",
+    "needName": "Odstranění navrhnete napsáním {name}."
   },
   "resourceEdit": {
     "title": "Upravit {name}",
@@ -260,7 +263,9 @@
     "propose": "Navrhnout změnu",
     "renamed": "Ponechte název {name}; jiný název by byl nový zdroj.",
     "button": "Upravit",
-    "action": "Upravit {name}"
+    "action": "Upravit {name}",
+    "loading": "Načítá se {name}…",
+    "unreadable": "{name} se nepodařilo načíst."
   },
   "resourceList": {
     "name": "Název",
@@ -2253,7 +2258,10 @@
       "scopeSpace": "Prostor {name}",
       "ttl": "Ponechat",
       "ttlDays": "{days, plural, one {# den} few {# dny} many {# dne} other {# dní}}",
-      "submit": "Začít kopii"
+      "submit": "Začít kopii",
+      "titleField": "Název",
+      "titleHint": "Volitelné; zobrazí se místo jména.",
+      "denied": "Vaše role nemůže v tomto projektu nic navrhnout, takže nemůže otevřít kopii."
     },
     "bar": {
       "label": "Kopie",

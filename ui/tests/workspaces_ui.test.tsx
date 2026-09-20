@@ -121,7 +121,8 @@ describe("work on a copy", () => {
     for (const typed of ["", "čistenie", "a".repeat(21)]) {
       await userEvent.clear(name);
       if (typed) await userEvent.type(name, typed);
-      expect(start).toBeDisabled();
+      // Refused and reachable, with the rule for the name read out beside it (T-1755, UI-44).
+      expectDenied(start, "Use lowercase letters, digits and hyphens, at most 20 characters.");
     }
     expect(requests).toEqual([]);
   });

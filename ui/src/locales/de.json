@@ -252,7 +252,10 @@
     "referenced": "Noch in Verwendung",
     "button": "Entfernen",
     "action": "{name} entfernen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "exact": "Genau so, wie er geschrieben steht, ohne Leerzeichen.",
+    "mismatch": "Das ist nicht {name}.",
+    "needName": "Geben Sie {name} ein, um das Entfernen vorzuschlagen."
   },
   "resourceEdit": {
     "title": "{name} bearbeiten",
@@ -260,7 +263,9 @@
     "propose": "Änderung vorschlagen",
     "renamed": "Behalten Sie den Namen {name}; ein anderer Name wäre eine neue Ressource.",
     "button": "Bearbeiten",
-    "action": "{name} bearbeiten"
+    "action": "{name} bearbeiten",
+    "loading": "{name} wird gelesen…",
+    "unreadable": "{name} konnte nicht gelesen werden."
   },
   "resourceList": {
     "name": "Name",
@@ -2253,7 +2258,10 @@
       "scopeSpace": "Bereich {name}",
       "ttl": "Behalten für",
       "ttlDays": "{days, plural, one {# Tag} other {# Tage}}",
-      "submit": "Kopie starten"
+      "submit": "Kopie starten",
+      "titleField": "Titel",
+      "titleHint": "Optional; wird anstelle des Namens angezeigt.",
+      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen."
     },
     "bar": {
       "label": "Kopie",
