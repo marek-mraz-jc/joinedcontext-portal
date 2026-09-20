@@ -983,7 +983,12 @@
       "groupHelp": "Názov skupiny vyhlásenej v časti Skupiny. Rolu drží každý, kým je jej členom.",
       "roleHelp": "Čo daný človek smie: každá rola je množina slovies nad množinou druhov, vypísaná v časti Roly.",
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
-      "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen."
+      "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen.",
+      "rolesEmpty": "Táto organizácia zatiaľ nemá žiadne roly. Kým niekto nejakú nevyhlási v časti Roly, nedá sa prideliť.",
+      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
+      "discardTitle": "Zahodiť toto pridelenie?",
+      "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
+      "discard": "Zahodiť pridelenie"
     },
     "projectRoles": {
       "title": "Role",
@@ -1457,15 +1462,21 @@
       "propose": "Navrhnúť katalóg",
       "nameHelp": "Krátky názov, pod ktorým je tento katalóg známy tu. Malé písmená, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na ktorý sa dátové sady zverejňujú, aj so schémou.",
-      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú."
+      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú.",
+      "emptyHint": "Katalóg je portál CKAN, do ktorého tento projekt publikuje. Pomenujte ho nižšie a rekonciliátor jeho datasety zaregistruje.",
+      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky a začína aj končí písmenom alebo číslicou.",
+      "urlInvalid": "Adresa začína na http:// alebo https://.",
+      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva."
     },
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žiadny endpoint tohto projektu nepublikuje do katalógu.",
       "datastore": "Kópia riadkov v DataStore z {representation}, obnovovaná {refresh}.",
       "publishedTo": "publikované do {instance}",
-      "missingInstance": "katalóg {instance} chýba"
-    }
+      "missingInstance": "katalóg {instance} chýba",
+      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo."
+    },
+    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}"
   },
   "mappings": {
     "pair": "Modely",

@@ -4,7 +4,7 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 273 controls, 14 of them still untested.",
+    "lists it. Measured 2026-09-20: 86 modules, 266 controls, 8 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
@@ -36,7 +36,8 @@
         "Switch": 1
       },
       "tests": [
-        "activity_feed.test.tsx"
+        "activity_feed.test.tsx",
+        "form_activity_feed.test.tsx"
       ]
     },
     "src/components/DeleteResourceDialog.tsx": {
@@ -44,6 +45,7 @@
         "Button": 4
       },
       "tests": [
+        "form_delete_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
       ]
     },
@@ -52,6 +54,7 @@
         "Button": 5
       },
       "tests": [
+        "form_edit_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
       ]
     },
@@ -95,9 +98,10 @@
     "src/components/SaveAsDialog.tsx": {
       "controls": {
         "Button": 5,
-        "input": 1
+        "RadioGroup": 1
       },
       "tests": [
+        "form_save_as_dialog.test.tsx",
         "save_as.test.tsx"
       ]
     },
@@ -106,6 +110,7 @@
         "Button": 3
       },
       "tests": [
+        "form_work_on_copy_dialog.test.tsx",
         "workspaces_ui.test.tsx"
       ]
     },
@@ -135,9 +140,11 @@
     "src/components/entities/EntityFilters.tsx": {
       "controls": {
         "Button": 2,
-        "input": 1
+        "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "form_entity_filters.test.tsx"
+      ]
     },
     "src/components/export/ExportButton.tsx": {
       "controls": {
@@ -191,7 +198,9 @@
       "controls": {
         "Button": 4
       },
-      "tests": []
+      "tests": [
+        "form_new_project.test.tsx"
+      ]
     },
     "src/components/layout/Shell.tsx": {
       "controls": {
@@ -434,21 +443,27 @@
     },
     "src/pages/access/Groups.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 2
       },
-      "tests": []
+      "tests": [
+        "access_forms.test.tsx"
+      ]
     },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
         "Button": 4
       },
-      "tests": []
+      "tests": [
+        "form_role_bindings.test.tsx"
+      ]
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 2
       },
-      "tests": []
+      "tests": [
+        "access_forms.test.tsx"
+      ]
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
@@ -475,9 +490,8 @@
     },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 1,
-        "input": 3
+        "Button": 2,
+        "Checkbox": 3
       },
       "tests": [
         "app_generator.test.tsx",
@@ -540,7 +554,7 @@
     "src/pages/apps/KpiCard.tsx": {
       "controls": {
         "Button": 3,
-        "input": 4
+        "RadioGroup": 1
       },
       "tests": [
         "kpi_card.test.tsx"
@@ -590,7 +604,9 @@
       "controls": {
         "Button": 1
       },
-      "tests": []
+      "tests": [
+        "form_ckan_page.test.tsx"
+      ]
     },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
@@ -622,9 +638,8 @@
     },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 1,
-        "input": 1
+        "Button": 2,
+        "Checkbox": 1
       },
       "tests": [
         "endpoint_projection_ui.test.tsx"
@@ -632,8 +647,7 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "explore_page.test.tsx",
@@ -839,7 +853,8 @@
         "Button": 4
       },
       "tests": [
-        "editor_round_trip.test.ts"
+        "editor_round_trip.test.ts",
+        "endpoint_open_data.test.tsx"
       ]
     },
     "src/routes/LoginPage.tsx": {

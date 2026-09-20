@@ -167,12 +167,15 @@ describe("ckan publishing manager", () => {
     const fetchMock = renderCkan();
     const user = userEvent.setup();
 
-    await user.type(await screen.findByLabelText(en.ckan.instances.name), "open-data-2");
-    const url = screen.getByLabelText(en.ckan.instances.url);
+    // The three fields the form needs are marked required, so each label reads "Name*" and an
+    // exact query finds nothing (T-1765).
+    const field = (label: string) => screen.getByLabelText(label, { exact: false });
+    await user.type(await screen.findByLabelText(en.ckan.instances.name, { exact: false }), "open-data-2");
+    const url = field(en.ckan.instances.url);
     await user.clear(url);
     await user.type(url, "https://data.example.org");
-    await user.type(screen.getByLabelText(en.ckan.instances.organization), "mesto");
-    await user.type(screen.getByLabelText(en.ckan.instances.tokenRef), "ckan-second");
+    await user.type(field(en.ckan.instances.organization), "mesto");
+    await user.type(field(en.ckan.instances.tokenRef), "ckan-second");
     await user.click(screen.getByRole("button", { name: en.ckan.instances.propose }));
 
     const write = await waitFor(() => {

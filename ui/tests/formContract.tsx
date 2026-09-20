@@ -21,7 +21,7 @@ import type { RenderResult } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, vi } from "vitest";
 import type { ReactElement } from "react";
-import { expectDenied, expectNoViolations } from "./checks";
+import { expectDenied, expectNoRawKeys, expectNoViolations } from "./checks";
 import { json, problem, renderPage } from "./page_contract";
 
 /** A value the browser itself refuses, for a field that declares a pattern, a URL or a range. */
@@ -33,8 +33,14 @@ export interface BrowserRule {
 }
 
 export interface FormFieldSpec {
-  /** The control's id, the one the Field wires its label and messages to. */
-  id: string;
+  /**
+   * The control's id, the one the Field wires its label and messages to.
+   *
+   * Left out when the form mints it with `useId`, which most dialogs do: the rules then read the
+   * id off the control they found by its label, and a spec that hard-coded React's counter
+   * (`«r0»-subject`) would break on a React upgrade rather than on a defect.
+   */
+  id?: string;
   /** The visible label, as a person reads it. */
   label: string | RegExp;
   /** A value that is valid for this field; every rule that submits types these. */
@@ -69,6 +75,11 @@ export interface FormSpec {
   path?: string;
   /** Selectors left out of the axe run, each with the task that owns the violation. */
   axeExclude?: string[];
+  /**
+   * Selectors whose text is a dotted identifier rather than a sentence — an entity type, a JSON
+   * path, a host name on its own — which is shaped like a translation key and is not one.
+   */
+  keysExclude?: string[];
 }
 
 /** The hostile values every text field is typed into: both must come back as text (AG-46). */
@@ -76,6 +87,15 @@ export const HOSTILE = '<img src=x onerror=alert(1)>';
 export const HOSTILE_URL = "javascript:alert(1)";
 
 interface Mounted extends RenderResult {
+  /**
+   * Where the form actually is.
+   *
+   * Half the Portal's forms are dialogs, and a Radix dialog renders its content in a portal on
+   * `document.body`: the render's own container is then empty, and a rule that read it saw an
+   * empty form and failed for that reason alone. The root is the container when the form is in
+   * it and the document's body when the form is somewhere else on the page.
+   */
+  root: HTMLElement;
   /** `METHOD /path` of every request the form sent, in order. */
   sent: string[];
   /** What the next submit answers with; the default is 201. */
@@ -112,8 +132,10 @@ async function mount(element: ReactElement, spec: FormSpec): Promise<Mounted> {
       return undefined;
     },
   });
-  await waitFor(() => expect(result.container).not.toBeEmptyDOMElement());
+  await waitFor(() => expect(document.body.textContent ?? "").not.toBe(""));
+  const root = (result.container.textContent ?? "").trim() === "" ? document.body : result.container;
   return Object.assign(result, {
+    root,
     sent,
     refuse: (response: Response | undefined) => {
       refusal = response;
@@ -138,6 +160,23 @@ function control(field: FormFieldSpec): HTMLElement {
   return screen.getByLabelText(field.label, { exact: false }) as HTMLElement;
 }
 
+/** The id the messages hang off: the spec's when it gives one, the control's own otherwise. */
+function idOf(field: FormFieldSpec, element: HTMLElement): string {
+  return field.id ?? element.id;
+}
+
+/**
+ * A control that is chosen from rather than typed into.
+ *
+ * Read off the mounted element instead of asked for in the spec: a `<select>` cannot be typed
+ * into (`user.type` on one throws, and `user.clear` refuses a control that is not editable), so
+ * every rule that fills the form has to know. Inferring it keeps the spec describing the form a
+ * person sees rather than the events the test sends.
+ */
+function chosen(element: HTMLElement): boolean {
+  return element.tagName === "SELECT";
+}
+
 async function fill(spec: FormSpec, user: ReturnType<typeof userEvent.setup>): Promise<void> {
   for (const field of spec.fields) {
     const element = control(field);
@@ -146,6 +185,10 @@ async function fill(spec: FormSpec, user: ReturnType<typeof userEvent.setup>): P
       continue;
     }
     if (field.value === undefined) continue;
+    if (chosen(element)) {
+      await user.selectOptions(element, field.value);
+      continue;
+    }
     await user.clear(element);
     await user.type(element, field.value);
   }
@@ -176,8 +219,12 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const view = await mount(element(), spec);
         for (const field of spec.fields) {
           const element_ = control(field);
-          expect(element_.id, `${String(field.label)} has no id for its label to point at`).toBe(field.id);
-          const label = view.container.querySelector<HTMLLabelElement>(`label[for="${field.id}"]`);
+          const id = idOf(field, element_);
+          if (field.id) {
+            expect(element_.id, `${String(field.label)} has an id the spec does not expect`).toBe(field.id);
+          }
+          expect(id, `${String(field.label)} has no id for its label to point at`).not.toBe("");
+          const label = view.root.querySelector<HTMLLabelElement>(`label[for="${id}"]`);
           const named = label !== null || element_.getAttribute("aria-label") !== null;
           expect(named, `${String(field.label)} has no label bound by for/id`).toBe(true);
           if (field.required) {
@@ -200,14 +247,16 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       async () => {
         const view = await mount(element(), spec);
         for (const field of spec.fields) {
-          const described = control(field).getAttribute("aria-describedby") ?? "";
+          const element_ = control(field);
+          const id = idOf(field, element_);
+          const described = element_.getAttribute("aria-describedby") ?? "";
           for (const suffix of ["__description", "__help", "__error"]) {
-            const message = view.container.querySelector(`#${field.id}${suffix}`);
+            const message = view.root.querySelector(`[id="${id}${suffix}"]`);
             if (message) {
               expect(
                 described.split(/\s+/),
-                `${field.id}${suffix} is shown and named in no aria-describedby`,
-              ).toContain(`${field.id}${suffix}`);
+                `${id}${suffix} is shown and named in no aria-describedby`,
+              ).toContain(`${id}${suffix}`);
             }
           }
         }
@@ -255,8 +304,8 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         await fill(spec, user);
         await user.click(screen.getByRole("button", { name: spec.submit }));
         await waitFor(() => expect(view.sent.length, "the form sent nothing to be refused").toBe(1));
-        await waitFor(() => expect(text(view.container)).toContain(spec.refusal!));
-        const shown = text(view.container);
+        await waitFor(() => expect(text(view.root)).toContain(spec.refusal!));
+        const shown = text(view.root);
         expect(shown, "a status code is not a sentence").not.toMatch(/\b(409|4\d\d|5\d\d)\b/);
         expect(shown, "raw JSON is not a sentence").not.toMatch(/[{}]"|"type":|about:blank/);
         for (const field of spec.fields) {
@@ -302,7 +351,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const confirmed =
           screen.queryAllByRole("alertdialog").length > 0 ||
           screen.queryAllByRole("dialog").length > 0;
-        const kept = view.container.contains(control(typed))
+        const kept = view.root.contains(control(typed))
           ? (control(typed) as HTMLInputElement).value === typed.value
           : false;
         expect(confirmed || kept, "what was typed was thrown away without asking").toBe(true);
@@ -323,10 +372,10 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         ).not.toBeNull();
         const value = "s3cr3t-value-nobody-should-see";
         await user.type(element_, value);
-        expect(text(view.container), "the secret was written into the page").not.toContain(value);
+        expect(text(view.root), "the secret was written into the page").not.toContain(value);
         // The control holds the value it was typed into, which is not a leak. Everything else is:
         // a preview, a title, an aria-label, a data attribute, a draft shown beside the form.
-        const elsewhere = [...view.container.querySelectorAll<HTMLElement>("*")].filter(
+        const elsewhere = [...view.root.querySelectorAll<HTMLElement>("*")].filter(
           (node) => node !== element_,
         );
         for (const node of elsewhere) {
@@ -353,9 +402,9 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       "one primary button, and it is the last of the form's buttons",
       async () => {
         const view = await mount(element(), spec);
-        const primary = primaries(view.container);
+        const primary = primaries(view.root);
         expect(primary.length, "a form has exactly one primary button").toBe(1);
-        const buttons = [...view.container.querySelectorAll("button")];
+        const buttons = [...view.root.querySelectorAll("button")];
         expect(
           buttons.indexOf(primary[0] as HTMLButtonElement),
           "the primary button is the last one, after Cancel",
@@ -370,12 +419,18 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const user = userEvent.setup();
         const view = await mount(element(), spec);
         for (const field of typed) {
+          // A list of the organization's own names is not a place hostile text can be typed;
+          // what such a value does when it comes back from the server is the page's own test.
+          if (chosen(control(field))) continue;
           await user.clear(control(field));
           await user.type(control(field), HOSTILE);
         }
-        expect(view.container.querySelector("img"), "the hostile value became an element").toBeNull();
-        expect(text(view.container), "the hostile value was not shown as text").toContain("<img");
-        const links = [...view.container.querySelectorAll("a")];
+        expect(view.root.querySelector("img"), "the hostile value became an element").toBeNull();
+        expect(view.root.querySelector("script"), "the hostile value became a script").toBeNull();
+        // Whether the form echoes what was typed is the form's business: a dialog that only
+        // proposes shows it nowhere, and a page with a preview shows it as text. What is not
+        // the form's business is turning it into markup, which the two assertions above hold.
+        const links = [...view.root.querySelectorAll("a")];
         for (const link of links) {
           expect(link.getAttribute("href") ?? "", "a javascript: URL is a link").not.toMatch(/^javascript:/i);
         }
@@ -385,10 +440,12 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       "axe is clean and no key is shown where a sentence belongs",
       async () => {
         const view = await mount(element(), spec);
-        await expectNoViolations(view.container, spec.axeExclude ?? []);
-        expect(text(view.container), "a translation key reached the page").not.toMatch(
-          /\b[a-z][a-z0-9]*\.[a-z][A-Za-z0-9]*\.[a-zA-Z0-9.]+\b/,
-        );
+        await expectNoViolations(view.root, spec.axeExclude ?? []);
+        // The page harness's own rule, rather than a second regular expression here: a whole
+        // text node that is a dotted path is a key, and a URL or a host name inside a sentence
+        // is not. The first version of this rule failed a form for showing
+        // `https://data.banskabystrica.sk`.
+        expectNoRawKeys(view.root, spec.keysExclude ?? []);
       },
     ],
   ];

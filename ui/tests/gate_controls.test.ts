@@ -23,7 +23,7 @@ import { controlsIn, testsNaming, type Tree } from "./gates";
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Modules with controls and no test yet. They are the module gate's list, not a second one. */
-const UNTESTED_ON_2026_09_20 = 14;
+const UNTESTED_ON_2026_09_20 = 8;
 
 function walk(directory: string): string[] {
   return readdirSync(join(ui, directory), { withFileTypes: true }).flatMap((entry) => {

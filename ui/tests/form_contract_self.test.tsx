@@ -42,6 +42,7 @@ interface FormProps {
 function DemoForm({ broken }: FormProps): React.JSX.Element {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [kind, setKind] = useState("");
   const [secret, setSecret] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [refused, setRefused] = useState<string | null>(null);
@@ -57,6 +58,11 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
       if (nameIsBad) {
         setErrors({ name: ["A name is lower case letters and hyphens."] });
         document.getElementById("policy-name")?.focus();
+        return;
+      }
+      if (kind === "") {
+        setErrors({ kind: ["Choose what the policy applies to."] });
+        document.getElementById("policy-kind")?.focus();
         return;
       }
       if (broken !== "browser-rule" && urlIsBad) {
@@ -123,6 +129,19 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
           className="border border-border"
         />
       </Field>
+      <Field id="policy-kind" label="Applies to" required errors={errors.kind}>
+        <select
+          id="policy-kind"
+          name="policy-kind"
+          value={kind}
+          onChange={(event) => setKind(event.target.value)}
+          className="border border-border"
+        >
+          <option value="">Choose a kind</option>
+          <option value="Endpoint">Endpoint</option>
+          <option value="ContextSpace">Context space</option>
+        </select>
+      </Field>
       <Field id="policy-secret" label="Token">
         <input
           id="policy-secret"
@@ -186,6 +205,7 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
 const spec: FormSpec = {
   fields: [
     { id: "policy-name", label: "Name", value: "air-quality", required: true },
+    { id: "policy-kind", label: "Applies to", value: "Endpoint", required: true },
     {
       id: "policy-url",
       label: "Address",
@@ -203,6 +223,14 @@ const spec: FormSpec = {
 describe("the form contract (T-1730)", () => {
   it("passes a form that meets it", async () => {
     await checkForm(() => <DemoForm broken="none" />, spec);
+  });
+
+  it("reads the ids off the controls when the spec names none", async () => {
+    // What every dialog that mints its ids with `useId` passes: labels and values, no ids.
+    await checkForm(() => <DemoForm broken="none" />, {
+      ...spec,
+      fields: spec.fields.map(({ id: _id, ...field }) => field),
+    });
   });
 
   for (const [broken, rule] of [

@@ -983,7 +983,12 @@
       "groupHelp": "The name of a group declared under Groups. Everyone in it holds the role while they are a member.",
       "roleHelp": "What the person may do: each role is a set of verbs on a set of kinds, listed under Roles.",
       "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
-      "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs."
+      "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs.",
+      "rolesEmpty": "This organization has no roles yet. One has to be declared under Roles before it can be granted.",
+      "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}",
+      "discardTitle": "Discard this grant?",
+      "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
+      "discard": "Discard the grant"
     },
     "projectRoles": {
       "title": "Roles",
@@ -1457,15 +1462,21 @@
       "propose": "Propose catalogue",
       "nameHelp": "The short name this catalogue is known by here. Lowercase letters, digits and dashes.",
       "urlHelp": "The address of the CKAN portal the datasets are published to, with its scheme.",
-      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own."
+      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own.",
+      "emptyHint": "A catalogue is a CKAN portal this project publishes to. Name one below and the reconciler registers its datasets.",
+      "nameInvalid": "A name is lowercase letters, digits and dashes, and starts and ends with a letter or a digit.",
+      "urlInvalid": "The address starts with http:// or https://.",
+      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here."
     },
     "publications": {
       "title": "Published endpoints",
       "empty": "No endpoint in this project publishes to a catalogue.",
       "datastore": "DataStore mirror from {representation}, refreshed {refresh}.",
       "publishedTo": "published to {instance}",
-      "missingInstance": "catalogue {instance} is missing"
-    }
+      "missingInstance": "catalogue {instance} is missing",
+      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here."
+    },
+    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}"
   },
   "mappings": {
     "pair": "Models",

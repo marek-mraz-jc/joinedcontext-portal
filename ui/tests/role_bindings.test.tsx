@@ -163,7 +163,14 @@ describe("people and roles", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.access.roles.grant }));
     const dialog = await screen.findByRole("dialog");
     const propose = within(dialog).getByRole("button", { name: en.access.roles.propose });
-    expect(propose).toBeDisabled();
+    // Propose is operable on an empty form and says which field is missing instead of being a
+    // button that does nothing; it proposes only once the form is filled (T-1759, T-1492).
+    await userEvent.click(propose);
+    expect(writes(fetchMock), "an empty form proposed something").toHaveLength(0);
+    expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     await userEvent.type(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel)), "jana.kovacova@hel.fi");
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "steward" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel)), "steward");
@@ -232,7 +239,10 @@ describe("people and roles", () => {
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
     await userEvent.type(within(dialog).getByRole("textbox"), "admin");
-    expect(confirm).toBeDisabled();
+    // Refused with its reason rather than hard-disabled, so it keeps its place in the tab order
+    // and a screen reader is told why (UI-44). This case asserted `toBeDisabled` and has been
+    // failing on main since the delete dialog moved to `disabledReason`.
+    expectDenied(confirm, /^Type /);
     await userEvent.type(within(dialog).getByRole("textbox"), "s");
     await userEvent.click(confirm);
 

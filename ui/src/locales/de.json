@@ -983,7 +983,12 @@
       "groupHelp": "Der Name einer unter Gruppen erklärten Gruppe. Die Rolle hält, wer Mitglied ist.",
       "roleHelp": "Was die Person darf: jede Rolle ist eine Menge von Verben auf einer Menge von Arten, aufgeführt unter Rollen.",
       "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
-      "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht."
+      "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht.",
+      "rolesEmpty": "Diese Organisation hat noch keine Rollen. Eine muss unter Rollen erklärt werden, bevor sie vergeben werden kann.",
+      "spacesFailed": "Die Kontexträume dieses Projekts konnten nicht geladen werden, daher fehlen in dieser Liste die Vergaben, die für einen einzelnen Raum gelten: {reason}",
+      "discardTitle": "Diese Vergabe verwerfen?",
+      "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
+      "discard": "Vergabe verwerfen"
     },
     "projectRoles": {
       "title": "Rollen",
@@ -1457,15 +1462,21 @@
       "propose": "Katalog vorschlagen",
       "nameHelp": "Der kurze Name, unter dem dieser Katalog hier bekannt ist. Kleinbuchstaben, Ziffern und Bindestriche.",
       "urlHelp": "Die Adresse des CKAN-Portals, auf dem die Datensätze veröffentlicht werden, mit Schema.",
-      "organizationHelp": "Die CKAN-Organisation, in der ein Datensatz landet, wenn ein Endpunkt keine eigene nennt."
+      "organizationHelp": "Die CKAN-Organisation, in der ein Datensatz landet, wenn ein Endpunkt keine eigene nennt.",
+      "emptyHint": "Ein Katalog ist ein CKAN-Portal, in das dieses Projekt veröffentlicht. Benennen Sie unten eines, und der Reconciler registriert seine Datensätze.",
+      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen und beginnt und endet mit einem Buchstaben oder einer Ziffer.",
+      "urlInvalid": "Die Adresse beginnt mit http:// oder https://.",
+      "secretRequired": "Benennen Sie das Secret, das die Betreiberin geladen hat; das Token selbst wird hier nie eingegeben."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",
       "empty": "Kein Endpunkt dieses Projekts veröffentlicht in einen Katalog.",
       "datastore": "DataStore-Spiegel aus {representation}, aktualisiert {refresh}.",
       "publishedTo": "veröffentlicht in {instance}",
-      "missingInstance": "Katalog {instance} fehlt"
-    }
+      "missingInstance": "Katalog {instance} fehlt",
+      "emptyHint": "Ein Endpoint veröffentlicht, wenn sein Manifest es erklärt. Öffnen Sie einen Endpoint und fügen Sie eine Veröffentlichung hinzu, damit sie hier erscheint."
+    },
+    "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}"
   },
   "mappings": {
     "pair": "Modelle",
