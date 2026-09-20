@@ -121,9 +121,13 @@ describe("your access in the explorer", () => {
     expect(checks).toHaveLength(2);
     expect(checks[0].credentials).toBe("same-origin");
 
-    // The prohibited attribute cannot be asked for; the reason is on the checkbox.
-    const location = screen.getByRole("checkbox", { name: `location: ${en.access.panel.attrProhibited}` });
-    expect(location).toBeDisabled();
+    // The prohibited attribute cannot be asked for, and the reason travels with it. Since
+    // T-1756 `Checkbox` carries `disabledReason` the way `Button` does: the reason is a
+    // *description* beside the box rather than part of its name, and the box is `aria-disabled`
+    // so a keyboard can still land on it and be told why (UI-44).
+    const location = screen.getByRole("checkbox", { name: "location" });
+    expect(location).toHaveAttribute("aria-disabled", "true");
+    expect(location).toHaveAccessibleDescription(en.access.panel.attrProhibited);
     expect(screen.getByRole("checkbox", { name: "name" })).toBeEnabled();
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "availableBikeNumber" })).toBeEnabled());
   });
