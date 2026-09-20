@@ -1561,7 +1561,8 @@
     "nameReserved": "„org“ ist der eigene Namensraum der Organisation, nie ein Projekt.",
     "displayNameLabel": "Anzeigename",
     "descriptionLabel": "Beschreibung",
-    "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen."
+    "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
+    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt."
   },
   "entities": {
     "type": "Entitätstyp",
