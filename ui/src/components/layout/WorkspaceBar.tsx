@@ -35,11 +35,17 @@ export function WorkspaceBar({ project }: { project: string }): React.JSX.Elemen
   if (!name) return null;
 
   // Gone (404), expired, or not the caller's to see (403): one line and the way out (UI-61).
+  //
+  // `status`, not the bar's own `region`: this line appears while the person is reading
+  // something else on the page — the copy expired under them, or was discarded by its owner —
+  // and a landmark nobody is inside is announced to nobody (T-1254, UI-15). The bar that is
+  // simply there stays a landmark: a live region wrapping the links and the counter would read
+  // the whole bar out again every time the count changed, and read it without its links.
   const notice = (message: string) => (
     <div
-      role="region"
+      role="status"
       aria-label={t("workspaces.bar.label")}
-      className="flex items-center gap-3 border-b border-warning/30 bg-warning-soft px-4 py-2 text-sm"
+      className="flex flex-wrap items-center gap-3 border-b border-warning/30 bg-warning-soft px-4 py-2 text-sm"
     >
       <span>{message}</span>
       <Button size="sm" variant="ghost" onClick={leave}>

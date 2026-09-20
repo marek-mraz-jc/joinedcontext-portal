@@ -243,7 +243,8 @@ describe("a manifest form", () => {
       "https://docs.example.test/User-Guide/05-endpoints-and-sharing",
     );
     expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noreferrer");
+    // `noopener` as well as `noreferrer`: the tab it opens must not keep a handle on the form.
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
     // It says where it goes, so a screen reader announces the destination and not "link".
     expect(link.textContent ?? "").toContain("Endpoint");
     expect(link.textContent ?? "").toContain("User Guide");
@@ -271,6 +272,27 @@ describe("a manifest form", () => {
       renderDialog("Endpoint");
       await screen.findByTestId("form-about");
       expect(screen.queryByTestId("form-guide"), guide).toBeNull();
+      cleanup();
+    }
+  });
+
+  /**
+   * PF-50, T-2409: the other half of the address is the installation's `documentationBaseUrl`,
+   * which arrives from a manifest like everything else. A base that is not a place renders the
+   * words and no link, so nothing a manifest wrote becomes something to click.
+   */
+  it("refuses a documentation base url that is not a place", async () => {
+    for (const base of ["javascript:alert(1)", "data:text/html,<script>alert(1)</script>"]) {
+      stubFetch(
+        [{ ...ENDPOINT_FORM, spec: { ...ENDPOINT_FORM.spec, guide: "User-Guide/05-endpoints-and-sharing" } }],
+        {},
+        { documentationBaseUrl: base },
+      );
+      renderDialog("Endpoint");
+      const shown = await screen.findByTestId("form-guide");
+      // The words stay — a person still reads that a guide page exists — and the link does not.
+      expect(shown.tagName, base).toBe("SPAN");
+      expect(shown.textContent ?? "").toContain("Endpoint");
       cleanup();
     }
   });

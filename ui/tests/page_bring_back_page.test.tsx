@@ -81,13 +81,12 @@ function renderBringBack(world: World = {}) {
 }
 
 /**
- * The one choice per conflicting field. A `fieldset` with a `legend` is the native radio group —
- * it carries role `group`, which is also what the diff table's frame carries, so the groups are
- * taken by their element rather than by the role alone.
+ * The one choice per conflicting field: a `fieldset` that says it is a `radiogroup`, so a screen
+ * reader reads "radio group" and counts the options rather than announcing a plain group
+ * (T-1254). The diff table's frame is a `group` and is not one of these.
  */
 async function conflictGroups(): Promise<HTMLElement[]> {
-  const groups = await screen.findAllByRole("group");
-  return groups.filter((group) => group.tagName === "FIELDSET");
+  return screen.findAllByRole("radiogroup");
 }
 
 beforeEach(async () => {
@@ -184,7 +183,7 @@ describe("bringing a copy back", () => {
     // Refused, not removed from the keyboard: the reason has to be readable (T-1743, UI-44).
     expectDenied(update, en.workspaces.bringBack.updateBlocked);
     const user = userEvent.setup();
-    const groups = screen.getAllByRole("group").filter((g) => g.tagName === "FIELDSET");
+    const groups = screen.getAllByRole("radiogroup");
     for (const group of groups) {
       await user.click(within(group).getByRole("radio", { name: /Keep the copy's/ }));
     }
