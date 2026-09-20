@@ -9,6 +9,7 @@ import {
   Button,
   buttonClass,
   Dialog,
+  FilePicker,
   Icon,
   Table,
   TableBody,
@@ -199,18 +200,6 @@ export function ModelFileDrop({
   const rows = draft ? slotRows(draft.answer.operations) : [];
   const classes = draft ? draft.answer.operations.filter((op) => op.op === "addClass").length : 0;
 
-  const input = (
-    <input
-      type="file"
-      accept={ACCEPT}
-      aria-label={icon ? t("assistant.attach") : t("models.infer.chooseFile")}
-      className="sr-only"
-      onChange={(event) => {
-        void takeFile(event.target.files?.[0]);
-        event.target.value = "";
-      }}
-    />
-  );
 
   return (
     <section
@@ -235,30 +224,36 @@ export function ModelFileDrop({
         </>
       )}
       {icon ? (
-        <label
+        <FilePicker
+          label={t("assistant.attach")}
+          accept={ACCEPT}
+          onFile={(file) => void takeFile(file)}
           title={busy ? t("models.infer.reading", { name: busy }) : t("assistant.attach")}
-          className="flex cursor-pointer items-center rounded p-2 text-fg-muted hover:bg-surface-subtle hover:text-fg focus-within:ring-2 focus-within:ring-border-focus"
+          className="rounded p-2 text-fg-muted hover:bg-surface-subtle hover:text-fg"
         >
-          <Icon name="paperclip" className={busy ? "size-5 animate-pulse" : "size-5"} />
-          {input}
-        </label>
+          <Icon name="paperclip" className={busy ? "size-5 motion-safe:animate-pulse" : "size-5"} />
+        </FilePicker>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer text-body">
+          <FilePicker
+            label={t("models.infer.chooseFile")}
+            accept={ACCEPT}
+            onFile={(file) => void takeFile(file)}
+          >
             <span className={buttonClass("secondary", "md", "cursor-pointer")}>{t("models.infer.drop")}</span>
-            {input}
-          </label>
-          {busy ? <span className="text-caption text-fg-muted">{t("models.infer.reading", { name: busy })}</span> : null}
+          </FilePicker>
+          {busy ? (
+            <span role="status" className="text-caption text-fg-muted">
+              {t("models.infer.reading", { name: busy })}
+            </span>
+          ) : null}
         </div>
       )}
       {problem ? (
         icon ? (
-          <p
-            role="alert"
-            className="absolute bottom-full left-0 z-10 mb-1 w-56 rounded border border-border bg-surface p-2 text-xs text-danger-fg shadow"
-          >
+          <Alert tone="danger" role="alert" className="absolute bottom-full left-0 z-10 mb-1 w-64 shadow-2">
             {problem}
-          </p>
+          </Alert>
         ) : (
           <Alert tone="danger" role="alert">
             {problem}
@@ -288,6 +283,11 @@ export function ModelFileDrop({
             <Button
               variant="primary"
               disabled={draft === null || draft.refused.length > 0}
+              disabledReason={
+                draft && draft.refused.length > 0
+                  ? t("models.infer.refused", { n: draft.refused.length })
+                  : undefined
+              }
               onClick={() => {
                 if (draft) {
                   onPopulate(draft.source, draft.answer);
@@ -301,7 +301,7 @@ export function ModelFileDrop({
         }
       >
         {draft ? (
-          <div className="flex flex-col gap-3 text-sm">
+          <div className="flex flex-col gap-3 text-body">
             <Table caption={t("models.infer.title")}>
               <TableHead>
                 <TableHeaderCell>{t("models.infer.class")}</TableHeaderCell>
@@ -316,7 +316,7 @@ export function ModelFileDrop({
                 {rows.map((row) => (
                   <TableRow key={`${row.klass}/${row.name}`}>
                     <TableCell className="font-mono">{row.klass}</TableCell>
-                    <TableCell className="max-w-[16rem] break-words">{row.title ?? row.name}</TableCell>
+                    <TableCell className="max-w-64 break-words">{row.title ?? row.name}</TableCell>
                     <TableCell className="font-mono">{row.name}</TableCell>
                     <TableCell>
                       <Badge mono>{row.range ?? "string"}</Badge>
@@ -331,7 +331,7 @@ export function ModelFileDrop({
             {draft.answer.untyped.length > 0 ? (
               <div>
                 <p className="font-medium">{t("models.infer.untyped")}</p>
-                <ul className="list-disc pl-5 text-xs">
+                <ul className="list-disc pl-5 text-caption">
                   {draft.answer.untyped.map((entry) => (
                     <li key={entry.slot}>
                       <span className="font-mono">{entry.slot}</span>: {entry.reason}

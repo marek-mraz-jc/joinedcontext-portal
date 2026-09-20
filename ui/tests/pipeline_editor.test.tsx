@@ -846,9 +846,7 @@ describe("the pipeline editor against the UI contract", () => {
   it("has no axe violation with the dialog open on a new pipeline", async () => {
     renderPipelines();
     const dialog = await openNew();
-    // The flow canvas is left out: it is an `<svg role="img">` with focusable nodes inside, which
-    // axe reports as `nested-interactive` (serious). That file is T-1852's, evidence in its body.
-    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(dialog);
   });
 
   it("has no axe violation with the dialog open on an existing pipeline", async () => {
@@ -860,8 +858,7 @@ describe("the pipeline editor against the UI contract", () => {
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("link", { name: /bento\.yaml/ });
 
-    // The flow canvas is T-1852's (`nested-interactive`), as above.
-    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(dialog);
   });
 
   it("reaches the controls of the dialog's first step by keyboard in the order they are read", async () => {
