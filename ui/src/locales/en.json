@@ -470,7 +470,14 @@
       "addHidden": "Hide an attribute by name",
       "add": "Hide",
       "attribute": "Attribute",
-      "summary": "Publishing {types} types with {attributes} attributes."
+      "summary": "Publishing {types} types with {attributes} attributes.",
+      "noTypes": "This endpoint publishes no types yet.",
+      "noTypesHint": "Once its model is compiled, every type it serves is listed here with the attributes you can hide.",
+      "addHint": "One of the attribute names listed above, exactly as it is written.",
+      "addEmpty": "Type the name of an attribute.",
+      "addAlready": "This attribute is already hidden.",
+      "addUnknown": "This endpoint publishes no attribute called {names} today, so nothing is hidden by it yet.",
+      "addShape": "An attribute name has no spaces: letters, digits, dots, colons, dashes and underscores."
     },
     "link": {
       "index": "index",

@@ -450,7 +450,14 @@
       "addHidden": "Attribut nach Namen verbergen",
       "add": "Verbergen",
       "attribute": "Attribut",
-      "summary": "Veröffentlicht {types} Typen mit {attributes} Attributen."
+      "summary": "Veröffentlicht {types} Typen mit {attributes} Attributen.",
+      "noTypes": "Dieser Endpoint veröffentlicht noch keine Typen.",
+      "noTypesHint": "Sobald sein Modell kompiliert ist, steht hier jeder Typ, den er ausliefert, mit den Attributen, die Sie verbergen können.",
+      "addHint": "Einer der oben aufgeführten Attributnamen, genau so geschrieben.",
+      "addEmpty": "Geben Sie den Namen eines Attributs ein.",
+      "addAlready": "Dieses Attribut ist bereits verborgen.",
+      "addUnknown": "Dieser Endpoint veröffentlicht heute kein Attribut namens {names}, es verbirgt also noch nichts.",
+      "addShape": "Ein Attributname hat keine Leerzeichen: Buchstaben, Ziffern, Punkte, Doppelpunkte, Bindestriche und Unterstriche."
     },
     "link": {
       "index": "Index",

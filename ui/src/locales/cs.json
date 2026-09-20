@@ -470,7 +470,14 @@
       "addHidden": "Skrýt atribut podle názvu",
       "add": "Skrýt",
       "attribute": "Atribut",
-      "summary": "Zveřejňuje {types} typů s {attributes} atributy."
+      "summary": "Zveřejňuje {types} typů s {attributes} atributy.",
+      "noTypes": "Tento endpoint zatím nepublikuje žádné typy.",
+      "noTypesHint": "Jakmile se jeho model zkompiluje, bude tu vypsán každý typ, který poskytuje, s atributy, které lze skrýt.",
+      "addHint": "Jeden z atributů vypsaných výše, přesně tak, jak je napsán.",
+      "addEmpty": "Napište název atributu.",
+      "addAlready": "Tento atribut je už skrytý.",
+      "addUnknown": "Tento endpoint dnes nepublikuje atribut s názvem {names}, takže jím zatím není skryto nic.",
+      "addShape": "Název atributu nemá mezery: písmena, číslice, tečky, dvojtečky, spojovníky a podtržítka."
     },
     "link": {
       "index": "index",

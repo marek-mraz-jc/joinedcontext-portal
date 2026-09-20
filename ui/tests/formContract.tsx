@@ -427,14 +427,20 @@ export async function checkForm(element: Element_, spec: FormSpec): Promise<void
         // action beside a form (the indicator card writes the value, and its keep-form drafts
         // a pipeline). One primary per *view* is the page contract's rule; this one is about
         // the form, so it counts inside the `<form>` that holds the submit when there is one.
-        const scope = screen.getByRole("button", { name: spec.submit }).closest("form") ?? view.root;
+        const submit = screen.getByRole("button", { name: spec.submit });
+        const scope = submit.closest("form") ?? view.root;
         const primary = primaries(scope);
-        expect(primary.length, "a form has exactly one primary button").toBe(1);
+        expect(primary.length, "a form has more than one primary button").toBeLessThanOrEqual(1);
+        if (primary.length === 1) {
+          expect(primary[0], "the primary button of a form is the one that proposes").toBe(submit);
+        }
+        // A form nested in a page may leave the primary to the page and submit with a secondary
+        // button — the panel that hides an attribute sits inside an editor whose own Propose is
+        // the primary. What holds either way: the button that proposes comes last.
         const buttons = [...scope.querySelectorAll("button")];
-        expect(
-          buttons.indexOf(primary[0] as HTMLButtonElement),
-          "the primary button is the last one, after Cancel",
-        ).toBe(buttons.length - 1);
+        expect(buttons.indexOf(submit as HTMLButtonElement), "the button that proposes is the last one").toBe(
+          buttons.length - 1,
+        );
       },
     ],
     [
