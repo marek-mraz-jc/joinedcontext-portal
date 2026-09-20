@@ -88,13 +88,13 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
   for (const body of BODIES) {
     // The project selector says which body's spaces are on screen; a figure read under the wrong
     // one is the mistake the whole demonstration is arranged against.
-    await page.goto(`/projects/${body.project}/spaces?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${body.project}/spaces?lang=en`, { waitUntil: "load" });
     await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
     await expect(page.getByText(body.project, { exact: true }).first()).toBeVisible();
 
     // The raw space: what the publisher published, ingested by the pipelines of T-2305.
     await page.goto(`/projects/${body.project}/spaces/${body.raw.space}?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     const rawRow = page.getByRole("row").filter({ hasText: body.raw.type });
     await expect(
@@ -108,7 +108,7 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
 
     // The KPI space: one entity per indicator per territory, and nothing else.
     await page.goto(`/projects/${body.project}/spaces/${body.kpi.space}?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     const kpiRow = page.getByRole("row").filter({ hasText: "KeyPerformanceIndicator" });
     await expect(kpiRow, `${body.kpi.space} shows no indicator`).toBeVisible({ timeout: 60_000 });
@@ -129,7 +129,7 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
   }
 
   // The application, in the region's project, reading both bodies.
-  await page.goto(`/apps/${APP}/`, { waitUntil: "networkidle" });
+  await page.goto(`/apps/${APP}/`, { waitUntil: "load" });
 
   for (const body of BODIES) {
     // The section and the cards are found by the ids the application mints, not by their words,

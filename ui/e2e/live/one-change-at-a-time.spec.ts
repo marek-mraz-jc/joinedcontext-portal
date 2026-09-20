@@ -36,7 +36,7 @@ async function phase(page: Page, change: string): Promise<string> {
  * draft and check it first, which is T-1596's journey and not this one.
  */
 async function proposeSpaceInTheForm(page: Page, name: string): Promise<void> {
-  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: /^New (context )?space/i }).first().click();
   const form = page.getByRole("dialog");
   await form.getByLabel(/^Name/).fill(name);
@@ -98,7 +98,7 @@ test("a second change on the same resource is refused by the name of the first, 
         continue;
       }
       await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-        waitUntil: "networkidle",
+        waitUntil: "load",
       });
       await approver.page.getByRole("button", { name: "Reject", exact: true }).click();
       const dialog = approver.page.getByRole("dialog");

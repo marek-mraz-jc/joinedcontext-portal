@@ -182,7 +182,7 @@ for (const c of CASES) {
     await waitForListed(page, "datasources", c.source);
 
     // 2. The pipeline: the sample drafts a mapping, the case's own mapping replaces it, the test runs it.
-    await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
     await page.getByRole("button", { name: "New pipeline" }).click();
     const studio = page.getByRole("dialog");
     await studio.locator("#studio-source-kind").selectOption("datasource");

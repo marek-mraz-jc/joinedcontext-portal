@@ -27,19 +27,25 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   }
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(path, { waitUntil: "networkidle" });
+  // `load`, never `networkidle`: the Portal holds an activity stream and a drafts stream open
+  // (`src/api/activity.ts`, `src/api/drafts.ts`, both `EventSource`) and polls a pending list
+  // every ten seconds, so the network is never idle on any signed-in page. Waiting for it spent
+  // the whole test budget on the login hop and every journey read as a timeout on whatever came
+  // next (T-2452). Each step below waits for the thing it actually needs instead.
+  await page.goto(path, { waitUntil: "load" });
   for (let step = 0; step < 4; step += 1) {
     if (await page.locator("#username").count()) {
       await page.fill("#username", who.user);
       await page.fill("#password", who.password);
-      await page.click("#kc-login");
-      await page.waitForLoadState("networkidle");
+      await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
       continue;
     }
     const signInButton = page.getByRole("button", { name: "Sign in" });
     if (page.url().includes("/login") && (await signInButton.count())) {
-      await signInButton.first().click();
-      await page.waitForLoadState("networkidle");
+      await Promise.all([
+        page.waitForURL(() => true, { waitUntil: "load" }),
+        signInButton.first().click(),
+      ]);
       continue;
     }
     break;
@@ -84,7 +90,7 @@ export async function proposedChange(page: Page): Promise<string> {
  * (a public Endpoint, CC-19) asks for the resource name, typed as a person would.
  */
 export async function approve(page: Page, project: string, change: string, confirm?: string): Promise<void> {
-  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "load" });
   const button = page.getByRole("button", { name: "Approve", exact: true });
   // Only a Red lane asks for the name typed back (CC-19). A caller that knows the name passes it
   // and this types it when the page asks; a Yellow change has no such field, and waiting for one
@@ -112,7 +118,7 @@ export async function reject(
   change: string,
   reason = "Rejected by a live journey: this change was proposed only to prove the form.",
 ): Promise<void> {
-  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "load" });
   const button = page.getByRole("button", { name: "Reject", exact: true });
   await expect(button).toBeEnabled({ timeout: 60_000 });
   await button.click();

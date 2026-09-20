@@ -70,7 +70,7 @@ test("the verdict gate: unchecked refuses, a check opens it, an edit closes it a
   } finally {
     if (change) {
       await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-        waitUntil: "networkidle",
+        waitUntil: "load",
       });
       const reject = approver.page.getByRole("button", { name: "Reject", exact: true });
       if (await reject.isEnabled().catch(() => false)) {
@@ -128,7 +128,7 @@ test("a check refuses a model that does not exist, names the field, and a fix cl
   } finally {
     if (change) {
       await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-        waitUntil: "networkidle",
+        waitUntil: "load",
       });
       const reject = approver.page.getByRole("button", { name: "Reject", exact: true });
       if (await reject.isEnabled().catch(() => false)) {

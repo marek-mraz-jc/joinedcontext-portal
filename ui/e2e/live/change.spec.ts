@@ -45,7 +45,7 @@ test("the assistant opens a change or a removal on the kind's page, and the pers
   expect(await planned(page, rateLimit)).toContain("300");
   await reject(approver.page, PROJECT, rateLimit);
 
-  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await ask(page, "Pause the hel-news pipeline");
   await expect(page).toHaveURL(/\/projects\/helsinki\/pipelines\?edit=hel-news/, { timeout: 180_000 });
   const pipelineForm = page.getByRole("dialog");
@@ -55,7 +55,7 @@ test("the assistant opens a change or a removal on the kind's page, and the pers
   expect(await planned(page, pause)).toContain("enabled");
   await reject(approver.page, PROJECT, pause);
 
-  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
   await ask(page, `Remove the ${SPACE} space`);
   await expect(page).toHaveURL(new RegExp(`/projects/helsinki/spaces\\?delete=${SPACE}`), { timeout: 180_000 });
   const removal = page.getByRole("dialog");

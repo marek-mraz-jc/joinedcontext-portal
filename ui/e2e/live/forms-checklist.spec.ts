@@ -61,7 +61,7 @@ test("every create form, against the checklist", async ({ browser }) => {
 
   for (const path of pages) {
     await page.setViewportSize({ width: 1600, height: 1000 });
-    await page.goto(`${path}?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`${path}?lang=en`, { waitUntil: "load" });
     const note = (check: string, detail: string) => findings.push({ page: path, check, detail });
 
     for (const violation of await axeViolations(page)) note("axe on the page", violation);
@@ -124,7 +124,7 @@ test("every create form, against the checklist", async ({ browser }) => {
   // A viewer sees why, never a dead button.
   const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/spaces?lang=en`);
   for (const path of pages) {
-    await viewer.page.goto(`${path}?lang=en`, { waitUntil: "networkidle" });
+    await viewer.page.goto(`${path}?lang=en`, { waitUntil: "load" });
     const opener = viewer.page.getByRole("main").getByRole("button", { name: /^New / }).first();
     if (!(await opener.count())) continue;
     const disabled = (await opener.isDisabled()) || (await opener.getAttribute("aria-disabled")) === "true";

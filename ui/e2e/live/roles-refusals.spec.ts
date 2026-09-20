@@ -48,7 +48,7 @@ async function describedBy(control: Locator): Promise<string> {
 
 /** Proposes a context space from the page's own form and answers with the change's id. */
 async function proposeSpace(page: Page, name: string): Promise<string> {
-  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: /^New (context )?space/i }).first().click();
   const form = page.getByRole("dialog");
   await form.getByLabel(/^Name/).fill(name);
@@ -70,7 +70,7 @@ async function withdraw(page: Page, change: string): Promise<void> {
   if ((await phase(page, change)) !== "PendingApproval") {
     return;
   }
-  await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
   const dialog = page.getByRole("dialog");
   const why = dialog.getByRole("textbox").first();
@@ -97,7 +97,7 @@ test("an administrator of the kind approves their own change, and the space is c
   try {
     change = await proposeSpace(page, name);
 
-    await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "load" });
     const approve = page.getByRole("button", { name: "Approve", exact: true });
     await expect(approve).toBeEnabled({ timeout: 60_000 });
     // The page says whose change this is before it is approved, so the exception is visible and
@@ -149,7 +149,7 @@ test("a person without the role is refused an approval, in the page and at the d
     change = await proposeSpace(steward.page, `t1585v-${Date.now().toString(36)}`);
 
     const page = viewer.page;
-    await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, { waitUntil: "load" });
     const approve = page.getByRole("button", { name: "Approve", exact: true });
     await expect(approve).toBeVisible({ timeout: 60_000 });
     await expect(approve).toBeDisabled();
@@ -230,7 +230,7 @@ test("a person who proposes and does not administer cannot approve their own cha
     change = await proposeSpace(editor.page, `t2231a-${Date.now().toString(36)}`);
 
     await editor.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     const approve = editor.page.getByRole("button", { name: "Approve", exact: true });
     await expect(approve).toBeVisible({ timeout: 60_000 });
@@ -253,7 +253,7 @@ test("a person who proposes and does not administer cannot approve their own cha
 
     // Somebody else may: the change is waiting for a person, not stuck.
     await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     await expect(
       approver.page.getByRole("button", { name: "Approve", exact: true }),
@@ -332,7 +332,7 @@ test("the assistant never approves, however it is asked", async ({ browser }) =>
 
     // The approver, who may, still has to: the change is waiting for a person.
     await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     await expect(approver.page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled({
       timeout: 60_000,

@@ -137,7 +137,7 @@ test("every create form is green from its own examples", async ({
 
   try {
     for (const path of await projectPages(steward.page)) {
-      await steward.page.goto(`${path}?lang=en`, { waitUntil: "networkidle" });
+      await steward.page.goto(`${path}?lang=en`, { waitUntil: "load" });
       const opener = steward.page
         .getByRole("main")
         .getByRole("button", { name: /^New / })

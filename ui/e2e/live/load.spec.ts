@@ -64,7 +64,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   tick(start);
 
   // 3. The pipeline, once the mirror lists the approved source (platform time, not the person's).
-  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
   await expect
     .poll(
       async () => {
@@ -75,7 +75,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
       { timeout: 240_000, intervals: [3_000] },
     )
     .toBe(true);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "load" });
 
   start = Date.now();
   await page.getByRole("button", { name: "New pipeline" }).click();
@@ -118,7 +118,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   // 5. The sink is live: Vehicle entities readable through the endpoint (PL-47, T-0646).
   // Explore keeps the space and the type in page state, so every poll chooses them again.
   const chooseVehicle = async () => {
-    await page.goto(`/projects/${PROJECT}/explore?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/explore?lang=en`, { waitUntil: "load" });
     await page.locator("#explore-space").selectOption(PROJECT);
     const kind = page.locator("#explore-type");
     if ((await kind.evaluate((el) => el.tagName)) === "SELECT") {

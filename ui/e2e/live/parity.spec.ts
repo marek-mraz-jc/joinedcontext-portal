@@ -203,7 +203,7 @@ async function proposeFrom(form: Locator): Promise<void> {
 
 /** The kind's own editor, its YAML view when it has one, the manifest typed, Propose. */
 async function viaForm(page: Page, c: Case, manifest: Manifest): Promise<string> {
-  await page.goto(`${c.route}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`${c.route}?lang=en`, { waitUntil: "load" });
   const main = page.locator("main");
   const scope = c.form!.row ? main.locator("tr").filter({ hasText: c.name }).first() : main;
   await scope.getByRole("button", { name: c.form!.edit(manifest), exact: true }).first().click();
@@ -235,7 +235,7 @@ async function ask(page: Page, text: string): Promise<void> {
 }
 
 async function viaAssistant(page: Page, c: Case): Promise<string> {
-  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await ask(page, c.ask!.text);
   await expect(page).toHaveURL(c.ask!.url, { timeout: 180_000 });
   const form = page.getByRole("dialog");

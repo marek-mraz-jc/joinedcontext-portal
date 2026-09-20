@@ -66,7 +66,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   // The endpoint is Live once the reconciler has read the merged manifest (one sync interval).
   const row = page.getByRole("row").filter({ hasText: ENDPOINT });
   await expect(async () => {
-    await page.goto(`/projects/${PROJECT}/endpoints?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/endpoints?lang=en`, { waitUntil: "load" });
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
   const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");

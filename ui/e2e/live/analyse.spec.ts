@@ -60,7 +60,7 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
   const row = page.getByRole("row").filter({ hasText: NAME });
   await expect(async () => {
     await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
@@ -68,7 +68,7 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
   // Opens Explore, chooses space/endpoint containing 'kpi' and type KeyPerformanceIndicator,
   // expecting a cell containing bikes-avg-${SUFFIX} within 200 s (reload between polls).
   await page.goto(`/projects/${PROJECT}/explore?lang=en`, {
-    waitUntil: "networkidle",
+    waitUntil: "load",
   });
 
   async function selectKpiTargets() {
@@ -118,7 +118,7 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
     .poll(
       async () => {
         if (!firstPoll) {
-          await page.reload({ waitUntil: "networkidle" });
+          await page.reload({ waitUntil: "load" });
         }
         firstPoll = false;
         await selectKpiTargets();
