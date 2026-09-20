@@ -211,7 +211,7 @@ describe("AppPage route /projects/$project/apps/$name", () => {
     renderAppRoute("ovzdusie-dnes");
     expect(await screen.findByRole("heading", { name: APP_TITLE })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.agentRun.back })).toBeInTheDocument();
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).not.toBeInTheDocument();
   });
 
   it("shows a live run with conversation events on stream attachment (AP-69)", async () => {
@@ -227,14 +227,14 @@ describe("AppPage route /projects/$project/apps/$name", () => {
   it("shows the same run rather than the form on a reload (fresh mount of the same URL) (AP-69)", async () => {
     const { view } = renderAppRoute("ovzdusie-dnes");
     await screen.findByRole("heading", { name: APP_TITLE });
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).not.toBeInTheDocument();
 
     view.unmount();
 
     // Fresh mount with the same URL simulating a reload
     renderAppRoute("ovzdusie-dnes");
     await screen.findByRole("heading", { name: APP_TITLE });
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.agentRun.back })).toBeInTheDocument();
   });
 
@@ -242,7 +242,7 @@ describe("AppPage route /projects/$project/apps/$name", () => {
     renderAppRoute("nova-aplikacia", { runs: [] });
     await screen.findByRole("heading", { name: en.apps.generate.title });
 
-    expect(screen.getByLabelText(en.apps.generate.name)).toHaveValue("nova-aplikacia");
-    expect(screen.getByLabelText(en.apps.generate.prompt)).toBeInTheDocument();
+    expect(screen.getByLabelText(en.apps.generate.name, { exact: false })).toHaveValue("nova-aplikacia");
+    expect(screen.getByLabelText(en.apps.generate.prompt, { exact: false })).toBeInTheDocument();
   });
 });

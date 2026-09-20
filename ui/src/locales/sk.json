@@ -470,7 +470,14 @@
       "addHidden": "Skryť atribút podľa názvu",
       "add": "Skryť",
       "attribute": "Atribút",
-      "summary": "Zverejňuje {types} typov s {attributes} atribútmi."
+      "summary": "Zverejňuje {types} typov s {attributes} atribútmi.",
+      "noTypes": "Tento endpoint zatiaľ nepublikuje žiadne typy.",
+      "noTypesHint": "Keď sa jeho model skompiluje, každý typ, ktorý poskytuje, tu bude vypísaný s atribútmi, ktoré sa dajú skryť.",
+      "addHint": "Jeden z atribútov vypísaných vyššie, presne tak, ako je napísaný.",
+      "addEmpty": "Napíšte názov atribútu.",
+      "addAlready": "Tento atribút je už skrytý.",
+      "addUnknown": "Tento endpoint dnes nepublikuje atribút s názvom {names}, takže zatiaľ ním nie je skryté nič.",
+      "addShape": "Názov atribútu nemá medzery: písmená, číslice, bodky, dvojbodky, spojovníky a podčiarkovníky."
     },
     "link": {
       "index": "index",
@@ -983,7 +990,12 @@
       "groupHelp": "Názov skupiny vyhlásenej v časti Skupiny. Rolu drží každý, kým je jej členom.",
       "roleHelp": "Čo daný človek smie: každá rola je množina slovies nad množinou druhov, vypísaná v časti Roly.",
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
-      "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen."
+      "untilHelp": "Posledný deň platnosti roly. Prázdne pole znamená bez konca, čo potrebuje stály člen.",
+      "rolesEmpty": "Táto organizácia zatiaľ nemá žiadne roly. Kým niekto nejakú nevyhlási v časti Roly, nedá sa prideliť.",
+      "spacesFailed": "Kontextové priestory tohto projektu sa nepodarilo načítať, takže pridelenia platné pre jeden priestor v tomto zozname chýbajú: {reason}",
+      "discardTitle": "Zahodiť toto pridelenie?",
+      "discardConfirm": "To, čo ste napísali, sa stratí a nič sa nenavrhne. Už pridelené roly sa nemenia.",
+      "discard": "Zahodiť pridelenie"
     },
     "projectRoles": {
       "title": "Role",
@@ -1410,7 +1422,10 @@
         "documents": "Dokumenty endpointu"
       },
       "promptPlaceholder": "Mapa staníč, filter na tie, kde ešte sú bicykle, a graf voľných miest.",
-      "details": "Podrobnosti: názov, druh a čo smí čítať ({name})"
+      "details": "Podrobnosti: názov, druh a čo smí čítať ({name})",
+      "noEndpoints": "Tento projekt zatiaľ nepublikuje žiadny endpoint; aplikácia z neho číta, takže najprv publikujte endpoint.",
+      "nameHint": "Malé písmená, číslice a spojovníky: stáva sa z toho adresa, na ktorej sa aplikácia poskytuje.",
+      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky, začína aj končí niektorým z nich a má najviac 40 znakov."
     },
     "newAction": "Vygenerovať vlastnú aplikáciu",
     "builds": {
@@ -1457,15 +1472,21 @@
       "propose": "Navrhnúť katalóg",
       "nameHelp": "Krátky názov, pod ktorým je tento katalóg známy tu. Malé písmená, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na ktorý sa dátové sady zverejňujú, aj so schémou.",
-      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú."
+      "organizationHelp": "Organizácia v CKAN, do ktorej sada spadne, keď endpoint neurčí vlastnú.",
+      "emptyHint": "Katalóg je portál CKAN, do ktorého tento projekt publikuje. Pomenujte ho nižšie a rekonciliátor jeho datasety zaregistruje.",
+      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky a začína aj končí písmenom alebo číslicou.",
+      "urlInvalid": "Adresa začína na http:// alebo https://.",
+      "secretRequired": "Pomenujte tajomstvo, ktoré nahral operátor; samotný token sa tu nikdy nezadáva."
     },
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žiadny endpoint tohto projektu nepublikuje do katalógu.",
       "datastore": "Kópia riadkov v DataStore z {representation}, obnovovaná {refresh}.",
       "publishedTo": "publikované do {instance}",
-      "missingInstance": "katalóg {instance} chýba"
-    }
+      "missingInstance": "katalóg {instance} chýba",
+      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo."
+    },
+    "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}"
   },
   "mappings": {
     "pair": "Modely",
@@ -1713,7 +1734,8 @@
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "deleteDenied": "Grant tejto koncovky ti nedovoľuje mazať {type}",
-    "export": "Exportovať túto stranu"
+    "export": "Exportovať túto stranu",
+    "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie."
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -1753,7 +1775,12 @@
       "closed": "Spustenie sa skončilo, už nič nečíta.",
       "agent": "Asistent",
       "you": "Vy",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Napíšte, čo sa má postaviť alebo zmeniť; asistent odpovedá tu a spýta sa, keď potrebuje rozhodnutie.",
+      "dropped": "Živé spojenie sa prerušilo. To, čo je napísané vyššie, môže byť nedokončené; otvorte beh znova, aby ste ho ďalej sledovali.",
+      "stalled": "Žiadna odpoveď už {seconds} sekúnd. Beh možno ešte pracuje, alebo sa zastavil.",
+      "stop": "Zastaviť beh",
+      "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu."
     },
     "line": {
       "status": "Teraz {status}.",
@@ -1877,7 +1904,10 @@
       "keepSpace": "Do priestoru",
       "keepSend": "Navrhnúť pipeline",
       "keepEveryMessage": "Priebežne aktualizuj ukazovateľ {name}: {over}, každých {minutes}m, do priestoru {space}.",
-      "keepOnChangeMessage": "Priebežne aktualizuj ukazovateľ {name}: {over}, pri každej zmene, do priestoru {space}."
+      "keepOnChangeMessage": "Priebežne aktualizuj ukazovateľ {name}: {over}, pri každej zmene, do priestoru {space}.",
+      "overCount": "počet typu {type}",
+      "overAgg": "{agg} atribútu {attribute} nad typom {type}",
+      "overWhere": "{over}, kde {filter}"
     },
     "changeTest": {
       "title": "Test zmeny",

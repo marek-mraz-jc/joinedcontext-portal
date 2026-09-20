@@ -166,7 +166,14 @@ describe("people and roles", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.access.roles.grant }));
     const dialog = await screen.findByRole("dialog");
     const propose = within(dialog).getByRole("button", { name: en.access.roles.propose });
-    expect(propose).toBeDisabled();
+    // Propose is operable on an empty form and says which field is missing instead of being a
+    // button that does nothing; it proposes only once the form is filled (T-1759, T-1492).
+    await userEvent.click(propose);
+    expect(writes(fetchMock), "an empty form proposed something").toHaveLength(0);
+    expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     await userEvent.type(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel)), "jana.kovacova@hel.fi");
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "steward" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel)), "steward");

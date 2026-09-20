@@ -6,8 +6,6 @@
     "its length against the number measured on 2026-09-20."
   ],
   "modules": {
-    "src/components/layout/Shell.tsx": "T-1255",
-    "src/pages/access/RoleBindings.tsx": "T-1759",
-    "src/pages/ckan/CkanPage.tsx": "T-1765"
+    "src/components/layout/Shell.tsx": "T-1255"
   }
 }

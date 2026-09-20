@@ -14,6 +14,15 @@ import i18n from "../src/i18n";
 import type { CatalogInput } from "../src/schemas/kinds";
 import { RunnerInputForm } from "../src/pages/datasources/RunnerInputForm";
 import { expectNoAxeViolations, renderPart } from "./page_contract";
+import { expectDenied } from "./checks";
+import type { ErrorSchema } from "@rjsf/utils";
+
+/** One field's refusal in the shape rjsf takes, the way `form_schema_form.test.tsx` builds it. */
+function errorOn(field: string, message: string): ErrorSchema {
+  const root: ErrorSchema = {};
+  (root as Record<string, unknown>)[field] = { __errors: [message] };
+  return root;
+}
 
 const INPUT: CatalogInput = {
   name: "postgres_cdc",
@@ -65,6 +74,46 @@ function show(over: Partial<Parameters<typeof RunnerInputForm>[0]> = {}) {
   );
   return { ...view, onSubmit, onSecretRef };
 }
+
+describe("what the form forwards to SchemaForm (T-1766)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  /// UI-48: a run that is starting says so on the button that started it, and takes no second
+  /// press. Before this the three props existed on `SchemaForm` and this form forwarded none of
+  /// them, so no call site could ever show any of the three states.
+  it("shows_the_submit_working_while_the_run_is_starting", () => {
+    show({ submitting: true });
+    const submit = screen.getByRole("button", { name: "Add the source" });
+    expect(submit).toHaveAttribute("aria-busy", "true");
+  });
+
+  /// UI-44: refused with the reason on the control, reachable and readable, rather than a 403
+  /// after the form has been filled in.
+  it("refuses_the_submit_with_its_reason_to_a_person_who_may_not_run", () => {
+    show({ submitting: false, submitDisabledReason: "You may not start a run in this project." });
+    expectDenied(
+      screen.getByRole("button", { name: "Add the source" }),
+      "You may not start a run in this project.",
+    );
+  });
+
+  /// UI-04: the server's refusal belongs beside the field it is about, not in a banner above a
+  /// form whose fields look fine.
+  it("shows_the_servers_refusal_beside_the_field_it_names", async () => {
+    show({ extraErrors: errorOn("dsn", "This database refused the connection string.") });
+    expect(
+      await screen.findByText("This database refused the connection string."),
+    ).toBeInTheDocument();
+    const dsn = screen.getByLabelText(/dsn/i);
+    const described = (dsn.getAttribute("aria-describedby") ?? "").split(/\s+/);
+    const message = described
+      .map((id) => document.getElementById(id))
+      .find((node) => node?.textContent?.includes("This database refused the connection string."));
+    expect(message, "the refusal is tied to the field it is about").toBeTruthy();
+  });
+});
 
 describe("a runner input's form", () => {
   beforeEach(async () => {

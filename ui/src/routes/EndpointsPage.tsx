@@ -405,6 +405,7 @@ function EndpointRowActions({
 export function EndpointsPage({ project, edit }: { project: string; edit?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const permissions = usePermissions(project);
   const usage = useProjectUsage(project);
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
 
@@ -1379,7 +1380,19 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   {t("endpoints.section.hidden")}
                 </summary>
                 <div className="mt-3">
-                  <SchemaProjectionPanel slug={activeSlug} hidden={hidden} onHiddenChange={setHidden} />
+                  <SchemaProjectionPanel
+                    slug={activeSlug}
+                    hidden={hidden}
+                    onHiddenChange={setHidden}
+                    // The projection is proposed as this endpoint's manifest, so it is the
+                    // endpoint's verb that decides, and the panel says so on every control
+                    // instead of letting a viewer tick boxes for nothing (UI-44, T-1767).
+                    disabledReason={
+                      permissions.can("Endpoint", "propose")
+                        ? undefined
+                        : t("permissions.denied", { verb: "propose", kind: "Endpoint" })
+                    }
+                  />
                 </div>
               </details>
             ) : null}

@@ -4,7 +4,7 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 273 controls, 14 of them still untested.",
+    "lists it. Measured 2026-09-20: 87 modules, 292 controls, 1 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
@@ -460,7 +460,9 @@
       "controls": {
         "Button": 4
       },
-      "tests": []
+      "tests": [
+        "form_role_bindings.test.tsx"
+      ]
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
@@ -497,11 +499,12 @@
     },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 3
       },
       "tests": [
         "app_generator.test.tsx",
+        "form_app_generator.test.tsx",
         "generator_types.test.ts"
       ]
     },
@@ -533,12 +536,13 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "action_inspector.test.tsx",
         "conversation_panel.test.tsx",
-        "conversation_repeats.test.tsx"
+        "conversation_repeats.test.tsx",
+        "form_conversation_panel.test.tsx"
       ]
     },
     "src/pages/apps/EndpointProposalCard.tsx": {
@@ -564,6 +568,7 @@
         "RadioGroup": 1
       },
       "tests": [
+        "form_kpi_card.test.tsx",
         "kpi_card.test.tsx"
       ]
     },
@@ -615,7 +620,9 @@
       "controls": {
         "Button": 1
       },
-      "tests": []
+      "tests": [
+        "form_ckan_page.test.tsx"
+      ]
     },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
@@ -647,11 +654,12 @@
     },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 4,
         "Checkbox": 1
       },
       "tests": [
-        "endpoint_projection_ui.test.tsx"
+        "endpoint_projection_ui.test.tsx",
+        "form_schema_projection.test.tsx"
       ]
     },
     "src/pages/explore/ExplorePage.tsx": {
@@ -660,6 +668,7 @@
       },
       "tests": [
         "explore_page.test.tsx",
+        "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
       ]
     },
