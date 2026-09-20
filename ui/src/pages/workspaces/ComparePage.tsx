@@ -1,10 +1,11 @@
+import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, unwrap } from "../../api/client";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import type { FieldChange } from "../../components/diff/PlanDiffViewer";
-import { Alert, Badge, EmptyState, PageHeader } from "../../components/ui";
+import { Alert, Badge, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import type { components } from "../../api/schema";
 
 type Comparison = components["schemas"]["Comparison"];
@@ -25,6 +26,7 @@ function fileName(path: string): string {
 /** The list of files from a comparison, grouped by kind and ordered by operation. */
 export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element {
   const { t } = useTranslation();
+  const headingIds = useId();
   const grouped: Record<string, ChangeFile[]> = {};
   for (const file of files) {
     const kind = file.kind ?? "unknown";
@@ -39,8 +41,13 @@ export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element 
           (a, b) => operationOrder(a.operation) - operationOrder(b.operation),
         );
         return (
-          <section key={kind}>
-            <h3 className="text-body font-semibold text-fg mb-2">{kind}</h3>
+          // The page's own H1 is the heading above this list, so each kind is an H2: an H3 here
+          // skipped a level and a screen reader's heading list read the groups as belonging to
+          // a section that was never there (UI-16).
+          <section key={kind} aria-labelledby={`${headingIds}-${kind}`}>
+            <h2 id={`${headingIds}-${kind}`} className="text-body font-semibold text-fg mb-2">
+              {kind}
+            </h2>
             <ul className="space-y-3">
               {kindFiles.map((file) => (
                 <li
@@ -48,7 +55,7 @@ export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element 
                   className="rounded-lg border border-border bg-surface p-3"
                 >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="font-mono text-sm font-medium text-fg">
+                    <span className="font-mono text-body font-medium text-fg">
                       {fileName(file.path)}
                     </span>
                     <Badge tone="neutral" mono>
@@ -82,7 +89,7 @@ export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element 
                     </Badge>
                   </div>
                   {file.fields && file.fields.length > 0 ? (
-                    <details className="text-sm">
+                    <details className="text-body">
                       <summary className="cursor-pointer text-fg-muted hover:text-fg">
                         {t("workspaces.compare.showDiff")}
                       </summary>
@@ -119,31 +126,53 @@ export function ComparePage({
       ),
   });
 
-  if (compareQuery.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
-  }
-  if (compareQuery.isError) {
-    return (
-      <Alert role="alert" tone="danger">
-        {t("app.error.generic")}
-      </Alert>
-    );
-  }
-
-  const comparison = compareQuery.data as Comparison;
-  const files = comparison.files ?? [];
-  const conflicts = comparison.conflicts ?? [];
+  const comparison = compareQuery.data as Comparison | undefined;
+  const files = comparison?.files ?? [];
+  const conflicts = comparison?.conflicts ?? [];
 
   const added = files.filter((f) => f.operation === "Create").length;
   const changed = files.filter((f) => f.operation === "Update").length;
   const removed = files.filter((f) => f.operation === "Delete").length;
 
+  // The heading stands in all three states, so the page does not appear out of nothing when the
+  // comparison arrives and a failure is still a page one can act on (UI-15, UI-16).
+  // The summary counts nothing until there is something to count: "0 added, 0 changed,
+  // 0 removed" under a heading is an answer, and while the comparison is on its way it is the
+  // wrong one.
+  const header = (
+    <PageHeader
+      title={t("workspaces.compare.title")}
+      description={
+        comparison ? t("workspaces.compare.summary", { added, changed, removed }) : undefined
+      }
+    />
+  );
+
+  if (compareQuery.isPending) {
+    return (
+      <section aria-label={t("workspaces.compare.title")} className="space-y-6">
+        {header}
+        <PageLoading label={t("app.loading")} />
+      </section>
+    );
+  }
+  if (compareQuery.isError) {
+    return (
+      <section aria-label={t("workspaces.compare.title")} className="space-y-6">
+        {header}
+        <PageFailed
+          error={compareQuery.error}
+          onRetry={() => {
+            void compareQuery.refetch();
+          }}
+        />
+      </section>
+    );
+  }
+
   return (
     <section aria-label={t("workspaces.compare.title")} className="space-y-6">
-      <PageHeader
-        title={t("workspaces.compare.title")}
-        description={t("workspaces.compare.summary", { added, changed, removed })}
-      />
+      {header}
       {conflicts.length > 0 ? (
         <Alert tone="warning" role="status">
           {t("workspaces.compare.conflicts", { count: conflicts.length })}
