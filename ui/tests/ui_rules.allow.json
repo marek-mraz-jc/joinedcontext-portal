@@ -1,0 +1,326 @@
+{
+  "asks_with_a_shared_dialog": {
+    "src/pages/sync/SyncSourcesPage.tsx": {
+      "lines": 1,
+      "group": "ui-pages"
+    },
+    "src/routes/WorkspacesPage.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    }
+  },
+  "check_is_not_suppressed": {
+    "src/assistant/state.ts": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/ResourceFormDialog.tsx": {
+      "lines": 2,
+      "group": "ui-forms"
+    },
+    "src/components/dashboards/MapLibreView.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/useAgentRun.ts": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/spaces/SpaceComplete.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/routes/EndpointsPage.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    }
+  },
+  "colour_is_a_token": {
+    "src/api/schema.d.ts": {
+      "lines": 11,
+      "group": "ui-parts"
+    },
+    "src/branding.tsx": {
+      "lines": 6,
+      "group": "ui-parts"
+    },
+    "src/components/dashboards/DeckGlOverlay.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/dashboards/MapLibreView.tsx": {
+      "lines": 8,
+      "group": "ui-parts"
+    },
+    "src/components/diff/PlanDiffViewer.tsx": {
+      "lines": 4,
+      "group": "ui-parts"
+    },
+    "src/pages/flows/Gallery.tsx": {
+      "lines": 4,
+      "group": "ui-parts"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx": {
+      "lines": 15,
+      "group": "ui-forms"
+    }
+  },
+  "focus_is_not_stolen": {
+    "src/assistant/EndpointPicker.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/DeleteResourceDialog.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/components/forms/theme.tsx": {
+      "lines": 4,
+      "group": "ui-parts"
+    },
+    "src/routes/ApprovalDetailPage.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    }
+  },
+  "hand_made_control": {
+    "src/assistant/AssistantDock.tsx": {
+      "lines": 13,
+      "group": "ui-forms"
+    },
+    "src/assistant/EndpointPicker.tsx": {
+      "lines": 3,
+      "group": "ui-parts"
+    },
+    "src/components/LanguageSwitcher.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/ResourceFormDialog.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/components/SaveAsDialog.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/components/drift/DriftResolutionModal.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/entities/EntityFilters.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/components/export/ExportModal.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/forms/theme.tsx": {
+      "lines": 4,
+      "group": "ui-parts"
+    },
+    "src/components/forms/widgets/EntityPicker.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/components/forms/widgets/ListFailed.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/forms/widgets/ResourcePicker.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/components/forms/widgets/SecretRef.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/components/layout/Shell.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/AppGenerator.tsx": {
+      "lines": 4,
+      "group": "ui-forms"
+    },
+    "src/pages/apps/CatalogCards.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/EndpointPreview.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/EntityWriteCard.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/KpiCard.tsx": {
+      "lines": 4,
+      "group": "ui-forms"
+    },
+    "src/pages/apps/QueryResultCard.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/QuestionOptions.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/assistant/AssistantPage.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/pages/endpoints/ModelPicker.tsx": {
+      "lines": 9,
+      "group": "ui-parts"
+    },
+    "src/pages/endpoints/SchemaProjectionPanel.tsx": {
+      "lines": 3,
+      "group": "ui-forms"
+    },
+    "src/pages/explore/ExplorePage.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/pages/flows/Gallery.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/import/ImportPage.tsx": {
+      "lines": 2,
+      "group": "ui-forms"
+    },
+    "src/pages/models/LinkmlVisualEditor.tsx": {
+      "lines": 6,
+      "group": "ui-forms"
+    },
+    "src/pages/models/ModelFileDrop.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/models/ModelSubsetPicker.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/pages/models/SmartDataModelsImport.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/pages/pipelines/PipelineStudio.tsx": {
+      "lines": 3,
+      "group": "ui-forms"
+    },
+    "src/pages/pipelines/PipelineTest.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/spaces/SpaceComplete.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/pages/spaces/SpaceInside.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/workspaces/BringBackPage.tsx": {
+      "lines": 2,
+      "group": "ui-pages"
+    },
+    "src/routes/ApprovalDetailPage.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/routes/ApprovalsPage.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/routes/DashboardsPage.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    }
+  },
+  "size_is_on_the_scale": {
+    "src/assistant/AssistantDock.tsx": {
+      "lines": 10,
+      "group": "ui-forms"
+    },
+    "src/assistant/EndpointPicker.tsx": {
+      "lines": 5,
+      "group": "ui-parts"
+    },
+    "src/components/LanguageSwitcher.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/ProjectQuota.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/dashboards/MapLibreView.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/export/ExportModal.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/components/forms/theme.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/components/layout/Shell.tsx": {
+      "lines": 5,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/AgentRunPage.tsx": {
+      "lines": 4,
+      "group": "ui-pages"
+    },
+    "src/pages/apps/AppsCatalog.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/CatalogCards.tsx": {
+      "lines": 2,
+      "group": "ui-parts"
+    },
+    "src/pages/apps/ConversationPanel.tsx": {
+      "lines": 2,
+      "group": "ui-forms"
+    },
+    "src/pages/apps/QueryResultCard.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/assistant/AssistantPage.tsx": {
+      "lines": 1,
+      "group": "ui-forms"
+    },
+    "src/pages/endpoints/ModelPicker.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "lines": 5,
+      "group": "ui-parts"
+    },
+    "src/pages/models/ModelFileDrop.tsx": {
+      "lines": 1,
+      "group": "ui-parts"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx": {
+      "lines": 7,
+      "group": "ui-forms"
+    },
+    "src/routes/DashboardsPage.tsx": {
+      "lines": 4,
+      "group": "ui-parts"
+    }
+  }
+}
