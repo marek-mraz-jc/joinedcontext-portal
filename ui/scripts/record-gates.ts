@@ -8,8 +8,8 @@
  * would have to be given, the way `cargo test -- --ignored write_openapi_json` writes the
  * Portal's OpenAPI document.
  *
- *     node scripts/record-gates.ts        # writes tests/controls.json
- *     node scripts/record-gates.ts --check   # writes nothing, exits 1 if it is stale
+ *     pnpm record:gates              # writes tests/controls.json
+ *     pnpm record:gates -- --check   # writes nothing, exits 1 if it is stale
  *
  * It records; it never decides. A module with controls and no test is still the module gate's
  * failure, and `--check` is what CI would run if this is ever wired into a lane.
