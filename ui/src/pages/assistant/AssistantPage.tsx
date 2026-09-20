@@ -22,6 +22,7 @@ import {
   TableRow,
   Textarea,
 } from "../../components/ui";
+import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { concreteTypes, dataNeeds, endpointSchema } from "../apps/AppGenerator";
 import { appDisplayName, useEndpointTitles } from "../apps/appTitle";
@@ -306,6 +307,15 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
         <p role="status" className="text-body text-fg-muted">
           {t("app.loading")}
         </p>
+      ) : runsQuery.isError ? (
+        // `isError` was never checked, so a failed request fell through to the empty state and
+        // told the person, confidently and wrongly, that their conversations and unattended runs
+        // were gone — with no reason and nothing to press.
+        <ListFailed
+          what={t("assistantPage.title")}
+          reason={reasonOf(runsQuery.error, t("app.error.generic"))}
+          onRetry={() => void runsQuery.refetch()}
+        />
       ) : filteredRuns.length === 0 ? (
         <EmptyState icon="chat" title={t("assistantPage.empty")} />
       ) : (

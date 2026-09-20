@@ -12,6 +12,8 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { Button } from "../../components/ui/Button";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { Field } from "../../components/ui/Field";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { Textarea } from "../../components/ui/Input";
 import {
   Table,
@@ -52,12 +54,29 @@ export function AgentAccess({ project }: { project: string }): JSX.Element {
         </h2>
         <p className="text-caption text-fg-muted">{t("assistantPage.access.lead")}</p>
       </div>
-      {access.isError ? (
-        <p role="alert" className="text-caption text-danger">
-          {t("app.error.generic")}
+      {/* The order matters: in flight, then failed, then empty. `isPending` was not read at all,
+          so while the request was on its way both branches fell through and the panel rendered
+          this heading over blank space — on a slow link a person concluded the agent held no
+          profiles and no access, which is the opposite of what this panel exists to say. */}
+      {access.isPending ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("app.loading")}
         </p>
+      ) : access.isError ? (
+        // `app.error.generic` threw the server's own sentence away, so a 403 (you may not read
+        // this project's access) and a 500 read identically and neither could be acted on.
+        <ListFailed
+          what={t("assistantPage.access.title")}
+          reason={reasonOf(access.error, t("app.error.generic"))}
+          onRetry={() => void access.refetch()}
+        />
       ) : access.data?.items.length === 0 ? (
-        <p className="text-caption text-fg-muted">{t("assistantPage.access.none")}</p>
+        <EmptyState
+          bare
+          icon="access"
+          title={t("assistantPage.access.none")}
+          description={t("assistantPage.access.noneHint")}
+        />
       ) : (
         access.data?.items.map((profile) => (
           <ProfileCard key={profile.name} project={project} profile={profile} />

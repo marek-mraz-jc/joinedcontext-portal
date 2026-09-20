@@ -1964,6 +1964,7 @@
       "title": "Prístup agentov",
       "lead": "Čo smie urobiť agent, ktorého spustíte: povolenie profilu a vaše vlastné oprávnenie pre každú operáciu. Beh dostane len to, čo povolia obe.",
       "none": "Nie je nastavený žiadny profil agenta.",
+      "noneHint": "Profil agenta sa deklaruje v projekte org; kým žiadny nie je, môže tu spustený beh používať iba operácie na čítanie.",
       "available": "Dostupné pre vás: {count} z {total} operácií",
       "declared": "Profil deklaruje svoj prístup.",
       "readOnlyDefault": "Profil nedeklaruje prístup, jeho agenti smú používať len operácie na čítanie.",

@@ -1964,6 +1964,7 @@
       "title": "Agent access",
       "lead": "What an agent run you start may do: the profile's grant and your own permission, per operation. A run gets only what both allow.",
       "none": "No agent profile is configured.",
+      "noneHint": "An agent profile is declared in the org project; until one is, a run started here can use read-only operations only.",
       "available": "Available to you: {count} of {total} operations",
       "declared": "The profile declares its access.",
       "readOnlyDefault": "The profile declares no access, so its agents may use read-only operations only.",

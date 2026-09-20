@@ -1964,6 +1964,7 @@
       "title": "Agentenzugriff",
       "lead": "Was ein von Ihnen gestarteter Agent tun darf: die Freigabe des Profils und Ihre eigene Berechtigung, je Operation. Ein Lauf erhält nur, was beide erlauben.",
       "none": "Kein Agentenprofil ist konfiguriert.",
+      "noneHint": "Ein Agentenprofil wird im Projekt „org“ deklariert; solange keines besteht, kann ein hier gestarteter Lauf nur lesende Operationen verwenden.",
       "available": "Für Sie verfügbar: {count} von {total} Operationen",
       "declared": "Das Profil deklariert seinen Zugriff.",
       "readOnlyDefault": "Das Profil deklariert keinen Zugriff, seine Agenten dürfen nur lesende Operationen nutzen.",
