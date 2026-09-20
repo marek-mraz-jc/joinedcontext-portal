@@ -265,11 +265,17 @@ describe("context spaces view", () => {
   it("blocks a new space once the quota is used up", async () => {
     renderSpaces({ quota: 2 });
 
-    // A quota, not a permission: the control is plainly disabled and the page says why beside it.
+    // A quota is refused with its reason, not hard-disabled: T-1795 moved the page to
+    // `disabledReason`, which keeps the control in the tab order so the sentence explaining the
+    // quota can be read at all (T-1743, UI-44). The click is refused either way.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: en.spaces.add })).toBeDisabled(),
+      expectDenied(
+        screen.getByRole("button", { name: en.spaces.add }),
+        /quota of 2 Context Spaces is used up/,
+      ),
     );
-    expect(screen.getByText(/quota of 2 Context Spaces is used up/)).toBeInTheDocument();
+    // Twice on the page on purpose: the button's own description, and the quota card beside it.
+    expect(screen.getAllByText(/quota of 2 Context Spaces is used up/)).toHaveLength(2);
   });
 
   it("proposes a change instead of writing the space directly", async () => {
