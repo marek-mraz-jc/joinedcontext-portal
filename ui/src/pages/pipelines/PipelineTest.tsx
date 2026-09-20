@@ -22,7 +22,13 @@ export interface Trace {
   input: { events: number; bytes: number; sample?: unknown };
   mapping: unknown[];
   validation: { index: number; ok: boolean; problems: string[] }[];
-  errors: { stage: string; line?: number | null; message: string }[];
+  errors: {
+    stage: string;
+    /** The step of `spec.steps` a `mapping` error failed at (PL-52); absent on lint and runner. */
+    step?: number | null;
+    line?: number | null;
+    message: string;
+  }[];
 }
 
 export interface Draft {

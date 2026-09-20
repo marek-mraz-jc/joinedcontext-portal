@@ -243,6 +243,8 @@ pub(crate) async fn run_harness(
         tracing::warn!(project = %project, error = %err, "pipeline test stream not deleted");
         result.errors.push(TestError {
             stage: "runner".into(),
+            // The stream, not a step: nothing the author wrote failed here.
+            step: None,
             line: None,
             message: "the test stream could not be deleted; the runner keeps it until it is".into(),
         });
@@ -506,6 +508,7 @@ mod tests {
                 .iter()
                 .map(|(stage, message)| TestError {
                     stage: (*stage).into(),
+                    step: None,
                     line: None,
                     message: (*message).into(),
                 })

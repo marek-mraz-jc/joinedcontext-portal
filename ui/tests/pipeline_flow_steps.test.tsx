@@ -603,3 +603,91 @@ describe("a pipeline that reads several sources", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ moreSources: [] }));
   });
 });
+
+describe("the test trace painted per step", () => {
+  const traceOf = (errors: Trace["errors"]): Trace => ({
+    input: { events: 3, bytes: 30 },
+    mapping: [],
+    validation: [],
+    errors,
+  });
+
+  /** A lane of three steps around the compute one, in the order the manifest writes them. */
+  const laneForm: PipelineForm = {
+    ...withCompute,
+    processors: [
+      { step: { processor: { unarchive: { format: "json_array" } } } },
+      { step: { processor: { jq: { query: ".id" } } }, after: true },
+    ],
+  };
+
+  it("paints the step the error names and greys only what runs behind it", () => {
+    const { nodes } = toFlow(laneForm);
+    expect(nodes.map((node) => node.id)).toEqual([
+      "source",
+      "step-0",
+      "compute",
+      "step-1",
+      "output",
+    ]);
+
+    const paint = paintOf(traceOf([{ stage: "mapping", step: 1, message: "root = this: no" }]), nodes);
+    expect(paint.source.state).toBe("ok");
+    expect(paint["step-0"].state).toBe("ok");
+    expect(paint.compute).toMatchObject({ state: "error", error: "root = this: no" });
+    expect(paint["step-1"].state).toBe("skipped");
+    expect(paint.output.state).toBe("skipped");
+  });
+
+  it("counts the step by the manifest's own order, the compute step among them", () => {
+    const { nodes } = toFlow(laneForm);
+    const first = paintOf(traceOf([{ stage: "mapping", step: 0, message: "unarchive: no" }]), nodes);
+    expect(first["step-0"]).toMatchObject({ state: "error", error: "unarchive: no" });
+    expect(first.compute.state).toBe("skipped");
+
+    const last = paintOf(traceOf([{ stage: "mapping", step: 2, message: "jq: no" }]), nodes);
+    expect(last["step-0"].state).toBe("ok");
+    expect(last.compute.state).toBe("ok");
+    expect(last["step-1"]).toMatchObject({ state: "error", error: "jq: no" });
+  });
+
+  it("keeps the first error of a step when the runner reports several", () => {
+    const { nodes } = toFlow(laneForm);
+    const paint = paintOf(
+      traceOf([
+        { stage: "mapping", step: 0, message: "the first one" },
+        { stage: "mapping", step: 0, message: "the second one" },
+      ]),
+      nodes,
+    );
+    expect(paint["step-0"].error).toBe("the first one");
+  });
+
+  it("says a mapping error that names no step where it was said before", () => {
+    const { nodes } = toFlow(laneForm);
+    for (const step of [undefined, null] as const) {
+      const paint = paintOf(traceOf([{ stage: "mapping", step, message: "no step" }]), nodes);
+      expect(paint.compute).toMatchObject({ state: "error", error: "no step" });
+      expect(paint["step-0"].state).toBe("ok");
+    }
+  });
+
+  it("does not lose an error whose step the lane has no node for", () => {
+    const { nodes } = toFlow(laneForm);
+    // A trace from a manifest with more steps than the form draws: the number is not a node,
+    // and an error that vanished would leave a red lane with nothing said on it.
+    const paint = paintOf(traceOf([{ stage: "mapping", step: 9, message: "somewhere behind" }]), nodes);
+    expect(Object.values(paint).some((node) => node.error === "somewhere behind")).toBe(true);
+    expect(paint.output.state).toBe("skipped");
+  });
+
+  it("leaves a lint error where it was: it belongs to the document, not to a step", () => {
+    const { nodes } = toFlow(laneForm);
+    const paint = paintOf(
+      traceOf([{ stage: "lint", line: 12, message: "expected string, got number" }]),
+      nodes,
+    );
+    expect(paint.compute).toMatchObject({ state: "error" });
+    expect(paint["step-0"].state).toBe("ok");
+  });
+});

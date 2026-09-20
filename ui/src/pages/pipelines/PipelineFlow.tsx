@@ -272,11 +272,18 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   let sourceError: string | undefined;
   let computeError: string | undefined;
   let outputError: string | undefined;
+  // A mapping error that names its step (PL-43) paints that step and nothing else; the lane's
+  // steps are `form.processors` and the compute step, in the order the manifest writes them.
+  const stepErrors = new Map<number, string>();
 
   for (const err of trace.errors ?? []) {
     const stage = (err.stage || "").toLowerCase();
     if (stage.includes("mapping") || stage.includes("compute") || stage.includes("bloblang")) {
-      if (!computeError) computeError = err.message;
+      if (typeof err.step === "number" && err.step >= 0) {
+        if (!stepErrors.has(err.step)) stepErrors.set(err.step, err.message);
+      } else if (!computeError) {
+        computeError = err.message;
+      }
     } else if (stage.includes("input") || stage.includes("source")) {
       if (!sourceError) sourceError = err.message;
     } else if (stage.includes("validation") || stage.includes("output")) {
@@ -303,11 +310,23 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   // The trace has one input stage however many sources feed it, so each of them shows it.
   const sourceNodes = nodes.filter((node) => isSource(node.id));
   const read = trace.input?.events ?? 0;
+  // The lane in manifest order, so a step index from the trace names the node that ran it.
+  const lane = nodes.filter((node) => !isSource(node.id) && node.id !== "output");
   const errorsByNode: Record<string, string | undefined> = {
     ...Object.fromEntries(sourceNodes.map((node) => [node.id, sourceError])),
-    [failing?.id ?? "compute"]: computeError,
+    ...Object.fromEntries(
+      [...stepErrors].flatMap(([at, message]) => (lane[at] ? [[lane[at].id, message]] : [])),
+    ),
     output: outputError,
   };
+  // A mapping error that named no step, or one the lane has no node for, still has to be said:
+  // it goes where it went before, on the step that would have run it.
+  const unplaced =
+    computeError ??
+    [...stepErrors].find(([at]) => !lane[at])?.[1];
+  if (unplaced && failing && !errorsByNode[failing.id]) {
+    errorsByNode[failing.id] = unplaced;
+  }
 
   const eventsInByNode: Record<string, number | undefined> = {
     ...Object.fromEntries(sourceNodes.map((node) => [node.id, read])),
