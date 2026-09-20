@@ -28,7 +28,7 @@ use crate::agents::share;
 use crate::api::dry_run::Probe;
 use crate::api::pipelines::http;
 use crate::auth::CurrentUser;
-use crate::error::ApiError;
+use crate::error::{ApiError, ProblemDetails};
 use crate::resource::is_dns1123;
 use crate::state::AppState;
 
@@ -170,6 +170,30 @@ pub async fn execute_test_pipeline(
 }
 
 /// `POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38).
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/pipelines/test",
+    tag = "pipelines",
+    params(("project" = String, Path, description = "Project slug")),
+    request_body(
+        content = Object,
+        description = "`pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, \
+                       and a `format` (`csv`, `json`, `text`). API/01 §7a.",
+        content_type = "application/json"
+    ),
+    responses(
+        (status = 200, description = "The trace: what the harness read, what each step made of \
+                                      it, and the messages it would have written", body = Object),
+        (status = 400, description = "A manifest that is not a Pipeline, a source that declares \
+                                      neither `dataSourceRef` nor `endpointRef`, or a sample \
+                                      past the byte limit", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "No grant proposes a Pipeline in this project", body = ProblemDetails),
+        (status = 409, description = "A test of this project is already running", body = ProblemDetails),
+        (status = 413, description = "Body larger than the limit", body = ProblemDetails),
+        (status = 503, description = "No pipeline runner is configured, or it did not answer", body = ProblemDetails)
+    )
+)]
 pub async fn test_pipeline(
     user: CurrentUser,
     State(state): State<AppState>,
