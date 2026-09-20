@@ -39,12 +39,17 @@ export function pickers(
   for (const [name, property] of Object.entries(declared)) {
     const entry: Record<string, unknown> = {};
     const widget = (property as Record<string, unknown>)[WIDGET];
-    if (typeof widget === "string" && widget in portalWidgets) {
+    // `Object.hasOwn`, not `in`: `in` walks the prototype chain, so a schema naming
+    // `constructor` or `toString` would be handed to the renderer as a widget (T-2137).
+    if (typeof widget === "string" && Object.hasOwn(portalWidgets, widget)) {
       const own = (property as Record<string, unknown>)[OPTIONS];
+      // An array is an object to `typeof`, and spreading one turns its items into `0`, `1`, …
+      // options the widget never asked for.
+      const named = own && typeof own === "object" && !Array.isArray(own);
       entry["ui:widget"] = widget;
       entry["ui:options"] = {
         ...shared,
-        ...(own && typeof own === "object" ? (own as Record<string, unknown>) : {}),
+        ...(named ? (own as Record<string, unknown>) : {}),
       };
     }
     // An object parameter arranges its own properties under its name, the way RJSF nests them.

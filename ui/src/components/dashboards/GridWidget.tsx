@@ -11,7 +11,7 @@ import { useMemo } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
-import { Card } from "../ui";
+import { Card, CardHeader } from "../ui";
 import { PortalEntityGrid } from "../entities/PortalEntityGrid";
 
 export function GridWidget({
@@ -34,7 +34,11 @@ export function GridWidget({
   );
 
   return (
-    <Card title={title}>
+    <Card>
+      {/* `Card` takes no `title`: passed to it, the widget's title landed on the div as the HTML
+          `title` attribute — a tooltip nobody sees on a touch screen and nothing a screen reader
+          lists. `CardHeader` at `h2` puts it under the dashboard's `h1` (T-2137, UI-16). */}
+      <CardHeader as="h2" title={title} className="mb-3" />
       {parsed.config ? (
         <PortalEntityGrid project={project} config={parsed.config} />
       ) : (
