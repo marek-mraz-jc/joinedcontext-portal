@@ -256,6 +256,17 @@ describe("what a button is, in the source", () => {
         const character = text[index];
         if (quote) {
           if (character === quote) quote = null;
+        } else if (character === "/" && text[index + 1] === "/") {
+          // A comment inside the opening tag, skipped whole. Without this an apostrophe in one
+          // ("the field's own message", NewProject.tsx) opened a quote that never closed, and
+          // the tag's attributes and body were read from the wrong place — a primary button
+          // with a label was reported as an icon with no name (T-1731).
+          index = text.indexOf("\n", index);
+          if (index === -1) break;
+        } else if (character === "/" && text[index + 1] === "*") {
+          const end = text.indexOf("*/", index + 2);
+          if (end === -1) break;
+          index = end + 1;
         } else if (character === '"' || character === "'" || character === "`") {
           quote = character;
         } else if (character === "{") {

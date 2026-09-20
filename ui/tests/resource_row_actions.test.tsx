@@ -100,8 +100,13 @@ describe("the actions of a manifest row", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(en.resourceDelete.title.replace("{name}", "Air quality"))).toBeInTheDocument();
-    // Nothing is removed by opening it: the name has to be typed back first.
-    expect(within(dialog).getByRole("button", { name: en.resourceDelete.propose })).toBeDisabled();
+    // Nothing is removed by opening it: the name has to be typed back first. `aria-disabled`,
+    // not `disabled`: a refusal that carries a reason keeps its button in the tab order so the
+    // reason can be reached and read (T-1830, UI-44).
+    expect(within(dialog).getByRole("button", { name: en.resourceDelete.propose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("lets a page with its own editor handle Edit itself", async () => {

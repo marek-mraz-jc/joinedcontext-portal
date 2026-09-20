@@ -55,7 +55,17 @@ function redirectOnly(path: string): boolean {
   return !block.includes("component:") && block.includes("redirect(");
 }
 
+/**
+ * Routes a deployed Portal does not serve, so no live journey against an instance can walk one.
+ * Excepted by name rather than by the allow-list, the way the module gate excepts the bundle
+ * entry: the list is for what is owed and shrinks as it is paid, and this is never owed.
+ * `/__gallery` is built only under `import.meta.env.DEV` (`src/router.tsx`); the mocked spec
+ * opens it against the dev server, which is the only place it exists (T-1729).
+ */
+const DEVELOPMENT_ONLY = ["/__gallery"];
+
 const rendering = paths.filter((path) => !redirectOnly(path));
+const served = rendering.filter((path) => !DEVELOPMENT_ONLY.includes(path));
 const redirecting = paths.filter(redirectOnly);
 const allow = JSON.parse(readFileSync(join(ui, "tests/gate_routes.allow.json"), "utf8")) as {
   mocked: Record<string, { task?: string; why: string }>;
@@ -82,7 +92,7 @@ describe("the route gate (T-2136)", () => {
 
   it("walks every rendering route in a live journey, or says why it cannot", () => {
     const opened = routesOpenedBy(paths, specs("e2e/live"));
-    const { missing, stale } = verdict(rendering, new Set(opened.keys()), Object.keys(allow.live));
+    const { missing, stale } = verdict(served, new Set(opened.keys()), Object.keys(allow.live));
     expect(missing, "no live journey under e2e/live/ walks these routes").toEqual([]);
     expect(stale, "these are walked now, or gone: remove them from tests/gate_routes.allow.json").toEqual([]);
   });

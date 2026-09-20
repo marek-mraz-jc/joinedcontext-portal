@@ -16,9 +16,6 @@
     "/projects/$project/workspaces/$name/try-it": {
       "why": "covered by tests/page_try_it_page.test.tsx; the mocked spec is owed"
     },
-    "/projects/$project/workspaces/$name/bring-back": {
-      "why": "covered by tests/page_bring_back_page.test.tsx; the mocked spec is owed"
-    },
     "/projects/$project/models": {
       "why": "covered by tests/models_page_save.test.tsx; Monaco does not render under the mocked spec's CSP yet"
     },

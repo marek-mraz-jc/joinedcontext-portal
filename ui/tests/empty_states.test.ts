@@ -43,9 +43,17 @@ interface Found {
   hasDescription: boolean;
 }
 
+/**
+ * The component gallery is not a page of the Portal: it is the development-only route that shows
+ * every shared component in every state, with literal sample text on purpose, and a production
+ * build does not contain it (`src/router.tsx`, T-1729). Its specimens are demonstrations of the
+ * empty state, not empty states a person can land on.
+ */
+const GALLERY = "src/pages/gallery/";
+
 function emptyStates(): Found[] {
   const found: Found[] = [];
-  for (const file of sources("src")) {
+  for (const file of sources("src").filter((file) => !file.startsWith(GALLERY))) {
     const text = readFileSync(file, "utf8");
     for (const match of text.matchAll(/<EmptyState\b([\s\S]*?)\/>/g)) {
       const block = match[1];

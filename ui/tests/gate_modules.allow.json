@@ -7,7 +7,6 @@
   ],
   "modules": {
     "src/components/layout/Shell.tsx": "T-1255",
-    "src/pages/access/Groups.tsx": "T-2137",
     "src/pages/access/RoleBindings.tsx": "T-1759",
     "src/pages/ckan/CkanPage.tsx": "T-1765"
   }
