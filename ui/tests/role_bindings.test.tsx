@@ -14,6 +14,17 @@ import { App } from "../src/App";
 import { rememberPrefill } from "../src/assistant/state";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 
+/**
+ * The verb the remove control is announced with, read from the bundle rather than typed here.
+ *
+ * T-1425 made one verb of it in all four locales and the two cases below still looked for
+ * "Delete", so they failed on a rename that was the point of that task. The accessible name is
+ * `resourceDelete.action` with the resource's name filled in, so the verb is what stands before
+ * the placeholder (UI-23).
+ */
+const REMOVE = new RegExp("^" + en.resourceDelete.action.split("{name}")[0].trim() + "\\b");
+
+
 const PROJECT = "helsinki";
 
 const binding = (name: string, subject: Record<string, string>, role: string, scope: Record<string, string>) => ({
@@ -133,7 +144,7 @@ describe("people and roles", () => {
     expect(within(table).getByText("Context space citybikes")).toBeInTheDocument();
     expect(within(table).queryByText("someone@espoo.fi")).not.toBeInTheDocument();
     expect(within(table).getAllByRole("button", { name: /^Edit\b/ })).toHaveLength(2);
-    expect(within(table).getAllByRole("button", { name: /^Delete\b/ })).toHaveLength(2);
+    expect(within(table).getAllByRole("button", { name: REMOVE })).toHaveLength(2);
   });
 
   it("keeps every change a viewer may not make where it is, disabled with the reason", async () => {
@@ -216,7 +227,7 @@ describe("people and roles", () => {
     const fetchMock = renderAccess({ grants: ADMIN });
 
     await screen.findByText("demo.steward@hel.fi");
-    const [remove] = within(roles()).getAllByRole("button", { name: /^Delete\b/ });
+    const [remove] = within(roles()).getAllByRole("button", { name: REMOVE });
     await userEvent.click(remove);
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });

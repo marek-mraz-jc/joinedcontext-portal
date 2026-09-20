@@ -98,6 +98,10 @@ describe("renaming a resource that exists", () => {
     window.history.pushState({}, "", "/projects/helsinki/dashboards");
   });
 
+  // 20s, not the default 5: this case walks a menu, a dialog, a tab, a clear, a paste and a
+  // propose, each through `userEvent`, and the assertions are unchanged — what it needs under a
+  // full-suite run on a loaded machine is patience, not a different check. It passes alone every
+  // time and failed two runs in three when 213 workers were competing for the cores.
   it("is closed in the form and refused from the YAML view", async () => {
     const writes = renderDashboards();
     // The dashboard's Edit is in the header's actions menu (T-2288).
@@ -130,5 +134,5 @@ describe("renaming a resource that exists", () => {
 
     expect(await within(dialog).findByText(/Keep the name bikes/)).toBeInTheDocument();
     expect(writes).toHaveLength(0);
-  });
+  }, 20_000);
 });

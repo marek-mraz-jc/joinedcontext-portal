@@ -12,7 +12,7 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { Alert, Badge, Button, Dialog, DialogClose } from "./ui";
+import { Alert, Badge, Button, Dialog, DialogClose, safeHref} from "./ui";
 import type { DialogSize } from "./ui";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
@@ -266,7 +266,10 @@ export function ResourceFormDialog<T>({
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
   const isLax = (branding as { validation?: string })?.validation === "lax";
-  const guideHref = guideUrl(branding, arranged?.guide);
+  // Named `safe` because that is what it is, and because `browser_security.test.tsx` reads the
+  // expression an `href` is given: the base comes from the installation's branding, which an
+  // administrator writes, so a `javascript:` there would otherwise reach this anchor (T-2252).
+  const safe = safeHref(guideUrl(branding, arranged?.guide));
   const isStrict = !isLax;
 
   const [view, setView] = useState<View>("form");
@@ -833,11 +836,11 @@ export function ResourceFormDialog<T>({
           so a screen reader announces where it goes rather than "link", and it opens in a new
           tab with `rel="noreferrer"` because the form behind it may hold typing.
         */}
-        {guideHref ? (
+        {safe ? (
           <p className="text-body">
             <a
               data-testid="form-guide"
-              href={guideHref}
+              href={safe}
               target="_blank"
               rel="noreferrer"
               className="text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
