@@ -24,16 +24,34 @@ export function Table({
   ...rest
 }: TableProps): React.JSX.Element {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-1">
+    // The frame scrolls sideways, so it is focusable and a keyboard scrolls it with the arrow
+    // keys (WCAG 2.1.1): `overflow-x-auto` alone left the columns past the right edge reachable
+    // with a pointer and by nothing else. It is named after the caption, or it would be an
+    // unlabelled stop in the tab order.
+    //
+    // `group`, not `region`: a region is a landmark, and most tables here sit inside a
+    // `<section aria-labelledby>` whose name is the caption — two nested landmarks with one
+    // name, which is the `landmark-unique` violation and an ambiguous query for every test that
+    // asks for that section by name. A group names the tab stop and adds no landmark.
+    <div
+      role="group"
+      aria-label={caption}
+      tabIndex={0}
+      className="focus-ring overflow-x-auto rounded-lg border border-border bg-surface shadow-1"
+    >
       {status ? (
         <p role="status" className="sr-only">
           {status}
         </p>
       ) : null}
       <table
+        aria-busy={status ? true : undefined}
         className={clsx(
           "w-full border-collapse text-left text-body",
-          zebra && "[&>tbody>tr:nth-child(even)]:bg-surface-subtle/70",
+          // `:not(:hover)` keeps the stripe off the row under the pointer. Without it the zebra
+          // rule — two selectors deep, so more specific than the row's own `hover:` — won an
+          // even row's background outright and hovering half the table did nothing.
+          zebra && "[&>tbody>tr:nth-child(even):not(:hover)]:bg-surface-subtle/70",
           className,
         )}
         {...rest}
@@ -98,7 +116,10 @@ export function TableHeaderCell({
     <th
       scope="col"
       className={clsx(
-        "whitespace-nowrap px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-fg-muted",
+        // No `whitespace-nowrap`: a translated header is the longest text in its column
+        // ("Zuletzt geändert von" against "Changed by") and holding it on one line pushed the
+        // last column off the screen instead of letting the header wrap to two lines.
+        "px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-fg-muted",
         align === "right" && "text-right",
         align === "center" && "text-center",
         secondary && "hidden sm:table-cell",

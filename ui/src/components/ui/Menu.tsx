@@ -17,7 +17,10 @@ export const MenuContent = forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={clsx(
-          "z-50 min-w-[10rem] rounded-lg border border-border bg-surface-raised p-1 text-body text-fg shadow-2 focus:outline-none",
+          // `max-h` plus `overflow-y-auto`: a menu of every project, or of a long list of
+          // actions, ran off the bottom of the viewport with its last items unreachable. Radix
+          // measures the room it has and publishes it as this variable.
+          "z-50 min-w-40 max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto rounded-lg border border-border bg-surface-raised p-1 text-body text-fg shadow-2 focus:outline-none",
           className,
         )}
         {...rest}
@@ -35,6 +38,10 @@ export const MenuItem = forwardRef<
       ref={ref}
       className={clsx(
         "flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-muted aria-[current=true]:font-semibold",
+        // A disabled item looked exactly like an enabled one and kept the pointer cursor: Radix
+        // sets `data-disabled` and `aria-disabled`, and nothing here read either, so the only
+        // way to learn an action was unavailable was to click it and have nothing happen.
+        "data-[disabled]:cursor-default data-[disabled]:text-fg-subtle data-[disabled]:data-[highlighted]:bg-transparent",
         tone === "danger" ? "text-danger data-[highlighted]:bg-danger-soft" : "text-fg",
         className,
       )}

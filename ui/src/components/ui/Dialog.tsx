@@ -25,6 +25,15 @@ export interface DialogProps {
   closeLabel: string;
   /** Rendered under the body, right-aligned: the primary and its cancel. */
   footer?: ReactNode;
+  /**
+   * Added to the dialog's own frame. It exists so a caller that needs one thing the sizes do not
+   * give — a taller body, a fixed width for a diff — can have it and still get the focus trap,
+   * the escape key and the labelling; without it such a caller built its own Radix dialog and
+   * lost all three.
+   */
+  className?: string;
+  /** Added to the scrolling body, for a caller that needs it flush or padded differently. */
+  bodyClassName?: string;
   children: ReactNode;
 }
 
@@ -40,6 +49,8 @@ export function Dialog({
   size = "md",
   closeLabel,
   footer,
+  className,
+  bodyClassName,
   children,
 }: DialogProps): React.JSX.Element {
   // The dialog is opened from outside, so Radix has no trigger to hand focus back to and leaves
@@ -71,6 +82,7 @@ export function Dialog({
           className={clsx(
             "fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-surface text-fg shadow-3 focus:outline-none",
             SIZES[size],
+            className,
           )}
         >
           <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
@@ -89,7 +101,9 @@ export function Dialog({
               <Icon name="close" className="size-4" />
             </RadixDialog.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          <div className={clsx("min-h-0 flex-1 overflow-y-auto px-6 py-5", bodyClassName)}>
+            {children}
+          </div>
           {footer ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-surface-subtle px-6 py-3">
               {footer}
