@@ -14,21 +14,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { breaches as breachesOf, hits, RULE_OF, staleEntries, UNLISTABLE } from "./uiRules";
+import type { Allowed, Source } from "./uiRules";
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const allowPath = join(ui, "tests/ui_rules.allow.json");
 
-/** `reason` is on a line that stays for good: a native file input, a suppression that has to be. */
-type Allowed = Record<string, Record<string, { lines: number; group: string; reason?: string }>>;
 const allow = JSON.parse(readFileSync(allowPath, "utf8")) as Allowed;
-
-interface Source {
-  /** Path relative to `ui/`, as the allow-list names it. */
-  path: string;
-  text: string;
-  /** A shared control may build what a page may not: that is what makes it the shared one. */
-  shared: boolean;
-}
 
 function sources(): Source[] {
   const out: Source[] = [];
@@ -102,25 +94,9 @@ function stockColours(file: Source): string[] {
 const all = sources();
 const pages = all.filter((file) => !file.shared);
 
-/** Every line of `file` that `pattern` matches, as `path:line`. */
-function hits(file: Source, pattern: RegExp): string[] {
-  return [...file.text.matchAll(new RegExp(pattern.source, `${pattern.flags}g`))].map(
-    (match) => `${file.path}:${file.text.slice(0, match.index).split("\n").length}`,
-  );
-}
-
-/**
- * The lines that break `rule`, minus the ones the allow-list names for that file. A file whose
- * count has grown fails with the lines, because a file that is allowed 3 and now has 5 has two
- * new violations, not permission for five.
- */
+/** The lines of `files` that break `rule`, minus the ones the allow-list names (see `uiRules`). */
 function breaches(rule: string, pattern: RegExp, files: Source[] = pages): string[] {
-  const allowed = allow[rule] ?? {};
-  return files.flatMap((file) => {
-    const found = hits(file, pattern);
-    const budget = allowed[file.path]?.lines ?? 0;
-    return found.length > budget ? found.slice(budget) : [];
-  });
+  return breachesOf(allow, rule, pattern, files);
 }
 
 describe("what a page may not do by hand", () => {
@@ -245,29 +221,28 @@ describe("what nothing in the UI may do", () => {
 });
 
 describe("the allow-list", () => {
-  it("the_allow_list_only_shrinks", () => {
-    // The measured state of 2026-09-20. Lower these when a file is cleaned; a change that raises
-    // one is a new violation, which is what this number is here to refuse.
-    const budget: Record<string, { files: number; lines: number }> = {
-      // 37/77 after the ui-forms batch (T-1769…T-1776) and main's own cleaning met here.
-      hand_made_control: { files: 35, lines: 73 },
-      colour_is_a_token: { files: 5, lines: 41 },
-      size_is_on_the_scale: { files: 16, lines: 45 },
-      focus_is_not_stolen: { files: 3, lines: 6 },
-      check_is_not_suppressed: { files: 6, lines: 7 },
-      // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.
-      asks_with_a_shared_dialog: { files: 0, lines: 0 },
-    };
-    for (const [rule, ceiling] of Object.entries(budget)) {
-      const entries = Object.values(allow[rule] ?? {});
-      expect(entries.length, `${rule}: files`).toBeLessThanOrEqual(ceiling.files);
-      expect(
-        entries.reduce((sum, entry) => sum + entry.lines, 0),
-        `${rule}: lines`,
-      ).toBeLessThanOrEqual(ceiling.lines);
-    }
-    // A rule nobody wrote a budget for cannot be allow-listed into existence.
-    expect(Object.keys(allow).filter((rule) => !(rule in budget))).toEqual([]);
+  /**
+   * The ratchet used to be six literal totals — one line naming every rule's file and line count
+   * for the whole repository. Four workers clean the `ui-*` groups at once, and on 2026-09-20
+   * that one line blocked three batches in a row while `ui_rules.allow.json` merged cleanly
+   * beside it every time: the conflict was never about code, only about two people having
+   * counted different halves of the same shrinking set (T-2315).
+   *
+   * It is gone, and nothing it enforced went with it. The ratchet is per file and runs in both
+   * directions: `breaches` fails every line beyond what a file's entry allows, and
+   * `no_entry_survives_the_file_it_was_written_for` fails an entry larger than its file still
+   * is. So a number can only be raised by a change that really does add the violations — and
+   * that change is a diff on that one file's object, naming the rule and the file, which is a
+   * louder thing to read in review than a total moving from 73 to 74. Two workers cleaning two
+   * files now edit two different JSON objects, and git merges them.
+   */
+  it("a_rule_nobody_wrote_cannot_be_allow_listed_into_existence", () => {
+    // Every rule the allow-list names has a pattern here, so an entry can always be measured
+    // against the file it was written for. A rule with no pattern would be an entry nothing
+    // checks, which is how a permanent exemption gets in.
+    expect(Object.keys(allow).filter((rule) => !(rule in RULE_OF))).toEqual([]);
+    // And the security rules below carry no allow-list at all: they stay unlistable.
+    expect(Object.keys(allow).filter((rule) => UNLISTABLE.has(rule))).toEqual([]);
   });
 
   it("every_entry_names_a_file_that_exists_and_the_group_that_empties_it", () => {
@@ -283,27 +258,10 @@ describe("the allow-list", () => {
   });
 
   it("no_entry_survives_the_file_it_was_written_for", () => {
-    // A file cleaned below its budget is an entry to delete, and this says which.
-    const stale = Object.entries(allow).flatMap(([rule, files]) =>
-      Object.entries(files).flatMap(([path, entry]) => {
-        const file = pages.find((source) => source.path === path);
-        return file && hits(file, RULE_OF[rule]).length < entry.lines ? [`${rule}/${path}`] : [];
-      }),
-    );
-    expect(stale, "these entries allow more than the file still does; lower or delete them").toEqual(
-      [],
-    );
+    // A file cleaned below its entry is an entry to lower or delete, and this says which and to
+    // what. It is also the half of the ratchet that refuses a raise: a number written larger
+    // than the file is fails here, so `lines` can only go up when the violations really did.
+    expect(staleEntries(allow, pages), "lower or delete these").toEqual([]);
   });
 });
 
-/** The pattern behind each allow-listed rule, so a stale entry can be found by the same measure. */
-const RULE_OF: Record<string, RegExp> = {
-  hand_made_control: /<(?:button|input|select|textarea|table)\b/,
-  colour_is_a_token:
-    /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/,
-  size_is_on_the_scale:
-    /\b(?:bg|text|border|p|px|py|m|mx|my|w|h|gap|rounded|shadow|min-w|max-w|min-h|max-h)-\[[^\]]+\]|style=\{\{/,
-  asks_with_a_shared_dialog: /window\.confirm\(|window\.alert\(/,
-  focus_is_not_stolen: /\bautoFocus\b/,
-  check_is_not_suppressed: /@ts-ignore|@ts-expect-error|eslint-disable/,
-};

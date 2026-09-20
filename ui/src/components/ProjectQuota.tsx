@@ -43,33 +43,29 @@ export function ProjectQuota({ project }: { project: string }): JSX.Element | nu
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
         {rows.map(([dimension, { used, limit }]) => {
           const full = typeof limit === "number" && used >= limit;
-          const label = t(`quota.dimension.${dimension}`, { defaultValue: dimension });
           return (
-            // One group per dimension, and a group of a `<dl>` holds nothing but its `<dt>` and
-            // its `<dd>`s — the bar used to be a third child beside them, which axe reports as
-            // `definition-list` and `dlitem` (T-1805). It is the same value drawn, so it is a
-            // second `<dd>` of the same term, on its own row of the group's grid.
-            <div key={dimension} className="grid grid-cols-[1fr_auto] items-baseline gap-x-2">
-              <dt className="text-body text-fg">{label}</dt>
-              <dd
-                className={`text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}
-              >
+            // A `<dl>` group may hold `dt` and `dd` and nothing else: the bar used to sit in
+            // the wrapper beside a second div that held the pair, which put the `dt` and the
+            // `dd` two levels down and left the list malformed for anything reading it as one.
+            // Two `dd` for one `dt` is the shape the spec has for a term with a second value.
+            <div key={dimension} className="flex flex-wrap items-baseline gap-x-2">
+              <dt className="text-body text-fg">
+                {t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
+              </dt>
+              <dd className={`ml-auto text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}>
                 {typeof limit === "number"
                   ? t("quota.ofLimit", { used, limit })
                   : t("quota.noLimit", { used })}
               </dd>
               {typeof limit === "number" ? (
-                <dd className="col-span-2">
-                  {/* The bar itself stays a `<div>`: `progressbar` is not a role a `<dd>` may
-                      take (axe `aria-allowed-role`), and a `<dd>` that is not a dlitem any more
-                      breaks the list around it. */}
+                <dd className="mt-1.5 w-full">
                   <div
                     role="progressbar"
-                    aria-label={label}
+                    aria-label={t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
                     aria-valuenow={used}
                     aria-valuemin={0}
                     aria-valuemax={limit}
-                    className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
                   >
                     <div
                       className={`h-full rounded-full ${full ? "bg-danger" : "bg-primary"}`}

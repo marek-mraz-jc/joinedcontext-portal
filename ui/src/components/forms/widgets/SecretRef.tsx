@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent, JSX } from "react";
+import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
@@ -131,6 +132,9 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
             placeholder={t("datasources.secretRef.name", { defaultValue: "Secret name" })}
             value={secretName}
             onChange={handleNameChange}
+            // Both halves are the same field, so both say what the field's hint, its example and
+            // the server's refusal are: nothing above them reaches a control (T-2314, UI-04).
+            aria-describedby={ariaDescribedByIds(id)}
             aria-invalid={hasErrors ? "true" : undefined}
             className={clsx(
               "block w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-surface-fg placeholder:text-surface-fg/50 focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
@@ -157,6 +161,8 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
             placeholder={t("datasources.secretRef.key", { defaultValue: "Key (e.g. password)" })}
             value={secretKey}
             onChange={handleKeyChange}
+            aria-describedby={ariaDescribedByIds(id)}
+            aria-invalid={hasErrors ? "true" : undefined}
             className={clsx(
               "block w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-surface-fg placeholder:text-surface-fg/50 focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
               disabled && "cursor-not-allowed opacity-50"

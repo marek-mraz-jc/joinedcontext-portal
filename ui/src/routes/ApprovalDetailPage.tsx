@@ -10,7 +10,17 @@ import { useAuth } from "../auth/AuthProvider";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
 import type { components } from "../api/schema";
-import { Alert, Button, Dialog, ExternalLink, Input, PageHeader, Textarea } from "../components/ui";
+import {
+  Alert,
+  Button,
+  Dialog,
+  ExternalLink,
+  Field,
+  Input,
+  PageHeader,
+  Skeleton,
+  Textarea,
+} from "../components/ui";
 
 type ChangeProposal = components["schemas"]["ChangeProposal"];
 type ChangeFile = components["schemas"]["ChangeFile"];
@@ -54,7 +64,6 @@ export function ApprovalDetailPage({
   const { identity } = useAuth();
   const permissions = usePermissions(project);
 
-  const approveReasonId = useId();
   const rejectReasonId = useId();
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -157,7 +166,7 @@ export function ApprovalDetailPage({
   });
 
   if (detailQuery.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return <ChangeSkeleton label={t("app.loading")} />;
   }
 
   if (detailQuery.isError) {
@@ -188,7 +197,7 @@ export function ApprovalDetailPage({
   // `proposal` was read before the guards above, so TypeScript still has it as optional here.
   // A settled, non-error query always carries data; this is the check that says so.
   if (!proposal) {
-    return <p role="status">{t("app.loading")}</p>;
+    return <ChangeSkeleton label={t("app.loading")} />;
   }
 
   const isMutating = approveMutation.isPending || rejectMutation.isPending;
@@ -279,14 +288,15 @@ export function ApprovalDetailPage({
                   <span className="text-sm font-medium text-surface-fg">{file.kind}</span>
                 ) : null}
                 {file.fields ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     aria-pressed={selected?.path === file.path}
                     onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
-                    className="font-mono text-caption text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+                    className="px-1 font-mono text-caption text-primary hover:underline"
                   >
                     {file.path}
-                  </button>
+                  </Button>
                 ) : (
                   <span className="font-mono text-caption text-fg-subtle">{file.path}</span>
                 )}
@@ -337,23 +347,25 @@ export function ApprovalDetailPage({
         </h2>
 
         {isRedLane && isPendingApproval ? (
-          <div className="space-y-1">
-            <label htmlFor="confirm-resource-name" className="block text-sm font-medium text-surface-fg">
-              {t("approvals.confirmPrompt")}{" "}
-              <span className="font-mono font-semibold">{expectedName}</span>
-            </label>
+          <Field
+            id="confirm-resource-name"
+            label={t("approvals.confirmLabel")}
+            description={
+              <>
+                {t("approvals.confirmPrompt")}{" "}
+                <span className="font-mono font-semibold">{expectedName}</span>
+              </>
+            }
+          >
             <Input
               id="confirm-resource-name"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
-              aria-label={t("approvals.confirmLabel")}
               placeholder={expectedName}
               disabled={!canAct}
-              // The one thing a red-lane approver has to do next (T-1394), as in the delete dialog.
-              autoFocus
               className="max-w-sm"
             />
-          </div>
+          </Field>
         ) : null}
 
         {standing.ownAsAdministrator && isPendingApproval ? (
@@ -363,25 +375,23 @@ export function ApprovalDetailPage({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          <span
-            title={approveReason ?? undefined}
-            tabIndex={approveReason ? 0 : undefined}
-            className="inline-flex"
+          <Button
+            variant="primary"
+            disabled={!canApprove}
+            disabledReason={approveReason ?? undefined}
+            loading={approveMutation.isPending}
+            onClick={() => approveMutation.mutate()}
           >
-            <Button
-              variant="primary"
-              disabled={!canApprove}
-              aria-describedby={approveReason ? approveReasonId : undefined}
-              loading={approveMutation.isPending}
-              onClick={() => approveMutation.mutate()}
-            >
-              {approveMutation.isPending ? t("approvals.approving") : t("approvals.approve")}
-            </Button>
-          </span>
+            {approveMutation.isPending ? t("approvals.approving") : t("approvals.approve")}
+          </Button>
 
           <Button
             variant="danger"
             disabled={!canReject}
+            // The same sentence the Approve button carries when a role or the authorship is
+            // what refuses the action; a phase that simply has nothing to reject says nothing,
+            // because that is not a refusal (UI-44).
+            disabledReason={disabledReason ?? undefined}
             loading={rejectMutation.isPending}
             onClick={() => setRejecting(true)}
           >
@@ -410,30 +420,45 @@ export function ApprovalDetailPage({
               </>
             }
           >
-            <label htmlFor={rejectReasonId} className="text-sm font-medium">
-              {t("approvals.rejectReason")}
-            </label>
-            <Textarea
+            <Field
               id={rejectReasonId}
-              rows={3}
-              maxLength={2000}
-              required
-              aria-describedby={`${rejectReasonId}-hint`}
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-            />
-            <p id={`${rejectReasonId}-hint`} className="text-sm text-fg-muted">
-              {t("approvals.rejectReasonHint")}
-            </p>
+              label={t("approvals.rejectReason")}
+              help={t("approvals.rejectReasonHint")}
+            >
+              <Textarea
+                id={rejectReasonId}
+                rows={3}
+                maxLength={2000}
+                required
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+              />
+            </Field>
           </Dialog>
 
-          {approveReason ? (
-            <p id={approveReasonId} className="text-body text-fg-muted">
-              {approveReason}
-            </p>
-          ) : null}
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * The shape of the change while it is being read, rather than one word in the top-left corner
+ * (UI-01). The header, the author card and the diff table each keep their height, so nothing
+ * on the page moves when the answer lands; the container is what announces the wait.
+ */
+function ChangeSkeleton({ label }: { label: string }): JSX.Element {
+  return (
+    <div className="space-y-6" role="status" aria-busy="true" aria-label={label}>
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-2/3" />
+        <Skeleton className="h-4 w-40" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 rounded border border-border bg-surface-subtle p-4 sm:grid-cols-2">
+        <Skeleton className="h-10" />
+        <Skeleton className="h-10" />
+      </div>
+      <Skeleton className="h-40" />
     </div>
   );
 }

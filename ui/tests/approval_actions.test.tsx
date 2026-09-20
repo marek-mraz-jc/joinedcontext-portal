@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { expectDenied } from "./checks";
 
 const APPROVER = {
   subject: "b7c1e0f4",
@@ -219,13 +220,14 @@ describe("approval actions", () => {
       identity: { ...APPROVER, roles: ["portal-viewer"] },
     });
 
-    expect(await screen.findByRole("button", { name: en.approvals.approve })).toBeDisabled();
-    expect(screen.getByRole("button", { name: en.approvals.reject })).toBeDisabled();
-    expect(screen.getByText(en.approvals.needsRole)).toBeInTheDocument();
-    // On the button itself too: by pointer the wrapper's tooltip, by keyboard its description.
+    // Refused, and still reachable: a hard-disabled button leaves the tab order, and the reason
+    // written for it can then never be read (T-1743, UI-44).
+    // Each control carries its own reason rather than a paragraph beside them all: by pointer
+    // the tooltip, by keyboard the description, and the control stays in the tab order.
+    expectDenied(await screen.findByRole("button", { name: en.approvals.approve }), en.approvals.needsRole);
+    expectDenied(screen.getByRole("button", { name: en.approvals.reject }), en.approvals.needsRole);
     const approve = screen.getByRole("button", { name: en.approvals.approve });
-    expect(approve.parentElement).toHaveAttribute("title", en.approvals.needsRole);
-    expect(approve).toHaveAccessibleDescription(en.approvals.needsRole);
+    expect(approve).toHaveAttribute("title", en.approvals.needsRole);
 
     await userEvent.click(screen.getByRole("button", { name: en.approvals.approve }));
     expect(posts(fetchMock)).toHaveLength(0);
@@ -236,8 +238,12 @@ describe("approval actions", () => {
       change: proposal({ author: { name: "Jana Kováčová", email: APPROVER.email } }),
     });
 
-    expect(await screen.findByRole("button", { name: en.approvals.approve })).toBeDisabled();
-    expect(screen.getByText(en.approvals.ownProposal)).toBeInTheDocument();
+    expectDenied(
+      await screen.findByRole("button", { name: en.approvals.approve }),
+      en.approvals.ownProposal,
+    );
+    expectDenied(screen.getByRole("button", { name: en.approvals.reject }), en.approvals.ownProposal);
+    await userEvent.click(screen.getByRole("button", { name: en.approvals.approve }));
     expect(posts(fetchMock)).toHaveLength(0);
   });
 
@@ -283,15 +289,25 @@ describe("approval actions", () => {
       },
     });
 
-    expect(await screen.findByText(en.approvals.ownProposal)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.approvals.approve })).toBeDisabled();
+    expectDenied(
+      await screen.findByRole("button", { name: en.approvals.approve }),
+      en.approvals.ownProposal,
+    );
     expect(posts(fetchMock)).toHaveLength(0);
   });
 
-  it("puts the focus in the name to type back on a red-lane approval (T-1394)", async () => {
+  it("does_not_steal_the_focus_on_a_red_lane_approval_and_still_labels_the_name_to_type_back", async () => {
+    // T-1394 put the focus here on arrival; the UI rules took it back out (T-1726). A red-lane
+    // change is the one an approver has to READ before confirming, and dropping the focus past
+    // the diff is exactly what a screen reader then skips. The field is labelled, described by
+    // the name to type, and one Tab away.
     renderDetail({ change: proposal({ status: { lane: "red", phase: "PendingApproval", plan: { update: 1 } } }) });
     const input = await screen.findByRole("textbox", { name: en.approvals.confirmLabel });
-    await waitFor(() => expect(input).toHaveFocus());
+    expect(input).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+    expect(input).toHaveAccessibleDescription(new RegExp("air-quality"));
+    await userEvent.tab();
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it("holds a red-lane approval until the resource name is typed back", async () => {
@@ -301,16 +317,14 @@ describe("approval actions", () => {
       }),
     });
 
-    expect(await screen.findByRole("button", { name: en.approvals.approve })).toBeDisabled();
+    const held = en.approvals.confirmFirst.replace("{name}", "air-quality");
+    expectDenied(await screen.findByRole("button", { name: en.approvals.approve }), held);
     expect(screen.getByRole("button", { name: en.approvals.reject })).toBeEnabled();
 
-    expect(screen.getByRole("button", { name: en.approvals.approve }).parentElement).toHaveAttribute(
-      "title",
-      en.approvals.confirmFirst.replace("{name}", "air-quality"),
-    );
+    expect(screen.getByRole("button", { name: en.approvals.approve })).toHaveAttribute("title", held);
     const confirm = screen.getByLabelText(en.approvals.confirmLabel);
     await userEvent.type(confirm, "air-qualit");
-    expect(screen.getByRole("button", { name: en.approvals.approve })).toBeDisabled();
+    expectDenied(screen.getByRole("button", { name: en.approvals.approve }), held);
 
     await userEvent.type(confirm, "y");
     await waitFor(() =>

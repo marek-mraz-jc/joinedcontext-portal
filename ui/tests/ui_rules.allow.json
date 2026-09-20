@@ -23,7 +23,8 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "lines": 1,
-      "group": "ui-parts"
+      "group": "ui-pages",
+      "reason": "`?edit=<name>` opens the editor once the list carries that endpoint, and opening it mints a slug for an endpoint that has none; deriving it during render would mint a different one on every render, so the effect is the correct place and the rule's remedy would be the defect."
     }
   },
   "colour_is_a_token": {
@@ -56,10 +57,6 @@
     },
     "src/components/forms/theme.tsx": {
       "lines": 4,
-      "group": "ui-parts"
-    },
-    "src/routes/ApprovalDetailPage.tsx": {
-      "lines": 1,
       "group": "ui-parts"
     }
   },
@@ -193,18 +190,6 @@
     "src/pages/workspaces/BringBackPage.tsx": {
       "lines": 2,
       "group": "ui-pages"
-    },
-    "src/routes/ApprovalDetailPage.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/routes/ApprovalsPage.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/routes/DashboardsPage.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
     }
   },
   "size_is_on_the_scale": {
@@ -270,8 +255,9 @@
       "group": "ui-forms"
     },
     "src/routes/DashboardsPage.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
+      "lines": 2,
+      "group": "ui-pages",
+      "reason": "`h-[60vh]` sizes the map against the window and the spacing scale has no viewport step; the colour-ramp swatch takes its fill from the layer's own scale, which is a value, not a token."
     }
   }
 }
