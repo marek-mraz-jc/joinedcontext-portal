@@ -163,7 +163,7 @@ export function KpiCard({
       className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="purple">KPI</Badge>
+        <Badge tone="accent">{t("apps.kpi.badge")}</Badge>
         <span className="min-w-0 break-words font-medium">{kpi.title ?? kpi.name}</span>
       </div>
       <p className="flex flex-wrap items-baseline gap-2">

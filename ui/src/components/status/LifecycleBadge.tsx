@@ -28,7 +28,7 @@ const PHASES: Record<string, [string, BadgeTone]> = {
   applied: ["applied", "success"],
   error: ["error", "danger"],
   rejected: ["rejected", "danger"],
-  drifted: ["drifted", "purple"],
+  drifted: ["drifted", "accent"],
   // What a `SyncSource` reports about its own loop (MF-30). `pendingapproval` and `error`
   // above mean the same thing for it, so only the three it adds are here.
   synced: ["synced", "success"],

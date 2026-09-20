@@ -129,7 +129,7 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
       className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="purple">{t("agentRun.kpiPipeline.badge")}</Badge>
+        <Badge tone="accent">{t("agentRun.kpiPipeline.badge")}</Badge>
         <span className="min-w-0 break-words font-medium">{pipeline.title ?? pipeline.name}</span>
       </div>
       <dl className="grid gap-1 text-xs sm:grid-cols-[auto_1fr] sm:gap-x-3">

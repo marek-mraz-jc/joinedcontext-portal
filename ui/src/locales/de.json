@@ -11,7 +11,13 @@
       "crashReload": "Seite neu laden",
       "crashHome": "Zum Anfang"
     },
-    "opensNewTab": "Wird in einem neuen Tab geöffnet"
+    "opensNewTab": "Wird in einem neuen Tab geöffnet",
+    "alert": {
+      "info": "Hinweis",
+      "success": "Erledigt",
+      "warning": "Warnung",
+      "danger": "Fehler"
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
@@ -1332,6 +1338,9 @@
       },
       "open": "Öffnen",
       "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen."
+    },
+    "kpi": {
+      "badge": "KPI"
     }
   },
   "appLifecycle": {

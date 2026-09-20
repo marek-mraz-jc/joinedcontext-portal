@@ -54,6 +54,8 @@
   --color-accent: var(--portal-color-accent);
   --color-danger: var(--portal-danger);
   --color-danger-fg: var(--portal-danger-fg);
+  --color-danger-hover: var(--portal-danger-hover);
+  --color-danger-active: var(--portal-danger-active);
   --color-danger-soft: var(--portal-danger-soft);
   --color-success: var(--portal-success);
   --color-success-soft: var(--portal-success-soft);

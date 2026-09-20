@@ -86,7 +86,7 @@ export function PlanDiffViewer({ fields, className }: PlanDiffViewerProps): JSX.
             diffType = "added";
             marker = "+";
             diffLabel = t("approvals.diffAdded");
-            rowBg = "bg-emerald-500/5 hover:bg-emerald-500/10";
+            rowBg = "bg-success/5 hover:bg-success/10";
           } else if (hasFrom && !hasTo) {
             diffType = "removed";
             marker = "-";
@@ -96,7 +96,7 @@ export function PlanDiffViewer({ fields, className }: PlanDiffViewerProps): JSX.
             diffType = "changed";
             marker = "~";
             diffLabel = t("approvals.diffChanged");
-            rowBg = "bg-amber-500/5 hover:bg-amber-500/10";
+            rowBg = "bg-warning/5 hover:bg-warning/10";
           }
 
           return (

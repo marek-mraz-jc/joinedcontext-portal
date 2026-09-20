@@ -51,7 +51,9 @@ describe("lifecycle badge", () => {
     expect(screen.getByText(en.phase.deploying).className).toContain("info");
     expect(screen.getByText(en.phase.live).className).toContain("success");
     expect(screen.getByText(en.phase.error).className).toContain("danger");
-    expect(screen.getByText(en.phase.drifted).className).toContain("purple");
+    // The `accent` token, not Tailwind's `purple-500`, which followed neither the dark theme
+    // nor an installation's brand (T-1734).
+    expect(screen.getByText(en.phase.drifted).className).toContain("accent");
   });
 
   it("explains each variant in a tooltip, so colour is never the only carrier", () => {

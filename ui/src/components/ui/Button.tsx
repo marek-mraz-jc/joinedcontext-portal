@@ -1,19 +1,26 @@
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { clsx } from "clsx";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
+// No `whitespace-nowrap`: a German label is half again as long as its English original
+// ("Eine Änderung mit dem Assistenten vorschlagen"), and with `shrink-0` beside it the label ran
+// past its container instead of wrapping (UI-30).
 const BASE =
-  "focus-ring inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+  "focus-ring inline-flex shrink-0 select-none items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-fg shadow-1 hover:bg-primary-hover active:bg-primary-active",
   secondary:
     "border border-border bg-surface text-fg shadow-1 hover:bg-surface-subtle active:bg-surface-muted",
-  ghost: "text-fg hover:bg-surface-muted active:bg-surface-muted",
-  danger: "bg-danger text-danger-fg shadow-1 hover:opacity-90 active:opacity-80",
+  // Hover and active were the same token, so pressing a ghost button looked like hovering it.
+  ghost: "text-fg hover:bg-surface-subtle active:bg-surface-muted",
+  // Tokens, not opacity: fading the whole button took `text-danger-fg` down with the background
+  // and the label lost its contrast, and `transition-colors` never covered opacity, so danger
+  // snapped while the other three faded.
+  danger: "bg-danger text-danger-fg shadow-1 hover:bg-danger-hover active:bg-danger-active",
 };
 
 const SIZES: Record<ButtonSize, string> = {
@@ -38,24 +45,60 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
   /** Shows a spinner and disables the button; the label stays so the width does not jump. */
   loading?: boolean;
+  /**
+   * Why this button cannot be used, in words (UI-44).
+   *
+   * A button with a reason is `aria-disabled` rather than `disabled`: it keeps its place in the
+   * tab order, so somebody who cannot see that it is greyed out can reach it and be told why.
+   * `disabled` would remove it from the tab order and, with `disabled:pointer-events-none`,
+   * suppress the tooltip too — two call sites wrote a reason that the browser then threw away.
+   * The click is refused either way.
+   */
+  disabledReason?: string;
 }
 
 /** The one button of the Portal: a primary per page, secondaries around it (UI-01). */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", size = "md", icon, loading = false, className, children, type, disabled, ...rest },
+  {
+    variant = "secondary",
+    size = "md",
+    icon,
+    loading = false,
+    className,
+    children,
+    type,
+    disabled,
+    disabledReason,
+    onClick,
+    ...rest
+  },
   ref,
 ) {
+  const id = useId();
+  // A reason keeps the button reachable and explains itself; without one, nothing changes.
+  const explained = Boolean(disabled && disabledReason);
   return (
     <button
       ref={ref}
       type={type ?? "button"}
-      disabled={disabled || loading}
+      disabled={explained ? undefined : disabled || loading}
+      aria-disabled={explained || undefined}
+      aria-describedby={explained ? id : undefined}
       aria-busy={loading || undefined}
+      onClick={explained ? undefined : onClick}
+      title={explained ? disabledReason : rest.title}
       className={buttonClass(variant, size, className)}
       {...rest}
     >
       {loading ? <Spinner /> : icon}
       {children}
+      {explained ? (
+        // Read after the label by a screen reader, and shown to everyone else as the tooltip
+        // below, so the reason reaches both without repeating itself on screen.
+        <span id={id} className="sr-only">
+          {disabledReason}
+        </span>
+      ) : null}
     </button>
   );
 });
@@ -65,7 +108,8 @@ function Spinner(): React.JSX.Element {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="size-4 animate-spin"
+      // `motion-safe:`: a spinner that never stops is what a vestibular disorder reacts to.
+      className="size-4 motion-safe:animate-spin"
       fill="none"
       stroke="currentColor"
       strokeWidth="2.5"

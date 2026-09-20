@@ -36,7 +36,9 @@ describe("plan diff viewer", () => {
     const row = rowFor("spec.audience");
     expect(within(row).getByText(en.approvals.diffAdded)).toBeInTheDocument();
     expect(within(row).getByText("context-gateway")).toBeInTheDocument();
-    expect(row.className).toContain("emerald");
+    // The token, not Tailwind's own palette: `emerald-500` could not follow the dark theme or
+    // an installation's brand, and the row beside it already used `bg-danger` (T-1734).
+    expect(row.className).toContain("bg-success");
   });
 
   it("shows before and after for a modified field", () => {
@@ -45,7 +47,7 @@ describe("plan diff viewer", () => {
     expect(within(row).getByText(en.approvals.diffChanged)).toBeInTheDocument();
     expect(within(row).getByText("60")).toBeInTheDocument();
     expect(within(row).getByText("600")).toBeInTheDocument();
-    expect(row.className).toContain("amber");
+    expect(row.className).toContain("bg-warning");
   });
 
   it("marks a field that only the current state has as removed", () => {

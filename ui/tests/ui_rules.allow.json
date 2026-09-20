@@ -42,14 +42,6 @@
       "lines": 8,
       "group": "ui-parts"
     },
-    "src/components/diff/PlanDiffViewer.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
-    },
-    "src/pages/flows/Gallery.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
-    },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "lines": 15,
       "group": "ui-forms"

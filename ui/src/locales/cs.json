@@ -11,7 +11,13 @@
       "crashReload": "Načíst stránku znovu",
       "crashHome": "Zpět na začátek"
     },
-    "opensNewTab": "Otevře se na nové kartě"
+    "opensNewTab": "Otevře se na nové kartě",
+    "alert": {
+      "info": "Poznámka",
+      "success": "Hotovo",
+      "warning": "Varování",
+      "danger": "Chyba"
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# změna čeká na vaše schválení} few {# změny čekají na vaše schválení} other {# změn čeká na vaše schválení}}",
@@ -1332,6 +1338,9 @@
       },
       "open": "Otevřít",
       "conflict": "{name} se již staví. Otevřete ji místo toho."
+    },
+    "kpi": {
+      "badge": "KPI"
     }
   },
   "appLifecycle": {

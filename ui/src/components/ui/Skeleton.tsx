@@ -5,7 +5,7 @@ export function Skeleton({ className }: { className?: string }): React.JSX.Eleme
   return (
     <span
       aria-hidden="true"
-      className={clsx("block animate-pulse rounded-sm bg-neutral-200", className)}
+      className={clsx("block rounded-sm bg-neutral-200 motion-safe:animate-pulse", className)}
     />
   );
 }

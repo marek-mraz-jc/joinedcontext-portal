@@ -90,6 +90,8 @@
   --portal-primary-soft-fg: var(--portal-primary-700);
   --portal-danger: var(--portal-danger-base);
   --portal-danger-fg: var(--portal-danger-base-fg);
+  --portal-danger-hover: color-mix(in oklab, var(--portal-danger-base) 88%, var(--portal-ink));
+  --portal-danger-active: color-mix(in oklab, var(--portal-danger-base) 76%, var(--portal-ink));
   --portal-danger-soft: color-mix(in oklab, var(--portal-danger-base) 10%, var(--portal-paper));
   --portal-success: var(--portal-success-base);
   --portal-success-soft: color-mix(in oklab, var(--portal-success-base) 12%, var(--portal-paper));

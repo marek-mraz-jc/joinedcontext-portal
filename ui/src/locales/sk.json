@@ -11,7 +11,13 @@
       "crashReload": "Načítať stránku znova",
       "crashHome": "Späť na začiatok"
     },
-    "opensNewTab": "Otvorí sa na novej karte"
+    "opensNewTab": "Otvorí sa na novej karte",
+    "alert": {
+      "info": "Poznámka",
+      "success": "Hotovo",
+      "warning": "Varovanie",
+      "danger": "Chyba"
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -1332,6 +1338,9 @@
       },
       "open": "Otvoriť",
       "conflict": "{name} sa už stavia. Otvorte ju namiesto toho."
+    },
+    "kpi": {
+      "badge": "KPI"
     }
   },
   "appLifecycle": {

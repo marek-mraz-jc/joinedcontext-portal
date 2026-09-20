@@ -1,7 +1,8 @@
+import { forwardRef } from "react";
 import type { HTMLAttributes } from "react";
 import { clsx } from "clsx";
 
-export type BadgeTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info" | "purple";
+export type BadgeTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info" | "accent";
 
 const TONES: Record<BadgeTone, string> = {
   neutral: "border-border bg-surface-subtle text-fg-muted",
@@ -10,7 +11,9 @@ const TONES: Record<BadgeTone, string> = {
   warning: "border-warning/30 bg-warning-soft text-warning",
   danger: "border-danger/30 bg-danger-soft text-danger",
   info: "border-info/30 bg-info-soft text-info",
-  purple: "border-purple-500/40 bg-purple-500/15 text-fg",
+  // Was `purple`, on Tailwind's own `purple-500`: the one tone in the Portal that ignored both
+  // the dark theme and the installation's brand, because no `--color-purple-*` exists.
+  accent: "border-accent/40 bg-accent/15 text-fg",
 };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
@@ -19,18 +22,22 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   mono?: boolean;
 }
 
-/** A small labelled chip; the tone is never the only carrier of meaning, the text is. */
-export function Badge({
-  tone = "neutral",
-  mono,
-  className,
-  children,
-  ...rest
-}: BadgeProps): React.JSX.Element {
+/**
+ * A small labelled chip; the tone is never the only carrier of meaning, the text is (UI-30).
+ *
+ * The text wraps. A chip is put in a table cell and handed a translated label — "natives
+ * Bloblang, ungeprüft", "Wartet auf Freigabe" — and `whitespace-nowrap` made those push the
+ * column wide or run past it with no way to read the end.
+ */
+export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
+  { tone = "neutral", mono, className, children, ...rest },
+  ref,
+): React.JSX.Element {
   return (
     <span
+      ref={ref}
       className={clsx(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption font-medium",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-medium",
         mono && "font-mono",
         TONES[tone],
         className,
@@ -40,4 +47,4 @@ export function Badge({
       {children}
     </span>
   );
-}
+});

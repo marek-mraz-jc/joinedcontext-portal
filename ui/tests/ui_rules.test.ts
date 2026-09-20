@@ -47,6 +47,29 @@ function sources(): Source[] {
   return out;
 }
 
+/**
+ * The numbered colour families `@theme` defines — `primary-500`, `neutral-200` — which are
+ * tokens here and resolve through `--portal-*`. Read from the stylesheet rather than listed
+ * twice, so adding a family to the theme does not need this file edited.
+ */
+const THEMED = new Set(
+  [...readFileSync(join(ui, "src/index.css"), "utf8").matchAll(/--color-([a-z]+)-\d{1,3}:/g)].map(
+    (match) => match[1],
+  ),
+);
+
+/** Any `bg-rose-500`-shaped class whose family `@theme` never defined. */
+const STOCK_PALETTE = new RegExp(
+  `\\b(?:bg|text|border|ring|fill|stroke|from|via|to|accent|decoration|outline|shadow|divide)-([a-z]+)-\\d{2,3}\\b`,
+  "g",
+);
+
+function stockColours(file: Source): string[] {
+  return [...file.text.matchAll(STOCK_PALETTE)]
+    .filter((match) => !THEMED.has(match[1]))
+    .map((match) => `${file.path}:${file.text.slice(0, match.index).split("\n").length}`);
+}
+
 const all = sources();
 const pages = all.filter((file) => !file.shared);
 
@@ -80,9 +103,20 @@ describe("what a page may not do by hand", () => {
     expect(
       breaches(
         "colour_is_a_token",
-        /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|blue|green|gray|slate|zinc|amber|yellow|emerald|sky|indigo|rose|orange)-\d{2,3}\b/,
+        /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/,
       ),
     ).toEqual([]);
+  });
+
+  it("no_file_reaches_for_a_colour_family_the_theme_never_defined", () => {
+    // Everywhere, shared controls included: a shared control may build a control by hand — that
+    // is what makes it the shared one — but nothing in the UI may paint in a colour no theme and
+    // no installation's brand can reach. `Badge` carried `bg-purple-500` for months because this
+    // rule skipped its whole folder, and `purple` was missing from the pattern besides.
+    // `primary` and `neutral` are the two numbered families today; the guard is that the read
+    // worked at all, not how many there are.
+    expect(THEMED.size, "no themed colour families were read from index.css").toBeGreaterThan(1);
+    expect(all.flatMap(stockColours)).toEqual([]);
   });
 
   it("a_size_is_on_the_scale", () => {
@@ -163,7 +197,7 @@ describe("the allow-list", () => {
     // one is a new violation, which is what this number is here to refuse.
     const budget: Record<string, { files: number; lines: number }> = {
       hand_made_control: { files: 40, lines: 89 },
-      colour_is_a_token: { files: 7, lines: 49 },
+      colour_is_a_token: { files: 5, lines: 41 },
       size_is_on_the_scale: { files: 19, lines: 55 },
       focus_is_not_stolen: { files: 4, lines: 7 },
       check_is_not_suppressed: { files: 6, lines: 7 },
@@ -212,7 +246,7 @@ describe("the allow-list", () => {
 const RULE_OF: Record<string, RegExp> = {
   hand_made_control: /<(?:button|input|select|textarea|table)\b/,
   colour_is_a_token:
-    /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|blue|green|gray|slate|zinc|amber|yellow|emerald|sky|indigo|rose|orange)-\d{2,3}\b/,
+    /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/,
   size_is_on_the_scale:
     /\b(?:bg|text|border|p|px|py|m|mx|my|w|h|gap|rounded|shadow|min-w|max-w|min-h|max-h)-\[[^\]]+\]|style=\{\{/,
   asks_with_a_shared_dialog: /window\.confirm\(|window\.alert\(/,

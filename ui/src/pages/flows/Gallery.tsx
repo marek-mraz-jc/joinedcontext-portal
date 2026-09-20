@@ -10,8 +10,8 @@ import { Alert, Button, EmptyState, PageHeader } from "../../components/ui";
 
 /** The three review lanes a blueprint declares (CC-59, CC-63). */
 const RISK_STYLES: Record<string, string> = {
-  green: "bg-emerald-500/15 border-emerald-500/40",
-  yellow: "bg-amber-500/20 border-amber-500/40",
+  green: "bg-success/15 border-success/40",
+  yellow: "bg-warning/20 border-warning/40",
   red: "bg-danger/15 border-danger/40",
 };
 
