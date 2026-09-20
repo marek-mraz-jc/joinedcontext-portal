@@ -59,6 +59,169 @@
         }
       }
     },
+    "/api/v1/auth/backchannel-logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`POST /api/v1/auth/backchannel-logout` — the Keycloak back-channel logout endpoint.",
+        "description": "The logout token is verified against the realm keys before anything is revoked. The call\ncarries no session cookie and no bearer, because the provider makes it server to server:\nthe signed token is the whole authentication, which is why this route stands outside the\nCSRF guard beside the forge webhook (AP-29).",
+        "operationId": "backchannel_logout",
+        "requestBody": {
+          "description": "The provider's signed logout token",
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/BackChannelLogoutForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Every session issued at or before the token's mark is revoked"
+          },
+          "400": {
+            "description": "The token carries no logout event, or carries a nonce",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token's signature or issuer does not verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No identity provider is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`GET /api/v1/auth/callback` — validates state and nonce, exchanges the code, mints the session.",
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "The authorization code the provider issued",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "The CSRF state minted at login",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "description": "Set when the provider refused the flow",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error_description",
+            "in": "query",
+            "description": "The provider's own words",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Session issued; redirect into the application"
+          },
+          "400": {
+            "description": "The provider refused, or state or nonce did not match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No identity provider is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`GET /api/v1/auth/login` — starts the authorization code flow with PKCE.",
+        "operationId": "login",
+        "parameters": [
+          {
+            "name": "redirect_to",
+            "in": "query",
+            "description": "An in-app path to return to; honoured only when it is same-origin",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the provider's authorization endpoint"
+          },
+          "503": {
+            "description": "No identity provider is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/logout": {
       "post": {
         "tags": [
@@ -361,6 +524,20 @@
             "mcp_bearer": []
           }
         ]
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "The document itself: a client that generates its types from the Portal fetches this, so it is\na path of the surface like any other (MF-11, T-2361).",
+        "operationId": "openapi_json",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document of this Portal"
+          }
+        }
       }
     },
     "/api/v1/preferences": {
@@ -2005,6 +2182,75 @@
           },
           "404": {
             "description": "Not a project name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/assistant/catalog": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "operationId": "get_catalog",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The project the search runs in",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "What to look for; the function words are dropped",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "One kind to search, from the kinds the catalogue holds",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the search matched, restricted items included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`q` is empty, or `scope` names no kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or the caller may not read it",
             "content": {
               "application/json": {
                 "schema": {
@@ -6576,6 +6822,23 @@
   },
   "components": {
     "schemas": {
+      "Access": {
+        "type": "object",
+        "description": "Whether the caller may read the item, and why.",
+        "required": [
+          "verdict",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "description": "`allowed` or `restricted`."
+          }
+        }
+      },
       "ActivityEvent": {
         "type": "object",
         "required": [
@@ -6995,6 +7258,19 @@
           }
         }
       },
+      "BackChannelLogoutForm": {
+        "type": "object",
+        "description": "The provider's back-channel logout call: one signed token, no session and no bearer (AP-29).",
+        "required": [
+          "logout_token"
+        ],
+        "properties": {
+          "logout_token": {
+            "type": "string",
+            "description": "The JWT the provider signed, carrying the `logout_events` claim."
+          }
+        }
+      },
       "Branding": {
         "type": "object",
         "description": "Everything the Portal shows that names or themes an installation.",
@@ -7108,6 +7384,83 @@
               }
             ],
             "default": "strict"
+          }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "description": "What a search of the project's own catalogue answered (API/01 §18, AG-58).",
+        "required": [
+          "q",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogItem"
+            }
+          },
+          "q": {
+            "type": "string",
+            "description": "The words the search ran on, with the function words removed."
+          }
+        }
+      },
+      "CatalogItem": {
+        "type": "object",
+        "description": "One manifest the search matched. A restricted item carries its kind and name and nothing\nelse: what the caller may not read is not described to them (AG-58).",
+        "required": [
+          "kind",
+          "name",
+          "space",
+          "owner",
+          "matchReason",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "endpointSlug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "freshness": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Freshness"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "matchReason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "space": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -8124,6 +8477,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "Freshness": {
+        "type": "object",
+        "description": "The runner's counters for the pipeline that feeds an endpoint, read when the search ran.",
+        "required": [
+          "pipeline",
+          "scrapedAt"
+        ],
+        "properties": {
+          "errors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "received": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "scrapedAt": {
+            "type": "string"
+          }
+        }
       },
       "Front": {
         "type": "string",

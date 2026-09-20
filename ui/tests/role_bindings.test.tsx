@@ -152,7 +152,7 @@ describe("people and roles", () => {
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
     expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
-    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Delete)\b/ })) {
+    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Remove)\b/ })) {
       expectDenied(button);
     }
   });
@@ -239,10 +239,9 @@ describe("people and roles", () => {
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
     await userEvent.type(within(dialog).getByRole("textbox"), "admin");
-    // Refused with its reason rather than hard-disabled, so it keeps its place in the tab order
-    // and a screen reader is told why (UI-44). This case asserted `toBeDisabled` and has been
-    // failing on main since the delete dialog moved to `disabledReason`.
-    expectDenied(confirm, /^Type /);
+    // `aria-disabled`, not `disabled`: a refusal that carries a reason keeps the button in the
+    // tab order so the reason can be reached and read (T-1830, UI-44).
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     await userEvent.type(within(dialog).getByRole("textbox"), "s");
     await userEvent.click(confirm);
 

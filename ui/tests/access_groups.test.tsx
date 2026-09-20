@@ -3,13 +3,14 @@
  * each one, what the last reconcile had to correct in Keycloak, and a new group proposed as a
  * change — with the control disabled and the reason readable when the caller may not propose.
  */
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
+import en from "../src/locales/en.json";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 
 const IDENTITY = {
@@ -129,18 +130,31 @@ describe("the groups of the organization on the Access page", () => {
 
     await user.click(await screen.findByRole("button", { name: "New group" }));
     const dialog = await screen.findByRole("dialog", { name: /New group/ });
-    const source = within(dialog).getByRole("textbox") as HTMLTextAreaElement;
-    expect(source.value).toContain("kind: Group");
-    expect(source.value).toContain("namespace: org");
 
-    // The example has no name, so an untouched form can never become a Change (T-1492). The
-    // reason is on the button and the button stays reachable, so it can be read (T-1743).
+    // T-2400 made this a form. The manifest is built from the fields, so the namespace is no
+    // longer read out of a skeleton — it is what the POST goes to, asserted below. An untouched
+    // form is refused at the field now rather than on the button, so what stays here is the
+    // property: nothing is posted until the form is filled.
     const proposeButton = within(dialog).getByRole("button", { name: "Propose the group" });
-    expectDenied(proposeButton, /Give it a name/);
-    fireEvent.change(source, { target: { value: source.value.replace('name: ""', "name: park-wardens") } });
     await user.click(proposeButton);
-    await screen.findByText(/chg-0000003b/);
-    expect(posted).toEqual([{ path: "/api/v1/projects/org/groups" }]);
+    expect(posted, "an empty form does not post").toHaveLength(0);
+
+    await user.type(
+      within(dialog).getByLabelText(new RegExp(en.access.groups.field.name)),
+      "park-wardens",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await user.type(
+      within(dialog).getByLabelText(new RegExp(en.access.groups.field.memberUser)),
+      "jana.kovacova@example.org",
+    );
+    // The verdict gate: a manifest is checked before it may be proposed (PF-57, T-0956), and the
+    // form asks for that check by hand where the YAML view used to run it on the way out.
+    await user.click(within(dialog).getByRole("button", { name: "Check" }));
+    await user.click(proposeButton);
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0].path).toBe("/api/v1/projects/org/groups");
     // Checked before it was proposed (PF-57, T-0956).
     expect(checksSoFar().some((check) => check.includes("POST /api/v1/projects/org/groups"))).toBe(true);
   });

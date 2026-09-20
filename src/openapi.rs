@@ -53,6 +53,11 @@ use crate::tools::model_tools::{
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        crate::openapi::openapi_json,
+        crate::auth::oidc::login,
+        crate::auth::oidc::callback,
+        crate::auth::oidc::backchannel_logout,
+        crate::api::assistant::get_catalog,
         crate::api::health::health,
         crate::api::health::ready,
         crate::api::branding::get_branding,
@@ -341,6 +346,14 @@ pub fn conditions_ref() -> Array {
     Array::new(Ref::from_schema_name("Condition"))
 }
 
+/// The document itself: a client that generates its types from the Portal fetches this, so it is
+/// a path of the surface like any other (MF-11, T-2361).
+#[utoipa::path(
+    get,
+    path = "/api/v1/openapi.json",
+    tag = "meta",
+    responses((status = 200, description = "The OpenAPI 3.1 document of this Portal"))
+)]
 pub async fn openapi_json() -> impl IntoResponse {
     Json(ApiDoc::openapi())
 }
