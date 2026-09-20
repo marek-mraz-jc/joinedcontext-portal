@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../../api/client";
+import { api, ApiError, unwrap } from "../../api/client";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
 import {
   Alert,
+  Button,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -146,9 +148,25 @@ export function unmappedTerms(
 
 function Json({ value }: { value: unknown }): JSX.Element {
   return (
-    <pre className="max-h-96 overflow-auto rounded border border-border bg-surface-subtle p-3 text-xs">
+    <pre className="max-h-96 overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
       {JSON.stringify(value, null, 2)}
     </pre>
+  );
+}
+
+/** The shape of an artifact while Model Tools is compiling it, in its place and its size. */
+function PreviewSkeleton({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className="flex flex-col gap-2 rounded border border-border bg-surface-subtle p-3"
+    >
+      <Skeleton className="h-4 w-2/3" />
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/3" />
+    </div>
   );
 }
 
@@ -185,6 +203,19 @@ export function LinkmlPreviewPanel({
   // DM-20: an enum range is a select, which needs the model's own enum names to recognise.
   const enumNames = useMemo(() => model.enums.map((one) => one.name), [model]);
   const artifacts = preview.data;
+  const waiting = settled.trim().length === 0;
+  const compiling = !waiting && preview.isPending;
+  // An artifact this compilation did not produce — the compile failed, or the model has no
+  // example — is said in words. `JSON.stringify(undefined ?? null)` printed `null` in a code
+  // box, which reads as an answer rather than as its absence.
+  const artifact = (value: unknown): JSX.Element =>
+    value === undefined ? (
+      <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
+    ) : (
+      <Json value={value} />
+    );
+  const detail =
+    preview.error instanceof ApiError ? (preview.error.problem?.detail ?? preview.error.message) : null;
   const missing = useMemo(
     () => unmappedTerms(artifacts?.example, artifacts?.context),
     [artifacts],
@@ -203,7 +234,19 @@ export function LinkmlPreviewPanel({
 
       {preview.isError ? (
         <Alert role="status" tone="warning">
-          {t("models.previewUnavailable")}
+          <p>
+            {t("models.previewUnavailable")}
+            {detail ? ` ${detail}` : ""}
+          </p>
+          <Button
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              void preview.refetch();
+            }}
+          >
+            {t("app.error.retry")}
+          </Button>
         </Alert>
       ) : null}
       {artifacts?.errors && artifacts.errors.length > 0 ? (
@@ -222,56 +265,67 @@ export function LinkmlPreviewPanel({
       ) : null}
 
       <div {...tabPanelProps("linkml-preview", tab)}>
-        {tab === "schema" ? <Json value={artifacts?.jsonSchema ?? null} /> : null}
-        {tab === "context" ? <Json value={artifacts?.context ?? null} /> : null}
-        {tab === "example" ? <Json value={artifacts?.example ?? null} /> : null}
-        {tab === "entity" ? (
-          <Json value={normalizedEntity(artifacts?.example, model.slots) ?? null} />
-        ) : null}
-        {tab === "form" ? (
-          artifacts?.jsonSchema ? (
-            <SchemaForm
-              schema={artifacts.jsonSchema as JsonSchema}
-              formData={artifacts.example}
-              disabled
-              onSubmit={() => undefined}
-              submitLabel={t("models.formPreview")}
-            />
-          ) : (
-            <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
-          )
-        ) : null}
-        {tab === "options" ? (
-          <Table caption={t("models.tab.options")}>
-            <TableHead>
-              <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.dimensionLabel")}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {model.slots.map((slot) => (
-                <TableRow key={slot.name}>
-                  <TableCell primary>{slot.name}</TableCell>
-                  <TableCell>
-                    {t(`models.affordance.${slotAffordance(slot, enumNames)}`)}
-                  </TableCell>
-                  <TableCell>
-                    {slotDimension(slotAffordance(slot, enumNames)) ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : null}
-        {tab === "docs" ? (
-          artifacts?.docs ? (
-            <pre className="max-h-96 overflow-auto rounded-lg border border-border bg-surface-subtle p-3 font-mono text-xs text-fg">
-              {artifacts.docs}
-            </pre>
-          ) : (
-            <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
-          )
-        ) : null}
+        {/*
+          Nothing to compile, compiling, and compiled are three different things, and the panel
+          used to draw the first two the same way: `JSON.stringify(undefined ?? null)` — the word
+          `null` in a code box, which reads as an artifact that came back empty.
+        */}
+        {waiting ? (
+          <p className="text-body text-fg-muted">{t("models.previewEmpty")}</p>
+        ) : compiling ? (
+          <PreviewSkeleton label={t("models.previewCompiling")} />
+        ) : (
+          <>
+            {tab === "schema" ? artifact(artifacts?.jsonSchema) : null}
+            {tab === "context" ? artifact(artifacts?.context) : null}
+            {tab === "example" ? artifact(artifacts?.example) : null}
+            {tab === "entity" ? artifact(normalizedEntity(artifacts?.example, model.slots)) : null}
+            {tab === "form" ? (
+              artifacts?.jsonSchema ? (
+                <SchemaForm
+                  schema={artifacts.jsonSchema as JsonSchema}
+                  formData={artifacts.example}
+                  disabled
+                  onSubmit={() => undefined}
+                  submitLabel={t("models.formPreview")}
+                />
+              ) : (
+                <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
+              )
+            ) : null}
+            {tab === "options" ? (
+              <Table caption={t("models.tab.options")}>
+                <TableHead>
+                  <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
+                  <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
+                  <TableHeaderCell>{t("models.dimensionLabel")}</TableHeaderCell>
+                </TableHead>
+                <TableBody>
+                  {model.slots.map((slot) => (
+                    <TableRow key={slot.name}>
+                      <TableCell primary>{slot.name}</TableCell>
+                      <TableCell>
+                        {t(`models.affordance.${slotAffordance(slot, enumNames)}`)}
+                      </TableCell>
+                      <TableCell>
+                        {slotDimension(slotAffordance(slot, enumNames)) ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : null}
+            {tab === "docs" ? (
+              artifacts?.docs ? (
+                <pre className="max-h-96 overflow-auto rounded-lg border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
+                  {artifacts.docs}
+                </pre>
+              ) : (
+                <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
+              )
+            ) : null}
+          </>
+        )}
       </div>
 
       {artifacts?.generatorVersion ? (

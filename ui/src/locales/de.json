@@ -11,6 +11,11 @@
       "crashReload": "Seite neu laden",
       "crashHome": "Zum Anfang"
     },
+    "notFound": {
+      "title": "Diese Seite gibt es nicht",
+      "description": "Unter {path} liegt im Portal nichts.",
+      "home": "Zum Anfang"
+    },
     "opensNewTab": "Wird in einem neuen Tab geöffnet",
     "alert": {
       "info": "Hinweis",
@@ -776,6 +781,7 @@
       "run": "Mapping testen",
       "running": "Wird getestet…",
       "noMapping": "Zuerst ein Bloblang-Mapping schreiben.",
+      "noSample": "Legen Sie zuerst eine Beispieldatei ab.",
       "tooLarge": "Die Probe ist größer als 5 MiB; kürzen.",
       "failed": "Der Test lief nicht (Status {status}). Versuchen Sie es gleich noch einmal.",
       "input": "Eingabe",
@@ -1132,6 +1138,8 @@
       "entity": "Entität"
     },
     "previewUnavailable": "Der Vorschaudienst hat nicht geantwortet; die Quelle bleibt unberührt.",
+    "previewEmpty": "Schreiben Sie ein Modell im Editor; was daraus kompiliert wird, erscheint hier.",
+    "previewCompiling": "Das Modell wird kompiliert…",
     "exampleUnmapped": "Die Beispielentität trägt Begriffe, die der @context nicht definiert: {terms}",
     "noArtifact": "Noch nichts kompiliert.",
     "formPreview": "Nur Vorschau",

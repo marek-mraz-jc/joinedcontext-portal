@@ -37,10 +37,6 @@
       "group": "ui-parts",
       "reason": "the default branding an installation without a ConfigMap gets: the six values mirror the API's own defaults and are written into the colour tokens, so they are data the API answers in hex, not a colour chosen here"
     },
-    "src/pages/pipelines/PipelineFlow.tsx": {
-      "lines": 15,
-      "group": "ui-forms"
-    },
     "src/components/dashboards/mapColours.ts": {
       "lines": 7,
       "group": "ui-parts",
@@ -113,33 +109,13 @@
       "group": "ui-forms",
       "reason": "a native file input: the browser owns the file picker, and no shared control wraps it"
     },
-    "src/pages/models/ModelFileDrop.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/models/ModelSubsetPicker.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
     "src/pages/models/SmartDataModelsImport.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/pipelines/PipelineFlow.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    },
-    "src/pages/pipelines/PipelineTest.tsx": {
       "lines": 1,
       "group": "ui-parts"
     },
     "src/pages/spaces/SpaceComplete.tsx": {
       "lines": 1,
       "group": "ui-forms"
-    },
-    "src/pages/spaces/SpaceInside.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
     }
   },
   "size_is_on_the_scale": {
@@ -177,14 +153,6 @@
     "src/pages/models/LinkmlGraphView.tsx": {
       "lines": 5,
       "group": "ui-parts"
-    },
-    "src/pages/models/ModelFileDrop.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/pipelines/PipelineFlow.tsx": {
-      "lines": 7,
-      "group": "ui-forms"
     },
     "src/routes/DashboardsPage.tsx": {
       "lines": 2,

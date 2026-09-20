@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -20,8 +21,11 @@ import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import {
   Badge,
-  Button,
+  Field,
+  PageFailed,
   PageHeader,
+  PageLoading,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -140,13 +144,13 @@ function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
 
   let count: JSX.Element | string;
   if (slug === undefined) {
-    count = <span className="text-surface-fg/40">—</span>;
+    count = <span className="text-fg-subtle">—</span>;
   } else if (inside.isPending) {
-    count = <span className="text-surface-fg/60">{t("app.loading")}</span>;
+    count = <span className="text-fg-subtle">{t("app.loading")}</span>;
   } else if (inside.isError) {
     const status = inside.error instanceof ApiError ? inside.error.status : undefined;
     count = (
-      <span className="text-surface-fg/70">
+      <span className="text-fg-muted">
         {status === 403 || status === 404 || status === 401
           ? t("spaces.inside.notReadable")
           : t("app.error.generic")}
@@ -164,16 +168,16 @@ function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
         {inside.isSuccess && inside.data.samples.length > 0 ? (
           <ul className="space-y-1">
             {inside.data.samples.map((entity) => (
-              <li key={entity.id} className="font-mono text-xs">
-                <span className="text-surface-fg">{entity.id}</span>
+              <li key={entity.id} className="font-mono text-caption">
+                <span className="text-fg">{entity.id}</span>
                 {summarize(entity) ? (
-                  <span className="ml-2 text-surface-fg/60">{summarize(entity)}</span>
+                  <span className="ml-2 text-fg-subtle">{summarize(entity)}</span>
                 ) : null}
               </li>
             ))}
           </ul>
         ) : inside.isSuccess ? (
-          <span className="text-xs text-surface-fg/60">{t("spaces.inside.noEntities")}</span>
+          <span className="text-caption text-fg-subtle">{t("spaces.inside.noEntities")}</span>
         ) : null}
       </TableCell>
     </TableRow>
@@ -248,16 +252,14 @@ function SpaceData({
   }, [space, type]);
 
   if (types.length === 0) {
-    return <p className="text-sm text-surface-fg/70">{t("spaces.inside.dataNoTypes")}</p>;
+    return <p className="text-body text-fg-muted">{t("spaces.inside.dataNoTypes")}</p>;
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-surface-fg/70">{t("spaces.inside.dataLead")}</p>
-      <label className="flex w-fit items-center gap-2 text-sm">
-        {t("spaces.inside.dataType")}
-        <select
-          aria-label={t("spaces.inside.dataType")}
-          className="focus-ring rounded-md border border-border bg-surface px-2 py-1 text-body text-fg"
+      <p className="text-body text-fg-muted">{t("spaces.inside.dataLead")}</p>
+      <Field id="space-inside-type" label={t("spaces.inside.dataType")} className="w-fit">
+        <Select
+          id="space-inside-type"
           value={type}
           onChange={(event) => setChosen(event.target.value)}
         >
@@ -266,12 +268,12 @@ function SpaceData({
               {each}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
 
       {probe.isPending ? <p role="status">{t("app.loading")}</p> : null}
       {probe.isError ? (
-        <div className="text-sm text-surface-fg/70">
+        <div className="text-body text-fg-muted">
           <p>{t("spaces.inside.dataThroughEndpoints")}</p>
           <ul className="mt-1 flex flex-wrap gap-2">
             {endpoints.map((endpoint) => {
@@ -295,7 +297,7 @@ function SpaceData({
           project={project}
           config={config}
           source={source}
-          empty={<p className="text-sm text-surface-fg/70">{t("spaces.inside.dataEmpty")}</p>}
+          empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}
     </div>
@@ -330,15 +332,15 @@ function Representations({
     );
 
   if (representations.length === 0 && !slug) {
-    return <span className="text-sm text-surface-fg/60">{t("endpoints.field.noRepresentations")}</span>;
+    return <span className="text-body text-fg-subtle">{t("endpoints.field.noRepresentations")}</span>;
   }
 
   return (
     <details className="group">
-      <summary className="focus-ring cursor-pointer list-none text-sm">
+      <summary className="focus-ring cursor-pointer list-none text-body">
         <span className="font-mono">{named.join(", ")}</span>
         {rest > 0 ? (
-          <span className="ml-1 text-surface-fg/70">{t("endpoints.field.more", { count: rest })}</span>
+          <span className="ml-1 text-fg-muted">{t("endpoints.field.more", { count: rest })}</span>
         ) : null}
       </summary>
       <ul className="mt-1 flex flex-wrap gap-1">
@@ -361,10 +363,45 @@ function Representations({
   );
 }
 
+/**
+ * What a section shows in place of its table: the wait, the failure, or the words for empty.
+ *
+ * The three sections below each wrote `query.isPending ? loading : "there are none"`, so a
+ * list that came back 403 or never came back at all said "this space has no endpoints" — the
+ * most reassuring possible rendering of a failed read (UI-15, T-1854).
+ */
+function SectionState({
+  query,
+  empty,
+}: {
+  query: Pick<UseQueryResult, "isPending" | "isError" | "error" | "refetch">;
+  empty: ReactNode;
+}): JSX.Element {
+  const { t } = useTranslation();
+  if (query.isPending) {
+    return (
+      <p role="status" className="text-body text-fg-muted">
+        {t("app.loading")}
+      </p>
+    );
+  }
+  if (query.isError) {
+    return (
+      <PageFailed
+        error={query.error}
+        onRetry={() => {
+          void query.refetch();
+        }}
+      />
+    );
+  }
+  return <p className="text-body text-fg-muted">{empty}</p>;
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }): JSX.Element {
   return (
     <section className="space-y-2">
-      <h2 className="text-base font-semibold">{title}</h2>
+      <h2 className="text-title font-semibold text-fg">{title}</h2>
       {children}
     </section>
   );
@@ -390,26 +427,16 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const policies = useProjectList(project, "policies");
 
   if (space.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return <PageLoading label={t("app.loading")} />;
   }
   if (space.isError) {
-    const message =
-      space.error instanceof ApiError
-        ? (space.error.problem?.detail ?? space.error.message)
-        : t("app.error.generic");
     return (
-      <div role="alert">
-        <p className="text-danger">{message}</p>
-        <Button
-          size="sm"
-          onClick={() => {
-            void space.refetch();
-          }}
-          className="mt-2"
-        >
-          {t("app.error.retry")}
-        </Button>
-      </div>
+      <PageFailed
+        error={space.error}
+        onRetry={() => {
+          void space.refetch();
+        }}
+      />
     );
   }
 
@@ -436,7 +463,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
-            className="text-sm text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+            className="focus-ring text-body text-primary underline hover:no-underline"
           >
             {t("spaces.inside.back")}
           </Link>
@@ -450,16 +477,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.inside.types")}>
         {model === undefined ? (
-          <p className="text-sm text-surface-fg/70">
-            {models.isPending ? t("app.loading") : t("spaces.inside.noModel")}
-          </p>
+          <SectionState query={models} empty={t("spaces.inside.noModel")} />
         ) : types.length === 0 ? (
-          <p className="text-sm text-surface-fg/70">
+          <p className="text-body text-fg-muted">
             {t("spaces.inside.noTypes", { model: model.metadata.name })}
           </p>
         ) : (
           <>
-            <p className="text-sm text-surface-fg/70">
+            <p className="text-body text-fg-muted">
               {t("spaces.field.dataModel")}: <span className="font-mono">{model.metadata.name}</span>
               {readEndpoint ? (
                 <>
@@ -469,7 +494,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               ) : (
                 <>
                   {" · "}
-                  {endpoints.isPending ? t("app.loading") : t("spaces.inside.noEndpoint")}
+                  {endpoints.isPending
+                    ? t("app.loading")
+                    : endpoints.isError
+                      ? t("app.error.generic")
+                      : t("spaces.inside.noEndpoint")}
                 </>
               )}
             </p>
@@ -495,9 +524,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("endpoints.title")}>
         {spaceEndpoints.length === 0 ? (
-          <p className="text-sm text-surface-fg/70">
-            {endpoints.isPending ? t("app.loading") : t("spaces.inside.noEndpoints")}
-          </p>
+          <SectionState query={endpoints} empty={t("spaces.inside.noEndpoints")} />
         ) : (
           <Table caption={t("endpoints.title")}>
             <TableHead>
@@ -521,7 +548,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                       <div className="font-medium">
                         {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
                       </div>
-                      <div className="font-mono text-xs text-surface-fg/60">
+                      <div className="font-mono text-caption text-fg-subtle">
                         {endpoint.metadata.title ? endpoint.metadata.name : null}
                         {spec.policyRef
                           ? `${endpoint.metadata.title ? " · " : ""}${refName(spec.policyRef)}`
@@ -552,9 +579,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.inside.policies")}>
         {spacePolicies.length === 0 ? (
-          <p className="text-sm text-surface-fg/70">
-            {policies.isPending ? t("app.loading") : t("spaces.inside.noPolicies")}
-          </p>
+          <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
         ) : (
           <Table caption={t("spaces.inside.policies")}>
             <TableHead>
@@ -581,20 +606,20 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         {localized(policy.metadata.title, locale, policy.metadata.name)}
                       </div>
                       {policy.metadata.title ? (
-                        <div className="font-mono text-xs text-surface-fg/60">
+                        <div className="font-mono text-caption text-fg-subtle">
                           {policy.metadata.name}
                         </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="font-mono text-caption">
                       {spec.assignee
                         ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
                         : "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="font-mono text-caption">
                       {(spec.operations ?? []).join(", ") || "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="font-mono text-caption">
                       {policyTypes.join(", ") || "—"}
                     </TableCell>
                   </TableRow>
