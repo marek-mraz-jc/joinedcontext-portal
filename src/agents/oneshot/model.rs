@@ -65,9 +65,7 @@ impl Driver {
             // The proxy's audit line carries the status alone, so a refusal is otherwise only
             // visible in the person's own conversation and never in the logs (T-2247).
             tracing::warn!(%status, provider = %said, "the model provider refused the call");
-            return Err(CallError::Failed(format!(
-                "the proxy answered {status} to the model call: {said}"
-            )));
+            return Err(CallError::Failed(refusal(status)));
         }
         let answer: Value = serde_json::from_str(&text)
             .map_err(|err| CallError::Failed(format!("the model's answer is not JSON: {err}")))?;

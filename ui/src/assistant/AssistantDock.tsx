@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button, PermissionGuard } from "../components/ui";
 import type { JSX } from "react";
 import { clsx } from "clsx";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../api/client";
@@ -47,8 +46,9 @@ import {
  *
  * Renders as a round bubble at the bottom right whenever the panel is closed. When open,
  * renders a 24 rem right-docked panel (full width on small viewports, full screen on toggle).
- * If no run is remembered, shows the empty state with example prompts, a composer, recent
- * conversations, and a paperclip in the composer that drafts a data model from a sample file.
+ * If no run is remembered, shows the empty state with example prompts and a paperclip in the
+ * composer that drafts a data model from a sample file. The composer is the last element of the
+ * dock in both states and does not move: what is above it scrolls (T-2424).
  * When a run is remembered, connects the live conversation panel. Open, it sits beside the page,
  * floats over it, or fills the screen; the choice lasts for the tab.
  */
@@ -60,6 +60,87 @@ function trailSnapshot(): string[] {
     trailCache = next;
   }
   return trailCache;
+}
+
+/** What the assistant can be asked, and the kind each prompt would propose. */
+const EXAMPLES = [
+  ["find", null],
+  ["share", "Endpoint"],
+  ["build", "Dashboard"],
+] as const;
+
+/**
+ * The example prompts, and the entry to the app builder beside them.
+ *
+ * The same list before a conversation and inside one (T-2423): a person in a conversation could see
+ * no example of what else the assistant does, and could not reach the builder without leaving. A
+ * prompt a role cannot carry out stays and is disabled with its reason, which is `PermissionGuard`'s
+ * job through the shared Button (T-1390, UI-44).
+ */
+function Examples({
+  project,
+  disabled,
+  compact,
+  onPick,
+  onGenerate,
+}: {
+  project: string;
+  disabled: boolean;
+  /** Inside a conversation: one wrapping row of small chips, not a column of full-width buttons. */
+  compact: boolean;
+  onPick: (text: string) => void;
+  onGenerate: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid={compact ? "assistant-suggestions" : "assistant-examples"}
+      className={compact ? "flex flex-wrap items-center gap-1.5" : "flex flex-col gap-2"}
+    >
+      <Button
+        size="sm"
+        disabled={disabled}
+        onClick={onGenerate}
+        className={
+          compact
+            ? "h-auto gap-1 rounded-md bg-surface-subtle px-2 py-1 text-caption"
+            : "h-auto justify-start gap-2 rounded-md bg-primary-soft p-2 text-left text-sm font-medium text-primary-soft-fg"
+        }
+      >
+        <Icon name="apps" className="size-4" />
+        {t("apps.generate.title")}
+      </Button>
+      {EXAMPLES.map(([example, kind]) => {
+        const exampleText = t(`assistant.empty.examples.${example}`);
+        // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
+        // `disabledReason`, which only that control knows what to do with.
+        const button = (
+          <Button
+            key={exampleText}
+            size="sm"
+            disabled={disabled}
+            onClick={() => {
+              onPick(exampleText);
+            }}
+            className={
+              compact
+                ? "h-auto rounded-md bg-surface-subtle px-2 py-1 text-left text-caption"
+                : "h-auto justify-start whitespace-normal rounded-md bg-surface-subtle p-2 text-left text-caption"
+            }
+          >
+            {exampleText}
+          </Button>
+        );
+        return kind ? (
+          <PermissionGuard key={exampleText} project={project} kind={kind} verb="propose">
+            {button}
+          </PermissionGuard>
+        ) : (
+          button
+        );
+      })}
+    </div>
+  );
 }
 
 export function AssistantDock({ project }: { project: string }): JSX.Element | null {
@@ -178,28 +259,6 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     void navigate({ href: targetRoute });
   }, [events, navigate, runId]);
 
-  const recentQuery = useQuery({
-    queryKey: ["agent-runs", activeProject, "conversation", "mine"],
-    enabled: open && !run,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/agent-runs", {
-          params: {
-            path: { project: activeProject },
-            query: { kind: "conversation", mine: true },
-          },
-        }),
-      ),
-  });
-
-  const liveRecent = useMemo(
-    () =>
-      (recentQuery.data?.items ?? [])
-        .filter((item) => !TERMINAL_STATES.includes(item.status))
-        .slice(0, 3),
-    [recentQuery.data],
-  );
-
   const startConversation = async (promptText: string) => {
     setStartError(null);
     setIsStarting(true);
@@ -245,7 +304,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   const isBusy = Boolean(run && !over && lastEvent && lastEvent.kind === "message");
 
   const iconButton =
-    "rounded p-1.5 text-fg-muted hover:bg-surface-subtle hover:text-fg focus:outline-none focus:ring-2 focus:ring-border-focus disabled:opacity-50 aria-pressed:bg-primary-soft aria-pressed:text-primary-soft-fg";
+    "rounded-md p-1.5 text-fg-muted hover:bg-surface-subtle hover:text-fg focus:outline-none focus:ring-2 focus:ring-border-focus disabled:opacity-50 aria-pressed:bg-primary-soft aria-pressed:text-primary-soft-fg";
 
   const attach = (
     <ModelFileDrop
@@ -394,7 +453,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
       {navigated !== null && isPortalRoute(navigated) ? (
         <div
           role="status"
-          className="flex w-full items-center justify-between gap-2 rounded border border-border bg-surface px-3 py-2 text-sm"
+          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
         >
           <span>{t("assistant.navigated", { page: pageOf(navigated, t) })}</span>
           <button
@@ -402,7 +461,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             onClick={() => {
               dismissNotice();
             }}
-            className="rounded px-2 py-0.5 text-fg-muted hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
+            className="rounded-md px-2 py-0.5 text-fg-muted hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
           >
             {t("assistant.dismiss")}
           </button>
@@ -422,7 +481,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               onClick={() => {
                 void navigate({ href: route });
               }}
-              className="rounded px-2 py-0.5 hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
+              className="rounded-md px-2 py-0.5 hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
             >
               {pageOf(route, t)}
             </button>
@@ -434,14 +493,14 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         <div
           id="run-chat"
           data-testid="assistant-build"
-          className="flex min-h-[24rem] w-full flex-1 flex-col gap-3 overflow-y-auto rounded border border-border bg-surface p-3 md:min-h-0"
+          className="flex min-h-[12rem] w-full flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
         >
           <button
             type="button"
             onClick={() => {
               setBuilding(false);
             }}
-            className="self-start rounded border border-border px-2.5 py-1 text-xs hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
+            className="self-start rounded-md border border-border px-2.5 py-1 text-xs hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
           >
             {t("assistant.backToChat")}
           </button>
@@ -454,56 +513,31 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
           />
         </div>
       ) : !run ? (
-        <div
-          id="run-chat"
-          data-testid="assistant-empty"
-          className="flex min-h-[24rem] w-full flex-1 flex-col gap-4 overflow-y-auto rounded border border-border bg-surface p-3 md:min-h-0"
-        >
-          <p className="text-sm text-fg-muted">{t("assistant.empty.lead")}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setBuilding(true);
-            }}
-            className="flex items-center gap-2 rounded border border-border bg-primary-soft p-2 text-left text-sm font-medium text-primary-soft-fg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-border-focus"
+        <>
+          <div
+            id="run-chat"
+            data-testid="assistant-empty"
+            className="flex min-h-[12rem] w-full flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-surface p-3"
           >
-            <Icon name="apps" className="size-4" />
-            {t("apps.generate.title")}
-          </button>
-          <div className="flex flex-col gap-2">
-            {/* A prompt the caller's role cannot carry out stays, disabled with the reason (T-1390, UI-44). */}
-            {(
-              [
-                ["find", null],
-                ["share", "Endpoint"],
-                ["build", "Dashboard"],
-              ] as const
-            ).map(([example, kind]) => {
-              const exampleText = t(`assistant.empty.examples.${example}`);
-              // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason
-              // through `disabledReason`, which only that control knows what to do with.
-              const button = (
-                <Button
-                  key={exampleText}
-                  size="sm"
-                  disabled={isStarting}
-                  onClick={() => {
-                    void startConversation(exampleText);
-                  }}
-                  className="h-auto justify-start whitespace-normal bg-surface-subtle p-2 text-left text-caption"
-                >
-                  {exampleText}
-                </Button>
-              );
-              return kind ? (
-                <PermissionGuard key={exampleText} project={activeProject} kind={kind} verb="propose">
-                  {button}
-                </PermissionGuard>
-              ) : (
-                button
-              );
-            })}
+            <p className="text-sm text-fg-muted">{t("assistant.empty.lead")}</p>
+            <Examples
+              project={activeProject}
+              disabled={isStarting}
+              compact={false}
+              onPick={(text) => {
+                void startConversation(text);
+              }}
+              onGenerate={() => {
+                setBuilding(true);
+              }}
+            />
           </div>
+
+          {startError ? (
+            <p role="alert" className="shrink-0 text-xs text-danger">
+              {t("assistant.empty.failed")} {startError}
+            </p>
+          ) : null}
 
           <form
             className="flex flex-col gap-2"
@@ -541,7 +575,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                   }
                 }
               }}
-              className="block min-w-0 flex-1 resize-none rounded border border-border bg-surface px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-border-focus"
+              className="block min-w-0 flex-1 resize-none rounded-md border border-border bg-surface px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-border-focus"
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
@@ -550,50 +584,17 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               <button
                 type="submit"
                 disabled={composerMessage.trim() === "" || isStarting}
-                className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-fg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-border-focus disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-fg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-border-focus disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t("assistant.empty.send")}
               </button>
             </div>
           </form>
-
-          {startError ? (
-            <p role="alert" className="text-xs text-danger">
-              {t("assistant.empty.failed")} {startError}
-            </p>
-          ) : null}
-
-          {liveRecent.length > 0 ? (
-            <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-              <p className="text-xs font-medium text-fg-muted">{t("assistant.empty.recent")}</p>
-              <div className="flex flex-col gap-1">
-                {liveRecent.map((r) => {
-                  const title = r.prompt
-                    ? r.prompt.length > 80
-                      ? r.prompt.slice(0, 80)
-                      : r.prompt
-                    : r.id;
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => {
-                        rememberRun({ project: activeProject, runId: r.id });
-                      }}
-                      className="truncate rounded border border-border bg-surface-subtle px-2.5 py-1.5 text-left text-xs text-fg hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-border-focus"
-                    >
-                      {t("assistant.empty.resume", { title })}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-        </div>
+        </>
       ) : (
         <div
           id="run-chat"
-          className="min-h-[24rem] w-full flex-1 rounded border border-border bg-surface md:min-h-0 [&>section]:h-full [&>section]:min-h-0"
+          className="min-h-[12rem] w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
         >
           <ConversationPanel
             project={run.project}
@@ -614,7 +615,22 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               );
             }}
             attach={attach}
-            above={liveBar}
+            above={
+              <>
+                <Examples
+                  project={run.project}
+                  disabled={send.isPending || over}
+                  compact
+                  onPick={(text) => {
+                    send.mutate(text);
+                  }}
+                  onGenerate={() => {
+                    setBuilding(true);
+                  }}
+                />
+                {liveBar}
+              </>
+            }
             onUseEndpoint={addEndpoint}
             usedEndpoints={liveEndpoints}
           />
