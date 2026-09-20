@@ -457,15 +457,20 @@ pub async fn mirror_of(
     project: &str,
 ) -> Result<crate::store::Mirror, crate::error::ApiError> {
     use crate::error::ApiError;
-    let workspace = state
-        .workspaces
-        .live(name)
-        .await
-        .map_err(|err| ApiError::NotFound(err.to_string()))?;
-    if workspace.project != project {
-        return Err(ApiError::NotFound(format!(
+    // The same one sentence for every miss as [`visible`], for the same reason: this is the
+    // workspace-scoped read of the resource API, so a name held in another project must not be
+    // distinguishable here from a name nobody has (T-2296, PF-59, R20).
+    let missing = || {
+        ApiError::NotFound(format!(
             "no workspace named '{name}' in project '{project}'"
-        )));
+        ))
+    };
+    let workspace = state.workspaces.live(name).await.map_err(|err| match err {
+        WorkspaceError::NotFound(_) => missing(),
+        other => ApiError::from(other),
+    })?;
+    if workspace.project != project {
+        return Err(missing());
     }
     let gitea = state
         .gitea

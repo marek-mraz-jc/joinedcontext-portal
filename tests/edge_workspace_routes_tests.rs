@@ -522,6 +522,38 @@ async fn reading_a_workspace_of_another_project_is_not_there_in_the_same_words_a
         );
     }
 
+    // The workspace-scoped read of the resource API is the third way in: it resolves the name
+    // through `mirror_of`, which carried the same two wordings (`src/ops/workspaces.rs:454`,
+    // measured by worker-10 on T-1682). One sentence there too.
+    let mut details = Vec::new();
+    for name in ["air-v2", "nothing-at-all"] {
+        let answer = send(
+            &state,
+            viewer(),
+            "GET",
+            &format!("/api/v1/projects/{PROJECT}/spaces?workspace={name}"),
+            None,
+        )
+        .await;
+        assert_eq!(
+            answer.status,
+            StatusCode::NOT_FOUND,
+            "{name}: {}",
+            answer.text
+        );
+        let problem: Value = serde_json::from_str(&answer.text).expect("a problem");
+        details.push(
+            problem["detail"]
+                .as_str()
+                .expect("a detail")
+                .replace(name, "NAME"),
+        );
+    }
+    assert_eq!(
+        details[0], details[1],
+        "the workspace-scoped read still says which name lives in another project",
+    );
+
     // And a stranger reads neither wording: the project is refused before the name is looked at.
     for uri in [
         format!("{WS}/air-v2"),
