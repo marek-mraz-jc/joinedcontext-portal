@@ -1,0 +1,130 @@
+//! T-1732: the response headers a browser enforces the Portal's own rules with (PF-50, UI-01).
+//!
+//! Verified against dev on 2026-09-20 before this was written: the Portal's headers reach the
+//! browser through the edge unchanged (`curl -sI` on `/api/v1/branding` carries the policy below).
+//! The one header the edge overrides is `Referrer-Policy`, which is asserted in the deployment
+//! tests rather than here, because it is the edge that sets it.
+//!
+//! What this file holds is the Portal's own promise: a policy with no way to run a string as
+//! script, and no way for another origin to put the Portal in a frame.
+
+use axum::body::Body;
+use axum::http::{header, HeaderMap, Request};
+use joinedcontext_portal::config::Config;
+use joinedcontext_portal::server;
+use joinedcontext_portal::state::AppState;
+use tower::ServiceExt;
+
+/// The headers a page of the Portal is served with, from the running router.
+async fn page_headers() -> HeaderMap {
+    let app = server::app(AppState::new(Config::for_tests(), None));
+    app.oneshot(
+        Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .expect("request"),
+    )
+    .await
+    .expect("response")
+    .headers()
+    .clone()
+}
+
+/// The policy a page is served with, read from the running router rather than from the source.
+async fn policy() -> String {
+    page_headers()
+        .await
+        .get(header::CONTENT_SECURITY_POLICY)
+        .expect("every page carries a Content-Security-Policy")
+        .to_str()
+        .expect("a policy is ASCII")
+        .to_owned()
+}
+
+/// A directive of the policy, by name.
+fn directive<'a>(policy: &'a str, name: &str) -> Option<&'a str> {
+    policy
+        .split(';')
+        .map(str::trim)
+        .find_map(|part| part.strip_prefix(name)?.strip_prefix(' '))
+}
+
+#[tokio::test]
+async fn the_portal_sends_a_csp_without_unsafe_inline_scripts() {
+    let policy = policy().await;
+    // `script-src` is not named, so scripts fall back to `default-src`; whichever applies, a
+    // string must not become code.
+    let scripts = directive(&policy, "script-src")
+        .or_else(|| directive(&policy, "default-src"))
+        .expect("scripts are covered by a directive");
+    assert!(
+        !scripts.contains("unsafe-inline"),
+        "scripts may not be inline: {policy}"
+    );
+    assert!(
+        !scripts.contains("unsafe-eval"),
+        "scripts may not be built from a string: {policy}"
+    );
+    assert!(
+        !policy.contains("unsafe-eval"),
+        "nothing may be built from a string: {policy}"
+    );
+    assert_eq!(
+        scripts, "'self'",
+        "scripts come from this origin only: {policy}"
+    );
+}
+
+#[tokio::test]
+async fn the_portal_cannot_be_framed_by_another_origin() {
+    let policy = policy().await;
+    assert_eq!(
+        directive(&policy, "frame-ancestors"),
+        Some("'self'"),
+        "only the Portal may frame the Portal: {policy}"
+    );
+    // The older header says the same thing for a browser that does not read `frame-ancestors`.
+    let legacy = page_headers()
+        .await
+        .get("x-frame-options")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    assert!(
+        legacy == "SAMEORIGIN" || legacy == "DENY",
+        "x-frame-options was {legacy:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_page_reaches_nothing_it_was_not_served_from() {
+    let policy = policy().await;
+    assert_eq!(directive(&policy, "default-src"), Some("'self'"));
+    assert_eq!(directive(&policy, "connect-src"), Some("'self'"));
+    assert_eq!(directive(&policy, "base-uri"), Some("'self'"));
+    assert_eq!(directive(&policy, "form-action"), Some("'self'"));
+    // A plugin document is a way to run code that `script-src` does not cover.
+    assert_eq!(directive(&policy, "object-src"), Some("'none'"));
+}
+
+#[tokio::test]
+async fn every_answer_carries_the_headers_that_do_not_depend_on_the_route() {
+    let headers = page_headers().await;
+    let value = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    // A browser must not guess a type: an uploaded file answered as text is not script.
+    assert_eq!(value("x-content-type-options"), "nosniff");
+    // The Portal's own value; the edge sets a weaker one on top, which is a deployment matter.
+    assert_eq!(value("referrer-policy"), "no-referrer");
+    // A window this one opened cannot reach back into it.
+    assert_eq!(value("cross-origin-opener-policy"), "same-origin");
+    // The devices a page may ask for: none of them without being on this origin.
+    let permissions = value("permissions-policy");
+    assert!(permissions.contains("camera=()"), "{permissions}");
+    assert!(permissions.contains("microphone=()"), "{permissions}");
+}
