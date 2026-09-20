@@ -150,10 +150,6 @@
       "lines": 1,
       "group": "ui-parts"
     },
-    "src/pages/assistant/AssistantPage.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    },
     "src/pages/endpoints/ModelPicker.tsx": {
       "lines": 9,
       "group": "ui-parts"

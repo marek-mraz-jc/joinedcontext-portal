@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "../../api/client";
+import type { ProblemDetails } from "../../api/client";
 import { SCHEMA_FORMALISMS } from "../../schemas/kinds";
 import type { SchemaFormalism } from "../../schemas/kinds";
 import { Button, Field, Input, Select } from "../../components/ui";
@@ -46,7 +48,17 @@ export function publishedTypes(document: unknown): PublishedType[] {
 async function get(url: string, accept: string): Promise<Response> {
   const answer = await fetch(new Request(url, { headers: { Accept: accept } }));
   if (!answer.ok) {
-    throw new Error(String(answer.status));
+    // The status alone was the whole message, so every caller that shows a failed schema fetch
+    // showed a person the bare number "502" and the Problem Details sentence the surface had
+    // just sent was dropped on the floor. An unreadable body leaves the status, as before.
+    let detail: string | undefined;
+    try {
+      const problem = (await answer.clone().json()) as ProblemDetails;
+      detail = typeof problem.detail === "string" ? problem.detail : undefined;
+    } catch {
+      detail = undefined;
+    }
+    throw new ApiError(answer.status, detail ?? String(answer.status));
   }
   return answer;
 }

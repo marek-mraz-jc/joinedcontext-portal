@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
+import type { components } from "../../api/schema";
 import { rememberRun, requestOpen } from "../../assistant/state";
 import {
+  Alert,
   Badge,
   Button,
   Card,
+  Checkbox,
   EmptyState,
   Field,
   Input,
@@ -148,7 +151,9 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
   const schemaQuery = useQuery({
     queryKey: ["endpoint-schema", slug],
     enabled: Boolean(slug),
-    queryFn: () => endpointSchema(slug!),
+    // `enabled` already holds the query back, but `slug!` asserted that to the compiler instead
+    // of telling it: `skipToken` is the same gate typed.
+    queryFn: slug === undefined ? skipToken : () => endpointSchema(slug),
   });
   const needs = useMemo(
     () => (chosenManifest ? dataNeeds(chosenManifest, concreteTypes(schemaQuery.data), []) : []),
@@ -184,20 +189,14 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
   });
 
   const newWorkMutation = useMutation({
-    mutationFn: async (payload: {
-      appName: string;
-      endpointName: string;
-      appClass: string;
-      visibility: string;
-      prompt: string;
-      dataNeeds: unknown[];
-      kind: string;
-      unattended: boolean;
-    }) => {
+    // The body the route declares, not a hand-written twin behind `as never`: the cast silenced
+    // the one call that starts unattended agent work, so a field the API renamed or made
+    // required would have been met by a 400 from a live run rather than by the compiler.
+    mutationFn: async (payload: components["schemas"]["CreateRunRequest"]) => {
       setNewWorkError(null);
       const result = await api.POST("/api/v1/projects/{project}/agent-runs", {
         params: { path: { project } },
-        body: payload as never,
+        body: payload,
       });
       const created = await unwrap(result);
       return created as { id: string };
@@ -289,17 +288,14 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             </Select>
           </div>
 
-          <label className="flex cursor-pointer select-none items-center gap-2 text-body">
-            <input
-              type="checkbox"
-              checked={mineFilter}
-              onChange={(e) => setMineFilter(e.target.checked)}
-              className="size-4 rounded border-border text-primary focus:ring-border-focus"
-            />
-            <span className="text-caption font-medium text-fg">
-              {t("assistantPage.filters.mine")}
-            </span>
-          </label>
+          {/* Was a bare input reimplementing the size, the tick colour and the focus treatment
+              by hand, with `focus:ring-*` rather than the shared `focus-ring` utility — so this
+              one filter had a different keyboard focus from every control beside it. */}
+          <Checkbox
+            checked={mineFilter}
+            onChange={(e) => setMineFilter(e.target.checked)}
+            label={t("assistantPage.filters.mine")}
+          />
         </div>
       </Card>
 
@@ -368,6 +364,13 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                         }),
                       })}
                     </Badge>
+                    {/* `error` is declared on every run record and was rendered nowhere: the
+                        only signal of a failed run was the Badge's colour, so someone whose
+                        unattended build failed could see THAT it failed and nothing about why,
+                        on the page whose job is to report it. */}
+                    {run.status === "failed" && run.error ? (
+                      <p className="mt-1 max-w-prose text-caption text-danger">{run.error}</p>
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-caption text-fg-muted md:table-cell">
                     {run.firstFrameMs != null || run.firstVersionMs != null ? (
@@ -472,7 +475,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                 id="new-work-name"
                 value={newWorkName}
                 onChange={(e) => setNewWorkName(e.target.value)}
-                placeholder="my-app"
+                placeholder={t("assistantPage.newWork.namePlaceholder")}
                 required
               />
             </Field>
@@ -508,15 +511,27 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             />
           </Field>
 
-          {needs.length === 0 && !schemaQuery.isPending ? (
+          {/* `isError` was never read on either query, and `needs.length === 0` is part of what
+              disables Start. A failed schema or endpoint request therefore told the person their
+              endpoint publishes no types — a falsehood — and left Start greyed out for ever with
+              no way to find out why. A failure now says what failed and offers the retry. */}
+          {schemaQuery.isError || endpointsQuery.isError ? (
+            <ListFailed
+              what={t("assistantPage.newWork.dataNeeds")}
+              reason={reasonOf(
+                schemaQuery.error ?? endpointsQuery.error,
+                t("app.error.generic"),
+              )}
+              onRetry={() => {
+                if (schemaQuery.isError) void schemaQuery.refetch();
+                if (endpointsQuery.isError) void endpointsQuery.refetch();
+              }}
+            />
+          ) : needs.length === 0 && !schemaQuery.isPending ? (
             <p className="text-caption text-fg-muted">{t("assistantPage.newWork.noTypes")}</p>
           ) : null}
 
-          {newWorkError ? (
-            <p role="alert" className="text-caption font-medium text-danger">
-              {newWorkError}
-            </p>
-          ) : null}
+          {newWorkError ? <Alert tone="danger">{newWorkError}</Alert> : null}
 
           {/* A run proposes the App it writes, so `App`/`propose` is the permission it needs
               (`api/agent_runs.rs::create_run`). Without the guard a viewer filled the form and

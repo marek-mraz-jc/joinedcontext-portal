@@ -1956,7 +1956,9 @@
       "prompt": "What should it do?",
       "start": "Start",
       "unattended": "It runs without asking you and waits for your approval at the end.",
-      "noTypes": "The run reads this endpoint's published types. Choose an endpoint that publishes at least one type."
+      "noTypes": "The run reads this endpoint's published types. Choose an endpoint that publishes at least one type.",
+      "namePlaceholder": "my-app",
+      "dataNeeds": "Data types"
     },
     "started": "Started",
     "actions": "Actions",
