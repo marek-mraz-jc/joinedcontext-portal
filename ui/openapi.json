@@ -6221,17 +6221,7 @@
             }
           },
           "401": {
-            "description": "Missing or invalid signature",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such project or source",
+            "description": "The signature is not one this source's own secret makes over this body — the same answer as for a source that is not there, one with no `spec.webhook`, and one whose reference this instance cannot resolve (MF-44, PF-59)",
             "content": {
               "application/json": {
                 "schema": {
@@ -6241,7 +6231,7 @@
             }
           },
           "503": {
-            "description": "No webhook secret or no repository configured",
+            "description": "No repository configured, or no sync loop running",
             "content": {
               "application/json": {
                 "schema": {

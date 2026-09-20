@@ -17,10 +17,12 @@
 //!   what it published.
 //!
 //! The webhook route lives here too. A source with `schedule: { webhook: true }` runs when its
-//! origin says it moved, and the caller is authenticated the same way the forge callback is: an
-//! HMAC-SHA256 signature over the body, against the secret the Portal already holds. An
-//! unauthenticated trigger would be a way for anybody on the internet to make the Portal fetch
-//! a remote repository as often as they liked.
+//! origin says it moved, and the caller proves themselves with an HMAC-SHA256 signature over the
+//! request body — against **that source's own** secret, `spec.webhook.secretRef`, which the
+//! reconciler resolves each pass and leaves in [`crate::sync::webhook_secrets`] (MF-44, T-2297).
+//! The signature covers the body and not the path, so one shared secret would have let the origin
+//! of any source force a run of every other; and an unauthenticated trigger would be a way for
+//! anybody on the internet to make the Portal fetch a remote repository as often as they liked.
 
 use std::collections::BTreeMap;
 
@@ -292,9 +294,8 @@ pub async fn detach(
     ),
     responses(
         (status = 200, description = "The run the source's origin asked for", body = SyncRunReport),
-        (status = 401, description = "Missing or invalid signature", body = ProblemDetails),
-        (status = 404, description = "No such project or source", body = ProblemDetails),
-        (status = 503, description = "No webhook secret or no repository configured", body = ProblemDetails),
+        (status = 401, description = "The signature is not one this source's own secret makes over this body — the same answer as for a source that is not there, one with no `spec.webhook`, and one whose reference this instance cannot resolve (MF-44, PF-59)", body = ProblemDetails),
+        (status = 503, description = "No repository configured, or no sync loop running", body = ProblemDetails),
     )
 )]
 pub async fn webhook(
@@ -303,19 +304,26 @@ pub async fn webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<SyncRunReport>, ApiError> {
-    let secret = state
-        .config
-        .gitea_webhook_secret
-        .as_deref()
-        .ok_or_else(|| ApiError::Unavailable("webhook secret is not configured".into()))?;
+    // The source's own secret, and nothing platform-wide: the signature covers the body and not
+    // the path, so a shared secret would make every source's path reachable by whoever holds one
+    // of them (MF-44, T-2297). `verifies` answers no for a source that is not there, one with no
+    // `spec.webhook`, and one whose reference did not resolve — all three are this `401`, because
+    // the door is unauthenticated until the signature verifies and a `404` here would be an
+    // existence oracle over the sources of every project (PF-59, R20).
     let presented = headers
         .get(crate::api::webhook::SIGNATURE_HEADER)
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default();
-    if !crate::api::webhook::verify_signature(secret, &body, presented) {
+    if !state
+        .webhook_secrets
+        .verifies(&project, &name, &body, presented)
+    {
         return Err(ApiError::Unauthorized);
     }
 
+    // Past the signature the caller has proved they hold this source's secret, so what is left
+    // may name it: a source the reconciler holds a secret for and the mirror does not is a
+    // pass-old race, not something a stranger can reach.
     let driver = driver(&state)?;
     let (project, name) = named(&state, &project, &name)?;
     Ok(Json(run(driver, &project, &name).await?))

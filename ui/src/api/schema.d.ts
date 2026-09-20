@@ -7260,7 +7260,7 @@ export interface operations {
                     "application/json": components["schemas"]["SyncRunReport"];
                 };
             };
-            /** @description Missing or invalid signature */
+            /** @description The signature is not one this source's own secret makes over this body — the same answer as for a source that is not there, one with no `spec.webhook`, and one whose reference this instance cannot resolve (MF-44, PF-59) */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7269,16 +7269,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such project or source */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description No webhook secret or no repository configured */
+            /** @description No repository configured, or no sync loop running */
             503: {
                 headers: {
                     [name: string]: unknown;

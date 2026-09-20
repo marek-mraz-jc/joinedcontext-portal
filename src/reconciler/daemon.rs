@@ -121,6 +121,10 @@ pub struct Syncer {
     /// Which secret backend answers a pipeline's `secretRef` (T-0927, PL-15). `None` leaves a
     /// pipeline that declares one undeployed, with the reason on the Pipeline.
     pipeline_secrets: Option<crate::pipeline_secrets::Resolver>,
+    /// Where each pass leaves the resolved inbound secret of every webhook-driven `SyncSource`
+    /// (MF-44, T-2297). `None` leaves the webhook route shut, which is what a Portal with no
+    /// reconciler should answer.
+    webhook_secrets: Option<Arc<crate::sync::webhook_secrets::Accepted>>,
 }
 
 impl Syncer {
@@ -145,6 +149,7 @@ impl Syncer {
             artifact_store: None,
             credentials: None,
             pipeline_secrets: None,
+            webhook_secrets: None,
         }
     }
 
@@ -162,6 +167,18 @@ impl Syncer {
     /// nobody, so the pipelines that need them stay undeployed.
     pub fn with_pipeline_secrets(mut self, resolver: crate::pipeline_secrets::Resolver) -> Self {
         self.pipeline_secrets = Some(resolver);
+        self
+    }
+
+    /// Where each pass leaves what the sync webhook route authorises a run against (MF-44).
+    ///
+    /// Every replica resolves them, leader or not: any replica can be the one an origin's hook
+    /// reaches, and a follower that held none would answer `401` to a signature that is right.
+    pub fn with_webhook_secrets(
+        mut self,
+        accepted: Arc<crate::sync::webhook_secrets::Accepted>,
+    ) -> Self {
+        self.webhook_secrets = Some(accepted);
         self
     }
 
@@ -542,6 +559,12 @@ impl Syncer {
                 "no resource of a known kind in the staged manifests".to_string(),
             ));
         }
+
+        // 5a. What the sync webhook route authorises a run against (MF-44, T-2297). Before the
+        //     follower's early return: any replica can be the one an origin's hook reaches, and
+        //     a follower holding none would refuse a signature that is right.
+        self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
+            .await;
 
         // A follower stops here: what the runner accepted, what the cluster runs and what the
         //    forge enforces are the leader's to converge, so its stream pipelines say so.
@@ -935,6 +958,71 @@ impl Syncer {
         }
 
         runner.refused().clone()
+    }
+
+    /// Resolves the inbound webhook secret of every `SyncSource` that declares one (MF-44).
+    ///
+    /// Wholesale per pass, like the mirror beside it: a source that was detached, or whose
+    /// `spec.webhook` was removed, stops being reachable in the pass that reads it. A source
+    /// whose reference does not resolve is left out and said so in the log — the route then
+    /// answers it the same `401` as an unknown source, because an unauthenticated door must not
+    /// tell a caller which of the two it hit (PF-59).
+    ///
+    /// Nothing is resolved without a backend, which is a Portal that configured none: those
+    /// sources are then unreachable through the webhook rather than reachable by anybody.
+    async fn resolve_webhook_secrets(&self, mirror: &Mirror, repository: &std::path::Path) {
+        let Some(accepted) = self.webhook_secrets.as_ref() else {
+            return;
+        };
+        let mut resolved: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+        for namespace in mirror.namespaces() {
+            let page = mirror.list(
+                &namespace,
+                "SyncSource",
+                &crate::store::ListOptions::default(),
+            );
+            for envelope in page.items {
+                let name = envelope.metadata.name.clone();
+                let Some(block) = envelope.spec.get("webhook") else {
+                    continue;
+                };
+                let block: crate::sync::webhook_secrets::Block = match serde_json::from_value(
+                    block.clone(),
+                ) {
+                    Ok(block) => block,
+                    Err(err) => {
+                        tracing::warn!(project = %namespace, source = %name, error = %err,
+                                "the webhook block of a sync source is not one; it is not reachable through the webhook");
+                        continue;
+                    }
+                };
+                let references = block.references();
+                let mut secrets = Vec::with_capacity(references.len());
+                for reference in references {
+                    match self.pipeline_secrets.as_ref() {
+                        Some(resolver) => match resolver.one(repository, reference).await {
+                            Ok(secret) => secrets.push(secret),
+                            // The reference is named, the value never is: this line travels into
+                            // a log collector (PL-17, MF-24).
+                            Err(err) => tracing::warn!(project = %namespace, source = %name,
+                                secret = %reference.name, error = %err,
+                                "a sync source's webhook secret does not resolve"),
+                        },
+                        None => tracing::warn!(project = %namespace, source = %name,
+                            secret = %reference.name,
+                            "this Portal has no secret backend, so a webhook-driven sync source is not reachable"),
+                    }
+                }
+                if !secrets.is_empty() {
+                    resolved.insert((namespace.clone(), name), secrets);
+                }
+            }
+        }
+        tracing::debug!(
+            sources = resolved.len(),
+            "sync sources reachable through the webhook"
+        );
+        accepted.replace_all(resolved);
     }
 
     /// Writes the runner's Secret and rolls the runner when its content changed.
