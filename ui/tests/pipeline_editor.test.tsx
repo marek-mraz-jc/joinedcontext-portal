@@ -906,6 +906,9 @@ describe("the pipeline editor against the UI contract", () => {
     await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.studio.loadSample }));
 
     const table = await within(studio).findByRole("table", { name: en.pipelines.studio.sample });
+    // A long sample scrolls in its own frame instead of growing the studio (T-1775).
+    const frame = within(studio).getByRole("group", { name: en.pipelines.studio.sample });
+    expect(frame.className).toContain("max-h-64");
     const headers = within(table).getAllByRole("columnheader");
     expect(headers.every((header) => header.getAttribute("scope") === "col")).toBe(true);
     expect(headers[0]).toHaveTextContent(en.pipelines.studio.tick);

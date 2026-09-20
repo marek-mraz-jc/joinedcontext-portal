@@ -1176,7 +1176,14 @@ export function PipelineStudio({
                 sample.length === 0 ? (
                   <p className="text-caption text-fg-muted">{t("pipelines.studio.noEntities")}</p>
                 ) : (
-                  <Table caption={t("pipelines.studio.sample")} zebra={false} className="text-caption">
+                  // `maxHeight`: the sample is up to SAMPLE_LIMIT entities, and a long one
+                  // scrolls in its own frame rather than pushing the rest of the studio down.
+                  <Table
+                    caption={t("pipelines.studio.sample")}
+                    zebra={false}
+                    maxHeight="max-h-64"
+                    className="text-caption"
+                  >
                     <TableHead>
                       <TableHeaderCell>
                         <span className="sr-only">{t("pipelines.studio.tick")}</span>
