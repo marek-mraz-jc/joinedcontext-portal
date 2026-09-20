@@ -12,7 +12,7 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { Alert, Badge, Button, Dialog, DialogClose, ExternalLink, safeHref } from "./ui";
+import { Alert, Badge, Button, Dialog, DialogClose, ExternalLink } from "./ui";
 import type { DialogSize } from "./ui";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
@@ -266,10 +266,10 @@ export function ResourceFormDialog<T>({
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
   const isLax = (branding as { validation?: string })?.validation === "lax";
-  // Named `safe` because that is what it is, and because `browser_security.test.tsx` reads the
-  // expression an `href` is given: the base comes from the installation's branding, which an
-  // administrator writes, so a `javascript:` there would otherwise reach this anchor (T-2252).
-  const safe = safeHref(guideUrl(branding, arranged?.guide));
+  // The base comes from the installation's branding, which an administrator writes, so a
+  // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
+  // in `ExternalLink`, which is where every link out of the Portal is checked.
+  const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
   const [view, setView] = useState<View>("form");
@@ -841,11 +841,11 @@ export function ResourceFormDialog<T>({
           T-2409). It is also what carries `rel="noopener noreferrer"` and the words that say a
           new tab opens, which the form behind it needs because it may hold typing.
         */}
-        {safe ? (
+        {guideHref ? (
           <p className="text-body">
             <ExternalLink
               data-testid="form-guide"
-              href={safe}
+              href={guideHref}
               className="text-accent underline-offset-2"
             >
               {t("form.guideLink", { kind })}

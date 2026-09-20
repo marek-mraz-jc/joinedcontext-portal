@@ -1986,8 +1986,6 @@
       },
       "composer": "Zeptejte se asistenta",
       "send": "Odeslat",
-      "resume": "Pokračovat: {title}",
-      "recent": "Nedávné konverzace",
       "failed": "Konverzace nezačala. Zkontrolujte zprávu a zkuste to znovu."
     },
     "data": {

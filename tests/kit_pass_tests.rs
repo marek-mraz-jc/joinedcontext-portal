@@ -922,7 +922,9 @@ async fn the_preview_is_gated_on_the_run_and_its_project() {
 
 #[tokio::test]
 async fn a_proxy_that_does_not_answer_fails_the_run_with_the_reason() {
-    // No canned answer mounted: the model route answers 404, which the driver reports.
+    // No canned answer mounted: the model route answers 404, which the driver reports. What it
+    // reports is a sentence about the run, not the refusal document: the status and the upstream's
+    // own words go to the log line beside it, where an operator reads them (T-2419).
     let (app, cookie, _proxy) = portal("anthropic", &[]).await;
     let id = create_run(&app, &cookie).await["id"]
         .as_str()
@@ -930,10 +932,14 @@ async fn a_proxy_that_does_not_answer_fails_the_run_with_the_reason() {
         .to_owned();
     let run = wait_for(&app, &cookie, &id, &["failed", "awaiting_approval"]).await;
     assert_eq!(run["status"], json!("failed"), "{run}");
+    let reason = run["error"].as_str().unwrap_or_default();
     assert!(
-        run["error"]
-            .as_str()
-            .is_some_and(|e| e.contains("the proxy answered 404")),
+        reason.contains("the model service refused this call")
+            && reason.contains("nothing was changed"),
+        "{run}"
+    );
+    assert!(
+        !reason.contains("proxy") && !reason.contains("404"),
         "{run}"
     );
     assert!(run["previewUrl"].is_null());

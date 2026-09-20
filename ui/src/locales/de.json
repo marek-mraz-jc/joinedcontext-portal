@@ -1986,8 +1986,6 @@
       },
       "composer": "Den Assistenten fragen",
       "send": "Senden",
-      "resume": "Fortsetzen: {title}",
-      "recent": "Letzte Unterhaltungen",
       "failed": "Die Unterhaltung hat nicht begonnen. Prüfen Sie die Nachricht und versuchen Sie es erneut."
     },
     "data": {
