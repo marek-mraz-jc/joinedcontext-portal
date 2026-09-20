@@ -237,7 +237,8 @@
     "name": "Name",
     "phase": "Zustand",
     "empty": "Hier ist noch nichts.",
-    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag."
+    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
   },
   "spaces": {
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
@@ -316,16 +317,17 @@
         "Dashboard": "Ein Karten-Dashboard mit {count, plural, one {# Seite} other {# Seiten}}"
       },
       "onApproval": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe wird die Quelle abgerufen und der Raum füllt sich.",
-      "title": "Complete this space",
+      "title": "Diesen Raum vervollständigen",
       "lead": "Geben Sie eine Beispieldatei oder die Adresse eines Feeds an. Das Portal entwirft das Datenmodell, den Raum, die Datenquelle und die Pipeline und prüft jeden Entwurf.",
-      "space": "Space name",
-      "url": "Endpoint URL",
-      "files": "Files",
-      "dropHint": "Drop files here or browse",
-      "action": "Complete",
-      "proposeAll": "Propose all",
-      "open": "Open",
-      "noDrafts": "No drafts completed yet."
+      "space": "Name des Raums",
+      "url": "Endpunkt-URL",
+      "files": "Dateien",
+      "dropHint": "Dateien hierher ziehen oder auswählen",
+      "action": "Vervollständigen",
+      "proposeAll": "Alles vorschlagen",
+      "open": "Öffnen",
+      "noDrafts": "Noch keine Entwürfe vervollständigt.",
+      "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu."
     },
     "segment": "IDs: {segment}"
   },
@@ -884,6 +886,7 @@
   },
   "access": {
     "title": "Zugriff",
+    "lead": "Wer in diesem Projekt welche Rolle hält, welche Konten keine Personen sind und was davon jedes tatsächlich lesen und schreiben darf.",
     "roles": {
       "title": "Personen und Rollen",
       "lead": "Wer in diesem Projekt vorschlagen, genehmigen und entfernen darf. Eine Vergabe ist eine Änderung, die eine andere Person genehmigt.",
@@ -1626,6 +1629,7 @@
     "export": "Diese Seite exportieren"
   },
   "agentRun": {
+    "title": "Anwendungslauf",
     "loading": "Lese den Lauf…",
     "notFound": "Dieser Lauf gehört nicht zu diesem Projekt.",
     "subtitle": "Gebaut gegen den Endpoint {endpoint}, als Anwendung vom Typ {appClass}.",

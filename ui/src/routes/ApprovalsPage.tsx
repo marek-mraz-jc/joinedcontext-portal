@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { ResourceList } from "../components/ResourceList";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
+  Checkbox,
   EmptyState,
   Icon,
   PageHeader,
@@ -63,10 +64,11 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
   const filters =
     all.length > 0 ? (
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-body">
-          <input type="checkbox" checked={mine} onChange={(event) => setMine(event.target.checked)} />
-          {t("approvals.filterMine")}
-        </label>
+        <Checkbox
+          label={t("approvals.filterMine")}
+          checked={mine}
+          onChange={(event) => setMine(event.target.checked)}
+        />
         <label className="flex items-center gap-2 text-body">
           {t("approvals.filterPhase")}
           <Select value={phase} onChange={(event) => setPhase(event.target.value)}>

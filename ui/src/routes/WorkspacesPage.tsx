@@ -3,15 +3,19 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { WorkOnCopyAction } from "../components/WorkOnCopyDialog";
 import {
+  Alert,
   Badge,
   Button,
+  buttonClass,
   ConfirmDialog,
   EmptyState,
+  Icon,
   PageHeader,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -102,12 +106,38 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
         }
       />
 
-      {list.isPending ? <p role="status">{t("app.loading")}</p> : null}
+      {list.isPending ? (
+        <div role="status" aria-busy="true" aria-label={t("app.loading")} className="space-y-3">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-24" />
+        </div>
+      ) : null}
+      {/* A list that could not be asked for is not "you have no copies" (T-1763): the API's own
+          sentence, and one more try, so "you may not read this project" and "the database is
+          away" do not read the same. */}
       {list.isError ? (
-        <p className="text-danger">{t("app.error.generic")}</p>
+        <Alert
+          role="alert"
+          tone="danger"
+          actions={
+            <Button
+              size="sm"
+              icon={<Icon name="refresh" className="size-4" />}
+              onClick={() => {
+                void list.refetch();
+              }}
+            >
+              {t("app.error.retry")}
+            </Button>
+          }
+        >
+          {list.error instanceof ApiError
+            ? (list.error.problem?.detail ?? list.error.message)
+            : t("app.error.generic")}
+        </Alert>
       ) : null}
 
-      {!list.isPending && !list.isError && items.length === 0 ? (
+      {list.isPending || list.isError ? null : items.length === 0 ? (
         <EmptyState title={t("workspaces.empty")}
           description={t("workspaces.emptyHint")} />
       ) : (
@@ -170,7 +200,7 @@ function WorkspaceTable({
         <TableHeaderCell>{t("workspaces.scope")}</TableHeaderCell>
         <TableHeaderCell>{t("workspaces.expiresColumn")}</TableHeaderCell>
         <TableHeaderCell>{t("workspaces.previewColumn")}</TableHeaderCell>
-        <TableHeaderCell>{t("workspaces.actions")}</TableHeaderCell>
+        <TableHeaderCell align="right">{t("workspaces.actions")}</TableHeaderCell>
       </TableHead>
       <TableBody>
         {workspaces.map((ws) => (
@@ -215,15 +245,15 @@ function WorkspaceTable({
                 {t(`workspaces.previewStates.${ws.previewState}`)}
               </Badge>
             </TableCell>
-            <TableCell>
-              <div className="flex flex-wrap gap-2">
+            <TableCell align="right">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button size="sm" onClick={() => onOpen(ws.name)}>
                   {t("workspaces.openAction")}
                 </Button>
                 <Link
                   to="/projects/$project/workspaces/$name/compare"
                   params={{ project, name: ws.name }}
-                  className="focus-ring inline-flex items-center rounded-md px-2 py-1 text-sm underline hover:no-underline"
+                  className={buttonClass("ghost", "sm")}
                 >
                   {t("workspaces.compareAction")}
                 </Link>

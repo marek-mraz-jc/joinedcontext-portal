@@ -237,7 +237,8 @@
     "name": "Názov",
     "phase": "Stav",
     "empty": "Zatiaľ tu nič nie je.",
-    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Pridajte prvé alebo požiadajte asistenta a rozhodnite o tom, čo podá."
+    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Pridajte prvé alebo požiadajte asistenta a rozhodnite o tom, čo podá.",
+    "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva."
   },
   "spaces": {
     "lead": "Pomenované kolekcie kontextových dát tohto projektu; každá entita patrí práve do jednej.",
@@ -316,16 +317,17 @@
         "Dashboard": "Mapový dashboard s {count, plural, one {# stranou} other {# stranami}}"
       },
       "onApproval": "Navrhnúť všetko pošle tieto koncepty na schválenie spolu. Po schválení sa zdroj začne načítavať a priestor sa naplní.",
-      "title": "Complete this space",
+      "title": "Doplniť tento priestor",
       "lead": "Zadajte vzorový súbor alebo adresu zdroja. Portál navrhne dátový model, priestor, zdroj dát a pipeline a každý návrh skontroluje.",
-      "space": "Space name",
-      "url": "Endpoint URL",
-      "files": "Files",
-      "dropHint": "Drop files here or browse",
-      "action": "Complete",
-      "proposeAll": "Propose all",
-      "open": "Open",
-      "noDrafts": "No drafts completed yet."
+      "space": "Názov priestoru",
+      "url": "URL endpointu",
+      "files": "Súbory",
+      "dropHint": "Pretiahnite súbory sem alebo ich vyberte",
+      "action": "Doplniť",
+      "proposeAll": "Navrhnúť všetko",
+      "open": "Otvoriť",
+      "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
+      "needInput": "Zadajte URL endpointu alebo pridajte súbor."
     },
     "segment": "identifikátory: {segment}"
   },
@@ -884,6 +886,7 @@
   },
   "access": {
     "title": "Prístup",
+    "lead": "Kto má v tomto projekte akú rolu, ktoré účty nie sú ľudia a čo z toho ktorýkoľvek z nich naozaj smie čítať a zapisovať.",
     "roles": {
       "title": "Ľudia a roly",
       "lead": "Kto smie v tomto projekte navrhovať, schvaľovať a odstraňovať. Pridelenie je zmena, ktorú schváli iná osoba.",
@@ -1626,6 +1629,7 @@
     "export": "Exportovať túto stranu"
   },
   "agentRun": {
+    "title": "Beh aplikácie",
     "loading": "Čítam spustenie…",
     "notFound": "Toto spustenie v tomto projekte nie je.",
     "subtitle": "Postavené nad endpointom {endpoint}, ako aplikácia typu {appClass}.",
