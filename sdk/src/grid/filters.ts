@@ -34,8 +34,24 @@ export interface ColumnFilter {
   value2?: string;
 }
 
-/** What a column can be asked, by the kind of thing it holds. */
-export type FilterKind = "text" | "number" | "date" | "relationship" | "id" | "geo" | "none";
+/**
+ * What a column can be asked, by the kind of thing it holds.
+ *
+ * `untyped` is for a caller that has attribute names and no model to read their types from — the
+ * endpoint page's condition builder is the one. It offers no operators of its own and its value
+ * is judged by the shape of what was typed, which is the only rule available when the type is
+ * genuinely unknown. A caller that does know the type says so, because the shape rule alone gets
+ * a period or a territory code wrong.
+ */
+export type FilterKind =
+  | "text"
+  | "number"
+  | "date"
+  | "relationship"
+  | "id"
+  | "geo"
+  | "none"
+  | "untyped";
 
 const TEXT_OPS: FilterOp[] = ["contains", "equals", "notEquals", "empty", "present"];
 const ORDERED_OPS: FilterOp[] = ["equals", "notEquals", "gt", "gte", "lt", "lte", "between", "empty", "present"];
@@ -93,6 +109,10 @@ const ISO = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})
  * (`refPeriod == "2023"`), a territory code or any other string that happens to read as a number
  * is stored as a string, and `refPeriod==2023` asks the broker for a number and matches nothing.
  * A filter that silently answers "no rows" is worse than one that answers 400 (T-2436).
+ *
+ * `untyped` and an absent kind fall to the shape rule, which is what a caller with no model to
+ * read has. Quoting there would turn every numeric condition an endpoint publishes into a
+ * comparison against a string — `pm10>"50"` — and match nothing at all (T-2448).
  */
 function literal(raw: string, kind?: FilterKind): string {
   const value = raw.trim();

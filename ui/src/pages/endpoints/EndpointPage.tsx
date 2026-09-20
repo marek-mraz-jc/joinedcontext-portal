@@ -898,7 +898,10 @@ function ConditionBuilder({
       return;
     }
     const { q } = queryFromFilters(
-      [{ key: attr, attr, kind: "text" }],
+      // `untyped`, not `text`: this page has the projection's attribute names and no model to
+      // read their types from, so the value is judged by its shape. Claiming `text` quotes it,
+      // and `pm10>"50"` compares a number against a string and matches nothing (T-2448).
+      [{ key: attr, attr, kind: "untyped" }],
       { [attr]: { op, value: value.trim() } },
     );
     if (!q) {

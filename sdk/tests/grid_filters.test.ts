@@ -16,7 +16,7 @@ import {
   term,
   valuesNeeded,
 } from "../src/grid/filters";
-import type { ColumnFilter, FilterColumn } from "../src/grid/filters";
+import type { ColumnFilter, FilterColumn, FilterOp } from "../src/grid/filters";
 
 const NAME: FilterColumn = { key: "name", attr: "name", meta: null, kind: "text" };
 const BIKES: FilterColumn = { key: "availableBikeNumber", attr: "availableBikeNumber", kind: "number" };
@@ -155,5 +155,31 @@ describe("the grid's filter row as an NGSI-LD query", () => {
     expect(andQ(undefined, "a>1")).toBe("a>1");
     expect(andQ("a>1", undefined)).toBe("a>1");
     expect(andQ(" ", undefined)).toBeUndefined();
+  });
+});
+
+describe("a column whose type the caller does not know", () => {
+  const untyped = (value: string, op: FilterOp = "gt") =>
+    queryFromFilters([{ key: "a", attr: "a", kind: "untyped" }], { a: { op, value } }).q;
+
+  it("judges the value by its shape, so a number stays a number", () => {
+    // `pm10>"50"` compares a number against a string and matches nothing: the endpoint page
+    // has attribute names and no model, and claiming `text` there broke every numeric
+    // condition an endpoint publishes (T-2448).
+    expect(untyped("50")).toBe("a>50");
+    expect(untyped("50.5")).toBe("a>50.5");
+    expect(untyped("2026-09-20T00:00:00Z", "gte")).toBe("a>=2026-09-20T00:00:00Z");
+  });
+
+  it("still quotes what is not a number, a boolean or a timestamp", () => {
+    expect(untyped("brezno", "equals")).toBe('a=="brezno"');
+  });
+
+  it("does not take the shape rule away from a column that names its type", () => {
+    const q = queryFromFilters(
+      [{ key: "a", attr: "a", kind: "text" }],
+      { a: { op: "equals", value: "2023" } },
+    ).q;
+    expect(q, "a period is a string, and a text column says so").toBe('a=="2023"');
   });
 });
