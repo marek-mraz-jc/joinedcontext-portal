@@ -2,11 +2,12 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { Button, Field, fieldIds } from "../../components/ui";
+import { Button, Field, Select, fieldIds } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS } from "../../schemas/kinds";
-import type { PipelineForm, StepForm } from "./PipelineEditor";
+import type { PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 
@@ -32,11 +33,20 @@ const PROCESSOR_NAMES = new Set((processorCatalogue as Processor[]).map(({ name 
 export const plainSummary = (summary: string): string =>
   summary.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
 
-/** A step node is `step-<index into form.processors>`; the other three are what they were. */
-export type FlowNodeId = "source" | "compute" | "output" | `step-${number}`;
+/**
+ * A step node is `step-<index into form.processors>` and a second source `source-<index into
+ * form.moreSources>`; the first source, the compute step and the output are what they were, so
+ * everything the studio hangs off `"source"` still finds it.
+ */
+export type FlowNodeId = "source" | "compute" | "output" | `step-${number}` | `source-${number}`;
 
 export const stepIndexOf = (id: FlowNodeId | null): number | undefined =>
   id?.startsWith("step-") ? Number(id.slice(5)) : undefined;
+
+export const sourceIndexOf = (id: FlowNodeId | null): number | undefined =>
+  id?.startsWith("source-") ? Number(id.slice(7)) : undefined;
+
+const isSource = (id: FlowNodeId): boolean => id === "source" || id.startsWith("source-");
 
 export interface FlowNode {
   id: FlowNodeId;
@@ -72,24 +82,31 @@ function stepNode(entry: StepForm, index: number): FlowNode {
   return { id: `step-${index}`, kind, label: "Step", summary, present: true };
 }
 
-export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edges: FlowEdge[] } {
-  const sk = sourceKindOf(form);
-  const sourceRef =
-    form?.source?.dataSourceRef ||
-    (typeof form?.source?.endpointRef === "object"
-      ? (form.source.endpointRef as { name?: string })?.name
-      : form?.source?.endpointRef) ||
+/** What a source reads, in the words the canvas has room for. */
+function sourceNodeOf(source: SourceForm | undefined, id: FlowNodeId): FlowNode {
+  const ref =
+    source?.dataSourceRef ||
+    (typeof source?.endpointRef === "object"
+      ? ((source.endpointRef as { name?: string })?.name ?? "")
+      : source?.endpointRef) ||
     "";
-  const queryType = (form?.source?.query?.type as string | undefined) ?? "";
-  const sourceSummary = [sourceRef, queryType].filter(Boolean).join(" · ");
-
-  const sourceNode: FlowNode = {
-    id: "source",
-    kind: sk,
+  const queryType = (source?.query?.type as string | undefined) ?? "";
+  return {
+    id,
+    kind: source?.dataSourceRef ? "datasource" : source?.endpointRef ? "space" : "none",
     label: "Source",
-    summary: sourceSummary,
+    summary: [ref, queryType].filter(Boolean).join(" · "),
     present: true,
   };
+}
+
+export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  // The first source keeps `sourceKindOf`, which is the kind the studio's own source section
+  // chose and can be `none` while nothing is picked yet.
+  const sourceNode: FlowNode = { ...sourceNodeOf(form?.source, "source"), kind: sourceKindOf(form) };
+  const moreSourceNodes = (form?.moreSources ?? []).map((source, index) =>
+    sourceNodeOf(source, `source-${index}`),
+  );
 
   const targetName = form?.targetEndpoint ? form.targetEndpoint.split(":").pop() ?? "" : "";
   const outputSummary = [form?.output?.type, form?.output?.mode, targetName]
@@ -129,15 +146,35 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     entry,
     node: stepNode(entry, index),
   }));
-  const nodes = [
-    sourceNode,
+  const lane = [
     ...steps.filter(({ entry }) => !entry.after).map(({ node }) => node),
     ...(computeNode ? [computeNode] : []),
     ...steps.filter(({ entry }) => entry.after).map(({ node }) => node),
     outputNode,
   ];
-  const edges = nodes.slice(1).map((node, index) => ({ from: nodes[index].id, to: node.id }));
-  return { nodes, edges };
+  const sources = [sourceNode, ...moreSourceNodes];
+  // Every source feeds the head of the lane, which is how the runner merges them (PL-53): a
+  // `broker` input is not a node an author places, so the canvas draws none.
+  const edges: FlowEdge[] = [
+    ...sources.map((source) => ({ from: source.id, to: lane[0].id })),
+    ...lane.slice(1).map((node, index) => ({ from: lane[index].id, to: node.id })),
+  ];
+  return { nodes: [...sources, ...lane], edges };
+}
+
+/** The form with one more source to read, and the node it became (PL-52). */
+export function addSource(form: PipelineForm | undefined): { form: PipelineForm; id: FlowNodeId } {
+  const base: PipelineForm = form ?? { class: "auto" };
+  const more = [...(base.moreSources ?? []), {}];
+  return { form: { ...base, moreSources: more }, id: `source-${more.length - 1}` };
+}
+
+/**
+ * The form without the second source `index`. The first source is the one the sample, the KPI
+ * preset and the access panel read, so it is never removed here — the source section clears it.
+ */
+export function removeSource(form: PipelineForm, index: number): PipelineForm {
+  return { ...form, moreSources: (form.moreSources ?? []).filter((_, at) => at !== index) };
 }
 
 /**
@@ -263,29 +300,37 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   const failing =
     nodes.find((node) => node.id === "compute") ??
     nodes.find((node) => stepIndexOf(node.id) !== undefined);
+  // The trace has one input stage however many sources feed it, so each of them shows it.
+  const sourceNodes = nodes.filter((node) => isSource(node.id));
+  const read = trace.input?.events ?? 0;
   const errorsByNode: Record<string, string | undefined> = {
-    source: sourceError,
+    ...Object.fromEntries(sourceNodes.map((node) => [node.id, sourceError])),
     [failing?.id ?? "compute"]: computeError,
     output: outputError,
   };
 
   const eventsInByNode: Record<string, number | undefined> = {
-    source: trace.input?.events ?? 0,
-    compute: trace.input?.events ?? 0,
+    ...Object.fromEntries(sourceNodes.map((node) => [node.id, read])),
+    compute: read,
     output: trace.mapping?.length ?? 0,
   };
 
   const eventsOutByNode: Record<string, number | undefined> = {
-    source: trace.input?.events ?? 0,
+    ...Object.fromEntries(sourceNodes.map((node) => [node.id, read])),
     compute: trace.mapping?.length ?? 0,
     output: (trace.validation ?? []).filter((v) => v.ok).length,
   };
 
-  let errorEncountered = false;
+  // The sources are one stage however many there are: the trace carries a single input stage and
+  // does not say which source it came from, so a failed read marks them all rather than claiming
+  // one failed and the others never ran. Behind them the lane stops at its first error.
+  let errorEncountered = Boolean(sourceError);
   for (const node of nodes) {
     const err = errorsByNode[node.id];
     let state: NodePaint["state"] = "ok";
-    if (errorEncountered) {
+    if (isSource(node.id)) {
+      state = err ? "error" : "ok";
+    } else if (errorEncountered) {
       state = "skipped";
     } else if (err) {
       state = "error";
@@ -326,10 +371,23 @@ export function PipelineFlow({
   const nodeWidth = 200;
   const nodeHeight = 100;
   const nodeSpacing = 240;
+  const rowSpacing = 120;
   const startX = 20;
   const startY = 25;
-  const svgWidth = Math.max(nodes.length * nodeSpacing + 40, 520);
-  const svgHeight = 150;
+
+  // Sources stand in the left column, one under the other, and the lane runs to their right
+  // from the middle of that column (PL-56).
+  const sourceCount = nodes.filter((node) => isSource(node.id)).length;
+  const columnHeight = (sourceCount - 1) * rowSpacing;
+  const placed = nodes.map((node, index) => {
+    const at = index - sourceCount;
+    return isSource(node.id)
+      ? { node, x: startX, y: startY + index * rowSpacing }
+      : { node, x: startX + (at + 1) * nodeSpacing, y: startY + columnHeight / 2 };
+  });
+  const place = (id: FlowNodeId) => placed.find(({ node }) => node.id === id);
+  const svgWidth = Math.max((nodes.length - sourceCount + 1) * nodeSpacing + 40, 520);
+  const svgHeight = 150 + columnHeight;
 
   const insert = (name: string, after: FlowNodeId | null) => {
     const added = addStep(form, after, name);
@@ -339,8 +397,16 @@ export function PipelineFlow({
     }
   };
   const remove = (id: FlowNodeId) => {
-    const index = stepIndexOf(id);
-    onChange(index === undefined || !form ? setComputeKind(form, null) : removeStep(form, index));
+    const step = stepIndexOf(id);
+    const source = sourceIndexOf(id);
+    if (!form) return;
+    onChange(
+      step !== undefined
+        ? removeStep(form, step)
+        : source !== undefined
+          ? removeSource(form, source)
+          : setComputeKind(form, null),
+    );
     onSelect(null);
   };
 
@@ -373,6 +439,18 @@ export function PipelineFlow({
             + {kind}
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid="palette-source"
+          onClick={() => {
+            const added = addSource(form);
+            onChange(added.form);
+            onSelect(added.id);
+          }}
+        >
+          {t("pipelines.flow.addSource")}
+        </Button>
         {form?.compute?.kind ? (
           <Button
             size="sm"
@@ -439,12 +517,15 @@ export function PipelineFlow({
             e.preventDefault();
             const kind = e.dataTransfer.getData("text/plain");
             if (kind.startsWith("processor:")) {
-              // The node the drop landed on or behind; a canvas with no layout (no width yet)
-              // has no place to read, and the selection says where instead.
+              // The node the drop landed on or behind. A canvas with no layout yet (no width, as
+              // in a test) has no place to read, and the selection says where instead.
               const box = e.currentTarget.getBoundingClientRect();
               const x = box.width > 0 ? ((e.clientX - box.left) / box.width) * svgWidth : -1;
-              const under = Math.min(Math.floor((x - startX) / nodeSpacing), nodes.length - 1);
-              insert(kind.slice(10), x < 0 ? selected : under < 0 ? "source" : nodes[under].id);
+              const y = box.height > 0 ? ((e.clientY - box.top) / box.height) * svgHeight : -1;
+              const under = placed.find(
+                (spot) => x >= spot.x && x < spot.x + nodeSpacing && y >= spot.y - rowSpacing / 2,
+              );
+              insert(kind.slice(10), x < 0 ? selected : (under?.node.id ?? "source"));
             } else if (COMPUTE_KINDS.includes(kind as (typeof COMPUTE_KINDS)[number])) {
               onChange(setComputeKind(form, kind));
               onSelect("compute");
@@ -467,13 +548,13 @@ export function PipelineFlow({
 
           {/* Edges */}
           {edges.map((edge) => {
-            const fromIdx = nodes.findIndex((n) => n.id === edge.from);
-            const toIdx = nodes.findIndex((n) => n.id === edge.to);
-            if (fromIdx < 0 || toIdx < 0) return null;
-            const x1 = startX + fromIdx * nodeSpacing + nodeWidth;
-            const y1 = startY + nodeHeight / 2;
-            const x2 = startX + toIdx * nodeSpacing;
-            const y2 = startY + nodeHeight / 2;
+            const from = place(edge.from);
+            const to = place(edge.to);
+            if (!from || !to) return null;
+            const x1 = from.x + nodeWidth;
+            const y1 = from.y + nodeHeight / 2;
+            const x2 = to.x;
+            const y2 = to.y + nodeHeight / 2;
             return (
               <line
                 key={`${edge.from}-${edge.to}`}
@@ -489,9 +570,7 @@ export function PipelineFlow({
           })}
 
           {/* Nodes */}
-          {nodes.map((node, idx) => {
-            const x = startX + idx * nodeSpacing;
-            const y = startY;
+          {placed.map(({ node, x, y }, idx) => {
             const isSelected = selected === node.id;
             const nodePaint = paint[node.id] ?? { state: "idle" };
             const strokeColor =
@@ -528,6 +607,8 @@ export function PipelineFlow({
                     e.preventDefault();
                     onSelect(node.id);
                   } else if (
+                    // The first source and the output are what the pipeline is; the source
+                    // section clears the first one, and a pipeline always writes somewhere.
                     (e.key === "Delete" || e.key === "Backspace") &&
                     node.id !== "source" &&
                     node.id !== "output"
@@ -563,7 +644,13 @@ export function PipelineFlow({
                   fill="var(--color-fg, #0f172a)"
                 >
                   {t(
-                    `pipelines.flow.node.${stepIndexOf(node.id) === undefined ? node.id : "step"}`,
+                    `pipelines.flow.node.${
+                      stepIndexOf(node.id) !== undefined
+                        ? "step"
+                        : sourceIndexOf(node.id) !== undefined
+                          ? "source"
+                          : node.id
+                    }`,
                     { defaultValue: node.label },
                   )}
                 </text>
@@ -740,6 +827,88 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
           <p className="text-caption text-fg-muted">{t("pipelines.flow.stepReadOnly")}</p>
         </>
       )}
+    </div>
+  );
+}
+
+export interface SourceBlockProps {
+  source: SourceForm;
+  dataSources: Manifest[];
+  endpoints: Manifest[];
+  locale: string;
+  onChange: (source: SourceForm) => void;
+  onRemove: () => void;
+}
+
+/**
+ * A source after the first (PL-52): one DataSource, or one Endpoint read through. The runner
+ * merges it with the others through a `broker` input, so it needs nothing but what it reads;
+ * the query, the sample and the access panel stay with the first source, which is the one the
+ * studio's own section below edits.
+ */
+export function SourceBlock({
+  source,
+  dataSources,
+  endpoints,
+  locale,
+  onChange,
+  onRemove,
+}: SourceBlockProps): JSX.Element {
+  const { t } = useTranslation();
+  const id = "flow-source-ref";
+  const value = source.dataSourceRef
+    ? `DataSource:${source.dataSourceRef}`
+    : source.endpointRef
+      ? `Endpoint:${source.endpointRef}`
+      : "";
+
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3"
+      data-testid="flow-node-editor-source"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.source")}</span>
+        <Button size="sm" variant="ghost" data-testid="flow-source-remove" onClick={onRemove}>
+          {t("pipelines.flow.removeSource")}
+        </Button>
+      </div>
+      <Field
+        id={id}
+        label={t("pipelines.flow.sourceReads")}
+        help={t("pipelines.flow.sourceReadsHint")}
+      >
+        <Select
+          id={id}
+          data-testid="flow-source-ref"
+          value={value}
+          onChange={(event) => {
+            const [kind, ...name] = event.target.value.split(":");
+            const picked = name.join(":");
+            onChange({
+              ...source,
+              dataSourceRef: kind === "DataSource" ? picked : undefined,
+              endpointRef: kind === "Endpoint" ? picked : undefined,
+            });
+          }}
+        >
+          <option value="">—</option>
+          <optgroup label={t("nav.datasources")}>
+            {dataSources.map((manifest) => (
+              <option key={manifest.metadata.name} value={`DataSource:${manifest.metadata.name}`}>
+                {localized(manifest.metadata.title, locale, manifest.metadata.name)}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label={t("nav.endpoints")}>
+            {endpoints.map((manifest) => (
+              <option key={manifest.metadata.name} value={`Endpoint:${manifest.metadata.name}`}>
+                {localized(manifest.metadata.title, locale, manifest.metadata.name)}
+              </option>
+            ))}
+          </optgroup>
+        </Select>
+      </Field>
     </div>
   );
 }

@@ -13,7 +13,16 @@ import type { Entity, EntityQuery, FilterSlot } from "../../components/entities/
 import { Alert, Button, Field, Input, Select } from "../../components/ui";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
-import { PipelineFlow, StepBlock, removeStep, setComputeKind, stepIndexOf } from "./PipelineFlow";
+import {
+  PipelineFlow,
+  SourceBlock,
+  StepBlock,
+  removeSource,
+  removeStep,
+  setComputeKind,
+  sourceIndexOf,
+  stepIndexOf,
+} from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
@@ -256,6 +265,7 @@ export function PipelineStudio({
   );
   const [flowTrace, setFlowTrace] = useState<Trace | null>(null);
   const selectedStep = draft?.processors?.[stepIndexOf(selectedNode) ?? -1];
+  const selectedSource = draft?.moreSources?.[sourceIndexOf(selectedNode) ?? -1];
   // The kind and the space are the author's choice until the form carries them: a chosen kind
   // with nothing picked yet, or a space with no endpoint, is not in the manifest at all.
   const [kindChoice, setKindChoice] = useState<SourceKind>(() => sourceKindOf(draft));
@@ -938,6 +948,25 @@ export function PipelineStudio({
                       </p>
                     )}
                   </div>
+                ) : selectedSource ? (
+                  <SourceBlock
+                    source={selectedSource}
+                    dataSources={dataSources}
+                    endpoints={endpoints}
+                    locale={locale}
+                    onChange={(source) =>
+                      onChange({
+                        ...draft,
+                        moreSources: (draft?.moreSources ?? []).map((was, at) =>
+                          at === sourceIndexOf(selectedNode) ? source : was,
+                        ),
+                      })
+                    }
+                    onRemove={() => {
+                      if (draft) onChange(removeSource(draft, sourceIndexOf(selectedNode) ?? -1));
+                      setSelectedNode(null);
+                    }}
+                  />
                 ) : selectedStep ? (
                   <StepBlock
                     key={selectedNode}

@@ -1,8 +1,8 @@
 /**
- * T-1127, T-1128: the lane carries the runner's processors as steps (PL-52, PL-56). The palette
- * lists what the pinned runner ships by category, a processor goes in behind a chosen node, the
- * selected step shows its own Bento block as YAML, and what is removed on the canvas is removed
- * in the manifest.
+ * T-1126, T-1127, T-1128: one lane, sources on the left (PL-52, PL-53, PL-56). The palette lists
+ * what the pinned runner ships by category, a processor goes in behind a chosen node, the selected
+ * step shows its own Bento block as YAML, a pipeline reads several sources that the runner merges,
+ * and what is removed on the canvas is removed in the manifest.
  */
 import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -17,9 +17,11 @@ import { toEnvelope, toForm } from "../src/pages/pipelines/PipelineEditor";
 import {
   PROCESSOR_GROUPS,
   PipelineFlow,
+  addSource,
   addStep,
   paintOf,
   plainSummary,
+  removeSource,
   removeStep,
   toFlow,
 } from "../src/pages/pipelines/PipelineFlow";
@@ -402,5 +404,202 @@ describe("the canvas and the step's block", () => {
     await userEvent.click(screen.getByTestId("flow-step-remove"));
     expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ processors: [] }));
     expect(screen.queryByTestId("flow-node-editor-step")).not.toBeInTheDocument();
+  });
+});
+
+describe("a pipeline that reads several sources", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ items: [] }), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("stands every source on the left, each feeding the head of the lane", () => {
+    const form: PipelineForm = {
+      ...withCompute,
+      moreSources: [{ dataSourceRef: "feed-weather" }, { endpointRef: "ep-traffic" }],
+    };
+    const { nodes, edges } = toFlow(form);
+    expect(nodes.map((node) => node.id)).toEqual([
+      "source",
+      "source-0",
+      "source-1",
+      "compute",
+      "output",
+    ]);
+    expect(nodes[1].summary).toBe("feed-weather");
+    expect(nodes[2].kind).toBe("space");
+    // No broker node: the runner merges them, an author does not place it (PL-53).
+    expect(nodes.map((node) => node.kind)).not.toContain("broker");
+    expect(edges).toEqual([
+      { from: "source", to: "compute" },
+      { from: "source-0", to: "compute" },
+      { from: "source-1", to: "compute" },
+      { from: "compute", to: "output" },
+    ]);
+  });
+
+  it("feeds the first step when there is one, not the compute step behind it", () => {
+    const form = addStep({ ...withCompute, moreSources: [{ dataSourceRef: "b" }] }, "source", "jq")
+      ?.form as PipelineForm;
+    expect(toFlow(form).edges.slice(0, 2)).toEqual([
+      { from: "source", to: "step-0" },
+      { from: "source-0", to: "step-0" },
+    ]);
+  });
+
+  it("writes every source into the manifest and reads them all back", () => {
+    const added = addSource(withCompute);
+    expect(added.id).toBe("source-0");
+    const form: PipelineForm = {
+      ...added.form,
+      moreSources: [{ dataSourceRef: "feed-weather" }],
+    };
+    const written = toEnvelope("helsinki", form);
+    expect((written.spec as { sources?: unknown[] }).sources).toEqual([
+      { dataSourceRef: { kind: "DataSource", name: "feed-bikes" } },
+      { dataSourceRef: { kind: "DataSource", name: "feed-weather" } },
+    ]);
+    expect(toForm(written).moreSources).toEqual([{ dataSourceRef: "feed-weather" }]);
+    // The first source is still the one the studio's own section reads.
+    expect(toForm(written).source).toEqual({ dataSourceRef: "feed-bikes" });
+  });
+
+  it("drops a removed source from the manifest and keeps one the form never carried", () => {
+    const editing = pipeline([]);
+    (editing.spec as { sources: unknown[] }).sources.push({
+      dataSourceRef: { kind: "DataSource", name: "feed-weather" },
+    });
+    const form = toForm(editing);
+    expect(form.moreSources).toEqual([{ dataSourceRef: "feed-weather" }]);
+
+    const removed = removeSource(form, 0);
+    const written = toEnvelope("helsinki", removed, editing);
+    expect((written.spec as { sources?: unknown[] }).sources).toEqual([
+      { dataSourceRef: { kind: "DataSource", name: "feed-bikes" } },
+    ]);
+    // A form that never carried them keeps what the manifest held (PL-54).
+    expect(
+      (toEnvelope("helsinki", { ...form, moreSources: undefined }, editing).spec as {
+        sources?: unknown[];
+      }).sources,
+    ).toHaveLength(2);
+  });
+
+  it("marks every source when the read failed, because the trace never says which one", () => {
+    const form: PipelineForm = { ...withCompute, moreSources: [{ dataSourceRef: "feed-weather" }] };
+    const { nodes } = toFlow(form);
+    const paint = paintOf(
+      {
+        input: { events: 4, bytes: 40 },
+        mapping: [],
+        validation: [],
+        errors: [{ stage: "input", message: "the feed answered 404 Not Found" }],
+      },
+      nodes,
+    );
+    expect(paint.source).toMatchObject({ state: "error", eventsIn: 4 });
+    expect(paint["source-0"]).toMatchObject({
+      state: "error",
+      error: "the feed answered 404 Not Found",
+    });
+    expect(paint.compute.state).toBe("skipped");
+    expect(paint.output.state).toBe("skipped");
+
+    // A read that went through leaves every source green, whatever failed behind them.
+    const later = paintOf(
+      {
+        input: { events: 4, bytes: 40 },
+        mapping: [],
+        validation: [],
+        errors: [{ stage: "mapping", message: "root = this: no" }],
+      },
+      nodes,
+    );
+    expect(later.source.state).toBe("ok");
+    expect(later["source-0"].state).toBe("ok");
+    expect(later.compute.state).toBe("error");
+  });
+
+  it("adds a source from the palette, picks what it reads and takes it away again", async () => {
+    const seen = vi.fn();
+    const dataSources: Manifest[] = [
+      {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "DataSource",
+        metadata: { name: "feed-weather", namespace: "helsinki" },
+        spec: {},
+      },
+    ];
+    function Host() {
+      const [draft, setDraft] = useState<PipelineForm>(withCompute);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return (
+        <QueryClientProvider client={client}>
+          <I18nextProvider i18n={i18n}>
+            <PipelineStudio
+              project="helsinki"
+              draft={draft}
+              onChange={(form) => {
+                seen(form);
+                setDraft(form);
+              }}
+              dataSources={dataSources}
+              endpoints={[]}
+              toManifest={vi.fn()}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      );
+    }
+    render(<Host />);
+
+    await userEvent.click(screen.getByTestId("palette-source"));
+    expect(screen.getByTestId("flow-node-source-0")).toBeInTheDocument();
+
+    const pick = screen.getByTestId("flow-source-ref");
+    await userEvent.selectOptions(pick, "DataSource:feed-weather");
+    expect(seen).toHaveBeenLastCalledWith(
+      expect.objectContaining({ moreSources: [{ dataSourceRef: "feed-weather" }] }),
+    );
+
+    await userEvent.click(screen.getByTestId("flow-source-remove"));
+    expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ moreSources: [] }));
+    expect(screen.queryByTestId("flow-node-source-0")).not.toBeInTheDocument();
+  });
+
+  it("removes a second source with Delete and never the first one", () => {
+    const form: PipelineForm = { ...withCompute, moreSources: [{ dataSourceRef: "feed-weather" }] };
+    const onChange = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PipelineFlow
+          form={form}
+          onChange={onChange}
+          trace={null}
+          selected="source-0"
+          onSelect={vi.fn()}
+          dataSources={[]}
+          endpoints={[]}
+        />
+      </I18nextProvider>,
+    );
+    fireEvent.keyDown(screen.getByTestId("flow-node-source"), { key: "Delete" });
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByTestId("flow-node-source-0"), { key: "Delete" });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ moreSources: [] }));
   });
 });

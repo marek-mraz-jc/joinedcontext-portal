@@ -21,14 +21,13 @@ export interface PipelineForm {
   class?: string;
   schedule?: string;
   period?: string;
-  source?: {
-    dataSourceRef?: string;
-    endpointRef?: string;
-    query?: Record<string, unknown>;
-    trigger?: {
-      subscription?: { type?: string; watchedAttributes?: string[] };
-    };
-  };
+  source?: SourceForm;
+  /**
+   * The sources after the first, in order (PL-52). The first one stays `source`: it is the one
+   * the sample, the KPI preset and the access panel read. The runner merges them all through a
+   * `broker` input (PL-53).
+   */
+  moreSources?: SourceForm[];
   compute?: {
     kind?: string;
     module?: string;
@@ -48,6 +47,16 @@ export interface PipelineForm {
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
 }
 
+/** One source a pipeline reads: a DataSource, or an Endpoint with a query or a trigger (PL-52). */
+export interface SourceForm {
+  dataSourceRef?: string;
+  endpointRef?: string;
+  query?: Record<string, unknown>;
+  trigger?: {
+    subscription?: { type?: string; watchedAttributes?: string[] };
+  };
+}
+
 /** One step of the lane that is not the form's compute step (PL-52). */
 export interface StepForm {
   step: Record<string, unknown>;
@@ -58,6 +67,29 @@ const PLURAL = "pipelines";
 
 function typedRef(kind: string, name: string | undefined) {
   return name ? { kind, name } : undefined;
+}
+
+/** One source as the manifest holds it: its references typed (MF-07). */
+function writeSource(source: SourceForm): Record<string, unknown> {
+  return {
+    ...source,
+    dataSourceRef: typedRef("DataSource", source.dataSourceRef),
+    endpointRef: typedRef("Endpoint", source.endpointRef),
+  };
+}
+
+/** One source as the form holds it: its references by name, whichever way they were written. */
+function readSource(source: Record<string, unknown>): SourceForm {
+  return {
+    ...source,
+    dataSourceRef: refName(source.dataSourceRef) || undefined,
+    endpointRef: refName(source.endpointRef) || undefined,
+  };
+}
+
+/** The sources after the first, written; an empty list stays a list, so a removal is kept. */
+function sourcesFor(moreSources: SourceForm[] | undefined): Record<string, unknown>[] | undefined {
+  return moreSources?.map(writeSource);
 }
 
 /**
@@ -104,7 +136,12 @@ const isComputeStep = (step: unknown): boolean =>
  * (PL-54). The form shows the first of each; what else the edited manifest holds (a second
  * source, a processor step, a second output) is kept where it was.
  */
-function secondShape(spec: Spec, base: Spec, processors?: StepForm[]): Spec {
+function secondShape(
+  spec: Spec,
+  base: Spec,
+  processors?: StepForm[],
+  moreSources?: SourceForm[],
+): Spec {
   const { source, compute, targetEndpoint, output, ...others } = spec;
   const baseSteps = listOf(base.steps);
   const at = baseSteps.findIndex(isComputeStep);
@@ -123,13 +160,21 @@ function secondShape(spec: Spec, base: Spec, processors?: StepForm[]): Spec {
         : [compute, ...baseSteps];
   return prune({
     ...others,
-    sources: [source, ...listOf(base.sources).slice(1)],
+    // Same rule as the steps: a form that carries the rest of the sources owns them; one that
+    // does not keeps whatever the edited manifest held.
+    sources: [source, ...(moreSources ?? (listOf(base.sources).slice(1) as SourceForm[]))],
     steps: steps.length > 0 ? steps : undefined,
     outputs: [
       { targetEndpoint, ...((output as Spec | undefined) ?? {}) },
       ...listOf(base.outputs).slice(1),
     ],
   }) as Spec;
+}
+
+/** The sources after the first, as the form carries them (PL-52). */
+export function moreSourcesOf(spec: Spec): SourceForm[] | undefined {
+  const rest = listOf(spec.sources).slice(1) as Record<string, unknown>[];
+  return rest.length > 0 ? rest.map(readSource) : undefined;
 }
 
 /** The steps around the first compute step, as the form carries them (PL-52). */
@@ -169,18 +214,23 @@ export function firstShape(spec: Spec): Spec {
  * the pause button, or any field it has no control for) survives an edit.
  */
 export function toEnvelope(project: string, form: PipelineForm, base?: Manifest): Manifest {
-  const { name, title, source, compute, allowFeedback, secretRefs, quotas, processors, ...rest } = form;
+  const {
+    name,
+    title,
+    source,
+    moreSources,
+    compute,
+    allowFeedback,
+    secretRefs,
+    quotas,
+    processors,
+    ...rest
+  } = form;
   const spec = prune({
     class: rest.class,
     schedule: rest.schedule,
     period: rest.period,
-    source: source
-      ? {
-          ...source,
-          dataSourceRef: typedRef("DataSource", source.dataSourceRef),
-          endpointRef: typedRef("Endpoint", source.endpointRef),
-        }
-      : undefined,
+    source: source ? writeSource(source) : undefined,
     compute: compute
       ? { ...compute, mappingRef: typedRef("Mapping", compute.mappingRef) }
       : undefined,
@@ -200,7 +250,9 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
       namespace: project,
       ...(title?.trim() ? { title } : {}),
     },
-    spec: second ? secondShape(spec, (base?.spec ?? {}) as Spec, processors) : spec,
+    spec: second
+      ? secondShape(spec, (base?.spec ?? {}) as Spec, processors, sourcesFor(moreSources))
+      : spec,
   };
   return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
 }
@@ -224,16 +276,11 @@ export function toForm(pipeline: Manifest): PipelineForm {
   return prune({
     name: pipeline.metadata.name,
     processors: processorsOf(pipeline.spec as Spec),
+    moreSources: moreSourcesOf(pipeline.spec as Spec),
     ...(plainTitle(pipeline.metadata.title) ? { title: plainTitle(pipeline.metadata.title) } : {}),
     ...rest,
     class: typeof rest.class === "string" ? rest.class : "auto",
-    source: source
-      ? {
-          ...source,
-          dataSourceRef: refName(source.dataSourceRef) || undefined,
-          endpointRef: refName(source.endpointRef) || undefined,
-        }
-      : undefined,
+    source: source ? readSource(source) : undefined,
     compute: compute ? { ...compute, mappingRef: refName(compute.mappingRef) || undefined } : undefined,
   }) as PipelineForm;
 }

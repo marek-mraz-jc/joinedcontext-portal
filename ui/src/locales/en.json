@@ -804,7 +804,11 @@
       "stepYamlInvalid": "This is not YAML yet: {reason}",
       "stepYamlOne": "A step is one processor: one name at the top, its configuration under it.",
       "stepYamlUnknown": "The runner ships no processor named \"{name}\". Take one from the palette.",
-      "stepReadOnly": "A compute or mapping step is edited in the YAML view of this dialog."
+      "stepReadOnly": "A compute or mapping step is edited in the YAML view of this dialog.",
+      "addSource": "+ Source",
+      "removeSource": "Remove source",
+      "sourceReads": "This source reads",
+      "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have."
   },

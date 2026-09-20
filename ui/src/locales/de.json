@@ -804,7 +804,11 @@
       "stepYamlInvalid": "Das ist noch kein YAML: {reason}",
       "stepYamlOne": "Ein Schritt ist ein Prozessor: ein Name oben, darunter seine Konfiguration.",
       "stepYamlUnknown": "Der Runner hat keinen Prozessor namens „{name}“. Wählen Sie einen aus der Palette.",
-      "stepReadOnly": "Ein Rechen- oder Mapping-Schritt wird in der YAML-Ansicht dieses Dialogs bearbeitet."
+      "stepReadOnly": "Ein Rechen- oder Mapping-Schritt wird in der YAML-Ansicht dieses Dialogs bearbeitet.",
+      "addSource": "+ Quelle",
+      "removeSource": "Quelle entfernen",
+      "sourceReads": "Diese Quelle liest",
+      "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben."
   },

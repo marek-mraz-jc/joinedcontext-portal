@@ -804,7 +804,11 @@
       "stepYamlInvalid": "Tohle ještě není YAML: {reason}",
       "stepYamlOne": "Krok je jeden procesor: jeden název nahoře a pod ním jeho konfigurace.",
       "stepYamlUnknown": "Runner nemá procesor s názvem „{name}“. Vyberte si z palety.",
-      "stepReadOnly": "Výpočetní nebo mapovací krok se upravuje v zobrazení YAML tohoto dialogu."
+      "stepReadOnly": "Výpočetní nebo mapovací krok se upravuje v zobrazení YAML tohoto dialogu.",
+      "addSource": "+ Zdroj",
+      "removeSource": "Odstranit zdroj",
+      "sourceReads": "Tento zdroj čte",
+      "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte."
   },
