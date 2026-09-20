@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { searchEntities } from "../../../api/gateway";
 import type { GatewayEntity } from "../../../api/gateway";
+import { Input } from "../../ui";
 
 export function EntityPicker(props: WidgetProps): JSX.Element {
   const {
@@ -107,16 +108,14 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
   if (!isConfigured) {
     return (
       <div className="relative">
-        <input
+        <Input
           id={id}
-          type="text"
           disabled
           aria-disabled="true"
           readOnly={readonly}
           value={typeof value === "string" ? value : ""}
           aria-describedby={ariaDescribedByIds(id)}
           aria-invalid={hasErrors ? "true" : undefined}
-          className="block w-full rounded border border-border bg-surface-subtle px-3 py-1.5 text-base text-surface-fg opacity-50"
         />
         <p role="alert" className="mt-1 text-sm text-danger">
           {t("form.invalid")}
@@ -196,10 +195,9 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
 
   return (
     <div ref={containerRef} className="relative">
-      <input
+      <Input
         id={id}
         role="combobox"
-        type="text"
         autoComplete="off"
         aria-autocomplete="list"
         aria-expanded={isOpen ? "true" : "false"}
@@ -217,10 +215,6 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
         onKeyDown={handleKeyDown}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        className={clsx(
-          "block w-full rounded border border-border bg-surface px-3 py-1.5 text-base text-surface-fg placeholder:text-surface-fg/50 focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
-          disabled && "cursor-not-allowed opacity-50"
-        )}
       />
 
       {isOpen && (

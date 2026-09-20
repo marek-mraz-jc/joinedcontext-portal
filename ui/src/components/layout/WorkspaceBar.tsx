@@ -3,13 +3,22 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError, api, queryKeys, unwrap } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { Button } from "../ui";
+import { Badge, Button } from "../ui";
 import { useWorkspace } from "./WorkspaceContext";
 
+/** A day in the reader's own language; the raw value when the API sent something unparseable. */
+function onDay(value: string, locale: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString(locale);
+}
+
 export function WorkspaceBar({ project }: { project: string }): React.JSX.Element | null {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { name, leave } = useWorkspace();
   const { identity } = useAuth();
+  // The language the person reads the Portal in, not the browser's: a Slovak Portal wrote
+  // 9/27/2026 because `toLocaleDateString()` was called with no locale at all (UI-15).
+  const locale = i18n.resolvedLanguage ?? i18n.language;
 
   const workspace = useQuery({
     queryKey: [...queryKeys.list(project, "workspaces"), name],
@@ -48,11 +57,11 @@ export function WorkspaceBar({ project }: { project: string }): React.JSX.Elemen
   const { title, name: wsName, createdAt, expiresAt, owner, changes } = workspace.data;
   // Expiry is judged at the moment the copy was read, so the render stays pure.
   if (new Date(expiresAt).getTime() <= workspace.dataUpdatedAt) {
-    return notice(t("workspaces.bar.expired", { date: new Date(expiresAt).toLocaleDateString() }));
+    return notice(t("workspaces.bar.expired", { date: onDay(expiresAt, locale) }));
   }
   const mine = !!identity && (owner === identity.email || owner === identity.username);
   const display = title ?? wsName;
-  const date = new Date(createdAt).toLocaleDateString();
+  const date = onDay(createdAt, locale);
   const changeCount = changes ?? 0;
 
   return (
@@ -68,9 +77,7 @@ export function WorkspaceBar({ project }: { project: string }): React.JSX.Elemen
         {t("workspaces.bar.changes", { count: changeCount })}
       </span>
       {mine ? null : (
-        <span className="rounded-md border border-border px-2 py-0.5 text-xs" data-testid="workspace-foreign">
-          {t("workspaces.bar.foreign", { owner })}
-        </span>
+        <Badge data-testid="workspace-foreign">{t("workspaces.bar.foreign", { owner })}</Badge>
       )}
       <div className="ml-auto flex items-center gap-2">
         <Link

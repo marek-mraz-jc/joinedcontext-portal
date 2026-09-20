@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { digestOf } from "../src/api/digest";
+import { expectDenied } from "./checks";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { useState } from "react";
@@ -476,7 +477,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       name: "Propose change",
     });
     await waitFor(() => {
-      expect(submitBtn).toBeDisabled();
+      expectDenied(submitBtn);
     });
 
     expect(screen.getByTestId("draft-verdict")).toHaveTextContent(
@@ -573,7 +574,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       name: "Propose change",
     });
     await waitFor(() => {
-      expect(submitBtn).toBeDisabled();
+      expectDenied(submitBtn);
     });
     expect(screen.getByTestId("propose-reason")).toHaveTextContent(
       en.drafts.proposeReason.none,
@@ -581,7 +582,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
 
     fireEvent.click(screen.getByRole("button", { name: en.form.check }));
     await waitFor(() => {
-      expect(submitBtn).toBeEnabled();
+      expect(submitBtn).not.toHaveAttribute("aria-disabled");
     });
     expect(checks).toHaveLength(1);
     expect(screen.queryByTestId("propose-reason")).toBeNull();
@@ -723,7 +724,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
         en.drafts.verdict.none,
       );
     });
-    expect(submitBtn).toBeDisabled();
+    expectDenied(submitBtn);
     expect(screen.getByTestId("propose-reason")).toHaveTextContent(
       en.drafts.proposeReason.none,
     );
@@ -910,7 +911,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       name: "Propose change",
     });
     await waitFor(() => {
-      expect(submitBtn).toBeEnabled();
+      expect(submitBtn).not.toHaveAttribute("aria-disabled");
     });
 
     const verdictEl = screen.getByTestId("draft-verdict");
@@ -990,11 +991,11 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     );
 
     const submitBtn = await screen.findByRole("button", { name: "Propose change" });
-    await waitFor(() => expect(submitBtn).toBeDisabled());
+    await waitFor(() => expectDenied(submitBtn));
     fireEvent.change(screen.getByLabelText(/URL/i), {
       target: { value: "https://checked.example.com" },
     });
-    await waitFor(() => expect(submitBtn).toBeEnabled());
+    await waitFor(() => expect(submitBtn).not.toHaveAttribute("aria-disabled"));
     fireEvent.click(submitBtn);
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -1061,9 +1062,9 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     );
 
     const submitBtn = await screen.findByRole("button", { name: "Propose change" });
-    await waitFor(() => expect(submitBtn).toBeDisabled());
+    await waitFor(() => expectDenied(submitBtn));
     fireEvent.change(screen.getByLabelText(/URL/i), { target: { value: "https://checked.example.com" } });
-    await waitFor(() => expect(submitBtn).toBeEnabled());
+    await waitFor(() => expect(submitBtn).not.toHaveAttribute("aria-disabled"));
     fireEvent.click(submitBtn);
 
     expect(await screen.findByText(en.drafts.conflict)).toBeInTheDocument();
@@ -1144,7 +1145,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       name: "Propose change",
     });
     await waitFor(() => {
-      expect(submitBtn).toBeEnabled();
+      expect(submitBtn).not.toHaveAttribute("aria-disabled");
     });
 
     // Modify the URL field
@@ -1155,7 +1156,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
 
     // The digest now diverges from inputDigest -> verdict becomes stale
     await waitFor(() => {
-      expect(submitBtn).toBeDisabled();
+      expectDenied(submitBtn);
     });
 
     expect(screen.getByTestId("draft-verdict")).toHaveTextContent(
@@ -1235,7 +1236,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     });
     // In lax mode, button stays enabled despite absent verdict
     await waitFor(() => {
-      expect(submitBtn).toBeEnabled();
+      expect(submitBtn).not.toHaveAttribute("aria-disabled");
     });
 
     expect(screen.getByText(en.drafts.laxWarning)).toBeInTheDocument();
@@ -1321,7 +1322,7 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       name: "Propose change",
     });
     await waitFor(() => {
-      expect(submitBtn).toBeDisabled();
+      expectDenied(submitBtn);
     });
 
     const findingsEl = screen.getByTestId("draft-findings");

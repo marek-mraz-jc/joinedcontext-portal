@@ -3,6 +3,15 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Button } from "../../components/ui/Button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  TableRowHeaderCell,
+} from "../../components/ui";
 import { localId, textOf } from "./QueryResultCard";
 
 /**
@@ -109,32 +118,33 @@ export function EntityWriteCard({ write, live }: { write: EntityWrite; live: boo
       <p className="font-medium">
         {t("agentRun.write.lead", { count: write.entities.length, endpoint: write.endpoint })}
       </p>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-xs">
-          <thead className="text-fg-muted">
-            <tr>
-              <th className="py-0.5 pr-2 font-medium">{t("agentRun.write.entity")}</th>
-              <th className="py-0.5 pr-2 font-medium">{t("agentRun.write.attribute")}</th>
-              <th className="py-0.5 pr-2 font-medium">{t("agentRun.write.before")}</th>
-              <th className="py-0.5 pr-2 font-medium">{t("agentRun.write.after")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {write.entities.flatMap((entity) =>
-              entity.changes.map((change, index) => (
-                <tr key={`${entity.id}-${change.attribute}`} className="border-t border-border">
-                  <td className="py-0.5 pr-2" title={entity.id}>
-                    {index === 0 ? localId(entity.id) : ""}
-                  </td>
-                  <td className="py-0.5 pr-2">{change.attribute}</td>
-                  <td className="py-0.5 pr-2 text-fg-muted">{textOf(change.before) || t("agentRun.write.empty")}</td>
-                  <td className="py-0.5 pr-2 font-medium">{textOf(change.after)}</td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Table caption={t("agentRun.write.title")}>
+        <TableHead>
+          <TableHeaderCell>{t("agentRun.write.entity")}</TableHeaderCell>
+          <TableHeaderCell>{t("agentRun.write.attribute")}</TableHeaderCell>
+          <TableHeaderCell>{t("agentRun.write.before")}</TableHeaderCell>
+          <TableHeaderCell>{t("agentRun.write.after")}</TableHeaderCell>
+        </TableHead>
+        <TableBody>
+          {write.entities.flatMap((entity) =>
+            entity.changes.map((change, index) => (
+              <TableRow key={`${entity.id}-${change.attribute}`}>
+                {/* The entity names its row, and names it once: the rows after the first
+                    belong to the same entity and say so by being empty, which is what the
+                    `scope` the hand-made header never carried is for. */}
+                <TableRowHeaderCell title={entity.id}>
+                  {index === 0 ? localId(entity.id) : ""}
+                </TableRowHeaderCell>
+                <TableCell>{change.attribute}</TableCell>
+                <TableCell className="text-fg-muted">
+                  {textOf(change.before) || t("agentRun.write.empty")}
+                </TableCell>
+                <TableCell primary>{textOf(change.after)}</TableCell>
+              </TableRow>
+            )),
+          )}
+        </TableBody>
+      </Table>
       {state.kind === "applied" ? (
         <div role="status" className="flex flex-col gap-1">
           {changed > 0 ? <p>{t("agentRun.write.applied", { count: changed })}</p> : null}

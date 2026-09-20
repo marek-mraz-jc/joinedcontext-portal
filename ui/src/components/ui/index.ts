@@ -48,6 +48,7 @@ export {
   TableHead,
   TableHeaderCell,
   TableRow,
+  TableRowHeaderCell,
   TableSkeleton,
 } from "./Table";
 export type { TableCellProps, TableHeaderCellProps, TableProps } from "./Table";

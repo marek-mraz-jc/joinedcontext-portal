@@ -125,12 +125,16 @@ describe("the roles of a project on the Access page", () => {
     const source = within(dialog).getByRole("textbox") as HTMLTextAreaElement;
     expect(source.value).toContain("namespace: banskabystrica");
 
-    // The example has no name, so an untouched form can never become a Change (T-1492).
+    // The example has no name, so an untouched form can never become a Change (T-1492) — and
+    // since T-1830 the refusal travels with the button: `aria-disabled` rather than `disabled`,
+    // so it keeps its place in the tab order and the reason can actually be reached and read.
+    // The click is refused all the same, which is what the `posted` assertion below is for.
     const proposeButton = within(dialog).getByRole("button", { name: "Propose the role" });
-    expect(proposeButton).toBeDisabled();
-    expect(within(dialog).getByText(/This is an example/).id).toBe(proposeButton.getAttribute("aria-describedby"));
+    expect(proposeButton).toHaveAttribute("aria-disabled", "true");
+    expect(proposeButton, "reachable, so the reason can be read").not.toBeDisabled();
+    expect(proposeButton).toHaveAccessibleDescription(/name/i);
     await user.click(proposeButton);
-    expect(posted).toHaveLength(0);
+    expect(posted, "a refused control does not post").toHaveLength(0);
 
     fireEvent.change(source, { target: { value: source.value.replace('name: ""', "name: air-reader") } });
     expect(proposeButton).toBeEnabled();

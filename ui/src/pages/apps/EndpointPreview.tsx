@@ -6,6 +6,15 @@ import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { writesOf } from "../access/EffectivePermissions";
 import { fetchJson } from "../endpoints/SchemaProjectionPanel";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  TableRowHeaderCell,
+} from "../../components/ui";
 
 /** How many entities are worth showing to judge an endpoint by: enough to see the shape (AP-51). */
 const SAMPLE_LIMIT = 5;
@@ -149,38 +158,27 @@ export function EndpointPreview({ slug }: { slug: string }): JSX.Element {
             <p className="text-xs text-fg-muted">{t("apps.generate.preview.samplesEmpty")}</p>
           )}
           {rows.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <caption className="sr-only">{t("apps.generate.preview.samples")}</caption>
-                <thead>
-                  <tr className="border-b border-border">
-                    <th scope="col" className="py-1 font-medium">
-                      {t("apps.generate.preview.columnId")}
-                    </th>
-                    <th scope="col" className="py-1 font-medium">
-                      {t("apps.generate.preview.columnType")}
-                    </th>
-                    <th scope="col" className="py-1 font-medium">
-                      {t("apps.generate.preview.columnValues")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((entity, index) => {
-                    const line = sampleLine(entity);
-                    return (
-                      <tr key={line.id || index} className="border-b border-border/50">
-                        <th scope="row" title={line.id} className="py-1 pr-3 font-mono font-normal break-all">
-                          {line.localId}
-                        </th>
-                        <td className="py-1 pr-3">{line.type}</td>
-                        <td className="py-1 font-mono break-all">{line.values}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table caption={t("apps.generate.preview.samples")}>
+              <TableHead>
+                <TableHeaderCell>{t("apps.generate.preview.columnId")}</TableHeaderCell>
+                <TableHeaderCell>{t("apps.generate.preview.columnType")}</TableHeaderCell>
+                <TableHeaderCell>{t("apps.generate.preview.columnValues")}</TableHeaderCell>
+              </TableHead>
+              <TableBody>
+                {rows.map((entity, index) => {
+                  const line = sampleLine(entity);
+                  return (
+                    <TableRow key={line.id || index}>
+                      <TableRowHeaderCell title={line.id} className="break-all font-mono font-normal">
+                        {line.localId}
+                      </TableRowHeaderCell>
+                      <TableCell>{line.type}</TableCell>
+                      <TableCell className="break-all font-mono">{line.values}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </div>
       </details>
