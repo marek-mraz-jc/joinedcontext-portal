@@ -8,6 +8,22 @@ importers:
 
   .:
     dependencies:
+      maplibre-gl:
+        specifier: ^6.7.0
+        version: 6.9.0
+      react:
+        specifier: ^19.2.8
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.0(react@19.3.0)
+      terra-draw:
+        specifier: 1.34.0
+        version: 1.34.0
+      terra-draw-maplibre-gl-adapter:
+        specifier: 1.4.1
+        version: 1.4.1(maplibre-gl@6.9.0)(terra-draw@1.34.0)
+    devDependencies:
       '@deck.gl/aggregation-layers':
         specifier: ^9.4.0
         version: 9.4.0(@deck.gl/core@9.4.0(@luma.gl/webgpu@9.4.1(@luma.gl/core@9.4.1)(@luma.gl/shadertools@9.4.1(@luma.gl/core@9.4.1))))(@deck.gl/layers@9.4.0(@deck.gl/core@9.4.0(@luma.gl/webgpu@9.4.1(@luma.gl/core@9.4.1)(@luma.gl/shadertools@9.4.1(@luma.gl/core@9.4.1))))(@loaders.gl/core@4.5.1)(@luma.gl/core@9.4.1)(@luma.gl/engine@9.4.1(@luma.gl/core@9.4.1)(@luma.gl/shadertools@9.4.1(@luma.gl/core@9.4.1))))(@luma.gl/core@9.4.1)(@luma.gl/engine@9.4.1(@luma.gl/core@9.4.1)(@luma.gl/shadertools@9.4.1(@luma.gl/core@9.4.1)))
@@ -20,28 +36,6 @@ importers:
       '@deck.gl/mapbox':
         specifier: ^9.4.0
         version: 9.4.0(@deck.gl/core@9.4.0(@luma.gl/webgpu@9.4.1(@luma.gl/core@9.4.1)(@luma.gl/shadertools@9.4.1(@luma.gl/core@9.4.1))))(@luma.gl/core@9.4.1)(@math.gl/web-mercator@4.1.0)
-      echarts:
-        specifier: ^6.1.0
-        version: 6.1.0
-      maplibre-gl:
-        specifier: ^6.7.0
-        version: 6.9.0
-      react:
-        specifier: ^19.2.8
-        version: 19.3.0
-      react-dom:
-        specifier: ^19.2.8
-        version: 19.3.0(react@19.3.0)
-      recharts:
-        specifier: ^3.10.1
-        version: 3.10.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-is@17.0.2)(react@19.3.0)(redux@5.0.1)
-      terra-draw:
-        specifier: 1.34.0
-        version: 1.34.0
-      terra-draw-maplibre-gl-adapter:
-        specifier: 1.4.1
-        version: 1.4.1(maplibre-gl@6.9.0)(terra-draw@1.34.0)
-    devDependencies:
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -63,9 +57,15 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.1
         version: 6.1.1(vite@8.3.0(@types/node@25.9.6))
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
+      recharts:
+        specifier: ^3.10.1
+        version: 3.10.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-is@17.0.2)(react@19.3.0)(redux@5.0.1)
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
