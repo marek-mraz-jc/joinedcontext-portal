@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
-import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
+import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder, expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
@@ -283,7 +283,7 @@ describe("from a sample to a proposal", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -330,7 +330,7 @@ describe("from a sample to a proposal", () => {
     expect(within(dialog).queryByText(en.pipelines.test.gate)).toBeNull();
     // The mapping's test is green; the manifest's own check is the second gate (AG-62).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() => expect(propose()).not.toHaveAttribute("aria-disabled"));
+    await waitFor(() => expectOpen(propose()));
 
     // The mapping changed after the test: the verdict no longer describes the editor's text.
     await userEvent.type(within(dialog).getByLabelText(/Bloblang mapping/), "\nroot.x = 1");

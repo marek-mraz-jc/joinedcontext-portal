@@ -63,6 +63,18 @@ export function expectDenied(control: HTMLElement, reason?: string | RegExp): vo
 }
 
 /**
+ * A control that is open for use: neither hard-disabled nor refused.
+ *
+ * The counterpart of {@link expectDenied}. `toBeEnabled()` alone stopped meaning this once a
+ * gated submit became `aria-disabled` instead of `disabled` (UI-44, T-1743): the attribute it
+ * looks at is no longer the one that closes the button.
+ */
+export function expectOpen(control: HTMLElement): void {
+  expect(control, "an open control is not disabled").not.toBeDisabled();
+  expect(control, "and it is not refused either").not.toHaveAttribute("aria-disabled", "true");
+}
+
+/**
  * axe over one rendered subtree (UI-16).
  *
  * The form tasks of the `ui-forms` group each run this on their own page, so a violation names
