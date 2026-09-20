@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
 import { Button, PermissionGuard } from "../src/components/ui";
 import { DeleteResourceAction } from "../src/components/DeleteResourceDialog";
 import { EditResourceAction } from "../src/components/EditResourceDialog";
@@ -150,7 +151,7 @@ describe("the permission guard", () => {
 
     for (const [name, verb] of [
       [/Edit/, "propose"],
-      [/Delete/, "delete"],
+      [new RegExp(en.resourceDelete.button), "delete"],
     ] as const) {
       const reason = `Disabled: your role does not permit '${verb}' on 'Endpoint' in this project`;
       await waitFor(() => {

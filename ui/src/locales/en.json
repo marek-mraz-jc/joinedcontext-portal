@@ -198,7 +198,7 @@
     "summary": {
       "create": "{fields, plural, =0 {Create {kind} \"{name}\"} one {Create {kind} \"{name}\" ({fields} field)} other {Create {kind} \"{name}\" ({fields} fields)}}",
       "update": "{fields, plural, =0 {Update {kind} \"{name}\"} one {Update {kind} \"{name}\" ({fields} field changed)} other {Update {kind} \"{name}\" ({fields} fields changed)}}",
-      "delete": "{fields, plural, =0 {Delete {kind} \"{name}\"} one {Delete {kind} \"{name}\" ({fields} field)} other {Delete {kind} \"{name}\" ({fields} fields)}}"
+      "delete": "{fields, plural, =0 {Remove {kind} \"{name}\"} one {Remove {kind} \"{name}\" ({fields} field)} other {Remove {kind} \"{name}\" ({fields} fields)}}"
     }
   },
   "quota": {
@@ -227,8 +227,8 @@
     "typeName": "Type {name} to confirm",
     "propose": "Propose removal",
     "referenced": "Still in use",
-    "button": "Delete",
-    "action": "Delete {name}",
+    "button": "Remove",
+    "action": "Remove {name}",
     "close": "Close"
   },
   "resourceEdit": {

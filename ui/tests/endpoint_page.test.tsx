@@ -543,7 +543,7 @@ describe("the endpoint's own settings page", () => {
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: en.endpoints.copyUrl })).toBeInTheDocument();
     // The accessible name carries the reason too, so the item is matched by pattern (T-2279).
-    const remove = within(menu).getByRole("menuitem", { name: /Delete/ });
+    const remove = within(menu).getByRole("menuitem", { name: new RegExp(en.resourceDelete.button) });
     expect(remove).toHaveAttribute("aria-disabled", "true");
     expect(remove).toHaveAttribute("title", expect.stringContaining("delete"));
   });

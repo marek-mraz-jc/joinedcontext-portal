@@ -108,7 +108,7 @@ describe("pending approvals view", () => {
       await screen.findByRole("link", { name: 'Update Endpoint "air-quality" (2 fields changed)' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: 'Delete ContextSpace "doprava"' }),
+      screen.getByRole("link", { name: 'Remove ContextSpace "doprava"' }),
     ).toBeInTheDocument();
   });
 

@@ -198,7 +198,7 @@
     "summary": {
       "create": "{fields, plural, =0 {Vytvoření {kind} „{name}“ bez polí} one {Vytvoření {kind} „{name}“ ({fields} pole)} few {Vytvoření {kind} „{name}“ ({fields} pole)} other {Vytvoření {kind} „{name}“ ({fields} polí)}}",
       "update": "{fields, plural, =0 {Úprava {kind} „{name}“ beze změn} one {Úprava {kind} „{name}“ ({fields} změněné pole)} few {Úprava {kind} „{name}“ ({fields} změněná pole)} other {Úprava {kind} „{name}“ ({fields} změněných polí)}}",
-      "delete": "{fields, plural, =0 {Smazání {kind} „{name}“} one {Smazání {kind} „{name}“ ({fields} pole)} few {Smazání {kind} „{name}“ ({fields} pole)} other {Smazání {kind} „{name}“ ({fields} polí)}}"
+      "delete": "{fields, plural, =0 {Odstranění {kind} „{name}“} one {Odstranění {kind} „{name}“ ({fields} pole)} few {Odstranění {kind} „{name}“ ({fields} pole)} other {Odstranění {kind} „{name}“ ({fields} polí)}}"
     }
   },
   "quota": {

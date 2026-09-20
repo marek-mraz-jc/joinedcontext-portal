@@ -198,7 +198,7 @@
     "summary": {
       "create": "{fields, plural, =0 {{kind} „{name}“ erstellen} one {{kind} „{name}“ erstellen ({fields} Feld)} other {{kind} „{name}“ erstellen ({fields} Felder)}}",
       "update": "{fields, plural, =0 {{kind} „{name}“ aktualisieren} one {{kind} „{name}“ aktualisieren ({fields} geändertes Feld)} other {{kind} „{name}“ aktualisieren ({fields} geänderte Felder)}}",
-      "delete": "{fields, plural, =0 {{kind} „{name}“ löschen} one {{kind} „{name}“ löschen ({fields} Feld)} other {{kind} „{name}“ löschen ({fields} Felder)}}"
+      "delete": "{fields, plural, =0 {{kind} „{name}“ entfernen} one {{kind} „{name}“ entfernen ({fields} Feld)} other {{kind} „{name}“ entfernen ({fields} Felder)}}"
     }
   },
   "quota": {
@@ -227,8 +227,8 @@
     "typeName": "Zur Bestätigung {name} eingeben",
     "propose": "Entfernen vorschlagen",
     "referenced": "Noch in Verwendung",
-    "button": "Löschen",
-    "action": "{name} löschen",
+    "button": "Entfernen",
+    "action": "{name} entfernen",
     "close": "Schließen"
   },
   "resourceEdit": {
