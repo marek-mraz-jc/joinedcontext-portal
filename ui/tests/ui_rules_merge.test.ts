@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { staleEntries } from "./uiRules";
+import { entryOf, overCeiling, staleEntries } from "./uiRules";
 import type { Allowed, Source } from "./uiRules";
 
 let work = "";
@@ -48,6 +48,8 @@ const entry = (lines: number) => ({ lines, group: "ui-pages" });
 
 const baseList = (): Allowed => ({
   hand_made_control: {
+    // The ceiling on how many files this rule may name (T-2316), beside the files themselves.
+    _max: 2,
     "src/routes/AlphaPage.tsx": entry(3),
     "src/routes/BetaPage.tsx": entry(2),
   },
@@ -85,8 +87,8 @@ describe("two workers cleaning two different files", () => {
     expect(merged, "the allow-list is where the numbers live, and it merges").not.toBeNull();
 
     const result = JSON.parse(merged as string) as Allowed;
-    expect(result.hand_made_control["src/routes/AlphaPage.tsx"].lines).toBe(1);
-    expect(result.hand_made_control["src/routes/BetaPage.tsx"].lines).toBe(1);
+    expect(entryOf(result.hand_made_control, "src/routes/AlphaPage.tsx")?.lines).toBe(1);
+    expect(entryOf(result.hand_made_control, "src/routes/BetaPage.tsx")?.lines).toBe(1);
   });
 
   it("one_shared_total_is_what_conflicted_and_it_is_not_there_any_more", () => {
@@ -121,7 +123,78 @@ describe("two workers cleaning two different files", () => {
   it("an_entry_for_a_rule_nothing_measures_is_never_counted_as_clean", () => {
     // A rule with no pattern would be an exemption nothing can check; `ui_rules.test.ts` refuses
     // one outright, and `staleEntries` never reports it as satisfied either.
-    const invented: Allowed = { a_rule_nobody_wrote: { "src/routes/AlphaPage.tsx": entry(9) } };
+    const invented: Allowed = {
+      a_rule_nobody_wrote: { _max: 1, "src/routes/AlphaPage.tsx": entry(9) },
+    };
     expect(staleEntries(invented, [source("src/routes/AlphaPage.tsx", 1)])).toEqual([]);
+  });
+});
+
+describe("a file added to the allow-list instead of being fixed", () => {
+  it("fails until the rule's ceiling is raised in the same change", () => {
+    // T-2316: the per-file ratchet measures the files it already names, so a NEW entry, sized to
+    // the violations it exempts, slips past every other check — which is the one thing the
+    // allow-list exists to make expensive. `_max` is the ceiling the old `files:` total was.
+    const list = baseList();
+    const files = [
+      source("src/routes/AlphaPage.tsx", 3),
+      source("src/routes/BetaPage.tsx", 2),
+      source("src/routes/GammaPage.tsx", 4),
+    ];
+    expect(overCeiling(list), "the list as it stands is within its ceiling").toEqual([]);
+    expect(staleEntries(list, files)).toEqual([]);
+
+    // A worker meets a hand-made control in a third page and lists the file.
+    const exempted = structuredClone(list);
+    exempted.hand_made_control["src/routes/GammaPage.tsx"] = entry(4);
+
+    // Nothing else notices: the entry is honest about the file, so the ratchet is satisfied.
+    expect(staleEntries(exempted, files)).toEqual([]);
+    // The ceiling does notice, and names the rule and both numbers.
+    expect(overCeiling(exempted)).toEqual([{ rule: "hand_made_control", ceiling: 2, files: 3 }]);
+
+    // Raising it in the same change is what makes the exemption a one-line diff a reviewer reads.
+    const raised = structuredClone(exempted);
+    raised.hand_made_control._max = 3;
+    expect(overCeiling(raised)).toEqual([]);
+  });
+
+  it("a rule with no ceiling at all is not a way around it", () => {
+    const list = baseList();
+    delete list.hand_made_control._max;
+    expect(overCeiling(list)).toEqual([
+      { rule: "hand_made_control", ceiling: null, files: 2 },
+    ]);
+  });
+
+  it("two workers each removing a different file still merge, ceiling and all", () => {
+    // The property T-2315 bought, kept: the ceiling is a ceiling and not a count, so neither
+    // worker touches it, and each removal is a block of its own in the list.
+    const wider = (): Allowed => ({
+      hand_made_control: {
+        _max: 4,
+        "src/routes/AlphaPage.tsx": entry(3),
+        "src/routes/BetaPage.tsx": entry(2),
+        "src/routes/GammaPage.tsx": entry(1),
+        "src/routes/DeltaPage.tsx": entry(5),
+      },
+    });
+    const base = asJson(wider());
+
+    const alphaGone = wider();
+    delete alphaGone.hand_made_control["src/routes/AlphaPage.tsx"];
+    const deltaGone = wider();
+    delete deltaGone.hand_made_control["src/routes/DeltaPage.tsx"];
+
+    const merged = threeWayMerge(asJson(alphaGone), base, asJson(deltaGone));
+    expect(merged, "two removals of different files merge").not.toBeNull();
+
+    const result = JSON.parse(merged as string) as Allowed;
+    expect(Object.keys(result.hand_made_control)).toEqual([
+      "_max",
+      "src/routes/BetaPage.tsx",
+      "src/routes/GammaPage.tsx",
+    ]);
+    expect(overCeiling(result), "a rule below its ceiling is fine; it only ever caps").toEqual([]);
   });
 });
