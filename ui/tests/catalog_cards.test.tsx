@@ -10,6 +10,7 @@ import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-r
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { expectDenied } from "./checks";
 import { CatalogCards, ago, catalogItemsOf } from "../src/pages/apps/CatalogCards";
 import type { CatalogItem } from "../src/pages/apps/CatalogCards";
 
@@ -177,7 +178,9 @@ describe("the catalog results", () => {
     const button = within(within(list).getAllByRole("listitem")[0]).getByRole("button", {
       name: "helsinki-bikes is in use",
     });
-    expect(button).toBeDisabled();
+    // Refused and still reachable, so the reason can be read: a hard-disabled control leaves
+    // the tab order and takes its explanation with it (T-1743, UI-44).
+    expectDenied(button, "helsinki-bikes is in use");
     expect(button).toHaveTextContent(en.agentRun.catalog.inUse);
   });
 

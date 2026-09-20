@@ -179,6 +179,37 @@ export function TableCell({
   );
 }
 
+/**
+ * The cell that names its own row (`<th scope="row">`), for a table whose first column is the
+ * subject and not a value: a permissions matrix, a sample of entities, a field-by-field diff.
+ * Without it a page that needed one styled a `<th>` by hand and drifted from every other cell
+ * — the padding, the alignment and the `secondary` behaviour are the `TableCell` ones, because
+ * it is a cell that happens to be a header, not a column header in the wrong place.
+ */
+export function TableRowHeaderCell({
+  align = "left",
+  secondary,
+  className,
+  children,
+  ...rest
+}: TableCellProps & ThHTMLAttributes<HTMLTableCellElement>): React.JSX.Element {
+  return (
+    <th
+      scope="row"
+      className={clsx(
+        "px-4 py-3 text-left align-top font-medium text-fg",
+        align === "right" && "text-right",
+        align === "center" && "text-center",
+        secondary && "hidden sm:table-cell",
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </th>
+  );
+}
+
 /** The one row of an empty table: the message, and whatever action fills it. */
 export function TableEmpty({
   columns,

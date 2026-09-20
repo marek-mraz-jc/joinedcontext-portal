@@ -117,18 +117,6 @@
       "lines": 4,
       "group": "ui-forms"
     },
-    "src/pages/apps/CatalogCards.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/EndpointPreview.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/EntityWriteCard.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/pages/apps/KpiCard.tsx": {
       "lines": 4,
       "group": "ui-forms"
@@ -221,14 +209,6 @@
     },
     "src/components/layout/Shell.tsx": {
       "lines": 5,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/AppsCatalog.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/CatalogCards.tsx": {
-      "lines": 2,
       "group": "ui-parts"
     },
     "src/pages/apps/ConversationPanel.tsx": {

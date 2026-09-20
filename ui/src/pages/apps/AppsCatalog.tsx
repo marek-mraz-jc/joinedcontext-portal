@@ -125,7 +125,7 @@ export function AppPreview({ app, onClose }: { app: Manifest; onClose: () => voi
           src={previewUrl(app)}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
-          className="h-[32rem] w-full rounded border border-border bg-surface"
+          className="h-128 w-full rounded border border-border bg-surface"
         />
       ) : (
         <p role="alert" className="text-danger">
