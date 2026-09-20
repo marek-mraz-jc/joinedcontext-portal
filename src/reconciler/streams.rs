@@ -353,6 +353,7 @@ impl StreamDeployer {
 
                     match render_endpoint_stream(
                         &spec,
+                        &ns,
                         &format!("{ns}/{name}"),
                         source_slug,
                         source_is_public,
@@ -599,7 +600,7 @@ pub fn render_stream(
 
     processors.extend(batching());
 
-    let output = gateway_output(slug);
+    let output = gateway_output(project, slug);
 
     // T-1125, PL-24: Bento reports its counters under the component's `label`, so an unlabelled
     // stream can only be read as one total. Labelling the input, the output and each processor
@@ -784,6 +785,7 @@ fn change_gate(stream_key: &str, watched: &[String]) -> Vec<Value> {
 /// (PL-51). `stream_key` names the stream in the runner's shared change cache.
 pub fn render_endpoint_stream(
     pipeline: &PipelineSpec,
+    project: &str,
     stream_key: &str,
     source_slug: &str,
     source_is_public: bool,
@@ -792,6 +794,7 @@ pub fn render_endpoint_stream(
     let source = pipeline.sources().into_iter().next();
     let (input, mut processors) = endpoint_input(
         pipeline,
+        project,
         source.as_ref(),
         stream_key,
         source_slug,
@@ -809,7 +812,7 @@ pub fn render_endpoint_stream(
 
     processors.extend(batching());
 
-    let output = gateway_output(target_slug);
+    let output = gateway_output(project, target_slug);
 
     Ok(serde_json::json!({
         "input": input,
@@ -901,6 +904,7 @@ fn datasource_input(
 /// subscription trigger the change gate keyed by `stream_key`.
 fn endpoint_input(
     pipeline: &PipelineSpec,
+    project: &str,
     source: Option<&PipelineSource>,
     stream_key: &str,
     source_slug: &str,
@@ -969,12 +973,7 @@ fn endpoint_input(
         "timeout": "30s"
     });
     if !source_is_public {
-        read["oauth2"] = serde_json::json!({
-            "enabled": true,
-            "client_key": "${JC_CLIENT_ID}",
-            "client_secret": "${JC_CLIENT_SECRET}",
-            "token_url": "${JC_TOKEN_URL}"
-        });
+        read["oauth2"] = pipeline_oauth2(project);
     }
     let p1 = serde_json::json!({ "try": [{ "http": read }] });
     let p2 = serde_json::json!({
@@ -1086,6 +1085,7 @@ pub fn render_merged(
                 public,
             } => endpoint_input(
                 pipeline,
+                project,
                 Some(source),
                 &format!("{project}/{name}#{at}"),
                 slug,
@@ -1122,7 +1122,7 @@ pub fn render_merged(
 
     let mut outputs: Vec<Value> = target_slugs
         .iter()
-        .map(|slug| gateway_output(slug))
+        .map(|slug| gateway_output(project, slug))
         .collect();
     let output = match outputs.len() {
         0 => {
@@ -1256,6 +1256,44 @@ fn truncate_body(s: &str, max_len: usize) -> String {
     }
 }
 
+/// The `ServiceAccount` every project's streams run as. Derived, not configured: a Pipeline
+/// names no account, and the seeds declare `pipelines` in each project that has one.
+/// ponytail: one account per project; a `spec.serviceAccountRef` on Pipeline is the upgrade.
+const PIPELINE_ACCOUNT: &str = "pipelines";
+
+/// The runner environment variable that holds one project's pipeline client secret:
+/// `banskabystrica` becomes `JC_CLIENT_SECRET_BANSKABYSTRICA`. A project name is a DNS-1123
+/// label, so the only character to translate is the hyphen.
+fn client_secret_var(project: &str) -> String {
+    let mut name = String::from("JC_CLIENT_SECRET_");
+    for ch in project.chars() {
+        name.push(if ch.is_ascii_alphanumeric() {
+            ch.to_ascii_uppercase()
+        } else {
+            '_'
+        });
+    }
+    name
+}
+
+/// The credential a stream presents, on the read of a private source and on every write: its
+/// own project's `pipelines` ServiceAccount (PF-46, AG-52).
+///
+/// One runner-wide `${JC_CLIENT_ID}` used to stand here, so every stream of every project
+/// presented Helsinki's client and the gateway refused each write to another project's endpoint
+/// with `token is not bound to this resource` — about 1900 refusals in 45 minutes on dev
+/// (T-2384). The client id is `jc_core`'s derived `{project}-{account}` and is an `azp`, not a
+/// secret, so it is written into the stream; the secret is never written, the stream names the
+/// environment variable the deployment resolves from that client's Secret.
+fn pipeline_oauth2(project: &str) -> serde_json::Value {
+    serde_json::json!({
+        "enabled": true,
+        "client_key": jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
+        "client_secret": format!("${{{}}}", client_secret_var(project)),
+        "token_url": "${JC_TOKEN_URL}"
+    })
+}
+
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
 ///
 /// An answer no retry can fix (a malformed entity, a batch too large) drops the batch and counts
@@ -1263,7 +1301,7 @@ fn truncate_body(s: &str, max_len: usize) -> String {
 /// it and flooded the gateway's log (T-1465). A token, a policy or the gateway can recover, so
 /// 401, 403, 429 and 5xx stay retried.
 /// ponytail: the whole batch drops with its one bad entity; per-entity 207 handling is the upgrade.
-fn gateway_output(slug: &str) -> serde_json::Value {
+fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
     serde_json::json!({
         "http_client": {
             "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert?options=update"),
@@ -1271,12 +1309,7 @@ fn gateway_output(slug: &str) -> serde_json::Value {
             "headers": {
                 "Content-Type": "application/json"
             },
-            "oauth2": {
-                "enabled": true,
-                "client_key": "${JC_CLIENT_ID}",
-                "client_secret": "${JC_CLIENT_SECRET}",
-                "token_url": "${JC_TOKEN_URL}"
-            },
+            "oauth2": pipeline_oauth2(project),
             "timeout": "30s",
             "rate_limit": "pipeline_egress",
             "drop_on": [400, 413, 422]
@@ -1388,6 +1421,85 @@ mod tests {
         mirror
     }
 
+    /// PF-46, AG-52, T-2384: a stream presents its own project's ServiceAccount, on the write
+    /// and on the read of a private source, and never another project's.
+    ///
+    /// One runner-wide client stood here before, so every Banská Bystrica write carried
+    /// Helsinki's token and the gateway refused it with `token is not bound to this resource`.
+    /// The client id is an `azp` and is written out; the secret never is — the stream names the
+    /// environment variable the deployment resolves from that client's Secret.
+    #[test]
+    fn a_stream_carries_its_own_projects_client_and_no_other() {
+        for (project, client, secret) in [
+            (
+                "helsinki",
+                "helsinki-pipelines",
+                "${JC_CLIENT_SECRET_HELSINKI}",
+            ),
+            (
+                "banskabystrica",
+                "banskabystrica-pipelines",
+                "${JC_CLIENT_SECRET_BANSKABYSTRICA}",
+            ),
+            ("bbsk", "bbsk-pipelines", "${JC_CLIENT_SECRET_BBSK}"),
+            (
+                "helsinki-mobility",
+                "helsinki-mobility-pipelines",
+                "${JC_CLIENT_SECRET_HELSINKI_MOBILITY}",
+            ),
+        ] {
+            // The write of a stream that reads a DataSource.
+            let rendered = render_stream(
+                &helsinki_pipeline_spec(),
+                "citybikes-free",
+                project,
+                &helsinki_datasource_spec(),
+                "hsl-citybikes-free",
+                "target_slug_456",
+                None,
+            )
+            .expect("rendered stream");
+            let oauth2 = &rendered["output"]["http_client"]["oauth2"];
+            assert_eq!(oauth2["client_key"], client, "{project} write");
+            assert_eq!(oauth2["client_secret"], secret, "{project} write");
+            assert_eq!(oauth2["enabled"], true, "{project} write");
+
+            // The read of a private source endpoint, and the write beside it.
+            let rendered = render_endpoint_stream(
+                &endpoint_pipeline_spec(Some("AirQualityObserved"), Vec::new(), Some("15m"), None),
+                project,
+                &format!("{project}/kpi"),
+                "source_slug_123",
+                false,
+                "target_slug_456",
+            )
+            .expect("rendered endpoint stream");
+            let read = &rendered["pipeline"]["processors"][0]["try"][0]["http"]["oauth2"];
+            assert_eq!(read["client_key"], client, "{project} read");
+            assert_eq!(read["client_secret"], secret, "{project} read");
+            assert_eq!(
+                rendered["output"]["http_client"]["oauth2"]["client_key"], client,
+                "{project} write beside the read"
+            );
+
+            // No other project's client and no secret value anywhere in the rendered stream:
+            // the runner's own API serves this document back (T-2384).
+            let whole = serde_json::to_string(&rendered).expect("serialisable");
+            for other in [
+                "helsinki-pipelines",
+                "banskabystrica-pipelines",
+                "bbsk-pipelines",
+            ] {
+                assert_eq!(
+                    other == client,
+                    whole.contains(other),
+                    "{project} rendered {other}"
+                );
+            }
+            assert!(!whole.contains("JC_CLIENT_ID"), "{whole}");
+        }
+    }
+
     #[test]
     fn renders_the_static_stream_shape() {
         let pipeline = helsinki_pipeline_spec();
@@ -1440,7 +1552,7 @@ mod tests {
         );
         assert_eq!(
             rendered["output"]["http_client"]["oauth2"]["client_secret"],
-            "${JC_CLIENT_SECRET}"
+            "${JC_CLIENT_SECRET_HELSINKI}"
         );
 
         let json_str = serde_json::to_string(&rendered).unwrap();
@@ -1510,6 +1622,7 @@ mod tests {
             endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], Some("15m"), None);
         let rendered = render_endpoint_stream(
             &spec,
+            "helsinki",
             "helsinki/kpi",
             "source_slug_123",
             true,
@@ -1529,10 +1642,11 @@ mod tests {
         // token names the endpoints its ServiceAccount is bound to and the gateway answers a
         // token for another slug 401 (T-0914).
         assert!(http["oauth2"].is_null(), "{http}");
-        // The write always carries the runner's identity: nothing is written anonymously.
+        // The write always carries the project's own identity: nothing is written anonymously,
+        // and nothing is written with another project's client (T-2384).
         assert_eq!(
             rendered["output"]["http_client"]["oauth2"]["client_key"],
-            "${JC_CLIENT_ID}"
+            "helsinki-pipelines"
         );
         assert_eq!(
             rendered["output"]["http_client"]["url"],
@@ -1546,6 +1660,7 @@ mod tests {
             endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], Some("15m"), None);
         let rendered = render_endpoint_stream(
             &spec,
+            "helsinki",
             "helsinki/kpi",
             "source_slug_123",
             false,
@@ -1554,7 +1669,7 @@ mod tests {
         .expect("rendered endpoint stream");
 
         let http = &rendered["pipeline"]["processors"][0]["try"][0]["http"];
-        assert_eq!(http["oauth2"]["client_key"], "${JC_CLIENT_ID}");
+        assert_eq!(http["oauth2"]["client_key"], "helsinki-pipelines");
         assert_eq!(http["oauth2"]["token_url"], "${JC_TOKEN_URL}");
     }
 
@@ -1567,7 +1682,8 @@ mod tests {
             Some("*/15 * * * *"),
         );
         let rendered =
-            render_endpoint_stream(&spec, "helsinki/kpi", "src", true, "dst").expect("render");
+            render_endpoint_stream(&spec, "helsinki", "helsinki/kpi", "src", true, "dst")
+                .expect("render");
         assert_eq!(rendered["input"]["generate"]["interval"], "*/15 * * * *");
         let processors = rendered["pipeline"]["processors"]
             .as_array()
@@ -1586,8 +1702,9 @@ mod tests {
             }))
             .expect("trigger"),
         );
-        let rendered = render_endpoint_stream(&spec, "helsinki/bikes-kpi", "src", true, "dst")
-            .expect("render");
+        let rendered =
+            render_endpoint_stream(&spec, "helsinki", "helsinki/bikes-kpi", "src", true, "dst")
+                .expect("render");
 
         // No period: the source is looked at every ten seconds, with the watched attributes.
         assert_eq!(rendered["input"]["generate"]["interval"], "10s");
@@ -1628,7 +1745,8 @@ mod tests {
             let mut spec =
                 endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], Some(period), None);
             spec.source.as_mut().expect("source").trigger = Some(trigger.clone());
-            let rendered = render_endpoint_stream(&spec, "k", "src", true, "dst").expect("render");
+            let rendered =
+                render_endpoint_stream(&spec, "helsinki", "k", "src", true, "dst").expect("render");
             assert_eq!(
                 rendered["input"]["generate"]["interval"], interval,
                 "{period}"
@@ -1649,6 +1767,7 @@ mod tests {
         let spec = endpoint_pipeline_spec(None, vec![urn], None, Some("*/15 * * * *"));
         let rendered = render_endpoint_stream(
             &spec,
+            "helsinki",
             "helsinki/kpi",
             "source_slug_123",
             true,
@@ -1699,7 +1818,7 @@ output:
 
     #[test]
     fn a_write_no_retry_can_fix_is_dropped_and_one_that_can_recover_is_retried() {
-        let output = gateway_output("abc");
+        let output = gateway_output("helsinki", "abc");
         let dropped = output["http_client"]["drop_on"]
             .as_array()
             .expect("drop_on");
