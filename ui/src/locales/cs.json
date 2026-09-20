@@ -954,7 +954,13 @@
       "new": "Nová role",
       "newTitle": "Nová role",
       "newLead": "Role projektu {project}. Může jmenovat jen druhy tohoto projektu a jen slovesa, která zde sami máte; změnu schvaluje někdo jiný.",
-      "sourceLabel": "Manifest role",
+      "field": {
+        "name": "Název role",
+        "rules": "Pravidla",
+        "kinds": "Druhy",
+        "verbs": "Operace"
+      },
+      "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
       "propose": "Navrhnout roli",
       "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
     },
@@ -1038,7 +1044,12 @@
       "new": "Nová skupina",
       "newTitle": "Nová skupina",
       "newLead": "Členové jsou e-mailové adresy, pod kterými je vede Keycloak. Skupina se navrhuje jako změna v červené dráze, stejně jako vazba role.",
-      "sourceLabel": "Manifest",
+      "field": {
+        "name": "Název skupiny",
+        "description": "Co je tato skupina",
+        "members": "Členové",
+        "memberUser": "Adresa"
+      },
       "propose": "Navrhnout skupinu",
       "reason": {
         "DriftCorrected": "Opraveno",
@@ -1046,8 +1057,7 @@
         "RealmRefused": "Nezapsáno"
       },
       "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde."
-    },
-    "nameFirst": "Toto je příklad. Dejte mu název (malá písmena, číslice a spojovníky) a upravte zbytek; potom jej lze navrhnout."
+    }
   },
   "flows": {
     "title": "Toky",

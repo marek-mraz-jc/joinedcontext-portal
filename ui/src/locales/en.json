@@ -954,7 +954,13 @@
       "new": "New role",
       "newTitle": "New role",
       "newLead": "A role of project {project}. It may name the project's own kinds, and only the verbs you hold here yourself; the change is approved by someone else.",
-      "sourceLabel": "The role manifest",
+      "field": {
+        "name": "Role name",
+        "rules": "Rules",
+        "kinds": "Kinds",
+        "verbs": "Verbs"
+      },
+      "beyondRights": "A role may not grant more than you hold here: missing {missing}.",
       "propose": "Propose the role",
       "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project."
     },
@@ -1038,7 +1044,12 @@
       "new": "New group",
       "newTitle": "New group",
       "newLead": "Members are e-mail addresses, the names Keycloak carries. The group is proposed as a red-lane change, like a role binding.",
-      "sourceLabel": "The manifest",
+      "field": {
+        "name": "Group name",
+        "description": "What this group is",
+        "members": "Members",
+        "memberUser": "Address"
+      },
       "propose": "Propose the group",
       "reason": {
         "DriftCorrected": "Corrected",
@@ -1046,8 +1057,7 @@
         "RealmRefused": "Not written"
       },
       "emptyHint": "A group is a name for several people, so a role is given once instead of person by person. Groups come from the identity provider or are declared here."
-    },
-    "nameFirst": "This is an example. Give it a name (lowercase letters, digits and hyphens) and make the rest yours; then it can be proposed."
+    }
   },
   "flows": {
     "title": "Flows",

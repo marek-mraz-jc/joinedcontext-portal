@@ -13,7 +13,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { expectDenied } from "./checks";
 import {
   expectAxeClean,
   jsonResponse,
@@ -96,18 +95,20 @@ describe("the access page", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("the_new_group_form_refuses_an_unnamed_example_on_the_button_and_stays_reachable", async () => {
+  it("the_new_group_form_opens_on_its_fields_and_not_on_a_manifest", async () => {
+    // It used to open on a textarea holding a nameless example, with Propose disabled until the
+    // example was named. The fields replace both: the name is a field the schema validates, and
+    // the manifest is one view away rather than the first thing a person meets (T-2400).
     await renderRoute({ path: PATH, answer: answering() });
 
     await userEvent.click(await screen.findByRole("button", { name: en.access.groups.new }));
     const dialog = await screen.findByRole("dialog");
-    const propose = within(dialog).getByRole("button", { name: en.access.groups.propose });
-
-    // The reason used to hang off `aria-describedby` on a hard-disabled button: out of the tab
-    // order, so it could never be read by the person it was written for.
-    expectDenied(propose, en.access.nameFirst);
-    propose.focus();
-    expect(propose).toHaveFocus();
+    expect(
+      within(dialog).getByLabelText(new RegExp(en.access.groups.field.name)),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: en.access.groups.propose }),
+    ).toBeInTheDocument();
   });
 
   it("says_everything_it_says_in_all_four_languages", async () => {

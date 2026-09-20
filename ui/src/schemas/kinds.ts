@@ -1375,3 +1375,122 @@ export const policyUiSchema: UiSchema = {
   geoQ: { "ui:autocomplete": "off" },
   temporalQ: { "ui:autocomplete": "off" },
 };
+
+/** The verbs a rule may grant, as `jc-core`'s `Verb` spells them (PF-49). */
+export const ROLE_VERBS = ["read", "propose", "approve", "delete"] as const;
+
+/** A manifest kind is written as the manifest writes it: `Pipeline`, not `pipeline` (PF-49). */
+export const KIND_PATTERN = "^[A-Z][A-Za-z0-9]{1,63}$";
+
+/**
+ * The `Role` a person authors: a list of rules, each a set of verbs on a set of kinds
+ * (PF-49, PF-52, PF-68).
+ *
+ * `kinds` and `verbs` are offered as the caller's own rights, never as the whole catalogue:
+ * nobody grants above what they hold, and a list that offers `approve` to somebody who cannot
+ * approve is a form that walks a person into a refusal (PF-52). With no permissions document yet
+ * — a fresh pod, or a bootstrap administrator — both fall back to free text under the pattern the
+ * API validates, because the UI is never the point of enforcement (PF-51).
+ *
+ * `constraints` is not a field. A rule that carries them keeps them: the page passes the stored
+ * manifest through, and the YAML view is where they are written.
+ */
+export function roleSchema(
+  t: (key: string) => string,
+  kinds: string[] = [],
+  verbs: readonly string[] = ROLE_VERBS,
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "rules"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("access.projectRoles.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      rules: {
+        type: "array",
+        title: t("access.projectRoles.field.rules"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["kinds", "verbs"],
+          properties: {
+            kinds: {
+              type: "array",
+              title: t("access.projectRoles.field.kinds"),
+              minItems: 1,
+              uniqueItems: true,
+              items: {
+                type: "string",
+                ...(kinds.length > 0 ? { enum: kinds } : { pattern: KIND_PATTERN }),
+              },
+            },
+            verbs: {
+              type: "array",
+              title: t("access.projectRoles.field.verbs"),
+              minItems: 1,
+              uniqueItems: true,
+              items: { type: "string", enum: [...verbs] },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * An address is `local@domain.tld`, the name Keycloak carries a person under (PF-04, PF-62).
+ *
+ * Wider than `jc-core`'s `is_address` on purpose: a pattern that refused an address the API
+ * accepts would keep a colleague out of a group, and the API is what decides (PF-51).
+ */
+export const MEMBER_ADDRESS_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+
+/**
+ * The `Group` a person authors: what the group is, and who is in it (PF-62).
+ *
+ * `members` are addresses. Offered as a list of the people the organization already knows where
+ * the page has them, and as free text otherwise, because somebody who has never signed in is
+ * still a member a binding may name — the reconciler waits for their first login and says so.
+ */
+export function groupSchema(t: (key: string) => string, users: string[] = []): JsonSchema {
+  return {
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("access.groups.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      description: {
+        type: "string",
+        title: t("access.groups.field.description"),
+        maxLength: 512,
+      },
+      members: {
+        type: "array",
+        title: t("access.groups.field.members"),
+        uniqueItems: true,
+        items: {
+          type: "object",
+          required: ["user"],
+          properties: {
+            user: {
+              type: "string",
+              title: t("access.groups.field.memberUser"),
+              maxLength: 253,
+              ...(users.length > 0 ? { examples: users } : {}),
+              pattern: MEMBER_ADDRESS_PATTERN,
+            },
+          },
+        },
+      },
+    },
+  };
+}

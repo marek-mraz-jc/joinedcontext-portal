@@ -63,6 +63,10 @@ const FORMS: Record<string, JsonSchema[]> = {
   Dashboard: [kinds.dashboardSchema(t, ["bikes"])],
   Layer: [kinds.layerSchema(t, ["helsinki"], ["Bike"])],
   Policy: [kinds.policySchema(t, ["ovzdusie"])],
+  // A role form offers the kinds its author holds and free text when the permissions document has
+  // not arrived, so both branches are arranged by the one manifest (T-2400).
+  Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
+  Group: [kinds.groupSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */

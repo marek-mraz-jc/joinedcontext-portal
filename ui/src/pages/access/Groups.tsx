@@ -1,9 +1,7 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { parse as parseYaml } from "yaml";
-import { manifestName } from "./manifestName";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
@@ -11,13 +9,14 @@ import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { groupSchema } from "../../schemas/kinds";
 import {
   Alert,
   Badge,
   Button,
   Dialog,
   EmptyState,
-  Field,
   Table,
   TableBody,
   TableCell,
@@ -26,7 +25,6 @@ import {
   TableHeaderCell,
   TableRow,
   TableSkeleton,
-  Textarea,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
@@ -43,17 +41,39 @@ interface Row {
   sync?: { reason: string; message: string; ok: boolean };
 }
 
-/** What a new group starts from, so nobody has to remember the shape (PF-62). */
-const SKELETON = [
-  "apiVersion: joinedcontext.com/v1alpha1",
-  "kind: Group",
-  `metadata: { name: "", namespace: ${ORG_NAMESPACE} }`,
-  "spec:",
-  "  description: The people who lead the city's projects",
-  "  members:",
-  "    - user: someone@example.org",
-  "",
-].join("\n");
+/** What the group form holds: the name it is filed under, what it is, and who is in it. */
+export interface GroupForm {
+  name: string;
+  description?: string;
+  members: Member[];
+}
+
+/** The form as the manifest the API stores: an empty description is left out, not written blank. */
+export function toGroupEnvelope(form: GroupForm): unknown {
+  const description = form.description?.trim();
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Group",
+    metadata: { name: form.name, namespace: ORG_NAMESPACE },
+    spec: {
+      ...(description ? { description } : {}),
+      members: (form.members ?? []).filter((member) => (member.user ?? "").trim() !== ""),
+    },
+  };
+}
+
+/** The stored manifest back as the form, so the fields and the YAML view hold the same group. */
+export function fromGroupEnvelope(manifest: unknown): GroupForm {
+  const envelope = (manifest ?? {}) as {
+    metadata?: { name?: string };
+    spec?: { description?: string; members?: Member[] };
+  };
+  return {
+    name: envelope.metadata?.name ?? "",
+    description: envelope.spec?.description ?? "",
+    members: envelope.spec?.members ?? [],
+  };
+}
 
 function useGroups() {
   return useQuery({
@@ -70,6 +90,10 @@ function useGroups() {
 /**
  * A group of the organization, proposed as a change (PF-62, PF-52): who is in a group is who a
  * binding names, so a membership is reviewed in the red lane like the binding itself.
+ *
+ * Adding a colleague used to mean typing YAML — the right indentation under `members:` and the
+ * right `- user:` key — into one textarea, for the kind an administrator touches most (T-2400).
+ * It is the form every other kind has now, with the YAML view beside it for whoever prefers it.
  */
 export function NewGroupDialog({
   open,
@@ -79,15 +103,18 @@ export function NewGroupDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const ids = useId();
   const queryClient = useQueryClient();
-  const [source, setSource] = useState(SKELETON);
-  const [invalid, setInvalid] = useState<string | null>(null);
+  const [form, setForm] = useState<GroupForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
 
   const propose = useMutation({
-    mutationFn: async (manifest: unknown) =>
-      proposeChecked(ORG_NAMESPACE, "groups", manifest as { metadata: { name: string } }, true),
+    mutationFn: async (group: GroupForm) =>
+      proposeChecked(
+        ORG_NAMESPACE,
+        "groups",
+        toGroupEnvelope(group) as { metadata: { name: string } },
+        true,
+      ),
     onSuccess: (result) => {
       if (isChange(result)) {
         setChange(result);
@@ -97,99 +124,60 @@ export function NewGroupDialog({
     },
   });
 
-  const named = manifestName(source) !== "";
-
-  const submit = () => {
-    let manifest: unknown;
-    try {
-      manifest = parseYaml(source);
-    } catch (error) {
-      setInvalid(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    setInvalid(null);
-    propose.mutate(manifest);
-  };
+  const failure =
+    propose.error instanceof ApiError
+      ? (propose.error.problem?.detail ?? propose.error.message)
+      : propose.error
+        ? t("app.error.generic")
+        : null;
 
   const close = (next: boolean) => {
     if (!next) {
-      setSource(SKELETON);
-      setInvalid(null);
+      setForm(undefined);
       setChange(null);
       propose.reset();
     }
     onOpenChange(next);
   };
 
-  const failure =
-    invalid ??
-    (propose.error instanceof ApiError
-      ? (propose.error.problem?.detail ?? propose.error.message)
-      : propose.error
-        ? t("app.error.generic")
-        : null);
+  if (change) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={close}
+        size="lg"
+        title={t("access.groups.newTitle")}
+        description={t("access.groups.newLead")}
+        closeLabel={t("resourceDelete.close")}
+        footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
+      >
+        <ChangeNotice change={change} project={ORG_NAMESPACE} />
+      </Dialog>
+    );
+  }
 
   return (
-    <Dialog
+    <ResourceFormDialog<GroupForm>
+      kind="Group"
       open={open}
       onOpenChange={close}
-      size="lg"
       title={t("access.groups.newTitle")}
       description={t("access.groups.newLead")}
-      closeLabel={t("resourceDelete.close")}
-      footer={
-        change ? (
-          <Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={() => close(false)}>
-              {t("form.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={propose.isPending || !named}
-              // The hint used to be wired with `aria-describedby` on a hard-disabled button,
-              // which is out of the tab order: nobody could reach it to have it read. The
-              // reason belongs on the control, which then stays reachable (T-1743, UI-44).
-              disabledReason={named ? undefined : t("access.nameFirst")}
-              loading={propose.isPending}
-              onClick={submit}
-            >
-              {t("access.groups.propose")}
-            </Button>
-          </>
-        )
-      }
-    >
-      {change ? (
-        <ChangeNotice change={change} project={ORG_NAMESPACE} />
-      ) : (
-        <div className="flex flex-col gap-4">
-          {failure ? (
-            <Alert tone="danger" role="alert">
-              {failure}
-            </Alert>
-          ) : null}
-          <Field id={`${ids}-source`} label={t("access.groups.sourceLabel")} required>
-            <Textarea
-              id={`${ids}-source`}
-              rows={10}
-              spellCheck={false}
-              value={source}
-              onChange={(event) => {
-                setSource(event.target.value);
-                setInvalid(null);
-              }}
-            />
-          </Field>
-          {named ? null : (
-            <p id={`${ids}-name-first`} className="text-sm text-fg-muted">
-              {t("access.nameFirst")}
-            </p>
-          )}
-        </div>
-      )}
-    </Dialog>
+      schema={groupSchema(t)}
+      formData={form}
+      onChange={setForm}
+      project={ORG_NAMESPACE}
+      draftKind="Group"
+      plural="groups"
+      source={{
+        toManifest: (group) => toGroupEnvelope(group),
+        fromManifest: (manifest) => fromGroupEnvelope(manifest),
+      }}
+      submitLabel={t("access.groups.propose")}
+      submitting={propose.isPending}
+      error={failure}
+      onSubmit={(group) => propose.mutate(group)}
+    />
   );
 }
 
@@ -202,6 +190,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const groups = useGroups();
   const [writing, setWriting] = useState(false);
+  // The same fields the new-group dialog shows, so a member is added where the group is read.
+  const memberSchema = groupSchema(t);
 
   const rows: Row[] = asManifests(groups.data?.items ?? []).map((group: Manifest) => {
     const spec = (group.spec ?? {}) as { description?: string; members?: Member[] };
@@ -311,6 +301,13 @@ export function Groups({ project }: { project: string }): JSX.Element {
                             plural: "groups",
                             name: row.name,
                             label: row.name,
+                          }}
+                          form={{
+                            schema: memberSchema,
+                            fromManifest: (manifest) =>
+                              fromGroupEnvelope(manifest) as unknown as Record<string, unknown>,
+                            toManifest: (edited) =>
+                              toGroupEnvelope(edited as unknown as GroupForm),
                           }}
                         />
                         <DeleteResourceAction
