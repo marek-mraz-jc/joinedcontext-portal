@@ -96,11 +96,21 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
     await page.goto(`/projects/${body.project}/spaces/${body.raw.space}?lang=en`, {
       waitUntil: "load",
     });
-    const rawRow = page.getByRole("row").filter({ hasText: body.raw.type });
+    // Inside the "Entity types" table, not anywhere on the page: the space page also lists the
+    // policies of the space, and a policy that says what a steward may write to a
+    // `StatisticalObservation` is a row whose text holds the type name too (T-2453).
+    const types = page.getByRole("table", { name: "Entity types" });
+    const rawRow = types.getByRole("row").filter({ hasText: body.raw.type });
     await expect(
       rawRow,
       `${body.raw.space} shows no ${body.raw.type}: nothing was ingested`,
     ).toBeVisible({ timeout: 60_000 });
+    // The row is drawn before its count is known — each row asks the gateway for its own count
+    // and says "Loading…" until the answer arrives — so the digits are read once there are
+    // digits, and not at the moment the row appears (T-2453).
+    await expect(rawRow, `${body.raw.space} never answered a count`).toContainText(/\d/, {
+      timeout: 60_000,
+    });
     expect(
       Number((await rawRow.innerText()).replace(/\D/g, "")),
       `${body.raw.space} holds no ${body.raw.type} entity`,
@@ -110,7 +120,10 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
     await page.goto(`/projects/${body.project}/spaces/${body.kpi.space}?lang=en`, {
       waitUntil: "load",
     });
-    const kpiRow = page.getByRole("row").filter({ hasText: "KeyPerformanceIndicator" });
+    const kpiRow = page
+      .getByRole("table", { name: "Entity types" })
+      .getByRole("row")
+      .filter({ hasText: "KeyPerformanceIndicator" });
     await expect(kpiRow, `${body.kpi.space} shows no indicator`).toBeVisible({ timeout: 60_000 });
 
     const held = await indicatorsInSpace(page, body.kpi.space);
