@@ -1,5 +1,6 @@
 {
   "check_is_not_suppressed": {
+    "_max": 6,
     "src/assistant/state.ts": {
       "lines": 1,
       "group": "ui-parts"
@@ -26,13 +27,15 @@
     }
   },
   "colour_is_a_token": {
+    "_max": 5,
     "src/api/schema.d.ts": {
       "lines": 11,
       "group": "ui-parts"
     },
     "src/branding.tsx": {
       "lines": 6,
-      "group": "ui-parts"
+      "group": "ui-parts",
+      "reason": "the default branding an installation without a ConfigMap gets: the six values mirror the API's own defaults and are written into the colour tokens, so they are data the API answers in hex, not a colour chosen here"
     },
     "src/components/dashboards/DeckGlOverlay.tsx": {
       "lines": 1,
@@ -48,10 +51,7 @@
     }
   },
   "focus_is_not_stolen": {
-    "src/assistant/EndpointPicker.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
+    "_max": 2,
     "src/components/DeleteResourceDialog.tsx": {
       "lines": 1,
       "group": "ui-forms"
@@ -62,17 +62,10 @@
     }
   },
   "hand_made_control": {
+    "_max": 32,
     "src/assistant/AssistantDock.tsx": {
       "lines": 12,
       "group": "ui-forms"
-    },
-    "src/assistant/EndpointPicker.tsx": {
-      "lines": 3,
-      "group": "ui-parts"
-    },
-    "src/components/LanguageSwitcher.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
     },
     "src/components/ResourceFormDialog.tsx": {
       "lines": 1,
@@ -197,21 +190,15 @@
     }
   },
   "size_is_on_the_scale": {
+    "_max": 16,
     "src/assistant/AssistantDock.tsx": {
       "lines": 10,
       "group": "ui-forms"
     },
-    "src/assistant/EndpointPicker.tsx": {
-      "lines": 5,
-      "group": "ui-parts"
-    },
-    "src/components/LanguageSwitcher.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/components/ProjectQuota.tsx": {
       "lines": 1,
-      "group": "ui-parts"
+      "group": "ui-parts",
+      "reason": "the filled part of the quota bar is used/limit as a percentage: a computed size, and the line says so"
     },
     "src/components/dashboards/MapLibreView.tsx": {
       "lines": 1,

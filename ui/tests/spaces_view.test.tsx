@@ -265,17 +265,20 @@ describe("context spaces view", () => {
   it("blocks a new space once the quota is used up", async () => {
     renderSpaces({ quota: 2 });
 
-    // A quota is refused with its reason, not hard-disabled: T-1795 moved the page to
-    // `disabledReason`, which keeps the control in the tab order so the sentence explaining the
-    // quota can be read at all (T-1743, UI-44). The click is refused either way.
-    await waitFor(() =>
-      expectDenied(
-        screen.getByRole("button", { name: en.spaces.add }),
-        /quota of 2 Context Spaces is used up/,
-      ),
+    // A quota, not a permission — and the refusal travels with the control (UI-44, T-1795):
+    // `aria-disabled` rather than `disabled`, so somebody who cannot see the button greyed out
+    // still reaches it in the tab order and is told the reason, which `disabled` would have
+    // taken out of the page along with the button.
+    const add = await screen.findByRole("button", { name: en.spaces.add });
+    await waitFor(() => expect(add).toHaveAttribute("aria-disabled", "true"));
+    expect(add, "reachable, so the reason can be read").not.toBeDisabled();
+    expect(add).toHaveAccessibleDescription(/quota of 2 Context Spaces is used up/);
+    // Said twice on purpose, and the two are not the same thing: the button's own description,
+    // which only a screen reader reaches, and the banner above the list, which everyone reads.
+    const said = screen.getAllByText(/quota of 2 Context Spaces is used up/);
+    expect(said.some((node) => !node.className.includes("sr-only")), "a visible banner too").toBe(
+      true,
     );
-    // Twice on the page on purpose: the button's own description, and the quota card beside it.
-    expect(screen.getAllByText(/quota of 2 Context Spaces is used up/)).toHaveLength(2);
   });
 
   it("proposes a change instead of writing the space directly", async () => {

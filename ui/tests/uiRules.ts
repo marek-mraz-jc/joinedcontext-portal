@@ -25,7 +25,57 @@ export interface AllowEntry {
   reason?: string;
 }
 
-export type Allowed = Record<string, Record<string, AllowEntry>>;
+/**
+ * One rule's allowance: an entry per file it may still break, and `_max`, the ceiling on how
+ * many files that is (T-2316).
+ *
+ * The ceiling is what the old `files:` total was, moved in here. It matters because every other
+ * check measures the files the list already names: a NEW entry, sized honestly to the violations
+ * it exempts, satisfies all of them. The ceiling is the one thing a new entry cannot satisfy on
+ * its own, so listing a file instead of fixing it costs a second, named line in the same commit.
+ * It never has to move when a file is cleaned out, which is what keeps two workers from
+ * conflicting over it — the property T-2315 bought.
+ */
+export interface RuleAllowance {
+  /** Optional in the type, required by the suite: a rule with none fails `overCeiling`. */
+  _max?: number;
+  [path: string]: AllowEntry | number | undefined;
+}
+
+export type Allowed = Record<string, RuleAllowance>;
+
+/** The file entries of one rule: everything but the `_max` ceiling beside them. */
+export function entriesOf(rule: RuleAllowance | undefined): [string, AllowEntry][] {
+  return Object.entries(rule ?? {}).filter(
+    (pair): pair is [string, AllowEntry] => pair[0] !== "_max" && typeof pair[1] === "object",
+  );
+}
+
+/** The entry for one file under one rule, or nothing when the rule does not name it. */
+export function entryOf(rule: RuleAllowance | undefined, path: string): AllowEntry | undefined {
+  const found = rule?.[path];
+  return typeof found === "object" ? found : undefined;
+}
+
+export interface OverCeiling {
+  rule: string;
+  /** The rule's `_max`, or null when it declares none at all. */
+  ceiling: number | null;
+  /** How many files it names. */
+  files: number;
+}
+
+/**
+ * Every rule that names more files than its ceiling allows — and every rule that declares no
+ * ceiling, because a missing one would be the same exemption by another route.
+ */
+export function overCeiling(allow: Allowed): OverCeiling[] {
+  return Object.entries(allow).flatMap(([rule, allowance]) => {
+    const files = entriesOf(allowance).length;
+    const ceiling = typeof allowance._max === "number" ? allowance._max : null;
+    return ceiling === null || files > ceiling ? [{ rule, ceiling, files }] : [];
+  });
+}
 
 /** The pattern behind each allow-listed rule, so a stale entry can be found by the same measure. */
 export const RULE_OF: Record<string, RegExp> = {
@@ -65,10 +115,10 @@ export function hits(file: Source, pattern: RegExp): string[] {
  * new violations, not permission for five.
  */
 export function breaches(allow: Allowed, rule: string, pattern: RegExp, files: Source[]): string[] {
-  const allowed = allow[rule] ?? {};
+  const allowed = allow[rule];
   return files.flatMap((file) => {
     const found = hits(file, pattern);
-    const budget = allowed[file.path]?.lines ?? 0;
+    const budget = entryOf(allowed, file.path)?.lines ?? 0;
     return found.length > budget ? found.slice(budget) : [];
   });
 }
@@ -86,8 +136,8 @@ export interface StaleEntry {
  * a change that really did add the violations, and that change is a diff on one file's object.
  */
 export function staleEntries(allow: Allowed, files: Source[]): StaleEntry[] {
-  return Object.entries(allow).flatMap(([rule, entries]) =>
-    Object.entries(entries).flatMap(([path, entry]) => {
+  return Object.entries(allow).flatMap(([rule, allowance]) =>
+    entriesOf(allowance).flatMap(([path, entry]) => {
       const file = files.find((source) => source.path === path);
       const pattern = RULE_OF[rule];
       if (!file || !pattern) {

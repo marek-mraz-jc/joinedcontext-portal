@@ -136,8 +136,13 @@ export async function expectTabOrder(
   }
 }
 
-/** The dotted path of a translation key, as it looks on screen when the string is missing. */
-const RAW_KEY = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9_]+){2,}$/;
+/**
+ * The dotted path of a translation key, as it looks on screen when the string is missing.
+ *
+ * Two segments are enough (`quota.title`), because that is what most of the bundle looks like;
+ * a word with a full stop after it is not a key, so the last segment may not end the sentence.
+ */
+const RAW_KEY = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9_]+)+$/;
 
 /**
  * No visible text is a raw translation key (UI-48): a key that reached the screen is a string

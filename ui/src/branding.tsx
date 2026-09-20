@@ -152,16 +152,22 @@ export function BrandingProvider({ children }: { children: ReactNode }): React.J
     applyBranding(branding);
   }, [branding]);
 
+  // The installation's own default, from the answer and not from the neutral block: merging the
+  // two made the first render apply `NEUTRAL_BRANDING`'s `en` before the API had said anything,
+  // and `changeLanguage` writes `jc-lang` on its way through, so by the time the real default
+  // arrived there was a "chosen" language in the way and an installation that speaks German
+  // opened in English for good (T-1801).
+  const configured = data?.languages?.default;
+
   useEffect(() => {
     // The installation's default locale is a starting point, not a preference: a visitor who
     // has already chosen a language keeps it.
     const chosen =
       typeof window !== "undefined" ? window.localStorage.getItem("jc-lang") : null;
-    const fallback = branding.languages?.default;
-    if (!chosen && fallback && i18n.language !== fallback) {
-      void i18n.changeLanguage(fallback);
+    if (!chosen && configured && i18n.language !== configured) {
+      void i18n.changeLanguage(configured);
     }
-  }, [branding]);
+  }, [configured]);
 
   return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>;
 }
