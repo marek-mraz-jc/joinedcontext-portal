@@ -7,27 +7,47 @@ use url::Url;
 /// never puts a client secret or a cookie key into the log (CC-40).
 #[derive(Clone)]
 pub struct Config {
+    /// The address to listen on (`JC_PORTAL_BIND`, default `0.0.0.0:8080`).
     pub bind: SocketAddr,
+    /// The address a browser reaches this Portal at (`JC_PORTAL_PUBLIC_URL`, default
+    /// `http://localhost:8080`). Every redirect URI, every link the Portal writes into a merge
+    /// request and the host a generated application is served on are derived from it.
     pub public_base_url: Url,
+    /// The realm humans sign in against: `JC_OIDC_ISSUER`, `JC_OIDC_CLIENT_ID` and
+    /// `JC_OIDC_CLIENT_SECRET` (a secret), all three together or none, plus the optional
+    /// `JC_OIDC_CA_FILE` for a realm behind a private CA.
+    ///
     /// `None` disables login: no session can be minted, so every protected route
     /// answers 401. Configuration is fail-closed, never fail-open.
     pub oidc: Option<OidcConfig>,
     /// Whether an `X-Access-Token` header is believed to come from the APISIX edge and is
     /// verified as if it were `Authorization: Bearer` (ADR-N-019, AP-28). The deployment sets
     /// it behind the edge, which strips the header from every client request first; a Portal
-    /// without an edge in front leaves it off and the header is ignored. Default `false`.
+    /// without an edge in front leaves it off and the header is ignored
+    /// (`JC_TRUST_EDGE_TOKEN`, the literal string `true` to turn it on; default `false`).
     pub trust_edge_token: bool,
+    /// The key every session cookie is sealed with (`JC_PORTAL_COOKIE_KEY`, at least 64
+    /// bytes). A secret. Unset means an ephemeral key: the Portal runs, and every session ends
+    /// at the next restart.
     pub cookie_key: Key,
-    /// Keys a session cookie may still be sealed with, during a rotation (T-0973).
+    /// Keys a session cookie may still be sealed with, during a rotation
+    /// (`JC_PORTAL_COOKIE_KEY_PREVIOUS`, comma-separated, each held to the same length as the
+    /// active one; T-0973). Secrets.
     ///
     /// A cookie key is the Portal's alone, so unlike the webhook secret it can change in one
     /// step — but every signed-in person's cookie is sealed with the old one, and swapping the
     /// key without a window signs everybody out. The active key seals; these only open, and a
     /// key stays here for as long as a session sealed with it may live.
     pub cookie_keys_previous: Vec<Key>,
+    /// How often the reconciler re-reads the configuration repository
+    /// (`JC_PORTAL_SYNC_INTERVAL`, whole seconds, default `60`).
     pub sync_interval: Duration,
+    /// The secret the forge signs its webhook calls with (`JC_GITEA_WEBHOOK_SECRET`). A
+    /// secret. `None` leaves the hook route refusing every call, so a change is picked up at
+    /// the next sync rather than at the push.
     pub gitea_webhook_secret: Option<String>,
-    /// The secret this Portal accepted before the current one, during a rotation (T-0982).
+    /// The secret this Portal accepted before the current one, during a rotation
+    /// (`JC_GITEA_WEBHOOK_SECRET_PREVIOUS`). A secret (T-0982).
     ///
     /// A webhook secret is shared with the forge, so the two sides cannot change at the same
     /// instant: the new one is written here as the active secret and the old one stays accepted
@@ -35,40 +55,43 @@ pub struct Config {
     /// window in which every push is refused, which is why nobody rotates.
     pub gitea_webhook_secret_previous: Option<String>,
     /// Base URL of a project's Bento pipeline runner with `{project}` still in it, e.g.
-    /// `http://pipeline-runner.{project}-pipeline-runner.svc.cluster.local:4195`. `None`
-    /// leaves the metrics route answering 503 instead of guessing a service name.
+    /// `http://pipeline-runner.{project}-pipeline-runner.svc.cluster.local:4195`
+    /// (`JC_PORTAL_PIPELINE_RUNNER_URL`). `None` leaves the metrics route answering 503
+    /// instead of guessing a service name.
     pub pipeline_runner_url: Option<String>,
     /// The platform host the context spaces are served on, which is where a declared
-    /// `Subscription` is written (`/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
+    /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
+    /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
     /// leaves subscriptions read from the repository and written nowhere.
     pub gateway_url: Option<String>,
-    /// The Keycloak client the Context Gateway holds, which is the only caller `GET
-    /// /internal/previews` answers (PF-46, AG-52). `None` leaves that route refusing every call:
+    /// The Keycloak client the Context Gateway holds (`JC_PORTAL_GATEWAY_CLIENT_ID`), which
+    /// is the only caller `GET /internal/previews` answers (PF-46, AG-52). `None` leaves that route refusing every call:
     /// a Portal that was not told whose token to expect must not fall back to trusting the
     /// NetworkPolicy alone.
     pub gateway_client_id: Option<String>,
-    /// The Keycloak client `jc-agent-proxy` holds, which is the only caller the run callbacks on the
-    /// internal listener answer (AG-52, T-2271). It replaced `JC_AGENT_PROXY_TOKEN`, one string both
+    /// The Keycloak client `jc-agent-proxy` holds (`JC_PORTAL_AGENT_PROXY_CLIENT_ID`), which is
+    /// the only caller the run callbacks on the internal listener answer (AG-52, T-2271). It replaced `JC_AGENT_PROXY_TOKEN`, one string both
     /// sides held. `None` leaves those routes refusing every call.
     pub agent_proxy_client_id: Option<String>,
-    /// The Keycloak client the project's pipeline runner holds, which is the only caller
+    /// The Keycloak client the project's pipeline runner holds
+    /// (`JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID`), which is the only caller
     /// `POST /internal/pipeline-tests/{id}` answers (AG-52, T-2271). `None` refuses every call.
     pub pipeline_runner_client_id: Option<String>,
     /// The context broker as the Portal reaches it inside the cluster, which is where a
     /// declared `ContextSourceRegistration` is written, in the tenant of its hub space
     /// (`POST /ngsi-ld/v1/csourceRegistrations`, T-0345, SP-08). It is also the address the
     /// registration tells the broker to read a member at, because a hub reads a member's tenant
-    /// on the same broker (PF-48). `None` leaves registrations read from the repository and
-    /// written nowhere.
+    /// on the same broker (PF-48; `JC_PORTAL_BROKER_URL`). `None` leaves registrations read
+    /// from the repository and written nowhere.
     pub broker_url: Option<String>,
     /// The organization's domain, the third segment of every URN this instance writes
-    /// (`urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}`).
+    /// (`JC_PORTAL_ORG_DOMAIN`; `urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}`).
     pub org_domain: Option<String>,
     /// Where a pipeline test's harness posts what it produced (PL-43): the Portal's internal
-    /// listener as the project's runner reaches it, e.g. `http://portal-internal:9090`. `None`
-    /// means the test route answers 503.
+    /// listener as the project's runner reaches it, e.g. `http://portal-internal:9090`
+    /// (`JC_PORTAL_PIPELINE_TEST_CAPTURE_URL`). `None` means the test route answers 503.
     pub pipeline_test_capture_url: Option<String>,
-    /// Base URL of the stateless Model Tools service, e.g.
+    /// Base URL of the stateless Model Tools service (`JC_PORTAL_MODEL_TOOLS_URL`), e.g.
     /// `http://model-tools.tools.svc.cluster.local:8080`. `None` leaves the LinkML preview
     /// routes answering 503 instead of guessing a service name (DM-18).
     pub model_tools_url: Option<String>,
@@ -76,25 +99,30 @@ pub struct Config {
     /// `http://jc-functions.jc-system.svc.cluster.local:8080`. `None` leaves the function routes
     /// answering 503 (SDK-23).
     pub functions_url: Option<String>,
-    /// Root of the built app bundles, one directory per app. `None` leaves every
+    /// Root of the built app bundles, one directory per app (`JC_PORTAL_APPS_DIR`). `None`
+    /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
     pub apps_dir: Option<String>,
-    /// The file the deployment renders `global.branding` into (UI-30, OPS-46). `None` serves
+    /// The file the deployment renders `global.branding` into (`JC_BRANDING_FILE`; UI-30,
+    /// OPS-46). `None` serves
     /// neutral joinedcontext defaults, which is what an installation without branding looks
     /// like; it is never an error.
     pub branding_file: Option<String>,
-    /// PostgreSQL connection string of the preferences tier (UI-09). Carries a password, so it
-    /// is redacted in `Debug`. `None` runs the Portal without preferences: those routes answer
+    /// PostgreSQL connection string of the preferences tier (`JC_PORTAL_DATABASE_URL`,
+    /// UI-09). A secret: it carries a password, so it is redacted in `Debug`. `None` runs the Portal without preferences: those routes answer
     /// 503, everything else works.
     pub database_url: Option<String>,
     /// The group (or realm role) whose members may do everything everywhere, so the first
-    /// `RoleBinding` can be written into an empty repository (T-0526, PF-50).
+    /// `RoleBinding` can be written into an empty repository (`JC_PORTAL_BOOTSTRAP_ADMINS`,
+    /// default `portal-approver`; T-0526, PF-50).
     pub bootstrap_admins: String,
     /// The client the reconciler manages the realm's groups with: a `ServiceAccount` client
     /// holding `manage-users` and `query-groups` of `realm-management` and nothing else
-    /// (PF-63). `None` leaves the `Group` manifests read and the realm written by nobody.
+    /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
+    /// secret, both together or neither; PF-63). `None` leaves the `Group` manifests read and the realm written by nobody.
     pub keycloak_admin: Option<(String, String)>,
-    /// Where an App's four Kubernetes objects are applied (AP-13, AP-18, T-0411). `None` leaves
+    /// Where an App's four Kubernetes objects are applied (`JC_PORTAL_APPS_NAMESPACE` with
+    /// `JC_PORTAL_ORG_DOMAIN`; AP-13, AP-18, T-0411). `None` leaves
     /// the reconciler reading apps and applying nothing, which is what a Portal outside a
     /// cluster does; it is never a guess, because guessing a namespace here would mean writing
     /// a Deployment into somebody else's.
@@ -174,6 +202,12 @@ impl std::fmt::Debug for Config {
 /// namespace and deploying into somebody else's.
 /// Where the artifact store is and the root credential to mint with (PF-32, ADR-N-015).
 ///
+/// `JC_PORTAL_ARTIFACT_STORE_ENDPOINT`, `JC_PORTAL_ARTIFACT_STORE_ACCESS_KEY` and
+/// `JC_PORTAL_ARTIFACT_STORE_SECRET_KEY` (the last two secrets) name the store and the root
+/// credential; `JC_PORTAL_ARTIFACT_STORE_BUCKET` (default `jc-artifacts`) and
+/// `JC_PORTAL_ARTIFACT_STORE_REGION` (default `us-east-1`) are the same in every installation
+/// this platform deploys, so they have defaults.
+///
 /// All-or-nothing on purpose: an endpoint without the root credential would sign every admin
 /// request with nothing and log a refusal each sync, and a credential without an endpoint has
 /// no store to reach. Missing means the reconciler issues no credentials at all, which is what
@@ -200,6 +234,12 @@ fn artifact_store_settings(
 
 /// Which secret backend the reconciler resolves a pipeline's references with (PL-15, CC-06).
 ///
+/// `JC_PORTAL_SOPS_AGE_KEY_FILE` names the age key file and chooses SOPS; otherwise
+/// `JC_PORTAL_OPENBAO_ADDR` and `JC_PORTAL_OPENBAO_ROLE` choose OpenBao, with
+/// `JC_PORTAL_OPENBAO_JWT_PATH` (default
+/// `/var/run/secrets/kubernetes.io/serviceaccount/token`) for the ServiceAccount token it logs
+/// in with. The key file is a path to a secret, never the secret itself.
+///
 /// SOPS first, because the repository is a store this Portal already has in its hands every
 /// sync and OpenBao is a component a deployment has to run. Naming neither is not an error: a
 /// Portal without a backend refuses only the pipelines that declare a reference, and says so on
@@ -225,6 +265,9 @@ fn pipeline_secret_backend(
     })
 }
 
+/// Where an App's objects are applied: `JC_PORTAL_APPS_NAMESPACE` and `JC_PORTAL_ORG_DOMAIN`,
+/// both or neither, with the host taken from the public URL rather than configured twice
+/// (AP-13).
 fn app_settings(
     lookup: &impl Fn(&str) -> Option<String>,
     public_base_url: &Url,
@@ -240,6 +283,12 @@ fn app_settings(
 }
 
 /// Where a builder run happens and how the credential proxy reaches this Portal (ADR-N-020).
+///
+/// `JC_AGENTS_NAMESPACE` and `JC_AGENT_PROXY_BASE` are set together or not at all;
+/// `JC_PORTAL_NAMESPACE` (default: the workspaces' own namespace), `JC_INTERNAL_BIND` (default
+/// `0.0.0.0:9090`) and `JC_AGENT_RUN_TTL` (whole seconds, default `1200`) tune the rest. None
+/// of them is a secret: the proxy presents its own ServiceAccount token, which is why
+/// `JC_AGENT_PROXY_TOKEN` is gone (T-2271).
 ///
 /// The namespace and the proxy are needed together: a workspace with no proxy has no way to
 /// reach the model, the data or the forge, and a proxy with no namespace has nothing to serve.
@@ -348,6 +397,14 @@ fn agent_settings(
 }
 
 /// Configuration for the platform basemap proxy (AP-67).
+///
+/// `JC_BASEMAP_URL` (an `https` template holding `{z}`, `{x}` and `{y}`) turns the proxy on
+/// and `JC_BASEMAP_ATTRIBUTION` is then required, because a tile source that is served without
+/// its attribution is served against its licence. `JC_BASEMAP_MAX_ZOOM` (default `19`),
+/// `JC_BASEMAP_CACHE_DIR` (default `/tmp/basemap-cache`), `JC_BASEMAP_CACHE_MAX_BYTES`
+/// (default `268435456`) and `JC_BASEMAP_CACHE_TTL_SECS` (default `604800`) tune the cache.
+/// `JC_BASEMAP_KEY_FILE` names a file holding the tile provider's key — a path to a secret,
+/// and the reason the browser fetches tiles from the Portal rather than from the provider.
 #[derive(Clone)]
 pub struct BasemapConfig {
     pub url_template: String,
@@ -893,6 +950,12 @@ impl Config {
         )
     }
 }
+
+/// The configuration reference is generated from the doc comments of this module, so a
+/// variable read without one is caught here rather than in the docs lane (T-2140, OPS-27).
+#[cfg(test)]
+#[path = "config_documentation_tests.rs"]
+mod config_documentation_tests;
 
 #[cfg(test)]
 mod tests {

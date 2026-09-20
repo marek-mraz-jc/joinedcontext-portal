@@ -26,6 +26,20 @@ pub const PROXY_PORT: u16 = 8080;
 /// Schedules one run's workspace. `Ok(false)` means this Portal has no cluster to schedule in,
 /// which is the development shape: the caller drives the agent server itself and is handed the
 /// ticket in the answer.
+///
+/// What the workspace is started with, and all it is allowed to know (AG-40):
+///
+/// - `JC_PROXY_BASE` — the credential proxy, the one address a run may call out to.
+/// - `JC_RUN_ID` — the run this workspace is, as the Portal records it.
+/// - `JC_RUN_TICKET` — the bearer that proves it to the proxy: minted for this run, spent with
+///   it, and worth nothing anywhere else.
+/// - `JC_APP_NAME`, `JC_APP_CLASS` — the application being built and what kind it is.
+/// - `JC_BRANCH` — the branch the run proposes its change on.
+/// - `JC_PATH_PREFIX` — where the built application will be served, so the code it writes uses
+///   the right base path.
+///
+/// No model key, no forge token and no realm secret is among them: each of those stays in the
+/// proxy, which is the whole reason a run talks to one.
 #[allow(clippy::too_many_arguments)]
 pub async fn schedule_workspace_job(
     kube: Option<&KubeClient>,
