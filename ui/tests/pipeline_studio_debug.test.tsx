@@ -374,9 +374,7 @@ describe("the pipeline studio against the UI contract", () => {
   it("has no axe violation with the studio open on a file source", async () => {
     const { container } = renderAlone(undefined, [HTTP_SOURCE]);
 
-    // The flow canvas is left out: `<svg role="img">` with focusable nodes inside is
-    // `nested-interactive` (serious), and that file is T-1852's; evidence in its body.
-    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(container);
   });
 
   it("names the Bloblang box through its Field and keeps what is typed in the draft", async () => {
@@ -404,7 +402,7 @@ describe("the pipeline studio against the UI contract", () => {
 
     await user.click(screen.getByTestId("flow-node-compute"));
     await screen.findByTestId("flow-bloblang");
-    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(container);
   });
 
   it("reaches the controls of the source section by keyboard in the order they are read", async () => {

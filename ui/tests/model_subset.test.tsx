@@ -5,6 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
+import { expectDenied } from "./checks";
 import { ModelSubsetPicker } from "../src/pages/models/ModelSubsetPicker";
 import { parseModel, effectiveSlots } from "../src/pages/models/linkml";
 import { EMPTY_SUBSET, subsetProblems, subsetSource, wholeSubset } from "../src/pages/models/subset";
@@ -89,8 +91,9 @@ describe("model subset", () => {
     // Ticking a slot ticked its class; the identity slots came with it and cannot go.
     expect(screen.getByRole("checkbox", { name: "Vehicle" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Vehicle.id" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Vehicle.id" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Vehicle.type" })).toBeDisabled();
+    // Refused and still reachable, so the reason can be read (T-1743, UI-44).
+    expectDenied(screen.getByRole("checkbox", { name: "Vehicle.id" }), en.models.subset.identity);
+    expectDenied(screen.getByRole("checkbox", { name: "Vehicle.type" }), en.models.subset.identity);
   });
 
   it("distinguishes a class ticked with no slots from one not ticked", async () => {

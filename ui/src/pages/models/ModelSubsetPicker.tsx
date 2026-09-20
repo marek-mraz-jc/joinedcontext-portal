@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert } from "../../components/ui";
+import { Alert, Checkbox } from "../../components/ui";
 import { effectiveSlots } from "./linkml";
 import type { LinkmlModel } from "./linkml";
 import { IDENTITY_SLOTS, subsetProblems, toggleClass, toggleSlot } from "./subset";
@@ -44,32 +44,29 @@ export function ModelSubsetPicker({ model, subset, onChange }: ModelSubsetPicker
           const picked = chosen.get(klass.name);
           return (
             <li key={klass.name} className="rounded-lg border border-border bg-surface p-3">
-              <label className="flex items-center gap-2 text-body font-medium text-fg">
-                <input
-                  type="checkbox"
-                  aria-label={klass.name}
-                  checked={picked !== undefined}
-                  onChange={(event) => onChange(toggleClass(subset, klass.name, event.target.checked))}
-                />
-                {klass.name}
-              </label>
+              <Checkbox
+                className="font-medium"
+                label={klass.name}
+                checked={picked !== undefined}
+                onChange={(event) => onChange(toggleClass(subset, klass.name, event.target.checked))}
+              />
               <ul className="ml-6 mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
                 {effectiveSlots(model, klass).map((slot) => {
                   const identity = IDENTITY_SLOTS.includes(slot);
                   return (
                     <li key={slot}>
-                      <label className="flex items-center gap-1.5 text-body">
-                        <input
-                          type="checkbox"
-                          aria-label={`${klass.name}.${slot}`}
-                          checked={identity ? picked !== undefined : (picked?.includes(slot) ?? false)}
-                          disabled={identity}
-                          onChange={(event) =>
-                            onChange(toggleSlot(subset, klass.name, slot, event.target.checked))
-                          }
-                        />
-                        <span className="font-mono text-caption text-fg">{slot}</span>
-                      </label>
+                      <Checkbox
+                        label={<span className="font-mono text-caption text-fg">{slot}</span>}
+                        // The name a screen reader reads is the slot inside its class: a list of
+                        // twenty boxes all called "name" says nothing about which one is ticked.
+                        aria-label={`${klass.name}.${slot}`}
+                        checked={identity ? picked !== undefined : (picked?.includes(slot) ?? false)}
+                        disabled={identity}
+                        disabledReason={identity ? t("models.subset.identity") : undefined}
+                        onChange={(event) =>
+                          onChange(toggleSlot(subset, klass.name, slot, event.target.checked))
+                        }
+                      />
                     </li>
                   );
                 })}

@@ -2,14 +2,16 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  Link,
   Navigate,
   Outlet,
   redirect,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
-import { EmptyState } from "./components/ui";
+import { buttonClass, EmptyState, PageFailed } from "./components/ui";
 import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
@@ -36,31 +38,90 @@ export interface RouterContext {
   auth: AuthState;
 }
 
-/**
- * What a route without a `$project` shows while the project list is on its way, and when the
- * repository holds none: there is no project to hang a shell on, so the page says so (PF-05).
- */
-function NoProject({ pending }: { pending: boolean }): React.JSX.Element {
-  const { t } = useTranslation();
+/** The page around anything the Portal shows with no project to hang a shell on. */
+function Bare({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <div className="flex min-h-screen flex-col bg-bg font-sans text-fg">
       <header className="flex h-14 items-center border-b border-border bg-surface px-4">
         <BrandMark short />
       </header>
-      <main id="main" className="flex flex-1 items-center justify-center p-6">
-        {pending ? (
-          <p role="status" className="text-body text-fg-muted">
-            {t("projects.loading")}
-          </p>
-        ) : (
-          <EmptyState
-            icon="spaces"
-            title={t("projects.empty.title")}
-            description={t("projects.empty.description")}
-          />
-        )}
-      </main>
+      <main id="main" className="flex flex-1 items-center justify-center p-6">{children}</main>
     </div>
+  );
+}
+
+/**
+ * What a route without a `$project` shows while the project list is on its way, when the read
+ * fails, and when the repository holds none (PF-05).
+ *
+ * The three were two: a list that came back 403, or did not come back at all, is not a pending
+ * list, so it fell through to "the repository holds no project" — the Portal telling somebody
+ * whose token had expired that their organisation's work was gone. A failed read says what the
+ * API said and offers the one thing that can help (UI-15).
+ */
+function NoProject({
+  projects,
+}: {
+  projects: Pick<ReturnType<typeof useProjects>, "isPending" | "isError" | "error" | "refetch">;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  if (projects.isPending) {
+    return (
+      <Bare>
+        <p role="status" className="text-body text-fg-muted">
+          {t("projects.loading")}
+        </p>
+      </Bare>
+    );
+  }
+  if (projects.isError) {
+    return (
+      <Bare>
+        <div className="w-full max-w-lg">
+          <PageFailed
+            error={projects.error}
+            onRetry={() => {
+              void projects.refetch();
+            }}
+          />
+        </div>
+      </Bare>
+    );
+  }
+  return (
+    <Bare>
+      <EmptyState
+        icon="spaces"
+        title={t("projects.empty.title")}
+        description={t("projects.empty.description")}
+      />
+    </Bare>
+  );
+}
+
+/**
+ * An address the Portal has no page for (UI-15).
+ *
+ * Without this the router falls back to its own built-in "Not Found" — two untranslated words
+ * on a white page, outside the Portal's chrome, with no way back — which is what a mistyped or
+ * an outdated link led to.
+ */
+function NotFound(): React.JSX.Element {
+  const { t } = useTranslation();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  return (
+    <Bare>
+      <EmptyState
+        icon="search"
+        title={t("app.notFound.title")}
+        description={t("app.notFound.description", { path })}
+        action={
+          <Link to="/" className={buttonClass("primary", "md")}>
+            {t("app.notFound.home")}
+          </Link>
+        }
+      />
+    </Bare>
   );
 }
 
@@ -69,7 +130,7 @@ function AnyProjectShell({ children }: { children: React.ReactNode }): React.JSX
   const projects = useProjects();
   const first = projects.data?.[0];
   if (!first) {
-    return <NoProject pending={projects.isPending} />;
+    return <NoProject projects={projects} />;
   }
   return <Shell project={first}>{children}</Shell>;
 }
@@ -79,7 +140,7 @@ function IndexRedirect(): React.JSX.Element {
   const projects = useProjects();
   const first = projects.data?.[0];
   if (!first) {
-    return <NoProject pending={projects.isPending} />;
+    return <NoProject projects={projects} />;
   }
   return <Navigate to="/projects/$project/$plural" params={{ project: first, plural: "spaces" }} />;
 }
@@ -479,6 +540,7 @@ export function createPortalRouter() {
     routeTree,
     context: { auth: undefined as unknown as AuthState },
     defaultPreload: false,
+    defaultNotFoundComponent: NotFound,
   });
 }
 
