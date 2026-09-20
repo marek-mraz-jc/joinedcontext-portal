@@ -153,9 +153,11 @@ describe("RadioGroup", () => {
     return onChange;
   }
 
-  it("is_one_group_with_its_question_read_before_the_answers", () => {
+  it("is_one_radiogroup_with_its_question_read_before_the_answers", () => {
     group("git");
-    const fieldset = screen.getByRole("group", { name: "Where it comes from" });
+    // `radiogroup`, not a plain `group`: a bare fieldset is read as a group and its radios are
+    // not counted out as "1 of 2" (T-1254, UI-15). The legend still names it.
+    const fieldset = screen.getByRole("radiogroup", { name: "Where it comes from" });
     expect(fieldset).toHaveAccessibleDescription("The kind of source this reads.");
     expect(within(fieldset).getAllByRole("radio")).toHaveLength(2);
     expect(screen.getByRole("radio", { name: "Git repository" })).toBeChecked();

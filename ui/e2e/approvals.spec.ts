@@ -95,7 +95,9 @@ test.describe("approvals", () => {
     await expect(page).toHaveURL(/\/projects\/helsinki\/approvals$/);
     const summary = 'Update Endpoint "air-quality" (2 fields changed)';
     await expect(page.getByRole("link", { name: summary })).toBeVisible();
-    await expect(page.getByText("Yellow")).toBeVisible();
+    // `exact`, because the lane word is also inside the glossary tooltip the badge carries
+    // since T-1609 — without it the locator matches the badge and the definition (T-2409).
+    await expect(page.getByText("Yellow", { exact: true })).toBeVisible();
     await expect(page.getByText("Marek Mráz")).toBeVisible();
 
     await page.getByRole("link", { name: summary }).click();

@@ -66,7 +66,9 @@ async function bar(overrides: Partial<typeof WORKSPACE> = {}, response?: Respons
       </I18nextProvider>
     </QueryClientProvider>,
   );
-  const region = await screen.findByRole("region", { name: i18n.t("workspaces.bar.label") });
+  // The steady bar is a landmark and each notice is a `status`, so both are found by the label
+  // they share rather than by one role (T-1254).
+  const region = await screen.findByLabelText(i18n.t("workspaces.bar.label"));
   return { ...view, region, user: userEvent.setup() };
 }
 
@@ -154,6 +156,27 @@ describe("the copy bar against the UI contract", () => {
     expect(chip.className).toContain("rounded-full");
     expect(chip.className).toContain("text-caption");
     expect(within(region).queryByText(i18n.t("workspaces.bar.bringBack"))).toBeNull();
+  });
+
+  it("announces each notice and leaves the bar itself a landmark", async () => {
+    // A copy can expire, or be discarded by its owner, while the person is reading a page of it:
+    // the line that replaces the bar has to be said, not only shown (T-1254, UI-15). The bar that
+    // is simply there stays a landmark — a live region around the links and the counter would
+    // read the whole bar out again on every change, and read it without its links.
+    const inside = await bar();
+    expect(inside.region).toHaveAttribute("role", "region");
+    expect(within(inside.region).getAllByRole("link").length).toBeGreaterThan(0);
+    inside.unmount();
+
+    for (const answer of [
+      json({ title: "Not Found", status: 404 }, 404),
+      json({ title: "Forbidden", status: 403, detail: "not a member" }, 403),
+    ]) {
+      const notice = await bar({}, answer);
+      expect(notice.region).toHaveAttribute("role", "status");
+      expect(within(notice.region).queryByRole("link")).toBeNull();
+      notice.unmount();
+    }
   });
 
   it("explains a refusal and an expiry, and each keeps the way out", async () => {

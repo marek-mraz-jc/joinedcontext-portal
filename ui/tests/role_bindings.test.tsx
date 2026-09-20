@@ -133,7 +133,7 @@ describe("people and roles", () => {
     expect(within(table).getByText("Context space citybikes")).toBeInTheDocument();
     expect(within(table).queryByText("someone@espoo.fi")).not.toBeInTheDocument();
     expect(within(table).getAllByRole("button", { name: /^Edit\b/ })).toHaveLength(2);
-    expect(within(table).getAllByRole("button", { name: /^Delete\b/ })).toHaveLength(2);
+    expect(within(table).getAllByRole("button", { name: /^Remove\b/ })).toHaveLength(2);
   });
 
   it("keeps every change a viewer may not make where it is, disabled with the reason", async () => {
@@ -141,7 +141,7 @@ describe("people and roles", () => {
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
     expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
-    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Delete)\b/ })) {
+    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Remove)\b/ })) {
       expectDenied(button);
     }
   });
@@ -216,7 +216,7 @@ describe("people and roles", () => {
     const fetchMock = renderAccess({ grants: ADMIN });
 
     await screen.findByText("demo.steward@hel.fi");
-    const [remove] = within(roles()).getAllByRole("button", { name: /^Delete\b/ });
+    const [remove] = within(roles()).getAllByRole("button", { name: /^Remove\b/ });
     await userEvent.click(remove);
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });

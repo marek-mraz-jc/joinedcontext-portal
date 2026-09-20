@@ -218,7 +218,10 @@ describe("the copy bar's states (T-1253, UI-61)", () => {
         <WorkspaceBar project="helsinki" />
       </WorkspaceProvider>,
     );
-    return screen.findByRole("region", { name: "Copy" });
+    // The steady bar is a landmark; the line that replaces it when the copy is gone is a
+    // `status`, so that it is announced to somebody reading elsewhere on the page (T-1254).
+    // Both carry the bar's label, which is what finds either of them here.
+    return screen.findByLabelText("Copy");
   }
 
   it("says nothing changed yet and offers no bring back on an empty copy", async () => {
@@ -339,10 +342,10 @@ describe("bring back", () => {
     expect(screen.getByText("<b>x</b>")).toBeInTheDocument();
     expect(document.querySelector("b")).toBeNull();
 
-    const period = screen.getByRole("group", { name: "spec.period" });
+    const period = screen.getByRole("radiogroup", { name: "spec.period" });
     await userEvent.click(within(period).getByLabelText(/Keep the copy's/));
     expectDenied(update, /Answer every field that the project changed too/);
-    const note = screen.getByRole("group", { name: "spec.note" });
+    const note = screen.getByRole("radiogroup", { name: "spec.note" });
     await userEvent.click(within(note).getByLabelText(/Take the project's/));
     await userEvent.click(update);
     await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled"));
