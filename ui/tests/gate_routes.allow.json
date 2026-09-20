@@ -16,7 +16,11 @@
     "/projects/$project/workspaces/$name/try-it": {
       "why": "covered by tests/page_try_it_page.test.tsx; the mocked spec is owed"
     },
+<<<<<<< HEAD
     "/projects/$project/models": {
+=======
+        "/projects/$project/models": {
+>>>>>>> 3059195 (T-2430: portal ui: green main again — the T-2136 gates re-recorded against the tree, a recorder so the next merge is one command, and two stale cases (UI-15, TS-19))
       "why": "covered by tests/models_page_save.test.tsx; Monaco does not render under the mocked spec's CSP yet"
     },
     "/projects/$project/ckan": {

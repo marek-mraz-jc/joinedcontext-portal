@@ -6,8 +6,31 @@
     "its length against the number measured on 2026-09-20."
   ],
   "modules": {
+<<<<<<< HEAD
     "src/components/layout/Shell.tsx": "T-1255",
     "src/pages/access/RoleBindings.tsx": "T-1759",
     "src/pages/ckan/CkanPage.tsx": "T-1765"
+=======
+    "src/api/projects.ts": "T-2137",
+    "src/components/ResourceRowActions.tsx": "T-2137",
+    "src/components/dashboards/DeckGlOverlay.tsx": "T-2137",
+    "src/components/dashboards/GridWidget.tsx": "T-2137",
+    "src/components/dashboards/MapLibreView.tsx": "T-2137",
+    "src/components/entities/EndpointDataView.tsx": "T-2137",
+    "src/components/forms/hints.ts": "T-2137",
+    "src/components/forms/widgets/OperationsPicker.tsx": "T-2326",
+    "src/components/layout/Shell.tsx": "T-1255",
+    "src/pages/access/RoleBindings.tsx": "T-1759",
+    "src/pages/access/ServiceAccounts.tsx": "T-2137",
+    "src/pages/apps/EndpointPreview.tsx": "T-2137",
+    "src/pages/assistant/AgentAccess.tsx": "T-2137",
+    "src/pages/assistant/AssistantPage.tsx": "T-2137",
+    "src/pages/ckan/CkanPage.tsx": "T-1765",
+    "src/pages/datasources/RunnerInputForm.tsx": "T-1766",
+    "src/pages/models/monaco-setup.ts": "T-2137",
+    "src/routes/ApprovalDetailPage.tsx": "T-2137",
+    "src/routes/ApprovalsPage.tsx": "T-2137",
+    "src/routes/ResourceListPage.tsx": "T-2137"
+>>>>>>> 3059195 (T-2430: portal ui: green main again — the T-2136 gates re-recorded against the tree, a recorder so the next merge is one command, and two stale cases (UI-15, TS-19))
   }
 }
