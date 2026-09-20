@@ -484,42 +484,6 @@ export function PipelineFlow({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1" data-testid="palette-processors">
-        <span id="flow-processors" className="text-caption font-semibold text-fg">
-          {t("pipelines.flow.processors")}
-        </span>
-        <p className="text-caption text-fg-muted">{t("pipelines.flow.processorsHint")}</p>
-        {PROCESSOR_GROUPS.map(({ category, processors }) => (
-          <details key={category} className="rounded-md border border-border bg-surface">
-            <summary className="focus-ring cursor-pointer rounded-md px-2 py-1 text-caption font-medium text-fg">
-              {category} ({processors.length})
-            </summary>
-            <ul className="flex flex-col gap-1 p-2" aria-label={category}>
-              {processors.map((processor) => (
-                <li key={processor.name} className="flex items-baseline gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="shrink-0 font-mono"
-                    data-testid={`palette-processor-${processor.name}`}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", `processor:${processor.name}`);
-                    }}
-                    onClick={() => insert(processor.name, selected)}
-                  >
-                    + {processor.name}
-                  </Button>
-                  <span className="text-caption text-fg-muted">
-                    {plainSummary(processor.summary)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ))}
-      </div>
-
       {/* SVG Canvas */}
       <div className="w-full overflow-x-auto rounded-md border border-border bg-surface-subtle p-2">
         <svg
@@ -742,6 +706,46 @@ export function PipelineFlow({
             );
           })}
         </svg>
+      </div>
+
+      {/* Below the canvas, not above it: with the 75 processors in between, a dialog at
+          1280x720 could not show a palette and the canvas it drops onto at the same time, and a
+          drag that scrolled the canvas into view left its palette behind. Both palettes touch
+          the canvas now. */}
+      <div className="flex flex-col gap-1" data-testid="palette-processors">
+        <span id="flow-processors" className="text-caption font-semibold text-fg">
+          {t("pipelines.flow.processors")}
+        </span>
+        <p className="text-caption text-fg-muted">{t("pipelines.flow.processorsHint")}</p>
+        {PROCESSOR_GROUPS.map(({ category, processors }) => (
+          <details key={category} className="rounded-md border border-border bg-surface">
+            <summary className="focus-ring cursor-pointer rounded-md px-2 py-1 text-caption font-medium text-fg">
+              {category} ({processors.length})
+            </summary>
+            <ul className="flex flex-col gap-1 p-2" aria-label={category}>
+              {processors.map((processor) => (
+                <li key={processor.name} className="flex items-baseline gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 font-mono"
+                    data-testid={`palette-processor-${processor.name}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", `processor:${processor.name}`);
+                    }}
+                    onClick={() => insert(processor.name, selected)}
+                  >
+                    + {processor.name}
+                  </Button>
+                  <span className="text-caption text-fg-muted">
+                    {plainSummary(processor.summary)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
       </div>
     </div>
   );

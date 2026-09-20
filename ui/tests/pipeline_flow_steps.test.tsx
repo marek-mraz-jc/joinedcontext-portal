@@ -236,6 +236,22 @@ describe("the canvas and the step's block", () => {
     return { onChange, onSelect };
   }
 
+  // The 75 processors sat between the compute palette and the canvas they are dropped on, so a
+  // 1280x720 dialog could not show a palette and its drop target at once: scrolling the canvas
+  // into view took the palette off the screen, and the e2e drag of a compute kind stopped
+  // landing (ci-full run 35507319695, `flow-node-compute` never appeared). Both palettes now
+  // touch the canvas — the compute toolbar above it, the processors below.
+  it("keeps the canvas between its two palettes, with nothing tall in between", () => {
+    canvas(withCompute, null);
+    const compute = screen.getByTestId("palette-bloblang");
+    const flow = screen.getByTestId("flow-canvas");
+    const processors = screen.getByTestId("palette-processors");
+    const follows = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(compute, flow)).toBe(true);
+    expect(follows(flow, processors)).toBe(true);
+  });
+
   it("lists every processor under its category with the runner's summary", () => {
     canvas(withCompute, null);
     const palette = screen.getByTestId("palette-processors");

@@ -1957,7 +1957,9 @@
       "prompt": "Čo to má robiť?",
       "start": "Spustiť",
       "unattended": "Beží bez otázok a na konci čaká na vaše schválenie.",
-      "noTypes": "Beh číta publikované typy tohto endpointu. Vyberte endpoint, ktorý publikuje aspoň jeden typ."
+      "noTypes": "Beh číta publikované typy tohto endpointu. Vyberte endpoint, ktorý publikuje aspoň jeden typ.",
+      "namePlaceholder": "moja-aplikacia",
+      "dataNeeds": "Dátové typy"
     },
     "started": "Začiatok",
     "actions": "Akcie",

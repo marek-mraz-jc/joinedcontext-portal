@@ -249,7 +249,7 @@ describe("the allow-list", () => {
     // a file is cleaned; a change that raises one is a new violation, which is what this number
     // is here to refuse.
     const budget: Record<string, { files: number; lines: number }> = {
-      hand_made_control: { files: 37, lines: 84 },
+      hand_made_control: { files: 36, lines: 83 },
       colour_is_a_token: { files: 5, lines: 41 },
       size_is_on_the_scale: { files: 19, lines: 53 },
       focus_is_not_stolen: { files: 3, lines: 6 },
