@@ -4,9 +4,9 @@ import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { clsx } from "clsx";
 import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
+import { Button, Select } from "../../ui";
 
 /**
  * A parameter whose choices are the project's own manifests of one kind (CC-24).
@@ -64,7 +64,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
         : t("form.choose");
 
   const select = (
-    <select
+    <Select
       id={id}
       required={required}
       disabled={disabled || readonly}
@@ -76,10 +76,6 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       }
       onBlur={(event: FocusEvent<HTMLSelectElement>) => onBlur?.(id, event.target.value)}
       onFocus={(event: FocusEvent<HTMLSelectElement>) => onFocus?.(id, event.target.value)}
-      className={clsx(
-        "block w-full rounded border border-border bg-surface px-3 py-1.5 text-base text-surface-fg focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
-        (disabled || readonly) && "cursor-not-allowed opacity-50",
-      )}
     >
       <option value="">{empty}</option>
       {choices.map((choice) => (
@@ -87,7 +83,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
           {choice.label}
         </option>
       ))}
-    </select>
+    </Select>
   );
 
   if (!failed) {
@@ -98,15 +94,16 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       {select}
       <p id={`${id}-error`} role="alert" className="text-caption text-danger">
         {t("form.listFailed", { reason })}{" "}
-        <button
-          type="button"
-          className="underline hover:no-underline"
+        <Button
+          variant="ghost"
+          size="xs"
+          className="px-0 text-caption text-danger underline hover:no-underline"
           onClick={() => {
             void query.refetch();
           }}
         >
           {t("form.listRetry")}
-        </button>
+        </Button>
       </p>
     </div>
   );

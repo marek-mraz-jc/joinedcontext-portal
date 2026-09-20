@@ -35,7 +35,7 @@ import type {
 } from "@rjsf/utils";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import { Button, CHECKBOX, CONTROL, Field, Icon, Select, Textarea } from "../ui";
+import { Button, Checkbox, CONTROL, Field, Icon, Select, Textarea } from "../ui";
 import { askAbout, formContext, inField } from "../../assistant/state";
 
 /** What the form renders beside its submit: a cancel, a secondary action. */
@@ -49,7 +49,7 @@ export const FormAfterFieldsContext = createContext<ReactNode>(null);
 const DefaultBaseInput = getDefaultRegistry().templates.BaseInputTemplate;
 
 /**
- * rjsf's own `<input>` (type mapping, number steps, empty values, examples) in the Portal's
+ * rjsf's own text control (type mapping, number steps, empty values, examples) in the Portal's
  * skin, `aria-invalid` when the field has errors. rjsf already points `aria-describedby` at
  * `${id}__error`, which is the id the Field gives its error line.
  */
@@ -114,13 +114,17 @@ function Input(
 ): React.JSX.Element {
   const { hasErrors, isRange, ...rest } = props;
   const forwarded = rest as WidgetProps;
+  // The schema's type, not `props.type`: rjsf works out the `type` attribute inside the default
+  // template and leaves the prop undefined, so a number field was rendering in proportional
+  // digits and a column of periods or thresholds did not line up (UI-15).
+  const numeric = props.schema.type === "number" || props.schema.type === "integer";
   return (
     <DefaultBaseInput
       {...forwarded}
       className={
         isRange
-          ? "focus-ring h-9 w-full cursor-pointer accent-[var(--portal-primary)]"
-          : clsx(CONTROL, "h-9 px-3", props.type === "number" && "tabular-nums")
+          ? "focus-ring h-9 w-full cursor-pointer accent-primary"
+          : clsx(CONTROL, "h-9 px-3", numeric && "tabular-nums")
       }
       aria-invalid={hasErrors ? "true" : undefined}
     />
@@ -141,16 +145,17 @@ function AskAboutField({ path, label }: { path: string; label: string }): React.
     return null;
   }
   return (
-    <button
-      type="button"
-      className="focus-ring rounded text-caption text-fg-muted underline decoration-dotted hover:text-fg"
+    <Button
+      variant="ghost"
+      size="xs"
+      className="px-0 text-fg-muted underline decoration-dotted hover:text-fg"
       onClick={() => {
         inField(path);
         askAbout(t("form.askAboutFieldQuestion", { kind: open.kind, label }));
       }}
     >
       {t("form.askAboutField")}
-    </button>
+    </Button>
   );
 }
 
@@ -159,7 +164,9 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
     props;
 
   if (hidden) {
-    return <div style={{ display: "none" }}>{children}</div>;
+    // `hidden` rather than an inline `display: none`: the attribute is what the platform has for
+    // it, and it keeps the field in the form so its value is still submitted (UI-01).
+    return <div hidden>{children}</div>;
   }
 
   const showLabel = displayLabel !== false && Boolean(label);
@@ -416,11 +423,14 @@ export function SubmitButton(props: SubmitButtonProps): React.JSX.Element | null
           </span>
         ) : null}
         {secondary}
+        {/* `disabledReason`, not `disabled` with a `title`: a hard-disabled submit leaves the tab
+            order, and the sentence written for it can then never be read by the person it was
+            written for (UI-44, T-1743). */}
         <Button
           type="submit"
           variant="primary"
           disabled={gate.disabled}
-          title={gate.title}
+          disabledReason={gate.title}
           loading={gate.loading}
         >
           {options.submitText}
@@ -486,7 +496,6 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
     disabled,
     readonly,
     multiple = false,
-    autofocus = false,
     onChange,
     onBlur,
     onFocus,
@@ -526,7 +535,6 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
       value={selected as string | string[]}
       required={required}
       disabled={disabled || readonly}
-      autoFocus={autofocus}
       aria-invalid={hasErrors ? "true" : undefined}
       aria-describedby={ariaDescribedByIds(id)}
       onBlur={handleBlur}
@@ -550,7 +558,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
 }
 
 export function TextareaWidget(props: WidgetProps): React.JSX.Element {
-  const { id, options, placeholder, value, required, disabled, readonly, autofocus = false, onChange, onBlur, onFocus, htmlName, rawErrors } =
+  const { id, options, placeholder, value, required, disabled, readonly, onChange, onBlur, onFocus, htmlName, rawErrors } =
     props;
   const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
   return (
@@ -562,7 +570,6 @@ export function TextareaWidget(props: WidgetProps): React.JSX.Element {
       required={required}
       disabled={disabled}
       readOnly={readonly}
-      autoFocus={autofocus}
       rows={typeof options.rows === "number" ? options.rows : undefined}
       aria-invalid={hasErrors ? "true" : undefined}
       aria-describedby={ariaDescribedByIds(id)}
@@ -574,7 +581,7 @@ export function TextareaWidget(props: WidgetProps): React.JSX.Element {
 }
 
 export function CheckboxWidget(props: WidgetProps): React.JSX.Element {
-  const { schema, uiSchema, options, id, value, disabled, readonly, label, hideLabel, autofocus = false, onBlur, onFocus, onChange, htmlName } =
+  const { schema, uiSchema, options, id, value, disabled, readonly, label, hideLabel, onBlur, onFocus, onChange, htmlName } =
     props;
   // Because an unchecked checkbox will cause html5 validation to fail, only add the
   // "required" attribute if the field value must be "true", due to "const" or "enum".
@@ -583,23 +590,19 @@ export function CheckboxWidget(props: WidgetProps): React.JSX.Element {
   const description = uiOptions.widget === "checkbox" ? undefined : (options.description ?? schema.description);
   return (
     <div className="flex flex-col gap-1">
-      <label className={clsx("inline-flex cursor-pointer items-center gap-2.5 text-body text-fg", (disabled || readonly) && "cursor-not-allowed opacity-60")}>
-        <input
-          type="checkbox"
-          id={id}
-          name={htmlName || id}
-          checked={typeof value === "undefined" ? false : Boolean(value)}
-          required={required}
-          disabled={disabled || readonly}
-          autoFocus={autofocus}
-          onChange={(event) => onChange(event.target.checked)}
-          onBlur={(event) => onBlur(id, event.target.checked)}
-          onFocus={(event) => onFocus(id, event.target.checked)}
-          aria-describedby={ariaDescribedByIds(id)}
-          className={CHECKBOX}
-        />
-        {hideLabel ? null : <span>{label}</span>}
-      </label>
+      <Checkbox
+        id={id}
+        name={htmlName || id}
+        label={hideLabel ? null : label}
+        checked={typeof value === "undefined" ? false : Boolean(value)}
+        required={required}
+        disabled={disabled || readonly}
+        onChange={(event) => onChange(event.target.checked)}
+        onBlur={(event) => onBlur(id, event.target.checked)}
+        onFocus={(event) => onFocus(id, event.target.checked)}
+        aria-describedby={ariaDescribedByIds(id)}
+        className="gap-2.5"
+      />
       {!hideLabel && description ? (
         <p id={`${id}__description`} className="pl-6.5 text-caption text-fg-muted">
           {description}
@@ -610,7 +613,7 @@ export function CheckboxWidget(props: WidgetProps): React.JSX.Element {
 }
 
 export function CheckboxesWidget(props: WidgetProps): React.JSX.Element {
-  const { id, disabled, options, value, autofocus = false, readonly, onChange, onBlur, onFocus, htmlName } = props;
+  const { id, disabled, options, value, readonly, onChange, onBlur, onFocus, htmlName } = props;
   const { inline = false, enumOptions, enumDisabled, emptyValue } = options;
   const optionValueFormat = getOptionValueFormat(options);
   const values = Array.isArray(value) ? value : [value];
@@ -625,18 +628,14 @@ export function CheckboxesWidget(props: WidgetProps): React.JSX.Element {
             const itemDisabled = Array.isArray(enumDisabled) && enumDisabled.includes(option.value);
             const off = disabled || itemDisabled || readonly;
             return (
-              <label
-                key={String(option.value)}
-                className={clsx("inline-flex cursor-pointer items-center gap-2 text-body text-fg", off && "cursor-not-allowed opacity-60")}
-              >
-                <input
-                  type="checkbox"
+              <Checkbox
+                  key={String(option.value)}
+                  label={option.label}
                   id={optionId(id, index)}
                   name={htmlName || id}
                   checked={checked}
                   value={enumOptionValueEncoder(option.value, index, optionValueFormat)}
                   disabled={off}
-                  autoFocus={autofocus && index === 0}
                   onChange={(event) =>
                     onChange(
                       event.target.checked
@@ -647,10 +646,8 @@ export function CheckboxesWidget(props: WidgetProps): React.JSX.Element {
                   onBlur={(event) => onBlur(id, decode(event.target))}
                   onFocus={(event) => onFocus(id, decode(event.target))}
                   aria-describedby={ariaDescribedByIds(id)}
-                  className={CHECKBOX}
-                />
-                <span>{option.label}</span>
-              </label>
+                  className={off ? "opacity-60" : undefined}
+              />
             );
           })
         : null}
