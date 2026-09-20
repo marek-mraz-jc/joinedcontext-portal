@@ -365,7 +365,8 @@
       "detach": "Detach and copy",
       "nothingTicked": "Zaškrtněte alespoň jednu třídu, kterou má endpoint zpřístupnit.",
       "projectionName": "Projection name",
-      "preview": "Generated manifests"
+      "preview": "Generated manifests",
+      "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno."
     },
     "audience": {
       "project-list": "Vybrané projekty",
@@ -905,7 +906,8 @@
       "badGrid": "Tuto tabulku nebylo možné zobrazit: {reason}",
       "historyFailed": "Tuto historii se nepodařilo načíst: {reason}"
     },
-    "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete."
+    "emptyHint": "Nástěnka je stránka s mapami a čísly, postavená z endpointů, které tento projekt umí čist. Vytvořte jednu nebo požádejte asistenta o nástěnku z toho, co už zveřejňujete.",
+    "layerEndpointGone": "Endpoint „{name}“ už v tomto projektu není, proto tato vrstva nemá z čeho vybrat typ ani filtr. Vyberte pro tuto vrstvu jiný endpoint."
   },
   "access": {
     "title": "Přístup",
@@ -1926,6 +1928,7 @@
       }
     },
     "query": {
+      "caption": "Řádky, které endpoint vrátil",
       "id": "Entita",
       "rows": "Řádky: {count}",
       "someRows": "{shown} z {total} řádků"

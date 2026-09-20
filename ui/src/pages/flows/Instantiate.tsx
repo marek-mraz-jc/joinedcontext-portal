@@ -109,15 +109,33 @@ export function Instantiate({
             schema={schema}
             uiSchema={uiSchema}
             disabled={start.isPending}
+            // `disabled` alone dims the button and says nothing, and somebody who pressed it and
+            // saw nothing move pressed it again; `submitting` keeps the label and spins (UI-01).
+            submitting={start.isPending}
             submitLabel={t("flows.instantiate.submit")}
             onSubmit={(parameters) => {
               start.mutate(parameters);
             }}
           />
-          <p className="text-sm text-fg-muted">{t("flows.instantiate.hint")}</p>
+          <p className="text-body text-fg-muted">{t("flows.instantiate.hint")}</p>
         </>
       ) : (
-        <p>{t("flows.instantiate.noSchema")}</p>
+        // A blueprint with no parameters still has to be startable: the page used to end here
+        // with a sentence and nothing to press, so a card offered in the gallery could not be
+        // set up at all from the Portal.
+        <div className="space-y-3">
+          <p className="text-body text-fg-muted">{t("flows.instantiate.noSchema")}</p>
+          <Button
+            variant="primary"
+            loading={start.isPending}
+            onClick={() => {
+              start.mutate({});
+            }}
+          >
+            {t("flows.instantiate.submit")}
+          </Button>
+          <p className="text-body text-fg-muted">{t("flows.instantiate.hint")}</p>
+        </div>
       )}
     </div>
   );

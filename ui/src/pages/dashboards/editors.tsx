@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { plainTitle, prune, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { EntityFilters } from "../../components/entities/EntityFilters";
+import { Alert } from "../../components/ui";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { useProposal } from "../../api/proposal";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
@@ -225,6 +226,15 @@ export function LayerEditor({
         }
       }}
     >
+      {/* A layer whose endpoint is gone shows the type and filter rows of nothing, which read as
+          a layer with no filters rather than as a layer nobody can finish. The list is only
+          judged once it has arrived with entries in it, so a project still loading — or one with
+          no endpoint at all, where the select above says as much — is never told this. */}
+      {editing && !endpoint && editing.sourceEndpointRef && endpoints.length > 0 ? (
+        <Alert tone="warning">
+          {t("dashboards.layerEndpointGone", { name: editing.sourceEndpointRef })}
+        </Alert>
+      ) : null}
       {editing && endpoint ? (
         <EntityFilters
           id="layer"

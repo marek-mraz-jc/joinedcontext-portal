@@ -126,13 +126,13 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
   return (
     <section
       aria-label={t("agentRun.kpiPipeline.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-body"
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="accent">{t("agentRun.kpiPipeline.badge")}</Badge>
         <span className="min-w-0 break-words font-medium">{pipeline.title ?? pipeline.name}</span>
       </div>
-      <dl className="grid gap-1 text-xs sm:grid-cols-[auto_1fr] sm:gap-x-3">
+      <dl className="grid gap-1 text-caption sm:grid-cols-[auto_1fr] sm:gap-x-3">
         <dt className="text-fg-muted">{t("agentRun.kpi.formula")}</dt>
         <dd className="break-words font-mono">{pipeline.formula}</dd>
         <dt className="text-fg-muted">{t("agentRun.kpiPipeline.route")}</dt>
@@ -142,7 +142,7 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
         <dt className="text-fg-muted">{t("agentRun.kpiPipeline.when")}</dt>
         <dd>{pipeline.trigger}</dd>
       </dl>
-      <p data-testid="kpi-pipeline-verdict" className={pipeline.verdict.ok ? "text-xs text-success" : "text-xs text-fg-muted"}>
+      <p data-testid="kpi-pipeline-verdict" className={pipeline.verdict.ok ? "text-caption text-success" : "text-caption text-fg-muted"}>
         {pipeline.verdict.ok
           ? t("agentRun.kpiPipeline.tested")
           : pipeline.verdict.untested
@@ -150,14 +150,14 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
             : t("agentRun.kpiPipeline.failed")}
       </p>
       {pipeline.verdict.findings.length > 0 ? (
-        <ul className="list-inside list-disc text-xs text-danger">
+        <ul className="list-inside list-disc text-caption text-danger">
           {pipeline.verdict.findings.map((finding) => (
             <li key={finding}>{finding}</li>
           ))}
         </ul>
       ) : null}
       {pipeline.drafts.length > 0 ? (
-        <div className="flex flex-col gap-1 rounded border border-border p-2 text-xs">
+        <div className="flex flex-col gap-1 rounded border border-border p-2 text-caption">
           <p>{t("agentRun.kpiPipeline.newSpace", { space: pipeline.targetSpace })}</p>
           <ul className="font-mono">
             {pipeline.drafts.map((draft) => (

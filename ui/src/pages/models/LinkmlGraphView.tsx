@@ -4,8 +4,25 @@ import { useTranslation } from "react-i18next";
 import { graphData, parseModel } from "./linkml";
 import type { GraphEdge, GraphNode } from "./linkml";
 
-/** One box's size and the gaps around it, in the SVG's own units. */
-const BOX = { width: 200, header: 26, row: 16, padding: 8, gapX: 40, gapY: 70 };
+/**
+ * One box's size, the gaps around it and the three text sizes, all in the SVG's own units.
+ *
+ * The text sizes belong here and not in a class: inside a `viewBox` a font size is user units
+ * that the browser scales with the drawing, not pixels on the page, and `BOX.row` is the line
+ * height the layout above counts with. A step of the page's type scale would be a different
+ * drawing, so they are geometry — written once, beside the geometry that depends on them.
+ */
+const BOX = {
+  width: 200,
+  header: 26,
+  row: 16,
+  padding: 8,
+  gapX: 40,
+  gapY: 70,
+  title: 11,
+  slot: 10,
+  edge: 9,
+};
 /** Past this many slots a box says "and n more" rather than growing down the page. */
 const SLOTS_SHOWN = 6;
 
@@ -92,12 +109,14 @@ export function LinkmlGraphView({
     <div className="flex flex-col gap-2">
       <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
       <div className="overflow-auto rounded border border-border bg-surface p-2">
+        {/* `group`, not `img`: an image's contents are presentational, so the class boxes —
+            which are focusable buttons — were reachable by Tab and invisible to the screen
+            reader that had just been told this was one picture. */}
         <svg
-          role="img"
+          role="group"
           aria-label={t("models.graph.title")}
           viewBox={`-4 -4 ${width + 8} ${height + 8}`}
-          className="min-w-full"
-          style={{ minHeight: "12rem" }}
+          className="min-h-48 min-w-full"
         >
           <defs>
             <marker
@@ -137,7 +156,8 @@ export function LinkmlGraphView({
                     x={(x1 + x2) / 2}
                     y={(y1 + y2) / 2 - 2}
                     textAnchor="middle"
-                    className="fill-current text-[9px]"
+                    fontSize={BOX.edge}
+                    className="fill-current"
                   >
                     {edge.label}
                   </text>
@@ -152,7 +172,9 @@ export function LinkmlGraphView({
               role="button"
               tabIndex={0}
               aria-label={t("models.graph.openClass", { name: node.name })}
-              className="cursor-pointer focus:outline-none"
+              // `focus-ring`, never a bare `outline-none`: the box is in the tab order, so
+              // taking its outline away left a keyboard with nothing to follow (UI-15).
+              className="focus-ring cursor-pointer"
               onClick={() => onOpenClass?.(node.name)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -170,7 +192,12 @@ export function LinkmlGraphView({
                 className="fill-surface-subtle stroke-border"
                 strokeWidth={1}
               />
-              <text x={node.x + BOX.padding} y={node.y + 17} className="fill-current text-[11px] font-semibold">
+              <text
+                x={node.x + BOX.padding}
+                y={node.y + 17}
+                fontSize={BOX.title}
+                className="fill-current font-semibold"
+              >
                 {node.name}
               </text>
               {node.slots.slice(0, SLOTS_SHOWN).map((slot, index) => (
@@ -178,7 +205,8 @@ export function LinkmlGraphView({
                   key={slot}
                   x={node.x + BOX.padding}
                   y={node.y + BOX.header + index * BOX.row + 4}
-                  className="fill-current text-[10px] text-fg-muted"
+                  fontSize={BOX.slot}
+                  className="fill-current text-fg-muted"
                 >
                   {slot}
                 </text>
@@ -187,7 +215,8 @@ export function LinkmlGraphView({
                 <text
                   x={node.x + BOX.padding}
                   y={node.y + BOX.header + SLOTS_SHOWN * BOX.row + 4}
-                  className="fill-current text-[10px] text-fg-muted"
+                  fontSize={BOX.slot}
+                  className="fill-current text-fg-muted"
                 >
                   {t("models.graph.more", { count: node.slots.length - SLOTS_SHOWN })}
                 </text>

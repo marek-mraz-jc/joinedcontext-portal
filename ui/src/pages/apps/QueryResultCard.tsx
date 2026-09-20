@@ -1,5 +1,13 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../../components/ui";
 
 /**
  * What the assistant read from an endpoint through its data-plane MCP tools (AG-75): which
@@ -179,32 +187,41 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
   const { t } = useTranslation();
   return view.kind === "table" ? (
     <>
-      <div className="mt-1 overflow-x-auto">
-        <table className="min-w-full text-left">
-          <thead className="text-fg-muted">
-            <tr>
-              <th className="py-0.5 pr-2 font-medium">{t("assistant.query.id")}</th>
-              {view.columns.map((column) => (
-                <th key={column} className="py-0.5 pr-2 font-medium">
-                  {column}
-                </th>
+      {/* The shared Table, not a hand-made one: the header scope, the caption a screen reader
+          reads, and the sideways scroll a keyboard can drive all come from one place (UI-01,
+          UI-27). `max-h-48` keeps a ten-row answer inside the conversation instead of pushing
+          the thread down. */}
+      <Table
+        caption={t("assistant.query.caption")}
+        zebra={false}
+        maxHeight="max-h-48"
+        className="mt-1 text-caption"
+      >
+        <TableHead>
+          <TableHeaderCell className="px-2 py-1">{t("assistant.query.id")}</TableHeaderCell>
+          {view.columns.map((column) => (
+            <TableHeaderCell key={column} className="px-2 py-1">
+              {column}
+            </TableHeaderCell>
+          ))}
+        </TableHead>
+        <TableBody>
+          {view.rows.map((row, index) => (
+            <TableRow key={`${row.id}-${index}`}>
+              <TableCell className="px-2 py-1 font-mono">{row.id}</TableCell>
+              {row.cells.map((cell, cellIndex) => (
+                <TableCell
+                  key={view.columns[cellIndex]}
+                  className="max-w-48 truncate px-2 py-1"
+                  title={cell}
+                >
+                  {cell}
+                </TableCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {view.rows.map((row, index) => (
-              <tr key={`${row.id}-${index}`} className="border-t border-border">
-                <td className="py-0.5 pr-2 font-mono">{row.id}</td>
-                {row.cells.map((cell, cellIndex) => (
-                  <td key={view.columns[cellIndex]} className="max-w-[12rem] truncate py-0.5 pr-2" title={cell}>
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
       <p className="mt-1 text-fg-muted">
         {view.total > view.rows.length
           ? t("assistant.query.someRows", { shown: view.rows.length, total: view.total })

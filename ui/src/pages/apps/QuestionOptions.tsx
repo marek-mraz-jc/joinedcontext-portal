@@ -174,7 +174,7 @@ export function QuestionOptions({
   return (
     <div className="space-y-2" data-testid="question-options">
       {found.question ? (
-        <p id={labelId} className="text-sm">
+        <p id={labelId} className="text-body">
           {found.question}
         </p>
       ) : null}
@@ -212,29 +212,46 @@ export function QuestionOptions({
               disabled={disabled}
               onClick={() => pick(choice.value)}
               onKeyDown={(event) => onKey(event, at)}
-              className={`rounded-md border px-3 py-2 text-left text-sm disabled:opacity-50 ${
+              className={`rounded-md border px-3 py-2 text-left text-body disabled:opacity-50 ${
                 on ? "border-primary bg-primary/10" : "border-border bg-surface hover:bg-surface-subtle"
               } ${found.choices.length > ROW ? "block w-full" : ""}`}
             >
               <span className="font-medium">{choice.title}</span>
               {!found.multiple && found.suggested.includes(choice.value) ? (
-                <span className="ml-2 text-xs text-fg-muted">{t("agentRun.question.suggested")}</span>
+                <span className="ml-2 text-caption text-fg-muted">{t("agentRun.question.suggested")}</span>
               ) : null}
               {choice.description ? (
-                <span className="block text-xs text-fg-muted">{choice.description}</span>
+                <span className="block text-caption text-fg-muted">{choice.description}</span>
               ) : null}
             </button>
           );
         })}
-        {shown.length === 0 ? <p className="text-sm text-fg-muted">{t("agentRun.question.noMatch")}</p> : null}
+        {shown.length === 0 ? <p className="text-body text-fg-muted">{t("agentRun.question.noMatch")}</p> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {found.multiple ? (
           <>
-            <Button size="sm" disabled={disabled || !within} onClick={() => onAnswer({ answer: chosen })}>
+            <Button
+              size="sm"
+              disabled={disabled || !within}
+              // Too few or too many chosen is a refusal with a reason, so the press keeps its
+              // place in the tab order and says why it will not be taken (UI-44, T-1743): the
+              // range was written beside the button, where a screen reader never joined the two.
+              // While an answer is on its way there is no reason to read, and the whole question
+              // is hard-disabled for the moment it takes.
+              disabledReason={!disabled && !within ? (range ?? undefined) : undefined}
+              onClick={() => onAnswer({ answer: chosen })}
+            >
               {t("agentRun.question.useThese", { count: chosen.length })}
             </Button>
-            {range ? <span className="text-xs text-fg-muted">{range}</span> : null}
+            {/* The same sentence the refused press carries as its reason, kept on screen for
+                whoever reads the page rather than hears it, and hidden from the screen reader so
+                it is not read twice in a row. */}
+            {range ? (
+              <span aria-hidden="true" className="text-caption text-fg-muted">
+                {range}
+              </span>
+            ) : null}
           </>
         ) : null}
         {free && !found.multiple ? (

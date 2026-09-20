@@ -413,13 +413,19 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
     await userEvent.click(within(dialog).getByLabelText("Vehicle"));
 
-    // Mark writable
-    await userEvent.click(within(dialog).getByLabelText("Vehicle writable"));
+    // Mark writable. The three write fields are named after the class and the label the person
+    // reads, in their own language, so the name matches the screen (WCAG 2.5.3, T-1843).
+    await userEvent.click(
+      within(dialog).getByLabelText(`Vehicle ${en.endpoints.picker.writable}`),
+    );
     await userEvent.type(
-      within(dialog).getByLabelText("Vehicle idPattern"),
+      within(dialog).getByLabelText(`Vehicle ${en.endpoints.picker.idPattern}`),
       "urn:ngsi-ld:Vehicle:hel.fi:helsinki:*",
     );
-    await userEvent.type(within(dialog).getByLabelText("Vehicle scope"), "/helsinki/bikes");
+    await userEvent.type(
+      within(dialog).getByLabelText(`Vehicle ${en.endpoints.picker.scope}`),
+      "/helsinki/bikes",
+    );
 
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));

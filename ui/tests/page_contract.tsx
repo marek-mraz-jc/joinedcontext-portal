@@ -202,3 +202,37 @@ export async function inEveryLocale(check: (locale: string) => Promise<void> | v
     await i18n.changeLanguage("en");
   }
 }
+
+/**
+ * A part — a card, a timeline, a chip bar — under i18n and a query client, with no router and
+ * no branding around it. A part that navigates or reads the installation's name uses
+ * {@link renderPage} instead; most do neither, and the lighter mount keeps a part's test about
+ * the part.
+ */
+export function renderPart(
+  element: ReactElement,
+  harness: Partial<PageHarness> = {},
+): RenderResult {
+  const { answer } = harness;
+  if (answer) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request =
+          input instanceof Request
+            ? input
+            : new Request(new URL(String(input), window.location.origin), init);
+        const url = new URL(request.url, window.location.origin);
+        return (await answer(url, request)) ?? json(list([]));
+      }),
+    );
+  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <I18nextProvider i18n={i18n}>{element}</I18nextProvider>
+    </QueryClientProvider>,
+  );
+}

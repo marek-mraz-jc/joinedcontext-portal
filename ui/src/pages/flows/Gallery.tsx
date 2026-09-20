@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { Instantiate } from "./Instantiate";
-import { Alert, Button, EmptyState, PageHeader } from "../../components/ui";
+import { Button, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /** The three review lanes a blueprint declares (CC-59, CC-63). */
 const RISK_STYLES: Record<string, string> = {
@@ -38,7 +39,7 @@ function RiskBadge({ riskClass }: { riskClass?: string }): JSX.Element | null {
   }
   return (
     <span
-      className={`rounded border px-2 py-0.5 text-xs ${RISK_STYLES[key]}`}
+      className={`rounded border px-2 py-0.5 text-caption ${RISK_STYLES[key]}`}
       // The colour is never the only carrier: the label says what the lane costs the user.
       title={t("flows.riskLabel")}
     >
@@ -72,27 +73,29 @@ export function FlowGallery({ project }: { project: string }): JSX.Element {
     return [...found].sort();
   }, [blueprints]);
 
+  // Both waits keep the page's own heading: without it the title appeared only once the
+  // blueprints had arrived, so the tab, the outline and the first thing a screen reader reads
+  // all changed under the reader between the wait and the gallery (UI-15).
   if (list.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return (
+      <div className="space-y-4">
+        <PageHeader title={t("flows.title")} description={t("flows.subtitle")} />
+        <PageLoading label={t("app.loading")} lines={3} />
+      </div>
+    );
   }
 
   if (list.isError) {
-    const message =
-      list.error instanceof ApiError
-        ? (list.error.problem?.detail ?? list.error.message)
-        : t("app.error.generic");
     return (
-      <Alert
-        role="alert"
-        tone="danger"
-        actions={
-          <Button size="sm" onClick={() => void list.refetch()}>
-            {t("app.error.retry")}
-          </Button>
-        }
-      >
-        {message}
-      </Alert>
+      <div className="space-y-4">
+        <PageHeader title={t("flows.title")} description={t("flows.subtitle")} />
+        <PageFailed
+          error={list.error}
+          onRetry={() => {
+            void list.refetch();
+          }}
+        />
+      </div>
     );
   }
 
@@ -189,16 +192,18 @@ function FilterChip({
   active: boolean;
   onClick: () => void;
 }): JSX.Element {
+  // The shared Button, rounded into a pill: the focus ring, the height and the disabled
+  // behaviour then come from one place instead of three hand-written classes that had already
+  // drifted from it (UI-01, UI-16).
   return (
-    <button
-      type="button"
+    <Button
+      size="sm"
+      variant="secondary"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-border-focus ${
-        active ? "border-border-focus bg-surface-subtle" : "border-border hover:bg-surface-subtle"
-      }`}
+      className={clsx("rounded-full", active && "border-border-focus bg-surface-subtle")}
     >
       {label}
-    </button>
+    </Button>
   );
 }
