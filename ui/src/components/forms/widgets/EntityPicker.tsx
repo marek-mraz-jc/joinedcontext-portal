@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, JSX } from "react";
+import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -113,6 +114,7 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
           aria-disabled="true"
           readOnly={readonly}
           value={typeof value === "string" ? value : ""}
+          aria-describedby={ariaDescribedByIds(id)}
           aria-invalid={hasErrors ? "true" : undefined}
           className="block w-full rounded border border-border bg-surface-subtle px-3 py-1.5 text-base text-surface-fg opacity-50"
         />
@@ -203,6 +205,9 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
         aria-expanded={isOpen ? "true" : "false"}
         aria-controls={`${id}__listbox`}
         aria-activedescendant={activeOptionId}
+        // The Field renders the description, the hint and the errors above and below; nothing
+        // else points this control at them (T-2314, UI-04).
+        aria-describedby={ariaDescribedByIds(id)}
         aria-invalid={hasErrors ? "true" : undefined}
         required={required}
         disabled={disabled}
