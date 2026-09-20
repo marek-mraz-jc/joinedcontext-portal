@@ -10,9 +10,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ImportPage, pastedSecrets } from "../src/pages/import/ImportPage";
+import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
 const REPORT = {
   created: ["ContextSpace/ovzdusie", "Endpoint/public-air"],
@@ -105,12 +106,12 @@ function renderPage(options: { refusal?: string } = {}) {
     component: () => <p>approval page</p>,
   });
   const router = createRouter({ routeTree: rootRoute.addChildren([home, approval]) });
-  render(
+  const view = render(
     <I18nextProvider i18n={i18n}>
       <RouterProvider router={router} />
     </I18nextProvider>,
   );
-  return { posts, user: userEvent.setup() };
+  return { posts, user: userEvent.setup(), container: view.container };
 }
 
 describe("the import wizard", () => {
@@ -227,5 +228,61 @@ describe("the import wizard", () => {
       expect(pastedSecrets("password:\n  name: mqtt")).toEqual([]);
       expect(pastedSecrets("# password: hunter2 in a comment is still text\nname: air")).toEqual([]);
     });
+  });
+});
+
+/**
+ * The UI contract of this page (T-1769, UI-04, UI-15, UI-16, UI-44, UI-48): its controls are the
+ * shared ones inside a `Field`, axe is clean on both steps, Tab reaches every control in the
+ * order they are read, and the four locales carry every string the page shows.
+ */
+describe("the import page against the UI contract", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("has no axe violation before the check and with the report on the screen", async () => {
+    await i18n.changeLanguage("en");
+    const { user, container } = renderPage();
+
+    await screen.findByLabelText(en.import.file);
+    await expectNoViolations(container);
+
+    await user.upload(screen.getByLabelText(en.import.file), bundle());
+    await user.click(screen.getByRole("button", { name: en.import.check }));
+    await screen.findByRole("heading", { name: en.import.report.title });
+    await expectNoViolations(container);
+  });
+
+  it("reaches every control of the report by keyboard in the order it is read", async () => {
+    await i18n.changeLanguage("en");
+    const { user, container } = renderPage();
+
+    await user.upload(await screen.findByLabelText(en.import.file), bundle());
+    await user.click(screen.getByRole("button", { name: en.import.check }));
+    const needs = (await screen.findByRole("heading", { name: en.import.report.needsTitle }))
+      .closest("section") as HTMLElement;
+
+    // Each thing the copy cannot carry is a tick and the link that sets it, both reachable.
+    await expectTabOrder(user, needs);
+
+    // The tick is labelled by the text beside it, so clicking that text ticks it (the hand-made
+    // input carried an `aria-label` and a separate span, which a pointer could not hit).
+    const tick = within(needs).getByRole("checkbox", { name: REPORT.needs[0].where });
+    await user.click(within(needs).getByText(REPORT.needs[0].where));
+    expect(tick).toBeChecked();
+    expect(container).toContainElement(tick);
+  });
+
+  it.each(SUPPORTED_LOCALES)("shows no translation key in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { user, container } = renderPage();
+
+    const file = await screen.findByLabelText(i18n.t("import.file"));
+    await user.upload(file, bundle());
+    await user.click(screen.getByRole("button", { name: i18n.t("import.check") }));
+    await screen.findByRole("heading", { name: i18n.t("import.report.title") });
+
+    expectNoRawKeys(container);
   });
 });

@@ -1,3 +1,4 @@
+import axe from "axe-core";
 import { expect, vi } from "vitest";
 import { digestOf } from "../src/api/drafts";
 
@@ -59,4 +60,86 @@ export function expectDenied(control: HTMLElement, reason?: string | RegExp): vo
   if (reason !== undefined) {
     expect(control).toHaveAccessibleDescription(reason);
   }
+}
+
+/**
+ * axe over one rendered subtree (UI-16).
+ *
+ * The form tasks of the `ui-forms` group each run this on their own page, so a violation names
+ * the rule and the element instead of failing somewhere inside the whole-app run of `a11y`.
+ */
+export async function expectNoViolations(container: HTMLElement): Promise<void> {
+  const results = await axe.run(container);
+  const summary = results.violations
+    .map((violation) => {
+      const where = violation.nodes.map((node) => node.html).join("; ");
+      return `${violation.id}: ${violation.description} (${where})`;
+    })
+    .join("\n");
+  expect(results.violations, summary).toEqual([]);
+}
+
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type=hidden])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+/**
+ * The controls Tab walks in a subtree, in DOM order (UI-15).
+ *
+ * `aria-disabled` controls stay in the list: a control the caller may not use keeps its place in
+ * the tab order so the reason written for it can be read (T-1743, `expectDenied`).
+ */
+export function focusables(container: HTMLElement): HTMLElement[] {
+  // jsdom has no layout, so `offsetParent` is null for everything here; what is hidden from the
+  // keyboard is hidden in the markup instead — `hidden`, `aria-hidden`, or a closed `<details>`.
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (element) => element.closest("[hidden],[aria-hidden=true]") === null,
+  );
+}
+
+/**
+ * Tab from the start of a subtree and assert focus visits every control in the order the DOM
+ * has them, which is the order they are read in (UI-15). A control that is not reachable, or one
+ * that is reached out of turn, fails with the element that broke the order.
+ */
+export async function expectTabOrder(
+  user: { tab: () => Promise<void> },
+  container: HTMLElement,
+): Promise<void> {
+  const expected = focusables(container);
+  expect(expected.length, "a form with no reachable control is a form nobody can fill").toBeGreaterThan(0);
+  const start = expected[0];
+  start.focus();
+  expect(document.activeElement, "the first control takes focus").toBe(start);
+  for (const control of expected.slice(1)) {
+    await user.tab();
+    expect(
+      document.activeElement,
+      `Tab should reach ${control.outerHTML.slice(0, 120)}`,
+    ).toBe(control);
+  }
+}
+
+/** The dotted path of a translation key, as it looks on screen when the string is missing. */
+const RAW_KEY = /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9_]+){2,}$/;
+
+/**
+ * No visible text is a raw translation key (UI-48): a key that reached the screen is a string
+ * missing from the bundle of the locale under test, in every locale the organisation offers.
+ */
+export function expectNoRawKeys(container: HTMLElement): void {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const leaked: string[] = [];
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const text = (node.textContent ?? "").trim();
+    if (RAW_KEY.test(text)) {
+      leaked.push(text);
+    }
+  }
+  expect(leaked, "a translation key on the screen is a missing string").toEqual([]);
 }

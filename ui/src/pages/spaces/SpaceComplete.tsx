@@ -135,7 +135,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     if (handed.result === null && handed.url === "") {
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- taking the prefill empties it, so it is taken once after mount; lazy state lost it to a discarded render (T-0894)
     setUrl(handed.url);
     setResult(handed.result);
   }, []);

@@ -10,7 +10,21 @@ import { AccessPanel, deniedAttributes, useAccess } from "../../components/entit
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { fetchEntities, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { Entity, EntityQuery, FilterSlot } from "../../components/entities/filters";
-import { Alert, Button, Field, Input, Select } from "../../components/ui";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  Textarea,
+} from "../../components/ui";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
 import {
@@ -868,12 +882,11 @@ export function PipelineStudio({
                     </div>
                     {draft?.compute?.kind === "bloblang" ? (
                       <Field id="flow-bloblang-field" label={t("pipelines.flow.nodeBloblang")}>
-                        <textarea
+                        <Textarea
                           id="flow-bloblang-field"
                           data-testid="flow-bloblang"
-                          aria-label={t("pipelines.flow.nodeBloblang")}
                           rows={6}
-                          className="focus-ring w-full rounded-md border border-border bg-surface p-2 font-mono text-caption text-fg"
+                          className="font-mono text-caption"
                           value={draft?.compute?.bloblang ?? ""}
                           onChange={(e) => {
                             onChange({
@@ -1163,50 +1176,40 @@ export function PipelineStudio({
                 sample.length === 0 ? (
                   <p className="text-caption text-fg-muted">{t("pipelines.studio.noEntities")}</p>
                 ) : (
-                  <div className="max-h-64 overflow-auto rounded-md border border-border bg-surface">
-                    <table className="w-full text-left text-caption">
-                      <caption className="sr-only">{t("pipelines.studio.sample")}</caption>
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th scope="col" className="px-2 py-1">
-                            <span className="sr-only">{t("pipelines.studio.tick")}</span>
-                          </th>
-                          <th scope="col" className="px-2 py-1 font-medium">
-                            id
-                          </th>
+                  <Table caption={t("pipelines.studio.sample")} zebra={false} className="text-caption">
+                    <TableHead>
+                      <TableHeaderCell>
+                        <span className="sr-only">{t("pipelines.studio.tick")}</span>
+                      </TableHeaderCell>
+                      <TableHeaderCell>id</TableHeaderCell>
+                      {attributes.slice(0, 4).map((attribute) => (
+                        <TableHeaderCell key={attribute} className="font-mono normal-case">
+                          {attribute}
+                        </TableHeaderCell>
+                      ))}
+                    </TableHead>
+                    <TableBody>
+                      {sample.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <Checkbox
+                              label={<span className="sr-only">{row.id}</span>}
+                              checked={ids.includes(row.id)}
+                              onChange={(event) => toggleId(row.id, event.target.checked)}
+                            />
+                          </TableCell>
+                          <TableCell primary className="font-mono">
+                            {row.id}
+                          </TableCell>
                           {attributes.slice(0, 4).map((attribute) => (
-                            <th
-                              key={attribute}
-                              scope="col"
-                              className="px-2 py-1 font-mono font-medium"
-                            >
-                              {attribute}
-                            </th>
+                            <TableCell key={attribute} className="font-mono">
+                              {attribute in row ? cell(row[attribute]) : ""}
+                            </TableCell>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {sample.map((row) => (
-                          <tr key={row.id}>
-                            <td className="px-2 py-1">
-                              <input
-                                type="checkbox"
-                                aria-label={row.id}
-                                checked={ids.includes(row.id)}
-                                onChange={(event) => toggleId(row.id, event.target.checked)}
-                              />
-                            </td>
-                            <td className="px-2 py-1 font-mono">{row.id}</td>
-                            {attributes.slice(0, 4).map((attribute) => (
-                              <td key={attribute} className="px-2 py-1 font-mono">
-                                {attribute in row ? cell(row[attribute]) : ""}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )
               ) : null}
               {ids.length > 0 ? (
