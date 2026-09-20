@@ -1,11 +1,11 @@
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { answeringChecks, checksSoFar } from "./checks";
+import { answeringChecks } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -115,35 +115,27 @@ describe("the roles of a project on the Access page", () => {
     expect(within(shared).getByText("The whole organization")).toBeTruthy();
   });
 
-  it("proposes a new role into the project, never into the organization", async () => {
+  it("opens this project's role form and posts nothing until it is valid", async () => {
+    // Until T-2400 this case typed a YAML skeleton and asserted the manifest, the POST route and
+    // the check that runs before it. A Role is authored through its fields now, and its fields
+    // are held by `access_forms.test.tsx` (19 cases, including the rules a person may not grant
+    // and the YAML view they cannot slip past). What is still this file's to hold at App level is
+    // the door: New role opens *this project's* form, and an incomplete one posts nothing.
+    //
+    // The POST route and the check-before-propose gate are not reachable here any more — this
+    // fixture's author holds no kinds, so the rule picker offers none and the form cannot be made
+    // valid through the UI. T-2416 restores that end-to-end.
     const { posted } = renderAccess();
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "New role" }));
     const dialog = await screen.findByRole("dialog", { name: /New role/ });
-    // The skeleton already names this project, so nobody has to know the namespace rule.
-    const source = within(dialog).getByRole("textbox") as HTMLTextAreaElement;
-    expect(source.value).toContain("namespace: banskabystrica");
+    expect(
+      within(dialog).getByText(/banskabystrica/),
+      "the form says which project the role belongs to",
+    ).toBeInTheDocument();
 
-    // The example has no name, so an untouched form can never become a Change (T-1492) — and
-    // since T-1830 the refusal travels with the button: `aria-disabled` rather than `disabled`,
-    // so it keeps its place in the tab order and the reason can actually be reached and read.
-    // The click is refused all the same, which is what the `posted` assertion below is for.
-    const proposeButton = within(dialog).getByRole("button", { name: "Propose the role" });
-    expect(proposeButton).toHaveAttribute("aria-disabled", "true");
-    expect(proposeButton, "reachable, so the reason can be read").not.toBeDisabled();
-    expect(proposeButton).toHaveAccessibleDescription(/name/i);
-    await user.click(proposeButton);
-    expect(posted, "a refused control does not post").toHaveLength(0);
-
-    fireEvent.change(source, { target: { value: source.value.replace('name: ""', "name: air-reader") } });
-    expect(proposeButton).toBeEnabled();
-    expect(within(dialog).queryByText(/This is an example/)).toBeNull();
-    await user.click(proposeButton);
-    await screen.findByText(/chg-0000002a/);
-    expect(posted).toHaveLength(1);
-    expect(posted[0].path).toBe("/api/v1/projects/banskabystrica/roles");
-    // Checked before it was proposed (PF-57, T-0956).
-    expect(checksSoFar().some((check) => check.includes("POST /api/v1/projects/banskabystrica/roles"))).toBe(true);
+    await user.click(within(dialog).getByRole("button", { name: "Propose the role" }));
+    expect(posted, "an incomplete form does not post").toHaveLength(0);
   });
 });

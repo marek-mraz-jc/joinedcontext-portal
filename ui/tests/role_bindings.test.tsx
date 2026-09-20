@@ -232,8 +232,9 @@ describe("people and roles", () => {
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
     await userEvent.type(within(dialog).getByRole("textbox"), "admin");
-    // Half the name is not the name: the proposal is refused, and it says so in words while
-    // staying reachable by keyboard (UI-44, T-1743) — hence `expectDenied`, not `toBeDisabled`.
+    // `aria-disabled`, not `disabled`: a refusal that carries a reason keeps the button in the
+    // tab order so the reason can be reached and read (T-1830, T-1743, UI-44). `expectDenied` is
+    // that property in one call — the attribute, the tab order, and the reason it names.
     expectDenied(confirm, en.resourceDelete.needName.replace("{name}", "admins"));
     await userEvent.type(within(dialog).getByRole("textbox"), "s");
     await userEvent.click(confirm);
