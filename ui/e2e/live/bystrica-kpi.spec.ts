@@ -14,11 +14,14 @@
  * - a card of one body carrying the other's value. The region has roughly 607 581 inhabitants and
  *   the city 72 123; either number under the other's heading reads as a fact.
  */
-import { expect, test } from "@playwright/test";
+import { expect, request, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { STEWARD, signIn } from "./portal";
 
 const APP = "bbsk-ukazovatele";
+
+/** The domain of the Organization the two projects sit on today; see the id check below (T-2455). */
+const ORG_DOMAIN = "hel.fi";
 
 /** What each body publishes, and where. `Development/10` §1, §2 and §4 are the contract. */
 const BODIES = [
@@ -50,22 +53,55 @@ function digits(value: number): string {
   return String(Math.round(value * 100) / 100).replace(/\D/g, "");
 }
 
+/** One row of `GET /api/v1/endpoints`: only the two fields this journey needs. */
+interface EndpointItem {
+  spec?: { contextSpaceRef?: string; slug?: string };
+}
+
 /** A `KeyPerformanceIndicator` as the gateway serialises it: only the parts this journey reads. */
 interface NgsiEntity {
   id: string;
   currentValue?: { value: number | string; unitCode?: string };
 }
 
-/** Every indicator one KPI space holds, read through the Portal's own session (`/cs/…`). */
+/**
+ * The slug of the Endpoint that publishes one space, as the person's own session may see it.
+ *
+ * `GET /api/v1/endpoints` answers what this caller may read and nothing else, so a space whose
+ * endpoint is missing from the answer is one the demonstration cannot show at all — which is what
+ * the assertion says.
+ */
+async function endpointOf(page: Page, space: string): Promise<string> {
+  const response = await page.request.get("/api/v1/endpoints");
+  expect(response.ok(), `/api/v1/endpoints answered ${response.status()}`).toBe(true);
+  const items = ((await response.json()) as { items?: EndpointItem[] }).items ?? [];
+  const found = items.find((item) => item.spec?.contextSpaceRef === space);
+  expect(found, `no Endpoint this person may read publishes ${space}`).toBeDefined();
+  const slug = found!.spec?.slug;
+  expect(slug, `the Endpoint of ${space} has no slug`).toBeTruthy();
+  return slug!;
+}
+
+/**
+ * Every indicator one KPI space holds, read through the endpoint the Portal itself reads it
+ * through (`/api/endpoint/{slug}`, `components/endpoints/links.tsx`) and with the person's own
+ * session.
+ *
+ * Not `/cs/{space}`: that surface answers each caller what their audience allows, and the city's
+ * indicators are `audience: project-list` for the region alone (`banskabystrica/endpoint-kpi.yaml`,
+ * EP-15) — a person reading them there gets the same `404` as for a space that does not exist,
+ * which is the platform being right (SP-06). The region's are `public` and answer either way.
+ */
 async function indicatorsInSpace(
   page: Page,
   space: string,
 ): Promise<Map<string, { value: number | string; unitCode?: string }>> {
-  const url = `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities?type=KeyPerformanceIndicator&limit=200`;
+  const slug = await endpointOf(page, space);
+  const url = `/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1/entities?type=KeyPerformanceIndicator&limit=200`;
   const response = await page.request.get(url, { headers: { Accept: "application/ld+json" } });
   expect(
     response.ok(),
-    `${url} answered ${response.status()}; the demonstration needs this space readable by the demo person`,
+    `${space} answered ${response.status()} at its own endpoint; the demonstration needs it readable by the demo person`,
   ).toBe(true);
   const entities = (await response.json()) as NgsiEntity[];
   expect(Array.isArray(entities), `${url} did not answer a list of entities`).toBe(true);
@@ -131,14 +167,42 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
       body.kpi.count,
     );
     for (const id of held.keys()) {
-      // The territory is the id's last segment, and the body is the fourth: both are in the id
-      // because the published schema has no attribute for either (PF-54).
-      expect(id.split(":"), id).toHaveLength(6);
-      expect(id, `${id} is in ${body.kpi.space} but names another body`).toContain(
-        `:${body.domain}:${body.kpi.space}:`,
+      // The territory is the id's last segment and the space is the fifth: both are in the id
+      // because the published schema has no attribute for either (PF-54). The space is what tells
+      // the two bodies apart — the fourth segment is the *organization's* domain, and on dev both
+      // projects sit on one Organization, so both read `hel.fi` while the contract
+      // (`Development/10` §1) gives each body its own. Which of the two is right is the owner's,
+      // and it is T-2455; the day it is answered, the accepted set below becomes `body.domain`
+      // alone.
+      const segments = id.split(":");
+      expect(segments, id).toHaveLength(6);
+      expect(segments[4], `${id} is in ${body.kpi.space} but names another space`).toBe(
+        body.kpi.space,
       );
+      expect([body.domain, ORG_DOMAIN], `${id} names an organization that publishes neither body`)
+        .toContain(segments[3]);
     }
     inSpace.set(body.body, held);
+  }
+
+  // And the region's indicators are open data: `bbsk-kpi` is `audience: public`
+  // (`bbsk/bbsk-endpoint-kpi.yaml`), so a person with no account at all reads them on the space
+  // surface. This is the one claim of the demonstration that no signed-in check can make, so it
+  // is made with a context that carries no session.
+  const anonymous = await request.newContext({
+    baseURL: process.env.PORTAL_URL ?? "https://portal.2.28.67.127.sslip.io",
+  });
+  try {
+    const open = await anonymous.get(
+      "/cs/bbsk-kpi/ngsi-ld/v1/entities?type=KeyPerformanceIndicator&limit=200",
+      { headers: { Accept: "application/ld+json" } },
+    );
+    expect(open.status(), "the region's indicators are not open data to a caller with no account").toBe(200);
+    expect((await open.json()) as NgsiEntity[], "the open read answers an empty region").toHaveLength(
+      inSpace.get("bbsk")!.size,
+    );
+  } finally {
+    await anonymous.dispose();
   }
 
   // The application, in the region's project, reading both bodies.
@@ -161,8 +225,9 @@ test("both bodies ingest, compute and publish their own indicators, and one appl
       const card = cards.nth(index);
       const id = (await card.getAttribute("aria-labelledby"))!.replace(/^card-/, "");
 
-      // A card of one body carrying the other's indicator.
-      expect(id, `a card under ${body.body} shows ${id}`).toContain(`:${body.domain}:`);
+      // A card of one body carrying the other's indicator: `held` was read from this body's own
+      // space a moment ago, so membership is the whole check, and by the exact id rather than by
+      // a prefix of it.
       const entity = held.get(id);
       expect(entity, `the card shows ${id}, which is not in ${body.kpi.space}`).toBeDefined();
 
