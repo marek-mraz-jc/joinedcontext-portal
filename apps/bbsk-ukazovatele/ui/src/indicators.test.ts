@@ -1,0 +1,181 @@
+/**
+ * The model, over the entities the pipelines of T-2307 actually produced.
+ *
+ * `fixtures/*.json` are those pipelines' output, recorded on 2026-09-20 from the Bento image the
+ * runner uses over answers recorded from the publishers the same day. They are not invented
+ * shapes: an attribute the platform would refuse cannot appear in them, and a figure in them is a
+ * figure the region published.
+ */
+import { describe, expect, it } from "vitest";
+import { toRichRow } from "@joinedcontext/sdk";
+import type { RichRow } from "@joinedcontext/sdk";
+import region from "./fixtures/bbsk-kpi.json";
+import city from "./fixtures/banskabystrica-kpi.json";
+import { byKey, LIMITS, splitName, stateOf, toIndicator, UNIT_CODE, unitAsContracted } from "./indicators";
+import type { Indicator } from "./indicators";
+
+const rows = (entities: unknown[]): RichRow[] =>
+  entities.map((entity) => toRichRow(entity as Record<string, unknown>, "sk"));
+
+const indicators = (entities: unknown[]): Indicator[] =>
+  rows(entities)
+    .map(toIndicator)
+    .filter((indicator): indicator is Indicator => indicator !== null);
+
+const REGION = indicators(region);
+const CITY = indicators(city);
+
+describe("reading an indicator", () => {
+  it("keeps every entity the two pipelines wrote", () => {
+    expect(REGION).toHaveLength(region.length);
+    expect(CITY).toHaveLength(city.length);
+  });
+
+  it("takes the body from the id and never from the endpoint it arrived on", () => {
+    expect(new Set(REGION.map((i) => i.body))).toEqual(new Set(["bbsk"]));
+    expect(new Set(CITY.map((i) => i.body))).toEqual(new Set(["banskabystrica"]));
+  });
+
+  it("splits a district whose name is three words at the territory and not at the last hyphen", () => {
+    expect(splitName("emisie-tuhe-km2-okres-ziar-nad-hronom")).toEqual({
+      key: "emisie-tuhe-km2",
+      territory: "okres-ziar-nad-hronom",
+    });
+    expect(splitName("obyvatelstvo-stav-kraj")).toEqual({
+      key: "obyvatelstvo-stav",
+      territory: "kraj",
+    });
+    expect(splitName("pm10-24h-mesto")).toEqual({ key: "pm10-24h", territory: "mesto" });
+  });
+
+  it("refuses a name whose suffix is no declared territory", () => {
+    expect(splitName("obyvatelstvo-stav-okolie")).toBeNull();
+  });
+
+  it("carries the value, its unit and its window off the entity", () => {
+    const kraj = REGION.find((i) => i.name === "obyvatelstvo-stav-kraj");
+    expect(kraj).toMatchObject({
+      key: "obyvatelstvo-stav",
+      territory: "kraj",
+      value: 607581,
+      unitCode: "C62",
+      period: { start: "2025-01-01T00:00:00Z", end: "2025-12-31T23:59:59Z" },
+    });
+    expect(kraj?.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(kraj?.formula).not.toBe("");
+  });
+
+  it("reads a not-measured indicator as no value and no unit, never as a zero", () => {
+    const empty = toIndicator(
+      rows([
+        {
+          id: "urn:ngsi-ld:KeyPerformanceIndicator:banskabystrica.sk:banskabystrica-kpi:pm10-24h-mesto",
+          type: "KeyPerformanceIndicator",
+          name: { type: "Property", value: "pm10-24h-mesto" },
+          currentValue: { type: "Property", value: "not measured" },
+          calculationPeriod: {
+            type: "Property",
+            value: { start: "2026-09-19T07:00:00Z", end: "2026-09-20T07:00:00Z" },
+          },
+          calculationFormula: { type: "Property", value: "avg(pm10) over AirQualityObserved" },
+          updatedAt: { type: "Property", value: { "@type": "DateTime", "@value": "2026-09-20T07:01:00Z" } },
+        },
+      ])[0],
+    );
+    expect(empty?.value).toBeNull();
+    expect(empty?.unitCode).toBeUndefined();
+    expect(empty?.state).toBeNull();
+    // The window is still there: the question was asked of a real window and got no reading.
+    expect(empty?.period?.end).toBe("2026-09-20T07:00:00Z");
+  });
+});
+
+describe("what the model refuses", () => {
+  const entity = (patch: Record<string, unknown>) => ({
+    id: "urn:ngsi-ld:KeyPerformanceIndicator:bbsk.sk:bbsk-kpi:obyvatelstvo-stav-kraj",
+    type: "KeyPerformanceIndicator",
+    name: { type: "Property", value: "obyvatelstvo-stav-kraj" },
+    currentValue: { type: "Property", value: 1, unitCode: "C62" },
+    ...patch,
+  });
+
+  it("refuses an entity whose name disagrees with its id", () => {
+    // Otherwise one indicator could be shown under another's heading, with a real number on it.
+    expect(toIndicator(rows([entity({ name: { type: "Property", value: "pm10-24h-mesto" } })])[0])).toBeNull();
+  });
+
+  it("refuses an id of a body this application does not know", () => {
+    expect(
+      toIndicator(
+        rows([entity({ id: "urn:ngsi-ld:KeyPerformanceIndicator:zilina.sk:kpi:obyvatelstvo-stav-kraj" })])[0],
+      ),
+    ).toBeNull();
+  });
+
+  it("refuses an id that is not the six-segment URN", () => {
+    expect(
+      toIndicator(rows([entity({ id: "urn:ngsi-ld:KeyPerformanceIndicator:bbsk.sk:obyvatelstvo-stav-kraj" })])[0]),
+    ).toBeNull();
+  });
+
+  it("refuses an entity of another type", () => {
+    expect(toIndicator(rows([entity({ type: "AirQualityObserved" })])[0])).toBeNull();
+  });
+});
+
+describe("the threshold, which is the reader's and not the entity's", () => {
+  it("reads PM10 against the directive's limit value and its upper assessment threshold", () => {
+    expect(stateOf("pm10-24h", 34.9)).toBe("green");
+    expect(stateOf("pm10-24h", 35)).toBe("amber");
+    expect(stateOf("pm10-24h", 49.9)).toBe("amber");
+    expect(stateOf("pm10-24h", 50)).toBe("red");
+  });
+
+  it("reads PM2.5 against its own pair", () => {
+    expect(stateOf("pm25-rok", 16.9)).toBe("green");
+    expect(stateOf("pm25-rok", 17)).toBe("amber");
+    expect(stateOf("pm25-rok", 25)).toBe("red");
+  });
+
+  it("gives no state to an indicator no published limit covers", () => {
+    for (const key of ["obyvatelstvo-stav", "emisie-tuhe-km2", "spotreba-vody-obyvatel"]) {
+      expect(LIMITS[key]).toBeUndefined();
+      expect(stateOf(key, 1_000_000)).toBeNull();
+    }
+    expect(REGION.every((i) => i.state === null)).toBe(true);
+  });
+
+  it("gives the city's two air indicators the state their recorded values earn", () => {
+    const pm10 = CITY.find((i) => i.name === "pm10-24h-mesto");
+    const pm25 = CITY.find((i) => i.name === "pm25-rok-mesto");
+    expect(pm10?.value).toBe(35.5);
+    expect(pm10?.state).toBe("amber");
+    expect(pm25?.state).toBe("green");
+  });
+});
+
+describe("units", () => {
+  it("accepts the unit the contract fixes for each indicator", () => {
+    for (const indicator of [...REGION, ...CITY]) {
+      if (indicator.value === null) continue;
+      expect(indicator.unitCode, indicator.name).toBe(UNIT_CODE[indicator.key]);
+      expect(unitAsContracted(indicator)).toBe(true);
+    }
+  });
+
+  it("refuses to write a contracted unit on a value that does not carry it", () => {
+    // A `t/km²` label on a value recorded in something else would be a wrong number, silently.
+    const wrong = { ...REGION[0], unitCode: "KGM" };
+    expect(unitAsContracted(wrong)).toBe(false);
+  });
+});
+
+describe("the order the cards are met in", () => {
+  it("puts the thresholded indicators first and the whole territory before its districts", () => {
+    const groups = byKey([...REGION, ...CITY]);
+    expect(groups.map((g) => g.key).slice(0, 2)).toEqual(["pm10-24h", "pm25-rok"]);
+    const emissions = groups.find((g) => g.key === "emisie-tuhe-km2");
+    expect(emissions?.rows[0].territory).toBe("kraj");
+    expect(emissions?.rows).toHaveLength(14);
+  });
+});
