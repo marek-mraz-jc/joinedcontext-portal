@@ -32,6 +32,7 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Term,
 } from "../../components/ui";
 
 const SPACE_LABEL = "joinedcontext.com/space";
@@ -398,7 +399,7 @@ function SectionState({
   return <p className="text-body text-fg-muted">{empty}</p>;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }): JSX.Element {
+function Section({ title, children }: { title: ReactNode; children: ReactNode }): JSX.Element {
   return (
     <section className="space-y-2">
       <h2 className="text-title font-semibold text-fg">{title}</h2>
@@ -522,7 +523,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} />
       </Section>
 
-      <Section title={t("endpoints.title")}>
+      <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>
         {spaceEndpoints.length === 0 ? (
           <SectionState query={endpoints} empty={t("spaces.inside.noEndpoints")} />
         ) : (
@@ -577,7 +578,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         )}
       </Section>
 
-      <Section title={t("spaces.inside.policies")}>
+      <Section title={<Term name="policy">{t("spaces.inside.policies")}</Term>}>
         {spacePolicies.length === 0 ? (
           <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
         ) : (

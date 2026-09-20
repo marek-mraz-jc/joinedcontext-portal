@@ -19,6 +19,7 @@ import {
   TableHeaderCell,
   TableRow,
   buttonClass,
+  Term,
 } from "../components/ui";
 
 const COLUMNS = 6;
@@ -46,7 +47,9 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
     <TableHead>
       <TableHeaderCell>{t("approvals.summary")}</TableHeaderCell>
       <TableHeaderCell>{t("approvals.phase")}</TableHeaderCell>
-      <TableHeaderCell>{t("approvals.lane")}</TableHeaderCell>
+      <TableHeaderCell>
+        <Term name="lane">{t("approvals.lane")}</Term>
+      </TableHeaderCell>
       <TableHeaderCell>{t("approvals.author")}</TableHeaderCell>
       <TableHeaderCell>{t("approvals.created")}</TableHeaderCell>
       <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>

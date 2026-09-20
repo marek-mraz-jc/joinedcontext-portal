@@ -174,7 +174,12 @@ export function NewRoleDialog({
               {failure}
             </Alert>
           ) : null}
-          <Field id={`${ids}-source`} label={t("access.projectRoles.sourceLabel")} required>
+          <Field
+            id={`${ids}-source`}
+            label={t("access.projectRoles.sourceLabel")}
+            description={t("access.projectRoles.sourceHelp")}
+            required
+          >
             <Textarea
               id={`${ids}-source`}
               rows={12}

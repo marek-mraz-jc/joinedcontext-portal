@@ -194,39 +194,58 @@ function Instances({
           setDraft(EMPTY_DRAFT);
         }}
       >
-        <Field id="ckan-instance-name" label={t("ckan.instances.name")}>
+        <Field
+          id="ckan-instance-name"
+          label={t("ckan.instances.name")}
+          description={t("ckan.instances.nameHelp")}
+        >
           <Input
             id="ckan-instance-name"
             value={draft.name}
+            placeholder="opendata-bb"
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             required
           />
         </Field>
-        <Field id="ckan-instance-url" label={t("ckan.instances.url")}>
+        <Field
+          id="ckan-instance-url"
+          label={t("ckan.instances.url")}
+          description={t("ckan.instances.urlHelp")}
+        >
           <Input
             id="ckan-instance-url"
             type="url"
             value={draft.url}
+            placeholder="https://opendata.example.sk"
             onChange={(event) => setDraft({ ...draft, url: event.target.value })}
             required
           />
         </Field>
-        <Field id="ckan-instance-org" label={t("ckan.instances.organization")}>
+        <Field
+          id="ckan-instance-org"
+          label={t("ckan.instances.organization")}
+          description={t("ckan.instances.organizationHelp")}
+        >
           <Input
             id="ckan-instance-org"
             value={draft.organizationDefault}
+            placeholder="mesto-banska-bystrica"
             onChange={(event) => setDraft({ ...draft, organizationDefault: event.target.value })}
           />
         </Field>
-        <Field id="ckan-instance-secret" label={t("ckan.instances.tokenRef")}>
+        <Field
+          id="ckan-instance-secret"
+          label={t("ckan.instances.tokenRef")}
+          description={t("ckan.instances.tokenHelp")}
+        >
           <Input
             id="ckan-instance-secret"
             value={draft.secretName}
+            placeholder="ckan-api-token"
             onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
             required
           />
         </Field>
-        <p className="text-sm">{t("ckan.instances.tokenHelp")}</p>
         {/* The catalogue is proposed as this project's `CkanInstance`, so that is the permission
             the control needs. Without the guard a viewer filled the form and met the 403 only
             after pressing it (T-2243, UI-44). */}

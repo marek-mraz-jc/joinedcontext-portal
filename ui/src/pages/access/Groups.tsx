@@ -170,7 +170,12 @@ export function NewGroupDialog({
               {failure}
             </Alert>
           ) : null}
-          <Field id={`${ids}-source`} label={t("access.groups.sourceLabel")} required>
+          <Field
+            id={`${ids}-source`}
+            label={t("access.groups.sourceLabel")}
+            description={t("access.groups.sourceHelp")}
+            required
+          >
             <Textarea
               id={`${ids}-source`}
               rows={10}

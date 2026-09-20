@@ -24,6 +24,7 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Term,
 } from "../components/ui";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 
@@ -213,7 +214,9 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
         head={
           <TableHead>
             <TableHeaderCell>{t("policies.field.name")}</TableHeaderCell>
-            <TableHeaderCell>{t("policies.field.space")}</TableHeaderCell>
+            <TableHeaderCell>
+              <Term name="contextSpace">{t("policies.field.space")}</Term>
+            </TableHeaderCell>
             <TableHeaderCell>{t("policies.field.assignee")}</TableHeaderCell>
             <TableHeaderCell>{t("policies.field.grants")}</TableHeaderCell>
             <TableHeaderCell>{t("resourceList.phase")}</TableHeaderCell>

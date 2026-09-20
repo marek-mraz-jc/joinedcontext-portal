@@ -202,6 +202,28 @@
       "delete": "{fields, plural, =0 {{kind} „{name}“ entfernen} one {{kind} „{name}“ entfernen ({fields} Feld)} other {{kind} „{name}“ entfernen ({fields} Felder)}}"
     }
   },
+  "glossary": {
+    "endpoint": {
+      "definition": "Eine veröffentlichte Adresse für die Daten eines Kontextraums, mit eigenen Regeln darüber, wer welche Entitäten und Attribute lesen darf.",
+      "term": "Endpunkt"
+    },
+    "policy": {
+      "definition": "Die Regel hinter einem Endpunkt: welche Operationen eine Aufruferin ausführen darf, auf welchen Entitätstypen, und welche Attribute zurückkommen.",
+      "term": "Richtlinie"
+    },
+    "contextSpace": {
+      "definition": "Wo die lebenden Daten eines Projekts liegen, getrennt von jedem anderen Projekt; Endpunkte veröffentlichen sie, Pipelines füllen sie.",
+      "term": "Kontextraum"
+    },
+    "lane": {
+      "definition": "Wie viel Prüfung eine Änderung braucht: Grün läuft allein durch, Gelb braucht eine Freigabe der Fachstelle, Rot mehrere Personen.",
+      "term": "Risikospur"
+    },
+    "change": {
+      "definition": "Ein vorgeschlagener Eingriff in die Konfiguration, festgehalten, damit ihn jemand liest und freigibt, bevor sich im Betrieb etwas bewegt.",
+      "term": "Änderung"
+    }
+  },
   "quota": {
     "contextSpaces": "Kontexträume",
     "unlimited": "{used}, ohne Limit",
@@ -941,7 +963,13 @@
       "whereLabel": "Wo sie gilt",
       "untilLabel": "Bis (optional)",
       "propose": "Vergabe vorschlagen",
-      "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern."
+      "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern.",
+      "subjectKindHelp": "Ob die Rolle an eine Person oder an eine Gruppe geht. Eine Gruppe wird einmal berechtigt und hält ihre Mitglieder selbst nach.",
+      "personHelp": "Der Benutzername oder die E-Mail-Adresse, die der Identitätsanbieter für diese Person führt, genau wie sie sich anmeldet.",
+      "groupHelp": "Der Name einer unter Gruppen erklärten Gruppe. Die Rolle hält, wer Mitglied ist.",
+      "roleHelp": "Was die Person darf: jede Rolle ist eine Menge von Verben auf einer Menge von Arten, aufgeführt unter Rollen.",
+      "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
+      "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -957,7 +985,8 @@
       "newLead": "Eine Rolle des Projekts {project}. Sie darf nur die Arten dieses Projekts nennen und nur die Verben, die Sie hier selbst halten; die Änderung genehmigt jemand anderes.",
       "sourceLabel": "Das Rollenmanifest",
       "propose": "Rolle vorschlagen",
-      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
+      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt.",
+      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie ihm einen Namen und führen Sie die Arten und Verben auf, die er gewährt; die Form steht schon da."
     },
     "accounts": {
       "title": "Dienstkonten",
@@ -1046,7 +1075,8 @@
         "MemberUnknown": "Wartet auf erste Anmeldung",
         "RealmRefused": "Nicht geschrieben"
       },
-      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt."
+      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt.",
+      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie der Gruppe einen Namen und führen Sie die E-Mail-Adressen ihrer Mitglieder auf; die Form steht schon da."
     },
     "nameFirst": "Dies ist ein Beispiel. Geben Sie ihm einen Namen (Kleinbuchstaben, Ziffern und Bindestriche) und passen Sie den Rest an; dann kann es vorgeschlagen werden."
   },
@@ -1401,7 +1431,10 @@
       "organization": "Standardorganisation",
       "tokenRef": "Secret mit dem API-Token",
       "tokenHelp": "Das API-Token selbst wird hier nie eingegeben und nie in Git gespeichert: Nennen Sie das Secret, das die Betreiberin im Secret-Store hinterlegt hat; der Reconciler löst es beim Veröffentlichen auf.",
-      "propose": "Katalog vorschlagen"
+      "propose": "Katalog vorschlagen",
+      "nameHelp": "Der kurze Name, unter dem dieser Katalog hier bekannt ist. Kleinbuchstaben, Ziffern und Bindestriche.",
+      "urlHelp": "Die Adresse des CKAN-Portals, auf dem die Datensätze veröffentlicht werden, mit Schema.",
+      "organizationHelp": "Die CKAN-Organisation, in der ein Datensatz landet, wenn ein Endpunkt keine eigene nennt."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",

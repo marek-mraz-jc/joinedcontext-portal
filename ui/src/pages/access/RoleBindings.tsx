@@ -205,7 +205,11 @@ export function GrantRoleDialog({
         <ChangeNotice change={change} project={project} />
       ) : (
         <div className="flex flex-col gap-4">
-          <Field id={`${ids}-kind`} label={t("access.roles.subjectKind")}>
+          <Field
+            id={`${ids}-kind`}
+            label={t("access.roles.subjectKind")}
+            description={t("access.roles.subjectKindHelp")}
+          >
             <Select
               id={`${ids}-kind`}
               value={form.subjectKind}
@@ -218,6 +222,11 @@ export function GrantRoleDialog({
           <Field
             id={`${ids}-subject`}
             label={form.subjectKind === "user" ? t("access.roles.personLabel") : t("access.roles.groupLabel")}
+            description={
+              form.subjectKind === "user"
+                ? t("access.roles.personHelp")
+                : t("access.roles.groupHelp")
+            }
             required
           >
             <Input
@@ -225,10 +234,16 @@ export function GrantRoleDialog({
               value={form.subject}
               autoComplete="off"
               spellCheck={false}
+              placeholder={form.subjectKind === "user" ? "jana.kovacova@example.sk" : "vedenie-mesta"}
               onChange={(event) => set({ subject: event.target.value })}
             />
           </Field>
-          <Field id={`${ids}-role`} label={t("access.roles.roleLabel")} required>
+          <Field
+            id={`${ids}-role`}
+            label={t("access.roles.roleLabel")}
+            description={t("access.roles.roleHelp")}
+            required
+          >
             <Select id={`${ids}-role`} value={form.role} onChange={(event) => set({ role: event.target.value })}>
               <option value="">{t("access.roles.chooseRole")}</option>
               {roleNames.map((name) => (
@@ -238,7 +253,11 @@ export function GrantRoleDialog({
               ))}
             </Select>
           </Field>
-          <Field id={`${ids}-place`} label={t("access.roles.whereLabel")}>
+          <Field
+            id={`${ids}-place`}
+            label={t("access.roles.whereLabel")}
+            description={t("access.roles.whereHelp")}
+          >
             <Select id={`${ids}-place`} value={form.place} onChange={(event) => set({ place: event.target.value })}>
               <option value="project">{t("access.roles.project", { name: project })}</option>
               <option value="organization">{t("access.roles.organization")}</option>
@@ -249,7 +268,11 @@ export function GrantRoleDialog({
               ))}
             </Select>
           </Field>
-          <Field id={`${ids}-until`} label={t("access.roles.untilLabel")}>
+          <Field
+            id={`${ids}-until`}
+            label={t("access.roles.untilLabel")}
+            description={t("access.roles.untilHelp")}
+          >
             <Input
               id={`${ids}-until`}
               type="date"

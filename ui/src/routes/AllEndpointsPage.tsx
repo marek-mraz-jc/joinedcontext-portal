@@ -27,6 +27,7 @@ import {
   TableHeaderCell,
   TableRow,
   TableSkeleton,
+  Term,
 } from "../components/ui";
 
 const COLUMNS = 5;
@@ -48,7 +49,9 @@ export function AllEndpointsPage(): JSX.Element {
   const head = (
     <TableHead>
       <TableHeaderCell>{t("allEndpoints.field.project")}</TableHeaderCell>
-      <TableHeaderCell>{t("allEndpoints.field.space")}</TableHeaderCell>
+      <TableHeaderCell>
+        <Term name="contextSpace">{t("allEndpoints.field.space")}</Term>
+      </TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.name")}</TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.audience")}</TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.representations")}</TableHeaderCell>

@@ -202,6 +202,28 @@
       "delete": "{fields, plural, =0 {Odstranění {kind} „{name}“} one {Odstranění {kind} „{name}“ ({fields} pole)} few {Odstranění {kind} „{name}“ ({fields} pole)} other {Odstranění {kind} „{name}“ ({fields} polí)}}"
     }
   },
+  "glossary": {
+    "endpoint": {
+      "definition": "Zveřejněná adresa dat jednoho kontextového prostoru s vlastními pravidly, kdo smí číst které entity a atributy.",
+      "term": "Endpoint"
+    },
+    "policy": {
+      "definition": "Pravidlo za endpointem: které operace smí volající provést, nad kterými typy entit a které atributy se vrátí.",
+      "term": "Politika"
+    },
+    "contextSpace": {
+      "definition": "Místo, kde žijí živá data jednoho projektu, odděleně od ostatních projektů; endpointy je zveřejňují, linky je plní.",
+      "term": "Kontextový prostor"
+    },
+    "lane": {
+      "definition": "Kolik posouzení změna potřebuje, než se provede: zelená projde sama, žlutá potřebuje schválení gestora, červená více lidí.",
+      "term": "Riziková dráha"
+    },
+    "change": {
+      "definition": "Navržená úprava konfigurace, zaznamenaná tak, aby si ji člověk přečetl a schválil dříve, než se cokoli v provozu pohne.",
+      "term": "Změna"
+    }
+  },
   "quota": {
     "contextSpaces": "Kontextové prostory",
     "unlimited": "{used}, bez limitu",
@@ -941,7 +963,13 @@
       "whereLabel": "Kde platí",
       "untilLabel": "Do (nepovinné)",
       "propose": "Navrhnout přidělení",
-      "emptyHint": "Vazba role říká, kdo smí v tomto projektu co dělat. Dokud žádná není, může tu něco měnit jen správce organizace."
+      "emptyHint": "Vazba role říká, kdo smí v tomto projektu co dělat. Dokud žádná není, může tu něco měnit jen správce organizace.",
+      "subjectKindHelp": "Zda roli dostane jeden člověk, nebo skupina lidí. Skupina se uděluje jednou a členy si drží sama.",
+      "personHelp": "Uživatelské jméno nebo e-mail, který o tomto člověku vede poskytovatel identity, přesně jak se přihlašuje.",
+      "groupHelp": "Název skupiny vyhlášené v části Skupiny. Roli drží každý, dokud je jejím členem.",
+      "roleHelp": "Co daný člověk smí: každá role je množina sloves nad množinou druhů, vypsaná v části Role.",
+      "whereHelp": "Kam až role sahá: tento projekt, celá organizace, nebo jeden kontextový prostor projektu.",
+      "untilHelp": "Poslední den platnosti role. Prázdné pole znamená bez konce, což potřebuje stálý člen."
     },
     "projectRoles": {
       "title": "Role",
@@ -957,7 +985,8 @@
       "newLead": "Role projektu {project}. Může jmenovat jen druhy tohoto projektu a jen slovesa, která zde sami máte; změnu schvaluje někdo jiný.",
       "sourceLabel": "Manifest role",
       "propose": "Navrhnout roli",
-      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
+      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu.",
+      "sourceHelp": "Manifest tak, jak se zapíše. Dejte mu název a vypište druhy a slovesa, která uděluje; tvar je už připravený."
     },
     "accounts": {
       "title": "Servisní účty",
@@ -1046,7 +1075,8 @@
         "MemberUnknown": "Čeká na první přihlášení",
         "RealmRefused": "Nezapsáno"
       },
-      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde."
+      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde.",
+      "sourceHelp": "Manifest tak, jak se zapíše. Dejte skupině název a vypište e-mailové adresy jejích členů; tvar je už připravený."
     },
     "nameFirst": "Toto je příklad. Dejte mu název (malá písmena, číslice a spojovníky) a upravte zbytek; potom jej lze navrhnout."
   },
@@ -1401,7 +1431,10 @@
       "organization": "Výchozí organizace",
       "tokenRef": "Tajemství s API tokenem",
       "tokenHelp": "Samotný API token se sem nikdy nezadává a nikdy se neukládá do Gitu: uveďte název tajemství, které operátor nahrál do úložiště tajemství, a rekonciliátor jej vyřeší při publikování.",
-      "propose": "Navrhnout katalog"
+      "propose": "Navrhnout katalog",
+      "nameHelp": "Krátký název, pod kterým je tento katalog znám zde. Malá písmena, číslice a spojovníky.",
+      "urlHelp": "Adresa portálu CKAN, na který se datové sady zveřejňují, i se schématem.",
+      "organizationHelp": "Organizace v CKAN, do které sada spadne, když endpoint neurčí vlastní."
     },
     "publications": {
       "title": "Publikované endpointy",
