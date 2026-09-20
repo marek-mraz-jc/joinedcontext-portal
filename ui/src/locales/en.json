@@ -237,7 +237,8 @@
     "name": "Name",
     "phase": "State",
     "empty": "Nothing here yet.",
-    "emptyHint": "Nothing of this kind is in the project yet. Add the first one, or ask the assistant for it and decide what it proposes."
+    "emptyHint": "Nothing of this kind is in the project yet. Add the first one, or ask the assistant for it and decide what it proposes.",
+    "lead": "Everything of this kind the project holds. Each row opens what it names."
   },
   "spaces": {
     "lead": "The named collections of context data this project holds; every entity lives in exactly one.",

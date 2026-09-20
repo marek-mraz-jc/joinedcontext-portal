@@ -237,7 +237,8 @@
     "name": "Název",
     "phase": "Stav",
     "empty": "Zatím tu nic není.",
-    "emptyHint": "V projektu zatím nic tohoto druhu není. Přidejte první nebo požádejte asistenta a rozhodněte o tom, co podá."
+    "emptyHint": "V projektu zatím nic tohoto druhu není. Přidejte první nebo požádejte asistenta a rozhodněte o tom, co podá.",
+    "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává."
   },
   "spaces": {
     "lead": "Pojmenované kolekce kontextových dat tohoto projektu; každá entita patří právě do jedné.",
