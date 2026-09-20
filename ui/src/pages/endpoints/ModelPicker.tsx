@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import { parseModel } from "../models/linkml";
-import { Button, Input } from "../../components/ui";
+import { Button, Checkbox, Field, Input, Select } from "../../components/ui";
 
 export interface ClassConfig {
   ticked: boolean;
@@ -163,10 +163,13 @@ export function ModelPicker({
     return eps
       .filter((ep) => {
         const pRef = (ep.spec as { projectionRef?: { name?: string } })?.projectionRef?.name;
-        return pRef === value.selectedProjectionRef;
+        // The endpoint being edited is not somebody else: an endpoint already on a shared
+        // projection used to read "Shared by: air-public" about itself, which says the opposite
+        // of what the line is for — that a change here changes another endpoint too.
+        return pRef === value.selectedProjectionRef && ep.metadata.name !== endpointName;
       })
       .map((ep) => ep.metadata.name);
-  }, [endpointsQuery.data, value.selectedProjectionRef]);
+  }, [endpointsQuery.data, endpointName, value.selectedProjectionRef]);
 
   const isReadOnly = Boolean(value.selectedProjectionRef && !isDetached);
 
@@ -296,27 +299,25 @@ export function ModelPicker({
         <p className="text-caption text-fg-muted">{t("endpoints.picker.hint")}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="projection-reuse" className="text-caption font-medium text-fg">
-          {t("endpoints.picker.reuse")}:
-        </label>
-        <select
-          id="projection-reuse"
-          disabled={disabled}
-          value={value.selectedProjectionRef ?? ""}
-          onChange={(e) => handleSelectProjection(e.target.value)}
-          className="rounded border border-border bg-surface px-2.5 py-1 text-caption text-fg"
-        >
-          <option value="">{t("endpoints.picker.drawNew")}</option>
-          {availableProjections.map((p) => (
-            <option key={p.metadata.name} value={p.metadata.name}>
-              {p.metadata.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field id="projection-reuse" label={t("endpoints.picker.reuse")} className="min-w-48">
+          <Select
+            id="projection-reuse"
+            disabled={disabled}
+            value={value.selectedProjectionRef ?? ""}
+            onChange={(e) => handleSelectProjection(e.target.value)}
+          >
+            <option value="">{t("endpoints.picker.drawNew")}</option>
+            {availableProjections.map((p) => (
+              <option key={p.metadata.name} value={p.metadata.name}>
+                {p.metadata.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
         {value.selectedProjectionRef ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 pb-1.5">
             {sharingEndpoints.length > 0 ? (
               <span className="text-caption text-fg-muted">
                 {t("endpoints.picker.sharedBy", { endpoints: sharingEndpoints.join(", ") })}
@@ -329,18 +330,19 @@ export function ModelPicker({
             ) : null}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <label htmlFor="projection-name" className="text-caption font-medium text-fg">
-              {t("endpoints.picker.projectionName")}:
-            </label>
+          <Field
+            id="projection-name"
+            label={t("endpoints.picker.projectionName")}
+            className="min-w-48 flex-1"
+          >
             <Input
               id="projection-name"
               disabled={disabled || isReadOnly}
               value={value.projectionName}
               onChange={(e) => onChange({ ...value, projectionName: e.target.value })}
-              className="h-8 font-mono text-caption"
+              className="font-mono"
             />
-          </div>
+          </Field>
         )}
       </div>
 
@@ -383,41 +385,41 @@ export function ModelPicker({
           return (
             <div key={cls.name} className="pt-2 flex flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="flex items-center gap-2 font-medium text-caption text-fg cursor-pointer">
-                  <input
-                    type="checkbox"
-                    aria-label={cls.name}
-                    disabled={disabled || isReadOnly}
-                    checked={isTicked}
-                    onChange={() => toggleClass(cls.name, nonIdSlots)}
-                  />
-                  <span className="font-mono">{cls.name}</span>
-                  {isIdentityOnly ? (
-                    <span className="text-xs text-fg-muted">({t("endpoints.picker.identityOnly")})</span>
-                  ) : null}
-                </label>
+                <Checkbox
+                  className="font-medium text-caption"
+                  // The class name is the accessible name: the hint after it says what is ticked
+                  // inside the class, which is a second sentence about the same box rather than
+                  // part of what the box is called.
+                  aria-label={cls.name}
+                  label={<span className="font-mono">{cls.name}</span>}
+                  hint={isIdentityOnly ? `(${t("endpoints.picker.identityOnly")})` : undefined}
+                  disabled={disabled || isReadOnly}
+                  checked={isTicked}
+                  onChange={() => toggleClass(cls.name, nonIdSlots)}
+                />
 
                 {isTicked ? (
                   <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-caption text-fg cursor-pointer">
-                      <input
-                        type="checkbox"
-                        aria-label={`${cls.name} writable`}
-                        disabled={disabled || isReadOnly}
-                        checked={Boolean(cfg.writable)}
-                        onChange={(e) => updateClassConfig(cls.name, { writable: e.target.checked })}
-                      />
-                      <span>{t("endpoints.picker.writable")}</span>
-                    </label>
+                    <Checkbox
+                      className="text-caption"
+                      // The class name tells one row's "Writable" from the next one's; the word
+                      // itself is in the name, so what is read matches what is on the screen
+                      // (WCAG 2.5.3), in the language the person is reading.
+                      aria-label={`${cls.name} ${t("endpoints.picker.writable")}`}
+                      label={t("endpoints.picker.writable")}
+                      disabled={disabled || isReadOnly}
+                      checked={Boolean(cfg.writable)}
+                      onChange={(e) => updateClassConfig(cls.name, { writable: e.target.checked })}
+                    />
 
-                    <div className="flex items-center gap-1">
-                      <input
-                        aria-label={`${cls.name} read q`}
+                    <div className="w-40">
+                      <Input
+                        aria-label={`${cls.name} ${t("endpoints.picker.readQ")}`}
                         placeholder={t("endpoints.picker.readQ")}
                         disabled={disabled || isReadOnly}
                         value={cfg.readQ ?? ""}
                         onChange={(e) => updateClassConfig(cls.name, { readQ: e.target.value })}
-                        className="rounded border border-border bg-surface px-2 py-0.5 text-caption font-mono text-fg w-32"
+                        className="font-mono"
                       />
                     </div>
                   </div>
@@ -425,60 +427,71 @@ export function ModelPicker({
               </div>
 
               {isTicked && cfg.writable ? (
-                <div className="ml-6 flex flex-wrap gap-2 p-2 bg-surface rounded border border-border">
-                  <input
-                    aria-label={`${cls.name} idPattern`}
-                    placeholder={t("endpoints.picker.idPattern")}
-                    disabled={disabled || isReadOnly}
-                    value={cfg.idPattern ?? ""}
-                    onChange={(e) => updateClassConfig(cls.name, { idPattern: e.target.value })}
-                    className="rounded border border-border bg-surface px-2 py-0.5 text-caption font-mono text-fg flex-1 min-w-[12rem]"
-                  />
-                  <input
-                    aria-label={`${cls.name} scope`}
-                    placeholder={t("endpoints.picker.scope")}
-                    disabled={disabled || isReadOnly}
-                    value={cfg.scope ?? ""}
-                    onChange={(e) => updateClassConfig(cls.name, { scope: e.target.value })}
-                    className="rounded border border-border bg-surface px-2 py-0.5 text-caption font-mono text-fg w-36"
-                  />
-                  <input
-                    aria-label={`${cls.name} q`}
-                    placeholder={t("endpoints.picker.q")}
-                    disabled={disabled || isReadOnly}
-                    value={cfg.writeQ ?? ""}
-                    onChange={(e) => updateClassConfig(cls.name, { writeQ: e.target.value })}
-                    className="rounded border border-border bg-surface px-2 py-0.5 text-caption font-mono text-fg w-36"
-                  />
+                <div className="ml-6 flex flex-wrap gap-2 rounded border border-border bg-surface p-2">
+                  <div className="min-w-48 flex-1">
+                    <Input
+                      aria-label={`${cls.name} ${t("endpoints.picker.idPattern")}`}
+                      placeholder={t("endpoints.picker.idPattern")}
+                      disabled={disabled || isReadOnly}
+                      value={cfg.idPattern ?? ""}
+                      onChange={(e) => updateClassConfig(cls.name, { idPattern: e.target.value })}
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="w-40">
+                    <Input
+                      aria-label={`${cls.name} ${t("endpoints.picker.scope")}`}
+                      placeholder={t("endpoints.picker.scope")}
+                      disabled={disabled || isReadOnly}
+                      value={cfg.scope ?? ""}
+                      onChange={(e) => updateClassConfig(cls.name, { scope: e.target.value })}
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="w-40">
+                    <Input
+                      aria-label={`${cls.name} ${t("endpoints.picker.q")}`}
+                      placeholder={t("endpoints.picker.q")}
+                      disabled={disabled || isReadOnly}
+                      value={cfg.writeQ ?? ""}
+                      onChange={(e) => updateClassConfig(cls.name, { writeQ: e.target.value })}
+                      className="font-mono"
+                    />
+                  </div>
                 </div>
               ) : null}
 
               {isTicked ? (
                 <div className="ml-6 flex flex-wrap gap-x-4 gap-y-1">
                   {IDENTITY_SLOTS.map((idSlot) => (
-                    <label key={idSlot} className="flex items-center gap-1.5 text-caption text-fg-muted opacity-75">
-                      <input
-                        type="checkbox"
-                        aria-label={`${cls.name}.${idSlot}`}
-                        checked={true}
-                        disabled={true}
-                      />
-                      <span className="font-mono">{idSlot}</span>
-                    </label>
+                    <Checkbox
+                      key={idSlot}
+                      className="text-caption text-fg-muted"
+                      aria-label={`${cls.name}.${idSlot}`}
+                      // Every entity carries its id and its type, so these two are not a choice
+                      // and the tick says so rather than inviting one. The reason is read with
+                      // the box, which "dimmed and ticked" on its own never explained (UI-44).
+                      // `title` and not a visible hint: the sentence beside each of the two
+                      // boxes of every class would be the loudest text in the list.
+                      title={t("endpoints.picker.identityAlways")}
+                      label={<span className="font-mono">{idSlot}</span>}
+                      checked
+                      readOnly
+                      disabled
+                    />
                   ))}
                   {nonIdSlots.map((slot) => {
                     const slotTicked = cfg.slots.includes(slot);
                     return (
-                      <label key={slot} className="flex items-center gap-1.5 text-caption text-fg cursor-pointer">
-                        <input
-                          type="checkbox"
-                          aria-label={`${cls.name}.${slot}`}
-                          disabled={disabled || isReadOnly}
-                          checked={slotTicked}
-                          onChange={() => toggleSlot(cls.name, slot)}
-                        />
-                        <span className="font-mono">{slot}</span>
-                      </label>
+                      <Checkbox
+                        key={slot}
+                        className="text-caption"
+                        aria-label={`${cls.name}.${slot}`}
+                        label={<span className="font-mono">{slot}</span>}
+                        disabled={disabled || isReadOnly}
+                        checked={slotTicked}
+                        onChange={() => toggleSlot(cls.name, slot)}
+                      />
                     );
                   })}
                 </div>

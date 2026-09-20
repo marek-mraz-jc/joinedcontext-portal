@@ -129,7 +129,9 @@ describe("LinkML editor", () => {
     renderEditor();
     await userEvent.click(screen.getByRole("tab", { name: en.models.view.graph }));
 
-    const canvas = await screen.findByRole("img", { name: en.models.graph.title });
+    // A group, not an image: the class boxes inside it are buttons, and an image's contents are
+    // presentational (T-1846).
+    const canvas = await screen.findByRole("group", { name: en.models.graph.title });
     expect(canvas).toBeInTheDocument();
     // Both classes, each with its own slots inside the box.
     expect(screen.getByRole("button", { name: /Open Vehicle/ })).toBeInTheDocument();

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { optionsOf, QuestionOptions } from "../src/pages/apps/QuestionOptions";
+import { expectDenied } from "./checks";
 import type { JsonSchema } from "../src/components/forms/types";
 
 const ENUM: JsonSchema = {
@@ -121,8 +122,9 @@ describe("a question of the assistant (UI-57)", () => {
     const onAnswer = show(several([BIKES, AIR, { const: "noise", title: "Noise" }], { minItems: 1 }));
 
     const use = screen.getByRole("button", { name: "Use these (0)" });
-    expect(use).toBeDisabled();
-    expect(screen.getByText("Choose at least 1.")).toBeInTheDocument();
+    // Refused, not hard-disabled: the range is the button's own reason now, so it reaches
+    // somebody who cannot see it greyed out (UI-44, T-1743, T-1839).
+    expectDenied(use, "Choose at least 1.");
     await userEvent.click(screen.getByRole("button", { name: /City bikes/ }));
     await userEvent.click(screen.getByRole("button", { name: /Air quality/ }));
     expect(screen.getByRole("button", { name: /City bikes/ })).toHaveAttribute("aria-pressed", "true");
@@ -135,7 +137,7 @@ describe("a question of the assistant (UI-57)", () => {
 
     expect(screen.getByRole("button", { name: /Air quality/ })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(screen.getByRole("button", { name: /City bikes/ }));
-    expect(screen.getByRole("button", { name: "Use these (2)" })).toBeDisabled();
+    expectDenied(screen.getByRole("button", { name: "Use these (2)" }), "Choose at most 1.");
     expect(onAnswer).not.toHaveBeenCalled();
   });
 

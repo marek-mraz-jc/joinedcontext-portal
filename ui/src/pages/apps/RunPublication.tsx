@@ -74,7 +74,7 @@ export function RunPublication({
   return (
     <section
       aria-label={t("agentRun.publication.title")}
-      className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded border border-border p-3 text-sm"
+      className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded border border-border p-3 text-body"
     >
       {sourceUrl ? (
         <SourceLink href={sourceUrl} label={t("agentRun.publication.source")} />
@@ -83,7 +83,7 @@ export function RunPublication({
       {changeId ? (
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="font-medium">{t("agentRun.publication.title")}</span>
-          <span className="font-mono text-xs text-fg-muted">{changeId}</span>
+          <span className="font-mono text-caption text-fg-muted">{changeId}</span>
           {proposal ? (
             <>
               <LifecycleBadge kind="lane" value={proposal.status.lane} />
@@ -113,12 +113,12 @@ export function RunPublication({
             {t("changes.review")}
           </Link>
           {standing.ownAsAdministrator ? (
-            <span className="text-xs text-fg-muted">
+            <span className="text-caption text-fg-muted">
               {t("approvals.ownAsAdministrator", { kind: proposal ? changedKind(proposal) : "App" })}
             </span>
           ) : null}
           {standing.block ? (
-            <span className="text-xs text-fg-muted">{t(`approvals.${standing.block}`)}</span>
+            <span className="text-caption text-fg-muted">{t(`approvals.${standing.block}`)}</span>
           ) : null}
         </span>
       ) : null}

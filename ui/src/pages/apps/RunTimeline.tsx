@@ -25,7 +25,7 @@ export function RunTimeline({
       <h2 id="run-timeline" className="text-base font-semibold">
         {t("agentRun.timeline.title")}
       </h2>
-      <ol className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-sm">
+      <ol className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-body">
         {RUN_STATES.map((state, index) => {
           const done = reached > index;
           const current = state === status;
@@ -53,14 +53,14 @@ export function RunTimeline({
           role="status"
           className={
             status === "expired"
-              ? "mt-2 text-sm font-medium text-fg-muted"
-              : "mt-2 text-sm font-medium text-danger"
+              ? "mt-2 text-body font-medium text-fg-muted"
+              : "mt-2 text-body font-medium text-danger"
           }
         >
           {t(`agentRun.states.${status}`, { defaultValue: status })}
         </p>
       )}
-      <p className="mt-2 text-xs text-fg-muted">
+      <p className="mt-2 text-caption text-fg-muted">
         {t("agentRun.timeline.usage", { steps, tokens: tokensUsed.toLocaleString() })}
       </p>
     </section>
