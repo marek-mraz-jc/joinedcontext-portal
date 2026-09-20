@@ -293,6 +293,33 @@ describe("endpoint sharing", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a shared row to one control, whichever of the two it is (T-2288, UI-26)", async () => {
+    byPath["/api/v1/projects/espoo/shared"] = list([
+      {
+        apiVersion: API,
+        kind: "SharedSpaceReference",
+        metadata: { name: "helsinki-bikes", namespace: "espoo" },
+        spec: { endpointSlug: BIKES_SLUG, alias: "city-bikes" },
+        status: { phase: "Live" },
+      },
+    ]);
+    renderAt("/projects/espoo/endpoints");
+
+    // A reference is not a manifest a consumer edits, saves as or works on a copy of: the one
+    // thing this row can do is stop referencing it, so it stays in the open rather than
+    // becoming a menu of one live item and three that make no sense for it.
+    const section = await sharedSection();
+    const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
+    await within(bikes).findByText(en.endpoints.shared.referenced);
+    expect(within(bikes).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(bikes).getByRole("button", { name: new RegExp(en.resourceDelete.button) }),
+    ).toBeInTheDocument();
+
+    const events = within(section).getByText("events").closest("tr") as HTMLElement;
+    expect(within(events).getAllByRole("button")).toHaveLength(1);
+  });
+
   it("finds a declared reference by name and an older one by slug (EP-77)", () => {
     const byRef = {
       apiVersion: API,

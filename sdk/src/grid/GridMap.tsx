@@ -11,7 +11,7 @@
  * on the grid's query and stays visible until it is removed.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 
 import { GeoEditor } from "../geo/GeoEditor";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
@@ -148,6 +148,7 @@ export function GridMap({
   const asked: GeoQuery | null = areaQuery(area ?? null);
 
   const canEdit = mode === "edit" && Boolean(onEdit);
+  const reasonId = `${useId()}cannot-edit`;
   const editorOpen = canEdit && editing && activeRow !== null;
 
   const drawArea = (): void => {
@@ -171,15 +172,37 @@ export function GridMap({
             {area ? labels.clearArea : labels.drawArea}
           </button>
         ) : null}
-        {canEdit && activeRow ? (
-          <button
-            type="button"
-            className="jc-grid-map__action"
-            aria-pressed={editorOpen}
-            onClick={() => setEditing((open) => !open)}
-          >
-            {labels.editGeometry}
-          </button>
+        {mode === "edit" && activeRow ? (
+          canEdit ? (
+            <button
+              type="button"
+              className="jc-grid-map__action"
+              aria-pressed={editorOpen}
+              onClick={() => setEditing((open) => !open)}
+            >
+              {labels.editGeometry}
+            </button>
+          ) : (
+            // Refused, and still in the header and in the tab order, because that is where a
+            // person looks for it: hiding it and writing the reason at the foot of the panel
+            // left somebody with a read-only grant looking for a control that was never drawn
+            // (T-2288, UI-44). The host passes its own sentence as `viewerCannotEdit`.
+            <>
+              <button
+                type="button"
+                className="jc-grid-map__action"
+                aria-disabled="true"
+                aria-describedby={reasonId}
+                title={labels.viewerCannotEdit}
+                onClick={(event) => event.preventDefault()}
+              >
+                {labels.editGeometry}
+              </button>
+              <span id={reasonId} className="jc-grid-sr-only">
+                {labels.viewerCannotEdit}
+              </span>
+            </>
+          )
         ) : null}
       </header>
 
@@ -219,7 +242,12 @@ export function GridMap({
         />
       )}
 
-      {mode === "edit" && !onEdit ? <p className="jc-grid-map__note">{labels.viewerCannotEdit}</p> : null}
+      {/* With no row active there is no control to hang the reason on, so the panel says it
+          once, here; with one active the button above carries it and this would be a second
+          copy of the same sentence. */}
+      {mode === "edit" && !onEdit && !activeRow ? (
+        <p className="jc-grid-map__note">{labels.viewerCannotEdit}</p>
+      ) : null}
 
       {offTheMap.length > 0 ? (
         <p className="jc-grid-map__off">
