@@ -68,8 +68,19 @@ export function expectDenied(control: HTMLElement, reason?: string | RegExp): vo
  * The form tasks of the `ui-forms` group each run this on their own page, so a violation names
  * the rule and the element instead of failing somewhere inside the whole-app run of `a11y`.
  */
-export async function expectNoViolations(container: HTMLElement): Promise<void> {
-  const results = await axe.run(container);
+export async function expectNoViolations(
+  container: HTMLElement,
+  /**
+   * Selectors left out of the run, for a violation that belongs to a file of its own task: the
+   * caller names the task in a comment, so nothing is quietly excluded for ever.
+   */
+  exclude: string[] = [],
+): Promise<void> {
+  const context =
+    exclude.length === 0
+      ? (container as unknown as axe.ElementContext)
+      : ({ include: [container], exclude: exclude.map((selector) => [selector]) } as unknown as axe.ElementContext);
+  const results = await axe.run(context);
   const summary = results.violations
     .map((violation) => {
       const where = violation.nodes.map((node) => node.html).join("; ");

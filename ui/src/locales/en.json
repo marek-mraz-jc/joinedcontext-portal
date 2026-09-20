@@ -325,7 +325,8 @@
       "action": "Complete",
       "proposeAll": "Propose all",
       "open": "Open",
-      "noDrafts": "No drafts completed yet."
+      "noDrafts": "No drafts completed yet.",
+      "needInput": "Give an endpoint URL or add a file first."
     },
     "segment": "ids: {segment}"
   },

@@ -265,17 +265,23 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           <Button
             id="complete-btn"
             variant={result?.proposeReady ? "secondary" : "primary"}
-            disabled={loading || (!url.trim() && files.length === 0)}
+            // UI-44: nothing to read from is a refusal with a reason on the button, not a grey
+            // button and a guess; `loading` keeps the label and its width while the run is out.
+            disabled={!url.trim() && files.length === 0}
+            disabledReason={
+              !url.trim() && files.length === 0 ? t("spaces.complete.needInput") : undefined
+            }
+            loading={loading}
             onClick={() => void executeComplete(false)}
           >
-            {loading ? t("app.loading") : t("spaces.complete.action")}
+            {t("spaces.complete.action")}
           </Button>
 
           {result?.proposeReady ? (
             <Button
               id="complete-propose"
               variant="primary"
-              disabled={loading}
+              loading={loading}
               onClick={() => void executeComplete(true)}
             >
               {t("spaces.complete.proposeAll")}
