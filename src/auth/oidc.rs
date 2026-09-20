@@ -296,8 +296,10 @@ pub struct CallbackQuery {
     pub error_description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+/// The provider's back-channel logout call: one signed token, no session and no bearer (AP-29).
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct BackChannelLogoutForm {
+    /// The JWT the provider signed, carrying the `logout_events` claim.
     pub logout_token: String,
 }
 
@@ -344,6 +346,20 @@ fn oidc(state: &AppState) -> Result<&OidcClient, ApiError> {
 }
 
 /// `GET /api/v1/auth/login` — starts the authorization code flow with PKCE.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/login",
+    tag = "auth",
+    params(
+        ("redirect_to" = Option<String>, Query,
+         description = "An in-app path to return to; honoured only when it is same-origin")
+    ),
+    responses(
+        (status = 303, description = "Redirect to the provider's authorization endpoint"),
+        (status = 503, description = "No identity provider is configured",
+         body = crate::error::ProblemDetails)
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
@@ -378,6 +394,24 @@ pub async fn login(
 }
 
 /// `GET /api/v1/auth/callback` — validates state and nonce, exchanges the code, mints the session.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/callback",
+    tag = "auth",
+    params(
+        ("code" = Option<String>, Query, description = "The authorization code the provider issued"),
+        ("state" = Option<String>, Query, description = "The CSRF state minted at login"),
+        ("error" = Option<String>, Query, description = "Set when the provider refused the flow"),
+        ("error_description" = Option<String>, Query, description = "The provider's own words")
+    ),
+    responses(
+        (status = 303, description = "Session issued; redirect into the application"),
+        (status = 400, description = "The provider refused, or state or nonce did not match",
+         body = crate::error::ProblemDetails),
+        (status = 503, description = "No identity provider is configured",
+         body = crate::error::ProblemDetails)
+    )
+)]
 pub async fn callback(
     State(state): State<AppState>,
     Query(query): Query<CallbackQuery>,
@@ -675,6 +709,25 @@ fn ends_a_session(jwt: &str) -> bool {
 /// carries no session cookie and no bearer, because the provider makes it server to server:
 /// the signed token is the whole authentication, which is why this route stands outside the
 /// CSRF guard beside the forge webhook (AP-29).
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/backchannel-logout",
+    tag = "auth",
+    request_body(
+        content = BackChannelLogoutForm,
+        content_type = "application/x-www-form-urlencoded",
+        description = "The provider's signed logout token"
+    ),
+    responses(
+        (status = 200, description = "Every session issued at or before the token's mark is revoked"),
+        (status = 400, description = "The token carries no logout event, or carries a nonce",
+         body = crate::error::ProblemDetails),
+        (status = 401, description = "The token's signature or issuer does not verify",
+         body = crate::error::ProblemDetails),
+        (status = 503, description = "No identity provider is configured",
+         body = crate::error::ProblemDetails)
+    )
+)]
 pub async fn backchannel_logout(
     State(state): State<AppState>,
     Form(form): Form<BackChannelLogoutForm>,
