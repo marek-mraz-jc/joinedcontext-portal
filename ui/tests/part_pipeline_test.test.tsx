@@ -75,7 +75,9 @@ describe("the pipeline sample test against the UI contract", () => {
   });
 
   it("runs the mapping once both are there, and never before", async () => {
-    const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
+    // The stub reads neither argument, but `lastCall[0]` below is the URL: the signature is the
+    // mock's type rather than the implementation's parameters, which nothing then leaves unused.
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(
         new Response(JSON.stringify(TRACE), { status: 200, headers: { "Content-Type": "application/json" } }),
       ),
