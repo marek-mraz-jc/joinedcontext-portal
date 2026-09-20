@@ -36,11 +36,22 @@ export interface PipelineForm {
     mappingRef?: string;
     bloblang?: string;
   };
+  /**
+   * The runner processors around the compute step, in order (PL-52). `step` is the manifest's own
+   * step, kept whole so an edit loses nothing of it; `after` puts it behind the compute step.
+   */
+  processors?: StepForm[];
   targetEndpoint?: string;
   output?: { type?: string; mode?: string };
   allowFeedback?: boolean;
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
+}
+
+/** One step of the lane that is not the form's compute step (PL-52). */
+export interface StepForm {
+  step: Record<string, unknown>;
+  after?: boolean;
 }
 
 const PLURAL = "pipelines";
@@ -93,12 +104,19 @@ const isComputeStep = (step: unknown): boolean =>
  * (PL-54). The form shows the first of each; what else the edited manifest holds (a second
  * source, a processor step, a second output) is kept where it was.
  */
-function secondShape(spec: Spec, base: Spec): Spec {
+function secondShape(spec: Spec, base: Spec, processors?: StepForm[]): Spec {
   const { source, compute, targetEndpoint, output, ...others } = spec;
   const baseSteps = listOf(base.steps);
   const at = baseSteps.findIndex(isComputeStep);
-  const steps =
-    compute === undefined
+  // A form that carries the lane owns its order; one that does not (a form filled by hand in a
+  // test, an older caller) keeps whatever steps the edited manifest held.
+  const steps = processors
+    ? [
+        ...processors.filter((entry) => !entry.after).map((entry) => entry.step),
+        ...(compute === undefined ? [] : [compute]),
+        ...processors.filter((entry) => entry.after).map((entry) => entry.step),
+      ]
+    : compute === undefined
       ? baseSteps.filter((_, index) => index !== at)
       : at >= 0
         ? baseSteps.map((step, index) => (index === at ? compute : step))
@@ -112,6 +130,17 @@ function secondShape(spec: Spec, base: Spec): Spec {
       ...listOf(base.outputs).slice(1),
     ],
   }) as Spec;
+}
+
+/** The steps around the first compute step, as the form carries them (PL-52). */
+export function processorsOf(spec: Spec): StepForm[] | undefined {
+  const steps = listOf(spec.steps) as Record<string, unknown>[];
+  const at = steps.findIndex(isComputeStep);
+  const around = steps
+    .map((step, index) => ({ step, index }))
+    .filter(({ index }) => index !== at)
+    .map(({ step, index }) => (at >= 0 && index > at ? { step, after: true } : { step }));
+  return around.length > 0 ? around : undefined;
 }
 
 /**
@@ -140,7 +169,7 @@ export function firstShape(spec: Spec): Spec {
  * the pause button, or any field it has no control for) survives an edit.
  */
 export function toEnvelope(project: string, form: PipelineForm, base?: Manifest): Manifest {
-  const { name, title, source, compute, allowFeedback, secretRefs, quotas, ...rest } = form;
+  const { name, title, source, compute, allowFeedback, secretRefs, quotas, processors, ...rest } = form;
   const spec = prune({
     class: rest.class,
     schedule: rest.schedule,
@@ -171,7 +200,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
       namespace: project,
       ...(title?.trim() ? { title } : {}),
     },
-    spec: second ? secondShape(spec, (base?.spec ?? {}) as Spec) : spec,
+    spec: second ? secondShape(spec, (base?.spec ?? {}) as Spec, processors) : spec,
   };
   return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
 }
@@ -194,6 +223,7 @@ export function toForm(pipeline: Manifest): PipelineForm {
   void _enabled;
   return prune({
     name: pipeline.metadata.name,
+    processors: processorsOf(pipeline.spec as Spec),
     ...(plainTitle(pipeline.metadata.title) ? { title: plainTitle(pipeline.metadata.title) } : {}),
     ...rest,
     class: typeof rest.class === "string" ? rest.class : "auto",

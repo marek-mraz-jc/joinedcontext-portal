@@ -1,14 +1,45 @@
+import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { Manifest } from "../../api/manifest";
-import { Button } from "../../components/ui";
+import { Button, Field, fieldIds } from "../../components/ui";
+import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS } from "../../schemas/kinds";
-import type { PipelineForm } from "./PipelineEditor";
+import type { PipelineForm, StepForm } from "./PipelineEditor";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
 
+/** One processor of the pinned runner: the list jc-core admits a `processor` step from (PL-52). */
+export interface Processor {
+  name: string;
+  category: string;
+  summary: string;
+}
+
+/** The runner's processors by category, in the catalogue's order (PL-56). */
+export const PROCESSOR_GROUPS: { category: string; processors: Processor[] }[] = (() => {
+  const groups = new Map<string, Processor[]>();
+  for (const processor of processorCatalogue as Processor[]) {
+    groups.set(processor.category, [...(groups.get(processor.category) ?? []), processor]);
+  }
+  return [...groups].map(([category, processors]) => ({ category, processors }));
+})();
+
+const PROCESSOR_NAMES = new Set((processorCatalogue as Processor[]).map(({ name }) => name));
+
+/** The runner's summary as plain words: its Markdown links keep their text and lose the target. */
+export const plainSummary = (summary: string): string =>
+  summary.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+
+/** A step node is `step-<index into form.processors>`; the other three are what they were. */
+export type FlowNodeId = "source" | "compute" | "output" | `step-${number}`;
+
+export const stepIndexOf = (id: FlowNodeId | null): number | undefined =>
+  id?.startsWith("step-") ? Number(id.slice(5)) : undefined;
+
 export interface FlowNode {
-  id: "source" | "compute" | "output";
+  id: FlowNodeId;
   kind: string;
   label: string;
   summary: string;
@@ -16,8 +47,29 @@ export interface FlowNode {
 }
 
 export interface FlowEdge {
-  from: FlowNode["id"];
-  to: FlowNode["id"];
+  from: FlowNodeId;
+  to: FlowNodeId;
+}
+
+/** The one processor a `processor` step names, or nothing for a compute or `mappingRef` step. */
+export function processorOf(step: StepForm["step"]): [string, unknown] | undefined {
+  const { processor } = step;
+  if (typeof processor !== "object" || processor === null) return undefined;
+  const [entry] = Object.entries(processor);
+  return entry;
+}
+
+function stepNode(entry: StepForm, index: number): FlowNode {
+  const processor = processorOf(entry.step);
+  const config = processor?.[1];
+  const summary =
+    typeof config === "string"
+      ? (config.trim().split("\n")[0] ?? "")
+      : config && typeof config === "object"
+        ? Object.keys(config).join(" · ")
+        : "";
+  const kind = processor?.[0] ?? (typeof entry.step.kind === "string" ? entry.step.kind : "mapping");
+  return { id: `step-${index}`, kind, label: "Step", summary, present: true };
 }
 
 export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edges: FlowEdge[] } {
@@ -52,8 +104,8 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     present: true,
   };
 
-  const hasCompute = Boolean(form?.compute?.kind);
-  if (hasCompute && form?.compute?.kind) {
+  let computeNode: FlowNode | undefined;
+  if (form?.compute?.kind) {
     let computeSummary = "";
     if (form.compute.kind === "bloblang") {
       computeSummary = (form.compute.bloblang ?? "").trim().split("\n")[0] ?? "";
@@ -62,28 +114,83 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     } else if (form.compute.kind === "wasm" || form.compute.kind === "container") {
       computeSummary = [form.compute.module, form.compute.function].filter(Boolean).join(".");
     }
-
-    const computeNode: FlowNode = {
+    computeNode = {
       id: "compute",
       kind: form.compute.kind,
       label: "Compute",
       summary: computeSummary,
       present: true,
     };
-
-    return {
-      nodes: [sourceNode, computeNode, outputNode],
-      edges: [
-        { from: "source", to: "compute" },
-        { from: "compute", to: "output" },
-      ],
-    };
   }
 
-  return {
-    nodes: [sourceNode, outputNode],
-    edges: [{ from: "source", to: "output" }],
-  };
+  // One lane, in the order the steps run (PL-56): the manifest stores no edges, so an edge is
+  // nothing but two neighbours.
+  const steps = (form?.processors ?? []).map((entry, index) => ({
+    entry,
+    node: stepNode(entry, index),
+  }));
+  const nodes = [
+    sourceNode,
+    ...steps.filter(({ entry }) => !entry.after).map(({ node }) => node),
+    ...(computeNode ? [computeNode] : []),
+    ...steps.filter(({ entry }) => entry.after).map(({ node }) => node),
+    outputNode,
+  ];
+  const edges = nodes.slice(1).map((node, index) => ({ from: nodes[index].id, to: node.id }));
+  return { nodes, edges };
+}
+
+/**
+ * What a processor starts as. The runner refuses `mapping: {}`: a mapping is text and a
+ * composition is a list, so each starts as the smallest block its own shape lints green.
+ */
+function blankConfig(name: string): unknown {
+  if (["mapping", "mutation", "bloblang"].includes(name)) return "root = this";
+  if (["catch", "try", "for_each", "switch", "group_by", "parallel"].includes(name)) return [];
+  return {};
+}
+
+/**
+ * The form with processor `name` put behind node `after` (PL-56), and the node it became.
+ * Behind the source is the head of the lane; behind the output, or behind nothing, is its tail,
+ * because nothing runs after an output. A name the runner does not ship changes nothing.
+ */
+export function addStep(
+  form: PipelineForm | undefined,
+  after: FlowNodeId | null,
+  name: string,
+): { form: PipelineForm; id: FlowNodeId } | undefined {
+  if (!PROCESSOR_NAMES.has(name)) return undefined;
+  const base: PipelineForm = form ?? { class: "auto" };
+  const steps = base.processors ?? [];
+  const head = steps.filter((entry) => !entry.after);
+  const tail = steps.filter((entry) => entry.after);
+  const step = { processor: { [name]: blankConfig(name) } };
+  const at = stepIndexOf(after);
+  let index: number;
+  if (after === "source") {
+    index = 0;
+    head.unshift({ step });
+  } else if (after === "compute" || (at !== undefined && steps[at]?.after)) {
+    // Behind the compute step, or behind a step that already runs after it.
+    index = after === "compute" ? head.length : (at as number) + 1;
+    tail.splice(index - head.length, 0, { step, after: true });
+  } else if (at !== undefined && at < head.length) {
+    index = at + 1;
+    head.splice(index, 0, { step });
+  } else if (base.compute?.kind || tail.length > 0) {
+    index = steps.length;
+    tail.push({ step, after: true });
+  } else {
+    index = head.length;
+    head.push({ step });
+  }
+  return { form: { ...base, processors: [...head, ...tail] }, id: `step-${index}` };
+}
+
+/** The form without step `index`. The list stays, empty, so the save drops the step too. */
+export function removeStep(form: PipelineForm, index: number): PipelineForm {
+  return { ...form, processors: (form.processors ?? []).filter((_, at) => at !== index) };
 }
 
 export function setComputeKind(form: PipelineForm | undefined, kind: string | null): PipelineForm {
@@ -113,12 +220,13 @@ export interface NodePaint {
   state: "ok" | "error" | "skipped" | "idle";
 }
 
-export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<FlowNode["id"], NodePaint> {
-  const result: Record<FlowNode["id"], NodePaint> = {
+export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, NodePaint> {
+  const result: Record<string, NodePaint> = {
     source: { state: "idle" },
     compute: { state: "idle" },
     output: { state: "idle" },
   };
+  for (const node of nodes) result[node.id] = { state: "idle" };
 
   if (!trace) {
     return result;
@@ -151,19 +259,23 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<FlowNode
     }
   }
 
-  const errorsByNode: Record<FlowNode["id"], string | undefined> = {
+  // A lane without a compute step still has somewhere a mapping can fail: its first step.
+  const failing =
+    nodes.find((node) => node.id === "compute") ??
+    nodes.find((node) => stepIndexOf(node.id) !== undefined);
+  const errorsByNode: Record<string, string | undefined> = {
     source: sourceError,
-    compute: computeError,
+    [failing?.id ?? "compute"]: computeError,
     output: outputError,
   };
 
-  const eventsInByNode: Record<FlowNode["id"], number | undefined> = {
+  const eventsInByNode: Record<string, number | undefined> = {
     source: trace.input?.events ?? 0,
     compute: trace.input?.events ?? 0,
     output: trace.mapping?.length ?? 0,
   };
 
-  const eventsOutByNode: Record<FlowNode["id"], number | undefined> = {
+  const eventsOutByNode: Record<string, number | undefined> = {
     source: trace.input?.events ?? 0,
     compute: trace.mapping?.length ?? 0,
     output: (trace.validation ?? []).filter((v) => v.ok).length,
@@ -194,8 +306,8 @@ export interface PipelineFlowProps {
   form: PipelineForm | undefined;
   onChange: (f: PipelineForm) => void;
   trace: Trace | null;
-  selected: FlowNode["id"] | null;
-  onSelect: (id: FlowNode["id"] | null) => void;
+  selected: FlowNodeId | null;
+  onSelect: (id: FlowNodeId | null) => void;
   dataSources: Manifest[];
   endpoints: Manifest[];
 }
@@ -218,6 +330,19 @@ export function PipelineFlow({
   const startY = 25;
   const svgWidth = Math.max(nodes.length * nodeSpacing + 40, 520);
   const svgHeight = 150;
+
+  const insert = (name: string, after: FlowNodeId | null) => {
+    const added = addStep(form, after, name);
+    if (added) {
+      onChange(added.form);
+      onSelect(added.id);
+    }
+  };
+  const remove = (id: FlowNodeId) => {
+    const index = stepIndexOf(id);
+    onChange(index === undefined || !form ? setComputeKind(form, null) : removeStep(form, index));
+    onSelect(null);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -262,6 +387,42 @@ export function PipelineFlow({
         ) : null}
       </div>
 
+      <div className="flex flex-col gap-1" data-testid="palette-processors">
+        <span id="flow-processors" className="text-caption font-semibold text-fg">
+          {t("pipelines.flow.processors")}
+        </span>
+        <p className="text-caption text-fg-muted">{t("pipelines.flow.processorsHint")}</p>
+        {PROCESSOR_GROUPS.map(({ category, processors }) => (
+          <details key={category} className="rounded-md border border-border bg-surface">
+            <summary className="focus-ring cursor-pointer rounded-md px-2 py-1 text-caption font-medium text-fg">
+              {category} ({processors.length})
+            </summary>
+            <ul className="flex flex-col gap-1 p-2" aria-label={category}>
+              {processors.map((processor) => (
+                <li key={processor.name} className="flex items-baseline gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="shrink-0 font-mono"
+                    data-testid={`palette-processor-${processor.name}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", `processor:${processor.name}`);
+                    }}
+                    onClick={() => insert(processor.name, selected)}
+                  >
+                    + {processor.name}
+                  </Button>
+                  <span className="text-caption text-fg-muted">
+                    {plainSummary(processor.summary)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
+
       {/* SVG Canvas */}
       <div className="w-full overflow-x-auto rounded-md border border-border bg-surface-subtle p-2">
         <svg
@@ -277,7 +438,14 @@ export function PipelineFlow({
           onDrop={(e) => {
             e.preventDefault();
             const kind = e.dataTransfer.getData("text/plain");
-            if (COMPUTE_KINDS.includes(kind as (typeof COMPUTE_KINDS)[number])) {
+            if (kind.startsWith("processor:")) {
+              // The node the drop landed on or behind; a canvas with no layout (no width yet)
+              // has no place to read, and the selection says where instead.
+              const box = e.currentTarget.getBoundingClientRect();
+              const x = box.width > 0 ? ((e.clientX - box.left) / box.width) * svgWidth : -1;
+              const under = Math.min(Math.floor((x - startX) / nodeSpacing), nodes.length - 1);
+              insert(kind.slice(10), x < 0 ? selected : under < 0 ? "source" : nodes[under].id);
+            } else if (COMPUTE_KINDS.includes(kind as (typeof COMPUTE_KINDS)[number])) {
               onChange(setComputeKind(form, kind));
               onSelect("compute");
             }
@@ -361,11 +529,11 @@ export function PipelineFlow({
                     onSelect(node.id);
                   } else if (
                     (e.key === "Delete" || e.key === "Backspace") &&
-                    node.id === "compute"
+                    node.id !== "source" &&
+                    node.id !== "output"
                   ) {
                     e.preventDefault();
-                    onChange(setComputeKind(form, null));
-                    onSelect(null);
+                    remove(node.id);
                   } else if (e.key === "ArrowRight") {
                     e.preventDefault();
                     const nextIdx = Math.min(idx + 1, nodes.length - 1);
@@ -394,7 +562,10 @@ export function PipelineFlow({
                   style={{ fontSize: "13px" }}
                   fill="var(--color-fg, #0f172a)"
                 >
-                  {t(`pipelines.flow.node.${node.id}`, { defaultValue: node.label })}
+                  {t(
+                    `pipelines.flow.node.${stepIndexOf(node.id) === undefined ? node.id : "step"}`,
+                    { defaultValue: node.label },
+                  )}
                 </text>
                 <text
                   x={x + nodeWidth - 12}
@@ -466,6 +637,109 @@ export function PipelineFlow({
           })}
         </svg>
       </div>
+    </div>
+  );
+}
+
+export interface StepBlockProps {
+  entry: StepForm;
+  onChange: (entry: StepForm) => void;
+  onRemove: () => void;
+}
+
+/**
+ * The selected step's own Bento block as YAML (PL-56): `<processor>: <config>`, nothing of a
+ * neighbour's. What is typed reaches the form only while it is one processor the runner ships;
+ * until then the form keeps the last block that was, and the reason stands under the text.
+ * Mount it with the node's id as `key`: the text is the author's until another node is chosen.
+ */
+// ponytail: a textarea like the compute node's mapping, not Monaco; swap in MonacoSourceView
+// when authors ask for completion inside a processor's fields.
+export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.Element {
+  const { t } = useTranslation();
+  const processor = processorOf(entry.step);
+  const [text, setText] = useState(() =>
+    stringifyYaml(processor ? { [processor[0]]: processor[1] } : entry.step),
+  );
+  const [problem, setProblem] = useState<string | null>(null);
+  const id = "flow-step-yaml";
+  const found = (processorCatalogue as Processor[]).find(({ name }) => name === processor?.[0]);
+
+  const typed = (next: string) => {
+    setText(next);
+    let block: unknown;
+    try {
+      block = parseYaml(next);
+    } catch (error) {
+      setProblem(
+        t("pipelines.flow.stepYamlInvalid", {
+          reason: (error as Error).message.split("\n")[0],
+        }),
+      );
+      return;
+    }
+    const names =
+      block && typeof block === "object" && !Array.isArray(block) ? Object.keys(block) : [];
+    if (names.length !== 1) {
+      setProblem(t("pipelines.flow.stepYamlOne"));
+    } else if (!PROCESSOR_NAMES.has(names[0])) {
+      setProblem(t("pipelines.flow.stepYamlUnknown", { name: names[0] }));
+    } else {
+      setProblem(null);
+      onChange({ ...entry, step: { ...entry.step, processor: block as Record<string, unknown> } });
+    }
+  };
+
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3"
+      data-testid="flow-node-editor-step"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-caption font-semibold text-fg">
+          {t("pipelines.flow.node.step")} ({processor?.[0] ?? String(entry.step.kind ?? "mapping")})
+        </span>
+        <Button size="sm" variant="ghost" data-testid="flow-step-remove" onClick={onRemove}>
+          {t("pipelines.flow.removeStep")}
+        </Button>
+      </div>
+      {processor ? (
+        <Field
+          id={id}
+          label={t("pipelines.flow.stepYaml")}
+          description={found ? plainSummary(found.summary) : undefined}
+          help={t("pipelines.flow.stepYamlHint")}
+          errors={problem ? [problem] : undefined}
+        >
+          <textarea
+            id={id}
+            data-testid="flow-step-yaml"
+            rows={8}
+            spellCheck={false}
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={[
+              found ? fieldIds(id).description : "",
+              fieldIds(id).help,
+              problem ? fieldIds(id).error : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            className="focus-ring w-full rounded-md border border-border bg-surface p-2 font-mono text-caption text-fg"
+            value={text}
+            onChange={(e) => typed(e.target.value)}
+          />
+        </Field>
+      ) : (
+        <>
+          <pre
+            data-testid="flow-step-readonly"
+            className="max-h-48 overflow-auto rounded-md border border-border bg-surface-subtle p-2 font-mono text-caption break-words whitespace-pre-wrap text-fg"
+          >
+            {text}
+          </pre>
+          <p className="text-caption text-fg-muted">{t("pipelines.flow.stepReadOnly")}</p>
+        </>
+      )}
     </div>
   );
 }

@@ -779,7 +779,8 @@
       "node": {
         "source": "Source",
         "compute": "Compute",
-        "output": "Output"
+        "output": "Output",
+        "step": "Step"
       },
       "passThrough": "Pass-through",
       "eventsIn": "in",
@@ -794,7 +795,16 @@
       "samplesIn": "Sample in",
       "samplesOut": "Sample out",
       "noSample": "No sample",
-      "nodeBloblang": "Mapping on the compute node"
+      "nodeBloblang": "Mapping on the compute node",
+      "processors": "Processors of the runner",
+      "processorsHint": "A processor goes in behind the selected node; with no node selected, at the end of the lane.",
+      "removeStep": "Remove step",
+      "stepYaml": "This step's Bento block",
+      "stepYamlHint": "One processor and its configuration, as the runner reads it. A secret stays a $'{'VAR'}' reference.",
+      "stepYamlInvalid": "This is not YAML yet: {reason}",
+      "stepYamlOne": "A step is one processor: one name at the top, its configuration under it.",
+      "stepYamlUnknown": "The runner ships no processor named \"{name}\". Take one from the palette.",
+      "stepReadOnly": "A compute or mapping step is edited in the YAML view of this dialog."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have."
   },

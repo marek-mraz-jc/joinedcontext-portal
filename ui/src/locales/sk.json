@@ -779,7 +779,8 @@
       "node": {
         "source": "Zdroj",
         "compute": "Výpočet",
-        "output": "Výstup"
+        "output": "Výstup",
+        "step": "Krok"
       },
       "passThrough": "Bez výpočtu",
       "eventsIn": "dnu",
@@ -794,7 +795,16 @@
       "samplesIn": "Vzorka na vstupe",
       "samplesOut": "Vzorka na výstupe",
       "noSample": "Bez vzorky",
-      "nodeBloblang": "Mapovanie na uzle výpočtu"
+      "nodeBloblang": "Mapovanie na uzle výpočtu",
+      "processors": "Procesory runnera",
+      "processorsHint": "Procesor sa vloží za vybraný uzol; ak nie je vybraný žiadny, na koniec linky.",
+      "removeStep": "Odstrániť krok",
+      "stepYaml": "Bento blok tohto kroku",
+      "stepYamlHint": "Jeden procesor a jeho konfigurácia tak, ako ju číta runner. Tajomstvo ostáva odkazom $'{'VAR'}'.",
+      "stepYamlInvalid": "Toto ešte nie je YAML: {reason}",
+      "stepYamlOne": "Krok je jeden procesor: jeden názov hore a pod ním jeho konfigurácia.",
+      "stepYamlUnknown": "Runner nemá procesor s názvom „{name}“. Vyberte si z palety.",
+      "stepReadOnly": "Výpočtový alebo mapovací krok sa upravuje v zobrazení YAML tohto dialógu."
     },
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte."
   },
