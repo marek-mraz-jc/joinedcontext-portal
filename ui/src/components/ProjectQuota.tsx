@@ -43,32 +43,40 @@ export function ProjectQuota({ project }: { project: string }): JSX.Element | nu
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
         {rows.map(([dimension, { used, limit }]) => {
           const full = typeof limit === "number" && used >= limit;
+          const label = t(`quota.dimension.${dimension}`, { defaultValue: dimension });
           return (
-            <div key={dimension}>
-              <div className="flex items-baseline justify-between gap-2">
-                <dt className="text-body text-fg">
-                  {t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
-                </dt>
-                <dd className={`text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}>
-                  {typeof limit === "number"
-                    ? t("quota.ofLimit", { used, limit })
-                    : t("quota.noLimit", { used })}
-                </dd>
-              </div>
+            // One group per dimension, and a group of a `<dl>` holds nothing but its `<dt>` and
+            // its `<dd>`s — the bar used to be a third child beside them, which axe reports as
+            // `definition-list` and `dlitem` (T-1805). It is the same value drawn, so it is a
+            // second `<dd>` of the same term, on its own row of the group's grid.
+            <div key={dimension} className="grid grid-cols-[1fr_auto] items-baseline gap-x-2">
+              <dt className="text-body text-fg">{label}</dt>
+              <dd
+                className={`text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}
+              >
+                {typeof limit === "number"
+                  ? t("quota.ofLimit", { used, limit })
+                  : t("quota.noLimit", { used })}
+              </dd>
               {typeof limit === "number" ? (
-                <div
-                  role="progressbar"
-                  aria-label={t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
-                  aria-valuenow={used}
-                  aria-valuemin={0}
-                  aria-valuemax={limit}
-                  className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
-                >
+                <dd className="col-span-2">
+                  {/* The bar itself stays a `<div>`: `progressbar` is not a role a `<dd>` may
+                      take (axe `aria-allowed-role`), and a `<dd>` that is not a dlitem any more
+                      breaks the list around it. */}
                   <div
-                    className={`h-full rounded-full ${full ? "bg-danger" : "bg-primary"}`}
-                    style={{ width: `${Math.min(100, Math.round((used / limit) * 100))}%` }}
-                  />
-                </div>
+                    role="progressbar"
+                    aria-label={label}
+                    aria-valuenow={used}
+                    aria-valuemin={0}
+                    aria-valuemax={limit}
+                    className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
+                  >
+                    <div
+                      className={`h-full rounded-full ${full ? "bg-danger" : "bg-primary"}`}
+                      style={{ width: `${Math.min(100, Math.round((used / limit) * 100))}%` }}
+                    />
+                  </div>
+                </dd>
               ) : null}
             </div>
           );
