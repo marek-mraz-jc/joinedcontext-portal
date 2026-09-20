@@ -2216,7 +2216,14 @@
     "check": "Check",
     "propose": "Propose",
     "checked": "Checked: the copy can be proposed.",
-    "mayNotPropose": "You may not propose this kind in {project}."
+    "mayNotPropose": "You may not propose this kind in {project}.",
+    "reading": "Reading {name}…",
+    "unreadable": "{name} could not be read.",
+    "chooseSpace": "Choose a space of the target project first.",
+    "checkFirst": "Check the copy before proposing it.",
+    "readingSpaces": "Reading the spaces of the target project…",
+    "noSpaces": "{project} has no space to map to yet.",
+    "spacesUnreadable": "The spaces of {project} could not be read."
   },
   "workspaces": {
     "title": "Copies",

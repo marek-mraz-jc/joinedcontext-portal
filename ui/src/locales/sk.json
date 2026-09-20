@@ -2216,7 +2216,14 @@
     "check": "Skontrolovať",
     "propose": "Navrhnúť",
     "checked": "Skontrolované: kópiu možno navrhnúť.",
-    "mayNotPropose": "V projekte {project} nemôžete navrhovať tento druh."
+    "mayNotPropose": "V projekte {project} nemôžete navrhovať tento druh.",
+    "reading": "Načítava sa {name}…",
+    "unreadable": "{name} sa nepodarilo načítať.",
+    "chooseSpace": "Najprv vyberte priestor cieľového projektu.",
+    "checkFirst": "Pred návrhom kópiu skontrolujte.",
+    "readingSpaces": "Načítavajú sa priestory cieľového projektu…",
+    "noSpaces": "Projekt {project} zatiaľ nemá priestor, na ktorý sa dá namapovať.",
+    "spacesUnreadable": "Priestory projektu {project} sa nepodarilo načítať."
   },
   "workspaces": {
     "title": "Kópie",

@@ -56,10 +56,6 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/components/SaveAsDialog.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    },
     "src/components/forms/widgets/ListFailed.tsx": {
       "lines": 1,
       "group": "ui-parts"
