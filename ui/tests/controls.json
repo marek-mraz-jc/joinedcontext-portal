@@ -4,7 +4,7 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 268 controls, 8 of them still untested.",
+    "lists it. Measured 2026-09-20: 87 modules, 291 controls, 1 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
@@ -136,7 +136,9 @@
       "controls": {
         "Button": 1
       },
-      "tests": []
+      "tests": [
+        "endpoint_data_view.test.tsx"
+      ]
     },
     "src/components/entities/EntityFilters.tsx": {
       "controls": {
@@ -185,7 +187,9 @@
       "controls": {
         "Checkbox": 2
       },
-      "tests": []
+      "tests": [
+        "operations_picker.test.tsx"
+      ]
     },
     "src/components/forms/widgets/ResourcePicker.tsx": {
       "controls": {
@@ -345,6 +349,7 @@
         "dialog_focus.test.tsx",
         "edge_card_dialog_menu_table.test.tsx",
         "page_header_route.test.tsx",
+        "page_state.test.tsx",
         "part_resource_list.test.tsx",
         "permission_guard.test.tsx",
         "resource_list.test.tsx",
@@ -392,6 +397,7 @@
         "part_resource_list.test.tsx",
         "permission_guard.test.tsx",
         "resource_list.test.tsx",
+        "row_actions.test.tsx",
         "term.test.tsx",
         "ui_components.test.tsx",
         "ui_shared_controls.test.tsx",
@@ -470,7 +476,9 @@
       "controls": {
         "Button": 8
       },
-      "tests": []
+      "tests": [
+        "service_accounts_view.test.tsx"
+      ]
     },
     "src/pages/apps/ActionStep.tsx": {
       "controls": {
@@ -594,14 +602,18 @@
       "controls": {
         "Button": 3
       },
-      "tests": []
+      "tests": [
+        "assistant_access_view.test.tsx"
+      ]
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
         "Button": 3,
         "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "assistant_page.test.tsx"
+      ]
     },
     "src/pages/ckan/CkanPage.tsx": {
       "controls": {
@@ -673,6 +685,18 @@
       },
       "tests": [
         "part_instantiate.test.tsx"
+      ]
+    },
+    "src/pages/gallery/Gallery.tsx": {
+      "controls": {
+        "Button": 18,
+        "Checkbox": 2,
+        "FilePicker": 1,
+        "RadioGroup": 1,
+        "Switch": 1
+      },
+      "tests": [
+        "gallery_axe.test.tsx"
       ]
     },
     "src/pages/import/ImportPage.tsx": {
@@ -836,13 +860,17 @@
       "controls": {
         "Button": 6
       },
-      "tests": []
+      "tests": [
+        "approval_actions.test.tsx"
+      ]
     },
     "src/routes/ApprovalsPage.tsx": {
       "controls": {
         "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "approvals_list.test.tsx"
+      ]
     },
     "src/routes/DashboardsPage.tsx": {
       "controls": {
