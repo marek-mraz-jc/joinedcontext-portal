@@ -79,11 +79,25 @@ pub fn app(state: AppState) -> Router {
         ))
 }
 
+/// Whether the route answered that this is a public answer: its `Cache-Control` begins with the
+/// `public` directive (AP-67, UI-30, SDK-16).
+///
+/// The test is one-directional on purpose. A route says *public* and keeps what it set; a route
+/// that says nothing, or says `private`, `no-cache` or anything else, gets `no-store` — so no
+/// answer becomes cacheable by omission, and the only way into a browser cache is a handler that
+/// wrote the word. The three routes that do are the basemap style, the basemap tile and the
+/// branding block and its assets, none of which reads a session (T-2295).
+fn route_says_public(response: &Response) -> bool {
+    response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .is_some_and(|directive| directive.trim().eq_ignore_ascii_case("public"))
+}
+
 async fn api_cache_control_middleware(request: Request, next: Next) -> Response {
-    // The branding block is public and holds no secret, and every page load needs it before
-    // the session is known, so it is the one API answer a browser may keep (UI-30).
-    let is_api =
-        request.uri().path().starts_with("/api/") && request.uri().path() != "/api/v1/branding";
+    let is_api = request.uri().path().starts_with("/api/");
     let mut response = next.run(request).await;
     // An event stream sets its own `no-cache`, which is what the SSE contract asks for; it must
     // not be overwritten with `no-store`, because some intermediaries read that as a reason not
@@ -93,7 +107,12 @@ async fn api_cache_control_middleware(request: Request, next: Next) -> Response 
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.starts_with("text/event-stream"));
-    if is_api && !streaming {
+    // An API answer is `no-store` unless the route itself said it is public. This used to be a
+    // comparison against one exact path, which overwrote the `public, max-age=3600` the basemap
+    // style and every tile set and the `public, max-age=300` of `/api/v1/branding/logo`: a pan
+    // of any map refetched its whole grid from the single-node cluster, and the logo came back
+    // on every page load (T-2295).
+    if is_api && !streaming && !route_says_public(&response) {
         response
             .headers_mut()
             .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));

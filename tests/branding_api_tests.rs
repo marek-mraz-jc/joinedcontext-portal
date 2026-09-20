@@ -153,6 +153,16 @@ async fn the_logo_is_served_from_beside_the_branding_file() {
             .and_then(|value| value.to_str().ok()),
         Some("image/svg+xml")
     );
+    // The asset route is not the exact path the old blanket rule exempted, so every page load
+    // refetched the logo; the route's own header now survives (T-2295, UI-30).
+    assert_eq!(
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
+        Some("public, max-age=300"),
+        "the logo may not be kept by a browser"
+    );
 
     // Nothing is configured as a favicon, so there is nothing to serve.
     let missing = app
@@ -193,4 +203,42 @@ async fn an_asset_outside_the_branding_directory_is_not_served() {
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// AP-67, PF-57: only an answer whose route wrote `public` may be kept. Everything else under
+/// `/api/` is `no-store`, whatever the handler set or left unset — the guarantee that survives
+/// T-2295, so a route carrying a person's data cannot become cacheable by omission.
+#[tokio::test]
+async fn an_answer_no_route_declared_public_is_never_cacheable() {
+    let app = server::app(AppState::new(Config::for_tests(), None));
+    for uri in [
+        "/api/v1/projects",
+        "/api/v1/projects/helsinki/spaces",
+        "/api/v1/projects/helsinki/changes",
+        "/api/v1/me",
+        // The two routes that *do* write `public` — answering an error here, because nothing
+        // is configured: a refusal of a public route is still not a browser's to keep.
+        "/api/v1/branding/favicon",
+        "/api/v1/projects/helsinki/basemap/default/style.json",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store"),
+            "{uri} ({}) may be kept by a browser",
+            response.status(),
+        );
+    }
 }

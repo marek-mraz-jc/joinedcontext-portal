@@ -363,16 +363,16 @@ async fn a_basemap_answer_is_the_same_for_everybody_and_carries_nothing_of_a_per
             Some("*"),
             "{uri} is not readable by a sandboxed frame",
         );
-        // Today's answer, not the wanted one: both routes set `public, max-age=3600`, and the
-        // blanket API rule in `src/server.rs:86` overwrites everything under `/api/` except the
-        // exact branding path, so a browser keeps no tile and a pan refetches the grid. Filed as
-        // T-2295; when it is fixed, this assertion is the one to change.
+        // The route's own header survives the blanket API rule, which is what lets a browser
+        // keep a tile instead of refetching the whole grid on every pan (T-2295). It is safe to
+        // keep exactly because of the three assertions above: no cookie, no `Vary: Cookie`, and
+        // readable by any origin — the answer is about a map and not about a person.
         assert_eq!(
             headers
                 .get(header::CACHE_CONTROL)
                 .and_then(|value| value.to_str().ok()),
-            Some("no-store"),
-            "{uri} now carries its own cache header; T-2295 is fixed",
+            Some("public, max-age=3600"),
+            "{uri} may not be kept by a browser",
         );
     }
     let _ = std::fs::remove_dir_all(&cache);
