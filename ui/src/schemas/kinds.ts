@@ -1,4 +1,8 @@
 import { parse as parseYaml } from "yaml";
+import {
+  OPERATION_GROUP_NAMES,
+  expandOperations,
+} from "../components/endpoints/operationGroups";
 import { gridConfigSchema } from "@joinedcontext/sdk";
 import type { JsonSchema, UiSchema } from "../components/forms/types";
 
@@ -1216,4 +1220,158 @@ export function layerSchema(
 
 export const layerUiSchema: UiSchema = {
   filter: { q: { "ui:autocomplete": "off" } },
+};
+
+/**
+ * What the operations field offers: the five CIM 009 group names, then the operations those
+ * groups are made of (T-2282, GW34).
+ *
+ * Derived, never retyped: the member lists live in `components/endpoints/operationGroups`, which
+ * is held against Table 4.20-2 by `part_operation_groups.test.tsx` and by jc-core. A policy that
+ * already grants an operation outside this list — a manifest written by hand — keeps it: the page
+ * passes what the stored manifest carries, so the form opens every policy the API accepted.
+ */
+export const OPERATION_CHOICES: string[] = [
+  ...OPERATION_GROUP_NAMES,
+  ...expandOperations(OPERATION_GROUP_NAMES).sort((a, b) => a.localeCompare(b)),
+];
+
+/** How a policy reads: a grant, or a refusal that is evaluated before every grant (GW4, GW8). */
+export const POLICY_EFFECTS = ["permission", "prohibition"] as const;
+
+/** Who a policy is granted to, in the order a person thinks of them (PF-40, R5). */
+export const PRINCIPAL_KINDS = ["role", "group", "user", "serviceAccount", "did"] as const;
+
+/**
+ * The `Policy` a person authors: the space, the grantee, the operations, the entities and the
+ * residual filters (R5…R9, GW34, UI-01).
+ *
+ * `assigner` is not a field: it is the data owner, which is the organization the project belongs
+ * to, and the page fills it from the Organization manifest. `operations` is a list of names —
+ * the five CIM 009 groups and the individual operations they stand for — rendered by the
+ * `operations` widget rather than as forty checkboxes; the names themselves come from
+ * `components/endpoints/operationGroups`, never from a list retyped here (T-2282, T-2326).
+ */
+export function policySchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  types: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "contextSpaceRef", "assignee", "operations"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("policies.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      contextSpaceRef: {
+        type: "string",
+        title: t("policies.field.space"),
+        ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+      },
+      effect: {
+        type: "string",
+        title: t("policies.field.effect"),
+        enum: [...POLICY_EFFECTS],
+        default: "permission",
+      },
+      assignee: {
+        type: "object",
+        title: t("policies.field.assignee"),
+        required: ["kind", "id"],
+        properties: {
+          kind: {
+            type: "string",
+            title: t("policies.field.assigneeKind"),
+            enum: [...PRINCIPAL_KINDS],
+            default: "role",
+          },
+          id: { type: "string", title: t("policies.field.assigneeId"), maxLength: 253 },
+        },
+      },
+      operations: {
+        type: "array",
+        title: t("policies.field.operations"),
+        // A list of choices rather than of free text: rjsf hands a multiple-choice array to the
+        // picker, and a name outside the vocabulary is refused here as the API refuses it (GW34).
+        items: {
+          type: "string",
+          enum: [...new Set([...OPERATION_CHOICES, ...granted])],
+        },
+        uniqueItems: true,
+        minItems: 1,
+        default: ["retrieveOps"],
+      },
+      information: {
+        type: "array",
+        title: t("policies.field.information"),
+        items: {
+          type: "object",
+          required: ["entities"],
+          properties: {
+            entities: {
+              type: "array",
+              title: t("policies.field.entities"),
+              minItems: 1,
+              items: {
+                type: "object",
+                required: ["type"],
+                properties: {
+                  type: {
+                    type: "string",
+                    title: t("policies.field.entityType"),
+                    ...(types.length > 0
+                      ? { enum: types }
+                      : { pattern: ENTITY_TYPE_PATTERN }),
+                  },
+                  idPattern: { type: "string", title: t("policies.field.idPattern") },
+                },
+              },
+            },
+            propertyNames: {
+              type: "array",
+              title: t("policies.field.propertyNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+            relationshipNames: {
+              type: "array",
+              title: t("policies.field.relationshipNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      q: { type: "string", title: "q" },
+      scopeQ: { type: "string", title: "scopeQ" },
+      geoQ: { type: "string", title: "geoQ" },
+      temporalQ: { type: "string", title: "temporalQ" },
+      validity: {
+        type: "object",
+        title: t("policies.field.validity"),
+        properties: {
+          from: { type: "string", title: t("policies.field.validFrom") },
+          to: { type: "string", title: t("policies.field.validTo") },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * The operations picker instead of a list of text boxes, and no autocomplete on the four filter
+ * expressions: a browser offering a previous `q` on another space's policy is a suggestion that
+ * grants something nobody read.
+ */
+export const policyUiSchema: UiSchema = {
+  operations: { "ui:widget": "operations" },
+  q: { "ui:autocomplete": "off" },
+  scopeQ: { "ui:autocomplete": "off" },
+  geoQ: { "ui:autocomplete": "off" },
+  temporalQ: { "ui:autocomplete": "off" },
 };

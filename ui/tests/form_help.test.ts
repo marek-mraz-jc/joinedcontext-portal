@@ -62,6 +62,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   ],
   Dashboard: [kinds.dashboardSchema(t, ["bikes"])],
   Layer: [kinds.layerSchema(t, ["helsinki"], ["Bike"])],
+  Policy: [kinds.policySchema(t, ["ovzdusie"])],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */
