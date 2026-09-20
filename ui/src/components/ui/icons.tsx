@@ -6,7 +6,7 @@ import { clsx } from "clsx";
  * dozen glyphs is not worth its supply chain. Every path is a 24-unit stroke icon so the set
  * reads as one. Decorative by default (`aria-hidden`); pass a `title` prop for a labelled one.
  */
-const PATHS: Record<string, string> = {
+const PATHS = {
   flows: "M4 6h6v6H4zM14 12h6v6h-6zM10 9h4M12 9v3M12 15h2",
   spaces: "M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4",
   endpoints: "M4 12h4M16 12h4M8 12a4 4 0 0 1 8 0 4 4 0 0 1-8 0zM12 4v4M12 16v4",
@@ -38,7 +38,6 @@ const PATHS: Record<string, string> = {
   import: "M12 3v10M8 9l4 4 4-4M4 15v4h16v-4",
   globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
   share: "M18 5a2.5 2.5 0 1 1 0 .01M6 12a2.5 2.5 0 1 1 0 .01M18 19a2.5 2.5 0 1 1 0 .01M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6",
-  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5",
   arrowUp: "M12 19V5M5 12l7-7 7 7",
   arrowDown: "M12 5v14M5 12l7 7 7-7",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6",
@@ -46,15 +45,24 @@ const PATHS: Record<string, string> = {
   chat: "M4 5h16v11H9l-5 4z",
   minimize: "M5 12h14",
   expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
-  shrink: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
   stop: "M7 7h10v10H7z",
   paperclip: "M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7",
   sidebar: "M4 5h16v14H4zM14 5v14",
   float: "M4 5h16v14H4zM12 11h6v6h-6z",
   git: "M6 3v12M18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a9 9 0 0 1-9 9",
-};
+} as const satisfies Record<string, string>;
 
+/**
+ * The names this set holds. It was `Record<string, string>` before, which widens the literal —
+ * `keyof typeof PATHS` came out as `string`, so `<Icon name="chevrondown" />` compiled clean and
+ * drew an empty box, and every `IconName` guard in the codebase was checking nothing.
+ */
 export type IconName = keyof typeof PATHS;
+
+/** Whether a value out of a manifest, a catalogue or a tool answer names an icon of this set. */
+export function isIconName(name: unknown): name is IconName {
+  return typeof name === "string" && Object.hasOwn(PATHS, name);
+}
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
@@ -62,6 +70,16 @@ export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   title?: string;
 }
 
+/**
+ * One icon of the set (UI-15, UI-16).
+ *
+ * Decorative by default: without a `title` it is `aria-hidden`, so an icon beside a label is not
+ * announced twice. With a `title` it becomes `role="img"` named by that title — which has to be a
+ * translated string, never a raw value out of the API.
+ *
+ * The default `size-5` is dropped when the caller names a size of its own, because `clsx` only
+ * concatenates and Tailwind then resolves the conflict by stylesheet order, not by argument order.
+ */
 export function Icon({ name, title, className, ...rest }: IconProps): React.JSX.Element {
   return (
     <svg
@@ -73,7 +91,7 @@ export function Icon({ name, title, className, ...rest }: IconProps): React.JSX.
       strokeLinejoin="round"
       aria-hidden={title ? undefined : "true"}
       role={title ? "img" : undefined}
-      className={clsx("size-5 shrink-0", className)}
+      className={clsx(/\bsize-/.test(className ?? "") ? "shrink-0" : "size-5 shrink-0", className)}
       {...rest}
     >
       {title ? <title>{title}</title> : null}

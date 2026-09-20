@@ -32,6 +32,11 @@ const KIND_ICON: Record<string, IconName> = {
   ContextSpace: "spaces",
   DataModel: "models",
 };
+/** The icon of a kind, by own property only: a kind named `constructor` is not an icon. */
+function iconOf(kind: string, fallback: IconName): IconName {
+  return Object.hasOwn(KIND_ICON, kind) ? KIND_ICON[kind] : fallback;
+}
+
 
 /** Rows shown before "Show more". */
 const FIRST_ROWS = 4;
@@ -105,6 +110,10 @@ export function CatalogCards({
   words?: string;
 }): JSX.Element {
   const { t } = useTranslation();
+  // The one icon in the Portal that carries an accessible name, and it was announcing a raw
+  // server-side type name in English — from a tool answer, in a product that ships four locales.
+  const kindLabel = (kind: string): string =>
+    Object.hasOwn(KIND_ICON, kind) ? t(`spaces.complete.kind.${kind}`) : kind;
   const [mounted] = useState(() => Date.now());
   const [expanded, setExpanded] = useState(false);
   const at = now ?? mounted;
@@ -131,7 +140,11 @@ export function CatalogCards({
             "min-w-0 truncate font-medium text-fg hover:underline focus:outline-none focus:ring-2 focus:ring-border-focus";
           return (
             <li key={`${item.kind}/${item.name}`} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5">
-              <Icon name={KIND_ICON[item.kind] ?? "endpoints"} title={item.kind} className="size-3.5 text-fg-muted" />
+              <Icon
+                name={iconOf(item.kind, "endpoints")}
+                title={kindLabel(item.kind)}
+                className="size-3.5 text-fg-muted"
+              />
               <span className="flex min-w-0 flex-1 basis-40 items-baseline gap-1.5">
                 {open && item.kind !== "DataModel" ? (
                   <Link

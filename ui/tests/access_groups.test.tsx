@@ -10,7 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { answeringChecks, checksSoFar } from "./checks";
+import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -148,12 +148,10 @@ describe("the groups of the organization on the Access page", () => {
     renderAccess(["read"]);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New group" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "New group" })).toHaveAttribute("aria-disabled");
     });
-    const button = screen.getByRole("button", { name: "New group" });
-    expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(button.parentElement).toHaveAttribute(
-      "title",
+    expectDenied(
+      screen.getByRole("button", { name: "New group" }),
       "Disabled: your role does not permit 'propose' on 'Group' in this project",
     );
   });

@@ -77,7 +77,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const id = useId();
   // A reason keeps the button reachable and explains itself; without one, nothing changes.
   const explained = Boolean(disabled && disabledReason);
-  return (
+  const button = (
     <button
       ref={ref}
       type={type ?? "button"}
@@ -92,14 +92,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     >
       {loading ? <Spinner /> : icon}
       {children}
-      {explained ? (
-        // Read after the label by a screen reader, and shown to everyone else as the tooltip
-        // below, so the reason reaches both without repeating itself on screen.
-        <span id={id} className="sr-only">
-          {disabledReason}
-        </span>
-      ) : null}
     </button>
+  );
+
+  // The reason is a *description*, so it lives beside the button rather than inside it: text
+  // inside would join the accessible name, and "New group" would be announced as "New group,
+  // disabled: your role does not permit…" every time the list is read.
+  return explained ? (
+    <>
+      {button}
+      <span id={id} className="sr-only">
+        {disabledReason}
+      </span>
+    </>
+  ) : (
+    button
   );
 });
 

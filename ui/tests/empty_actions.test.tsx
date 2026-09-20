@@ -63,6 +63,11 @@ describe("an empty list offers its first item", () => {
     renderEmpty("/projects/banskabystrica/spaces", false);
     const state = (await screen.findByText(en.spaces.empty)).closest('[role="status"]') as HTMLElement;
     // The guard remounts the control once the permissions arrive, so it is queried inside the wait.
-    await vi.waitFor(() => expect(within(state).getByRole("button", { name: en.spaces.add })).toBeDisabled());
+    await vi.waitFor(() =>
+      expect(within(state).getByRole("button", { name: en.spaces.add })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      ),
+    );
   });
 });

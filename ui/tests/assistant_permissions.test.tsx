@@ -19,6 +19,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import type { Effective } from "../src/api/permissions";
+import { expectDenied } from "./checks";
 
 const PROJECT = "banskabystrica";
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", roles: [], groups: [] };
@@ -118,7 +119,9 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
         "true",
       ),
     );
-    const reasons = screen.getAllByRole("tooltip").map((node) => node.textContent ?? "");
+    const reasons = screen
+      .getAllByRole("button")
+      .map((node) => node.getAttribute("title") ?? "");
     expect(reasons).toContain(
       "Disabled: your role does not permit 'propose' on 'App' in this project",
     );
@@ -127,9 +130,7 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
     );
 
     for (const label of [en.assistantPage.continue, en.assistantPage.access.edit]) {
-      const control = screen.getByRole("button", { name: label });
-      expect(control, label).toBeDisabled();
-      expect(control, label).toHaveAttribute("aria-disabled", "true");
+      expectDenied(screen.getByRole("button", { name: label }));
     }
   });
 
@@ -141,8 +142,10 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
     );
     expect(continued).toBeEnabled();
     expect(screen.getByRole("button", { name: en.assistantPage.access.edit })).toBeEnabled();
-    // The guard renders nothing of its own when the verb is permitted.
-    expect(screen.queryAllByRole("tooltip")).toEqual([]);
+    // The guard hands the control nothing when the verb is permitted.
+    expect(screen.queryAllByRole("button").filter((node) => node.hasAttribute("aria-disabled"))).toEqual(
+      [],
+    );
     // `Start` stays disabled until the form is filled — the form's own rule, not a refusal.
     expect(
       screen.getByRole("button", { name: en.assistantPage.newWork.start }),

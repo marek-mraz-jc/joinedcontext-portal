@@ -14,6 +14,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { isPortalRoute, rememberPrefill, settlePrefill, takePrefill } from "../src/assistant/state";
+import { expectDenied } from "./checks";
 
 const PROJECT = "banskabystrica";
 const RUN_ID = "01J8ZQ4T7K9M2N3P4Q5R6S7T8V";
@@ -533,10 +534,12 @@ describe("the assistant dock", () => {
     expect(screen.getByRole("button", { name: i18n.t("assistant.empty.examples.find") })).toBeEnabled();
     for (const [example, kind] of [["share", "Endpoint"], ["build", "Dashboard"]]) {
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: i18n.t(`assistant.empty.examples.${example}`) })).toBeDisabled(),
+        expect(
+          screen.getByRole("button", { name: i18n.t(`assistant.empty.examples.${example}`) }),
+        ).toHaveAttribute("aria-disabled", "true"),
       );
       const prompt = screen.getByRole("button", { name: i18n.t(`assistant.empty.examples.${example}`) });
-      expect(prompt.parentElement).toHaveAttribute("title", i18n.t("permissions.denied", { verb: "propose", kind }));
+      expectDenied(prompt, i18n.t("permissions.denied", { verb: "propose", kind }));
     }
     // A disabled prompt starts nothing.
     await user.click(screen.getByRole("button", { name: i18n.t("assistant.empty.examples.build") }));

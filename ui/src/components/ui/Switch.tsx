@@ -29,7 +29,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={clsx(
-        "focus-ring relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "focus-ring relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent motion-safe:transition-colors hover:brightness-95 active:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100",
         checked ? "bg-primary" : "bg-neutral-300",
         className,
       )}
@@ -38,7 +38,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       <span
         aria-hidden="true"
         className={clsx(
-          "pointer-events-none block size-5 rounded-full bg-white shadow-1 transition-transform",
+          "pointer-events-none block size-5 rounded-full bg-neutral-0 shadow-1 motion-safe:transition-transform",
           checked ? "translate-x-5" : "translate-x-0.5",
         )}
       />

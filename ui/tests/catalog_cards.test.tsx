@@ -102,7 +102,9 @@ describe("the catalog results", () => {
     ).toBeInTheDocument();
     expect(within(partners).queryByText(/^fed /)).toBeNull();
 
-    expect(within(rows[2]).getByRole("img", { name: "ContextSpace" })).toBeInTheDocument();
+    // The icon's accessible name is the translated kind, not the raw API value it used to
+    // announce — this is the one meaningful icon in the Portal (T-1748).
+    expect(within(rows[2]).getByRole("img", { name: "Context space" })).toBeInTheDocument();
   });
 
   it("keeps every row inside a narrow chat column: rows wrap and shrink, long text truncates with a title", async () => {

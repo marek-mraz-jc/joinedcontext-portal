@@ -67,7 +67,7 @@
   },
   "hand_made_control": {
     "src/assistant/AssistantDock.tsx": {
-      "lines": 13,
+      "lines": 12,
       "group": "ui-forms"
     },
     "src/assistant/EndpointPicker.tsx": {

@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 import { digestOf } from "../src/api/drafts";
 
 type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -40,4 +40,23 @@ export function answeringChecks(inner: Fetch): Fetch & { checks: string[] } {
 /** The checks the current `fetch` stub answered, when it was wrapped by `answeringChecks`. */
 export function checksSoFar(): string[] {
   return (globalThis.fetch as unknown as { checks?: string[] }).checks ?? [];
+}
+
+/**
+ * A control the caller may not use (UI-44): refused, reachable, and carrying its reason.
+ *
+ * `PermissionGuard` and `Button`'s `disabledReason` make such a control `aria-disabled` rather
+ * than `disabled`, because a hard-disabled button leaves the tab order and the reason written
+ * for it can then never be read (T-1743). Every test that used to assert `toBeDisabled()` on a
+ * guarded control asserts this instead.
+ */
+export function expectDenied(control: HTMLElement, reason?: string | RegExp): void {
+  expect(control, "a denied control is aria-disabled, not disabled").toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  expect(control, "and it keeps its place in the tab order").not.toBeDisabled();
+  if (reason !== undefined) {
+    expect(control).toHaveAccessibleDescription(reason);
+  }
 }

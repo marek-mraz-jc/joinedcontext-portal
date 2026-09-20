@@ -26,6 +26,7 @@ export { ExternalLink } from "./ExternalLink";
 export type { ExternalLinkProps } from "./ExternalLink";
 export { RadioGroup } from "./RadioGroup";
 export type { RadioGroupProps, RadioOption } from "./RadioGroup";
+export { PermissionGuard } from "./PermissionGuard";
 export { safeHref } from "./safeHref";
 export { CHECKBOX, CONTROL, Input, Select, Textarea } from "./Input";
 export type { InputProps, SelectProps, TextareaProps } from "./Input";

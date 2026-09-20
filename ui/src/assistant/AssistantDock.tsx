@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { Button, PermissionGuard } from "../components/ui";
 import type { JSX } from "react";
 import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
@@ -480,18 +480,20 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               ] as const
             ).map(([example, kind]) => {
               const exampleText = t(`assistant.empty.examples.${example}`);
+              // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason
+              // through `disabledReason`, which only that control knows what to do with.
               const button = (
-                <button
+                <Button
                   key={exampleText}
-                  type="button"
+                  size="sm"
                   disabled={isStarting}
                   onClick={() => {
                     void startConversation(exampleText);
                   }}
-                  className="rounded border border-border bg-surface-subtle p-2 text-left text-xs text-fg hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-border-focus disabled:opacity-50"
+                  className="h-auto justify-start whitespace-normal bg-surface-subtle p-2 text-left text-caption"
                 >
                   {exampleText}
-                </button>
+                </Button>
               );
               return kind ? (
                 <PermissionGuard key={exampleText} project={activeProject} kind={kind} verb="propose">

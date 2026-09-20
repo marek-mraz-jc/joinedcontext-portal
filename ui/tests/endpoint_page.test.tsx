@@ -485,7 +485,10 @@ describe("the endpoint's own settings page", () => {
 
     // The guard remounts the control once the document arrives, so it is queried after the wait.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: en.endpoints.page.change })).toBeDisabled();
+      expect(screen.getByRole("button", { name: en.endpoints.page.change })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
     // Both doors say which verb on which kind is missing: the endpoint's settings and the filter.
     expect(screen.getByTitle(/'propose' on 'Endpoint'/)).toBeInTheDocument();
@@ -497,7 +500,10 @@ describe("the endpoint's own settings page", () => {
     const user = userEvent.setup();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: en.endpoints.page.change })).toBeDisabled();
+      expect(screen.getByRole("button", { name: en.endpoints.page.change })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
     await user.click(screen.getByRole("button", { name: /More actions for/ }));
     const menu = await screen.findByRole("menu");

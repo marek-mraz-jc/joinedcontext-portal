@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { PermissionGuard } from "../src/components/ui/PermissionGuard";
+import { Button, PermissionGuard } from "../src/components/ui";
 import { DeleteResourceAction } from "../src/components/DeleteResourceDialog";
 import { EditResourceAction } from "../src/components/EditResourceDialog";
 
@@ -33,9 +33,7 @@ function renderGuard(permissions: unknown, kind = "Endpoint", verb: "propose" | 
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
         <PermissionGuard project="helsinki" kind={kind} verb={verb}>
-          <button type="button" onClick={onClick}>
-            New endpoint
-          </button>
+          <Button onClick={onClick}>New endpoint</Button>
         </PermissionGuard>
       </I18nextProvider>
     </QueryClientProvider>,
@@ -51,22 +49,27 @@ describe("the permission guard", () => {
     vi.unstubAllGlobals();
   });
 
-  it("disables a denied control, keeps it visible and names the missing verb and kind", async () => {
+  it("disables a denied control, keeps it reachable and names the missing verb and kind", async () => {
     const { onClick } = renderGuard(VIEWER);
-    // The control is remounted inside the wrapper once the document arrives, so it is queried
-    // after the wait, never held from before.
+    // The control is re-rendered once the document arrives, so it is queried after the wait.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New endpoint" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
-    const button = screen.getByRole("button", { name: "New endpoint" });
-    expect(button).toHaveAttribute("aria-disabled", "true");
+    const button = screen.getByRole("button", { name: /New endpoint/ });
     const reason = "Disabled: your role does not permit 'propose' on 'Endpoint' in this project";
-    expect(screen.getByRole("tooltip")).toHaveTextContent(reason);
-    expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
-    // By pointer: the wrapper's native tooltip; by keyboard: the wrapper takes focus.
-    const wrapper = button.parentElement as HTMLElement;
-    expect(wrapper).toHaveAttribute("title", reason);
-    expect(wrapper).toHaveAttribute("tabindex", "0");
+    expect(button).toHaveAccessibleDescription(reason);
+    expect(button).toHaveAttribute("title", reason);
+
+    // `aria-disabled`, not `disabled`: a hard-disabled button leaves the tab order, and the
+    // reason written for it is then unreachable — which is why this used to need a bare
+    // `tabIndex={0}` span around it with no role, no name and no focus ring (T-1743).
+    expect(button).not.toBeDisabled();
+    button.focus();
+    expect(button).toHaveFocus();
+
     await userEvent.click(button);
     expect(onClick).not.toHaveBeenCalled();
   });
@@ -78,7 +81,7 @@ describe("the permission guard", () => {
     });
     const button = screen.getByRole("button", { name: "New endpoint" });
     expect(button).toBeEnabled();
-    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(button).not.toHaveAttribute("aria-disabled");
     await userEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -86,9 +89,14 @@ describe("the permission guard", () => {
   it("guards by kind: the endpoint editor may not propose a pipeline", async () => {
     renderGuard(EDITOR, "Pipeline");
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New endpoint" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
-    expect(screen.getByRole("tooltip")).toHaveTextContent("'propose' on 'Pipeline'");
+    expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAccessibleDescription(
+      /'propose' on 'Pipeline'/,
+    );
   });
 
   /// T-1142, PF-50: the guard reflects the document and decides nothing. A verb the role does
@@ -96,15 +104,20 @@ describe("the permission guard", () => {
   it("closes the verb the role lacks and leaves the one it holds open", async () => {
     renderGuard(EDITOR, "Endpoint", "delete");
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "New endpoint" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
     });
-    expect(screen.getByRole("tooltip")).toHaveTextContent("'delete' on 'Endpoint'");
+    expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAccessibleDescription(
+      /'delete' on 'Endpoint'/,
+    );
 
     // The same role, the verb it does hold.
     vi.unstubAllGlobals();
     renderGuard(EDITOR, "Endpoint", "propose");
     await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: "New endpoint" }).at(-1)).toBeEnabled();
+      expect(screen.getAllByRole("button", { name: /New endpoint/ }).at(-1)).toBeEnabled();
     });
   });
 
@@ -113,7 +126,7 @@ describe("the permission guard", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    expect(screen.getByRole("button", { name: "New endpoint" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /New endpoint/ })).toBeEnabled();
   });
 
   it("keeps a denied delete and edit on the row, disabled with the reason, and opens nothing", async () => {
@@ -139,15 +152,14 @@ describe("the permission guard", () => {
       [/Edit/, "propose"],
       [/Delete/, "delete"],
     ] as const) {
+      const reason = `Disabled: your role does not permit '${verb}' on 'Endpoint' in this project`;
       await waitFor(() => {
-        expect(screen.getByRole("button", { name })).toBeDisabled();
+        expect(screen.getByRole("button", { name })).toHaveAttribute("aria-disabled", "true");
       });
-      const wrapper = screen.getByRole("button", { name }).parentElement as HTMLElement;
-      expect(wrapper).toHaveAttribute(
-        "title",
-        `Disabled: your role does not permit '${verb}' on 'Endpoint' in this project`,
-      );
-      await userEvent.click(screen.getByRole("button", { name }));
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("title", reason);
+      expect(button).toHaveAccessibleDescription(reason);
+      await userEvent.click(button);
     }
     expect(screen.queryByRole("dialog")).toBeNull();
   });

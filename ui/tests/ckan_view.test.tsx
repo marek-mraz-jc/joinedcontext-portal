@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { expectDenied } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -234,9 +235,10 @@ describe("the catalogue control carries the refusal (T-2243)", () => {
         "true",
       ),
     );
-    expect(
-      screen.getAllByRole("tooltip").map((node) => node.textContent ?? ""),
-    ).toContain("Disabled: your role does not permit 'propose' on 'CkanInstance' in this project");
+    expectDenied(
+      screen.getByRole("button", { name: en.ckan.instances.propose }),
+      "Disabled: your role does not permit 'propose' on 'CkanInstance' in this project",
+    );
   });
 
   it("a publisher is offered it", async () => {
@@ -245,6 +247,6 @@ describe("the catalogue control carries the refusal (T-2243)", () => {
       screen.getByRole("button", { name: en.ckan.instances.propose }),
     );
     expect(control).not.toHaveAttribute("aria-disabled", "true");
-    expect(screen.queryAllByRole("tooltip")).toEqual([]);
+    expect(control).toBeEnabled();
   });
 });

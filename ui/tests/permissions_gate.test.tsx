@@ -7,6 +7,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { allows } from "../src/api/permissions";
 import type { Effective } from "../src/api/permissions";
+import { expectDenied } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -91,11 +92,8 @@ describe("roles as code in the UI (T-0526, PF-50)", () => {
     // Every control the guard covers, not the first one it finds: a guard that closed the
     // header and left the empty state's call to action open would be the bug to catch.
     for (const control of screen.getAllByRole("button", { name: en.pipelines.add })) {
-      expect(control).toBeDisabled();
-      expect(control).toHaveAttribute("aria-disabled", "true");
-    }
-    for (const reason of screen.getAllByRole("tooltip")) {
-      expect(reason).toHaveTextContent(
+      expectDenied(
+        control,
         "Disabled: your role does not permit 'propose' on 'Pipeline' in this project",
       );
     }

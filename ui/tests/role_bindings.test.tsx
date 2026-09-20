@@ -12,7 +12,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { rememberPrefill } from "../src/assistant/state";
-import { answeringChecks, checksSoFar } from "./checks";
+import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 
 const PROJECT = "helsinki";
 
@@ -140,11 +140,9 @@ describe("people and roles", () => {
     renderAccess({ grants: [] });
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
-    const grant = screen.getByRole("button", { name: en.access.roles.grant });
-    expect(grant).toBeDisabled();
-    expect(grant.closest("[title]")?.getAttribute("title")).toMatch(/RoleBinding/);
+    expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
     for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Delete)\b/ })) {
-      expect(button).toBeDisabled();
+      expectDenied(button);
     }
   });
 

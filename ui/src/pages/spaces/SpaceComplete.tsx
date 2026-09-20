@@ -38,6 +38,11 @@ const KIND_ICON: Record<string, IconName> = {
   Layer: "dashboards",
   Dashboard: "dashboards",
 };
+/** The icon of a kind, by own property only: a kind named `constructor` is not an icon. */
+function iconOf(kind: string, fallback: IconName): IconName {
+  return Object.hasOwn(KIND_ICON, kind) ? KIND_ICON[kind] : fallback;
+}
+
 
 type Translate = (key: string, values?: Record<string, unknown>) => string;
 
@@ -298,7 +303,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3">
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Icon name={KIND_ICON[d.kind] ?? "spaces"} className="size-4 text-fg-muted" />
+                      <Icon name={iconOf(d.kind, "spaces")} className="size-4 text-fg-muted" />
                       <span className="font-semibold text-fg">
                         {KIND_ICON[d.kind] ? t(`spaces.complete.kind.${d.kind}`) : d.kind}
                       </span>

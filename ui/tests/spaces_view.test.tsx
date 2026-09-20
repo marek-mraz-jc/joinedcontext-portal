@@ -7,7 +7,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { digestOf } from "../src/api/drafts";
-import { answeringChecks, checksSoFar } from "./checks";
+import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -265,6 +265,7 @@ describe("context spaces view", () => {
   it("blocks a new space once the quota is used up", async () => {
     renderSpaces({ quota: 2 });
 
+    // A quota, not a permission: the control is plainly disabled and the page says why beside it.
     await waitFor(() =>
       expect(screen.getByRole("button", { name: en.spaces.add })).toBeDisabled(),
     );
@@ -468,10 +469,10 @@ describe("a viewer on the spaces list", () => {
     // What changes a space stays on the page, disabled, and says why (T-1383).
     // The guard remounts the control once the document arrives: queried after the wait.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: en.spaces.add })).toBeDisabled();
+      expect(screen.getByRole("button", { name: en.spaces.add })).toHaveAttribute("aria-disabled");
     });
-    expect(screen.getByRole("button", { name: en.spaces.add }).parentElement).toHaveAttribute(
-      "title",
+    expectDenied(
+      screen.getByRole("button", { name: en.spaces.add }),
       "Disabled: your role does not permit 'propose' on 'ContextSpace' in this project",
     );
     // Delete lives in the row's menu now (T-2279); it is listed there, disabled, with the reason,

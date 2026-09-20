@@ -137,7 +137,7 @@ function navLinkClass(active: boolean): string {
 function NavLabel({ icon, label }: { icon: IconName; label: string }) {
   return (
     <>
-      <Icon name={icon} className="size-[18px]" />
+      <Icon name={icon} className="size-4.5" />
       <span className="truncate">{label}</span>
     </>
   );
