@@ -8,6 +8,7 @@
  * not the order a person happened to tick in, so two policies written the same way read the same.
  */
 import { screen, within } from "@testing-library/react";
+import type { WidgetProps } from "@rjsf/utils";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
@@ -16,23 +17,30 @@ import { OperationsPicker } from "../src/components/forms/widgets/OperationsPick
 import { OPERATION_GROUPS } from "../src/components/endpoints/operationGroups";
 import { expectNoAxeViolations, renderPart } from "./page_contract";
 
-function show(value: unknown, extra: Record<string, unknown> = {}) {
-  const onChange = vi.fn();
-  const view = renderPart(
-    <OperationsPicker
-      {...({
-        id: "root_operations",
-        value,
-        onChange,
-        schema: { type: "array" },
-        options: {},
-        label: "Operations",
-        name: "operations",
-        ...extra,
-      } as never)}
-    />,
-  );
-  return { ...view, onChange };
+function props(overrides?: Partial<WidgetProps>): WidgetProps {
+  return {
+    id: "root_operations",
+    name: "operations",
+    schema: { type: "array" },
+    value: [],
+    required: true,
+    disabled: false,
+    readonly: false,
+    autofocus: false,
+    options: {},
+    label: "Operations",
+    onChange: vi.fn(),
+    onBlur: vi.fn(),
+    onFocus: vi.fn(),
+    registry: {} as WidgetProps["registry"],
+    ...overrides,
+  };
+}
+
+function show(value: unknown, overrides?: Partial<WidgetProps>) {
+  const given = props({ value, ...overrides });
+  const view = renderPart(<OperationsPicker {...given} />);
+  return { ...view, onChange: given.onChange as ReturnType<typeof vi.fn> };
 }
 
 const groupBox = (name: string) =>

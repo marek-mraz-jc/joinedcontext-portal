@@ -58,7 +58,7 @@ afterEach(() => {
 
 describe("a dashboard's grid widget", () => {
   it("shows the widget's title and the entities its endpoint answers with", async () => {
-    const { container } = show({ columns: [{ attr: "availableBikeNumber", label: "Bikes" }] });
+    show({ columns: [{ attr: "availableBikeNumber", label: "Bikes" }] });
     expect(screen.getByRole("heading", { name: "Docking stations" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
     expect(reads().some((url) => url.startsWith("/api/endpoint/helsinki-bikes/ngsi-ld/v1/entities"))).toBe(true);

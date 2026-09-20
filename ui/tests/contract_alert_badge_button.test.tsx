@@ -4,6 +4,9 @@
  * Each case names a defect these three shipped on 2026-09-20, found by reading the files against
  * the contract rather than by a failing test — which is why none of them had one.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/Alert.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

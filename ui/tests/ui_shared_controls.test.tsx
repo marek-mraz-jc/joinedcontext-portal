@@ -6,6 +6,9 @@
  * names nothing and cannot be translated; `RadioGroup` makes one choice out of a few a real
  * `radiogroup` the arrow keys walk.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/ConfirmDialog.tsx, src/components/ui/ExternalLink.tsx, src/components/ui/RadioGroup.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";

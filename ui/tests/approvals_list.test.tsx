@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/routes/ApprovalsPage.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
