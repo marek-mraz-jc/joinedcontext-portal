@@ -11,33 +11,52 @@
  * package.json promise a file that the last build never wrote.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+
+interface Manifest {
   name: string;
   version: string;
   private?: boolean;
   files: string[];
   exports: Record<string, string | Record<string, string>>;
+  publishConfig?: { exports?: Record<string, string | Record<string, string>> };
   peerDependencies: Record<string, string>;
   dependencies: Record<string, string>;
-};
+}
 
-/** Every file the tarball would carry, as `npm pack` lists it without writing one. */
-function packed(): string[] {
-  // `--ignore-scripts`: `prepack` builds the package, and its output would come back on stdout
-  // in front of the JSON. `beforeAll` has already built it.
-  const out = execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
-    cwd: root,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  const [tarball] = JSON.parse(out) as [{ files: { path: string }[] }];
-  return tarball.files.map((file) => file.path);
+const workspace = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as Manifest;
+
+/**
+ * The real tarball, built the way a publish builds it.
+ *
+ * Read from the tarball rather than from the checkout, because the two manifests are not the
+ * same file: this repository's own `exports` point at the SDK's TypeScript sources, which is how
+ * the Portal and the reference applications link it, and `publishConfig.exports` is what pnpm
+ * writes into the published manifest instead. Only the second one is the contract a consumer
+ * installs, so only the second one is worth asserting.
+ */
+function pack(): { dir: string; files: string[]; manifest: Manifest } {
+  const dir = mkdtempSync(join(tmpdir(), "jc-sdk-pack-"));
+  // `prepack` builds the package; a stale `dist/package` would let the manifest promise a file
+  // the last build never wrote.
+  rmSync(join(root, "dist/package"), { recursive: true, force: true });
+  execFileSync("pnpm", ["pack", "--pack-destination", dir], { cwd: root, stdio: "ignore" });
+  const [tarball] = readdirSync(dir).filter((name) => name.endsWith(".tgz"));
+  const path = join(dir, tarball);
+  const files = execFileSync("tar", ["-tzf", path], { encoding: "utf8" })
+    .split("\n")
+    .filter((name) => name !== "" && !name.endsWith("/"))
+    .map((name) => name.replace(/^package\//, ""));
+  const manifest = JSON.parse(
+    execFileSync("tar", ["-xzOf", path, "package/package.json"], { encoding: "utf8" }),
+  ) as Manifest;
+  return { dir, files, manifest };
 }
 
 const targets = (entry: string | Record<string, string>): string[] =>
@@ -45,12 +64,29 @@ const targets = (entry: string | Record<string, string>): string[] =>
 
 describe("the published package", () => {
   let files: string[];
+  let manifest: Manifest;
+  let dir: string;
 
   beforeAll(() => {
-    rmSync(join(root, "dist/package"), { recursive: true, force: true });
-    execFileSync("pnpm", ["run", "build:package"], { cwd: root, stdio: "ignore" });
-    files = packed();
-  }, 600_000);
+    ({ dir, files, manifest } = pack());
+  }, 900_000);
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("links its sources inside this repository and ships its build outside it", () => {
+    // The Portal, the reference applications and the SDK's own journeys all build against
+    // `src/sdk/*.ts` through `link:../sdk`, which installs nothing and runs no build. Pointing
+    // the workspace `exports` at `dist/package` broke every one of those builds (T-2303).
+    for (const target of Object.values(workspace.exports)) {
+      expect(typeof target, "a workspace export is a single source file").toBe("string");
+      expect(target).toMatch(/^\.\/src\/sdk\//);
+    }
+    // And pnpm replaces them with the built ones on the way into the tarball.
+    expect(manifest.exports).toEqual(workspace.publishConfig?.exports);
+    expect(manifest.publishConfig ?? null).toBeNull();
+  });
 
   it("is publishable at the Portal's own version", () => {
     expect(manifest.name).toBe("@joinedcontext/sdk");

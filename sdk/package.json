@@ -14,20 +14,29 @@
     "API.md"
   ],
   "exports": {
-    ".": {
-      "types": "./dist/package/types/sdk/index.d.ts",
-      "import": "./dist/package/index.js"
-    },
-    "./server": {
-      "types": "./dist/package/types/sdk/server.d.ts",
-      "import": "./dist/package/server.js"
-    },
-    "./testing": {
-      "types": "./dist/package/types/sdk/testing.d.ts",
-      "import": "./dist/package/testing.js"
-    },
-    "./style.css": "./dist/package/style.css",
-    "./tokens.json": "./dist/package/tokens.json"
+    ".": "./src/sdk/index.ts",
+    "./server": "./src/sdk/server.ts",
+    "./testing": "./src/sdk/testing.ts",
+    "./style.css": "./src/sdk/style.css",
+    "./tokens.json": "./src/sdk/tokens.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/package/types/sdk/index.d.ts",
+        "import": "./dist/package/index.js"
+      },
+      "./server": {
+        "types": "./dist/package/types/sdk/server.d.ts",
+        "import": "./dist/package/server.js"
+      },
+      "./testing": {
+        "types": "./dist/package/types/sdk/testing.d.ts",
+        "import": "./dist/package/testing.js"
+      },
+      "./style.css": "./dist/package/style.css",
+      "./tokens.json": "./dist/package/tokens.json"
+    }
   },
   "scripts": {
     "dev": "vite",
