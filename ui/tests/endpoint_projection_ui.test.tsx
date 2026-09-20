@@ -356,4 +356,22 @@ describe("endpoint projection ui", () => {
       await within(dialog).findByText(en.endpoints.projection.notCompiled),
     ).toBeInTheDocument();
   });
+
+  it("the chip that takes an attribute back out of the hidden list says so", async () => {
+    // It announced "Hide": a person unhiding an attribute was told they were hiding it, and the
+    // endpoint then published a field they believed they had withheld (UI-01, UI-44).
+    renderEndpoints();
+    const dialog = await openEditor();
+    await waitFor(() => expect(hideBox(dialog, "pm10")).toBeInTheDocument());
+    const chip = within(dialog).getByRole("button", {
+      name: new RegExp(`calibrationOffset.*${en.endpoints.projection.unhide}`, "s"),
+    });
+    expect(chip).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: new RegExp(`calibrationOffset.*${en.endpoints.projection.hide}$`, "s"),
+      }),
+      "and it no longer claims to hide what it reveals",
+    ).toBeNull();
+  });
 });

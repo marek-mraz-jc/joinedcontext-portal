@@ -113,16 +113,16 @@ export function EndpointPreview({ slug }: { slug: string }): JSX.Element {
       className="space-y-1.5 rounded border border-border px-3 py-2 text-sm"
     >
       {access.isPending && (
-        <p role="status" className="text-xs text-muted">
+        <p role="status" className="text-xs text-fg-muted">
           {t("apps.generate.preview.loading")}
         </p>
       )}
-      {access.isError && <p className="text-xs text-muted">{t("apps.generate.preview.accessUnavailable")}</p>}
+      {access.isError && <p className="text-xs text-fg-muted">{t("apps.generate.preview.accessUnavailable")}</p>}
       {access.isSuccess && (
         <p>
           {summary}
           {words.denied.length > 0 && (
-            <span className="text-muted">
+            <span className="text-fg-muted">
               {" · "}
               {t("apps.generate.preview.denied", { attrs: words.denied.join(", ") })}
             </span>
@@ -131,7 +131,7 @@ export function EndpointPreview({ slug }: { slug: string }): JSX.Element {
       )}
 
       <details>
-        <summary className="cursor-pointer text-xs text-muted">
+        <summary className="cursor-pointer text-xs text-fg-muted">
           {rows.length > 0
             ? t("apps.generate.preview.samplesCount", { count: rows.length })
             : t("apps.generate.preview.samples")}
@@ -140,13 +140,13 @@ export function EndpointPreview({ slug }: { slug: string }): JSX.Element {
           {/* No granted type means nothing to ask for: a read names a type (GW33), so the
               endpoint is answered as empty rather than left asking for ever. */}
           {granted.length > 0 && samples.isPending && (
-            <p role="status" className="text-xs text-muted">
+            <p role="status" className="text-xs text-fg-muted">
               {t("apps.generate.preview.loading")}
             </p>
           )}
-          {samples.isError && <p className="text-xs text-muted">{t("apps.generate.preview.samplesUnavailable")}</p>}
+          {samples.isError && <p className="text-xs text-fg-muted">{t("apps.generate.preview.samplesUnavailable")}</p>}
           {(granted.length === 0 || samples.isSuccess) && rows.length === 0 && (
-            <p className="text-xs text-muted">{t("apps.generate.preview.samplesEmpty")}</p>
+            <p className="text-xs text-fg-muted">{t("apps.generate.preview.samplesEmpty")}</p>
           )}
           {rows.length > 0 && (
             <div className="overflow-x-auto">

@@ -226,11 +226,14 @@ export function SchemaProjectionPanel({
               <button
                 type="button"
                 onClick={() => toggle(attribute)}
-                className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 font-mono text-xs hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus"
+                className="focus-ring inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 font-mono text-caption hover:bg-surface-subtle"
               >
                 {attribute}
                 <span aria-hidden="true">×</span>
-                <span className="sr-only">{t("endpoints.projection.hide")}</span>
+                {/* This chip takes the attribute back OUT of the hidden list, and announced
+                    "Hide": someone unhiding a field heard that they were hiding it, and the
+                    endpoint then published a field they believed they had withheld. */}
+                <span className="sr-only">{t("endpoints.projection.unhide")}</span>
               </button>
             </li>
           ))}

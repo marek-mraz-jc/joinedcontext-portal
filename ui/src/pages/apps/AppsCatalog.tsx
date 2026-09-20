@@ -313,12 +313,12 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               <h2 className="line-clamp-2 text-sm font-semibold">{title}</h2>
               <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
               {spec.visibility ? (
-                <p className="text-xs text-muted">
+                <p className="text-xs text-fg-muted">
                   {t("apps.visibility", { visibility: spec.visibility })}
                 </p>
               ) : null}
               {needs.length > 0 && (
-                <p className="line-clamp-2 text-xs text-muted">
+                <p className="line-clamp-2 text-xs text-fg-muted">
                   {t("apps.dataNeeds", {
                     spaces: [...new Set(needs.map(spaceOf).filter(Boolean))].join(", "),
                     types: [...new Set(needs.flatMap((need) => need.types ?? []))].join(", "),
@@ -462,7 +462,7 @@ function PublishDialog({
       <p className="mt-2 text-sm">
         {t("apps.publish.body", { visibility: spec.visibility ?? "project" })}
       </p>
-      <p className="mt-1 text-sm text-muted">{t("apps.publish.hint")}</p>
+      <p className="mt-1 text-sm text-fg-muted">{t("apps.publish.hint")}</p>
       <div className="mt-3 flex gap-2">
         <Button
           variant="primary"

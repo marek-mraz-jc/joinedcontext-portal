@@ -363,7 +363,7 @@ export function AppGenerator({
             </option>
           ))}
         </Select>
-        <p className="mt-1 text-xs text-muted">{t("apps.generate.endpointHint")}</p>
+        <p className="mt-1 text-xs text-fg-muted">{t("apps.generate.endpointHint")}</p>
         {endpointName !== "" && choices.length > 1 && (
           <div className="mt-2">
             {!addingEndpoint && extra.length === 0 ? (
@@ -377,7 +377,7 @@ export function AppGenerator({
             ) : (
               <fieldset>
                 <legend className="text-sm font-medium">{t("apps.generate.moreEndpoints")}</legend>
-                <p className="text-xs text-muted">{t("apps.generate.moreEndpointsHint")}</p>
+                <p className="text-xs text-fg-muted">{t("apps.generate.moreEndpointsHint")}</p>
                 <ul className="mt-1 grid gap-1 sm:grid-cols-2">
                   {choices
                     .filter((candidate) => candidate.metadata.name !== endpointName)
@@ -433,7 +433,7 @@ export function AppGenerator({
           }}
           className="mt-1"
         />
-        <p className="mt-1 text-xs text-muted">{t("apps.generate.promptHint")}</p>
+        <p className="mt-1 text-xs text-fg-muted">{t("apps.generate.promptHint")}</p>
       </div>
 
       <details className="rounded border border-border px-4 py-2">
@@ -535,11 +535,11 @@ function NeedsChecklist({
       <h2 id="generator-needs" className="text-base font-semibold">
         {t("apps.generate.needs.title")}
       </h2>
-      <p className="text-sm text-muted">{t("apps.generate.needs.hint")}</p>
+      <p className="text-sm text-fg-muted">{t("apps.generate.needs.hint")}</p>
       {audience !== "" && (
-        <p className="text-sm text-muted">{t("apps.generate.needs.audience", { audience })}</p>
+        <p className="text-sm text-fg-muted">{t("apps.generate.needs.audience", { audience })}</p>
       )}
-      <p className="text-sm text-muted">{t("apps.generate.needs.loginOnly")}</p>
+      <p className="text-sm text-fg-muted">{t("apps.generate.needs.loginOnly")}</p>
       {writes.length > 0 && (
         <label className="flex items-center gap-1.5 text-sm">
           <input

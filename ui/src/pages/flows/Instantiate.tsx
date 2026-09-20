@@ -114,7 +114,7 @@ export function Instantiate({
               start.mutate(parameters);
             }}
           />
-          <p className="text-sm text-muted">{t("flows.instantiate.hint")}</p>
+          <p className="text-sm text-fg-muted">{t("flows.instantiate.hint")}</p>
         </>
       ) : (
         <p>{t("flows.instantiate.noSchema")}</p>

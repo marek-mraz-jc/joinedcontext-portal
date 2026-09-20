@@ -419,6 +419,7 @@
       "hint": "Endpoint může to, co povoluje politika, jen zúžit, nikdy rozšířit. Skrytý atribut chybí v každé reprezentaci i ve zveřejněném schématu.",
       "formalism": "Formalismus schématu",
       "hide": "Skrýt",
+      "unhide": "Znovu zobrazit",
       "effective": "Zveřejněno zde",
       "none": "Pod tímto typem se nezveřejňuje nic.",
       "unavailable": "Tento endpoint zatím nezveřejňuje schéma; atribut skryjete tak, že napíšete jeho název.",

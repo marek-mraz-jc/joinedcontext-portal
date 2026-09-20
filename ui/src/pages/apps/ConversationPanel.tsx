@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { choicesOf, QuestionOptions } from "./QuestionOptions";
 import type { JsonSchema } from "../../components/forms/types";
-import { Button, Textarea } from "../../components/ui";
+import { Button, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES } from "./useAgentRun";
 import { ActionStep } from "./ActionStep";
 import { CatalogCards, catalogItemsOf } from "./CatalogCards";
@@ -338,14 +338,16 @@ export function ConversationPanel({
                         return (
                           <p key={event.seq} className="break-words">
                             {preview !== null ? (
-                              <a
+                              // The preview URL is written by the workspace, the least trusted
+                              // writer this file names. It went into `href` unchecked, so a
+                              // `javascript:` preview ran on the Portal's own origin, with the
+                              // reader's session, the moment they clicked it (PF-50).
+                              <ExternalLink
                                 className="focus-ring rounded-sm text-primary underline"
                                 href={preview}
-                                target="_blank"
-                                rel="noreferrer"
                               >
                                 {t("agentRun.line.previewLink")}
-                              </a>
+                              </ExternalLink>
                             ) : (
                               line(event, t)
                             )}

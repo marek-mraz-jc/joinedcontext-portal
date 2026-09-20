@@ -170,7 +170,7 @@ describe("the conversation panel", () => {
     await user.click(screen.getByText("Details (3 lines)"));
     expect(usage).toBeVisible();
     // The preview is a link a person clicks, never the API path printed (T-0703).
-    expect(screen.getByRole("link", { name: en.agentRun.line.previewLink })).toBeVisible();
+    expect(screen.getByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) })).toBeVisible();
   });
 
   it("names the assistant's own steps by what they did", () => {
@@ -391,8 +391,32 @@ describe("a build run reads as a build (T-0703)", () => {
       },
     ]);
     await userEvent.click(screen.getByText(/detail/i));
-    const link = screen.getByRole("link", { name: en.agentRun.line.previewLink });
+    const link = screen.getByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) });
     expect(link).toHaveAttribute("href", "/api/v1/projects/helsinki/agent-runs/r1/preview?v=1");
     expect(screen.queryByText(/preview\?v=1$/)).toBeNull();
+  });
+
+  it("a preview address the workspace chose the scheme of is never a link", async () => {
+    // PF-50. `previewUrl` is written by the workspace, the least trusted writer this panel has,
+    // and went into `href` unchecked: a `javascript:` preview ran on the Portal's own origin
+    // with the reader's session the moment they clicked "open preview". The words stay; only
+    // the link is withheld.
+    panel([
+      { seq: 1, kind: "preview", payload: { previewUrl: "javascript:fetch('/api/v1/projects')" } },
+    ]);
+    await userEvent.click(screen.getByText(/detail/i));
+    expect(screen.queryByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) })).toBeNull();
+    expect(screen.getByText(en.agentRun.line.previewLink)).toBeVisible();
+  });
+
+  it("a preview address the server really served is still a link", async () => {
+    panel([
+      { seq: 1, kind: "preview", payload: { previewUrl: "/api/v1/projects/helsinki/apps/x/preview" } },
+    ]);
+    await userEvent.click(screen.getByText(/detail/i));
+    expect(screen.getByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) })).toHaveAttribute(
+      "href",
+      "/api/v1/projects/helsinki/apps/x/preview",
+    );
   });
 });

@@ -419,6 +419,7 @@
       "hint": "An endpoint can narrow what the policy grants, never widen it. A hidden attribute is absent from every representation and from the published schema.",
       "formalism": "Schema formalism",
       "hide": "Hide",
+      "unhide": "Show again",
       "effective": "Published here",
       "none": "Nothing is published under this type.",
       "unavailable": "This endpoint publishes no schema yet; type an attribute name to hide it.",

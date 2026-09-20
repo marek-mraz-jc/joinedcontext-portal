@@ -58,6 +58,34 @@ const THEMED = new Set(
   ),
 );
 
+/**
+ * The semantic colour names `@theme` defines whole: `fg`, `fg-muted`, `surface-subtle`, `danger`.
+ * Read from the same file as `THEMED`, so a name added to the theme needs no edit here.
+ */
+const SEMANTIC = new Set(
+  [...readFileSync(join(ui, "src/index.css"), "utf8").matchAll(/--color-([a-z-]+):/g)].map(
+    (match) => match[1],
+  ),
+);
+
+/**
+ * The tails of those names — `muted` out of `fg-muted` and `surface-muted`, `subtle` out of
+ * `surface-subtle` — minus any that is a whole name in its own right (`fg` is, so it is not a
+ * tail). A tail on its own is the shape of the mistake: `text-muted` for `text-fg-muted`.
+ * Tailwind emits no rule for a name the theme never defined, so the class is silently nothing
+ * and the text renders at full foreground colour. Seventeen hints across four pages did.
+ */
+const TAILS = new Set(
+  [...SEMANTIC]
+    .flatMap((name) =>
+      name
+        .split("-")
+        .map((_, index, parts) => parts.slice(index + 1).join("-"))
+        .filter(Boolean),
+    )
+    .filter((tail) => !SEMANTIC.has(tail)),
+);
+
 /** Any `bg-rose-500`-shaped class whose family `@theme` never defined. */
 const STOCK_PALETTE = new RegExp(
   `\\b(?:bg|text|border|ring|fill|stroke|from|via|to|accent|decoration|outline|shadow|divide)-([a-z]+)-\\d{2,3}\\b`,
@@ -117,6 +145,30 @@ describe("what a page may not do by hand", () => {
     // worked at all, not how many there are.
     expect(THEMED.size, "no themed colour families were read from index.css").toBeGreaterThan(1);
     expect(all.flatMap(stockColours)).toEqual([]);
+  });
+
+  it("no_file_paints_with_half_of_a_token_name", () => {
+    // `text-muted` where the theme defines `fg-muted`: Tailwind emits nothing for it, so the
+    // class does nothing and the hint renders at full foreground weight, looking exactly like
+    // the label above it. Seventeen of them across AppGenerator, AppsCatalog, EndpointPreview
+    // and Instantiate, and no rule saw them because the existing one only reads numbered
+    // families. Shared controls included: the mistake is as easy to make there.
+    expect(TAILS.size, "no tails were derived from the theme's own names").toBeGreaterThan(1);
+    // `(?<![\w-])` so the prefix is the start of the class and not the middle of a longer one:
+    // `ring-border-focus` names the real `border-focus` token and must not read as `border-` +
+    // the tail `focus`.
+    const pattern = new RegExp(
+      `(?<![\\w-])(?:bg|text|border|ring|fill|stroke|divide|outline)-(?:${[...TAILS].join("|")})\\b`,
+      "g",
+    );
+    expect(
+      all.flatMap((file) =>
+        [...file.text.matchAll(pattern)].map(
+          (match) =>
+            `${file.path}:${file.text.slice(0, match.index).split("\n").length} ${match[0]}`,
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("a_size_is_on_the_scale", () => {

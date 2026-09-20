@@ -419,6 +419,7 @@
       "hint": "Endpoint môže to, čo povoľuje politika, iba zúžiť, nikdy rozšíriť. Skrytý atribút chýba v každej reprezentácii aj v zverejnenej schéme.",
       "formalism": "Formalizmus schémy",
       "hide": "Skryť",
+      "unhide": "Znova zobraziť",
       "effective": "Zverejnené tu",
       "none": "Pod týmto typom sa nezverejňuje nič.",
       "unavailable": "Tento endpoint zatiaľ nezverejňuje schému; skryjete atribút tak, že napíšete jeho názov.",

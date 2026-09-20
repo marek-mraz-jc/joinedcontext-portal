@@ -400,6 +400,7 @@
       "hint": "Ein Endpunkt kann das, was die Richtlinie gewährt, nur einschränken, niemals erweitern. Ein verborgenes Attribut fehlt in jeder Repräsentation und im veröffentlichten Schema.",
       "formalism": "Schema-Formalismus",
       "hide": "Verbergen",
+      "unhide": "Wieder anzeigen",
       "effective": "Hier veröffentlicht",
       "none": "Unter diesem Typ wird nichts veröffentlicht.",
       "unavailable": "Dieser Endpunkt veröffentlicht noch kein Schema; geben Sie einen Attributnamen ein, um ihn zu verbergen.",
