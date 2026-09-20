@@ -80,18 +80,6 @@
       "lines": 4,
       "group": "ui-forms"
     },
-    "src/pages/apps/CatalogCards.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/EndpointPreview.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/EntityWriteCard.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
     "src/pages/apps/KpiCard.tsx": {
       "lines": 4,
       "group": "ui-forms"
@@ -169,14 +157,6 @@
       "lines": 2,
       "group": "ui-parts",
       "reason": "two computed sizes: the project menu takes the trigger's own width, which Radix measures and publishes, and the sidebar is the viewport minus the 14 header; both say so on the line"
-    },
-    "src/pages/apps/AppsCatalog.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/pages/apps/CatalogCards.tsx": {
-      "lines": 2,
-      "group": "ui-parts"
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "lines": 2,
