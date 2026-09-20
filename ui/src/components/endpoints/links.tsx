@@ -1,0 +1,71 @@
+import type { JSX } from "react";
+import { clsx } from "clsx";
+import { Icon } from "../ui";
+
+/**
+ * Where each enabled representation answers under the endpoint's URL (EP-08, EP-44): the
+ * same paths the gateway's DCAT index at `/api/endpoint/{slug}/` lists, so a steward can hand
+ * out one link per shape without opening the index.
+ */
+export const REPRESENTATION_PATHS: Record<string, string> = {
+  // A read names a type: a query with no selector is 400 BadRequestData (GW33, CIM 009
+  // 5.7.2.4), and the endpoint's own type list is the conformant way in — every type it
+  // serves, each one a query away. The grants decide which of them answer.
+  "ngsi-ld": "/ngsi-ld/v1/types",
+  mcp: "/mcp",
+  geojson: "/file.geojson",
+  csv: "/file.csv",
+  xlsx: "/file.xlsx",
+  zip: "/file.zip",
+  "ogc-features": "/ogc/features",
+  sta: "/sta/v1.1",
+};
+
+/** The links every endpoint has whatever it enables: its index and the model it publishes. */
+export const ENDPOINT_LINKS: Array<{ key: string; path: string }> = [
+  { key: "index", path: "/" },
+  { key: "linkml", path: "/schema/v1/linkml" },
+  { key: "jsonSchema", path: "/schema/v1/json-schema" },
+  { key: "access", path: "/access" },
+];
+
+export function endpointUrl(slug: string, path: string): string {
+  return `${window.location.origin}/api/endpoint/${slug}${path}`;
+}
+
+/** The open-data catalogue entry of an endpoint: the catalogue lives at `data.{host}`. */
+export function catalogueUrl(endpointName: string): string {
+  return `https://data.${window.location.host}/dataset/${encodeURIComponent(endpointName)}`;
+}
+
+const LINK_PRIMARY =
+  "border-primary-200 bg-primary-soft font-medium text-primary-soft-fg hover:border-primary-400 hover:bg-primary-100";
+const LINK_MUTED =
+  "border-border text-fg-muted hover:border-border-strong hover:bg-surface-muted hover:text-fg";
+
+/** A pill that opens one URL of an endpoint in a new tab; `muted` for the links every endpoint has. */
+export function EndpointLink({
+  href,
+  children,
+  muted = false,
+}: {
+  href: string;
+  children: string;
+  muted?: boolean;
+}): JSX.Element {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={href}
+      className={clsx(
+        "focus-ring inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-caption",
+        muted ? LINK_MUTED : LINK_PRIMARY,
+      )}
+    >
+      {children}
+      <Icon name="external" className="size-3" />
+    </a>
+  );
+}

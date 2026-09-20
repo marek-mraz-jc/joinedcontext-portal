@@ -1,0 +1,884 @@
+//! The kit: the dashboard the builder fills in (Architecture/19 §1.2, AP-56, AG-54).
+//!
+//! The bundle under `sdk/` renders one `spec.json`; this module is the Portal's copy of what
+//! that file may hold. The type is what the model is shown as a JSON Schema, what a model
+//! answer is parsed into before anything reaches a browser, and what the preview document is
+//! rendered from. `sdk/src/spec.ts` says the same things in TypeScript so the bundle can name
+//! what is wrong if it is ever handed a specification this module did not check.
+
+use std::sync::LazyLock;
+
+use base64::Engine;
+use jc_core::kinds::grid::{GridConfig, GridMode};
+use rust_embed::RustEmbed;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+/// The file the model writes, and the only one a kit run may write (AP-58).
+pub const SPEC_FILE: &str = "spec.json";
+/// The rows the driver read for the preview, keyed by source name; written by the driver alone.
+pub const DATA_FILE: &str = "data.json";
+/// The escape hatch: a whole page the model writes when the views are not enough (3D, a
+/// bespoke chart, an animation). When it is present and not empty the preview serves it instead
+/// of the kit, with the rows inlined as `window.kit`.
+pub const PAGE_FILE: &str = "index.html";
+/// The script hosts a page may load libraries from; nothing else on the internet.
+pub const CDN: &str = "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com";
+/// Entities per page when the driver reads a source; well inside the proxy's response ceiling.
+pub const PAGE: u32 = 500;
+pub const DEFAULT_LIMIT: u32 = 1000;
+pub const MAX_LIMIT: u32 = 5000;
+/// Where the basemap comes from (style, vector tiles, glyphs, sprites); the one host beside the
+/// platform a preview may reach. OpenFreeMap needs no key and no Referer, and a sandboxed frame
+/// sends none.
+pub const TILES: &str = "https://tiles.openfreemap.org";
+
+/// `sdk/dist`, built with the Portal. Empty in a plain `cargo test`, which is what the 503 of
+/// [`bundle`] is for.
+#[derive(RustEmbed)]
+#[folder = "sdk/dist"]
+#[exclude = "runtime/*"]
+struct Dist;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Agg {
+    Count,
+    Sum,
+    Avg,
+    Min,
+    Max,
+}
+
+/// One entity type read from the endpoint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Source {
+    /// A short name the views and filters refer to.
+    pub name: String,
+    /// The NGSI-LD entity type.
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    /// The attributes the views may use; the request asks for these and no more.
+    pub attrs: Vec<String>,
+    /// An NGSI-LD `q` applied on the endpoint, before any filter on screen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub q: Option<String>,
+    /// Entities read at most; default 1000, ceiling 5000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+/// A control above the views that narrows the rows of one source.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase", tag = "kind")]
+pub enum Filter {
+    /// A text box matched against the named attributes.
+    #[serde(rename = "search")]
+    Search {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+        attrs: Vec<String>,
+    },
+    /// A drop-down of the attribute's distinct values.
+    #[serde(rename = "select")]
+    Select {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+        attr: String,
+    },
+    /// Two sliders over a numeric attribute.
+    #[serde(rename = "range")]
+    Range {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+        attr: String,
+    },
+}
+
+/// One tile of a `stats` view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct StatItem {
+    pub label: String,
+    pub agg: Agg,
+    /// The numeric attribute aggregated; not needed for `count`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attr: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ChartType {
+    Bar,
+    Line,
+    Pie,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SortDir {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Sort {
+    pub attr: String,
+    pub dir: SortDir,
+}
+
+/// One card of the dashboard. Views are drawn in order; `stats`, `map`, `table` and `form` take
+/// the whole width, the others share a row.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase", tag = "kind")]
+pub enum View {
+    /// A row of numbers over the rows the filters left.
+    #[serde(rename = "stats")]
+    Stats {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        items: Vec<StatItem>,
+    },
+    /// A map with one point per entity that has a location.
+    #[serde(rename = "map")]
+    Map {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        /// The GeoProperty drawn; `location` when not named.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<String>,
+        /// The attribute shown when a point is picked.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+        /// The attribute the points are coloured by: a ramp for numbers, a hue per text value.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
+    },
+    /// A sortable, paged table; a click on a row selects it for `detail`.
+    #[serde(rename = "table")]
+    Table {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        columns: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sort: Option<Sort>,
+    },
+    /// An SVG chart: `y` aggregated per distinct `x`, the largest `top` kept.
+    #[serde(rename = "chart")]
+    Chart {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        #[serde(rename = "type")]
+        chart_type: ChartType,
+        x: String,
+        y: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agg: Option<Agg>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        top: Option<u32>,
+    },
+    /// A window over the selected entity, one input per field (every attribute of the source
+    /// when `fields` is absent); a save changes the rows on screen and writes nothing to the
+    /// endpoint.
+    #[serde(rename = "form")]
+    Form {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fields: Option<Vec<String>>,
+    },
+    /// The entity grid: the endpoint read through the grid the Portal's own explorer renders,
+    /// paged and filtered per column, with an attribute's metadata and its history, and a
+    /// correction where the endpoint's grant allows one (SDK-30, UI-71).
+    #[serde(rename = "grid")]
+    Grid {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        grid: Option<GridConfig>,
+    },
+    /// Every attribute of the selected entity.
+    #[serde(rename = "detail")]
+    Detail {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        /// The page this card sits on; cards that name a page share a tab bar, cards without
+        /// one are on every page.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Theme {
+    /// A CSS colour for tiles, bars and points.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent: Option<String>,
+}
+
+/// The whole of `spec.json`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Spec {
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
+    pub sources: Vec<Source>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filters: Vec<Filter>,
+    pub views: Vec<View>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<Theme>,
+}
+
+/// The JSON Schema the model is shown, rendered once.
+pub fn schema_json() -> &'static str {
+    static SCHEMA: LazyLock<String> = LazyLock::new(|| {
+        serde_json::to_string_pretty(&schemars::schema_for!(Spec)).expect("the kit schema renders")
+    });
+    &SCHEMA
+}
+
+/// `spec.json` as the model wrote it, or every reason the kit cannot render it (AP-59).
+pub fn parse(text: &str) -> Result<Spec, Vec<String>> {
+    let mut spec: Spec =
+        serde_json::from_str(text).map_err(|error| vec![format!("spec.json: {error}")])?;
+    // `id` and `type` come with every entity; a model that lists them as attributes would
+    // have the endpoint answer 400 to `attrs=id,...` and the dashboard show no rows.
+    for source in &mut spec.sources {
+        source.attrs.retain(|attr| attr != "id" && attr != "type");
+    }
+    let errors = validate(&spec);
+    if errors.is_empty() {
+        Ok(spec)
+    } else {
+        Err(errors)
+    }
+}
+
+/// What the schema cannot say: source names are unique, every reference names a source, every
+/// attribute is one that source reads. Same rules and same wording as `sdk/src/spec.ts`.
+pub fn validate(spec: &Spec) -> Vec<String> {
+    let mut errors = Vec::new();
+    if spec.title.trim().is_empty() {
+        errors.push("title: must be a non-empty string".to_owned());
+    }
+    if spec.sources.is_empty() {
+        errors.push("sources: must list at least one entity type".to_owned());
+    }
+    let mut known: Vec<(&str, Vec<&str>)> = Vec::new();
+    for (index, source) in spec.sources.iter().enumerate() {
+        if source.name.is_empty() {
+            errors.push(format!("sources[{index}].name: must be a non-empty string"));
+        } else if known.iter().any(|(name, _)| *name == source.name) {
+            errors.push(format!(
+                "sources[{index}].name: '{}' is used twice",
+                source.name
+            ));
+            continue;
+        }
+        if source.entity_type.is_empty() {
+            errors.push(format!("sources[{index}].type: must be an entity type"));
+        }
+        if source.attrs.is_empty() {
+            errors.push(format!(
+                "sources[{index}].attrs: must list at least one attribute"
+            ));
+        }
+        if source
+            .limit
+            .is_some_and(|limit| limit == 0 || limit > MAX_LIMIT)
+        {
+            errors.push(format!(
+                "sources[{index}].limit: must be between 1 and {MAX_LIMIT}"
+            ));
+        }
+        let mut attrs = vec!["id", "type"];
+        attrs.extend(source.attrs.iter().map(String::as_str));
+        known.push((source.name.as_str(), attrs));
+    }
+    let first = known.first().map(|(name, _)| *name).unwrap_or("");
+    let resolve = |errors: &mut Vec<String>, path: &str, name: Option<&str>| -> Option<Vec<&str>> {
+        let key = name.unwrap_or(first);
+        match known.iter().find(|(known, _)| *known == key) {
+            Some((_, attrs)) => Some(attrs.clone()),
+            None => {
+                errors.push(format!("{path}.source: '{key}' is not a source"));
+                None
+            }
+        }
+    };
+    let check = |errors: &mut Vec<String>, path: &str, attrs: &Option<Vec<&str>>, attr: &str| {
+        if let Some(attrs) = attrs {
+            if !attrs.contains(&attr) {
+                errors.push(format!(
+                    "{path}: '{attr}' is not among the source's attributes"
+                ));
+            }
+        }
+    };
+
+    for (index, filter) in spec.filters.iter().enumerate() {
+        let path = format!("filters[{index}]");
+        match filter {
+            Filter::Search { source, attrs, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                if attrs.is_empty() {
+                    errors.push(format!("{path}.attrs: must list the attributes to search"));
+                }
+                for (i, attr) in attrs.iter().enumerate() {
+                    check(&mut errors, &format!("{path}.attrs[{i}]"), &known, attr);
+                }
+            }
+            Filter::Select { source, attr, .. } | Filter::Range { source, attr, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                check(&mut errors, &format!("{path}.attr"), &known, attr);
+            }
+        }
+    }
+
+    if spec.views.is_empty() {
+        errors.push("views: must list at least one view".to_owned());
+    }
+    for (index, view) in spec.views.iter().enumerate() {
+        let path = format!("views[{index}]");
+        if let Some(page) = view.page() {
+            if page.trim().is_empty() {
+                errors.push(format!("{path}.page: must be a non-empty string"));
+            }
+        }
+        match view {
+            View::Stats { source, items, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                if items.is_empty() {
+                    errors.push(format!("{path}.items: must list at least one tile"));
+                }
+                for (i, item) in items.iter().enumerate() {
+                    if item.agg != Agg::Count {
+                        match &item.attr {
+                            Some(attr) => check(
+                                &mut errors,
+                                &format!("{path}.items[{i}].attr"),
+                                &known,
+                                attr,
+                            ),
+                            None => errors
+                                .push(format!("{path}.items[{i}].attr: must name an attribute")),
+                        }
+                    }
+                }
+            }
+            View::Map {
+                source,
+                location,
+                label,
+                color,
+                ..
+            } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                for (field, value) in [("location", location), ("label", label), ("color", color)] {
+                    if let Some(attr) = value {
+                        check(&mut errors, &format!("{path}.{field}"), &known, attr);
+                    }
+                }
+            }
+            View::Table {
+                source,
+                columns,
+                sort,
+                ..
+            } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                if columns.is_empty() {
+                    errors.push(format!("{path}.columns: must list at least one column"));
+                }
+                for (i, column) in columns.iter().enumerate() {
+                    check(&mut errors, &format!("{path}.columns[{i}]"), &known, column);
+                }
+                if let Some(sort) = sort {
+                    check(
+                        &mut errors,
+                        &format!("{path}.sort.attr"),
+                        &known,
+                        &sort.attr,
+                    );
+                }
+            }
+            View::Chart { source, x, y, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                check(&mut errors, &format!("{path}.x"), &known, x);
+                check(&mut errors, &format!("{path}.y"), &known, y);
+            }
+            View::Form { source, fields, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                for (i, field) in fields.iter().flatten().enumerate() {
+                    check(&mut errors, &format!("{path}.fields[{i}]"), &known, field);
+                }
+            }
+            View::Detail { source, .. } => {
+                resolve(&mut errors, &path, source.as_deref());
+            }
+            View::Grid { source, grid, .. } => {
+                let known = resolve(&mut errors, &path, source.as_deref());
+                let config = grid.clone().unwrap_or_default();
+                for (i, column) in config.columns.iter().enumerate() {
+                    check(
+                        &mut errors,
+                        &format!("{path}.grid.columns[{i}].attr"),
+                        &known,
+                        &column.attr,
+                    );
+                }
+                for (i, attr) in config.editable_attrs.iter().enumerate() {
+                    check(
+                        &mut errors,
+                        &format!("{path}.grid.editableAttrs[{i}]"),
+                        &known,
+                        attr,
+                    );
+                }
+                if let Some(size) = config.page_size {
+                    if !(1..=1000).contains(&size) {
+                        errors.push(format!("{path}.grid.pageSize: must be between 1 and 1000"));
+                    }
+                }
+                // The SDK's own parser says the same thing (`editableAttrs` is required in edit
+                // mode), and the model reads whichever refusal comes first: this one is the gate
+                // before a browser sees the spec at all (AG-54).
+                if config.mode == Some(GridMode::Edit) && config.editable_attrs.is_empty() {
+                    errors.push(format!(
+                        "{path}.grid.editableAttrs: must list the attributes a correction may be typed into, in mode 'edit'"
+                    ));
+                }
+                if let Some(allowed) = config.filters.as_ref().and_then(|f| f.allowed.as_ref()) {
+                    for (i, attr) in allowed.iter().enumerate() {
+                        check(
+                            &mut errors,
+                            &format!("{path}.grid.filters.allowed[{i}]"),
+                            &known,
+                            attr,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    errors
+}
+
+impl View {
+    fn page(&self) -> Option<&str> {
+        match self {
+            View::Stats { page, .. }
+            | View::Map { page, .. }
+            | View::Table { page, .. }
+            | View::Chart { page, .. }
+            | View::Form { page, .. }
+            | View::Grid { page, .. }
+            | View::Detail { page, .. } => page.as_deref(),
+        }
+    }
+}
+
+/// The built bundle: the script, the stylesheet and MapLibre's worker, or nothing when the
+/// Portal was compiled without one.
+pub struct Bundle {
+    pub js: String,
+    pub css: String,
+    /// `kit-worker.js`, base64: the map's worker travels inside the document as a blob,
+    /// because the library would otherwise look for it beside a script that has no address.
+    pub worker: String,
+}
+
+pub fn bundle() -> Option<Bundle> {
+    let js = Dist::get("kit.js")?;
+    let css = Dist::get("kit.css")?;
+    Some(Bundle {
+        js: String::from_utf8_lossy(&js.data).into_owned(),
+        css: String::from_utf8_lossy(&css.data).into_owned(),
+        worker: worker()?,
+    })
+}
+
+/// `kit-worker.js` as base64, for any document that carries the map's worker inline.
+pub fn worker() -> Option<String> {
+    let worker = Dist::get("kit-worker.js")?;
+    Some(base64::engine::general_purpose::STANDARD.encode(&worker.data))
+}
+
+/// The SDK's server module for `jc-functions` (`sdk/dist/functions-server.js`), sent with every
+/// invocation as `@joinedcontext/sdk/server`; `None` in a Portal built without the SDK.
+pub fn functions_server() -> Option<String> {
+    let module = Dist::get("functions-server.js")?;
+    Some(String::from_utf8_lossy(&module.data).into_owned())
+}
+
+/// The CSP source of one inline script: its SHA-256, so the policy needs no `'unsafe-inline'`.
+pub fn script_hash(js: &str) -> String {
+    format!(
+        "'sha256-{}'",
+        base64::engine::general_purpose::STANDARD.encode(Sha256::digest(js.as_bytes()))
+    )
+}
+
+/// The policy of the preview document: the kit's own script, the platform origin and the
+/// tiles, nothing else (AP-49, AP-50). `'unsafe-inline'` styles because the bundle's
+/// stylesheet is inlined and MapLibre writes style attributes; `worker-src data:` because a
+/// frame with no origin may start no other kind of worker in Chromium.
+pub fn content_security_policy(origin: &str, hash: &str) -> String {
+    format!(
+        "default-src 'none'; base-uri 'none'; form-action 'none'; script-src {hash}; \
+         style-src 'unsafe-inline'; img-src data: blob: {origin} {TILES}; font-src data:; \
+         connect-src {origin} {TILES}; worker-src blob: data:; child-src blob: data:; frame-ancestors 'self'"
+    )
+}
+
+/// The page the model wrote, with the rows in front of it: `window.kit = {slug, spec, data}`
+/// as the first script in `<head>` (or at the top when the page has none). Inline scripts and
+/// the CDN hosts are what [`page_content_security_policy`] allows; the frame is sandboxed like
+/// the kit's.
+pub fn page_document(
+    html: &str,
+    slug: &str,
+    spec: &Spec,
+    data: Option<&serde_json::Value>,
+    schema: Option<&serde_json::Value>,
+    basemap: Option<&str>,
+) -> String {
+    let payload = payload(slug, spec, data, schema, basemap);
+    let script = format!("<script>window.kit = {payload};</script>");
+    match html.find("<head>") {
+        Some(at) => {
+            let (before, after) = html.split_at(at + "<head>".len());
+            format!("{before}\n{script}{after}")
+        }
+        None => format!("{script}\n{html}"),
+    }
+}
+
+pub fn page_content_security_policy(origin: &str) -> String {
+    format!(
+        "default-src 'none'; base-uri 'none'; form-action 'none'; script-src 'unsafe-inline' {CDN}; \
+         style-src 'unsafe-inline' {CDN} https://fonts.googleapis.com; \
+         font-src data: {CDN} https://fonts.gstatic.com; img-src data: blob: https:; \
+         connect-src {origin} {TILES} {CDN}; worker-src blob: data:; child-src blob: data:; \
+         frame-ancestors 'self'"
+    )
+}
+
+/// One document: the stylesheet, the specification and the rows as data, the worker, the
+/// script. Nothing
+/// in it is fetched later, because a frame without `allow-same-origin` has no session to fetch
+/// with; `data` is what the driver read for this pass, keyed by source name.
+pub fn document(
+    title: &str,
+    slug: &str,
+    spec: &Spec,
+    data: Option<&serde_json::Value>,
+    schema: Option<&serde_json::Value>,
+    bundle: &Bundle,
+    basemap: Option<&str>,
+) -> String {
+    let Bundle { js, css, worker } = bundle;
+    let payload = payload(slug, spec, data, schema, basemap);
+    let title = escape(title);
+    format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+         <title>{title}</title>\n<style>{css}</style>\n</head>\n<body>\n<div id=\"root\"></div>\n\
+         <script id=\"kit-spec\" type=\"application/json\">{payload}</script>\n\
+         <script id=\"kit-worker\" type=\"text/plain\">{worker}</script>\n\
+         <script type=\"module\">{js}</script>\n</body>\n</html>\n"
+    )
+}
+
+/// `window.kit`: the slug, the specification, the rows, the field schema of AP-61, and
+/// `bridge: true`, because every document built here is a preview in a sandboxed frame whose
+/// writes go through the host page (AP-63); the published app is served without this payload.
+fn payload(
+    slug: &str,
+    spec: &Spec,
+    data: Option<&serde_json::Value>,
+    schema: Option<&serde_json::Value>,
+    basemap: Option<&str>,
+) -> String {
+    let mut val = serde_json::json!({
+        "slug": slug,
+        "spec": spec,
+        "data": data,
+        "schema": schema,
+        "bridge": true,
+    });
+    if let Some(url) = basemap {
+        if let Some(map) = val.as_object_mut() {
+            map.insert(
+                "basemap".to_owned(),
+                serde_json::Value::String(url.to_owned()),
+            );
+        }
+    }
+    serde_json::to_string(&val)
+        .unwrap_or_default()
+        // `</script>` inside the data would end the element; `\u003c` is the same character
+        // to a JSON parser and nothing to the HTML one.
+        .replace('<', "\\u003c")
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EXAMPLE: &str = include_str!("../../sdk/spec.example.json");
+
+    #[test]
+    fn the_example_the_bundle_ships_with_parses_clean() {
+        let spec = parse(EXAMPLE).expect("the example is valid");
+        assert_eq!(spec.title, "Helsinki city bikes");
+        assert_eq!(spec.views.len(), 6);
+        assert_eq!(spec.filters.len(), 3);
+        // The last one is the grid, which the example ships so the bundle renders one (T-1440).
+        assert!(matches!(spec.views[5], View::Grid { .. }));
+    }
+
+    #[test]
+    fn a_page_gets_the_rows_first_and_a_closing_tag_in_the_data_ends_nothing() {
+        let spec = parse(EXAMPLE).expect("valid");
+        let data =
+            serde_json::json!({ "stations": [{ "id": "u", "type": "T", "name": "</script><b>" }] });
+        let page = page_document(
+            "<!doctype html><html><head><title>x</title></head><body><canvas></canvas></body></html>",
+            "slug",
+            &spec,
+            Some(&data),
+            None,
+            None,
+        );
+        let at = page
+            .find("<script>window.kit = ")
+            .expect("the rows are inlined");
+        assert!(
+            at < page.find("<title>").unwrap(),
+            "the rows come before the page's own head"
+        );
+        assert!(!page.contains("</script><b>"), "{page}");
+        assert!(page.contains("\\u003c/script>\\u003cb>"));
+        let bare = page_document("<h1>no head</h1>", "slug", &spec, None, None, None);
+        assert!(bare.starts_with("<script>window.kit = "));
+        let csp = page_content_security_policy("https://portal.example");
+        assert!(csp.contains("script-src 'unsafe-inline' https://cdn.jsdelivr.net"));
+        assert!(!csp.contains("sha256"));
+    }
+
+    #[test]
+    fn the_schema_names_every_view_kind_and_refuses_unknown_fields() {
+        let schema = schema_json();
+        for kind in ["stats", "map", "table", "chart", "detail", "form", "grid"] {
+            assert!(
+                schema.contains(&format!("\"{kind}\"")),
+                "{kind} missing from the schema"
+            );
+        }
+        let error = parse(r#"{"title":"x","sources":[{"name":"s","type":"T","attrs":["a"],"secret":1}],"views":[]}"#)
+            .expect_err("unknown field");
+        assert!(error[0].contains("unknown field `secret`"), "{error:?}");
+    }
+
+    #[test]
+    fn id_and_type_are_not_attributes_to_ask_for() {
+        let table = r#"[{"kind":"table","columns":["id","a"]}]"#;
+        let spec = parse(&format!(
+            r#"{{"title":"x","sources":[{{"name":"s","type":"T","attrs":["id","a","type"]}}],"views":{table}}}"#
+        ))
+        .expect("valid");
+        assert_eq!(spec.sources[0].attrs, vec!["a"]);
+        let errors = parse(
+            r#"{"title":"x","sources":[{"name":"s","type":"T","attrs":["id","type"]}],"views":[{"kind":"table","columns":["id"]}]}"#,
+        )
+        .expect_err("nothing left to read");
+        assert_eq!(
+            errors,
+            vec!["sources[0].attrs: must list at least one attribute"]
+        );
+    }
+
+    #[test]
+    fn every_problem_is_named_at_once_with_its_path() {
+        let errors = parse(
+            r#"{
+              "title": " ",
+              "sources": [{"name":"s","type":"T","attrs":["a"]},{"name":"s","type":"T","attrs":[]}],
+              "filters": [{"kind":"select","attr":"zzz"}],
+              "views": [
+                {"kind":"chart","type":"bar","x":"a","y":"b"},
+                {"kind":"table","source":"ghost","columns":[]},
+                {"kind":"stats","items":[{"label":"n","agg":"sum"}]},
+                {"kind":"map","color":"nope"},
+                {"kind":"form","fields":["a","zzz"],"page":" "}
+              ]
+            }"#,
+        )
+        .expect_err("invalid");
+        assert_eq!(
+            errors,
+            vec![
+                "title: must be a non-empty string",
+                "sources[1].name: 's' is used twice",
+                "filters[0].attr: 'zzz' is not among the source's attributes",
+                "views[0].y: 'b' is not among the source's attributes",
+                "views[1].source: 'ghost' is not a source",
+                "views[1].columns: must list at least one column",
+                "views[2].items[0].attr: must name an attribute",
+                "views[3].color: 'nope' is not among the source's attributes",
+                "views[4].page: must be a non-empty string",
+                "views[4].fields[1]: 'zzz' is not among the source's attributes",
+            ]
+        );
+        assert!(parse("{").expect_err("json")[0].starts_with("spec.json: "));
+    }
+
+    #[test]
+    fn the_document_inlines_everything_and_cannot_be_broken_out_of() {
+        let spec = parse(EXAMPLE).expect("valid");
+        let mut spec = spec;
+        spec.title = "</script><script>alert(1)</script>".to_owned();
+        let rows = serde_json::json!({ "stations": [{ "id": "urn:1", "type": "T", "name": "</script>" }] });
+        let bundle = Bundle {
+            js: "console.log(1)".into(),
+            css: "body{}".into(),
+            worker: "c2VsZi5vbm1lc3NhZ2U9bnVsbA==".into(),
+        };
+        let html = document("A & <B>", "s1ug", &spec, Some(&rows), None, &bundle, None);
+        assert!(html.contains("<title>A &amp; &lt;B&gt;</title>"));
+        assert!(html.contains("<style>body{}</style>"));
+        assert!(html.contains("<script type=\"module\">console.log(1)</script>"));
+        assert!(html.contains(
+            "<script id=\"kit-worker\" type=\"text/plain\">c2VsZi5vbm1lc3NhZ2U9bnVsbA==</script>"
+        ));
+        assert!(html.contains("\"slug\":\"s1ug\""));
+        assert!(
+            !html.contains("</script><script>alert"),
+            "the data ended the element"
+        );
+        assert!(html.contains("\\u003c/script>"));
+        assert!(html.contains("\"data\":{\"stations\":[{\"id\":\"urn:1\""));
+        let csp = content_security_policy("https://portal.example", &script_hash("console.log(1)"));
+        assert!(csp.contains("script-src 'sha256-"));
+        assert!(csp.contains("connect-src https://portal.example https://tiles.openfreemap.org"));
+        assert!(!csp.contains("script-src 'unsafe-inline'"));
+        assert!(csp.contains("style-src 'unsafe-inline'"));
+    }
+
+    #[test]
+    fn basemap_is_inlined_when_provided() {
+        let spec = parse(EXAMPLE).expect("valid");
+        let url = "https://portal.example/api/v1/projects/hki/basemap/default/style.json";
+        let bare = page_document("<h1>hi</h1>", "slug", &spec, None, None, Some(url));
+        assert!(bare.contains(&format!("\"basemap\":\"{url}\"")));
+
+        let bundle = Bundle {
+            js: "console.log(1)".into(),
+            css: "body{}".into(),
+            worker: "c2VsZi5vbm1lc3NhZ2U9bnVsbA==".into(),
+        };
+        let html = document("Title", "slug", &spec, None, None, &bundle, Some(url));
+        assert!(html.contains(&format!("\"basemap\":\"{url}\"")));
+    }
+
+    /// SDK-30, UI-71: a grid view carries the grid's own configuration, and every attribute it
+    /// names is one the source asked the endpoint for — the gate before a browser sees the spec.
+    #[test]
+    fn a_grid_view_is_checked_against_its_source_and_its_own_rules() {
+        let good = r#"[{"kind":"grid","grid":{"columns":[{"attr":"a","format":"number"}],
+            "pageSize":25,"history":{"enabled":true}}}]"#;
+        let spec = parse(&format!(
+            r#"{{"title":"x","sources":[{{"name":"s","type":"T","attrs":["a"]}}],"views":{good}}}"#
+        ))
+        .expect("a grid view");
+        assert!(matches!(spec.views[0], View::Grid { .. }));
+
+        // A column nobody asked for, a page size out of bounds, an edit with nothing editable and
+        // a field of the grid's own configuration that does not exist.
+        for (views, expected) in [
+            (
+                r#"[{"kind":"grid","grid":{"columns":[{"attr":"ghost"}]}}]"#,
+                "views[0].grid.columns[0].attr: 'ghost' is not among the source's attributes",
+            ),
+            (
+                r#"[{"kind":"grid","grid":{"pageSize":5000}}]"#,
+                "views[0].grid.pageSize: must be between 1 and 1000",
+            ),
+            (
+                r#"[{"kind":"grid","grid":{"mode":"edit"}}]"#,
+                "views[0].grid.editableAttrs: must list the attributes a correction may be typed into, in mode 'edit'",
+            ),
+        ] {
+            let errors = parse(&format!(
+                r#"{{"title":"x","sources":[{{"name":"s","type":"T","attrs":["a"]}}],"views":{views}}}"#
+            ))
+            .expect_err("a refusal");
+            assert!(errors.iter().any(|e| e == expected), "{errors:?}");
+        }
+
+        // The endpoint and the type are the application's, never the spec's (SDK-30).
+        let errors = parse(
+            r#"{"title":"x","sources":[{"name":"s","type":"T","attrs":["a"]}],
+               "views":[{"kind":"grid","grid":{"source":{"kind":"endpoint","slug":"another"}}}]}"#,
+        )
+        .expect_err("a refusal");
+        assert!(errors[0].contains("unknown field `source`"), "{errors:?}");
+    }
+}

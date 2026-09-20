@@ -1,0 +1,1066 @@
+//! The assistant finds data (AG-58, API/01 §18): the spaces, endpoints and data models of a
+//! project whose manifests match the words of a question, each with the caller's access verdict
+//! and the freshness of the pipeline feeding it. Answered from the mirror, never from a guess;
+//! the same search is the kit run's `search_catalog` tool (Architecture/09 §9).
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use jc_core::kinds::Verb;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use utoipa::ToSchema;
+
+use crate::agents::access::{self, refusal};
+use crate::agents::oneshot;
+use crate::agents::profile::Profile;
+use crate::agents::run::{digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunStatus};
+use crate::agents::share;
+use crate::agents::store::now_rfc3339;
+use crate::api::agent_runs::{
+    agent_settings, default_profile, expiry, publish_event, status_payload, unavailable,
+    CreatedRun, MAX_PROMPT_CHARS,
+};
+use crate::api::pipelines::metrics_for;
+use crate::auth::CurrentUser;
+use crate::error::{ApiError, ProblemDetails};
+use crate::resource::{is_dns1123, ResourceEnvelope};
+use crate::state::AppState;
+use crate::store::ListOptions;
+
+/// The best matches only: a person reads a screen of cards, a model a page of context.
+pub const MAX_ITEMS: usize = 20;
+/// In the order ties are broken: what a person opens first.
+const KINDS: [&str; 3] = ["Endpoint", "ContextSpace", "DataModel"];
+
+#[derive(Debug, Deserialize)]
+pub struct CatalogQuery {
+    pub q: Option<String>,
+    pub scope: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Catalog {
+    pub q: String,
+    pub items: Vec<CatalogItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogItem {
+    pub kind: String,
+    pub name: String,
+    pub space: String,
+    pub owner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint_slug: Option<String>,
+    pub match_reason: Vec<String>,
+    pub access: Access,
+    pub freshness: Option<Freshness>,
+    #[serde(skip)]
+    hits: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Access {
+    /// `allowed` or `restricted`.
+    pub verdict: String,
+    pub reason: String,
+}
+
+/// The runner's counters for the pipeline that feeds an endpoint, read when the search ran.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Freshness {
+    pub pipeline: String,
+    pub scraped_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<u64>,
+}
+
+impl Access {
+    fn allowed(reason: impl Into<String>) -> Self {
+        Self {
+            verdict: "allowed".into(),
+            reason: reason.into(),
+        }
+    }
+    fn restricted(reason: impl Into<String>) -> Self {
+        Self {
+            verdict: "restricted".into(),
+            reason: reason.into(),
+        }
+    }
+    pub(crate) fn is_allowed(&self) -> bool {
+        self.verdict == "allowed"
+    }
+}
+
+/// The function words of a request, which name nothing in a catalog (API/01 §18).
+const FILLER: &[&str] = &[
+    "a", "about", "add", "all", "an", "and", "any", "are", "as", "at", "be", "build", "but", "by",
+    "can", "change", "could", "create", "do", "does", "for", "from", "get", "give", "how", "i",
+    "in", "into", "is", "it", "its", "list", "make", "me", "my", "new", "no", "not", "of", "on",
+    "or", "our", "please", "set", "show", "so", "some", "than", "that", "the", "their", "them",
+    "then", "there", "these", "this", "those", "to", "up", "us", "was", "we", "were", "what",
+    "when", "where", "which", "who", "why", "will", "with", "would", "you", "your",
+];
+
+/// The words of a question: two characters or more, lower-cased, no function word, each once.
+pub fn words(q: &str) -> Vec<String> {
+    q.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.chars().count() >= 2)
+        .map(str::to_lowercase)
+        .filter(|w| !FILLER.contains(&w.as_str()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+/// The words of a field, split at punctuation and at camel case (`BikeHireDockingStation`).
+fn field_words(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut word = String::new();
+    let mut after_lower = false;
+    for c in text.chars() {
+        if (!c.is_alphanumeric() || (c.is_uppercase() && after_lower)) && !word.is_empty() {
+            out.push(std::mem::take(&mut word));
+        }
+        if c.is_alphanumeric() {
+            word.extend(c.to_lowercase());
+        }
+        after_lower = c.is_lowercase() || c.is_numeric();
+    }
+    if !word.is_empty() {
+        out.push(word);
+    }
+    out
+}
+
+/// Every string leaf of a value, joined: a title in four languages is four strings.
+fn text_of(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Array(items) => items.iter().map(text_of).collect::<Vec<_>>().join(" "),
+        Value::Object(map) => map.values().map(text_of).collect::<Vec<_>>().join(" "),
+        _ => String::new(),
+    }
+}
+
+/// A `contextSpaceRef` is a name or an object naming one.
+pub(crate) fn ref_name(value: &Value) -> Option<String> {
+    match value {
+        Value::String(s) if !s.is_empty() => Some(s.clone()),
+        Value::Object(map) => map.get("name").and_then(Value::as_str).map(str::to_owned),
+        _ => None,
+    }
+}
+
+fn space_of(env: &ResourceEnvelope) -> String {
+    if env.kind == "ContextSpace" {
+        return env.metadata.name.clone();
+    }
+    ref_name(&env.spec["contextSpaceRef"])
+        .or_else(|| env.metadata.labels.get("joinedcontext.com/space").cloned())
+        .unwrap_or_default()
+}
+
+/// The fields a word can hit, named as `matchReason` names them.
+fn fields(env: &ResourceEnvelope) -> Vec<(&'static str, String)> {
+    let meta = serde_json::to_value(&env.metadata).unwrap_or(Value::Null);
+    let labels: String = env
+        .metadata
+        .labels
+        .iter()
+        .map(|(k, v)| format!("{k} {v}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut out = vec![
+        ("name", env.metadata.name.clone()),
+        ("title", text_of(&meta["title"])),
+        ("description", text_of(&meta["description"])),
+        ("labels", labels),
+    ];
+    if env.kind == "Endpoint" {
+        out.push(("slug", text_of(&env.spec["slug"])));
+    }
+    if env.kind == "DataModel" {
+        out.push(("classes", text_of(&env.spec["classes"])));
+    }
+    if env.kind != "ContextSpace" {
+        out.push(("space", space_of(env)));
+    }
+    out
+}
+
+/// How many words hit, and the fields they hit.
+fn score(fields: &[(&'static str, String)], words: &[String]) -> (usize, Vec<String>) {
+    let split: Vec<(&str, Vec<String>)> = fields
+        .iter()
+        .map(|(name, text)| (*name, field_words(text)))
+        .collect();
+    // A word matches where a word of the field begins with it: "bike" finds "bikes", "the"
+    // does not find "weather".
+    let matches = |field: &[String], word: &str| field.iter().any(|f| f.starts_with(word));
+    let hits = words
+        .iter()
+        .filter(|w| split.iter().any(|(_, field)| matches(field, w)))
+        .count();
+    let reasons = split
+        .iter()
+        .filter(|(_, field)| words.iter().any(|w| matches(field, w)))
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    (hits, reasons)
+}
+
+/// Whether the endpoint's audience admits a signed-in member of `project` (AG-58). The data's
+/// own grants are the gateway's decision (EP-55); this says whether the door is open at all.
+pub(crate) fn endpoint_access(spec: &Value, project: &str) -> Access {
+    match spec["audience"].as_str().unwrap_or("project-list") {
+        "public" => Access::allowed("audience public"),
+        "organization" => Access::allowed("audience organization: every signed-in member"),
+        "project-list" => {
+            let named = spec["allowedProjects"]
+                .as_array()
+                .is_some_and(|list| list.iter().any(|p| p.as_str() == Some(project)));
+            if named {
+                Access::allowed(format!("audience project-list names {project}"))
+            } else {
+                Access::restricted(format!("audience project-list does not name {project}"))
+            }
+        }
+        other => Access::restricted(format!("audience {other}")),
+    }
+}
+
+pub(crate) fn title_of(env: &ResourceEnvelope) -> Option<String> {
+    let meta = serde_json::to_value(&env.metadata).unwrap_or(Value::Null);
+    let title = &meta["title"];
+    title["en"]
+        .as_str()
+        .or_else(|| title.as_str())
+        .or_else(|| {
+            title
+                .as_object()
+                .and_then(|m| m.values().find_map(Value::as_str))
+        })
+        .map(str::to_owned)
+}
+
+/// The endpoint each pipeline of the project writes through: the last segment of the
+/// `targetEndpoint` URN, or the whole value when it is a bare name.
+fn feeders(state: &AppState, project: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for env in state
+        .mirror
+        .list(project, "Pipeline", &ListOptions::default())
+        .items
+    {
+        for target in crate::resource::pipeline_targets(&env.spec) {
+            let endpoint = target.rsplit(':').next().unwrap_or(target).to_owned();
+            out.entry(endpoint).or_insert(env.metadata.name.clone());
+        }
+    }
+    out
+}
+
+/// The search over the mirror, with the freshness read from the runner for the endpoints that
+/// are returned and open to the caller.
+pub async fn search(state: &AppState, project: &str, q: &str, scope: Option<&str>) -> Catalog {
+    let words = words(q);
+    let catalog = Catalog {
+        q: q.to_owned(),
+        items: Vec::new(),
+    };
+    if words.is_empty() {
+        return catalog;
+    }
+    let opts = ListOptions::default();
+    let endpoints = state.mirror.list(project, "Endpoint", &opts).items;
+    let spaces = state.mirror.list(project, "ContextSpace", &opts).items;
+    let models = state.mirror.list(project, "DataModel", &opts).items;
+
+    // Which spaces an endpoint opens, so a space and a model inherit the verdict of a door.
+    let mut space_access: BTreeMap<String, Access> = BTreeMap::new();
+    let mut matched_endpoints_of_space: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut items: Vec<CatalogItem> = Vec::new();
+
+    for env in &endpoints {
+        let access = endpoint_access(&env.spec, project);
+        let space = space_of(env);
+        if access.is_allowed() {
+            space_access.entry(space.clone()).or_insert_with(|| {
+                Access::allowed(format!("endpoint {} admits you", env.metadata.name))
+            });
+        }
+        let (hits, reasons) = score(&fields(env), &words);
+        if hits == 0 {
+            continue;
+        }
+        matched_endpoints_of_space
+            .entry(space.clone())
+            .or_default()
+            .push(env.metadata.name.clone());
+        items.push(item(env, project, space, hits, reasons, access));
+    }
+    for env in &spaces {
+        let name = env.metadata.name.clone();
+        let access = space_access
+            .get(&name)
+            .cloned()
+            .unwrap_or_else(|| Access::restricted("no endpoint of the space admits you"));
+        let (mut hits, mut reasons) = score(&fields(env), &words);
+        if let Some(through) = matched_endpoints_of_space.get(&name) {
+            hits = hits.max(1);
+            reasons.extend(through.iter().map(|e| format!("endpoint {e}")));
+        }
+        if hits == 0 {
+            continue;
+        }
+        items.push(item(env, project, name, hits, reasons, access));
+    }
+    for env in &models {
+        let space = space_of(env);
+        let access = space_access
+            .get(&space)
+            .cloned()
+            .unwrap_or_else(|| Access::restricted("no endpoint of the model's space admits you"));
+        let (hits, reasons) = score(&fields(env), &words);
+        if hits == 0 {
+            continue;
+        }
+        items.push(item(env, project, space, hits, reasons, access));
+    }
+
+    if let Some(scope) = scope {
+        items.retain(|i| i.kind == scope);
+    }
+    let rank = |kind: &str| KINDS.iter().position(|k| *k == kind).unwrap_or(KINDS.len());
+    items.sort_by(|a, b| {
+        b.hits
+            .cmp(&a.hits)
+            .then_with(|| rank(&a.kind).cmp(&rank(&b.kind)))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    items.truncate(MAX_ITEMS);
+
+    // Freshness, read in parallel for the endpoints a pipeline feeds; a runner that does not
+    // answer leaves `null`, never a guess (AG-58).
+    let feeders = feeders(state, project);
+    let mut reads = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        if item.kind != "Endpoint" || !item.access.is_allowed() {
+            continue;
+        }
+        let Some(pipeline) = feeders.get(&item.name).cloned() else {
+            continue;
+        };
+        let state = state.clone();
+        let project = project.to_owned();
+        reads.push(tokio::spawn(async move {
+            let metrics = metrics_for(&state, &project, &pipeline).await.ok()?;
+            Some((
+                index,
+                Freshness {
+                    pipeline,
+                    scraped_at: metrics.scraped_at,
+                    received: metrics.received,
+                    errors: metrics.errors,
+                },
+            ))
+        }));
+    }
+    for read in reads {
+        if let Ok(Some((index, freshness))) = read.await {
+            items[index].freshness = Some(freshness);
+        }
+    }
+    Catalog {
+        q: q.to_owned(),
+        items,
+    }
+}
+
+fn item(
+    env: &ResourceEnvelope,
+    project: &str,
+    space: String,
+    hits: usize,
+    reasons: Vec<String>,
+    access: Access,
+) -> CatalogItem {
+    // A restricted item shows its name and kind and nothing else (AG-58).
+    let open = access.is_allowed();
+    CatalogItem {
+        kind: env.kind.clone(),
+        name: env.metadata.name.clone(),
+        space,
+        owner: project.to_owned(),
+        title: if open { title_of(env) } else { None },
+        endpoint_slug: if open && env.kind == "Endpoint" {
+            env.spec["slug"].as_str().map(str::to_owned)
+        } else {
+            None
+        },
+        match_reason: reasons,
+        access,
+        freshness: None,
+        hits,
+    }
+}
+
+pub async fn get_catalog(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Query(query): Query<CatalogQuery>,
+) -> Result<Json<Catalog>, ApiError> {
+    let q = query.q.as_deref().unwrap_or("").trim();
+    if q.is_empty() {
+        return Err(ApiError::BadRequest("q must not be empty".into()));
+    }
+    // A search of a project is a read of it (PF-59, R20, T-1401).
+    if !is_dns1123(&project)
+        || !crate::permissions::for_request(&state, &user.0.identity, &project).may_read_project()
+    {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    let scope = match query.scope.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(kind) if KINDS.contains(&kind) => Some(kind),
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!(
+                "scope '{other}' is not one of {}",
+                KINDS.join(", ")
+            )))
+        }
+    };
+    Ok(Json(search(&state, &project, q, scope).await))
+}
+
+/// The organization's domain, from the `Organization` manifest of the repository, else the
+/// installation's `JC_PORTAL_ORG_DOMAIN`; the project name stands in when neither is known,
+/// so a draft still renders (an entity URN needs a dotted domain, so that draft is red).
+pub fn org_domain(state: &AppState, fallback: &str) -> String {
+    state
+        .mirror
+        .list(
+            crate::api::blueprints::ORG_NAMESPACE,
+            "Organization",
+            &ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find_map(|env| env.spec["domain"].as_str().map(str::to_owned))
+        .or_else(|| {
+            state
+                .config
+                .app_settings
+                .as_ref()
+                .map(|settings| settings.org_domain.clone())
+        })
+        .unwrap_or_else(|| fallback.to_owned())
+}
+
+/// Executes an endpoint proposal rendering and permission check (EP-72, API/01 §19).
+pub async fn execute_propose_endpoint(
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    params: share::ProposeEndpoint,
+) -> Result<share::Proposal, ApiError> {
+    if !is_dns1123(project) {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    let proposal = share::render(
+        project,
+        &org_domain(state, project),
+        &params,
+        &declared_groups(state, project),
+    )
+    .map_err(ApiError::BadRequest)?;
+    crate::permissions::for_request(state, identity, project).check(
+        "Endpoint",
+        Verb::Propose,
+        Some(&proposal.endpoint),
+    )?;
+    Ok(proposal)
+}
+
+/// The share request rendered, not written (EP-72, API/01 §19): the manifests the person will
+/// submit, refused for a caller who may not propose an Endpoint here (PF-50).
+pub async fn propose_endpoint(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Json(params): Json<share::ProposeEndpoint>,
+) -> Result<Json<share::Proposal>, ApiError> {
+    execute_propose_endpoint(&user.0.identity, &state, &project, params)
+        .await
+        .map(Json)
+}
+
+/// Request payload for starting or continuing an assistant conversation.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StartConversation {
+    pub message: String,
+    /// Where the person is standing when they ask (UI-61, AG-77): the form that is open, the draft
+    /// it edits and the field they were last in. Values never travel here; the assistant reads the
+    /// person's own draft with `jc_draft_get` under their own grants.
+    #[serde(default)]
+    pub form_context: Option<FormContextRequest>,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub continues: Option<String>,
+    /// The endpoints the person chose, zero to five, which the assistant may query (AG-75).
+    #[serde(default)]
+    pub endpoint_names: Vec<String>,
+}
+
+/// The form the question was asked from, as the browser sends it (API/04 §"Start or Continue").
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FormContextRequest {
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub field: Option<String>,
+}
+
+/// The longest field path a form may name: deeper than any kind has, shorter than a payload.
+const MAX_FIELD_PATH: usize = 200;
+
+/// What the request said about the open form, refused when it is not a form the Portal could have.
+///
+/// The kind must be one the platform knows, the draft name a DNS-1123 label like every manifest
+/// name (MF-02), and the field a dotted path of plain segments — `spec.source.query.q`,
+/// `spec.pages[0].layers`. A prompt is built from this, so nothing else is let through.
+fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, ApiError> {
+    let Some(asked) = request.form_context.as_ref() else {
+        return Ok(oneshot::FormContext::default());
+    };
+    if let Some(kind) = &asked.kind {
+        if !crate::resource::kinds().any(|known| known.kind == kind) {
+            return Err(ApiError::BadRequest(format!(
+                "'{kind}' is not a kind this platform has, so no form of it is open"
+            )));
+        }
+    }
+    if let Some(name) = &asked.name {
+        if !crate::resource::is_dns1123(name) {
+            return Err(ApiError::BadRequest(format!(
+                "'{name}' is not a draft name (lowercase letters, digits and dashes)"
+            )));
+        }
+    }
+    if let Some(field) = &asked.field {
+        let shaped = field.len() <= MAX_FIELD_PATH
+            && !field.is_empty()
+            && field
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '[' | ']'));
+        if !shaped {
+            return Err(ApiError::BadRequest(
+                "field must be a dotted path of at most 200 characters".into(),
+            ));
+        }
+    }
+    Ok(oneshot::FormContext {
+        kind: asked.kind.clone(),
+        name: asked.name.clone(),
+        field: asked.field.clone(),
+    })
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/assistant/conversations",
+    tag = "agents",
+    params(("project" = String, Path, description = "Project name")),
+    request_body = StartConversation,
+    responses(
+        (status = 202, description = "The conversation run, queued", body = CreatedRun),
+        (status = 400, description = "Invalid request or invalid continuation", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "No role grants proposing an App here", body = ProblemDetails),
+        (status = 503, description = "No agent runner, or no such profile", body = ProblemDetails)
+    )
+)]
+pub async fn start_conversation(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Json(request): Json<StartConversation>,
+) -> Result<(StatusCode, Json<CreatedRun>), ApiError> {
+    let settings = agent_settings(&state)?;
+
+    crate::permissions::for_request(&state, &user.0.identity, &project).check(
+        "App",
+        Verb::Propose,
+        None,
+    )?;
+
+    if request.message.trim().is_empty() {
+        return Err(ApiError::BadRequest("message must not be empty".into()));
+    }
+    if request.message.chars().count() > MAX_PROMPT_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "message is longer than {MAX_PROMPT_CHARS} characters"
+        )));
+    }
+    // A conversation is a run like any other and counts against the same day (PF-74, T-1403).
+    crate::api::agent_runs::within_runs_per_day(&state, &project).await?;
+
+    let form = form_context(&request)?;
+
+    let profile_name = request.profile.clone().unwrap_or_else(default_profile);
+    let profile = Profile::load(&state.mirror, &profile_name)?;
+
+    let mut run_endpoints = if request.endpoint_names.is_empty() {
+        Vec::new()
+    } else {
+        let names = crate::agents::endpoints::requested(None, &request.endpoint_names)
+            .map_err(ApiError::BadRequest)?;
+        crate::agents::endpoints::resolve(&state.mirror, &project, &names)?
+    };
+    // AG-70: a profile that lists endpoints lets the assistant read only those.
+    if let Some(refused) = run_endpoints
+        .iter()
+        .find(|endpoint| !profile.access.grants_endpoint(&endpoint.name, false))
+    {
+        return Err(ApiError::Denied(format!(
+            "agent profile '{}' does not grant reading endpoint '{}' (AG-70)",
+            profile.name, refused.name
+        )));
+    }
+
+    if let Some(parent_id) = &request.continues {
+        let parent = state
+            .agents
+            .get_run(parent_id)
+            .await
+            .map_err(unavailable)?
+            .ok_or_else(|| ApiError::BadRequest(format!("run '{parent_id}' does not exist")))?;
+        if parent.project != project {
+            return Err(ApiError::BadRequest(format!(
+                "run '{parent_id}' does not belong to project '{project}'"
+            )));
+        }
+        if parent.kind != "conversation" {
+            return Err(ApiError::BadRequest(format!(
+                "run '{parent_id}' is not a conversation run"
+            )));
+        }
+        let is_approver =
+            crate::api::changes::may_approve_anything(&state, &user.0.identity, &project).is_ok();
+        if !is_approver && parent.created_by != user.0.identity.username {
+            return Err(ApiError::BadRequest(format!(
+                "run '{parent_id}' is not visible to you"
+            )));
+        }
+        // A continuation that names no endpoints keeps the ones it continues.
+        if run_endpoints.is_empty() {
+            run_endpoints = crate::agents::endpoints::of_run(&parent);
+        }
+    }
+
+    let id = mint_run_id();
+    let (ticket, ticket_hash) = mint_ticket();
+    let created_at = now_rfc3339();
+    let expires_at = expiry(settings.run_ttl_secs);
+
+    let run = AgentRun {
+        id: id.clone(),
+        project: project.clone(),
+        app_name: String::new(),
+        title: None,
+        endpoint_name: run_endpoints
+            .first()
+            .map(|e| e.name.clone())
+            .unwrap_or_default(),
+        endpoint_slug: run_endpoints
+            .first()
+            .map(|e| e.slug.clone())
+            .unwrap_or_default(),
+        endpoints: serde_json::to_value(&run_endpoints).unwrap_or_else(|_| serde_json::json!([])),
+        profile: profile.name.clone(),
+        kind: "conversation".to_owned(),
+        unattended: false,
+        continues: request.continues.clone(),
+        app_class: "static".to_owned(),
+        visibility: "private".to_owned(),
+        prompt: request.message.clone(),
+        prompt_digest: digest_prompt(&request.message),
+        data_needs: serde_json::json!([]),
+        allows_write: false,
+        branch: String::new(),
+        path_prefix: String::new(),
+        status: AgentRunStatus::Queued.as_str().to_owned(),
+        ticket_hash,
+        workspace: None,
+        merge_request: None,
+        change_id: None,
+        source_url: None,
+        preview_url: None,
+        first_frame_ms: None,
+        first_version_ms: None,
+        files: serde_json::json!({}),
+        steps: 0,
+        tokens_used: 0,
+        created_by: user.0.identity.username.clone(),
+        starter: serde_json::to_value(&user.0.identity).unwrap_or(serde_json::Value::Null),
+        created_at,
+        started_at: None,
+        finished_at: None,
+        expires_at,
+        error: None,
+    };
+
+    state.agents.create_run(&run).await.map_err(unavailable)?;
+    publish_event(
+        &state,
+        &id,
+        "status",
+        status_payload(AgentRunStatus::Queued),
+    )
+    .await?;
+    // The first question is a line of the chat like every later one, so the panel shows it and
+    // a continuation reads it back (AG-68). The driver subscribes after this, so it answers the
+    // prompt once, not this event as well.
+    publish_event(
+        &state,
+        &id,
+        "message",
+        serde_json::json!({ "text": run.prompt, "sentBy": run.created_by }),
+    )
+    .await?;
+
+    oneshot::spawn(
+        state.clone(),
+        &run,
+        &user.0.identity,
+        &ticket,
+        &profile,
+        settings,
+        form,
+    );
+
+    Ok((StatusCode::ACCEPTED, Json(CreatedRun { run, ticket: None })))
+}
+
+/// One operation of the registry as a run the caller starts would meet it (AG-70, UI-56).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationAccess {
+    pub name: String,
+    pub read_only: bool,
+    /// The profile's half: its access block, or the read-only default without one.
+    pub profile: bool,
+    /// The caller's own permission in the project (PF-50).
+    pub person: bool,
+    /// The half that refuses; `null` when neither does.
+    pub reason: Option<String>,
+}
+
+/// An `AgentProfile` and what it lets a run of the caller do.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileAccess {
+    pub name: String,
+    pub title: Option<String>,
+    pub role: String,
+    /// `spec.access` as written; `null` when the profile has none.
+    #[schema(value_type = Option<Object>)]
+    pub access: Option<Value>,
+    pub egress_hosts: Vec<String>,
+    pub operations: Vec<OperationAccess>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AgentAccessList {
+    pub items: Vec<ProfileAccess>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/assistant/access",
+    tag = "agents",
+    params(("project" = String, Path, description = "Project name")),
+    responses(
+        (status = 200, description = "Every agent profile with the caller's effective access", body = AgentAccessList),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Not a project name", body = ProblemDetails)
+    )
+)]
+pub async fn get_access(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+) -> Result<Json<AgentAccessList>, ApiError> {
+    if !is_dns1123(&project) {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    let identity = &user.0.identity;
+    let mut items: Vec<ProfileAccess> = state
+        .mirror
+        .list(
+            crate::api::blueprints::ORG_NAMESPACE,
+            "AgentProfile",
+            &ListOptions::default(),
+        )
+        .items
+        .iter()
+        .map(|env| {
+            let access = access::Access::from_spec(&env.spec);
+            let operations = crate::ops::registry()
+                .iter()
+                .map(|op| {
+                    let profile = access.names(op);
+                    let person = crate::ops::permitted(op, identity, &state, &project);
+                    let reason = if profile {
+                        person.as_ref().err().map(ToString::to_string)
+                    } else {
+                        Some(refusal(op.name))
+                    };
+                    OperationAccess {
+                        name: op.name.to_owned(),
+                        read_only: op.annotations.read_only_hint,
+                        profile,
+                        person: person.is_ok(),
+                        reason,
+                    }
+                })
+                .collect();
+            ProfileAccess {
+                name: env.metadata.name.clone(),
+                title: title_of(env),
+                role: env.spec["role"].as_str().unwrap_or_default().to_owned(),
+                access: env.spec.get("access").filter(|a| a.is_object()).cloned(),
+                egress_hosts: env
+                    .spec
+                    .pointer("/egress/allowedHosts")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+                operations,
+            }
+        })
+        .collect();
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(Json(AgentAccessList { items }))
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/projects/{project}/assistant/catalog", get(get_catalog))
+        .route("/projects/{project}/assistant/access", get(get_access))
+        .route(
+            "/projects/{project}/assistant/propose-endpoint",
+            post(propose_endpoint),
+        )
+        .route(
+            "/projects/{project}/assistant/conversations",
+            post(start_conversation),
+        )
+}
+
+/// The `Group` names the repository declares for a project, so a share never proposes one twice.
+pub(crate) fn declared_groups(state: &AppState, project: &str) -> Vec<String> {
+    state
+        .mirror
+        .list(project, "Group", &crate::store::ListOptions::default())
+        .items
+        .into_iter()
+        .map(|group| group.metadata.name)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        endpoint_access, field_words, form_context, org_domain, score, words, FormContextRequest,
+        StartConversation,
+    };
+    use serde_json::json;
+
+    /// T-0964: `field_words` and `ops::feed_shape::split_camel` look alike and are not the same
+    /// function. This pins what this one does, so a later de-slop that merges them has to see
+    /// what it would change: the assistant's search index is built from these words.
+    #[test]
+    fn a_field_splits_at_punctuation_and_at_camel_case() {
+        assert_eq!(
+            field_words("BikeHireDockingStation"),
+            vec!["bike", "hire", "docking", "station"]
+        );
+        assert_eq!(
+            field_words("available_bike-number"),
+            vec!["available", "bike", "number"]
+        );
+        assert_eq!(
+            field_words("pm10"),
+            vec!["pm10"],
+            "a digit continues the word"
+        );
+        assert_eq!(field_words("PM10Sensor"), vec!["pm10", "sensor"]);
+        // A one-letter word is kept here and dropped from a question (`words`): a field that is
+        // one letter is still the field's name.
+        assert_eq!(field_words("A sensor"), vec!["a", "sensor"]);
+        assert_eq!(field_words("Kvalita ovzdušia"), vec!["kvalita", "ovzdušia"]);
+        assert_eq!(field_words(""), Vec::<String>::new());
+        assert_eq!(field_words("---"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_org_domain_is_the_installations_before_the_project_name() {
+        let mut config = crate::config::Config::for_tests();
+        assert_eq!(
+            org_domain(
+                &crate::state::AppState::new(config.clone(), None),
+                "helsinki"
+            ),
+            "helsinki"
+        );
+        config.app_settings = Some(crate::apps::reconciler::Settings {
+            host: "portal.example.org".into(),
+            namespace: "apps".into(),
+            org_domain: "hel.fi".into(),
+        });
+        assert_eq!(
+            org_domain(&crate::state::AppState::new(config, None), "helsinki"),
+            "hel.fi"
+        );
+    }
+
+    #[test]
+    fn words_are_short_lower_and_unique() {
+        assert_eq!(
+            words("Where is the Bike  availability, bike?"),
+            vec!["availability", "bike"]
+        );
+        assert!(words("a , !").is_empty());
+    }
+
+    #[test]
+    fn a_word_matches_the_start_of_a_field_word_and_filler_matches_nothing() {
+        let fields = vec![
+            ("name", "helsinki-weather".to_owned()),
+            ("title", "Helsinki indicators and news".to_owned()),
+            (
+                "classes",
+                "https://smartdatamodels.org/BikeHireDockingStation".to_owned(),
+            ),
+        ];
+        assert_eq!(score(&fields, &words("change the color to black")).0, 0);
+        assert_eq!(score(&fields, &words("create a new one")).0, 0);
+        assert_eq!(score(&fields, &words("docking weather")).0, 2);
+        assert_eq!(score(&fields, &words("news")).1, vec!["title"]);
+    }
+
+    #[test]
+    fn a_score_counts_words_and_names_fields() {
+        let fields = vec![
+            ("name", "helsinki-bikes".to_owned()),
+            ("title", "City bikes".to_owned()),
+            ("description", "Bike stations and availability".to_owned()),
+        ];
+        let (hits, reasons) = score(&fields, &words("bike availability"));
+        assert_eq!(hits, 2);
+        assert_eq!(reasons, vec!["name", "title", "description"]);
+        assert_eq!(score(&fields, &words("parking")).0, 0);
+    }
+
+    #[test]
+    fn the_audience_decides_the_verdict() {
+        assert!(endpoint_access(&json!({ "audience": "public" }), "helsinki").is_allowed());
+        assert!(endpoint_access(&json!({ "audience": "organization" }), "helsinki").is_allowed());
+        assert!(endpoint_access(
+            &json!({ "audience": "project-list", "allowedProjects": ["helsinki"] }),
+            "helsinki"
+        )
+        .is_allowed());
+        let shut = endpoint_access(
+            &json!({ "audience": "project-list", "allowedProjects": ["espoo"] }),
+            "helsinki",
+        );
+        assert!(!shut.is_allowed());
+        assert!(shut.reason.contains("does not name helsinki"));
+        assert!(!endpoint_access(&json!({}), "helsinki").is_allowed());
+    }
+
+    /// T-1611, UI-61: a prompt is built from what the request says about the open form, so only a
+    /// form the Portal could actually have is let through — and never a value.
+    #[test]
+    fn a_form_context_is_a_kind_a_draft_and_a_field_path_or_it_is_refused() {
+        let asked =
+            |kind: Option<&str>, name: Option<&str>, field: Option<&str>| StartConversation {
+                message: "what goes here?".to_owned(),
+                profile: None,
+                continues: None,
+                endpoint_names: Vec::new(),
+                form_context: Some(FormContextRequest {
+                    kind: kind.map(str::to_owned),
+                    name: name.map(str::to_owned),
+                    field: field.map(str::to_owned),
+                }),
+            };
+
+        let taken = form_context(&asked(
+            Some("Pipeline"),
+            Some("citybikes-gbfs"),
+            Some("spec.source.query.q"),
+        ))
+        .expect("a pipeline form is a form");
+        assert_eq!(taken.kind.as_deref(), Some("Pipeline"));
+        assert_eq!(taken.name.as_deref(), Some("citybikes-gbfs"));
+        assert_eq!(taken.field.as_deref(), Some("spec.source.query.q"));
+
+        // An index into a list is a path a form really has.
+        assert!(form_context(&asked(
+            Some("Dashboard"),
+            None,
+            Some("spec.pages[0].layers")
+        ))
+        .is_ok());
+
+        // A kind nobody has, a name that is not a manifest name, a field carrying anything else.
+        for wrong in [
+            asked(Some("Spaceship"), None, None),
+            asked(Some("Pipeline"), Some("Citybikes GBFS"), None),
+            asked(Some("Pipeline"), None, Some("spec.q; DROP TABLE drafts")),
+            asked(Some("Pipeline"), None, Some(&"a".repeat(201))),
+            asked(Some("Pipeline"), None, Some("")),
+        ] {
+            assert!(
+                form_context(&wrong).is_err(),
+                "a form context the Portal cannot have was accepted"
+            );
+        }
+
+        // No form named itself: nothing to say, and no error either.
+        assert!(form_context(&StartConversation {
+            message: "how is the air?".to_owned(),
+            profile: None,
+            continues: None,
+            endpoint_names: Vec::new(),
+            form_context: None,
+        })
+        .expect("a question from a page is fine")
+        .is_empty());
+    }
+}

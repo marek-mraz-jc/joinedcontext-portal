@@ -1,0 +1,1147 @@
+//! Keycloak OIDC authorization code flow with PKCE (CC-40, I1, I4).
+//!
+//! The portal is a confidential client: the code exchange happens server side and only an
+//! encrypted session cookie reaches the browser. No token is ever written to a log.
+
+use std::time::Duration;
+
+use axum::extract::{Query, State};
+use axum::response::{IntoResponse, Redirect, Response};
+use axum::routing::{get, post};
+use axum::{Form, Json, Router};
+use axum_extra::extract::cookie::{Cookie, CookieJar, PrivateCookieJar};
+use openidconnect::core::{
+    CoreAuthDisplay, CoreAuthenticationFlow, CoreClaimName, CoreClaimType, CoreClient,
+    CoreClientAuthMethod, CoreGrantType, CoreIdToken, CoreJsonWebKey,
+    CoreJweContentEncryptionAlgorithm, CoreJweKeyManagementAlgorithm, CoreResponseMode,
+    CoreResponseType, CoreSubjectIdentifierType,
+};
+use openidconnect::{
+    AdditionalProviderMetadata, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
+    EndpointMaybeSet, EndpointNotSet, EndpointSet, IssuerUrl, Nonce, OAuth2TokenResponse,
+    PkceCodeChallenge, PkceCodeVerifier, ProviderMetadata, RedirectUrl, RefreshToken, Scope,
+    TokenResponse,
+};
+use serde::{Deserialize, Serialize};
+use url::Url;
+
+use crate::auth::csrf;
+use crate::auth::session::{self, secure_cookie, Identity, Session, FLOW_COOKIE};
+use crate::config::OidcConfig;
+use crate::error::ApiError;
+use crate::state::AppState;
+
+/// RP-initiated logout is an OIDC extension, so `end_session_endpoint` is additional metadata.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct LogoutMetadata {
+    #[serde(default)]
+    pub end_session_endpoint: Option<String>,
+}
+
+impl AdditionalProviderMetadata for LogoutMetadata {}
+
+type PortalProviderMetadata = ProviderMetadata<
+    LogoutMetadata,
+    CoreAuthDisplay,
+    CoreClientAuthMethod,
+    CoreClaimName,
+    CoreClaimType,
+    CoreGrantType,
+    CoreJweContentEncryptionAlgorithm,
+    CoreJweKeyManagementAlgorithm,
+    CoreJsonWebKey,
+    CoreResponseMode,
+    CoreResponseType,
+    CoreSubjectIdentifierType,
+>;
+
+type PortalClient = CoreClient<
+    EndpointSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointMaybeSet,
+    EndpointMaybeSet,
+>;
+
+/// How long a login may stay in flight before the PKCE verifier cookie expires.
+const FLOW_TTL_SECS: i64 = 600;
+/// Session lifetime when the refresh token carries no `exp` of its own (an opaque one).
+const DEFAULT_SESSION_TTL_SECS: i64 = 3600;
+/// Access-token lifetime when the token response does not state one.
+const DEFAULT_ACCESS_TTL_SECS: i64 = 300;
+
+#[derive(Debug, thiserror::Error)]
+pub enum OidcError {
+    #[error("cannot build the OIDC http client: {0}")]
+    HttpClient(String),
+    #[error("invalid issuer or redirect url: {0}")]
+    Url(String),
+    #[error("OIDC discovery against the realm failed: {0}")]
+    Discovery(String),
+}
+
+/// The discovered Keycloak realm plus the http client used for every server-to-server call.
+pub struct OidcClient {
+    client: PortalClient,
+    http: reqwest::Client,
+    end_session_endpoint: Option<Url>,
+    /// The Portal's own client-credentials token and when to stop using it.
+    service: tokio::sync::Mutex<Option<(String, std::time::Instant)>>,
+}
+
+/// `Display` of a `DiscoveryError` is "Request failed" and the reason lives in its source, so a
+/// TLS failure reads exactly like a 404 in the log. This walks the chain and joins it.
+fn source_chain(error: &dyn std::error::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut cause = error.source();
+    while let Some(current) = cause {
+        parts.push(current.to_string());
+        cause = current.source();
+    }
+    parts.join(": ")
+}
+
+impl OidcClient {
+    pub async fn discover(config: &OidcConfig, redirect_uri: &str) -> Result<Self, OidcError> {
+        // No redirects: an authorization server must never bounce a token request elsewhere.
+        let mut builder = reqwest::ClientBuilder::new()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(10));
+        // The binary trusts `webpki-roots` and nothing else, so an issuer served by a private
+        // CA needs its root handed over explicitly (JC_OIDC_CA_FILE). Added, never swapped in:
+        // the public roots stay, and certificate verification is untouched.
+        if let Some(pem) = &config.extra_ca_pem {
+            // Whole bundle, not `from_pem`: a private CA is usually a chain and the first block
+            // alone would not verify. Empty is an error rather than "carry on with the public
+            // roots" — rustls drops roots it cannot parse without a word, so a wrong mount would
+            // otherwise fail later as a plain handshake error with nothing pointing at the file.
+            let roots = reqwest::Certificate::from_pem_bundle(pem)
+                .map_err(|e| OidcError::HttpClient(format!("JC_OIDC_CA_FILE: {e}")))?;
+            if roots.is_empty() {
+                return Err(OidcError::HttpClient(
+                    "JC_OIDC_CA_FILE: no PEM certificate in the file".to_string(),
+                ));
+            }
+            for root in roots {
+                builder = builder.add_root_certificate(root);
+            }
+        }
+        let http = builder
+            .build()
+            .map_err(|e| OidcError::HttpClient(e.to_string()))?;
+
+        // A trailing slash makes the discovered `issuer` claim mismatch; Keycloak publishes none.
+        let issuer = IssuerUrl::new(config.issuer.as_str().trim_end_matches('/').to_string())
+            .map_err(|e| OidcError::Url(e.to_string()))?;
+        let metadata = PortalProviderMetadata::discover_async(issuer, &http)
+            .await
+            .map_err(|e| OidcError::Discovery(source_chain(&e)))?;
+        let end_session_endpoint = metadata
+            .additional_metadata()
+            .end_session_endpoint
+            .as_ref()
+            .and_then(|raw| Url::parse(raw).ok());
+
+        let redirect = RedirectUrl::new(redirect_uri.to_string())
+            .map_err(|e| OidcError::Url(e.to_string()))?;
+        let client = CoreClient::from_provider_metadata(
+            metadata,
+            ClientId::new(config.client_id.clone()),
+            Some(ClientSecret::new(config.client_secret().to_string())),
+        )
+        .set_redirect_uri(redirect);
+
+        Ok(Self {
+            client,
+            http,
+            end_session_endpoint,
+            service: tokio::sync::Mutex::new(None),
+        })
+    }
+
+    /// A token of the Portal's own client (client credentials), for a service that answers the
+    /// Portal and nobody else, such as `jc-functions` (SDK-23). Kept until 30 s before it expires;
+    /// the audience is the realm's mapper on the client, not something the Portal asks for.
+    pub async fn service_token(&self) -> Result<String, ApiError> {
+        let mut cached = self.service.lock().await;
+        let now = std::time::Instant::now();
+        if let Some((token, _)) = cached.as_ref().filter(|(_, until)| *until > now) {
+            return Ok(token.clone());
+        }
+        let response = self
+            .client
+            .exchange_client_credentials()
+            .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
+            .request_async(&self.http)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %source_chain(&e), "the realm refused the Portal's client credentials");
+                ApiError::Unavailable("the Portal could not get a token of its own".into())
+            })?;
+        let token = response.access_token().secret().clone();
+        let lifetime = response
+            .expires_in()
+            .unwrap_or(Duration::from_secs(DEFAULT_ACCESS_TTL_SECS as u64));
+        *cached = Some((
+            token.clone(),
+            now + lifetime.saturating_sub(Duration::from_secs(30)),
+        ));
+        Ok(token)
+    }
+
+    /// Trades the session's refresh token for a fresh access token at the realm's token
+    /// endpoint. The identity stays; the roles follow the new id token when the realm sends one
+    /// and it verifies. Any refusal is `401`: the session is over, only a login brings it back.
+    pub async fn refresh(&self, session: &Session) -> Result<Session, ApiError> {
+        let refresh_token = session
+            .refresh_token
+            .as_deref()
+            .ok_or(ApiError::Unauthorized)?;
+        let token_response = self
+            .client
+            .exchange_refresh_token(&RefreshToken::new(refresh_token.to_string()))
+            .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
+            .request_async(&self.http)
+            .await
+            .map_err(|e| {
+                tracing::info!(subject = %session.identity.subject, error = %e, "token refresh refused");
+                ApiError::Unauthorized
+            })?;
+        let mut identity = session.identity.clone();
+        let mut id_token = session.id_token.clone();
+        if let Some(fresh) = token_response.id_token() {
+            // Verified like the logout token: signature, issuer and audience, no nonce (there
+            // was no browser round trip to bind one to). Only a verified token changes anything.
+            match fresh.claims(&self.client.id_token_verifier(), |_: Option<&Nonce>| Ok(())) {
+                Ok(_) => {
+                    id_token = fresh.to_string();
+                    identity.roles = realm_roles(&id_token);
+                    identity.groups = token_groups(&id_token);
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "id_token from the refresh did not verify; keeping the old one")
+                }
+            }
+        }
+        Ok(mint_session(
+            identity,
+            id_token,
+            session.issued_at,
+            &token_response,
+        ))
+    }
+}
+
+/// Builds the cookie session from a token response, at login and at every refresh.
+///
+/// The access token itself is not kept: the portal calls nothing with it. Its `expires_in` sets
+/// the refresh point; the refresh token's own `exp` (Keycloak slides it with the SSO session)
+/// sets how long the session lives without a login.
+fn mint_session(
+    identity: Identity,
+    id_token: String,
+    issued_at: i64,
+    token_response: &openidconnect::core::CoreTokenResponse,
+) -> Session {
+    let now = session::now_unix();
+    let access_ttl = token_response
+        .expires_in()
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(DEFAULT_ACCESS_TTL_SECS);
+    let refresh_token = token_response
+        .refresh_token()
+        .map(|t| t.secret().clone())
+        .filter(|t| !t.is_empty());
+    let expires_at = refresh_token
+        .as_deref()
+        .and_then(jwt_exp)
+        .unwrap_or(now + DEFAULT_SESSION_TTL_SECS);
+    Session {
+        identity,
+        expires_at,
+        issued_at,
+        id_token,
+        access_expires_at: now + access_ttl,
+        refresh_token,
+    }
+}
+
+/// What the login handler parks in an encrypted cookie until Keycloak redirects back.
+#[derive(Serialize, Deserialize)]
+struct FlowState {
+    pkce_verifier: String,
+    csrf_state: String,
+    nonce: String,
+    /// Where to send the browser afterwards; always a path on this portal.
+    redirect_to: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginQuery {
+    /// Optional in-app path to return to after the login.
+    #[serde(default)]
+    pub redirect_to: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CallbackQuery {
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub error_description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BackChannelLogoutForm {
+    pub logout_token: String,
+}
+
+/// Only same-origin paths are accepted, so an open redirect cannot be smuggled through login.
+///
+/// This says what a target *is* rather than listing what it is not, because the list was short of the
+/// forms a browser accepts (T-2290): a `Location` of `/\evil.example` is scheme-relative once the
+/// browser reads the backslash as a path separator (WHATWG URL, special schemes), and a tab or a
+/// newline between the two separators is stripped before that parse. So: one leading slash, no second
+/// separator of either kind, and no character a URL cannot carry. Anything else silently becomes `/` —
+/// a caller is not told which forms are filtered.
+fn safe_redirect(candidate: Option<String>) -> String {
+    const HOME: &str = "/";
+    let Some(path) = candidate else {
+        return HOME.to_string();
+    };
+    let is_separator = |c: char| c == '/' || c == '\\';
+    let mut characters = path.chars();
+    if !characters.next().is_some_and(is_separator) {
+        return HOME.to_string();
+    }
+    // `/\`, `//`, `/ /`, `/\t/`: whatever the second character is, it may not be a separator, and it
+    // may not be whitespace or a control character that a browser drops before parsing — which would
+    // make the character after it the second separator.
+    if characters
+        .next()
+        .is_some_and(|c| is_separator(c) || c.is_whitespace() || c.is_control())
+    {
+        return HOME.to_string();
+    }
+    // A control character anywhere is a header-splitting attempt in a `Location`, and a backslash
+    // anywhere else still normalises to a slash on the way to the browser.
+    if path.chars().any(|c| c.is_control() || c == '\\') {
+        return HOME.to_string();
+    }
+    path
+}
+
+fn oidc(state: &AppState) -> Result<&OidcClient, ApiError> {
+    state
+        .oidc
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("no identity provider is configured".into()))
+}
+
+/// `GET /api/v1/auth/login` — starts the authorization code flow with PKCE.
+pub async fn login(
+    State(state): State<AppState>,
+    Query(query): Query<LoginQuery>,
+    jar: PrivateCookieJar,
+) -> Result<Response, ApiError> {
+    let client = oidc(&state)?;
+    let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+    let (auth_url, csrf_state, nonce) = client
+        .client
+        .authorize_url(
+            CoreAuthenticationFlow::AuthorizationCode,
+            CsrfToken::new_random,
+            Nonce::new_random,
+        )
+        // `openid` is already in the request; the client adds it itself.
+        .add_scope(Scope::new("profile".to_string()))
+        .add_scope(Scope::new("email".to_string()))
+        .set_pkce_challenge(challenge)
+        .url();
+
+    let flow = FlowState {
+        pkce_verifier: verifier.into_secret(),
+        csrf_state: csrf_state.secret().clone(),
+        nonce: nonce.secret().clone(),
+        redirect_to: safe_redirect(query.redirect_to),
+    };
+    let value = serde_json::to_string(&flow)
+        .map_err(|e| ApiError::Internal(format!("serialize oidc flow: {e}")))?;
+    let jar = jar.add(secure_cookie(FLOW_COOKIE, value, FLOW_TTL_SECS));
+
+    Ok((jar, Redirect::to(auth_url.as_str())).into_response())
+}
+
+/// `GET /api/v1/auth/callback` — validates state and nonce, exchanges the code, mints the session.
+pub async fn callback(
+    State(state): State<AppState>,
+    Query(query): Query<CallbackQuery>,
+    jar: PrivateCookieJar,
+    cookies: CookieJar,
+) -> Result<Response, ApiError> {
+    let client = oidc(&state)?;
+
+    if let Some(error) = query.error {
+        // The description is provider text, not a token; safe to echo back.
+        let detail = query.error_description.unwrap_or_else(|| error.clone());
+        return Err(ApiError::BadRequest(format!(
+            "identity provider rejected the login: {detail}"
+        )));
+    }
+
+    let flow_cookie = jar
+        .get(FLOW_COOKIE)
+        .ok_or_else(|| ApiError::BadRequest("no login is in flight".into()))?;
+    let flow: FlowState = serde_json::from_str(flow_cookie.value())
+        .map_err(|_| ApiError::BadRequest("the login cookie is unreadable".into()))?;
+    let jar = jar.remove(Cookie::build(FLOW_COOKIE).path("/").build());
+
+    let presented_state = query
+        .state
+        .ok_or_else(|| ApiError::BadRequest("missing state".into()))?;
+    if presented_state != flow.csrf_state {
+        return Err(ApiError::BadRequest(
+            "state does not match the login that was started".into(),
+        ));
+    }
+    let code = query
+        .code
+        .ok_or_else(|| ApiError::BadRequest("missing code".into()))?;
+
+    let token_response = client
+        .client
+        .exchange_code(AuthorizationCode::new(code))
+        .map_err(|e| ApiError::Internal(format!("token endpoint is not configured: {e}")))?
+        .set_pkce_verifier(PkceCodeVerifier::new(flow.pkce_verifier))
+        .request_async(&client.http)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "code exchange failed");
+            ApiError::BadRequest("the authorization code could not be exchanged".into())
+        })?;
+
+    let id_token = token_response
+        .id_token()
+        .ok_or_else(|| ApiError::BadRequest("the identity provider returned no id_token".into()))?;
+    let nonce = Nonce::new(flow.nonce);
+    let claims = id_token
+        .claims(&client.client.id_token_verifier(), &nonce)
+        .map_err(|e| {
+            tracing::warn!(error = %e, "id_token verification failed");
+            ApiError::BadRequest("the id_token did not verify".into())
+        })?;
+
+    let issued_at = session::now_unix();
+    let identity = Identity {
+        subject: claims.subject().to_string(),
+        username: claims
+            .preferred_username()
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| claims.subject().to_string()),
+        email: claims.email().map(|e| e.to_string()),
+        name: claims
+            .name()
+            .and_then(|n| n.get(None))
+            .map(|n| n.to_string()),
+        roles: realm_roles(id_token.to_string().as_str()),
+        groups: token_groups(id_token.to_string().as_str()),
+    };
+    let session = mint_session(identity, id_token.to_string(), issued_at, &token_response);
+    tracing::info!(subject = %session.identity.subject, "portal login");
+
+    let jar = session::store(jar, &session)?;
+    let (cookies, _token) = csrf::issue(cookies);
+    Ok((jar, cookies, Redirect::to(&flow.redirect_to)).into_response())
+}
+
+/// The payload of a JWT-shaped string, decoded and nothing more: no signature is checked here,
+/// so a caller reads only what it has already verified or what it treats as a hint.
+fn jwt_payload<T: serde::de::DeserializeOwned>(token: &str) -> Option<T> {
+    let payload = token.split('.').nth(1)?;
+    let bytes =
+        base64::engine::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload)
+            .ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// `exp` of a JWT-shaped token; `None` for an opaque one. Keycloak's refresh tokens are JWTs
+/// whose `exp` is the SSO session's remaining life, which is exactly the session ceiling.
+fn jwt_exp(token: &str) -> Option<i64> {
+    #[derive(serde::Deserialize)]
+    struct Payload {
+        exp: Option<i64>,
+    }
+    jwt_payload::<Payload>(token)?.exp
+}
+
+/// Keycloak puts realm roles in `realm_access.roles`, which `openidconnect`'s core claim set does
+/// not model. Reading them back out of the token's payload is safe here and only here: the caller
+/// has already verified this exact token's signature, so the bytes are trusted. A malformed or
+/// role-less token yields an empty list, never an error — roles are display and enablement only
+/// (CC-42), and the resource API enforces the real boundary.
+/// The `groups` claim a Keycloak group-membership mapper adds (`/parent/child` paths); the
+/// leading `/` goes, so a `RoleBinding` names `air-quality-team`, not `/air-quality-team`.
+fn token_groups(id_token: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct Payload {
+        #[serde(default)]
+        groups: Vec<String>,
+    }
+    jwt_payload::<Payload>(id_token)
+        .map(|p| {
+            p.groups
+                .into_iter()
+                .map(|g| g.trim_start_matches('/').to_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn realm_roles(id_token: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct RealmAccess {
+        #[serde(default)]
+        roles: Vec<String>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Payload {
+        realm_access: Option<RealmAccess>,
+    }
+    jwt_payload::<Payload>(id_token)
+        .and_then(|p| p.realm_access)
+        .map(|r| r.roles)
+        .unwrap_or_default()
+}
+
+/// Who is signed in and through which front, so the UI knows whose logout to call.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct Me {
+    #[serde(flatten)]
+    pub identity: Identity,
+    /// `portal` for the Portal's own cookie session, `edge` for the APISIX `openid-connect`
+    /// session, `bearer` for a token a service sent (ADR-N-019).
+    pub front: session::Front,
+}
+
+/// `GET /api/v1/auth/me` — who is signed in.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    tag = "auth",
+    responses(
+        (status = 200, description = "The signed-in identity and its front", body = Me),
+        (status = 401, description = "No live session", body = crate::error::ProblemDetails)
+    )
+)]
+pub async fn me(
+    user: crate::auth::CurrentUser,
+    front: session::Front,
+    jar: CookieJar,
+) -> (CookieJar, Json<Me>) {
+    (
+        csrf_for_edge(front, jar),
+        Json(Me {
+            identity: user.0.identity,
+            front,
+        }),
+    )
+}
+
+/// An edge session never passes the Portal's callback, the one place the double-submit cookie is
+/// minted, so the first `/auth/me` of such a session issues it; the check on every mutation stays
+/// the same for every front (ADR-N-019, AP-28, PF-50).
+fn csrf_for_edge(front: session::Front, jar: CookieJar) -> CookieJar {
+    if front == session::Front::Edge && jar.get(csrf::CSRF_COOKIE).is_none() {
+        csrf::issue(jar).0
+    } else {
+        jar
+    }
+}
+
+/// The URL the browser must visit to finish an RP-initiated logout at Keycloak.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LogoutTarget {
+    /// Absolute URL: Keycloak's `end_session_endpoint`, or the portal itself when no realm is
+    /// configured.
+    pub end_session_url: String,
+}
+
+/// `POST /api/v1/auth/logout` — clears the session and tells the SPA where to send the browser.
+///
+/// It answers with JSON rather than a 302 on purpose: the SPA calls this with `fetch`, and a
+/// cross-origin redirect to Keycloak is unreadable to it. The browser navigation is the caller's.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    tag = "auth",
+    responses(
+        (status = 200, description = "Session cleared; navigate to endSessionUrl", body = LogoutTarget),
+        (status = 403, description = "Missing or mismatched CSRF token", body = crate::error::ProblemDetails)
+    )
+)]
+pub async fn logout(
+    State(state): State<AppState>,
+    jar: PrivateCookieJar,
+    cookies: CookieJar,
+) -> Result<Response, ApiError> {
+    // All three cookies go, whether or not a session was loadable: behind the edge this is
+    // the first half of a single logout, and the edge's own `/logout` clears none of them
+    // (ADR-N-019, AP-29).
+    let session = session::load(&jar);
+    let jar = session::clear(jar);
+    let cookies = cookies.add(csrf::removal());
+
+    let target = state
+        .oidc
+        .as_deref()
+        .and_then(|client| client.end_session_endpoint.clone())
+        .map(|mut url| {
+            {
+                let mut params = url.query_pairs_mut();
+                params.append_pair(
+                    "post_logout_redirect_uri",
+                    state.config.public_base_url.as_str(),
+                );
+                if let Some(ref session) = session {
+                    params.append_pair("id_token_hint", &session.id_token);
+                }
+                if let Some(oidc) = state.config.oidc.as_ref() {
+                    params.append_pair("client_id", &oidc.client_id);
+                }
+            }
+            url.to_string()
+        })
+        .unwrap_or_else(|| state.config.public_base_url.to_string());
+
+    Ok((
+        jar,
+        cookies,
+        Json(LogoutTarget {
+            end_session_url: target,
+        }),
+    )
+        .into_response())
+}
+
+/// The member an OpenID Provider puts in `events` to say the token ends a session
+/// (OpenID Connect Back-Channel Logout 1.0, Â§2.4).
+const LOGOUT_EVENT: &str = "http://schemas.openid.net/event/backchannel-logout";
+
+/// Whether this JWT's payload is a logout token rather than an ID token: it carries the
+/// back-channel logout event and no `nonce`. The realm signs both, and an ID token travels
+/// in the open as `id_token_hint`, so without this check its holder could end the session of
+/// whoever it names (AP-29). Read before verification, and only to refuse; the signature is
+/// still what admits it.
+fn ends_a_session(jwt: &str) -> bool {
+    use base64::Engine as _;
+    let Some(payload) = jwt.split('.').nth(1) else {
+        return false;
+    };
+    let Ok(bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload) else {
+        return false;
+    };
+    let Ok(claims) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return false;
+    };
+    claims.get("nonce").is_none()
+        && claims
+            .get("events")
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|events| events.contains_key(LOGOUT_EVENT))
+}
+
+/// `POST /api/v1/auth/backchannel-logout` — the Keycloak back-channel logout endpoint.
+///
+/// The logout token is verified against the realm keys before anything is revoked. The call
+/// carries no session cookie and no bearer, because the provider makes it server to server:
+/// the signed token is the whole authentication, which is why this route stands outside the
+/// CSRF guard beside the forge webhook (AP-29).
+pub async fn backchannel_logout(
+    State(state): State<AppState>,
+    Form(form): Form<BackChannelLogoutForm>,
+) -> Result<Response, ApiError> {
+    let client = oidc(&state)?;
+    if !ends_a_session(&form.logout_token) {
+        return Err(ApiError::BadRequest(
+            "the token carries no back-channel logout event, or carries a nonce".into(),
+        ));
+    }
+    let token: CoreIdToken = form
+        .logout_token
+        .parse()
+        .map_err(|_| ApiError::BadRequest("the logout token is not a JWT".into()))?;
+    let claims = token
+        .claims(&client.client.id_token_verifier(), |_: Option<&Nonce>| {
+            Ok(())
+        })
+        .map_err(|e| {
+            tracing::warn!(error = %e, "logout token verification failed");
+            ApiError::BadRequest("the logout token did not verify".into())
+        })?;
+
+    state
+        .revoke_subject(claims.subject().as_str(), session::now_unix())
+        .await;
+    tracing::info!(subject = %claims.subject().as_str(), "back-channel logout");
+    Ok(axum::http::StatusCode::NO_CONTENT.into_response())
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/auth/login", get(login))
+        .route("/auth/callback", get(callback))
+        .route("/auth/me", get(me))
+        .route("/auth/logout", post(logout))
+}
+
+/// The provider's own call, authenticated by the signature on its logout token and by nothing
+/// else: no cookie, so no CSRF token either (AP-29, CC-40).
+pub fn backchannel_router() -> Router<AppState> {
+    Router::new().route("/auth/backchannel-logout", post(backchannel_logout))
+}
+
+/// `safe_redirect` for the refresh middleware's test, which pins the target it builds against the
+/// guard that reads it back (T-2099, T-2290). It sits here, below every `.route(` of this file, on
+/// purpose: the route-coverage guard reads the crate's sources as text and stops at the first
+/// top-level `#[cfg(test)]` (`src/ops/mod.rs:2472`), so a test-only item higher up would hide every
+/// route under it from that check.
+#[cfg(test)]
+pub(crate) fn safe_redirect_for_tests(candidate: Option<String>) -> String {
+    safe_redirect(candidate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_same_origin_paths_are_accepted_as_a_return_target() {
+        assert_eq!(
+            safe_redirect(Some("/projects/ovzdusie".into())),
+            "/projects/ovzdusie"
+        );
+        assert_eq!(safe_redirect(Some("//evil.example".into())), "/");
+        assert_eq!(safe_redirect(Some("https://evil.example".into())), "/");
+        assert_eq!(safe_redirect(None), "/");
+    }
+
+    #[test]
+    fn nothing_a_browser_would_resolve_to_another_origin_is_a_return_target() {
+        // A browser resolving `Location: /\evil.example` reads the backslash as a path separator
+        // (WHATWG URL, special schemes), so the value is scheme-relative and the person leaves the
+        // Portal after logging in to it. Tabs and newlines are stripped before that parse, which is
+        // why they cannot sit between the two separators either, and a CR/LF in a `Location` is a
+        // header-splitting attempt in its own right (T-2290).
+        for forged in [
+            "//evil.example",
+            "/\\evil.example",
+            "/\\/evil.example",
+            "\\\\evil.example",
+            "\\/evil.example",
+            "/\t/evil.example",
+            "/\n/evil.example",
+            "/\r\nLocation: https://evil.example",
+            "/ /evil.example",
+            "https://evil.example",
+            "http:/evil.example",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "evil.example",
+            "",
+        ] {
+            assert_eq!(
+                safe_redirect(Some(forged.into())),
+                "/",
+                "{forged:?} was accepted"
+            );
+        }
+
+        // What a person actually comes back to survives untouched, query and all.
+        for allowed in [
+            "/",
+            "/projects/ovzdusie",
+            "/projects/ovzdusie/spaces?page=2&q=pm10%3E30",
+            "/projects/ovzdusie#section",
+        ] {
+            assert_eq!(
+                safe_redirect(Some(allowed.into())),
+                allowed,
+                "{allowed:?} was refused"
+            );
+        }
+    }
+
+    /// Shaped like `openidconnect::DiscoveryError`: the reason is in the source, not in `Display`.
+    #[derive(Debug, thiserror::Error)]
+    #[error("Request failed")]
+    struct Opaque(#[source] std::io::Error);
+
+    #[test]
+    fn the_source_chain_survives_into_the_message() {
+        let err = Opaque(std::io::Error::other(
+            "invalid peer certificate: UnknownIssuer",
+        ));
+        assert_eq!(
+            source_chain(&err),
+            "Request failed: invalid peer certificate: UnknownIssuer"
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T-2096 `discover`, T-2097 `service_token`, T-2098 `refresh`.
+    //
+    // All three talk to the realm, so they get a realm: a `wiremock` server that answers discovery
+    // and the token endpoint. What is asserted is what the Portal does with what comes back —
+    // especially what it does NOT pass on to a caller or keep from a refusal.
+    // ---------------------------------------------------------------------------------------
+
+    use wiremock::matchers::{method as wm_method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const REALM: &str = "/realms/bb";
+
+    async fn mock_realm() -> MockServer {
+        let server = MockServer::start().await;
+        let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
+        Mock::given(wm_method("GET"))
+            .and(wm_path(format!("{REALM}/.well-known/openid-configuration")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "issuer": issuer,
+                "authorization_endpoint": format!("{issuer}/protocol/openid-connect/auth"),
+                "token_endpoint": format!("{issuer}/protocol/openid-connect/token"),
+                "jwks_uri": format!("{issuer}/protocol/openid-connect/certs"),
+                "response_types_supported": ["code"],
+                "subject_types_supported": ["public"],
+                "id_token_signing_alg_values_supported": ["RS256"]
+            })))
+            .mount(&server)
+            .await;
+        // Discovery fetches the key set as well as the document; a realm that serves one and not
+        // the other is not discoverable (this cost me a 404 that read like a wrong path).
+        Mock::given(wm_method("GET"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/certs")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "keys": [] })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn config_for(server: &MockServer) -> crate::config::OidcConfig {
+        let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
+        crate::config::Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some(issuer.clone()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t-do-not-leak".to_string()),
+            _ => None,
+        })
+        .expect("config")
+        .oidc
+        .expect("oidc present")
+    }
+
+    fn a_session(refresh_token: Option<&str>) -> Session {
+        Session {
+            identity: Identity {
+                subject: "f:1:demo".into(),
+                username: "demo".into(),
+                email: None,
+                name: None,
+                roles: vec!["portal-viewer".into()],
+                groups: vec!["editors".into()],
+            },
+            expires_at: session::now_unix() + 600,
+            issued_at: session::now_unix() - 60,
+            id_token: "opaque-id-token-for-tests".into(),
+            access_expires_at: session::now_unix() + 60,
+            refresh_token: refresh_token.map(str::to_owned),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_empty_ca_bundle_stops_start_up_instead_of_quietly_using_the_public_roots() {
+        // The other half of T-0350: a mounted file with no certificate in it must not read as
+        // "carry on with the public roots", or an instance behind a private CA fails later as a
+        // plain handshake error with nothing pointing at the file.
+        let path =
+            std::env::temp_dir().join(format!("jc-portal-empty-ca-{}.pem", std::process::id()));
+        std::fs::write(&path, b"# no certificate here\n").expect("write pem");
+        let config = oidc_config(Some(&path.display().to_string()));
+        let err = OidcClient::discover(&config, "https://portal.example.test/api/v1/auth/callback")
+            .await
+            .map(|_| ())
+            .expect_err("an empty bundle must stop start-up");
+        let _ = std::fs::remove_file(&path);
+        match err {
+            OidcError::HttpClient(reason) => assert!(
+                reason.contains("JC_OIDC_CA_FILE"),
+                "the operator needs the variable in the message: {reason}"
+            ),
+            other => panic!("expected the ca file to be refused, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_realm_that_does_not_answer_fails_discovery_with_the_reason_in_the_message() {
+        // Port 9 (discard) refuses at once. The message has to carry the source chain, or an
+        // operator reads "Request failed" and learns nothing (that is what `source_chain` is for).
+        let config = crate::config::Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some("http://127.0.0.1:9/realms/bb".to_string()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
+            _ => None,
+        })
+        .expect("config")
+        .oidc
+        .expect("oidc present");
+        let err = OidcClient::discover(&config, "https://portal.example.test/api/v1/auth/callback")
+            .await
+            .map(|_| ())
+            .expect_err("an unreachable realm cannot be discovered");
+        match err {
+            OidcError::Discovery(reason) => {
+                assert!(
+                    reason.len() > "Request failed".len(),
+                    "no reason in: {reason}"
+                );
+                assert!(
+                    reason.to_lowercase().contains("connect")
+                        || reason.to_lowercase().contains("refused")
+                        || reason.to_lowercase().contains("error"),
+                    "the reason does not say what happened: {reason}",
+                );
+            }
+            other => panic!("expected a discovery failure, got {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_service_token_says_nothing_of_the_realm_or_the_secret() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "unauthorized_client",
+                "error_description": "Invalid client secret for portal at https://idm.internal.svc"
+            })))
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        let Err(ApiError::Unavailable(message)) = client.service_token().await else {
+            panic!("a refused client-credentials grant is Unavailable");
+        };
+        for leaked in [
+            "s3cr3t",
+            "unauthorized_client",
+            "Invalid client secret",
+            "idm.internal",
+        ] {
+            assert!(
+                !message.contains(leaked),
+                "the refusal carried {leaked:?}: {message}",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_service_token_is_asked_for_once_and_then_held() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "svc-token-1",
+                "token_type": "Bearer",
+                "expires_in": 300
+            })))
+            .expect(1) // one grant for many calls, or the realm is asked on every request
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        for _ in 0..5 {
+            assert_eq!(client.service_token().await.expect("token"), "svc-token-1");
+        }
+        drop(client);
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn a_session_without_a_refresh_token_is_over_before_the_realm_is_asked() {
+        let server = mock_realm().await;
+        // No token endpoint is mounted: any request to it would fail the test with a 404 answer
+        // turning into 401 as well, so the count is what proves it — wiremock records everything.
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        assert!(matches!(
+            client.refresh(&a_session(None)).await,
+            Err(ApiError::Unauthorized)
+        ));
+        let token_calls = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .into_iter()
+            .filter(|request| request.url.path().ends_with("/token"))
+            .count();
+        assert_eq!(
+            token_calls, 0,
+            "the realm was asked without a refresh token"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_refused_refresh_ends_the_session_with_nothing_of_the_realms_answer() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "Session not active for user f:1:demo"
+            })))
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        // 401 and nothing else: which refusal it was belongs in the log, where the middleware
+        // decides whether to clear the cookies (`auth/refresh.rs`).
+        let refused = client.refresh(&a_session(Some("opaque-refresh"))).await;
+        assert!(
+            matches!(refused, Err(ApiError::Unauthorized)),
+            "{refused:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_refresh_that_brings_no_id_token_keeps_the_roles_the_session_had() {
+        // The realm may answer without an id token, and an id token that does not verify is
+        // ignored on purpose. Either way the identity must stay exactly as it was: taking roles
+        // from an unverified token is how a session grows rights it was never granted.
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "fresh-access",
+                "refresh_token": "fresh-refresh",
+                "token_type": "Bearer",
+                "expires_in": 300
+            })))
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        let before = a_session(Some("opaque-refresh"));
+        let after = client.refresh(&before).await.expect("refresh");
+        assert_eq!(after.identity.roles, before.identity.roles);
+        assert_eq!(after.identity.groups, before.identity.groups);
+        assert_eq!(after.identity.subject, before.identity.subject);
+        assert_eq!(after.id_token, before.id_token);
+        assert_eq!(
+            after.issued_at, before.issued_at,
+            "the session keeps its age"
+        );
+        assert_eq!(after.refresh_token.as_deref(), Some("fresh-refresh"));
+        assert!(after.access_expires_at > session::now_unix());
+    }
+
+    fn oidc_config(ca_file: Option<&str>) -> crate::config::OidcConfig {
+        crate::config::Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some("https://idm.example.test/realms/bb".to_string()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
+            "JC_OIDC_CA_FILE" => ca_file.map(str::to_string),
+            _ => None,
+        })
+        .expect("oidc config")
+        .oidc
+        .expect("oidc present")
+    }
+
+    /// The private root has to reach the http client, and the only failure that proves it does so
+    /// without a network is an unusable one: a PEM the builder refuses stops discovery before the
+    /// first request. Configured but ignored is exactly the bug this guards (T-0350).
+    #[tokio::test]
+    async fn an_unusable_extra_root_is_refused_by_name() {
+        let path =
+            std::env::temp_dir().join(format!("jc-portal-bad-ca-{}.pem", std::process::id()));
+        std::fs::write(&path, b"not a certificate\n").expect("write pem");
+        let config = oidc_config(Some(&path.display().to_string()));
+        let err = OidcClient::discover(&config, "https://portal.example.test/api/v1/auth/callback")
+            .await
+            .map(|_| ())
+            .expect_err("a root that cannot be parsed must stop start-up");
+        let _ = std::fs::remove_file(&path);
+        match err {
+            OidcError::HttpClient(reason) => assert!(
+                reason.contains("JC_OIDC_CA_FILE"),
+                "the operator needs the variable in the message: {reason}"
+            ),
+            other => panic!("expected the ca file to be refused, got {other}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod realm_roles_tests {
+    use super::{jwt_exp, realm_roles};
+    use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
+
+    /// Builds a JWT-shaped string around `payload`. Nothing here is signed: `realm_roles` runs
+    /// only on a token the caller already verified, so the test exercises the parsing alone.
+    fn token(payload: &str) -> String {
+        format!(
+            "{}.{}.{}",
+            URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256"}"#),
+            URL_SAFE_NO_PAD.encode(payload.as_bytes()),
+            URL_SAFE_NO_PAD.encode(b"not-a-signature"),
+        )
+    }
+
+    #[test]
+    fn reads_realm_access_roles_in_order() {
+        let t = token(r#"{"sub":"u1","realm_access":{"roles":["space-editor","portal-viewer"]}}"#);
+        assert_eq!(realm_roles(&t), vec!["space-editor", "portal-viewer"]);
+    }
+
+    #[test]
+    fn missing_or_empty_realm_access_is_no_roles() {
+        assert!(realm_roles(&token(r#"{"sub":"u1"}"#)).is_empty());
+        assert!(realm_roles(&token(r#"{"sub":"u1","realm_access":{}}"#)).is_empty());
+        assert!(realm_roles(&token(r#"{"sub":"u1","realm_access":{"roles":[]}}"#)).is_empty());
+    }
+
+    #[test]
+    fn the_refresh_token_exp_is_the_session_ceiling() {
+        assert_eq!(
+            jwt_exp(&token(r#"{"exp":1800000000}"#)),
+            Some(1_800_000_000)
+        );
+        assert_eq!(jwt_exp(&token(r#"{"sub":"u1"}"#)), None);
+        assert_eq!(jwt_exp("opaque-refresh-token"), None);
+    }
+
+    #[test]
+    fn a_malformed_token_yields_no_roles_instead_of_an_error() {
+        assert!(realm_roles("").is_empty());
+        assert!(realm_roles("only-one-segment").is_empty());
+        assert!(realm_roles("header.!!!not-base64!!!.sig").is_empty());
+        assert!(realm_roles(&token("not json at all")).is_empty());
+    }
+}

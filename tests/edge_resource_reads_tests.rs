@@ -1,0 +1,413 @@
+//! Edge cases of the three resource reads (T-2033, T-2034, T-2035; PF-59, PF-60, PF-61, R20, CC-76).
+//!
+//! **The contract, in one sentence:** a list and a read answer one body for everything a caller may not
+//! have — an unknown plural, a kind no binding of theirs reads, a project they hold nothing in and a
+//! resource that is there but not theirs — and the endpoint listing across projects is that same rule
+//! applied project by project, an empty list rather than a refusal.
+//!
+//! The happy paths live in `resource_list_tests.rs` and `resource_get_tests.rs` (the pages, the
+//! selectors, the envelopes). This file is the other side: a selector that is not one, a limit of
+//! nothing, a workspace that is not the caller's, and the four ways of being told "not found".
+//!
+//! Tests only (the family's rule). Every case here is green; a red one becomes its own task.
+
+use axum::body::Body;
+use axum::http::{header, Request, StatusCode};
+use axum_extra::extract::cookie::PrivateCookieJar;
+use http_body_util::BodyExt;
+use serde_json::{json, Value};
+use tower::ServiceExt;
+
+use joinedcontext_portal::auth::csrf::CSRF_COOKIE;
+use joinedcontext_portal::auth::session::{self, Identity, Session};
+use joinedcontext_portal::config::Config;
+use joinedcontext_portal::permissions::ORG_NAMESPACE;
+use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+use joinedcontext_portal::server;
+use joinedcontext_portal::state::AppState;
+
+const PROJECT: &str = "helsinki";
+const ELSEWHERE: &str = "espoo";
+const CSRF: &str = "csrf-token-edge-reads";
+const SPACE_READER: &str = "peter.spaces@hel.fi";
+const STRANGER: &str = "nobody@hel.fi";
+
+fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: kind.into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some(namespace.into()),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    }
+}
+
+fn org(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+    envelope(kind, name, ORG_NAMESPACE, spec)
+}
+
+fn cookie(config: &Config, email: &str) -> String {
+    use axum::response::IntoResponse;
+    let now = session::now_unix();
+    let username = email.split('@').next().unwrap_or(email).to_owned();
+    let session = Session {
+        identity: Identity {
+            subject: format!("f:1:{username}"),
+            username,
+            email: Some(email.to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+        },
+        expires_at: now + 3600,
+        issued_at: now,
+        id_token: "id-token-placeholder".into(),
+        access_expires_at: now + 3600,
+        refresh_token: None,
+    };
+    let jar = session::store(PrivateCookieJar::new(config.cookie_key.clone()), &session)
+        .expect("store session");
+    let response = (jar, StatusCode::OK).into_response();
+    let mut parts: Vec<String> = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .map(|raw| raw.split(';').next().unwrap_or_default().to_owned())
+        .collect();
+    parts.push(format!("{CSRF_COOKIE}={CSRF}"));
+    parts.join("; ")
+}
+
+/// Two projects with a space and an endpoint each, and a caller who reads only `helsinki`'s spaces —
+/// so the kind and the project are two separate reasons to be told nothing.
+fn world() -> AppState {
+    let state = AppState::new(Config::for_tests(), None);
+    for project in [PROJECT, ELSEWHERE] {
+        state
+            .mirror
+            .upsert(envelope("ContextSpace", project, project, json!({})));
+        state.mirror.upsert(envelope(
+            "Endpoint",
+            &format!("{project}-bikes"),
+            project,
+            json!({
+                "contextSpaceRef": { "kind": "ContextSpace", "name": project },
+                "slug": "si6epqkx364lprho5uaigutk274r5grb",
+                "audience": "project",
+                "enabledRepresentations": ["ngsi-ld"],
+            }),
+        ));
+    }
+    state.mirror.upsert(org(
+        "Role",
+        "space-reader",
+        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "space-readers",
+        json!({ "subjects": [{ "user": SPACE_READER }], "role": "space-reader",
+                "scope": { "project": PROJECT } }),
+    ));
+    state
+}
+
+async fn get(state: &AppState, email: Option<&str>, uri: &str) -> (StatusCode, Value) {
+    let mut request = Request::builder().uri(uri);
+    if let Some(email) = email {
+        request = request.header(header::COOKIE, cookie(&state.config, email));
+    }
+    let response = server::app(state.clone())
+        .oneshot(request.body(Body::empty()).expect("a request"))
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+// -------------------------------------------------------------------------------------------------
+// T-2033 `list`
+// -------------------------------------------------------------------------------------------------
+
+/// PF-59, R20: a listing has one body for every reason a caller may not have it — a plural that is no
+/// kind, a kind their bindings do not read, and a project they hold nothing in. The three are
+/// indistinguishable, which is the point: a 404 that varied would be a way to ask what exists.
+#[tokio::test]
+async fn one_body_answers_an_unknown_plural_an_unread_kind_and_an_unheld_project() {
+    let state = world();
+
+    // A plural that is no kind of this platform, a kind this reader does not read, and the project
+    // next door: one answer for all three.
+    let (unknown, unknown_body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/teapots"),
+    )
+    .await;
+    let (unread, unread_body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+    )
+    .await;
+    let (unheld, unheld_body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{ELSEWHERE}/spaces"),
+    )
+    .await;
+    assert_eq!(unknown, StatusCode::NOT_FOUND, "{unknown_body}");
+    assert_eq!(unread, StatusCode::NOT_FOUND, "{unread_body}");
+    assert_eq!(unheld, StatusCode::NOT_FOUND, "{unheld_body}");
+    assert_eq!(
+        unread_body["title"], unknown_body["title"],
+        "an unread kind reads differently from a plural that is no kind",
+    );
+    for body in [&unread_body, &unheld_body] {
+        let text = body.to_string();
+        for leaked in [
+            "helsinki-bikes",
+            "espoo-bikes",
+            "si6epqkx364lprho5uaigutk274r5grb",
+        ] {
+            assert!(!text.contains(leaked), "the 404 carried {leaked:?}: {text}");
+        }
+    }
+
+    // The one listing this reader may have.
+    let (status, list) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/spaces"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert_eq!(list["items"].as_array().map(Vec::len), Some(1), "{list}");
+}
+
+/// The query of a listing is read before the mirror is: a page of nothing, a selector that is not one
+/// and a revision this route does not serve are each answered as the caller's mistake, and a limit past
+/// the ceiling is the ceiling rather than a refusal.
+#[tokio::test]
+async fn a_query_that_is_not_one_is_the_callers_mistake_and_never_a_page() {
+    let state = world();
+    let spaces = format!("/api/v1/projects/{PROJECT}/spaces");
+
+    // A page of nothing.
+    let (status, body) = get(&state, Some(SPACE_READER), &format!("{spaces}?limit=0")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    // A limit that is not a number at all, and one past what a page may be: the first is refused, the
+    // second is served at the ceiling.
+    for limit in ["abc", "-1", "1.5"] {
+        let (status, body) = get(
+            &state,
+            Some(SPACE_READER),
+            &format!("{spaces}?limit={limit}"),
+        )
+        .await;
+        assert!(
+            status.is_client_error(),
+            "limit={limit} answered {status}: {body}",
+        );
+    }
+    let (status, body) = get(&state, Some(SPACE_READER), &format!("{spaces}?limit=9999")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    // A selector that is not a selector.
+    for query in [
+        "labelSelector=%3D%3D",
+        "labelSelector=a%20b%20c",
+        "fieldSelector=metadata.name",
+        "fieldSelector=%3D%3Dx",
+    ] {
+        let (status, body) = get(&state, Some(SPACE_READER), &format!("{spaces}?{query}")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {body}");
+        assert!(
+            body["detail"].is_string(),
+            "{query} was answered without saying what is wrong: {body}",
+        );
+    }
+
+    // A revision: the history is served from Git and this route says so rather than ignoring it and
+    // answering today's list as though it were the one asked for.
+    let (status, body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("{spaces}?revision=0f1e2d3"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "{body}");
+
+    // A continuation token nobody minted is ignored and the first page comes back: today's
+    // behaviour, written down in `/workspace/chyby.md` rather than asserted as wanted, because a
+    // client walking a list would restart it instead of being told its token is stale. What matters
+    // here and holds either way: the page is this caller's own reading and carries nothing else.
+    let (status, body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("{spaces}?continue=bm90LWEtdG9rZW4"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body["items"].as_array().is_some_and(|items| items
+            .iter()
+            .all(|item| item["kind"] == json!("ContextSpace"))),
+        "a stale token answered with something other than this caller's own kind: {body}",
+    );
+    assert!(
+        body["metadata"]["continue"].is_null(),
+        "a stale token answered with a next page: {body}",
+    );
+}
+
+// -------------------------------------------------------------------------------------------------
+// T-2034 `get_resource`
+// -------------------------------------------------------------------------------------------------
+
+/// R20, CC-76: a single read is the same 404 for a resource that is not there and for one that is there
+/// and not the caller's — and a copy it names has to be one the caller may read in, so a workspace name
+/// is not a way around either rule.
+#[tokio::test]
+async fn a_single_read_never_says_whether_what_it_refuses_exists() {
+    let state = world();
+
+    // The endpoint exists in `helsinki`; this reader does not read endpoints. A name nobody has reads
+    // exactly the same.
+    let (there, there_body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/endpoints/helsinki-bikes"),
+    )
+    .await;
+    let (ghost, ghost_body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/endpoints/nothing-like-this"),
+    )
+    .await;
+    assert_eq!(there, StatusCode::NOT_FOUND, "{there_body}");
+    assert_eq!(ghost, StatusCode::NOT_FOUND, "{ghost_body}");
+    assert_eq!(
+        there_body["detail"]
+            .as_str()
+            .map(|d| d.contains("helsinki-bikes")),
+        Some(true),
+        "the message should name what was asked for: {there_body}",
+    );
+    assert_eq!(
+        there_body["title"], ghost_body["title"],
+        "an endpoint that exists reads differently from one that does not",
+    );
+    assert!(
+        !there_body
+            .to_string()
+            .contains("si6epqkx364lprho5uaigutk274r5grb"),
+        "the 404 carried the endpoint's slug: {there_body}",
+    );
+
+    // A name that tries to leave the project, and a plural that is not one.
+    for uri in [
+        format!("/api/v1/projects/{PROJECT}/spaces/%2e%2e"),
+        format!("/api/v1/projects/{PROJECT}/spaces/..%2fespoo"),
+        format!("/api/v1/projects/{PROJECT}/contextspaces/{PROJECT}"),
+        format!("/api/v1/projects/{ELSEWHERE}/spaces/{ELSEWHERE}"),
+    ] {
+        let (status, body) = get(&state, Some(SPACE_READER), &uri).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{uri}: {body}");
+    }
+
+    // A workspace nobody opened: refused, and never by falling back to the project's own copy.
+    let (status, body) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/spaces/{PROJECT}?workspace=somebody-elses"),
+    )
+    .await;
+    assert!(
+        status.is_client_error(),
+        "a workspace nobody opened was read as the project: {status} {body}",
+    );
+    assert_ne!(status, StatusCode::OK);
+
+    // And the read this caller may have.
+    let (status, space) = get(
+        &state,
+        Some(SPACE_READER),
+        &format!("/api/v1/projects/{PROJECT}/spaces/{PROJECT}"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{space}");
+    assert_eq!(space["kind"], json!("ContextSpace"), "{space}");
+}
+
+// -------------------------------------------------------------------------------------------------
+// T-2035 `list_endpoints_everywhere`
+// -------------------------------------------------------------------------------------------------
+
+/// PF-60, PF-61, R20: the endpoint listing across projects is the project-by-project read rule, applied
+/// once per project. A caller no binding names gets an empty list and not a refusal, a caller bound in
+/// one project gets that project's endpoints and no other's, and each item says which project it is in.
+#[tokio::test]
+async fn the_endpoints_of_every_project_are_the_ones_this_caller_reads_project_by_project() {
+    let state = world();
+    state.mirror.upsert(org(
+        "Role",
+        "endpoint-reader",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "endpoint-readers",
+        json!({ "subjects": [{ "user": "eva.endpoints@hel.fi" }], "role": "endpoint-reader",
+                "scope": { "project": PROJECT } }),
+    ));
+
+    // A person no binding names: an empty list, because what is not readable is not there.
+    let (status, theirs) = get(&state, Some(STRANGER), "/api/v1/endpoints").await;
+    assert_eq!(status, StatusCode::OK, "{theirs}");
+    assert_eq!(theirs["items"], json!([]), "{theirs}");
+
+    // A reader of one project's endpoints: that project's, and not the one next door.
+    let (status, mine) = get(&state, Some("eva.endpoints@hel.fi"), "/api/v1/endpoints").await;
+    assert_eq!(status, StatusCode::OK, "{mine}");
+    let items = mine["items"].as_array().cloned().unwrap_or_default();
+    assert_eq!(items.len(), 1, "{mine}");
+    assert_eq!(
+        items[0]["metadata"]["name"],
+        json!("helsinki-bikes"),
+        "{mine}"
+    );
+    // Each item says which project it lives in, which is the whole point of the listing.
+    assert_eq!(
+        items[0]["metadata"]["namespace"],
+        json!(PROJECT),
+        "an item does not say which project it is in: {mine}",
+    );
+    assert!(
+        !mine.to_string().contains("espoo"),
+        "the listing carried another project's endpoint: {mine}",
+    );
+
+    // A reader of spaces only sees no endpoints anywhere, and no session sees nothing at all.
+    let (status, none) = get(&state, Some(SPACE_READER), "/api/v1/endpoints").await;
+    assert_eq!(status, StatusCode::OK, "{none}");
+    assert_eq!(none["items"], json!([]), "{none}");
+    let (status, _) = get(&state, None, "/api/v1/endpoints").await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}

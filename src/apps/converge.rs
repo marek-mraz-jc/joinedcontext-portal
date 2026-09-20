@@ -1,0 +1,255 @@
+//! Putting what [`crate::apps::reconciler::render`] compiles onto the cluster (T-0411, AP-13,
+//! AP-13a, AP-18, AP-21, AP-27).
+//!
+//! Rendering is a pure function; this is the half with a side effect. One App manifest becomes
+//! four server-side applied objects, a retired one becomes four deletions, and everything else
+//! is a documented skip rather than a silent nothing. Nothing is written to the realm: the
+//! login front is the edge's one `edge` client, so an app has no OIDC client of its own
+//! (AP-27, ADR-N-019).
+//!
+//! Two properties make a second run cheap and safe. Server-side apply is idempotent by
+//! construction, so an unchanged app converges to no change at the API server. And the one
+//! value the reconciler owns and Git never sees — the endpoint slug — is read back from the
+//! Secret before rendering, so a second run does not move the app's endpoint (EP-02).
+//!
+//! One app's failure never stops another's: the loop reports per app and keeps going, because a
+//! single broken manifest should not freeze every other app on the cluster.
+
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
+use jc_core::kinds::{AppLifecycle, AppSpec, EndpointSlug};
+use jcctl::loader::{RawManifest, Repository};
+use serde_json::Value;
+
+use super::kube::{KubeClient, KubeError};
+use super::reconciler::{generate_slug, render, RenderError, Settings};
+
+/// What no manifest names and no transfer may carry: jc-core refuses both on an `App`, and the
+/// Portal's own doors refuse them on every kind (AP-11, AP-13a, T-0822). The artifact an app
+/// runs is `status.build`, written back by the build lane.
+pub const BUILT_ANNOTATIONS: [&str; 2] = jc_core::kinds::app::BUILT_ANNOTATIONS;
+
+/// A digest somebody wrote into an annotation instead of letting the build lane publish one.
+pub const IMAGE_ANNOTATION: &str = BUILT_ANNOTATIONS[0];
+
+/// The same for a compiled module.
+pub const MODULE_ANNOTATION: &str = BUILT_ANNOTATIONS[1];
+
+/// The four objects an app owns, as the client addresses them.
+const OBJECTS: [(&str, &str); 4] = [
+    ("apps/v1", "Deployment"),
+    ("v1", "Service"),
+    ("networking.k8s.io/v1", "NetworkPolicy"),
+    ("v1", "Secret"),
+];
+
+/// What one App did on one run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// The four objects now match the manifest.
+    Applied,
+    /// The app is retired and its objects are gone (AP-21).
+    Deleted,
+    /// Nothing was attempted, and this is why.
+    Skipped(String),
+}
+
+/// Why one app could not be converged.
+#[derive(Debug, thiserror::Error)]
+pub enum ConvergeError {
+    /// The manifest does not compile into objects.
+    #[error("{0}")]
+    Render(#[from] RenderError),
+    /// The API server refused or could not be reached.
+    #[error("{0}")]
+    Kube(#[from] KubeError),
+    /// The Secret exists and is not the one this reconciler wrote.
+    #[error(
+        "the secret app-{name}-endpoint exists without the key endpoint-slug, so it is not this reconciler's"
+    )]
+    ForeignSecret {
+        /// The app whose secret it should have been.
+        name: String,
+    },
+}
+
+/// Applies the objects of every App in the repository.
+pub struct Converger {
+    kube: KubeClient,
+    settings: Settings,
+}
+
+impl Converger {
+    /// A converger for one installation's apps namespace.
+    pub fn new(kube: KubeClient, settings: Settings) -> Self {
+        Self { kube, settings }
+    }
+
+    /// Converges every App in the repository, in the loader's deterministic order.
+    ///
+    /// Returns one line per app, so the caller logs what happened without deciding what an
+    /// outcome means.
+    /// `beyond` names the apps the project may not deploy, `(project, name)`: what stands over
+    /// its quota is not deployed at all and says so (PF-74).
+    pub async fn converge(
+        &self,
+        repository: &Repository,
+        beyond: &std::collections::HashSet<(String, String)>,
+    ) -> Vec<(String, ConvergeResult)> {
+        let mut report = Vec::new();
+        for (id, resource) in repository.iter() {
+            if resource.manifest.kind != "App" {
+                continue;
+            }
+            let project = resource
+                .manifest
+                .metadata
+                .namespace
+                .clone()
+                .unwrap_or_default();
+            if beyond.contains(&(project, resource.manifest.metadata.name.clone())) {
+                report.push((
+                    id.to_string(),
+                    Ok(Outcome::Skipped(
+                        "the project's app quota is used up, so this one is not deployed \
+                         (PF-73, PF-74)"
+                            .to_owned(),
+                    )),
+                ));
+                continue;
+            }
+            let outcome = self.converge_one(&resource.manifest).await;
+            report.push((id.to_string(), outcome));
+        }
+        report
+    }
+
+    /// Converges one App manifest.
+    pub async fn converge_one(&self, manifest: &RawManifest) -> ConvergeResult {
+        let name = manifest.metadata.name.clone();
+        let spec: AppSpec = match serde_json::from_value(manifest.spec.clone()) {
+            Ok(spec) => spec,
+            Err(err) => {
+                return Err(ConvergeError::Render(RenderError::Spec(
+                    jc_core::Error::Parse(err.to_string()),
+                )))
+            }
+        };
+
+        // A retired app is the one lifecycle that acts without rendering: there is nothing to
+        // compile, only four objects to remove (AP-21).
+        if spec.lifecycle == AppLifecycle::Retired {
+            self.delete_objects(&name).await?;
+            return Ok(Outcome::Deleted);
+        }
+        if !matches!(
+            spec.lifecycle,
+            AppLifecycle::Preview | AppLifecycle::Published
+        ) {
+            return Ok(Outcome::Skipped(format!(
+                "an app in state {} renders no pod (AP-18)",
+                spec.lifecycle.as_str()
+            )));
+        }
+
+        // A static app is served by the Portal's own static host, so it has no objects at all
+        // and its absence here is the design, not a gap (AP-14).
+        // The digest the build lane wrote back in the commit that published the artifact, and
+        // the only place one is read from: an annotation naming an image is refused at every
+        // door now, so a manifest that still carries one deploys nothing (AP-13a, AP-72).
+        let image = match built_digest(manifest) {
+            Some(image) => image,
+            None if spec.class == jc_core::kinds::AppClass::Static => {
+                return Ok(Outcome::Skipped(
+                    "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
+                ))
+            }
+            None => {
+                return Ok(Outcome::Skipped(
+                    "no status.build yet, so the build lane has not published an artifact \
+                     (AP-13a)"
+                        .to_owned(),
+                ))
+            }
+        };
+
+        let slug = self.slug_of(&name).await?;
+        let rendered = render(manifest, Some(&image), &slug, &self.settings)?;
+        let Some(workload) = rendered.workload else {
+            return Ok(Outcome::Skipped(
+                "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
+            ));
+        };
+
+        // The Secret first: it is the slug's home between runs, and a run that wrote the pod
+        // and then failed before the Secret would mint a second slug next time and move the
+        // endpoint under the pod it just deployed (EP-02).
+        for object in [
+            &workload.secret,
+            &workload.network_policy,
+            &workload.service,
+            &workload.deployment,
+        ] {
+            self.kube.apply(object).await?;
+        }
+        Ok(Outcome::Applied)
+    }
+
+    /// The endpoint slug this app already has, or a fresh one the first time it is deployed.
+    async fn slug_of(&self, name: &str) -> Result<EndpointSlug, ConvergeError> {
+        let secret_name = format!("app-{name}-endpoint");
+        let Some(secret) = self
+            .kube
+            .get("v1", "Secret", &self.settings.namespace, &secret_name)
+            .await?
+        else {
+            return Ok(generate_slug());
+        };
+        let slug = secret_value(&secret, "endpoint-slug").ok_or(ConvergeError::ForeignSecret {
+            name: name.to_owned(),
+        })?;
+        EndpointSlug::new(&slug).map_err(|err| ConvergeError::Render(RenderError::Slug(err)))
+    }
+
+    /// Removes the four objects of one app; removing what is not there succeeds (CC-18).
+    async fn delete_objects(&self, name: &str) -> Result<(), ConvergeError> {
+        for (api_version, kind) in OBJECTS {
+            let object_name = match kind {
+                "Secret" => format!("app-{name}-endpoint"),
+                _ => format!("app-{name}"),
+            };
+            self.kube
+                .delete(api_version, kind, &self.settings.namespace, &object_name)
+                .await?;
+        }
+        Ok(())
+    }
+}
+
+/// What one app's convergence produced.
+pub type ConvergeResult = Result<Outcome, ConvergeError>;
+
+/// One annotation of a manifest, as a `String` because `RawMetadata` keeps the rest untyped.
+/// The artifact the build lane published for this app, `status.build.digest` (AP-13a).
+fn built_digest(manifest: &RawManifest) -> Option<String> {
+    manifest
+        .status
+        .as_ref()?
+        .get("build")?
+        .get("digest")?
+        .as_str()
+        .map(str::to_owned)
+}
+
+/// One value of a Secret as the API server returns it: base64 in `data`, plain in `stringData`.
+///
+/// `stringData` is write-only in Kubernetes and never comes back, but a test double and a
+/// hand-written fixture both use it, and accepting either costs one branch.
+fn secret_value(secret: &Value, key: &str) -> Option<String> {
+    if let Some(plain) = secret.get("stringData").and_then(|data| data.get(key)) {
+        return plain.as_str().map(str::to_owned);
+    }
+    let encoded = secret.get("data")?.get(key)?.as_str()?;
+    let bytes = STANDARD.decode(encoded).ok()?;
+    String::from_utf8(bytes).ok()
+}

@@ -1,0 +1,429 @@
+import { useMemo, useState } from "react";
+import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import { useTranslation } from "react-i18next";
+import { api, queryKeys, unwrap } from "../../api/client";
+import { asManifests, overlay, plainTitle, prune, refName } from "../../api/manifest";
+import type { Manifest } from "../../api/manifest";
+import { useBranding } from "../../branding";
+import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import type { ManifestSource } from "../../components/ResourceFormDialog";
+import { Alert, buttonClass, Icon } from "../../components/ui";
+import { pipelineSchema, pipelineUiSchema } from "../../schemas/kinds";
+import type { EndpointOption } from "../../schemas/kinds";
+import { PipelineStudio } from "./PipelineStudio";
+
+/** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
+export interface PipelineForm {
+  name?: string;
+  title?: string;
+  class?: string;
+  schedule?: string;
+  period?: string;
+  source?: {
+    dataSourceRef?: string;
+    endpointRef?: string;
+    query?: Record<string, unknown>;
+    trigger?: {
+      subscription?: { type?: string; watchedAttributes?: string[] };
+    };
+  };
+  compute?: {
+    kind?: string;
+    module?: string;
+    function?: string;
+    mappingRef?: string;
+    bloblang?: string;
+  };
+  targetEndpoint?: string;
+  output?: { type?: string; mode?: string };
+  allowFeedback?: boolean;
+  secretRefs?: { name?: string; key?: string; envVar?: string }[];
+  quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
+}
+
+const PLURAL = "pipelines";
+
+function typedRef(kind: string, name: string | undefined) {
+  return name ? { kind, name } : undefined;
+}
+
+/**
+ * The URN a pipeline writes through: `urn:ngsi-ld:Endpoint:{orgDomain}:{space}:{name}`
+ * (PF-39, PL-18). The organization's domain comes from the branding; without it, or without
+ * the endpoint's space, there is no URN to offer and the field takes one typed in full.
+ */
+export function endpointUrn(orgDomain: string, endpoint: Manifest): string | undefined {
+  const space = (endpoint.spec as { contextSpaceRef?: unknown }).contextSpaceRef;
+  if (!orgDomain || typeof space !== "string" || !space) {
+    return undefined;
+  }
+  return `urn:ngsi-ld:Endpoint:${orgDomain}:${space}:${endpoint.metadata.name}`;
+}
+
+/** The spec keys the form writes; the rest of an edited manifest travels as it is (T-0885). */
+const OWNED_SPEC = [
+  "class",
+  "schedule",
+  "period",
+  "source",
+  "compute",
+  "targetEndpoint",
+  "output",
+  "allowFeedback",
+  "secretRefs",
+  "quotas",
+  "sources",
+  "steps",
+  "outputs",
+];
+
+/** The version a Pipeline is written at whenever it has a source (PL-54, ADR-N-023). */
+const SECOND_VERSION = "joinedcontext.com/v1alpha2";
+
+type Spec = Record<string, unknown>;
+
+const listOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const isComputeStep = (step: unknown): boolean =>
+  typeof step === "object" && step !== null && "kind" in step && !("processor" in step);
+
+/**
+ * The form's one source, compute and output written as `sources`, `steps` and `outputs`
+ * (PL-54). The form shows the first of each; what else the edited manifest holds (a second
+ * source, a processor step, a second output) is kept where it was.
+ */
+function secondShape(spec: Spec, base: Spec): Spec {
+  const { source, compute, targetEndpoint, output, ...others } = spec;
+  const baseSteps = listOf(base.steps);
+  const at = baseSteps.findIndex(isComputeStep);
+  const steps =
+    compute === undefined
+      ? baseSteps.filter((_, index) => index !== at)
+      : at >= 0
+        ? baseSteps.map((step, index) => (index === at ? compute : step))
+        : [compute, ...baseSteps];
+  return prune({
+    ...others,
+    sources: [source, ...listOf(base.sources).slice(1)],
+    steps: steps.length > 0 ? steps : undefined,
+    outputs: [
+      { targetEndpoint, ...((output as Spec | undefined) ?? {}) },
+      ...listOf(base.outputs).slice(1),
+    ],
+  }) as Spec;
+}
+
+/**
+ * The spec in the first shape the form edits (PL-54): `v1alpha2`'s first source, first compute
+ * step and first output, so the form reads a manifest written in either version.
+ */
+export function firstShape(spec: Spec): Spec {
+  if (!("sources" in spec || "steps" in spec || "outputs" in spec)) {
+    return spec;
+  }
+  const { sources, steps, outputs, ...others } = spec;
+  const [output] = listOf(outputs) as Spec[];
+  const { targetEndpoint, ...written } = output ?? {};
+  return prune({
+    ...others,
+    source: listOf(sources)[0],
+    compute: listOf(steps).find(isComputeStep),
+    targetEndpoint,
+    output: Object.keys(written).length > 0 ? written : undefined,
+  }) as Spec;
+}
+
+/**
+ * The manifest a form produces (PL-04, PL-31, PL-33, PL-39). `base` is the manifest being
+ * edited, from the list or from the YAML view: what the form does not show (`enabled`, set by
+ * the pause button, or any field it has no control for) survives an edit.
+ */
+export function toEnvelope(project: string, form: PipelineForm, base?: Manifest): Manifest {
+  const { name, title, source, compute, allowFeedback, secretRefs, quotas, ...rest } = form;
+  const spec = prune({
+    class: rest.class,
+    schedule: rest.schedule,
+    period: rest.period,
+    source: source
+      ? {
+          ...source,
+          dataSourceRef: typedRef("DataSource", source.dataSourceRef),
+          endpointRef: typedRef("Endpoint", source.endpointRef),
+        }
+      : undefined,
+    compute: compute
+      ? { ...compute, mappingRef: typedRef("Mapping", compute.mappingRef) }
+      : undefined,
+    targetEndpoint: rest.targetEndpoint,
+    output: rest.output,
+    allowFeedback: allowFeedback ? true : undefined,
+    secretRefs,
+    quotas,
+  }) as Record<string, unknown>;
+  // A pipeline whose input lives in bento.yaml has no source and stays at v1alpha1.
+  const second = Boolean(spec.source && spec.targetEndpoint);
+  const next: Manifest = {
+    apiVersion: second ? SECOND_VERSION : "joinedcontext.com/v1alpha1",
+    kind: "Pipeline",
+    metadata: {
+      name: name ?? "",
+      namespace: project,
+      ...(title?.trim() ? { title } : {}),
+    },
+    spec: second ? secondShape(spec, (base?.spec ?? {}) as Spec) : spec,
+  };
+  return { ...overlay(base, next, OWNED_SPEC), apiVersion: next.apiVersion };
+}
+
+/** The form one manifest fills, so editing starts from what is in Git rather than from blank. */
+/** An output with a type and no write mode is completed with `upsert`, the mode every preset
+ * uses, so a typed type never reaches the runner as an unparsable spec (T-0661, PL-32). */
+export function completeOutput(form: PipelineForm | undefined): PipelineForm | undefined {
+  if (!form?.output?.type || form.output.mode) return form;
+  return { ...form, output: { ...form.output, mode: "upsert" } };
+}
+
+export function toForm(pipeline: Manifest): PipelineForm {
+  const spec = firstShape(pipeline.spec as Spec) as Omit<PipelineForm, "name" | "title" | "source" | "compute"> & {
+    source?: Record<string, unknown>;
+    compute?: Record<string, unknown>;
+    enabled?: boolean;
+  };
+  const { source, compute, enabled: _enabled, ...rest } = spec;
+  void _enabled;
+  return prune({
+    name: pipeline.metadata.name,
+    ...(plainTitle(pipeline.metadata.title) ? { title: plainTitle(pipeline.metadata.title) } : {}),
+    ...rest,
+    class: typeof rest.class === "string" ? rest.class : "auto",
+    source: source
+      ? {
+          ...source,
+          dataSourceRef: refName(source.dataSourceRef) || undefined,
+          endpointRef: refName(source.endpointRef) || undefined,
+        }
+      : undefined,
+    compute: compute ? { ...compute, mappingRef: refName(compute.mappingRef) || undefined } : undefined,
+  }) as PipelineForm;
+}
+
+/** The manifest of a YAML document, read back into the form (the reverse of `toEnvelope`). */
+export function fromManifest(document: unknown): PipelineForm {
+  const manifest = document as Partial<Manifest>;
+  if (!manifest.metadata || typeof manifest.metadata.name !== "string") {
+    throw new Error("metadata.name is required");
+  }
+  return toForm({
+    apiVersion: manifest.apiVersion ?? "joinedcontext.com/v1alpha1",
+    kind: manifest.kind ?? "Pipeline",
+    metadata: manifest.metadata,
+    spec: (manifest.spec ?? {}) as Record<string, unknown>,
+  });
+}
+
+/** The known values plus the one already chosen, so an edit never loses its own reference. */
+function withCurrent(values: string[], current: string | undefined): string[] {
+  return current && !values.includes(current) ? [...values, current] : values;
+}
+
+export interface PipelineEditorDialogProps {
+  project: string;
+  /** Called with `false` when the author closes the dialog; the page unmounts it then. */
+  onOpenChange: (open: boolean) => void;
+  /** The manifest being edited, or `null` for a new pipeline. */
+  editing: Manifest | null;
+  /** What a new pipeline's form starts with, when the assistant brought the values (UI-45). */
+  initial?: PipelineForm;
+  pending: boolean;
+  error: string | null;
+  onSubmit: (envelope: ReturnType<typeof toEnvelope>, draft?: { kind: string; name: string }) => void;
+  /** The draft this form edits when the address named one (`?draft=`, AG-61, UI-47). */
+  draftName?: string;
+}
+
+/**
+ * One dialog to create or edit a Pipeline: a form and the YAML it writes, both validated
+ * against the same schema, proposed through the same change flow as every other write
+ * (PL-04, UI-01, AP-13).
+ *
+ * Mounted only while it is open: the draft starts from the manifest being edited, or blank,
+ * and a dialog closed and opened again starts over rather than showing the last draft.
+ */
+export function PipelineEditorDialog({
+  project,
+  onOpenChange,
+  editing,
+  initial,
+  pending,
+  error,
+  onSubmit,
+  draftName,
+}: PipelineEditorDialogProps): JSX.Element {
+  const { t } = useTranslation();
+  const { orgDomain } = useBranding();
+  const [draft, setDraft] = useState<PipelineForm | undefined>(() =>
+    editing ? toForm(editing) : initial,
+  );
+  // The document typed in the YAML view is the manifest proposed, not only the fields the form
+  // models (T-0885): `enabled: false` typed there is a pause.
+  const [typed, setTyped] = useState<Manifest | null>(null);
+  const base = typed ?? editing ?? undefined;
+  // The last test's answer, tied to the mapping it ran (PL-49): a Bloblang pipeline proposes
+  // only while the text in the editor is the text that went green.
+  const [verdict, setVerdict] = useState<{
+    ok: boolean;
+    bloblang: string;
+  } | null>(null);
+  const bloblang = draft?.compute?.kind === "bloblang" ? (draft.compute.bloblang ?? "") : "";
+  // Gated: a pipeline with a Bloblang mapping must pass the test before proposing (PL-49).
+  const hasSource =
+    draft?.source?.dataSourceRef !== undefined || draft?.source?.endpointRef !== undefined;
+  const gate =
+    hasSource && bloblang.trim() !== "" && !(verdict?.ok && verdict.bloblang === bloblang)
+      ? t("pipelines.test.gate")
+      : undefined;
+
+  const dataSources = useQuery({
+    queryKey: queryKeys.list(project, "datasources"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "datasources" } },
+        }),
+      ),
+  });
+  const endpoints = useQuery({
+    queryKey: queryKeys.list(project, "endpoints"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "endpoints" } },
+        }),
+      ),
+  });
+
+  const dataSourceList = useMemo(
+    () => asManifests(dataSources.data?.items ?? []),
+    [dataSources.data],
+  );
+  const endpointList = useMemo(() => asManifests(endpoints.data?.items ?? []), [endpoints.data]);
+  const dataSourceNames = useMemo(
+    () =>
+      withCurrent(
+        dataSourceList.map((source) => source.metadata.name),
+        draft?.source?.dataSourceRef,
+      ),
+    [dataSourceList, draft?.source?.dataSourceRef],
+  );
+  const endpointOptions = useMemo<EndpointOption[]>(() => {
+    const known = endpointList.map((endpoint) => ({
+      name: endpoint.metadata.name,
+      urn: endpointUrn(orgDomain, endpoint),
+    }));
+    const current = draft?.source?.endpointRef;
+    const target = draft?.targetEndpoint;
+    const names = known.map((endpoint) => endpoint.name);
+    const urns = known.flatMap((endpoint) => (endpoint.urn ? [endpoint.urn] : []));
+    return [
+      ...known,
+      ...(current && !names.includes(current) ? [{ name: current }] : []),
+      ...(target && !urns.includes(target) ? [{ name: `urn:${target}`, urn: target }] : []),
+    ];
+  }, [endpointList, orgDomain, draft?.source?.endpointRef, draft?.targetEndpoint]);
+
+  const schema = useMemo(
+    () => pipelineSchema(t, dataSourceNames, endpointOptions),
+    [t, dataSourceNames, endpointOptions],
+  );
+  const source = useMemo<ManifestSource<PipelineForm>>(
+    () => ({
+      toManifest: (form) => toEnvelope(project, form, base),
+      fromManifest: (document) => {
+        const form = fromManifest(document);
+        setTyped(document as Manifest);
+        return form;
+      },
+    }),
+    [project, base],
+  );
+
+  // The mapping is `compute.bloblang` in the form (PL-41); left empty it stays in `bento.yaml`
+  // beside the manifest in the forge (Architecture/08 §3), so the dialog links there too.
+  const bentoUrl = editing?.status?.sourceUrl?.replace(/pipeline\.yaml$/, "bento.yaml");
+
+  return (
+    <ResourceFormDialog<PipelineForm>
+      open
+      onOpenChange={onOpenChange}
+      title={editing ? t("pipelines.dialog.edit") : t("pipelines.dialog.create")}
+      description={t("pipelines.dialog.lead")}
+      schema={schema}
+      // A rename is a new manifest at a new path, so the name is fixed once it exists.
+      uiSchema={pipelineUiSchema}
+      lockedName={editing?.metadata.name}
+      formData={draft}
+      project={project}
+      // The form edits a Portal draft, so a second window and the assistant see the same text
+      // and Propose carries the draft it edited (AG-61, UI-47, T-0791).
+      draftKind="Pipeline"
+      draftName={editing?.metadata.name ?? draftName}
+      // The proposal names the draft, so under strict validation it needs a green verdict: the
+      // dialog runs the kind's dry run itself (T-0779, PF-57).
+      plural="pipelines"
+      submitLabel={t("pipelines.propose")}
+      disabled={pending}
+      submitDisabledReason={gate}
+      error={error}
+      source={source}
+      onChange={(form) => setDraft(completeOutput(form))}
+      onSubmit={(form, draftRef) => onSubmit(toEnvelope(project, form, base), draftRef)}
+    >
+      {dataSources.isError ? (
+        <ListFailed
+          what={t("nav.datasources")}
+          reason={reasonOf(dataSources.error, t("form.invalid"))}
+          onRetry={() => void dataSources.refetch()}
+        />
+      ) : null}
+      {endpoints.isError ? (
+        <ListFailed
+          what={t("nav.endpoints")}
+          reason={reasonOf(endpoints.error, t("form.invalid"))}
+          onRetry={() => void endpoints.refetch()}
+        />
+      ) : null}
+      <PipelineStudio
+        project={project}
+        draft={draft}
+        onChange={(form) => setDraft(completeOutput(form))}
+        dataSources={dataSourceList}
+        endpoints={endpointList}
+        toManifest={source.toManifest}
+        onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
+      />
+      {draft?.compute?.kind === "bloblang" ? (
+        <Alert
+          tone="info"
+          actions={
+            bentoUrl ? (
+              <a
+                href={bentoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClass("ghost", "sm", "text-primary")}
+              >
+                {t("pipelines.bloblangFile")}
+                <Icon name="external" className="size-3.5" />
+              </a>
+            ) : undefined
+          }
+        >
+          {t("pipelines.bloblangHint")}
+        </Alert>
+      ) : null}
+    </ResourceFormDialog>
+  );
+}
+
+export { PLURAL as PIPELINES_PLURAL };

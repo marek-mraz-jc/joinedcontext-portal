@@ -1,0 +1,143 @@
+/**
+ * A form's write, the one thing the kit sends besides a read (AP-61…AP-63). The inputs come
+ * from the endpoint's schema when the Portal inlined one; the write is a PATCH of attributes or
+ * a POST of a new entity through the app's endpoint and nothing else. In the sandboxed preview
+ * the frame has no session, so the write leaves as a message to the page that framed it and
+ * comes back as its answer; a published app on the platform origin sends it itself.
+ */
+import type { Cell, Column } from "./ngsi";
+import { bridgeTransport } from "./sdk/transport";
+
+/** One attribute as the endpoint's schema describes it: a JSON Schema property, trimmed. */
+export interface FieldSchema {
+  /** A draft-07 type, or a list of them: Model Tools writes `["number", "null"]` for an optional slot. */
+  type?: string | string[];
+  /** The NGSI-LD kind Model Tools annotates every property with (DM-05). */
+  "x-ngsi-ld-kind"?: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
+  format?: string;
+}
+
+/** One entity type: its properties and which are required. */
+export interface TypeSchema {
+  properties?: Record<string, FieldSchema>;
+  required?: string[];
+}
+
+export type Schema = Record<string, TypeSchema>;
+
+export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo";
+
+export interface Field {
+  name: string;
+  input: Input;
+  options?: string[];
+  min?: number;
+  max?: number;
+  pattern?: string;
+  required: boolean;
+}
+
+/** The input one attribute gets: the schema decides when it names the attribute, the rows otherwise. */
+export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column): Field {
+  const property = schema?.properties?.[name];
+  const required = schema?.required?.includes(name) ?? false;
+  if (!property) {
+    return { name, input: kind === "number" ? "number" : kind === "geo" ? "geo" : kind === "date" ? "date" : "text", required };
+  }
+  if (Array.isArray(property.enum) && property.enum.length > 0) {
+    return { name, input: "select", options: property.enum.map(String), required };
+  }
+  const types = Array.isArray(property.type) ? property.type : property.type ? [property.type] : [];
+  const ngsiKind = property["x-ngsi-ld-kind"];
+  if (types.includes("number") || types.includes("integer")) {
+    return { name, input: "number", min: property.minimum, max: property.maximum, required };
+  }
+  if (types.includes("boolean")) {
+    return { name, input: "checkbox", required };
+  }
+  // A LanguageProperty is an object in the schema too, and its row cell is text.
+  if (ngsiKind === "GeoProperty" || (ngsiKind === undefined && types.includes("object")) || kind === "geo") {
+    return { name, input: "geo", required };
+  }
+  if (property.format === "date-time" || property.format === "date" || kind === "date") {
+    return { name, input: "date", required };
+  }
+  return { name, input: "text", pattern: property.pattern, required };
+}
+
+/** The NGSI-LD fragment of a patch: every cell a Property. */
+export function attrsOf(patch: Record<string, Cell>): Record<string, { type: "Property"; value: Cell }> {
+  return Object.fromEntries(Object.entries(patch).map(([name, value]) => [name, { type: "Property" as const, value }]));
+}
+
+export interface WriteResult {
+  ok: boolean;
+  status: number;
+  /** The RFC 7807 `detail` (or `title`) when the endpoint refused. */
+  detail?: string;
+}
+
+export interface Write {
+  /** The entity patched; absent for a new one. */
+  id?: string;
+  type: string;
+  /** For a new entity, its id; the patch otherwise. */
+  entity?: Record<string, unknown>;
+  patch?: Record<string, Cell>;
+}
+
+export const CSRF_COOKIE = "jc_csrf";
+export const CSRF_HEADER = "x-csrf-token";
+/** How long a preview waits for its host page to answer a write. */
+export const BRIDGE_TIMEOUT_MS = 15000;
+
+/** The request a write is: method, path under the endpoint, body. */
+export function requestOf(slug: string, write: Write): { method: "PATCH" | "POST"; path: string; body: unknown } {
+  const base = `/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1/entities`;
+  if (write.id) {
+    return { method: "PATCH", path: `${base}/${encodeURIComponent(write.id)}/attrs`, body: attrsOf(write.patch ?? {}) };
+  }
+  return { method: "POST", path: base, body: { type: write.type, ...write.entity } };
+}
+
+function detailOf(body: unknown, status: number): string | undefined {
+  const problem = (typeof body === "object" && body !== null ? body : {}) as { detail?: unknown; title?: unknown };
+  if (typeof problem.detail === "string" && problem.detail !== "") return problem.detail;
+  if (typeof problem.title === "string" && problem.title !== "") return problem.title;
+  return status >= 400 ? `The endpoint answered ${status}.` : undefined;
+}
+
+function csrfToken(): string {
+  const found = document.cookie.split("; ").find((c) => c.startsWith(`${CSRF_COOKIE}=`));
+  return found ? decodeURIComponent(found.slice(CSRF_COOKIE.length + 1)) : "";
+}
+
+async function direct(request: ReturnType<typeof requestOf>): Promise<WriteResult> {
+  const response = await fetch(request.path, {
+    method: request.method,
+    credentials: "same-origin",
+    headers: { "content-type": "application/json", [CSRF_HEADER]: csrfToken() },
+    body: JSON.stringify(request.body),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  return { ok: response.ok, status: response.status, detail: response.ok ? undefined : detailOf(body, response.status) };
+}
+
+/** The SDK's bridge: a `jc-request` to the page that framed the preview (SDK-18). */
+const host = bridgeTransport({ timeoutMs: BRIDGE_TIMEOUT_MS });
+
+async function viaBridge(request: ReturnType<typeof requestOf>): Promise<WriteResult> {
+  const answer = await host(request);
+  const ok = answer.status >= 200 && answer.status < 300;
+  return { ok, status: answer.status, detail: ok ? undefined : detailOf(answer.body, answer.status) };
+}
+
+/** One write through the endpoint: by the host page in a preview, by this document otherwise. */
+export function writeEntity(slug: string, write: Write, bridge: boolean): Promise<WriteResult> {
+  const request = requestOf(slug, write);
+  return bridge ? viaBridge(request) : direct(request).catch((err: unknown) => ({ ok: false, status: 0, detail: err instanceof Error ? err.message : String(err) }));
+}

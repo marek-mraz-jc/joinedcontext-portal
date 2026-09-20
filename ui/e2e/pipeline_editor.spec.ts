@@ -1,0 +1,186 @@
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { greenVerdict, isCheck } from "./verdict";
+
+// T-0497: a pipeline created from the form, clicking real controls (PL-04, PL-39, UI-01, AP-13).
+// Same shape as the managers journey: `vite preview` has no portal API behind it, so the API
+// is answered in the browser and everything above it — the dialog, the selects, Monaco — is
+// the real thing. The root route goes to the first project `GET /api/v1/projects` lists.
+
+const IDENTITY = {
+  subject: "b7c1e0f4",
+  username: "jana.kovacova",
+  name: "Jana Kováčová",
+  email: "jana.kovacova@banskabystrica.sk",
+  roles: ["portal-editor"],
+};
+
+const BRANDING = {
+  instanceName: "joinedcontext",
+  shortName: "joinedcontext",
+  city: "Helsinki",
+  organisation: "City of Helsinki",
+  orgDomain: "hel.fi",
+  domain: "portal.hel.fi",
+  contactEmail: "data@hel.fi",
+  licenseDefault: "CC-BY-4.0",
+  logo: "",
+  favicon: "",
+  colours: {
+    primary: "#1d4ed8",
+    secondary: "#0f766e",
+    accent: "#f59e0b",
+    background: "#ffffff",
+    text: "#0f172a",
+  },
+  fonts: { heading: "system-ui, sans-serif", body: "system-ui, sans-serif" },
+  languages: { default: "en", offered: ["en"] },
+  primaryForeground: "#ffffff",
+};
+
+const list = (items: unknown[]) => ({
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "List",
+  items,
+});
+
+const PROJECTS = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "ProjectList",
+  items: [{ name: "helsinki" }],
+};
+
+const DATASOURCES = list([
+  {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "DataSource",
+    metadata: { name: "mqtt-city", namespace: "helsinki" },
+    spec: { type: "mqtt", mqtt: { urls: ["tls://mqtt.hel.fi:8883"], topics: ["aq/#"] } },
+  },
+]);
+
+const ENDPOINTS = list([
+  {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Endpoint",
+    metadata: { name: "public-air", namespace: "helsinki" },
+    spec: { contextSpaceRef: "air", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "public" },
+  },
+]);
+
+const CHANGE = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Change",
+  metadata: { name: "chg-77aa11bb", namespace: "helsinki" },
+  status: { lane: "yellow", phase: "PendingApproval", plan: { create: 1 } },
+};
+
+async function stubApi(page: Page): Promise<{ writes: string[] }> {
+  const writes: string[] = [];
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+
+    if (path.endsWith("/auth/me")) {
+      return json(IDENTITY);
+    }
+    if (path.endsWith("/branding")) {
+      return json(BRANDING);
+    }
+    // The Check is a dry run of the same collection the proposal posts to; it answers a verdict
+    // and never a change (PF-57).
+    if (isCheck(request.method(), request.url())) {
+      return json(greenVerdict(request.postData()));
+    }
+    const draft = /^\/api\/v1\/projects\/([^/]+)\/drafts\/([^/]+)\/([^/]+)$/.exec(path);
+    if (draft && request.method() === "PUT") {
+      // The form saves its draft before it proposes (T-0769); the draft is not the change.
+      const { manifest } = JSON.parse(request.postData() ?? "{}") as { manifest: unknown };
+      const [, project, kind, name] = draft;
+      return json({
+        project,
+        kind,
+        name,
+        manifest,
+        touchedBy: "jana.kovacova",
+        touchedKind: "person",
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    if (request.method() !== "GET") {
+      writes.push(`${request.method()} ${path} ${request.postData() ?? ""}`);
+      return json(CHANGE, 202);
+    }
+    if (path === "/api/v1/projects") {
+      return json(PROJECTS);
+    }
+    if (path.endsWith("/datasources")) {
+      return json(DATASOURCES);
+    }
+    if (path.endsWith("/endpoints")) {
+      return json(ENDPOINTS);
+    }
+    return json(list([]));
+  });
+  return { writes };
+}
+
+test.describe("pipeline editor", () => {
+  test("creates a pipeline from the form and proposes it as a change", async ({ page }) => {
+    const { writes } = await stubApi(page);
+
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    // An empty list offers the action twice: in the page header and in the empty state
+    // itself (UI-01). The header's is the one a person with pipelines also has.
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByRole("dialog");
+
+    await dialog.getByLabel(/^Name/).fill("aq-ingest");
+    await dialog.getByLabel(/^Execution/).selectOption("resident");
+    await dialog.getByLabel(/^Data source/).selectOption("mqtt-city");
+    // The options carry the endpoint's name; the value is the URN (T-0630).
+    await dialog.getByLabel(/^Target endpoint/).selectOption({ label: "public-air" });
+    await dialog.getByLabel(/^Kind/).selectOption("bloblang");
+    await expect(dialog.getByText(/bento\.yaml beside this manifest/)).toBeVisible();
+
+    // The YAML view shows the manifest the form wrote, in the real editor.
+    await dialog.getByRole("tab", { name: "YAML" }).click();
+    await expect(dialog.locator(".monaco-editor")).toBeVisible();
+    await expect(dialog.locator(".view-lines")).toContainText("aq-ingest");
+    await expect(dialog.locator(".view-lines")).toContainText("targetEndpoint");
+    await dialog.getByRole("tab", { name: "Form" }).click();
+    await expect(dialog.getByLabel(/^Name/)).toHaveValue("aq-ingest");
+
+    // Strict validation proposes nothing without a fresh green verdict, so the check runs first
+    // and the button says so until it is green (T-0779).
+    await expect(dialog.getByRole("button", { name: "Propose change" })).toBeDisabled();
+    await dialog.getByRole("button", { name: "Check", exact: true }).click();
+    await expect(dialog.getByTestId("draft-verdict")).toContainText("Checked");
+    await dialog.getByRole("button", { name: "Propose change" }).click();
+
+    await expect(page.getByText("chg-77aa11bb")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Review it in Approvals" })).toBeVisible();
+
+    expect(writes).toHaveLength(1);
+    const [method, path, body] = writes[0].split(" ", 3);
+    expect(`${method} ${path}`).toBe("POST /api/v1/projects/helsinki/pipelines");
+    expect(JSON.parse(writes[0].slice(method.length + path.length + 2))).toEqual({
+      // Whoever writes a Pipeline writes the second shape (PL-54, ADR-N-023).
+      apiVersion: "joinedcontext.com/v1alpha2",
+      kind: "Pipeline",
+      metadata: { name: "aq-ingest", namespace: "helsinki" },
+      spec: {
+        class: "resident",
+        sources: [{ dataSourceRef: { kind: "DataSource", name: "mqtt-city" } }],
+        steps: [{ kind: "bloblang" }],
+        outputs: [{ targetEndpoint: "urn:ngsi-ld:Endpoint:hel.fi:air:public-air" }],
+      },
+      // The change names the draft the form saved, so the approver reads what was typed (T-0769).
+      draft: { kind: "Pipeline", name: "aq-ingest" },
+    });
+    void body;
+  });
+});
