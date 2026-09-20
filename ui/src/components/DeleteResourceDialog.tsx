@@ -96,7 +96,12 @@ export function DeleteResourceDialog({
             </Button>
             <Button
               variant="danger"
-              disabled={typed !== name || remove.isPending}
+              loading={remove.isPending}
+              disabled={typed !== name}
+              // Refused, not removed: the one control this dialog exists for stays in the tab
+              // order and says why it will not fire, because a person who cannot see that it is
+              // greyed out otherwise never learns the button is there (UI-44, T-1743).
+              disabledReason={typed !== name ? t("resourceDelete.needName", { name }) : undefined}
               onClick={() => remove.mutate()}
             >
               {t("resourceDelete.propose")}
@@ -109,13 +114,19 @@ export function DeleteResourceDialog({
         <ChangeNotice change={change} project={project} />
       ) : (
         <div className="flex flex-col gap-4">
-          <Field id={inputId} label={t("resourceDelete.typeName", { name })}>
+          <Field
+            id={inputId}
+            label={t("resourceDelete.typeName", { name })}
+            help={t("resourceDelete.exact")}
+            // Only once something has been typed: an empty box on opening is where the person
+            // is, not a mistake they made.
+            errors={typed !== "" && typed !== name ? [t("resourceDelete.mismatch", { name })] : undefined}
+          >
             <Input
               id={inputId}
               value={typed}
-              // The one thing the dialog is for: typing the name back. Tabbing past the close
-              // button and the heading to reach it is a keyboard tax nobody asked for (T-1054).
-              autoFocus
+              // Focus is the Dialog's: it puts the caret in the first field of a form it opens
+              // (T-1493), so the attribute that used to sit here is one mechanism too many.
               autoComplete="off"
               spellCheck={false}
               onChange={(event) => setTyped(event.target.value)}

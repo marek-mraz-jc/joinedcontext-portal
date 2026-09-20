@@ -44,11 +44,7 @@
     }
   },
   "focus_is_not_stolen": {
-    "_max": 1,
-    "src/components/DeleteResourceDialog.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
-    }
+    "_max": 1
   },
   "hand_made_control": {
     "_max": 24,

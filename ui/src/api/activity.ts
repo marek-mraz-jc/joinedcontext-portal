@@ -112,9 +112,23 @@ function identity(event: ActivityEvent): string {
   return `${event.time}|${event.kind}|${event.summary}|${event.space ?? ""}`;
 }
 
-/** The object page an event opens, as `{plural}/{name}`. */
+/**
+ * A DNS-1123 label, which is what both halves of `{plural}/{name}` are (PF-09).
+ *
+ * The route this builds is `/projects/{project}/{plural}/{name}`, so nothing else may appear in
+ * either half. It used to be enough for `details.object` — a value the server writes into the
+ * event, not one the Portal computed — to contain a `/`, and the link was built by
+ * interpolating it whole. A name carrying `?`, `#` or a space then sent the click to another
+ * route, or to this one with search parameters somebody else chose (UI-16, PF-50).
+ */
+const LABEL = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
+
+/** The object page an event opens, as `{plural}/{name}`, or nothing when it is not one. */
 export function objectOf(event: ActivityEvent): string | undefined {
   const details = event.details as Record<string, unknown> | undefined;
   const object = details?.object;
-  return typeof object === "string" && object.includes("/") ? object : undefined;
+  if (typeof object !== "string") return undefined;
+  const parts = object.split("/");
+  if (parts.length !== 2) return undefined;
+  return parts.every((part) => part.length <= 63 && LABEL.test(part)) ? object : undefined;
 }
