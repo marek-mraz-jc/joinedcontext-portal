@@ -30,6 +30,11 @@ export interface RadioGroupProps<T extends string> {
  * gives the group its name; the shared `name` is what makes the arrow keys walk the options and
  * the tab key step over the group as one stop, which a set of hand-made inputs does not do.
  *
+ * The role is spelled out because a bare `fieldset` is a plain `group` to a screen reader, and a
+ * group of radio buttons that does not say it is one is read without "radio group, 1 of 2"
+ * (T-1254, UI-15). Overriding the role also takes the `legend` out of the naming path, so the
+ * legend is pointed at by `aria-labelledby` rather than relied on.
+ *
  * More than about five options is a `Select`, not this.
  */
 export function RadioGroup<T extends string>({
@@ -43,9 +48,17 @@ export function RadioGroup<T extends string>({
   className,
 }: RadioGroupProps<T>): JSX.Element {
   const describedBy = description ? `${name}__description` : undefined;
+  const labelledBy = `${name}__legend`;
   return (
-    <fieldset className={clsx("flex flex-col gap-1.5", className)} aria-describedby={describedBy}>
-      <legend className="text-body font-medium text-fg">{legend}</legend>
+    <fieldset
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      className={clsx("flex flex-col gap-1.5", className)}
+    >
+      <legend id={labelledBy} className="text-body font-medium text-fg">
+        {legend}
+      </legend>
       {description ? (
         <p id={describedBy} className="text-caption text-fg-muted">
           {description}

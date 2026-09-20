@@ -12,7 +12,7 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { Alert, Badge, Button, Dialog, DialogClose, safeHref} from "./ui";
+import { Alert, Badge, Button, Dialog, DialogClose, ExternalLink } from "./ui";
 import type { DialogSize } from "./ui";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
@@ -266,10 +266,11 @@ export function ResourceFormDialog<T>({
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
   const isLax = (branding as { validation?: string })?.validation === "lax";
-  // Named `safe` because that is what it is, and because `browser_security.test.tsx` reads the
-  // expression an `href` is given: the base comes from the installation's branding, which an
-  // administrator writes, so a `javascript:` there would otherwise reach this anchor (T-2252).
-  const safe = safeHref(guideUrl(branding, arranged?.guide));
+  // The base comes from the installation's branding, which an administrator writes, so a
+  // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
+  // in `ExternalLink`, which is where every link out of the Portal is checked — and which keeps
+  // the words when the address is not a place, instead of dropping the sentence.
+  const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
   const [view, setView] = useState<View>("form");
@@ -833,20 +834,23 @@ export function ResourceFormDialog<T>({
           One link to the kind's page in the User Guide, and only when this installation serves
           one: `guideUrl` answers nothing without both the base URL and the page, so an instance
           without a guide shows no dead link (UI-02, DP-11, T-2252). It names the page it opens,
-          so a screen reader announces where it goes rather than "link", and it opens in a new
-          tab with `rel="noreferrer"` because the form behind it may hold typing.
+          so a screen reader announces where it goes rather than "link".
+
+          `ExternalLink`, not a hand-written anchor: the base half of this address is the
+          installation's `documentationBaseUrl`, which arrives from a manifest, and a manifest
+          must never be able to put a `javascript:` URL behind something to click (PF-50,
+          T-2409). It is also what carries `rel="noopener noreferrer"` and the words that say a
+          new tab opens, which the form behind it needs because it may hold typing.
         */}
-        {safe ? (
+        {guideHref ? (
           <p className="text-body">
-            <a
+            <ExternalLink
               data-testid="form-guide"
-              href={safe}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary-soft-fg underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              href={guideHref}
+              className="text-primary-soft-fg underline-offset-2"
             >
               {t("form.guideLink", { kind })}
-            </a>
+            </ExternalLink>
           </p>
         ) : null}
 

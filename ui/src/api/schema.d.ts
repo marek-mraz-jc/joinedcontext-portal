@@ -25,6 +25,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/backchannel-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/auth/backchannel-logout` — the Keycloak back-channel logout endpoint.
+         * @description The logout token is verified against the realm keys before anything is revoked. The call
+         *     carries no session cookie and no bearer, because the provider makes it server to server:
+         *     the signed token is the whole authentication, which is why this route stands outside the
+         *     CSRF guard beside the forge webhook (AP-29).
+         */
+        post: operations["backchannel_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/auth/callback` — validates state and nonce, exchanges the code, mints the session. */
+        get: operations["callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/auth/login` — starts the authorization code flow with PKCE. */
+        get: operations["login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -192,6 +249,26 @@ export interface paths {
          *     surface can be written down properly.
          */
         post: operations["handle_mcp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/openapi.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The document itself: a client that generates its types from the Portal fetches this, so it is
+         *     a path of the surface like any other (MF-11, T-2361).
+         */
+        get: operations["openapi_json"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -500,6 +577,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["get_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/assistant/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_catalog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1309,6 +1402,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Whether the caller may read the item, and why. */
+        Access: {
+            reason: string;
+            /** @description `allowed` or `restricted`. */
+            verdict: string;
+        };
         ActivityEvent: {
             correlationId?: string | null;
             /**
@@ -1460,6 +1559,11 @@ export interface components {
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
         };
+        /** @description The provider's back-channel logout call: one signed token, no session and no bearer (AP-29). */
+        BackChannelLogoutForm: {
+            /** @description The JWT the provider signed, carrying the `logout_events` claim. */
+            logout_token: string;
+        };
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
             /**
@@ -1571,6 +1675,27 @@ export interface components {
             shortName: string;
             /** @default strict */
             validation: components["schemas"]["Validation"];
+        };
+        /** @description What a search of the project's own catalogue answered (API/01 §18, AG-58). */
+        Catalog: {
+            items: components["schemas"]["CatalogItem"][];
+            /** @description The words the search ran on, with the function words removed. */
+            q: string;
+        };
+        /**
+         * @description One manifest the search matched. A restricted item carries its kind and name and nothing
+         *     else: what the caller may not read is not described to them (AG-58).
+         */
+        CatalogItem: {
+            access: components["schemas"]["Access"];
+            endpointSlug?: string | null;
+            freshness?: null | components["schemas"]["Freshness"];
+            kind: string;
+            matchReason: string[];
+            name: string;
+            owner: string;
+            space: string;
+            title?: string | null;
         };
         /** @description The catalogue index Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
@@ -1972,6 +2097,15 @@ export interface components {
             field?: string | null;
             kind?: string | null;
             name?: string | null;
+        };
+        /** @description The runner's counters for the pipeline that feeds an endpoint, read when the search ran. */
+        Freshness: {
+            /** Format: int64 */
+            errors?: number | null;
+            pipeline: string;
+            /** Format: int64 */
+            received?: number | null;
+            scrapedAt: string;
         };
         /**
          * @description How a request authenticated: what `GET /api/v1/auth/me` reports so the UI knows whose
@@ -2848,6 +2982,131 @@ export interface operations {
             };
         };
     };
+    backchannel_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The provider's signed logout token */
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["BackChannelLogoutForm"];
+            };
+        };
+        responses: {
+            /** @description Every session issued at or before the token's mark is revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The token carries no logout event, or carries a nonce */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The token's signature or issuer does not verify */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No identity provider is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: {
+                /** @description The authorization code the provider issued */
+                code?: string;
+                /** @description The CSRF state minted at login */
+                state?: string;
+                /** @description Set when the provider refused the flow */
+                error?: string;
+                /** @description The provider's own words */
+                error_description?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session issued; redirect into the application */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The provider refused, or state or nonce did not match */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No identity provider is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: {
+                /** @description An in-app path to return to; honoured only when it is same-origin */
+                redirect_to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the provider's authorization endpoint */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No identity provider is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -3121,6 +3380,24 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>;
                 };
+            };
+        };
+    };
+    openapi_json: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The OpenAPI 3.1 document of this Portal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4302,6 +4579,52 @@ export interface operations {
                 };
             };
             /** @description Not a project name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_catalog: {
+        parameters: {
+            query: {
+                /** @description What to look for; the function words are dropped */
+                q: string;
+                /** @description One kind to search, from the kinds the catalogue holds */
+                scope?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The project the search runs in */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the search matched, restricted items included */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalog"];
+                };
+            };
+            /** @description `q` is empty, or `scope` names no kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, or the caller may not read it */
             404: {
                 headers: {
                     [name: string]: unknown;

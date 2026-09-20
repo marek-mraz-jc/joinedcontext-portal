@@ -152,7 +152,7 @@ describe("people and roles", () => {
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
     expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
-    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Delete)\b/ })) {
+    for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Remove)\b/ })) {
       expectDenied(button);
     }
   });

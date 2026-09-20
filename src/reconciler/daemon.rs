@@ -125,6 +125,10 @@ pub struct Syncer {
     /// (MF-44, T-2297). `None` leaves the webhook route shut, which is what a Portal with no
     /// reconciler should answer.
     webhook_secrets: Option<Arc<crate::sync::webhook_secrets::Accepted>>,
+    /// The open-data catalogue wave (EP-62, T-2405). `None` leaves an Endpoint's
+    /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
+    /// gateway host configured can honestly do.
+    ckan: Option<Arc<super::ckan::CkanSync>>,
 }
 
 impl Syncer {
@@ -150,6 +154,7 @@ impl Syncer {
             credentials: None,
             pipeline_secrets: None,
             webhook_secrets: None,
+            ckan: None,
         }
     }
 
@@ -238,6 +243,13 @@ impl Syncer {
         subscriptions: Arc<super::subscriptions::SubscriptionSync>,
     ) -> Self {
         self.subscriptions = Some(subscriptions);
+        self
+    }
+
+    /// Makes each run publish every Endpoint that declares `spec.publish.ckan` to its catalogue,
+    /// and withdraw the dataset of one that stopped declaring it (EP-62, CC-19).
+    pub fn with_ckan(mut self, ckan: Arc<super::ckan::CkanSync>) -> Self {
+        self.ckan = Some(ckan);
         self
     }
 
@@ -410,6 +422,74 @@ impl Syncer {
                 },
                 correlation_id: None,
                 details: serde_json::json!({ "group": outcome.name, "drift": outcome.drift }),
+            })
+            .collect();
+        self.record(events).await;
+    }
+
+    /// One `catalogue.published` per dataset a run wrote or withdrew, and an `error` for every
+    /// Endpoint whose publication did not happen (OPS-48, EP-62).
+    ///
+    /// A publication that changed nothing is not an event: a feed that says "unchanged" once a
+    /// minute per dataset is a feed nobody reads.
+    async fn say_published(&self, reports: &[super::ckan::Report]) {
+        use super::ckan::Publication;
+        if self.activity.is_none() {
+            return;
+        }
+        let events: Vec<ActivityEvent> = reports
+            .iter()
+            .filter_map(|report| {
+                let (summary, severity, details) = match &report.publication {
+                    Publication::Published {
+                        dataset,
+                        outcome,
+                        rows,
+                    } => {
+                        if matches!(
+                            outcome,
+                            jcctl::publish::ckan::Outcome::Unchanged
+                                | jcctl::publish::ckan::Outcome::NotPublished
+                        ) {
+                            return None;
+                        }
+                        let rows = match rows {
+                            Some(count) => format!(", sheet of {count} rows"),
+                            None => String::new(),
+                        };
+                        (
+                            format!("Endpoint {} is dataset {dataset}{rows}.", report.endpoint),
+                            "info",
+                            serde_json::json!({ "dataset": dataset, "rows": rows }),
+                        )
+                    }
+                    Publication::Withdrawn { dataset } => (
+                        format!(
+                            "Endpoint {} no longer publishes: dataset {dataset} is withdrawn.",
+                            report.endpoint
+                        ),
+                        "info",
+                        serde_json::json!({ "dataset": dataset, "withdrawn": true }),
+                    ),
+                    // The reason is the publisher's own sentence, which names the reference, the
+                    // catalogue or the status and never a credential (EP-67).
+                    Publication::Failed(reason) => (
+                        format!("Endpoint {} was not published: {reason}", report.endpoint),
+                        "error",
+                        serde_json::json!({ "reason": reason }),
+                    ),
+                };
+                Some(ActivityEvent {
+                    time: chrono::Utc::now(),
+                    project: report.project.clone(),
+                    space: None,
+                    kind: "catalogue.published".to_string(),
+                    source: "ckan".to_string(),
+                    summary,
+                    severity: severity.to_string(),
+                    correlation_id: None,
+                    details,
+                })
             })
             .collect();
         self.record(events).await;
@@ -777,6 +857,16 @@ impl Syncer {
             }
             super::groups::record(&fresh_mirror, &outcomes);
             self.say_group_drift(&outcomes).await;
+        }
+
+        // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
+        //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
+        //     it was there a run ago, and `self.mirror` is still that run.
+        if let Some(catalogue) = self.ckan.as_ref() {
+            let reports = catalogue
+                .converge(&repository, &self.mirror, scratch.path())
+                .await;
+            self.say_published(&reports).await;
         }
 
         self.mirror.replace_all(&fresh_mirror);
