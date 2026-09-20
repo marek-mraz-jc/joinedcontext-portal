@@ -44,31 +44,35 @@ export function ProjectQuota({ project }: { project: string }): JSX.Element | nu
         {rows.map(([dimension, { used, limit }]) => {
           const full = typeof limit === "number" && used >= limit;
           return (
-            <div key={dimension}>
-              <div className="flex items-baseline justify-between gap-2">
-                <dt className="text-body text-fg">
-                  {t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
-                </dt>
-                <dd className={`text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}>
-                  {typeof limit === "number"
-                    ? t("quota.ofLimit", { used, limit })
-                    : t("quota.noLimit", { used })}
-                </dd>
-              </div>
+            // A `<dl>` group may hold `dt` and `dd` and nothing else: the bar used to sit in
+            // the wrapper beside a second div that held the pair, which put the `dt` and the
+            // `dd` two levels down and left the list malformed for anything reading it as one.
+            // Two `dd` for one `dt` is the shape the spec has for a term with a second value.
+            <div key={dimension} className="flex flex-wrap items-baseline gap-x-2">
+              <dt className="text-body text-fg">
+                {t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
+              </dt>
+              <dd className={`ml-auto text-body tabular-nums ${full ? "font-semibold text-danger" : "text-fg-muted"}`}>
+                {typeof limit === "number"
+                  ? t("quota.ofLimit", { used, limit })
+                  : t("quota.noLimit", { used })}
+              </dd>
               {typeof limit === "number" ? (
-                <div
-                  role="progressbar"
-                  aria-label={t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
-                  aria-valuenow={used}
-                  aria-valuemin={0}
-                  aria-valuemax={limit}
-                  className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
-                >
+                <dd className="mt-1.5 w-full">
                   <div
-                    className={`h-full rounded-full ${full ? "bg-danger" : "bg-primary"}`}
-                    style={{ width: `${Math.min(100, Math.round((used / limit) * 100))}%` }}
-                  />
-                </div>
+                    role="progressbar"
+                    aria-label={t(`quota.dimension.${dimension}`, { defaultValue: dimension })}
+                    aria-valuenow={used}
+                    aria-valuemin={0}
+                    aria-valuemax={limit}
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted"
+                  >
+                    <div
+                      className={`h-full rounded-full ${full ? "bg-danger" : "bg-primary"}`}
+                      style={{ width: `${Math.min(100, Math.round((used / limit) * 100))}%` }}
+                    />
+                  </div>
+                </dd>
               ) : null}
             </div>
           );

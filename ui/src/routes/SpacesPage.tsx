@@ -210,6 +210,10 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       <Button
         variant="primary"
         disabled={quotaExceeded}
+        // On the control, not only in the banner above it (UI-44): a hard-disabled button
+        // leaves the tab order, so whoever cannot see that it is greyed out never learns why.
+        // A permission the caller lacks wins over this, because the guard clones it last.
+        disabledReason={quotaExceeded ? t("quota.exceeded", { limit }) : undefined}
         icon={<Icon name="plus" className="size-4" />}
         onClick={() => {
           setFormError(null);
