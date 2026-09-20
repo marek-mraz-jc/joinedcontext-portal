@@ -61,6 +61,28 @@ const ENDPOINT = {
   status: { phase: "Live" },
 };
 
+/** The Policy `spec.policyRef` names: same space, manifest name `readers` (EP-14, GW8). */
+const POLICY = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Policy",
+  metadata: { name: "readers", namespace: PROJECT },
+  spec: {
+    contextSpaceRef: "ovzdusie",
+    assigner: "did:web:banskabystrica.sk",
+    assignee: { kind: "role", id: "public" },
+    operations: ["retrieveOps"],
+    information: [{ entities: [{ type: "AirQualityObserved" }] }],
+  },
+};
+
+const SPACE = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "ContextSpace",
+  metadata: { name: "ovzdusie", namespace: PROJECT },
+  // The URN segment the endpoint's `policyRef` carries, pinned as the space does it.
+  spec: { urnSegment: "ovzdusie" },
+};
+
 const PROJECTION = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "ModelProjection",
@@ -120,12 +142,14 @@ async function sentTo(fetchMock: ReturnType<typeof vi.fn>, path: string) {
 function renderPage({
   endpoint = ENDPOINT,
   projections = [PROJECTION],
+  policies = [POLICY],
   permissions = PERMITTED,
   check = { ok: true },
   counts = { all: 3, matching: 1 },
 }: {
   endpoint?: unknown;
   projections?: unknown[];
+  policies?: unknown[];
   permissions?: unknown;
   /** What the mandatory dry run answers (PF-57). */
   check?: { ok: boolean; message?: string };
@@ -179,6 +203,12 @@ function renderPage({
     }
     if (path.endsWith("/projections")) {
       return json(list(projections));
+    }
+    if (path.endsWith("/policies")) {
+      return json(list(policies));
+    }
+    if (path.endsWith("/spaces")) {
+      return json(list([SPACE]));
     }
     if (path.endsWith("/endpoints")) {
       return json(list(endpoint === null ? [] : [endpoint]));
@@ -234,8 +264,12 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText("AirQualityObserved")).toBeInTheDocument();
     expect(screen.getByText("reportedBy")).toBeInTheDocument();
 
-    // Who may call it, and what it limits.
-    expect(screen.getByText(ENDPOINT.spec.policyRef)).toBeInTheDocument();
+    // Who may call it: the policy the URN names, what it grants, and to whom (T-2282, GW34).
+    expect(screen.getByRole("link", { name: "readers" })).toBeInTheDocument();
+    expect(screen.getByText("retrieveOps")).toBeInTheDocument();
+    expect(screen.getByText("retrieveEntity, queryEntity")).toBeInTheDocument();
+    expect(screen.getByText(en.endpoints.page.policyReads)).toBeInTheDocument();
+    expect(screen.getByText(/role:public/)).toBeInTheDocument();
     expect(screen.getByText("120 requests a minute · burst 20")).toBeInTheDocument();
     expect(screen.getByText("A caller may cache an answer for 60 seconds.")).toBeInTheDocument();
     expect(screen.getByText("At most 50000 rows in a file")).toBeInTheDocument();

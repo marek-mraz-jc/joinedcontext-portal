@@ -26,6 +26,9 @@ import {
   endpointUrl,
 } from "../../components/endpoints/links";
 import { spaceOf } from "../../components/endpoints/sharing";
+import { bindingOf } from "../../components/endpoints/policyBinding";
+import type { Binding } from "../../components/endpoints/policyBinding";
+import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { Alert, Badge, Button, Field, Input, PageHeader, Select, SourceLink } from "../../components/ui";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
@@ -72,6 +75,26 @@ export function EndpointPage({
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
           params: { path: { project, plural: "endpoints", name } },
+        }),
+      ),
+  });
+
+  const policies = useQuery({
+    queryKey: queryKeys.list(project, "policies"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "policies" } },
+        }),
+      ),
+  });
+
+  const spaces = useQuery({
+    queryKey: queryKeys.list(project, "spaces"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "spaces" } },
         }),
       ),
   });
@@ -366,15 +389,18 @@ export function EndpointPage({
       </Section>
 
       <Section title={t("endpoints.page.whoMayCall")}>
-        {spec.policyRef ? (
-          <Facts>
-            <Fact label={t("endpoints.field.policy")}>
-              <code className="break-all font-mono text-caption">{spec.policyRef}</code>
-            </Fact>
-          </Facts>
-        ) : (
-          <p className="text-sm text-fg-muted">{t("endpoints.page.noPolicy")}</p>
-        )}
+        <PolicyGrants
+          project={project}
+          binding={bindingOf(
+            manifest,
+            project,
+            space,
+            asManifests(policies.data?.items ?? []),
+            asManifests(spaces.data?.items ?? []),
+          )}
+          pending={policies.isPending || spaces.isPending}
+          failed={policies.isError || spaces.isError}
+        />
         <Link
           to="/projects/$project/$plural"
           params={{ project, plural: "policies" }}
@@ -975,6 +1001,132 @@ function Section({
 }
 
 /** The facts of one section: two columns on a screen, stacked under 400 px. */
+/**
+ * Who may call this endpoint, in the grants the gateway will actually evaluate (T-2282, EP-51).
+ *
+ * The section used to print `spec.policyRef` — a URN — and a link to the policy list, which told
+ * a person nothing about what the endpoint grants. Each applying policy is named here with who it
+ * is granted to and what it permits: a CIM 009 operation group by its own name, with the
+ * operations it covers readable beside it, because a group is exactly its members and a name
+ * nobody can expand is a name nobody can check (GW34).
+ */
+function PolicyGrants({
+  project,
+  binding,
+  pending,
+  failed,
+}: {
+  project: string;
+  binding: Binding;
+  pending: boolean;
+  failed: boolean;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+
+  if (pending) {
+    return (
+      <p role="status" className="text-body text-fg-muted">
+        {t("app.loading")}
+      </p>
+    );
+  }
+  // A list that failed is not a space with no policies: saying "the grants of the space decide"
+  // when the grants could not be read would be the Portal guessing on a security page.
+  if (failed) {
+    return <Alert tone="danger">{t("app.error.generic")}</Alert>;
+  }
+  if (binding.kind === "unbound") {
+    // A state of the page rather than something that just happened, so it is a `status` like the
+    // page's other standing messages; `alert` here would interrupt a form somebody is filling in
+    // further down and would be a second alert beside the one that form renders.
+    return <Alert tone="warning">{t("endpoints.page.policyUnbound", { urn: binding.urn })}</Alert>;
+  }
+  if (binding.policies.length === 0) {
+    return <p className="text-body text-fg-muted">{t("endpoints.page.noPolicy")}</p>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-3">
+      {binding.policies.map((policy) => {
+        const spec = policy.spec as {
+          assignee?: { kind?: string; id?: string };
+          operations?: string[];
+          effect?: string;
+        };
+        const operations = spec.operations ?? [];
+        const writes = grantWrites(operations);
+        return (
+          <li key={policy.metadata.name} className="rounded-md border border-border p-3">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <Link
+                to="/projects/$project/$plural"
+                params={{ project, plural: "policies" }}
+                className="focus-ring rounded-sm font-medium text-fg hover:underline"
+              >
+                {localized(policy.metadata.title, locale, policy.metadata.name)}
+              </Link>
+              <Badge tone={writes ? "warning" : "success"}>
+                {t(writes ? "endpoints.page.policyWrites" : "endpoints.page.policyReads")}
+              </Badge>
+              {spec.assignee?.id ? (
+                <span className="text-caption text-fg-muted">
+                  {t("endpoints.page.policyAssignee")}:{" "}
+                  <span className="font-mono">
+                    {spec.assignee.kind ? `${spec.assignee.kind}:` : ""}
+                    {spec.assignee.id}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+            {operations.length === 0 ? (
+              <p className="mt-2 text-caption text-fg-muted">{t("endpoints.page.policyEmpty")}</p>
+            ) : (
+              <dl className="mt-2 flex flex-col gap-2">
+                {operations.map((name) => (
+                  <Grant key={name} name={name} />
+                ))}
+              </dl>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** One line of a policy's `operations`: a group with its members, or a single operation. */
+function Grant({ name }: { name: string }): JSX.Element {
+  const { t } = useTranslation();
+  const group = groupOf(name);
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="flex flex-wrap items-center gap-2">
+        <Badge mono tone={group?.writes ? "warning" : "info"}>
+          {name}
+        </Badge>
+        <span className="text-caption text-fg-muted">
+          {group
+            ? t("endpoints.page.groupMembers", { count: group.operations.length })
+            : t("endpoints.page.operationSingle")}
+        </span>
+      </dt>
+      <dd className="text-caption text-fg-muted">
+        {group ? (
+          <>
+            {t(`endpoints.page.group.${group.name}`)}{" "}
+            {/* The members in full: a group is exactly this list, and a reader who has to trust
+                the name without it cannot tell a narrow grant from a wide one (GW34). */}
+            <span className="font-mono text-fg">{group.operations.join(", ")}</span>
+          </>
+        ) : (
+          <span className="font-mono text-fg">{name}</span>
+        )}
+      </dd>
+    </div>
+  );
+}
+
 function Facts({ children }: { children: ReactNode }): JSX.Element {
   return <dl className="grid gap-3 sm:grid-cols-2">{children}</dl>;
 }
