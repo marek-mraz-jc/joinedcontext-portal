@@ -6,7 +6,7 @@ import { clsx } from "clsx";
 import { api, unwrap } from "../../api/client";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { Alert, Button, CHECKBOX, Input, Select, Skeleton } from "../../components/ui";
+import { Alert, Button, Checkbox, Input, Select, Skeleton } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -359,26 +359,18 @@ export function SmartDataModelsImport({
             <ul className="flex max-h-56 flex-col gap-1 overflow-auto rounded-md border border-border p-2 text-body">
               {shown.map((slot) => (
                 <li key={slot.name}>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className={CHECKBOX}
-                      checked={chosen.includes(slot.name)}
-                      onChange={(event) =>
-                        setKeep(
-                          event.target.checked
-                            ? [...chosen, slot.name]
-                            : chosen.filter((name) => name !== slot.name),
-                        )
-                      }
-                    />
-                    {slot.name}
-                    {slot.required ? (
-                      <span className="text-caption text-fg-muted">
-                        {t("models.sdm.requiredAttribute")}
-                      </span>
-                    ) : null}
-                  </label>
+                  <Checkbox
+                    label={slot.name}
+                    hint={slot.required ? t("models.sdm.requiredAttribute") : undefined}
+                    checked={chosen.includes(slot.name)}
+                    onChange={(event) =>
+                      setKeep(
+                        event.target.checked
+                          ? [...chosen, slot.name]
+                          : chosen.filter((name) => name !== slot.name),
+                      )
+                    }
+                  />
                 </li>
               ))}
             </ul>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { Tabs, tabPanelProps } from "../../components/ui";
 import { LinkmlPreviewPanel } from "./LinkmlPreviewPanel";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { LinkmlSourceEditor } from "./LinkmlSourceEditor";
@@ -61,25 +62,15 @@ export function LinkmlEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div role="tablist" aria-label={t("models.title")} className="flex flex-wrap gap-1">
-        {views.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={view === name}
-            onClick={() => setView(name)}
-            className={
-              view === name
-                ? "rounded-md border border-border bg-surface-subtle px-3 py-1 text-body font-medium text-fg"
-                : "rounded-md border border-transparent px-3 py-1 text-body text-fg-muted hover:bg-surface-subtle hover:text-fg"
-            }
-          >
-            {t(`models.view.${name}`)}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel">
+      <Tabs
+        id="linkml-view"
+        variant="pill"
+        label={t("models.title")}
+        tabs={views.map((name) => ({ value: name, label: t(`models.view.${name}`) }))}
+        value={view}
+        onChange={setView}
+      />
+      <div {...tabPanelProps("linkml-view", view)}>
         {view === "structure" ? (
           <LinkmlVisualEditor
             source={source}

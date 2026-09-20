@@ -13,6 +13,8 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
+  Tabs,
+  tabPanelProps,
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
@@ -190,24 +192,14 @@ export function LinkmlPreviewPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <div role="tablist" aria-label={t("models.preview")} className="flex flex-wrap gap-1">
-        {TABS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={tab === name}
-            onClick={() => setTab(name)}
-            className={
-              tab === name
-                ? "rounded border border-border bg-surface-subtle px-2 py-1 text-sm font-medium"
-                : "rounded border border-transparent px-2 py-1 text-sm hover:bg-surface-subtle"
-            }
-          >
-            {t(`models.tab.${name}`)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        id="linkml-preview"
+        variant="pill"
+        label={t("models.preview")}
+        tabs={TABS.map((name) => ({ value: name, label: t(`models.tab.${name}`) }))}
+        value={tab}
+        onChange={setTab}
+      />
 
       {preview.isError ? (
         <Alert role="status" tone="warning">
@@ -229,7 +221,7 @@ export function LinkmlPreviewPanel({
         </Alert>
       ) : null}
 
-      <div role="tabpanel">
+      <div {...tabPanelProps("linkml-preview", tab)}>
         {tab === "schema" ? <Json value={artifacts?.jsonSchema ?? null} /> : null}
         {tab === "context" ? <Json value={artifacts?.context ?? null} /> : null}
         {tab === "example" ? <Json value={artifacts?.example ?? null} /> : null}

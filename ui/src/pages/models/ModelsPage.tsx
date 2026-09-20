@@ -9,7 +9,7 @@ import { useOrgDomain } from "../../api/projects";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, PageHeader } from "../../components/ui";
+import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
 import { LinkmlEditor } from "./LinkmlEditor";
@@ -484,7 +484,7 @@ export function ModelsPage({
       <PageHeader
         title={t("models.title")}
         aside={
-          <p className="text-sm text-surface-fg/70">
+          <p className="text-body text-fg-muted">
             {t("models.version", { version: nextVersion })}
           </p>
         }
@@ -495,14 +495,11 @@ export function ModelsPage({
                 {t("models.source.saveCheck")}
               </Button>
               {severity === "breaking" ? (
-                <label className="flex items-center gap-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={breakingConfirmed}
-                    onChange={(event) => setBreakingConfirmed(event.target.checked)}
-                  />
-                  {t("models.source.confirmBreaking", { version: nextVersion })}
-                </label>
+                <Checkbox
+                  label={t("models.source.confirmBreaking", { version: nextVersion })}
+                  checked={breakingConfirmed}
+                  onChange={(event) => setBreakingConfirmed(event.target.checked)}
+                />
               ) : null}
               <Button
                 size="sm"
@@ -525,7 +522,7 @@ export function ModelsPage({
       />
 
       {loadingSource ? (
-        <p role="status" className="text-sm text-surface-fg/70">
+        <p role="status" className="text-body text-fg-muted">
           {t("models.source.loading")}
         </p>
       ) : null}
@@ -583,7 +580,7 @@ export function ModelsPage({
               ))}
             </ul>
           ) : (
-            <p className="mt-1 text-sm text-surface-fg/70">{t("models.noChanges")}</p>
+            <p className="mt-1 text-body text-fg-muted">{t("models.noChanges")}</p>
           )}
           {severity === "breaking" && consumers.length > 0 ? (
             <p className="mt-2 text-sm">
@@ -593,26 +590,15 @@ export function ModelsPage({
         </section>
       ) : null}
 
-      <div role="tablist" aria-label={t("models.title")} className="flex flex-wrap gap-1">
-        {TABS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={tab === name}
-            onClick={() => setTab(name)}
-            className={
-              tab === name
-                ? "rounded border border-border bg-surface-subtle px-3 py-1 text-sm font-medium"
-                : "rounded border border-transparent px-3 py-1 text-sm hover:bg-surface-subtle"
-            }
-          >
-            {t(`models.view.${name}`)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        id="models"
+        label={t("models.title")}
+        tabs={TABS.map((name) => ({ value: name, label: t(`models.view.${name}`) }))}
+        value={tab}
+        onChange={setTab}
+      />
 
-      <div role="tabpanel">
+      <div {...tabPanelProps("models", tab)}>
         {tab === "import" ? (
           <div className="flex flex-col gap-4">
             <ModelFileDrop project={project} onPopulate={onPopulate} />
@@ -638,18 +624,18 @@ export function ModelsPage({
                   {t("models.create.title")}
                 </h2>
                 <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex flex-col gap-1 text-sm">
-                    {t("models.create.name")}
-                    <input
-                      className="rounded border border-border px-2 py-1"
+                  <Field id="models-new-name" label={t("models.create.name")}>
+                    <Input
+                      id="models-new-name"
+                      className="w-56"
                       value={newName}
                       onChange={(event) => setNewName(event.target.value)}
                     />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    {t("models.create.space")}
-                    <select
-                      className="rounded border border-border px-2 py-1"
+                  </Field>
+                  <Field id="models-new-space" label={t("models.create.space")}>
+                    <Select
+                      id="models-new-space"
+                      className="w-56"
                       value={newSpace}
                       onChange={(event) => setNewSpace(event.target.value)}
                     >
@@ -659,10 +645,10 @@ export function ModelsPage({
                           {space.metadata.name}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </Select>
+                  </Field>
                   {targetName ? (
-                    <p className="text-sm text-surface-fg/70">
+                    <p className="text-body text-fg-muted">
                       {t("models.create.file", { name: targetName })}
                     </p>
                   ) : null}
@@ -677,7 +663,7 @@ export function ModelsPage({
                     {t("models.create.heldConflict")}
                   </p>
                 ) : kept ?? held ? (
-                  <p role="status" className="text-sm text-surface-fg/70">
+                  <p role="status" className="text-body text-fg-muted">
                     {t("models.create.held", { name: (kept ?? held)?.name })}
                   </p>
                 ) : null}
