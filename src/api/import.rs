@@ -42,6 +42,20 @@ const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
 /// and either way it must not become a thousand forge calls.
 const MAX_ARCHIVE_ENTRIES: usize = 2_000;
 
+/// Bytes an archive may unpack to, every entry counted together.
+///
+/// [`MAX_UPLOAD_BYTES`] bounds what arrives on the wire, and deflate is free to multiply it:
+/// two hundred kilobytes of one repeated character expand to two hundred megabytes, and the
+/// reader that met them held all of it in memory at once. A bundle is manifests, so what comes
+/// out of the archive is held to the same ceiling as what went in (CC-08, MF-05).
+const MAX_ARCHIVE_BYTES: u64 = MAX_UPLOAD_BYTES as u64;
+
+/// The mode bits a zip entry carries for a symbolic link (`S_IFLNK`).
+const UNIX_SYMLINK: u32 = 0o120_000;
+
+/// The file-type half of a unix mode.
+const UNIX_FILE_TYPE: u32 = 0o170_000;
+
 /// The index an exported archive carries. It describes the bundle rather than belonging to the
 /// project, so it is read for provenance and never written (MF-17).
 const BUNDLE_KIND: &str = "Bundle";
@@ -358,6 +372,9 @@ fn parse_archive(bytes: &[u8]) -> Result<Vec<Incoming>, ApiError> {
         )));
     }
     let mut incoming = Vec::new();
+    // What is left of the unpacked ceiling. Counted across entries rather than per entry,
+    // because a thousand files of a megabyte each is the same bomb spread thin (CC-08).
+    let mut budget = MAX_ARCHIVE_BYTES;
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
@@ -372,6 +389,17 @@ fn parse_archive(bytes: &[u8]) -> Result<Vec<Incoming>, ApiError> {
             .ok_or_else(|| ApiError::BadRequest("the archive holds an escaping path".into()))?
             .to_string_lossy()
             .into_owned();
+        // A symbolic link is not a file of the project. Read as one it becomes a manifest whose
+        // body is the path it pointed at, which is how an archive smuggles `/etc/passwd` in as
+        // content nobody uploaded; refused by name rather than quietly flattened (MF-05).
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & UNIX_FILE_TYPE == UNIX_SYMLINK)
+        {
+            return Err(ApiError::BadRequest(format!(
+                "the archive entry '{name}' is a symbolic link, and a bundle carries files"
+            )));
+        }
         // A complete export's README and schemas explain the bundle; they are not the project's
         // files, so they are never written into one (MF-41).
         if name == crate::api::export::README_PATH
@@ -379,15 +407,122 @@ fn parse_archive(bytes: &[u8]) -> Result<Vec<Incoming>, ApiError> {
         {
             continue;
         }
-        let mut content = String::new();
-        if entry.read_to_string(&mut content).is_err() {
-            // A binary blob committed beside the manifests. An export counts these as
-            // omitted; an import has nothing to write for them either.
+        // One byte past what is left, so the ceiling is measured on what actually came out of
+        // the decompressor and never on the size the archive declares for itself.
+        let mut raw = Vec::new();
+        if entry
+            .by_ref()
+            .take(budget + 1)
+            .read_to_end(&mut raw)
+            .is_err()
+        {
+            // A blob whose stream does not read back. An export counts these as omitted; an
+            // import has nothing to write for them either.
             continue;
         }
+        if raw.len() as u64 > budget {
+            return Err(ApiError::BadRequest(format!(
+                "the archive unpacks to more than the {MAX_ARCHIVE_BYTES} byte import limit"
+            )));
+        }
+        budget -= raw.len() as u64;
+        let Ok(content) = String::from_utf8(raw) else {
+            // A binary blob committed beside the manifests, as above.
+            continue;
+        };
         incoming.extend(parse_text(&content, Some(&name))?);
     }
     Ok(incoming)
+}
+
+/// A document parsed with the key of a mapping read once and once only (MF-05).
+///
+/// Both parsers below build a [`Value`], and both let the last of two equal keys win: a
+/// manifest whose `metadata` names `name: audited` and then `name: shadow` is reviewed as one
+/// resource and written as another, which is a check made on one value and an action taken on
+/// another. YAML's own `Mapping` refuses the repeat, but the moment the target type is a
+/// `serde_json::Value` that refusal is gone, so the rule is carried here instead — one place,
+/// both formats, every level of nesting.
+struct Unique(Value);
+
+impl<'de> Deserialize<'de> for Unique {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(UniqueVisitor)
+    }
+}
+
+struct UniqueVisitor;
+
+impl<'de> serde::de::Visitor<'de> for UniqueVisitor {
+    type Value = Unique;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a manifest document")
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(Unique(Value::Null))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(Unique(Value::Null))
+    }
+
+    fn visit_some<D: serde::Deserializer<'de>>(self, inner: D) -> Result<Self::Value, D::Error> {
+        Self::Value::deserialize(inner)
+    }
+
+    fn visit_newtype_struct<D: serde::Deserializer<'de>>(
+        self,
+        inner: D,
+    ) -> Result<Self::Value, D::Error> {
+        Self::Value::deserialize(inner)
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(Unique(Value::Bool(value)))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(Unique(Value::from(value)))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(Unique(Value::from(value)))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+        Ok(Unique(Value::from(value)))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(Unique(Value::String(value.to_owned())))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(Unique(Value::String(value)))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let mut items = Vec::with_capacity(seq.size_hint().unwrap_or_default().min(64));
+        while let Some(Unique(item)) = seq.next_element()? {
+            items.push(item);
+        }
+        Ok(Unique(Value::Array(items)))
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut object = serde_json::Map::new();
+        while let Some((key, Unique(value))) = map.next_entry::<String, Unique>()? {
+            if object.insert(key.clone(), value).is_some() {
+                return Err(serde::de::Error::custom(format!(
+                    "the key '{key}' is set twice in the same mapping, and which of the two a \
+                     reviewer would see is not the same question as which one would be written"
+                )));
+            }
+        }
+        Ok(Unique(Value::Object(object)))
+    }
 }
 
 /// One text file as manifests, or as a native file that travels unread.
@@ -403,14 +538,14 @@ fn parse_text(text: &str, path: Option<&str>) -> Result<Vec<Incoming>, ApiError>
 
     let mut documents: Vec<Value> = Vec::new();
     if text.trim_start().starts_with('{') {
-        let value: Value = serde_json::from_str(text)
+        let value = Unique::deserialize(&mut serde_json::Deserializer::from_str(text))
             .map_err(|err| ApiError::BadRequest(format!("the JSON did not parse: {err}")))?;
-        documents.push(value);
+        documents.push(value.0);
     } else {
         for document in serde_yaml_ng::Deserializer::from_str(text) {
-            let value = Value::deserialize(document)
+            let value = Unique::deserialize(document)
                 .map_err(|err| ApiError::BadRequest(format!("the YAML did not parse: {err}")))?;
-            documents.push(value);
+            documents.push(value.0);
         }
     }
 
@@ -1847,5 +1982,210 @@ mod verification_tests {
     #[test]
     fn a_bundle_that_carried_no_checksums_says_nothing_about_verification() {
         assert_eq!(report(Vec::new()).verification_summary(), None);
+    }
+}
+
+/// The upload gates of CC-08 and MF-05: what an archive, a YAML stream or a single document may
+/// be before any of it is planned, remapped or written.
+///
+/// These run on the parser alone, which is the point: every one of them is a refusal that has to
+/// happen before a forge call, a branch or a merge request exists, so the place to prove them is
+/// the funnel every upload passes through rather than a route that has already authorised a
+/// caller. The attack they replay is T-1704 — path traversal, an absolute path, a symbolic link,
+/// a zip bomb, ten thousand files, an alias that expands, a key set twice and a document larger
+/// than the limit.
+#[cfg(test)]
+mod upload_gate_tests {
+    use super::*;
+    use std::io::Write;
+
+    /// A manifest small enough to sit beside whatever the case under test is really about.
+    const SPACE: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: ovzdusie\n  namespace: helsinki\nspec:\n  title: { en: Air }\n";
+
+    fn zipped(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for (name, body) in entries {
+            writer.start_file(*name, options).expect("an entry");
+            writer.write_all(body).expect("the body");
+        }
+        writer.finish().expect("the archive").into_inner()
+    }
+
+    fn refusal(bytes: &[u8]) -> String {
+        match parse(bytes) {
+            Err(ApiError::BadRequest(why)) => why,
+            Err(other) => panic!("refused as {other:?} rather than a bad request"),
+            Ok(incoming) => panic!("{} entries were accepted", incoming.len()),
+        }
+    }
+
+    /// CC-08, MF-05 (T-1704): a bundle that is small on the wire and enormous once unpacked is
+    /// refused on what came out of the decompressor, not on what the archive declared.
+    #[test]
+    fn an_archive_that_expands_past_the_import_limit_is_refused() {
+        let payload = vec![b'a'; MAX_ARCHIVE_BYTES as usize + 1];
+        let archive = zipped(&[("projects/helsinki/spaces/a/space.yaml", &payload)]);
+        assert!(
+            archive.len() < MAX_UPLOAD_BYTES,
+            "the archive has to pass the upload limit for the unpacked one to be what refuses it"
+        );
+        let why = refusal(&archive);
+        assert!(why.contains("unpacks to more than"), "{why}");
+    }
+
+    /// CC-08, MF-05 (T-1704): the same bomb spread over many entries, each one within any
+    /// per-file ceiling, is refused on the sum.
+    #[test]
+    fn entries_that_add_up_past_the_import_limit_are_refused_together() {
+        let each = vec![b'b'; 4 * 1024 * 1024];
+        let names: Vec<String> = (0..12)
+            .map(|index| format!("projects/helsinki/pipelines/p{index}/bento.yaml"))
+            .collect();
+        let entries: Vec<(&str, &[u8])> = names
+            .iter()
+            .map(|name| (name.as_str(), each.as_slice()))
+            .collect();
+        let why = refusal(&zipped(&entries));
+        assert!(why.contains("unpacks to more than"), "{why}");
+    }
+
+    /// CC-08, MF-05 (T-1704): a symbolic link is refused by name. Read as a file it becomes a
+    /// manifest whose body is the path it pointed at.
+    #[test]
+    fn an_archive_entry_that_is_a_symbolic_link_is_refused_by_name() {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        writer
+            .add_symlink(
+                "projects/helsinki/spaces/a/space.yaml",
+                "../../../../etc/passwd",
+                zip::write::SimpleFileOptions::default(),
+            )
+            .expect("a link");
+        let archive = writer.finish().expect("the archive").into_inner();
+        let why = refusal(&archive);
+        assert!(why.contains("symbolic link"), "{why}");
+        assert!(
+            why.contains("space.yaml"),
+            "the refusal names the entry: {why}"
+        );
+    }
+
+    /// CC-08, MF-05 (T-1704): a path that climbs out of the archive root, and one that starts at
+    /// the filesystem root, are both refused before an entry is read.
+    #[test]
+    fn an_archive_path_that_leaves_its_root_is_refused() {
+        for name in [
+            "projects/helsinki/../../../etc/cron.d/x.yaml",
+            "/etc/cron.d/x.yaml",
+            "../x.yaml",
+        ] {
+            let why = refusal(&zipped(&[(name, SPACE.as_bytes())]));
+            assert!(why.contains("escaping path"), "{name}: {why}");
+        }
+    }
+
+    /// CC-08 (T-1704): ten thousand files are refused on the count, before any of them is opened.
+    #[test]
+    fn an_archive_of_more_entries_than_the_limit_is_refused() {
+        let names: Vec<String> = (0..=MAX_ARCHIVE_ENTRIES)
+            .map(|index| format!("projects/helsinki/spaces/s{index}/space.yaml"))
+            .collect();
+        let entries: Vec<(&str, &[u8])> = names
+            .iter()
+            .map(|name| (name.as_str(), b"x" as &[u8]))
+            .collect();
+        let why = refusal(&zipped(&entries));
+        assert!(why.contains("entry limit"), "{why}");
+    }
+
+    /// CC-08 (T-1704): a document larger than the upload limit is refused before it is parsed.
+    #[test]
+    fn an_upload_larger_than_the_import_limit_is_refused() {
+        let why = refusal(&vec![b'c'; MAX_UPLOAD_BYTES + 1]);
+        assert!(why.contains("import limit"), "{why}");
+    }
+
+    /// MF-05 (T-1704): a YAML alias that expands into a billion nodes is refused by the parser's
+    /// repetition budget rather than expanded into memory.
+    #[test]
+    fn a_yaml_alias_that_expands_without_end_is_refused() {
+        let mut yaml = String::from("a: &a [x, x, x, x, x, x, x, x, x]\n");
+        for (index, name) in "bcdefghi".chars().enumerate() {
+            let previous = "abcdefgh".chars().nth(index).expect("a previous anchor");
+            let aliases = std::iter::repeat_n(format!("*{previous}"), 9)
+                .collect::<Vec<_>>()
+                .join(", ");
+            yaml.push_str(&format!("{name}: &{name} [{aliases}]\n"));
+        }
+        yaml.push_str("kind: ContextSpace\nmetadata: { name: x }\n");
+        let started = std::time::Instant::now();
+        let why = refusal(yaml.as_bytes());
+        assert!(why.contains("repetition limit"), "{why}");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "the refusal has to come from the budget, not from finishing the expansion"
+        );
+    }
+
+    /// MF-05 (T-1704): a document nested deeper than the parser's recursion budget is refused
+    /// rather than overflowing the stack that walks it.
+    #[test]
+    fn a_yaml_document_nested_without_end_is_refused() {
+        let depth = 50_000;
+        let yaml = format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata: {{ name: x }}\nspec: {}{}\n",
+            "[".repeat(depth),
+            "]".repeat(depth)
+        );
+        let why = refusal(yaml.as_bytes());
+        assert!(why.contains("recursion limit"), "{why}");
+    }
+
+    /// MF-05 (T-1704): a key set twice is refused in YAML and in JSON alike. The reviewer reads
+    /// one of the two values and the writer takes the other, which is a check made on one value
+    /// and an action taken on another.
+    #[test]
+    fn a_key_set_twice_in_one_mapping_is_refused_in_both_formats() {
+        let yaml = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: audited\n  name: shadow\n  namespace: helsinki\nspec: {}\n";
+        let why = refusal(yaml.as_bytes());
+        assert!(why.contains("set twice"), "{why}");
+        assert!(why.contains("name"), "the refusal names the key: {why}");
+
+        let json = r#"{"apiVersion":"joinedcontext.com/v1alpha1","kind":"ContextSpace","metadata":{"name":"audited","name":"shadow"}}"#;
+        let why = refusal(json.as_bytes());
+        assert!(why.contains("set twice"), "{why}");
+    }
+
+    /// CC-08, MF-05 (T-1704): the counterpart, so every refusal above is read as a limit and not
+    /// as a parser that stopped working — a bundle inside every ceiling still parses whole.
+    #[test]
+    fn a_bundle_within_every_ceiling_still_parses() {
+        let archive = zipped(&[
+            (
+                "projects/helsinki/spaces/ovzdusie/space.yaml",
+                SPACE.as_bytes(),
+            ),
+            (
+                "projects/helsinki/pipelines/aq/bento.yaml",
+                b"input:\n  mqtt:\n    urls: [ mqtts://mqtt.example:8883 ]\n",
+            ),
+        ]);
+        let incoming = parse(&archive).expect("a bundle inside the limits parses");
+        assert_eq!(incoming.len(), 2);
+        assert!(
+            incoming.iter().any(|item| item
+                .envelope
+                .as_ref()
+                .is_some_and(|envelope| envelope.metadata.name == "ovzdusie")),
+            "the manifest is read as one"
+        );
+        assert!(
+            incoming
+                .iter()
+                .any(|item| item.envelope.is_none() && item.content.contains("mqtt")),
+            "a native file travels byte for byte"
+        );
     }
 }
