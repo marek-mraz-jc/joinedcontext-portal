@@ -66,20 +66,33 @@ for (const size of SIZES) {
           }
           return false;
         };
+        // Everything drawn, not `main *`: the element that widened the page once turned out to be
+        // outside `main` and the run before it was `position: fixed`, whose `offsetParent` is
+        // null — both invisible to the old scan, which then blamed the table it could see.
         const wide: string[] = [];
-        document.querySelectorAll<HTMLElement>("main *").forEach((element) => {
+        document.querySelectorAll<HTMLElement>("body *").forEach((element) => {
           const box = element.getBoundingClientRect();
-          if (box.right > doc.clientWidth + 1 && element.offsetParent !== null) {
+          if (box.width === 0 && box.height === 0) {
+            return;
+          }
+          if (box.right > doc.clientWidth + 1) {
             const past = Math.round(box.right - doc.clientWidth);
             const where = clipped(element) ? "inside a scroller" : "NOT CLIPPED";
+            const id = element.id ? `#${element.id}` : "";
             wide.push(
-              `${element.tagName}.${String(element.className).slice(0, 40)} +${past}px ${where}`,
+              `${element.tagName}${id}.${String(element.className).slice(0, 40)} +${past}px ${getComputedStyle(element).position} ${where}`,
             );
           }
         });
-        // The unclipped ones first: those are the page's own width, and the rest are context.
-        wide.sort((a, b) => Number(b.includes("NOT CLIPPED")) - Number(a.includes("NOT CLIPPED")));
-        return { overflow: doc.scrollWidth - doc.clientWidth, offenders: wide.slice(0, 6) };
+        // The unclipped ones first, widest first: those are the page's own width, the rest are
+        // context. A list that is all "inside a scroller" means the cause is none of them.
+        const past = (entry: string) => Number(/\+(\d+)px/.exec(entry)?.[1] ?? 0);
+        wide.sort(
+          (a, b) =>
+            Number(b.includes("NOT CLIPPED")) - Number(a.includes("NOT CLIPPED")) ||
+            past(b) - past(a),
+        );
+        return { overflow: doc.scrollWidth - doc.clientWidth, offenders: wide.slice(0, 8) };
       });
       expect(
         overflow,
