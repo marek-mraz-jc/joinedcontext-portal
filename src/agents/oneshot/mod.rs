@@ -143,6 +143,35 @@ fn provider_said(body: &str) -> String {
         .collect()
 }
 
+/// What a person is told when the model call is refused (T-2419).
+///
+/// The status and the provider's own words belong in the log line beside this one, where an
+/// operator reads them. The conversation gets a sentence about the question they asked. It used to
+/// get the problem document instead — `the proxy answered 401 Unauthorized to the model call:
+/// {"type":…,"status":401,"detail":"invalid run credentials"}` — which told a person their
+/// credentials were wrong for a failure they had no part in, named a component they cannot reach,
+/// and said nothing about what to do next (T-2420).
+fn refusal(status: reqwest::StatusCode) -> String {
+    match status.as_u16() {
+        // The proxy would not take the run's own credentials, or the provider would not take the
+        // Portal's key. Both are ours to fix, and neither is worth a retry by the person.
+        401 | 403 => "the assistant could not reach the model service: it refused this Portal's \
+                     credentials. Your question was not answered and nothing was changed. Tell an \
+                     administrator, then send the message again."
+            .to_owned(),
+        // Busy or briefly down: the same message, sent again, usually goes through.
+        408 | 425 | 429 | 500..=599 => {
+            "the model service did not answer in time. Your question was \
+                                        not answered and nothing was changed; send the message \
+                                        again in a moment."
+                .to_owned()
+        }
+        _ => "the model service refused this call. Your question was not answered and nothing was \
+              changed; send the message again, and tell an administrator if it keeps happening."
+            .to_owned(),
+    }
+}
+
 /// Kit capabilities JSON loaded directly from sdk/kit.json (AP-65).
 pub static KIT_CAPABILITIES: &str = include_str!("../../../sdk/kit.json");
 
@@ -891,6 +920,37 @@ fn urlencoding(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-2419: a refused model call tells the person about their question, not about a proxy.
+    #[test]
+    fn a_refused_model_call_is_a_sentence_a_person_can_act_on() {
+        use reqwest::StatusCode;
+        for status in [
+            StatusCode::UNAUTHORIZED,
+            StatusCode::FORBIDDEN,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::BAD_GATEWAY,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::IM_A_TEAPOT,
+        ] {
+            let said = refusal(status);
+            // No problem document, no internal component, no bare status code.
+            for leak in ["{", "\"type\"", "proxy", "401", "invalid run credentials"] {
+                assert!(
+                    !said.contains(leak),
+                    "{status} says {leak:?} to a person: {said}"
+                );
+            }
+            // What happened to their question, and what they do now.
+            assert!(said.contains("nothing was changed"), "{status}: {said}");
+            assert!(said.contains("send the message again"), "{status}: {said}");
+        }
+        // A refusal of this Portal's credentials is not something a person retries their way out
+        // of alone: it names the administrator.
+        assert!(refusal(reqwest::StatusCode::UNAUTHORIZED).contains("administrator"));
+        // A busy service is: it does not.
+        assert!(!refusal(reqwest::StatusCode::SERVICE_UNAVAILABLE).contains("administrator"));
+    }
 
     #[test]
     fn a_period_a_schedule_or_a_pipeline_asks_for_a_pipeline_and_a_question_does_not() {

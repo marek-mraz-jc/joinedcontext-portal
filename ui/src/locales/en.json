@@ -1965,8 +1965,6 @@
       },
       "composer": "Ask the assistant",
       "send": "Send",
-      "resume": "Resume: {title}",
-      "recent": "Recent conversations",
       "failed": "The conversation did not start. Check the message and try again."
     },
     "data": {

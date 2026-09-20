@@ -1965,8 +1965,6 @@
       },
       "composer": "Opýtajte sa asistenta",
       "send": "Odoslať",
-      "resume": "Pokračovať: {title}",
-      "recent": "Nedávne konverzácie",
       "failed": "Konverzácia sa nezačala. Skontrolujte správu a skúste to znova."
     },
     "data": {
