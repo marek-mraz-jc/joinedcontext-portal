@@ -2,8 +2,8 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, unwrap } from "../../api/client";
-import { Alert, Button, Icon, PageHeader, Skeleton } from "../../components/ui";
+import { api, unwrap } from "../../api/client";
+import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import { AgentRunPage } from "./AgentRunPage";
 import { AppGenerator } from "./AppGenerator";
 import { appDisplayName } from "./appTitle";
@@ -47,12 +47,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
     return (
       <div className="space-y-4">
         <PageHeader title={title} actions={<Button onClick={back}>{t("apps.back")}</Button>} />
-        <div role="status" aria-busy="true" className="space-y-3">
-          <span className="sr-only">{t("app.loading")}</span>
-          <Skeleton className="h-6 w-64" />
-          <Skeleton className="h-4 w-96" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+        <PageLoading label={t("app.loading")} />
       </div>
     );
   }
@@ -61,24 +56,12 @@ export function AppPage({ project, name }: { project: string; name: string }): J
     return (
       <div className="space-y-4">
         <PageHeader title={title} actions={<Button onClick={back}>{t("apps.back")}</Button>} />
-        <Alert
-          tone="danger"
-          actions={
-            <Button
-              size="sm"
-              icon={<Icon name="refresh" className="size-4" />}
-              onClick={() => {
-                void refetch();
-              }}
-            >
-              {t("app.error.retry")}
-            </Button>
-          }
-        >
-          {error instanceof ApiError
-            ? (error.problem?.detail ?? error.message)
-            : t("app.error.generic")}
-        </Alert>
+        <PageFailed
+          error={error}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
       </div>
     );
   }

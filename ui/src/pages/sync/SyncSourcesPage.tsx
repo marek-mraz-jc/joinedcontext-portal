@@ -21,7 +21,10 @@ import {
   ConfirmDialog,
   EmptyState,
   ExternalLink,
+  Field,
+  PageFailed,
   PageHeader,
+  PageLoading,
   Select,
 } from "../../components/ui";
 
@@ -125,9 +128,11 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
         description={t("syncSources.intro")}
         actions={
           <div className="flex items-end gap-2">
-            <label className="flex flex-col gap-1 text-sm">
-              {t("syncSources.origin")}
+            {/* The shared Field, not a hand-made label: it ties the label to the control and
+                carries whatever a message later needs to hang off (UI-01, UI-04). */}
+            <Field id="sync-origin-kind" label={t("syncSources.origin")}>
               <Select
+                id="sync-origin-kind"
                 value={origin}
                 onChange={(event) => setOrigin(event.target.value as SyncOriginKind)}
               >
@@ -137,7 +142,7 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
                   </option>
                 ))}
               </Select>
-            </label>
+            </Field>
             <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
               {t("syncSources.add")}
             </Button>
@@ -173,11 +178,16 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
         }
       />
 
-      {list.isPending ? <p role="status">{t("app.loading")}</p> : null}
+      {/* A list that could not be read is not "no sources yet": the API's own sentence and a
+          retry, and the shape of what is coming while it is on its way (UI-15, UI-44). */}
+      {list.isPending ? <PageLoading label={t("app.loading")} /> : null}
       {list.isError ? (
-        <Alert role="alert" tone="danger">
-          {t("app.error.generic")}
-        </Alert>
+        <PageFailed
+          error={list.error}
+          onRetry={() => {
+            void list.refetch();
+          }}
+        />
       ) : null}
 
       {!list.isPending && !list.isError && items.length === 0 ? (
@@ -269,11 +279,16 @@ function SyncSourceCard({
   const paused = status.data?.paused ?? false;
 
   return (
-    <article className="rounded border border-border p-4">
+    // The page's own H1 is above this list, so a source is an H2: an H3 skipped a level and a
+    // screen reader's heading list read every source as belonging to a section that was never
+    // there (UI-16, measured by axe's heading-order).
+    <article aria-labelledby={`sync-source-${name}`} className="rounded border border-border p-4">
       <header className="flex flex-wrap items-baseline gap-3">
-        <h3 className="font-mono text-sm font-bold">{name}</h3>
+        <h2 id={`sync-source-${name}`} className="font-mono text-body font-bold">
+          {name}
+        </h2>
         <LifecycleBadge kind="phase" value={status.data?.phase} />
-        <span className="text-xs">{scheduleOf(spec, t)}</span>
+        <span className="text-caption">{scheduleOf(spec, t)}</span>
         <span className="ml-auto flex items-center gap-1.5">
           <EditResourceAction target={{ project, kind: "SyncSource", plural: "syncsources", name }} />
           <DeleteResourceAction target={{ project, kind: "SyncSource", plural: "syncsources", name }} />
@@ -288,12 +303,12 @@ function SyncSourceCard({
         />
       ) : null}
 
-      <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+      <dl className="mt-3 grid gap-x-6 gap-y-1 text-body sm:grid-cols-[max-content_1fr]">
         <dt className="font-medium">{t("syncSources.origin")}</dt>
-        <dd className="break-all font-mono text-xs">{originOf(spec) ?? "—"}</dd>
+        <dd className="break-all font-mono text-caption">{originOf(spec) ?? "—"}</dd>
 
         <dt className="font-medium">{t("syncSources.revision")}</dt>
-        <dd className="font-mono text-xs">
+        <dd className="font-mono text-caption">
           {status.data?.observedRevision ? status.data.observedRevision.slice(0, 12) : "—"}
         </dd>
 
@@ -317,13 +332,13 @@ function SyncSourceCard({
       </dl>
 
       {status.data && !status.data.durable ? (
-        <p className="mt-3 text-xs">{t("syncSources.notDurable")}</p>
+        <p className="mt-3 text-caption">{t("syncSources.notDurable")}</p>
       ) : null}
 
       <RunReport report={syncNow.data} />
 
       {detached ? (
-        <p role="status" className="mt-3 text-sm">
+        <p role="status" className="mt-3 text-body">
           {t("syncSources.detached")}{" "}
           <ExternalLink href={detached}>{t("syncSources.review")}</ExternalLink>
         </p>
@@ -331,7 +346,9 @@ function SyncSourceCard({
 
       {failure ? (
         <Alert role="alert" tone="danger" className="mt-3">
-          {failure instanceof ApiError ? failure.message : t("app.error.generic")}
+          {failure instanceof ApiError
+            ? (failure.problem?.detail ?? failure.message)
+            : t("app.error.generic")}
         </Alert>
       ) : null}
 
@@ -381,7 +398,7 @@ function RunReport({ report }: { report: components["schemas"]["SyncRunReport"] 
     return null;
   }
   return (
-    <div className="mt-3 space-y-1 text-sm">
+    <div className="mt-3 space-y-1 text-body">
       {report.proposed.length > 0 ? (
         <p role="status">{t("syncSources.proposed", { count: report.proposed.length })}</p>
       ) : report.flags.length === 0 ? (

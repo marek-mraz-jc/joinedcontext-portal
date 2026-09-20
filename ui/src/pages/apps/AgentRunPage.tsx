@@ -12,7 +12,7 @@ import { TERMINAL_STATES, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Alert, Button, Icon, PageHeader, Skeleton } from "../../components/ui";
+import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40).
@@ -50,42 +50,29 @@ export function AgentRunPage({
     return (
       <div className="space-y-4">
         <PageHeader title={t("agentRun.title")} actions={<Button onClick={onClose}>{t("agentRun.back")}</Button>} />
-        <div role="status" aria-busy="true" className="space-y-3">
-          <span className="sr-only">{t("agentRun.loading")}</span>
-          <Skeleton className="h-6 w-64" />
-          <Skeleton className="h-preview min-h-preview-min w-full" />
-        </div>
+        <PageLoading label={t("agentRun.loading")} lines={1} />
       </div>
     );
   }
   if (run.isError || !run.data) {
+    // A run that really is gone is the one case with its own sentence and no retry: asking
+    // again would answer 404 again.
     const gone = run.error instanceof ApiError && run.error.status === 404;
-    const reason = gone
-      ? t("agentRun.notFound")
-      : run.error instanceof ApiError
-        ? (run.error.problem?.detail ?? run.error.message)
-        : t("app.error.generic");
     return (
       <div className="space-y-4">
         <PageHeader title={t("agentRun.title")} actions={<Button onClick={onClose}>{t("agentRun.back")}</Button>} />
-        <Alert
-          tone="danger"
-          actions={
-            gone ? undefined : (
-              <Button
-                size="sm"
-                icon={<Icon name="refresh" className="size-4" />}
-                onClick={() => {
+        <PageFailed
+          error={run.error}
+          onRetry={
+            gone
+              ? undefined
+              : () => {
                   void run.refetch();
-                }}
-              >
-                {t("app.error.retry")}
-              </Button>
-            )
+                }
           }
         >
-          {reason}
-        </Alert>
+          {gone ? t("agentRun.notFound") : undefined}
+        </PageFailed>
       </div>
     );
   }

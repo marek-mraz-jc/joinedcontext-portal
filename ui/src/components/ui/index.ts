@@ -32,6 +32,7 @@ export { CHECKBOX, CONTROL, Input, Select, Textarea } from "./Input";
 export type { InputProps, SelectProps, TextareaProps } from "./Input";
 export { PageHeader } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";
+export { PageFailed, PageLoading } from "./PageState";
 export { Skeleton } from "./Skeleton";
 export { SourceLink } from "./SourceLink";
 export type { SourceLinkProps } from "./SourceLink";

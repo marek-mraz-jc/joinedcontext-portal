@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Button, Icon, Skeleton } from "../ui";
 
 /** One reading: when it was observed, and what was read. */
 interface Point {
@@ -100,10 +101,30 @@ export function TemporalChart({
   return (
     <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <figcaption className="text-body font-medium">{title}</figcaption>
-      {history.isPending ? <p role="status">{t("app.loading")}</p> : null}
+      {history.isPending ? (
+        // The shape of the chart, so the card does not grow under the one beside it when the
+        // readings land.
+        <div role="status" aria-busy="true" aria-label={t("app.loading")}>
+          <Skeleton className="h-32 w-full" />
+        </div>
+      ) : null}
+      {/* A history that could not be read is not "there is no history" (T-1763): the two mean
+          opposite things, and only one of them is worth pressing a button about. */}
       {history.isError ? (
-        <p role="status" className="text-caption text-fg-muted">
-          {t("dashboards.widget.noHistory")}
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-caption text-danger">
+          {t("dashboards.widget.historyFailed", {
+            reason: history.error instanceof Error ? history.error.message : t("app.error.generic"),
+          })}
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Icon name="refresh" className="size-3.5" />}
+            onClick={() => {
+              void history.refetch();
+            }}
+          >
+            {t("app.error.retry")}
+          </Button>
         </p>
       ) : null}
       {!history.isPending && !history.isError && points.length === 0 ? (

@@ -29,8 +29,13 @@ export const ENDPOINT_LINKS: Array<{ key: string; path: string }> = [
   { key: "access", path: "/access" },
 ];
 
+/**
+ * Where an endpoint answers. The slug comes out of a manifest, so it is encoded the same way
+ * the catalogue encodes a name: a slug carrying `../`, `?` or `#` would otherwise build a link
+ * to somewhere else on this origin, and `safeHref` would pass it because it is a real URL.
+ */
 export function endpointUrl(slug: string, path: string): string {
-  return `${window.location.origin}/api/endpoint/${slug}${path}`;
+  return `${window.location.origin}/api/endpoint/${encodeURIComponent(slug)}${path}`;
 }
 
 /** The open-data catalogue entry of an endpoint: the catalogue lives at `data.{host}`. */

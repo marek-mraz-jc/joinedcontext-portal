@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { Alert, Badge, Button, ExternalLink, PageHeader } from "../../components/ui";
+import { Alert, Badge, Button, ExternalLink, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import { copyIntoPreview, PER_TYPE } from "./copyIntoPreview";
 import type { CopyResult } from "./copyIntoPreview";
 
@@ -60,6 +60,33 @@ export function TryItPage({ project, name }: { project: string; name: string }):
     onError: (err: Error) => setError(err.message),
   });
 
+  // Reading the copy and reading its preview are two requests that can fail on their own, and
+  // until this was here both failures were drawn as "no preview": someone refused the copy saw
+  // the same page as someone whose preview is simply not running, with a Start button that was
+  // going to be refused too (UI-15, UI-44).
+  if (workspace.isPending || preview.isPending) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title={t("workspaces.tryIt.title")} />
+        <PageLoading label={t("app.loading")} />
+      </div>
+    );
+  }
+  if (workspace.isError || preview.isError) {
+    const failed = workspace.isError ? workspace : preview;
+    return (
+      <div className="space-y-6">
+        <PageHeader title={t("workspaces.tryIt.title")} />
+        <PageFailed
+          error={failed.error}
+          onRetry={() => {
+            void failed.refetch();
+          }}
+        />
+      </div>
+    );
+  }
+
   const owner = workspace.data?.owner;
   const mine = !!identity && !!owner && (owner === identity.email || owner === identity.username);
   const state = preview.data?.state ?? "none";
@@ -87,7 +114,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
             </Button>
           )
         ) : (
-          <span className="text-sm text-fg-muted">{t("workspaces.tryIt.notOwner")}</span>
+          <span className="text-body text-fg-muted">{t("workspaces.tryIt.notOwner")}</span>
         )}
       </div>
       {error ? <Alert tone="danger">{error}</Alert> : null}
@@ -112,12 +139,12 @@ export function TryItPage({ project, name }: { project: string; name: string }):
                     <li key={endpoint.name} className="rounded-lg border border-border bg-surface p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-fg">{endpoint.name}</span>
-                        <ExternalLink className="break-all font-mono text-sm" href={endpoint.url}>
+                        <ExternalLink className="break-all font-mono text-body" href={endpoint.url}>
                           {endpoint.url}
                         </ExternalLink>
                       </div>
                       {mine && endpoint.originSlug ? (
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-body">
                           <Button
                             size="sm"
                             variant="secondary"
@@ -136,7 +163,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
                         </div>
                       ) : null}
                       {done ? (
-                        <p className="mt-2 text-sm" role="status">
+                        <p className="mt-2 text-body" role="status">
                           {t("workspaces.tryIt.copied", { count: total })}
                           {done.stopped ? ` ${t("workspaces.tryIt.copyStopped", { reason: done.stopped })}` : ""}
                         </p>
@@ -146,7 +173,7 @@ export function TryItPage({ project, name }: { project: string; name: string }):
                 })}
               </ul>
             ) : (
-              <p className="text-sm text-fg-muted">{t("workspaces.tryIt.noEndpoints")}</p>
+              <p className="text-body text-fg-muted">{t("workspaces.tryIt.noEndpoints")}</p>
             )}
           </section>
           <section aria-labelledby="preview-paused">
@@ -154,13 +181,13 @@ export function TryItPage({ project, name }: { project: string; name: string }):
               {t("workspaces.tryIt.pausedPipelines")}
             </h2>
             {preview.data?.pausedPipelines.length ? (
-              <ul className="list-disc pl-5 text-sm">
+              <ul className="list-disc pl-5 text-body">
                 {preview.data.pausedPipelines.map((pipeline) => (
                   <li key={pipeline}>{pipeline}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-fg-muted">{t("workspaces.tryIt.noPipelines")}</p>
+              <p className="text-body text-fg-muted">{t("workspaces.tryIt.noPipelines")}</p>
             )}
           </section>
         </>

@@ -12,6 +12,7 @@ import i18n from "../src/i18n";
 import { WorkOnCopyDialog } from "../src/components/WorkOnCopyDialog";
 import { WorkspaceBar } from "../src/components/layout/WorkspaceBar";
 import { setActiveWorkspace, workspaceMiddleware } from "../src/components/layout/WorkspaceContext";
+import { expectDenied } from "./checks";
 import { ComparePage } from "../src/pages/workspaces/ComparePage";
 import { BringBackPage } from "../src/pages/workspaces/BringBackPage";
 import { WorkspacesPage } from "../src/routes/WorkspacesPage";
@@ -329,8 +330,10 @@ describe("bring back", () => {
     show(<BringBackPage project="helsinki" name="air-v2" />);
     const propose = await screen.findByRole("button", { name: "Propose as one change" });
     const update = screen.getByRole("button", { name: "Update from the project" });
-    expect(propose).toBeDisabled();
-    expect(update).toBeDisabled();
+    // Refused with a reason rather than hard-disabled (T-1743, UI-44): a `disabled` button
+    // leaves the tab order and the sentence saying what is still missing can then never be read.
+    expectDenied(propose, /Resolve the files the project changed too/);
+    expectDenied(update, /Answer every field that the project changed too/);
     expect(screen.getByText("Red lane: the approver types the name back to confirm.")).toBeInTheDocument();
     // A value renders as text, never as markup.
     expect(screen.getByText("<b>x</b>")).toBeInTheDocument();
@@ -338,11 +341,11 @@ describe("bring back", () => {
 
     const period = screen.getByRole("group", { name: "spec.period" });
     await userEvent.click(within(period).getByLabelText(/Keep the copy's/));
-    expect(update).toBeDisabled();
+    expectDenied(update, /Answer every field that the project changed too/);
     const note = screen.getByRole("group", { name: "spec.note" });
     await userEvent.click(within(note).getByLabelText(/Take the project's/));
     await userEvent.click(update);
-    await waitFor(() => expect(propose).toBeEnabled());
+    await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled"));
     expect(requests.find((r) => r.path.endsWith("/update"))?.body).toEqual({
       resolutions: [
         { path: "projects/helsinki/pipelines/a.yaml", field: "spec.period", keep: "ours" },

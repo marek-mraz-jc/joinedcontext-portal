@@ -880,7 +880,8 @@
       "noHistory": "Niet histórie na vykreslenie.",
       "latest": "Posledná hodnota {property}: {value} ({count} meraní)",
       "chartLabel": "{property} entity {entity} v čase",
-      "badGrid": "Túto tabuľku nebolo možné zobraziť: {reason}"
+      "badGrid": "Túto tabuľku nebolo možné zobraziť: {reason}",
+      "historyFailed": "Túto históriu sa nepodarilo načítať: {reason}"
     },
     "emptyHint": "Nástenka je stránka s mapami a číslami, postavená z endpointov, ktoré tento projekt vie čítať. Vytvorte jednu alebo požiadajte asistenta o nástenku z toho, čo už zverejňujete."
   },
@@ -996,7 +997,8 @@
       "may": "Smiete {action} {type}",
       "mayNot": "Nesmiete {action} {type}",
       "attrDenied": "mimo vášho oprávnenia",
-      "attrProhibited": "výslovne zakázaný"
+      "attrProhibited": "výslovne zakázaný",
+      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}"
     },
     "groups": {
       "title": "Skupiny",
@@ -2103,7 +2105,8 @@
       "live": "Živé",
       "noAdopt": "Niet čo prevziať: odstránenie entity z repozitára je výslovné zmazanie, nie tlačidlo.",
       "source": "Deklarované v {file}",
-      "proposed": "Navrhnuté. Schvaľovateľ to posúdi ako každú inú zmenu."
+      "proposed": "Navrhnuté. Schvaľovateľ to posúdi ako každú inú zmenu.",
+      "tableCaption": "Čo {space} deklaruje oproti tomu, čo obsahuje"
     },
     "kind": {
       "modified": "Zmenené",
@@ -2225,7 +2228,9 @@
       "keepOurs": "Ponechať z kópie",
       "takeTheirs": "Prevziať z projektu",
       "update": "Aktualizovať z projektu",
+      "updateBlocked": "Pred aktualizáciou odpovedzte na každé pole, ktoré zmenil aj projekt.",
       "propose": "Navrhnúť ako jednu zmenu",
+      "proposeBlocked": "Pred návrhom kópie ako jednej zmeny vyriešte súbory, ktoré zmenil aj projekt.",
       "proposed": "Navrhnuté ako",
       "notOwner": "Kópiu vracia len ten, kto ju začal."
     },

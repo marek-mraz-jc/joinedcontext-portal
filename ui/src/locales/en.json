@@ -880,7 +880,8 @@
       "noHistory": "No history to draw.",
       "latest": "Latest {property}: {value} ({count} readings)",
       "chartLabel": "{property} of {entity} over time",
-      "badGrid": "This grid could not be drawn: {reason}"
+      "badGrid": "This grid could not be drawn: {reason}",
+      "historyFailed": "This history could not be read: {reason}"
     },
     "emptyHint": "A dashboard is a page of maps and numbers built from endpoints this project can read. Make one, or ask the assistant for a dashboard of what you already publish."
   },
@@ -996,7 +997,8 @@
       "may": "You may {action} {type}",
       "mayNot": "You may not {action} {type}",
       "attrDenied": "not in your grant",
-      "attrProhibited": "explicitly denied"
+      "attrProhibited": "explicitly denied",
+      "checkFailed": "These permissions could not be checked: {reason}"
     },
     "groups": {
       "title": "Groups",
@@ -2103,7 +2105,8 @@
       "live": "Live",
       "noAdopt": "There is nothing live to adopt: removing the entity from the repository is an explicit deletion, not a button.",
       "source": "Declared in {file}",
-      "proposed": "Proposed. An approver reviews it like any other change."
+      "proposed": "Proposed. An approver reviews it like any other change.",
+      "tableCaption": "What {space} declares against what it holds"
     },
     "kind": {
       "modified": "Modified",
@@ -2225,7 +2228,9 @@
       "keepOurs": "Keep the copy's",
       "takeTheirs": "Take the project's",
       "update": "Update from the project",
+      "updateBlocked": "Answer every field that the project changed too before updating from it.",
       "propose": "Propose as one change",
+      "proposeBlocked": "Resolve the files the project changed too before proposing the copy as one change.",
       "proposed": "Proposed as",
       "notOwner": "Only the person who started this copy brings it back."
     },
