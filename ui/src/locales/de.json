@@ -885,6 +885,7 @@
   },
   "access": {
     "title": "Zugriff",
+    "lead": "Wer in diesem Projekt welche Rolle hält, welche Konten keine Personen sind und was davon jedes tatsächlich lesen und schreiben darf.",
     "roles": {
       "title": "Personen und Rollen",
       "lead": "Wer in diesem Projekt vorschlagen, genehmigen und entfernen darf. Eine Vergabe ist eine Änderung, die eine andere Person genehmigt.",
@@ -1627,6 +1628,7 @@
     "export": "Diese Seite exportieren"
   },
   "agentRun": {
+    "title": "Anwendungslauf",
     "loading": "Lese den Lauf…",
     "notFound": "Dieser Lauf gehört nicht zu diesem Projekt.",
     "subtitle": "Gebaut gegen den Endpoint {endpoint}, als Anwendung vom Typ {appClass}.",

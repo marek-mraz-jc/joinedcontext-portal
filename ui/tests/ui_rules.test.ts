@@ -252,7 +252,7 @@ describe("the allow-list", () => {
       // 37/77 after the ui-forms batch (T-1769…T-1776) and main's own cleaning met here.
       hand_made_control: { files: 37, lines: 77 },
       colour_is_a_token: { files: 5, lines: 41 },
-      size_is_on_the_scale: { files: 19, lines: 55 },
+      size_is_on_the_scale: { files: 18, lines: 51 },
       focus_is_not_stolen: { files: 4, lines: 7 },
       check_is_not_suppressed: { files: 6, lines: 7 },
       // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.

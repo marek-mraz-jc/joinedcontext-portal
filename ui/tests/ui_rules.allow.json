@@ -251,10 +251,6 @@
       "lines": 5,
       "group": "ui-parts"
     },
-    "src/pages/apps/AgentRunPage.tsx": {
-      "lines": 4,
-      "group": "ui-pages"
-    },
     "src/pages/apps/AppsCatalog.tsx": {
       "lines": 1,
       "group": "ui-parts"
