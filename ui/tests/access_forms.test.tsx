@@ -13,7 +13,7 @@
  * document the lists fall back to what the API validates, because the UI is not the point of
  * enforcement (PF-51).
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -31,8 +31,12 @@ import { NewGroupDialog, fromGroupEnvelope, toGroupEnvelope } from "../src/pages
 import type { GroupForm } from "../src/pages/access/Groups";
 import en from "../src/locales/en.json";
 
+// Monaco draws on a canvas and starts a worker, neither of which exists in jsdom; a textarea with
+// the same contract stands in, so the YAML view's own work is what runs here.
 vi.mock("../src/pages/models/MonacoSourceView", () => ({
-  default: ({ value }: { value: string }) => <textarea aria-label="YAML" value={value} readOnly />,
+  default: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) => (
+    <textarea aria-label="YAML" value={value} onChange={(event) => onChange?.(event.target.value)} />
+  ),
 }));
 
 const PROJECT = "banskabystrica";
@@ -392,6 +396,53 @@ describe("the Role form", () => {
       const after = within(dialog).getByRole("button", { name: en.access.projectRoles.propose });
       expect(after.getAttribute("title") ?? "").not.toContain("approve on Pipeline");
     });
+  });
+
+  it("refuses the same role typed into the YAML view, where the lists do not reach", async () => {
+    // The lists cannot offer `approve on Pipeline` here, but the YAML view can write it, and a
+    // manifest pasted there is the form one render later (T-0890). The refusal has to hold on both
+    // doors, or the fields would be the only place PF-52 is read before the API answers.
+    const user = userEvent.setup();
+    roleDialog(effective([{ kinds: ["Pipeline"], verbs: ["propose"] }]));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("tab", { name: en.form.view.yaml }));
+    const editor = await within(dialog).findByLabelText("YAML");
+    // Typed as one change rather than key by key: `[` and `]` are key descriptors to userEvent,
+    // and a YAML list written with them would never arrive.
+    fireEvent.change(editor, {
+      target: {
+        value: [
+          "apiVersion: joinedcontext.com/v1alpha1",
+          "kind: Role",
+          "metadata:",
+          "  name: pipeline-approver",
+          "spec:",
+          "  rules:",
+          "    - kinds: [Pipeline]",
+          "      verbs: [approve]",
+        ].join("\n"),
+      },
+    });
+
+    // The YAML becomes the form again when the view is switched, which is where the manifest a
+    // person typed meets the rights they hold.
+    await user.click(within(dialog).getByRole("tab", { name: en.form.view.form }));
+    await waitFor(() => {
+      const submit = within(dialog).getByRole("button", { name: en.access.projectRoles.propose });
+      expect(submit.getAttribute("title") ?? "").toContain("approve on Pipeline");
+    });
+  });
+
+  it("refuses the same person twice in a group", () => {
+    // PF-62: `GroupSpec::validate` refuses a member listed twice, so the form does not let a
+    // person build a manifest the reconciler would never write.
+    const schema = groupSchema(t);
+    const twice = {
+      name: "mestski-spravcovia",
+      members: [{ user: "jana@banskabystrica.sk" }, { user: "jana@banskabystrica.sk" }],
+    };
+    expect(validator.validateFormData(twice, schema).errors).not.toEqual([]);
   });
 
   it("says the name and the rules in all four languages", async () => {
