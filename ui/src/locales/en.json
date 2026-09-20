@@ -1888,7 +1888,10 @@
       "keepSpace": "Into the space",
       "keepSend": "Draft the pipeline",
       "keepEveryMessage": "Keep the indicator {name} updated: {over}, every {minutes}m, into the space {space}.",
-      "keepOnChangeMessage": "Keep the indicator {name} updated: {over}, on every change, into the space {space}."
+      "keepOnChangeMessage": "Keep the indicator {name} updated: {over}, on every change, into the space {space}.",
+      "overCount": "count of {type}",
+      "overAgg": "{agg} of {attribute} over {type}",
+      "overWhere": "{over} where {filter}"
     },
     "changeTest": {
       "title": "The change's test",

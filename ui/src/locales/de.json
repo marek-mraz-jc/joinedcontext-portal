@@ -1888,7 +1888,10 @@
       "keepSpace": "In den Raum",
       "keepSend": "Pipeline entwerfen",
       "keepEveryMessage": "Halte den Indikator {name} aktuell: {over}, alle {minutes}m, in den Raum {space}.",
-      "keepOnChangeMessage": "Halte den Indikator {name} aktuell: {over}, bei jeder Änderung, in den Raum {space}."
+      "keepOnChangeMessage": "Halte den Indikator {name} aktuell: {over}, bei jeder Änderung, in den Raum {space}.",
+      "overCount": "Anzahl von {type}",
+      "overAgg": "{agg} von {attribute} über {type}",
+      "overWhere": "{over}, wobei {filter}"
     },
     "changeTest": {
       "title": "Test der Änderung",

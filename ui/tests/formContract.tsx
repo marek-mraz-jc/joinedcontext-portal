@@ -61,8 +61,14 @@ export interface FormSpec {
   submit: string | RegExp;
   /** The accessible name of the button that leaves without proposing, when the form has one. */
   cancel?: string | RegExp;
-  /** The path the form's submit sends to, so the helper can count and refuse it. */
-  submitPath: string;
+  /**
+   * The path the form's submit sends to, so the helper can count and refuse it.
+   *
+   * Left out by a form that proposes through a callback rather than a request — the KPI card
+   * hands its message to the conversation. Such a form calls the `proposed` function the helper
+   * passes to the element factory, and every counting rule counts those calls instead.
+   */
+  submitPath?: string;
   /** The method, when it is not POST. */
   submitMethod?: string;
   /** The reason the server gives when it refuses, in words a person can act on. */
@@ -73,6 +79,12 @@ export interface FormSpec {
   answer?: (url: URL, request: Request) => Response | undefined;
   /** Where the form is mounted, for the pages that read the project out of the address. */
   path?: string;
+  /**
+   * What opens the form when it lives behind a button, run after every mount and before the
+   * rule. The KPI card's keep-form and every dialog with a trigger need it; a form that is on
+   * the page leaves it out.
+   */
+  open?: (user: ReturnType<typeof userEvent.setup>) => Promise<void>;
   /** Selectors left out of the axe run, each with the task that owns the violation. */
   axeExclude?: string[];
   /**
@@ -85,6 +97,14 @@ export interface FormSpec {
 /** The hostile values every text field is typed into: both must come back as text (AG-46). */
 export const HOSTILE = '<img src=x onerror=alert(1)>';
 export const HOSTILE_URL = "javascript:alert(1)";
+
+/**
+ * The form under test, built per rule.
+ *
+ * The argument is what the form calls when it proposes without sending a request; a form that
+ * posts ignores it. Every rule remounts, so the factory is called once per rule.
+ */
+type Element_ = (proposed: () => void) => ReactElement;
 
 interface Mounted extends RenderResult {
   /**
@@ -112,17 +132,17 @@ interface Mounted extends RenderResult {
  * paints nothing until it has resolved its first match: a rule that read the DOM straight after
  * `render` read an empty container and every rule failed for that one reason.
  */
-async function mount(element: ReactElement, spec: FormSpec): Promise<Mounted> {
+async function mount(element: Element_, spec: FormSpec): Promise<Mounted> {
   const sent: string[] = [];
   let refusal: Response | undefined;
   let held: Promise<void> | undefined;
   let release = (): void => {};
-  const result = renderPage(element, {
+  const result = renderPage(element(() => sent.push("PROPOSED")), {
     path: spec.path ?? "/projects/helsinki",
     answer: (url, request) => {
       const own = spec.answer?.(url, request);
       if (own) return own;
-      if (url.pathname.includes(spec.submitPath)) {
+      if (spec.submitPath !== undefined && url.pathname.includes(spec.submitPath)) {
         sent.push(`${request.method} ${url.pathname}`);
         const answer = refusal
           ? refusal.clone()
@@ -133,6 +153,7 @@ async function mount(element: ReactElement, spec: FormSpec): Promise<Mounted> {
     },
   });
   await waitFor(() => expect(document.body.textContent ?? "").not.toBe(""));
+  if (spec.open) await spec.open(userEvent.setup());
   const root = (result.container.textContent ?? "").trim() === "" ? document.body : result.container;
   return Object.assign(result, {
     root,
@@ -211,12 +232,12 @@ function text(container: HTMLElement): string {
  * `element` is remounted for each rule, because a rule that ran before it must not decide what
  * it sees. The caller's own cases come after.
  */
-export async function checkForm(element: () => ReactElement, spec: FormSpec): Promise<void> {
+export async function checkForm(element: Element_, spec: FormSpec): Promise<void> {
   const rules: [string, () => Promise<void>][] = [
     [
       "every control has a visible label tied to it, and required is announced",
       async () => {
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         for (const field of spec.fields) {
           const element_ = control(field);
           const id = idOf(field, element_);
@@ -245,7 +266,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
     [
       "a hint and a refusal are tied to their control by aria-describedby",
       async () => {
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         for (const field of spec.fields) {
           const element_ = control(field);
           const id = idOf(field, element_);
@@ -268,7 +289,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const required = spec.fields.filter((field) => field.required && !field.toggle);
         if (required.length === 0) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         await user.click(screen.getByRole("button", { name: spec.submit }));
         await waitFor(() => expect(view.sent, "an empty form proposed something").toEqual([]));
         const first = control(required[0]);
@@ -284,7 +305,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const rule = spec.fields.find((field) => field.browser);
         if (!rule?.browser) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         await fill(spec, user);
         await user.clear(control(rule));
         await user.type(control(rule), rule.browser.refuses);
@@ -299,7 +320,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       async () => {
         if (!spec.refusal) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         view.refuse(problem(409, spec.refusal));
         await fill(spec, user);
         await user.click(screen.getByRole("button", { name: spec.submit }));
@@ -321,7 +342,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       "a second click while the first request runs sends nothing",
       async () => {
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         await fill(spec, user);
         // The answer is held, so the first proposal is still in flight when the second click
         // lands. Without that the stub answers before the second click and two proposals are
@@ -343,7 +364,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const typed = spec.fields.find((field) => field.value !== undefined && !field.toggle);
         if (!typed) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         await user.type(control(typed), typed.value!);
         await user.click(screen.getByRole("button", { name: spec.cancel }));
         // Either a confirmation stands in the way, or nothing was thrown away: a form that
@@ -363,7 +384,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const secret = spec.fields.find((field) => field.secret);
         if (!secret) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         const element_ = control(secret) as HTMLInputElement;
         expect(element_.type, "a secret field is a password field").toBe("password");
         expect(
@@ -392,7 +413,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
       "a control this person may not use is refused with its reason",
       async () => {
         if (!spec.denied?.length) return;
-        await mount(element(), spec);
+        await mount(element, spec);
         for (const denied of spec.denied) {
           expectDenied(screen.getByRole("button", { name: denied.name }), denied.reason);
         }
@@ -401,10 +422,15 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
     [
       "one primary button, and it is the last of the form's buttons",
       async () => {
-        const view = await mount(element(), spec);
-        const primary = primaries(view.root);
+        const view = await mount(element, spec);
+        // Scoped to the form, not to the page: a card or a page may carry its own primary
+        // action beside a form (the indicator card writes the value, and its keep-form drafts
+        // a pipeline). One primary per *view* is the page contract's rule; this one is about
+        // the form, so it counts inside the `<form>` that holds the submit when there is one.
+        const scope = screen.getByRole("button", { name: spec.submit }).closest("form") ?? view.root;
+        const primary = primaries(scope);
         expect(primary.length, "a form has exactly one primary button").toBe(1);
-        const buttons = [...view.root.querySelectorAll("button")];
+        const buttons = [...scope.querySelectorAll("button")];
         expect(
           buttons.indexOf(primary[0] as HTMLButtonElement),
           "the primary button is the last one, after Cancel",
@@ -417,7 +443,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
         const typed = spec.fields.filter((field) => !field.toggle && !field.secret);
         if (typed.length === 0) return;
         const user = userEvent.setup();
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         for (const field of typed) {
           // A list of the organization's own names is not a place hostile text can be typed;
           // what such a value does when it comes back from the server is the page's own test.
@@ -439,7 +465,7 @@ export async function checkForm(element: () => ReactElement, spec: FormSpec): Pr
     [
       "axe is clean and no key is shown where a sentence belongs",
       async () => {
-        const view = await mount(element(), spec);
+        const view = await mount(element, spec);
         await expectNoViolations(view.root, spec.axeExclude ?? []);
         // The page harness's own rule, rather than a second regular expression here: a whole
         // text node that is a dotted path is a key, and a URL or a host name inside a sentence

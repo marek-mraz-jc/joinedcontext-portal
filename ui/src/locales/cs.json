@@ -1888,7 +1888,10 @@
       "keepSpace": "Do prostoru",
       "keepSend": "Navrhnout pipeline",
       "keepEveryMessage": "Průběžně aktualizuj ukazatel {name}: {over}, každých {minutes}m, do prostoru {space}.",
-      "keepOnChangeMessage": "Průběžně aktualizuj ukazatel {name}: {over}, při každé změně, do prostoru {space}."
+      "keepOnChangeMessage": "Průběžně aktualizuj ukazatel {name}: {over}, při každé změně, do prostoru {space}.",
+      "overCount": "počet typu {type}",
+      "overAgg": "{agg} atributu {attribute} nad typem {type}",
+      "overWhere": "{over}, kde {filter}"
     },
     "changeTest": {
       "title": "Test změny",
