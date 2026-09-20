@@ -88,6 +88,19 @@ jobs:
         run: cd sdk && pnpm install --frozen-lockfile
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium && pnpm e2e
+      # A red lane that leaves nothing behind cannot be fixed by whoever reads it. The trace and
+      # the actual screenshot are the only way to tell an intended visual change — whose golden
+      # then wants regenerating — from a layout that broke, and this lane is the one place with
+      # a browser that works, so the images cannot be produced anywhere else (T-2311).
+      - if: always() && steps.has.outputs.ui == 'yes'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-results
+          path: |
+            ui/test-results/
+            ui/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
       # The reference apps run their flows against their own binary, so the toolchain has to
