@@ -250,7 +250,7 @@ describe("the allow-list", () => {
     const budget: Record<string, { files: number; lines: number }> = {
       hand_made_control: { files: 39, lines: 87 },
       colour_is_a_token: { files: 5, lines: 41 },
-      size_is_on_the_scale: { files: 19, lines: 55 },
+      size_is_on_the_scale: { files: 18, lines: 51 },
       focus_is_not_stolen: { files: 4, lines: 7 },
       check_is_not_suppressed: { files: 6, lines: 7 },
       // T-1727 moved both callers to ConfirmDialog; this rule is clean and stays that way.
