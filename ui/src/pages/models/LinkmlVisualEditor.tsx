@@ -348,7 +348,7 @@ export function LinkmlVisualEditor({
               <p
                 key={diagnostic.message}
                 role="status"
-                className="text-xs text-warning-fg"
+                className="text-caption text-warning"
               >
                 {diagnostic.message}
               </p>
@@ -517,7 +517,7 @@ export function LinkmlVisualEditor({
               </Alert>
             ) : null}
             {messagesFor(`slots.${activeSlot.name}`).map((diagnostic) => (
-              <p key={diagnostic.message} role="status" className="text-xs text-warning-fg">
+              <p key={diagnostic.message} role="status" className="text-caption text-warning">
                 {diagnostic.message}
               </p>
             ))}

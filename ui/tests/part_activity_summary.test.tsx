@@ -87,6 +87,10 @@ describe("the activity summary against the UI contract", () => {
       const term = await screen.findByText(i18n.t(`activity.bucket.${bucket.key}`));
       const number = term.parentElement?.querySelector("dd");
       expect(number, `${bucket.key} has a number beside its word`).not.toBeNull();
+      // And it is bigger than the word: a size the theme defines, not `text-h3`, which the
+      // theme never had and Tailwind emits nothing for — the counters read as body text beside
+      // their own captions until T-2422.
+      expect(number?.className, bucket.key).toMatch(/\btext-(title|display)\b/);
     }
     await waitFor(() => expect(screen.getByText("1,200")).toBeInTheDocument());
     await expectNoViolations(container);
