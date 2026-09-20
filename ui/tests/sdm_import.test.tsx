@@ -12,6 +12,7 @@ import {
 } from "../src/pages/models/SmartDataModelsImport";
 import { parseModel } from "../src/pages/models/linkml";
 import en from "../src/locales/en.json";
+import { expectNoViolations } from "./checks";
 
 const CATALOGUE = {
   refreshedAt: "2026-09-06T04:00:00Z",
@@ -102,14 +103,14 @@ function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: 
   });
   vi.stubGlobal("fetch", fetchMock);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
         <SmartDataModelsImport onImport={onImport} spaces={options.spaces ?? []} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
-  return { onImport, fetchMock, user: userEvent.setup() };
+  return { ...view, onImport, fetchMock, user: userEvent.setup() };
 }
 
 describe("Smart Data Models import wizard", () => {
@@ -247,6 +248,18 @@ describe("Smart Data Models import wizard", () => {
     await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
 
     expect(onImport.mock.calls[0][2]).toBeUndefined();
+  });
+
+  /**
+   * T-1493: axe on dev reported `heading-order` (moderate) on this page — the subject headings of
+   * the catalogue list. The list is where they are written, so the run belongs here rather than
+   * in a browser against one installation's data.
+   */
+  it("has no axe violation with the catalogue listed, headings included", async () => {
+    const { container } = renderWizard();
+
+    await screen.findByRole("button", { name: /AirQualityObserved/ });
+    await expectNoViolations(container);
   });
 
   it("works from the cached index when a refresh did not reach the catalogue", async () => {
