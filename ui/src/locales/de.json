@@ -1957,7 +1957,9 @@
       "prompt": "Was soll es tun?",
       "start": "Starten",
       "unattended": "Es läuft ohne Rückfragen und wartet am Ende auf Ihre Freigabe.",
-      "noTypes": "Der Lauf liest die veröffentlichten Typen dieses Endpunkts. Wählen Sie einen Endpunkt, der mindestens einen Typ veröffentlicht."
+      "noTypes": "Der Lauf liest die veröffentlichten Typen dieses Endpunkts. Wählen Sie einen Endpunkt, der mindestens einen Typ veröffentlicht.",
+      "namePlaceholder": "meine-app",
+      "dataNeeds": "Datentypen"
     },
     "started": "Gestartet",
     "actions": "Aktionen",

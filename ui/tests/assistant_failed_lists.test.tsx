@@ -24,14 +24,14 @@ const REFUSED = "you may not read this project's agent access";
 
 interface Failing {
   /** Which path fails, and with what. Everything else answers normally. */
-  path: "/assistant/access" | "/agent-runs";
+  path: "/assistant/access" | "/agent-runs" | "/schema/index.json";
   status: number;
   detail: string;
 }
 
 let attempts = 0;
 
-function renderPage(failing: Failing | null, healAfterFirst = false) {
+function renderPage(failing: Failing | null, healAfterFirst = false, runs: unknown[] = []) {
   attempts = 0;
   vi.stubGlobal(
     "fetch",
@@ -50,7 +50,9 @@ function renderPage(failing: Failing | null, healAfterFirst = false) {
         failing !== null &&
         (failing.path === "/agent-runs"
           ? path.endsWith("/agent-runs") && request.method === "GET"
-          : path.endsWith("/assistant/access"));
+          : failing.path === "/schema/index.json"
+            ? path.endsWith("/schema/index.json")
+            : path.endsWith("/assistant/access"));
       if (fails) {
         attempts += 1;
         if (!(healAfterFirst && attempts > 1)) {
@@ -62,6 +64,22 @@ function renderPage(failing: Failing | null, healAfterFirst = false) {
       }
 
       if (path.endsWith("/assistant/access")) return json({ items: [] });
+      if (path.endsWith("/agent-runs") && request.method === "GET") return json({ items: runs });
+      if (path.includes("/endpoints")) {
+        return json({
+          items: [
+            {
+              apiVersion: "joinedcontext.com/v1alpha1",
+              kind: "Endpoint",
+              metadata: { name: "ovzdusie", namespace: PROJECT },
+              spec: { slug: "abc123" },
+            },
+          ],
+        });
+      }
+      if (path.endsWith("/schema/index.json")) {
+        return json({ $defs: { AirQualityObserved: { properties: { pm10: { type: "number" } } } } });
+      }
       return json({ items: [] });
     }),
   );
@@ -131,5 +149,49 @@ describe("a list that failed says so on the Assistant page", () => {
     renderPage(null);
     expect(await screen.findByText(en.assistantPage.access.none)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.form.listRetry })).not.toBeInTheDocument();
+  });
+
+  it("a_failed_schema_request_does_not_claim_the_endpoint_publishes_no_types", async () => {
+    // `needs.length === 0` is part of what disables Start, and neither schemaQuery.isError nor
+    // endpointsQuery.isError was read, so a failed request greyed Start out for ever and told
+    // the person a falsehood about their own endpoint.
+    renderPage({ path: "/schema/index.json", status: 502, detail: "the schema store is away" });
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("alert").some((node) => node.textContent?.includes("the schema store is away")),
+      ).toBe(true),
+    );
+    expect(
+      screen.queryByText(en.assistantPage.newWork.noTypes),
+      "a failed request is not an endpoint without types",
+    ).not.toBeInTheDocument();
+  });
+
+  it("a_run_that_failed_says_why_and_not_only_that_it_did", async () => {
+    renderPage(null, false, [
+      {
+        id: "run-1",
+        project: PROJECT,
+        kind: "application",
+        appName: "ovzdusie",
+        status: "failed",
+        prompt: "build the air quality page",
+        createdAt: "2026-09-20T08:00:00Z",
+        error: "the runner refused: no egress to registry.npmjs.org",
+      },
+    ]);
+    expect(
+      await screen.findByText("the runner refused: no egress to registry.npmjs.org"),
+    ).toBeInTheDocument();
+  });
+
+  it("the_mine_filter_is_the_shared_checkbox_with_the_portals_own_focus_ring", async () => {
+    renderPage(null);
+    const mine = await screen.findByRole("checkbox", { name: en.assistantPage.filters.mine });
+    expect(mine.className, "the hand-made ring was focus:ring-*, not the shared utility").not.toMatch(
+      /focus:ring-/,
+    );
+    expect(mine.closest("label")?.className).toMatch(/cursor-pointer/);
   });
 });

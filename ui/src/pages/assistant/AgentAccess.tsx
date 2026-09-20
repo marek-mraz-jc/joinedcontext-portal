@@ -6,9 +6,10 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { api, ApiError, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { isChange, ORG_NAMESPACE } from "../../api/manifest";
-import type { Change } from "../../api/manifest";
+import type { Change, Manifest } from "../../api/manifest";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { Alert } from "../../components/ui/Alert";
 import { Button } from "../../components/ui/Button";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { Field } from "../../components/ui/Field";
@@ -96,9 +97,14 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
   const propose = useMutation({
     mutationFn: async (block: unknown) => {
       const path = { project: ORG_NAMESPACE, plural: "agentprofiles", name: profile.name };
+      // `as unknown as { spec: … }` was a double cast: it silenced the compiler rather than
+      // describing the value, so a shape change in the API was met when someone proposed an
+      // access change to a live profile instead of at build. `Manifest` is that shape — the
+      // envelope with its `spec` as a record — and the envelope's own `spec` is the only part
+      // that differs, so one assertion of the declared type replaces two of nothing.
       const current = (await unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}/{name}", { params: { path } }),
-      )) as unknown as { spec: Record<string, unknown>; status?: unknown };
+      )) as Manifest;
       const manifest: Record<string, unknown> = { ...current, spec: { ...current.spec } };
       delete manifest.status;
       const spec = manifest.spec as Record<string, unknown>;
@@ -218,11 +224,10 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
               onChange={(e) => setText(e.target.value)}
             />
           </Field>
-          {error ? (
-            <p role="alert" className="text-caption font-medium text-danger">
-              {error}
-            </p>
-          ) : null}
+          {/* The refusal of a proposal is the one message in this panel a person has to act on,
+              and it was a bare paragraph: no icon, no danger surface, no tone word, so it read
+              as ordinary text at the moment it mattered most. */}
+          {error ? <Alert tone="danger">{error}</Alert> : null}
           <div className="flex gap-2">
             <PermissionGuard project={ORG_NAMESPACE} kind="AgentProfile" verb="propose">
               <Button type="submit" variant="primary" size="sm" loading={propose.isPending}>

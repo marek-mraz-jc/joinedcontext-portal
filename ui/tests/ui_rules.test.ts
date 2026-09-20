@@ -249,7 +249,8 @@ describe("the allow-list", () => {
     // The measured state of 2026-09-20. Lower these when a file is cleaned; a change that raises
     // one is a new violation, which is what this number is here to refuse.
     const budget: Record<string, { files: number; lines: number }> = {
-      hand_made_control: { files: 38, lines: 78 },
+      // 37/77 after the ui-forms batch (T-1769…T-1776) and main's own cleaning met here.
+      hand_made_control: { files: 37, lines: 77 },
       colour_is_a_token: { files: 5, lines: 41 },
       size_is_on_the_scale: { files: 19, lines: 55 },
       focus_is_not_stolen: { files: 4, lines: 7 },
