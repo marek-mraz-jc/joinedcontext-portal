@@ -609,6 +609,418 @@ mod tests {
         assert_eq!(v.refresh().await.unwrap(), 0);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // T-2089 `with_jwks_url`: what the verifier is bound to, and what its HTTP client will do.
+    // ---------------------------------------------------------------------------------------
+
+    /// AP-27: the JWKS URL is a realm address the Portal trusts. The client follows no redirect,
+    /// so whoever can answer that address cannot send the Portal to fetch its verification keys
+    /// from somewhere else — the keys would then be the redirector's and every forged token of
+    /// theirs would verify.
+    #[tokio::test]
+    async fn the_client_follows_no_redirect_so_the_keys_cannot_be_fetched_elsewhere() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let realm = MockServer::start().await;
+        let (_signer, set) = keypair("attacker");
+        Mock::given(method("GET"))
+            .and(path("/certs"))
+            .respond_with(ResponseTemplate::new(302).insert_header("location", "/elsewhere"))
+            .mount(&realm)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/elsewhere"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&set))
+            .mount(&realm)
+            .await;
+
+        let v = BearerVerifier::with_jwks_url(
+            &Url::parse(ISSUER).unwrap(),
+            "portal-api",
+            Url::parse(&format!("{}/certs", realm.uri())).unwrap(),
+        );
+        let refreshed = v.refresh().await;
+        assert!(
+            matches!(refreshed, Err(ApiError::Unavailable(_))),
+            "the redirect was followed: {refreshed:?}"
+        );
+        assert!(
+            v.key("attacker").is_none(),
+            "a redirected key set was installed"
+        );
+    }
+
+    /// AP-27: a realm that accepts the connection and never answers must not hold a Portal
+    /// request open. The client's own five-second timeout ends it.
+    #[tokio::test]
+    async fn a_realm_that_never_answers_times_out_instead_of_holding_the_request() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let realm = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/certs"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "keys": [] }))
+                    .set_delay(Duration::from_secs(60)),
+            )
+            .mount(&realm)
+            .await;
+
+        let v = BearerVerifier::with_jwks_url(
+            &Url::parse(ISSUER).unwrap(),
+            "portal-api",
+            Url::parse(&format!("{}/certs", realm.uri())).unwrap(),
+        );
+        let started = Instant::now();
+        let refreshed = v.refresh().await;
+        assert!(
+            matches!(refreshed, Err(ApiError::Unavailable(_))),
+            "{refreshed:?}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "the request was held for {:?}",
+            started.elapsed()
+        );
+    }
+
+    /// AP-27: the issuer is stored without its trailing slash, and the comparison is exact
+    /// afterwards. Both spellings of the realm URL build the same verifier, and a token whose
+    /// `iss` is the other spelling — or a realm one path segment away — is refused.
+    #[tokio::test]
+    async fn the_issuer_is_stored_without_its_slash_and_matched_exactly_afterwards() {
+        let (signer, set) = keypair("k1");
+        for spelling in [ISSUER, &format!("{ISSUER}/")] {
+            let v = BearerVerifier::with_jwks_url(
+                &Url::parse(spelling).unwrap(),
+                "portal-api",
+                Url::parse("http://127.0.0.1:9/certs").unwrap(),
+            );
+            v.install(&set);
+            assert_eq!(v.issuer, ISSUER, "{spelling}");
+            assert!(
+                v.verify(&sign(&signer, "k1", &claims(now() + 60)))
+                    .await
+                    .is_ok(),
+                "{spelling} refused the realm's own token"
+            );
+            for other in [
+                format!("{ISSUER}/"),
+                format!("{ISSUER}/sub"),
+                ISSUER.replace("/dev", "/prod"),
+                ISSUER.replace("https", "http"),
+                ISSUER.to_uppercase(),
+            ] {
+                let mut foreign = claims(now() + 60);
+                foreign["iss"] = json!(other);
+                assert!(
+                    matches!(
+                        v.verify(&sign(&signer, "k1", &foreign)).await,
+                        Err(ApiError::Unauthorized)
+                    ),
+                    "{spelling} accepted a token issued by {other}"
+                );
+            }
+        }
+    }
+
+    /// AP-28, PF-46: the verifier is bound to one audience. A token minted for another client of
+    /// the same realm is refused, and only the caller that asks for another audience by name —
+    /// the internal listener — gets one.
+    #[tokio::test]
+    async fn the_audience_is_the_one_the_verifier_was_built_with() {
+        let v = verifier();
+        let (signer, set) = keypair("k1");
+        v.install(&set);
+
+        for foreign in ["portal-internal", "broker", "portal-api ", "Portal-Api", ""] {
+            let mut other = claims(now() + 60);
+            other["aud"] = json!(foreign);
+            assert!(
+                matches!(
+                    v.verify(&sign(&signer, "k1", &other)).await,
+                    Err(ApiError::Unauthorized)
+                ),
+                "a token for {foreign:?} was taken as one for portal-api"
+            );
+        }
+
+        // The same verifier, asked for the internal audience by name, takes that one and still
+        // refuses the Portal's own.
+        let mut internal = claims(now() + 60);
+        internal["aud"] = json!("portal-internal");
+        let token = sign(&signer, "k1", &internal);
+        assert!(v
+            .verify_for_audience(&token, "portal-internal")
+            .await
+            .is_ok());
+        assert!(matches!(
+            v.verify_for_audience(&sign(&signer, "k1", &claims(now() + 60)), "portal-internal")
+                .await,
+            Err(ApiError::Unauthorized)
+        ));
+    }
+
+    /// AP-27: a verifier starts with no keys, and two verifiers share none. A token signed by a
+    /// key one of them installed is nothing to the other.
+    #[tokio::test]
+    async fn a_verifier_starts_empty_and_shares_its_keys_with_no_other() {
+        let (signer, set) = keypair("k1");
+        let first = verifier();
+        let second = verifier();
+        assert!(first.key("k1").is_none(), "a fresh verifier had a key");
+        assert_eq!(first.install(&set), 1);
+        assert!(second.key("k1").is_none(), "the cache is shared");
+        assert!(matches!(
+            second
+                .verify(&sign(&signer, "k1", &claims(now() + 60)))
+                .await,
+            Err(ApiError::Unauthorized)
+        ));
+    }
+
+    /// AP-27: the JWKS URL is taken as it is given, host and all — the realm's address inside the
+    /// cluster is not the issuer the tokens name, and `new` is the caller that derives one from
+    /// the other. Building a verifier is configuration and never panics, whatever the URL is.
+    #[test]
+    fn the_jwks_url_is_taken_as_given_and_building_one_never_panics() {
+        for jwks in [
+            "http://keycloak.identity.svc.cluster.local:8080/realms/dev/protocol/openid-connect/certs",
+            "https://idm.example.test/realms/dev/protocol/openid-connect/certs",
+            "http://127.0.0.1:9/certs",
+            "https://idm.example.test/certs?x=1#f",
+        ] {
+            let url = Url::parse(jwks).unwrap();
+            let v = BearerVerifier::with_jwks_url(
+                &Url::parse(ISSUER).unwrap(),
+                "portal-api",
+                url.clone(),
+            );
+            assert_eq!(v.jwks_url, url);
+            assert_eq!(v.issuer, ISSUER);
+            assert_eq!(v.audience, "portal-api");
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T-2090 `install`: which keys of a realm's key set become verification keys.
+    // ---------------------------------------------------------------------------------------
+
+    /// A fresh RSA key pair: the signing key and its public half as a JWK, the way Keycloak lists
+    /// the `edge` client's key (ADR-N-019).
+    fn rsa_keypair(kid: &str) -> (EncodingKey, serde_json::Value) {
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        use base64::Engine as _;
+        use rsa::pkcs1::EncodeRsaPrivateKey as _;
+        use rsa::traits::PublicKeyParts as _;
+
+        let key = rsa::RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("an rsa key");
+        let jwk = json!({
+            "kty": "RSA",
+            "kid": kid,
+            "alg": "RS256",
+            "use": "sig",
+            "n": URL_SAFE_NO_PAD.encode(key.n().to_bytes_be()),
+            "e": URL_SAFE_NO_PAD.encode(key.e().to_bytes_be()),
+        });
+        (
+            EncodingKey::from_rsa_der(key.to_pkcs1_der().expect("der").as_bytes()),
+            jwk,
+        )
+    }
+
+    fn set_of(jwks: Vec<serde_json::Value>) -> JwkSet {
+        serde_json::from_value(json!({ "keys": jwks })).expect("a key set")
+    }
+
+    fn jwk_of(set: &JwkSet) -> serde_json::Value {
+        serde_json::to_value(&set.keys[0]).expect("a jwk")
+    }
+
+    /// AP-27: a rotated realm replaces the keys it publishes. `install` replaces the cache and
+    /// never merges, so a key the realm withdrew stops verifying the moment the new set arrives.
+    #[tokio::test]
+    async fn install_replaces_the_cache_so_a_withdrawn_key_stops_verifying() {
+        let v = verifier();
+        let (old_signer, old_set) = keypair("k-old");
+        let (_new_signer, new_set) = keypair("k-new");
+        assert_eq!(v.install(&old_set), 1);
+        let old_token = sign(&old_signer, "k-old", &claims(now() + 60));
+        assert!(v.verify(&old_token).await.is_ok());
+
+        assert_eq!(v.install(&new_set), 1);
+        assert!(v.key("k-old").is_none(), "the withdrawn key was kept");
+        assert!(matches!(
+            v.verify(&old_token).await,
+            Err(ApiError::Unauthorized)
+        ));
+    }
+
+    /// AP-27: a realm that publishes an empty set has no usable key, and the Portal then verifies
+    /// nothing rather than keeping yesterday's. It fails closed.
+    #[tokio::test]
+    async fn an_empty_or_unusable_key_set_empties_the_cache() {
+        let v = verifier();
+        let (signer, set) = keypair("k1");
+        assert_eq!(v.install(&set), 1);
+
+        assert_eq!(v.install(&set_of(vec![])), 0);
+        assert!(v.key("k1").is_none());
+        assert!(matches!(
+            v.verify(&sign(&signer, "k1", &claims(now() + 60))).await,
+            Err(ApiError::Unauthorized)
+        ));
+    }
+
+    /// AP-27: a key with no `kid` cannot be looked up by a token's header, so it is dropped
+    /// rather than installed under an empty name that a header could claim.
+    #[test]
+    fn a_key_without_a_kid_is_dropped() {
+        let v = verifier();
+        let (_signer, set) = keypair("k1");
+        let mut jwk = jwk_of(&set);
+        jwk.as_object_mut().expect("an object").remove("kid");
+        assert_eq!(v.install(&set_of(vec![jwk])), 0);
+        assert!(v.key("").is_none());
+    }
+
+    /// AP-27: two keys under one `kid` collapse to one entry — the last one the realm listed —
+    /// and the count says how many keys are cached, not how many were offered.
+    #[tokio::test]
+    async fn two_keys_under_one_kid_collapse_and_the_count_is_what_is_cached() {
+        let v = verifier();
+        let (first_signer, first) = keypair("k1");
+        let (second_signer, second) = keypair("k1");
+        assert_eq!(v.install(&set_of(vec![jwk_of(&first), jwk_of(&second)])), 1);
+
+        let by_second = v
+            .verify(&sign(&second_signer, "k1", &claims(now() + 60)))
+            .await;
+        let by_first = v
+            .verify(&sign(&first_signer, "k1", &claims(now() + 60)))
+            .await;
+        assert!(by_second.is_ok(), "the last key listed is the cached one");
+        assert!(matches!(by_first, Err(ApiError::Unauthorized)));
+    }
+
+    /// TR-03187 AR-11, ADR-N-019: the realm signs ES256 and the `edge` client RS256. Both install
+    /// from one set, each verifies its own family, and neither verifies the other's.
+    #[tokio::test]
+    async fn an_es256_and_an_rs256_key_install_together_and_neither_verifies_the_others_family() {
+        let v = verifier();
+        let (ec_signer, ec_set) = keypair("realm-es256");
+        let (rsa_signer, rsa_jwk) = rsa_keypair("edge-rs256");
+        assert_eq!(v.install(&set_of(vec![jwk_of(&ec_set), rsa_jwk])), 2);
+
+        assert!(v
+            .verify(&sign(&ec_signer, "realm-es256", &claims(now() + 60)))
+            .await
+            .is_ok());
+
+        let mut rs_header = Header::new(Algorithm::RS256);
+        rs_header.kid = Some("edge-rs256".into());
+        let rs_token = encode(&rs_header, &claims(now() + 60), &rsa_signer).unwrap();
+        assert!(v.verify(&rs_token).await.is_ok());
+
+        // The RS256 header naming the EC key, and the ES256 header naming the RSA key: the key
+        // family is checked, so a header cannot borrow the other key.
+        let mut crossed = Header::new(Algorithm::RS256);
+        crossed.kid = Some("realm-es256".into());
+        let crossed = encode(&crossed, &claims(now() + 60), &rsa_signer).unwrap();
+        assert!(matches!(
+            v.verify(&crossed).await,
+            Err(ApiError::Unauthorized)
+        ));
+        assert!(matches!(
+            v.verify(&sign(&ec_signer, "edge-rs256", &claims(now() + 60)))
+                .await,
+            Err(ApiError::Unauthorized)
+        ));
+    }
+
+    /// AP-27: a signature algorithm outside ES256 and RS256 is not installed, whichever family it
+    /// belongs to — a longer curve or a longer RSA hash is still a key the Portal never agreed to
+    /// verify.
+    #[test]
+    fn a_key_whose_alg_is_neither_es256_nor_rs256_is_dropped() {
+        let v = verifier();
+        let (_signer, set) = keypair("k1");
+        for alg in [
+            "ES384", "ES512", "RS384", "RS512", "PS256", "HS256", "EdDSA",
+        ] {
+            let mut jwk = jwk_of(&set);
+            jwk["alg"] = json!(alg);
+            jwk["kid"] = json!("k-other");
+            let Ok(other) = serde_json::from_value::<JwkSet>(json!({ "keys": [jwk] })) else {
+                continue; // the library does not know the name at all, which is refusal enough
+            };
+            assert_eq!(v.install(&other), 0, "{alg} was installed");
+        }
+    }
+
+    /// AP-27: Keycloak lists a key without `alg` in some realm configurations; the key type then
+    /// decides, and an EC or RSA key installs while anything else does not.
+    #[test]
+    fn a_key_without_an_alg_installs_by_its_key_type() {
+        let v = verifier();
+        let (_signer, set) = keypair("k1");
+        let mut jwk = jwk_of(&set);
+        jwk.as_object_mut().expect("an object").remove("alg");
+        assert_eq!(v.install(&set_of(vec![jwk])), 1, "an EC key with no alg");
+
+        let (_rsa_signer, mut rsa_jwk) = rsa_keypair("k-rsa");
+        rsa_jwk.as_object_mut().expect("an object").remove("alg");
+        assert_eq!(
+            v.install(&set_of(vec![rsa_jwk])),
+            1,
+            "an RSA key with no alg"
+        );
+    }
+
+    /// AP-27: a key of the right algorithm whose material does not parse is dropped, and the keys
+    /// beside it in the same set still install — one broken entry does not take the realm down.
+    #[test]
+    fn a_key_that_does_not_parse_is_dropped_and_the_rest_of_the_set_installs() {
+        let v = verifier();
+        let (_signer, set) = keypair("k-good");
+        let mut broken = jwk_of(&set);
+        broken["kid"] = json!("k-broken");
+        broken["x"] = json!("!!!not base64!!!");
+        assert_eq!(v.install(&set_of(vec![broken, jwk_of(&set)])), 1);
+        assert!(v.key("k-good").is_some());
+        assert!(v.key("k-broken").is_none());
+    }
+
+    /// AP-27: a realm may list many keys after a rotation; all of them install and the count is
+    /// the number cached.
+    #[test]
+    fn a_long_key_set_installs_every_usable_key() {
+        let v = verifier();
+        let jwks: Vec<serde_json::Value> = (0..32)
+            .map(|i| {
+                let (_signer, set) = keypair(&format!("k{i}"));
+                jwk_of(&set)
+            })
+            .collect();
+        assert_eq!(v.install(&set_of(jwks)), 32);
+        assert!(v.key("k0").is_some() && v.key("k31").is_some());
+        assert!(v.key("k32").is_none());
+    }
+
+    /// AP-27: installing the same set twice leaves the same cache — a refresh that repeats does
+    /// not double anything or drop a key that is still published.
+    #[test]
+    fn installing_the_same_set_twice_leaves_the_same_cache() {
+        let v = verifier();
+        let (_signer, set) = keypair("k1");
+        assert_eq!(v.install(&set), 1);
+        assert_eq!(v.install(&set), 1);
+        assert!(v.key("k1").is_some());
+    }
+
     #[test]
     fn jwks_url_is_the_realm_certs_endpoint() {
         let v = BearerVerifier::new(

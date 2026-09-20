@@ -151,6 +151,30 @@ mod keys {
         .expect("a signed token")
     }
 
+    /// The ID token the realm returns from the token endpoint after an authorization code, with
+    /// the `nonce` the Portal parked in its flow cookie — the one claim that ties the answer to
+    /// the login that was started (T-1681).
+    pub fn id_token(issuer: &str, username: &str, nonce: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("realm-rs256".into());
+        encode(
+            &header,
+            &json!({
+                "iss": issuer,
+                "aud": "joinedcontext-portal",
+                "azp": "joinedcontext-portal",
+                "sub": format!("f:1:{username}"),
+                "preferred_username": username,
+                "nonce": nonce,
+                "exp": now() + 300,
+                "iat": now(),
+                "realm_access": { "roles": ["portal-viewer"] },
+            }),
+            &realm().rs256,
+        )
+        .expect("a signed id token")
+    }
+
     /// A client-credentials token as Keycloak mints it for the service account of `client`:
     /// `azp` is the client, the user name is Keycloak's `service-account-{client}`, and — with
     /// `azp` left out — what an older or foreign issuer might send.
@@ -489,6 +513,12 @@ fn refresh_token_with_exp(exp: i64) -> String {
 /// The cookies a browser would hold after a login, with the access token `access_in` seconds
 /// from expiry, encrypted with the test key `app_with_realm` configures.
 fn session_cookies(access_in: i64) -> String {
+    session_cookies_issued(access_in, -600)
+}
+
+/// [`session_cookies`], for a session that started `issued_ago` seconds ago. Two sessions of one
+/// person that started at different moments is what a logout has to tell apart (T-1678).
+fn session_cookies_issued(access_in: i64, issued_ago: i64) -> String {
     use axum::response::IntoResponse;
     use axum_extra::extract::cookie::{Key, PrivateCookieJar};
     use joinedcontext_portal::auth::session::{now_unix, store, Identity, Session};
@@ -504,7 +534,7 @@ fn session_cookies(access_in: i64) -> String {
             groups: Vec::new(),
         },
         expires_at: now + 3600,
-        issued_at: now - 600,
+        issued_at: now + issued_ago,
         id_token: "opaque-id-token-for-tests".into(),
         access_expires_at: now + access_in,
         refresh_token: Some("opaque-refresh-token-for-tests".into()),
@@ -1506,4 +1536,371 @@ async fn without_a_provider_the_token_doors_are_shut_before_the_token_is_read() 
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+// -------------------------------------------------------------------------------------------
+// T-1678, PF-46 — attack vector: session fixation, theft and logout.
+//
+// A portal session is an encrypted cookie and nothing server-side, so clearing it tells *this*
+// browser to forget it and says nothing to a copy taken off the wire, out of a shared machine or
+// out of a backup. `POST /api/v1/auth/logout` therefore marks the session revoked as well as
+// clearing the cookies, and `AppState::is_revoked` is consulted on every request
+// (`auth::session::CurrentUser`), which is what makes "the session ends at logout" true for the
+// copy too. The cookie's own flags are asserted in `auth::session`'s unit tests
+// (`every_portal_cookie_carries_the_same_flags_and_never_a_negative_age`) and the provider's
+// back channel in `a_logout_from_the_provider_ends_the_sessions_it_names`; neither is repeated.
+// -------------------------------------------------------------------------------------------
+
+/// The `x-csrf-token` value the logout below double-submits.
+const LOGOUT_CSRF: &str = "logout-double-submit-token";
+
+async fn logout_with(app: axum::Router, cookies: &str) -> StatusCode {
+    app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/logout")
+            .header(header::COOKIE, format!("{cookies}; jc_csrf={LOGOUT_CSRF}"))
+            .header("x-csrf-token", LOGOUT_CSRF)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+    .status()
+}
+
+/// PF-46: a stolen copy of the session cookie stops working the moment its owner logs out.
+#[tokio::test]
+async fn a_session_cookie_replayed_after_a_logout_is_no_longer_a_session() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    let stolen = session_cookies(300);
+
+    // The thief holds a working copy.
+    let (before, identity) = me_with(app.clone(), &[("cookie", stolen.clone())]).await;
+    assert_eq!(before, StatusCode::OK, "{identity}");
+
+    assert_eq!(logout_with(app.clone(), &stolen).await, StatusCode::OK);
+
+    // The same bytes, on the same Portal, after the owner logged out.
+    let (after, problem) = me_with(app.clone(), &[("cookie", stolen.clone())]).await;
+    assert_eq!(
+        after,
+        StatusCode::UNAUTHORIZED,
+        "a copy of the cookie outlived the logout: {problem}",
+    );
+    // And it stays refused: the mark is not spent by reading it.
+    let (again, _) = me_with(app, &[("cookie", stolen)]).await;
+    assert_eq!(again, StatusCode::UNAUTHORIZED);
+}
+
+/// PF-46: logging out of one browser does not log the person out of the other one.
+///
+/// The mark is placed at the session's own `issued_at`, so it reaches this session and every
+/// older one and stops there. Ending the sessions on other devices is the SSO logout at
+/// `endSessionUrl`, which comes back as a back-channel logout and marks the subject at `now` —
+/// a different door, with the provider's signature on it.
+#[tokio::test]
+async fn logging_out_of_one_browser_leaves_a_session_started_later_standing() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    let older = session_cookies_issued(300, -600);
+    let newer = session_cookies_issued(300, -1);
+
+    assert_eq!(logout_with(app.clone(), &older).await, StatusCode::OK);
+
+    let (older_status, _) = me_with(app.clone(), &[("cookie", older)]).await;
+    assert_eq!(older_status, StatusCode::UNAUTHORIZED);
+    let (newer_status, identity) = me_with(app, &[("cookie", newer)]).await;
+    assert_eq!(
+        newer_status,
+        StatusCode::OK,
+        "the other browser was signed out too: {identity}",
+    );
+}
+
+/// PF-46: an anonymous logout marks nobody, so it is not a way to sign other people out.
+///
+/// The route is behind the CSRF gate, so a page on another origin cannot reach it at all; this is
+/// the layer under that — even reached, a logout with no session of its own revokes nothing.
+#[tokio::test]
+async fn a_logout_without_a_session_ends_nobody_elses() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    let live = session_cookies(300);
+
+    assert_eq!(logout_with(app.clone(), "").await, StatusCode::OK);
+
+    let (status, identity) = me_with(app, &[("cookie", live)]).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "an anonymous logout ended a live session: {identity}",
+    );
+}
+
+/// PF-46: a cookie presented before there was a login never becomes one.
+///
+/// Session fixation is handing somebody a session identifier and waiting for them to sign in
+/// under it. There is no identifier to hand over here — the cookie *is* the session, sealed with
+/// a key only the Portal holds — and this is the case that says so: every shape an attacker can
+/// put in front of `jc_session` is unreadable, and none of them is treated as a session.
+#[tokio::test]
+async fn a_cookie_planted_before_a_login_is_never_a_session() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+
+    let honest = session_cookies(300);
+    let sealed = honest
+        .split("jc_session=")
+        .nth(1)
+        .and_then(|rest| rest.split(';').next())
+        .expect("the session cookie")
+        .to_owned();
+
+    for planted in [
+        // The value an attacker would like to fix: a plain identifier.
+        "jc_session=attacker-chosen-session-id".to_string(),
+        // The session as JSON, unsealed: this is what the cookie decrypts to, and presenting it
+        // directly is the shortcut the encryption exists to close.
+        format!(
+            "jc_session={}",
+            r#"{"identity":{"subject":"f:1:admin","username":"admin","roles":["portal-admin"],"groups":[]},"expires_at":9999999999,"issued_at":0,"id_token":"","access_expires_at":9999999999}"#
+        ),
+        "jc_session=".to_string(),
+        // A sealed value with one byte changed: the authentication tag is what refuses it.
+        format!("jc_session={}x", &sealed[..sealed.len() - 1]),
+        // Somebody else's cookie name, hoping the Portal reads the first thing it finds.
+        format!("jc_sess={sealed}; jc_session=attacker-chosen-session-id"),
+    ] {
+        let (status, body) = me_with(app.clone(), &[("cookie", planted.clone())]).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "{planted:.80} was taken for a session: {body}",
+        );
+    }
+
+    // The control: the sealed cookie the Portal wrote is a session, so the five above are
+    // refused for what they are and not because the door is shut.
+    let (status, _) = me_with(app, &[("cookie", honest)]).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+// -------------------------------------------------------------------------------------------
+// T-1681, PF-46 — attack vector: open redirect and code interception at login.
+//
+// The login door is already played in `login_parks_the_return_path_in_the_cookie_and_never_in_the_url`
+// (`//evil.example`, `https://evil.example`, the parameter twice, the flow cookie's flags, PKCE,
+// `state` and `nonce` in the request, and nothing of the caller's input reaching the provider) and
+// in `auth::oidc`'s unit tests for `safe_redirect` itself. The callback's refusals are played in
+// `a_refused_callback_never_mints_a_session` and `callback_with_a_foreign_state_is_refused`.
+//
+// What was missing is the *successful* callback: that the target actually followed is the
+// sanitized one, and that the code which just bought a session cannot buy a second one. Both need
+// a login that completes, which is what `complete_login` below is.
+// -------------------------------------------------------------------------------------------
+
+/// The flow the Portal parked, read back out of its own encrypted cookie.
+fn parked_flow(set_cookies: &[String]) -> (serde_json::Value, String) {
+    use axum_extra::extract::cookie::{Key, PrivateCookieJar};
+
+    let raw = set_cookies
+        .iter()
+        .find(|cookie| cookie.starts_with("jc_oidc_flow="))
+        .and_then(|cookie| cookie.split(';').next())
+        .expect("the flow cookie");
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(header::COOKIE, raw.parse().expect("a cookie header"));
+    let jar = PrivateCookieJar::from_headers(&headers, Key::from("k".repeat(64).as_bytes()));
+    let flow = jar.get("jc_oidc_flow").expect("the Portal's own seal");
+    (
+        serde_json::from_str(flow.value()).expect("the parked flow"),
+        raw.to_owned(),
+    )
+}
+
+/// Starts a login, mounts a token endpoint that answers the code with an ID token carrying the
+/// nonce the Portal parked, and returns the callback's response.
+///
+/// `code` is what the browser brings back; mounting the endpoint per call is what lets a second
+/// call replay the same one.
+async fn complete_login(
+    realm: &MockServer,
+    app: &axum::Router,
+    redirect_to: &str,
+) -> (String, String, axum::response::Response) {
+    let started = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/auth/login?redirect_to={redirect_to}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(started.status(), StatusCode::SEE_OTHER);
+    let (flow, flow_cookie) = parked_flow(&set_cookie_values(&started));
+    let csrf_state = flow["csrf_state"].as_str().expect("a state").to_owned();
+    let nonce = flow["nonce"].as_str().expect("a nonce").to_owned();
+
+    let id_token = keys::id_token(&issuer_of(realm), "demo.steward", &nonce);
+
+    let code = "authorization-code-from-the-realm";
+    // The realm as RFC 6749 §4.1.2 requires it: an authorization code is good once. The success
+    // answer has the higher priority and is good for one call; every exchange after it falls
+    // through to `invalid_grant`, which is what Keycloak answers a code it has already spent.
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
+        .and(wiremock::matchers::body_string_contains(
+            "grant_type=authorization_code",
+        ))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+            "error": "invalid_grant",
+            "error_description": "Code not valid",
+        })))
+        .with_priority(2)
+        .mount(realm)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
+        .and(wiremock::matchers::body_string_contains(
+            "grant_type=authorization_code",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "opaque-access-token",
+            "token_type": "Bearer",
+            "expires_in": 300,
+            "refresh_token": "opaque-refresh-token",
+            "id_token": id_token,
+        })))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(realm)
+        .await;
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/auth/callback?code={code}&state={csrf_state}"
+                ))
+                .header(header::COOKIE, flow_cookie.clone())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    (
+        code.to_owned(),
+        format!("{flow_cookie}|{csrf_state}"),
+        response,
+    )
+}
+
+/// PF-46: the place the browser lands after a login is the sanitized path, never the caller's.
+///
+/// `safe_redirect` runs at the login door, so what the callback follows is whatever was parked.
+/// This is the end of that chain: a tampered `redirect_to` really does end on the Portal's own
+/// home page, and an honest one really does come back.
+#[tokio::test]
+async fn a_completed_login_lands_on_this_portal_and_never_where_the_caller_asked() {
+    for (asked, landed) in [
+        ("/projects/helsinki/spaces", "/projects/helsinki/spaces"),
+        ("%2F%2Fevil.example%2Fsecret", "/"),
+        ("https%3A%2F%2Fevil.example", "/"),
+        ("%2F%5Cevil.example", "/"),
+        ("", "/"),
+    ] {
+        let realm = realm().await;
+        let app = app_with_realm(&realm).await;
+        let (_, _, response) = complete_login(&realm, &app, asked).await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "{asked}");
+        let location = response
+            .headers()
+            .get(header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert_eq!(location, landed, "{asked} landed on {location}");
+        assert!(
+            set_cookie_values(&response)
+                .iter()
+                .any(|cookie| cookie.starts_with("jc_session=")),
+            "{asked}: no session was minted",
+        );
+    }
+}
+
+/// PF-46: the code that bought a session cannot buy a second one.
+///
+/// A code reaches a place it should not from a shared machine's history, a referrer or a proxy
+/// log. Two locks answer that, and the case exercises both:
+///
+/// * the Portal removes the flow cookie before it exchanges anything, so a replay in the
+///   victim's own browser has no login in flight and is refused before the token endpoint is
+///   called at all;
+/// * a replay that also carries a copy of the flow cookie gets as far as the exchange, and the
+///   realm refuses the code the second time (RFC 6749 §4.1.2, `invalid_grant`). The realm in this
+///   test enforces that rule the way Keycloak does, which is what makes the dependency explicit
+///   rather than assumed.
+///
+/// Either way nothing is minted, and the session the honest login won is left standing.
+#[tokio::test]
+async fn an_authorization_code_replayed_after_it_bought_a_session_buys_nothing() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    let (code, flow_and_state, first) = complete_login(&realm, &app, "/projects/helsinki").await;
+    assert_eq!(first.status(), StatusCode::SEE_OTHER);
+
+    let (flow_cookie, csrf_state) = flow_and_state.split_once('|').expect("both parked values");
+    let session_cookie = set_cookie_values(&first)
+        .into_iter()
+        .find(|cookie| cookie.starts_with("jc_session="))
+        .and_then(|cookie| cookie.split(';').next().map(str::to_owned))
+        .expect("the session the first callback minted");
+
+    // The flow cookie is gone from the browser after a successful callback, so the honest replay
+    // carries none; the attacker's replay carries the copy they intercepted with the code, and
+    // the third carries the session the first callback minted.
+    for (what, cookie) in [
+        ("with no login in flight", String::new()),
+        ("with the intercepted flow cookie", flow_cookie.to_owned()),
+        (
+            "with the session the code already bought",
+            session_cookie.clone(),
+        ),
+    ] {
+        let mut request = Request::builder().uri(format!(
+            "/api/v1/auth/callback?code={code}&state={csrf_state}"
+        ));
+        if !cookie.is_empty() {
+            request = request.header(header::COOKIE, &cookie);
+        }
+        let replay = app
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            replay.status(),
+            StatusCode::BAD_REQUEST,
+            "the replay {what}"
+        );
+        let minted: Vec<String> = set_cookie_values(&replay)
+            .into_iter()
+            .filter(|cookie| cookie.starts_with("jc_session=") && !cookie.contains("Max-Age=0"))
+            .collect();
+        assert!(
+            minted.is_empty(),
+            "the replay {what} minted a session: {minted:?}",
+        );
+    }
+
+    // The session the honest login won is untouched by the three refusals.
+    let (status, _) = me_with(app, &[("cookie", session_cookie)]).await;
+    assert_eq!(status, StatusCode::OK);
 }

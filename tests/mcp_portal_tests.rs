@@ -1612,3 +1612,208 @@ async fn a_browser_client_may_reach_the_mcp_door_and_not_the_cookie_api() {
         "the session-cookie API stays same-origin: {other:?}"
     );
 }
+
+// -------------------------------------------------------------------------------------------------
+// T-1690 attack vector: the MCP endpoint without a token, with another audience, or as a confused
+// deputy (AG-64, PF-46, RFC 9728)
+// -------------------------------------------------------------------------------------------------
+
+/// **The attack.** Call `/mcp` with no token, with a Portal session cookie only, with a token issued
+/// for the gateway's audience, and from a browser origin — and then with those combined, which is
+/// the step the four single cases leave open: a cookie beside a token that does not verify, so the
+/// door might fall back to the cookie and act as the confused deputy of whoever is signed in.
+///
+/// **The defence.** The door reads `Authorization` and nothing else
+/// (`src/mcp/mod.rs::handle_mcp`), so a cookie neither opens it nor is consulted when a token
+/// fails, and an `Origin` lends no authority of its own. Every refusal is the one 401 with the
+/// pointer to the metadata document, whatever was presented.
+///
+/// Already played elsewhere and not repeated here: the token-less and cookie-only shapes
+/// (`edge_mcp_doors_tests.rs::one_401_for_every_shape_that_is_not_a_bearer`,
+/// `mcp_session_cookie_only_returns_401`), the gateway's audience alone
+/// (`mcp_wrong_audience_bearer_returns_401_with_www_authenticate`), and the browser client's
+/// preflight (`a_browser_client_may_reach_the_mcp_door_and_not_the_cookie_api`).
+#[tokio::test]
+async fn no_cookie_and_no_origin_opens_the_mcp_door_a_failed_token_closed() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let for_the_gateway = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        "context-gateway",
+        "attacker.user",
+        &["portal-approver"],
+        &["city-viewers"],
+    );
+    let call = json!({ "jsonrpc": "2.0", "id": 90, "method": "tools/list" });
+
+    // Every shape that must not get in, including the ones that carry a cookie and an origin
+    // beside a token the Portal will not accept.
+    let refused: Vec<(&str, Vec<(&str, String)>)> = vec![
+        ("nothing at all", vec![]),
+        (
+            "a session cookie only",
+            vec![(header::COOKIE.as_str(), "jc_session=whatever".to_owned())],
+        ),
+        (
+            "the gateway's audience",
+            vec![(
+                header::AUTHORIZATION.as_str(),
+                format!("Bearer {for_the_gateway}"),
+            )],
+        ),
+        (
+            "the gateway's audience beside a session cookie",
+            vec![
+                (
+                    header::AUTHORIZATION.as_str(),
+                    format!("Bearer {for_the_gateway}"),
+                ),
+                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+            ],
+        ),
+        (
+            "a session cookie from a browser origin",
+            vec![
+                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+                (header::ORIGIN.as_str(), "https://evil.example".to_owned()),
+            ],
+        ),
+        (
+            "the gateway's audience from a browser origin",
+            vec![
+                (
+                    header::AUTHORIZATION.as_str(),
+                    format!("Bearer {for_the_gateway}"),
+                ),
+                (header::ORIGIN.as_str(), "https://evil.example".to_owned()),
+                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+            ],
+        ),
+    ];
+
+    let mut challenges = Vec::new();
+    for (what, headers) in refused {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/mcp")
+            .header(header::CONTENT_TYPE, "application/json");
+        for (name, value) in &headers {
+            request = request.header(*name, value);
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                request
+                    .body(Body::from(serde_json::to_vec(&call).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::UNAUTHORIZED,
+            "{what} opened the MCP door"
+        );
+        let challenge = response
+            .headers()
+            .get(header::WWW_AUTHENTICATE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned();
+        assert!(
+            challenge.contains("resource_metadata="),
+            "{what}: the challenge does not point at the metadata document: {challenge:?}"
+        );
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        assert!(
+            !text.contains("public-air") && !text.contains("jc_catalog_search"),
+            "{what}: a refused call answered with what is behind the door: {text}"
+        );
+        challenges.push((what, challenge));
+    }
+    // One challenge for all of them: what was presented is never a signal to whoever is probing.
+    assert!(
+        challenges.windows(2).all(|pair| pair[0].1 == pair[1].1),
+        "the challenge differs by what was presented: {challenges:?}"
+    );
+}
+
+/// PF-46, AG-64: the door is opened by an audience-bound token alone, so a cookie beside a token
+/// that *does* verify changes nothing either — the caller is the token's subject, never the
+/// cookie's. This is the other half of the confused deputy: the first case proves a cookie cannot
+/// open the door, this one proves it cannot redirect it.
+#[tokio::test]
+async fn a_verified_token_is_the_caller_whatever_cookie_travels_with_it() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let token = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "viewer.user",
+        &[],
+        &["city-viewers"],
+    );
+    let call = json!({ "jsonrpc": "2.0", "id": 91, "method": "tools/list" });
+
+    let mut answers = Vec::new();
+    for cookie in ["", "jc_session=whatever", "jc_session="] {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/mcp")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .header(header::ORIGIN, "https://client.example")
+            .header(header::CONTENT_TYPE, "application/json");
+        if !cookie.is_empty() {
+            request = request.header(header::COOKIE, cookie);
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                request
+                    .body(Body::from(serde_json::to_vec(&call).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "an audience-bound token was refused because a cookie travelled with it ({cookie:?})"
+        );
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).expect("a JSON-RPC answer");
+        let mut tools: Vec<String> = body["result"]["tools"]
+            .as_array()
+            .expect("the tools of this caller")
+            .iter()
+            .filter_map(|tool| tool["name"].as_str().map(str::to_owned))
+            .collect();
+        tools.sort();
+        assert!(
+            !tools.is_empty(),
+            "the token opened the door and was offered nothing, so this case proves nothing"
+        );
+        answers.push(tools);
+    }
+    assert!(
+        answers.windows(2).all(|pair| pair[0] == pair[1]),
+        "the tools offered changed with the cookie that travelled: {answers:#?}"
+    );
+    // And the operations a person must perform are not among them, whichever cookie came along
+    // (AG-11, T-1689).
+    for tools in &answers {
+        for reserved in [
+            "jc_change_approve",
+            "jc_change_reject",
+            "jc_workspace_propose",
+        ] {
+            assert!(
+                !tools.contains(&reserved.to_owned()),
+                "{reserved} was offered to a viewer over MCP: {tools:?}"
+            );
+        }
+    }
+}

@@ -95,11 +95,6 @@
     "summary": "Queries Elasticsearch and replaces messages with the result."
   },
   {
-    "name": "file",
-    "category": "Local",
-    "summary": "Performs operations (read, write, delete, move, rename, stat) on files."
-  },
-  {
     "name": "for_each",
     "category": "Composition",
     "summary": "A processor that applies a list of child processors to messages of a batch as though they were each a batch of one message."
@@ -202,22 +197,22 @@
   {
     "name": "nlp_classify_text",
     "category": "Machine Learning",
-    "summary": "Performs text classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs text classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_classify_tokens",
     "category": "Machine Learning",
-    "summary": "Performs token classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs token classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_extract_features",
     "category": "Machine Learning",
-    "summary": "Performs feature extraction using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs feature extraction using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_zero_shot_classify",
     "category": "Machine Learning",
-    "summary": "Performs zero-shot text classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs zero-shot text classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "noop",

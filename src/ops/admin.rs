@@ -505,7 +505,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<KeyMintInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_service_account_key_mint")?;
                     let input: KeyMintInput = parse_input(val)?;
                     let body = json!({
                         "credential": input.credential,
@@ -539,7 +539,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<KeyRotateInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_service_account_key_rotate")?;
                     let input: KeyRotateInput = parse_input(val)?;
                     let body = json!({ "overlapHours": input.overlap_hours });
                     let (_, axum::Json(minted)) = crate::api::service_accounts::rotate_key(
@@ -570,7 +570,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<KeyRevokeInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_service_account_key_revoke")?;
                     let input: KeyRevokeInput = parse_input(val)?;
                     crate::api::service_accounts::revoke_key(
                         as_user(caller),
