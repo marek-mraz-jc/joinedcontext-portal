@@ -26,6 +26,14 @@ export default defineConfig({
     },
   },
   server: {
+    // `@joinedcontext/sdk` is `link:../sdk` and its package entry is TypeScript source, not a
+    // built bundle, so Vite serves it over `/@fs/` — which `server.fs.allow` guards. Vite 8
+    // derives that allow-list from the nearest package root, `ui/`, where Vite 5 walked up to
+    // the `.git` directory; `../sdk` became unreachable and every test file that imports the
+    // SDK failed to collect with "Cannot find module /@fs/.../sdk/src/…", 86 of 142 of them.
+    // The sibling package is named on its own rather than the repository root, so nothing else
+    // outside `ui/` is served.
+    fs: { allow: [".", "../sdk"] },
     port: 5173,
     proxy: {
       "/api": "http://localhost:8080",
