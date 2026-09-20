@@ -18,7 +18,7 @@ export { Field, fieldIds } from "./Field";
 export type { FieldProps } from "./Field";
 export { Icon } from "./icons";
 export type { IconName, IconProps } from "./icons";
-export { CONTROL, Input, Select, Textarea } from "./Input";
+export { CHECKBOX, CONTROL, Input, Select, Textarea } from "./Input";
 export type { InputProps, SelectProps, TextareaProps } from "./Input";
 export { PageHeader } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";

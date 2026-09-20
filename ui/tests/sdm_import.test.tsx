@@ -73,7 +73,7 @@ slots:
     slot_uri: sdm:dateObserved
 `;
 
-function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: string[]; previewStatus?: number } = {}) {
+function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: string[]; previewStatus?: number; linkml?: string } = {}) {
   const onImport = vi.fn();
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -91,7 +91,7 @@ function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: 
         JSON.stringify(
           options.previewStatus && options.previewStatus >= 400
             ? { status: options.previewStatus, title: "Service Unavailable" }
-            : { linkml: IMPORTED },
+            : { linkml: options.linkml ?? IMPORTED },
         ),
         {
           status: options.previewStatus ?? 200,
@@ -271,6 +271,71 @@ describe("Smart Data Models import wizard", () => {
     renderWizard({ catalogue: { title: "Service Unavailable" }, status: 503 });
 
     expect(await screen.findByText(/The catalogue is not reachable/)).toBeInTheDocument();
+  });
+
+  // UI-15, UI-16 (T-1851): the catalogue holds about a thousand models; listed all at once it
+  // made a page 92 000 px tall on dev with the preview left at the top of it.
+  it("lists a page of a large catalogue inside a bounded region and the rest on request", async () => {
+    const many = {
+      ...CATALOGUE,
+      subjects: [
+        {
+          name: "dataModel.Many",
+          title: "Many",
+          models: Array.from({ length: 150 }, (_, index) => ({
+            id: `dataModel.Many/Model${index}`,
+            name: `Model${index}`,
+          })),
+        },
+      ],
+    };
+    const { user } = renderWizard({ catalogue: many });
+
+    expect(await screen.findByText("150 models")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Model\d+$/ })).toHaveLength(60);
+    const list = screen.getByRole("button", { name: "Model0" }).closest("ul")?.parentElement?.closest("ul");
+    expect(list?.className).toMatch(/max-h-96/);
+    expect(list?.className).toMatch(/overflow-auto/);
+
+    await user.click(screen.getByRole("button", { name: "Show 90 more" }));
+    expect(screen.getAllByRole("button", { name: /^Model\d+$/ })).toHaveLength(150);
+    expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).not.toBeInTheDocument();
+
+    // A new search starts from a page again: the person narrowed it, the page is enough.
+    await user.type(screen.getByLabelText(en.models.sdm.search), "Model1");
+    await waitFor(() => expect(screen.getByText("61 models")).toBeInTheDocument());
+    expect(screen.getAllByRole("button", { name: /^Model\d+$/ })).toHaveLength(60);
+  });
+
+  // UI-15 (T-1851): the wait is announced and an unreachable catalogue is not called empty.
+  it("announces the wait for the catalogue, and an unreachable one is not an empty one", async () => {
+    renderWizard({ status: 503 });
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.sdm.catalogueLoading);
+    expect(await screen.findByText(en.models.sdm.unavailable)).toBeInTheDocument();
+    expect(screen.queryByText(en.models.sdm.noMatches)).not.toBeInTheDocument();
+    expect(screen.queryByText(en.models.sdm.catalogueLoading)).not.toBeInTheDocument();
+  });
+
+  // UI-16, DM-11 (T-1851): keeping 8 attributes of 46 must not take 38 clicks.
+  it("keeps only the required attributes with one button, and all of them with the other", async () => {
+    const withRequired = IMPORTED.replace("  dateObserved:\n    range: datetime", "  dateObserved:\n    required: true\n    range: datetime");
+    const { user, onImport } = renderWizard({ linkml: withRequired });
+
+    await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+    await screen.findByLabelText("pm10");
+    expect(screen.getByText("3 of 3 attributes kept")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: en.models.sdm.onlyRequired }));
+    expect(screen.getByText("1 of 3 attributes kept")).toBeInTheDocument();
+    expect(screen.getByLabelText("pm10")).not.toBeChecked();
+    expect(screen.getByLabelText(/dateObserved/)).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
+    const imported = parseModel(onImport.mock.calls[0][0] as string);
+    expect(imported.slots.filter((slot) => slot.deprecated).map((slot) => slot.name)).toEqual(["pm10", "pm25"]);
+
+    await user.click(screen.getByRole("button", { name: en.models.sdm.allAttributes }));
+    expect(screen.getByText("3 of 3 attributes kept")).toBeInTheDocument();
   });
 
   it("marks every unpicked slot and nothing else", () => {

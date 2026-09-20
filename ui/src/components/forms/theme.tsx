@@ -35,16 +35,13 @@ import type {
 } from "@rjsf/utils";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import { Button, CONTROL, Field, Icon, Select, Textarea } from "../ui";
+import { Button, CHECKBOX, CONTROL, Field, Icon, Select, Textarea } from "../ui";
 import { askAbout, formContext, inField } from "../../assistant/state";
 
 /** What the form renders beside its submit: a cancel, a secondary action. */
 export const FormActionsContext = createContext<ReactNode>(null);
 /** What a caller puts under the last field and above the submit line (a panel, a preview). */
 export const FormAfterFieldsContext = createContext<ReactNode>(null);
-
-const CHECKBOX =
-  "focus-ring size-4 shrink-0 cursor-pointer rounded-sm border-border-strong accent-[var(--portal-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 
 // ---------------------------------------------------------------------------------------------
 // Templates

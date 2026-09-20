@@ -6,6 +6,10 @@ import { clsx } from "clsx";
 export const CONTROL =
   "focus-ring w-full rounded-md border border-border bg-surface text-body text-fg shadow-1 transition-colors placeholder:text-fg-subtle hover:border-border-strong focus-visible:border-ring disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60 aria-[invalid=true]:border-danger read-only:bg-surface-subtle";
 
+/** The one checkbox of the Portal: the form theme and every hand-placed tick box share it. */
+export const CHECKBOX =
+  "focus-ring size-4 shrink-0 cursor-pointer rounded-sm border-border-strong accent-[var(--portal-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(

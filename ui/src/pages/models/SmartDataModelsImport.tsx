@@ -6,7 +6,7 @@ import { clsx } from "clsx";
 import { api, unwrap } from "../../api/client";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { Alert, Button, Input, Select } from "../../components/ui";
+import { Alert, Button, CHECKBOX, Input, Select, Skeleton } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -48,6 +48,13 @@ export interface SmartDataModelsImportProps {
 
 /** How many attributes the panel shows before "show the rest": a list, not a scroll box. */
 const ATTRIBUTE_PAGE = 50;
+
+/**
+ * How many models the catalogue lists before "show the rest". The catalogue holds about a
+ * thousand; all of them at once made a page 92 000 px tall on dev, with the preview left at the
+ * top of it (T-1851). Searching is the way through a thousand names, the page is for the first look.
+ */
+const MODEL_PAGE = 60;
 
 /** Whether a model answers the search, by name, description or attribute name. */
 export function matches(model: CatalogueModel, needle: string): boolean {
@@ -93,6 +100,7 @@ export function SmartDataModelsImport({
   /** What the person typed to find an attribute among the two hundred a model may have. */
   const [attribute, setAttribute] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [showAllModels, setShowAllModels] = useState(false);
   const [space, setSpace] = useState("");
 
   const catalogue = useQuery({
@@ -129,6 +137,20 @@ export function SmartDataModelsImport({
         .filter((entry) => entry.models.length > 0),
     [subjects, subject, search],
   );
+  const matching = visible.reduce((count, entry) => count + entry.models.length, 0);
+  const listed = useMemo(() => {
+    if (showAllModels) {
+      return visible;
+    }
+    // Each subject takes what the page still has room for after the subjects before it.
+    return visible
+      .map((entry, index) => {
+        const before = visible.slice(0, index).reduce((count, prior) => count + prior.models.length, 0);
+        return { ...entry, models: entry.models.slice(0, Math.max(0, MODEL_PAGE - before)) };
+      })
+      .filter((entry) => entry.models.length > 0);
+  }, [visible, showAllModels]);
+  const unlisted = matching - listed.reduce((count, entry) => count + entry.models.length, 0);
 
   const imported = preview.data?.linkml;
   const model = useMemo(() => (imported ? parseModel(imported) : undefined), [imported]);
@@ -172,12 +194,18 @@ export function SmartDataModelsImport({
             aria-label={t("models.sdm.search")}
             placeholder={t("models.sdm.search")}
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setShowAllModels(false);
+            }}
           />
           <Select
             aria-label={t("models.sdm.subject")}
             value={subject}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              setShowAllModels(false);
+            }}
           >
             <option value="">{t("models.sdm.allSubjects")}</option>
             {subjects.map((entry) => (
@@ -205,13 +233,35 @@ export function SmartDataModelsImport({
           </Alert>
         ) : null}
 
-        <ul className="flex flex-col gap-3">
-          {visible.map((entry) => (
+        {catalogue.isLoading ? (
+          <div role="status" className="flex flex-col gap-2">
+            <span className="sr-only">{t("models.sdm.catalogueLoading")}</span>
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : null}
+        {matching > 0 ? (
+          <p className="text-caption text-fg-muted">{t("models.sdm.count", { count: matching })}</p>
+        ) : null}
+
+        <ul
+          className={clsx(
+            "flex max-h-96 flex-col gap-3 overflow-auto",
+            listed.length > 0 && "rounded-md border border-border p-2",
+          )}
+        >
+          {listed.map((entry) => (
             <li key={entry.name}>
-              <h4 className="text-sm font-semibold">{entry.title ?? entry.name}</h4>
+              <h3 className="px-2.5 text-caption font-semibold text-fg-muted">
+                {entry.title ?? entry.name}
+              </h3>
               <ul className="mt-1 flex flex-col gap-1">
                 {entry.models.map((model) => (
                   <li key={model.id}>
+                    {/* A two-line option of a list, not an action: the shared Button is one
+                        line of fixed height, so this stays a plain button with the focus ring. */}
                     <button
                       type="button"
                       onClick={() => {
@@ -239,12 +289,20 @@ export function SmartDataModelsImport({
             </li>
           ))}
         </ul>
-        {!catalogue.isLoading && visible.length === 0 ? (
-          <p className="text-sm text-surface-fg/70">{t("models.sdm.noMatches")}</p>
+        {unlisted > 0 ? (
+          <Button size="sm" className="self-start" onClick={() => setShowAllModels(true)}>
+            {t("models.sdm.showMore", { count: unlisted })}
+          </Button>
+        ) : null}
+        {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
+          <p className="text-body text-fg-muted">{t("models.sdm.noMatches")}</p>
         ) : null}
       </section>
 
-      <section aria-labelledby="sdm-preview" className="flex flex-col gap-3">
+      <section
+        aria-labelledby="sdm-preview"
+        className="flex flex-col gap-3 lg:sticky lg:top-4 lg:self-start"
+      >
         <h2 id="sdm-preview" className="text-base font-semibold">
           {t("models.sdm.preview")}
         </h2>
@@ -267,6 +325,26 @@ export function SmartDataModelsImport({
         ) : imported ? (
           <>
             <p className="text-body">{t("models.sdm.keepAll")}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => setKeep(upstreamSlots)}>
+                {t("models.sdm.allAttributes")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() =>
+                  setKeep(
+                    (model?.slots ?? [])
+                      .filter((slot) => slot.required === true)
+                      .map((slot) => slot.name),
+                  )
+                }
+              >
+                {t("models.sdm.onlyRequired")}
+              </Button>
+              <span role="status" className="text-caption text-fg-muted">
+                {t("models.sdm.kept", { kept: chosen.length, total: upstreamSlots.length })}
+              </span>
+            </div>
             <Input
               className="w-full"
               type="search"
@@ -278,12 +356,13 @@ export function SmartDataModelsImport({
                 setShowAll(false);
               }}
             />
-            <ul className="flex max-h-56 flex-col gap-1 overflow-auto text-body">
+            <ul className="flex max-h-56 flex-col gap-1 overflow-auto rounded-md border border-border p-2 text-body">
               {shown.map((slot) => (
                 <li key={slot.name}>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
+                      className={CHECKBOX}
                       checked={chosen.includes(slot.name)}
                       onChange={(event) =>
                         setKeep(

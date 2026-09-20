@@ -1139,7 +1139,12 @@
       "showMore": "Zobraziť ďalších {count}",
       "noAttribute": "Žiadny atribút tohto modelu nezodpovedá.",
       "space": "Priestor pre tento model",
-      "spaceLater": "Vybrať neskôr, v editore"
+      "spaceLater": "Vybrať neskôr, v editore",
+      "catalogueLoading": "Načítava sa katalóg…",
+      "count": "{count, plural, one {# model} few {# modely} other {# modelov}}",
+      "allAttributes": "Všetky",
+      "onlyRequired": "Len povinné",
+      "kept": "Ponechané atribúty: {kept} z {total}"
     },
     "addClass": "Pridať triedu",
     "addSlot": "Pridať atribút",

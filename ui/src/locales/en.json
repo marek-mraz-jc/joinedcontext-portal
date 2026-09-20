@@ -1153,7 +1153,12 @@
       "showMore": "Show {count} more",
       "noAttribute": "No attribute of this model matches.",
       "space": "Space for this model",
-      "spaceLater": "Choose later, in the editor"
+      "spaceLater": "Choose later, in the editor",
+      "catalogueLoading": "Loading the catalogue…",
+      "count": "{count, plural, one {# model} other {# models}}",
+      "allAttributes": "All",
+      "onlyRequired": "Only required",
+      "kept": "{kept} of {total} attributes kept"
     },
     "addClass": "Add class",
     "addSlot": "Add slot",

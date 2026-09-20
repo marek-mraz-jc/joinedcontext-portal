@@ -1139,7 +1139,12 @@
       "showMore": "Zobrazit dalších {count}",
       "noAttribute": "Žádný atribut tohoto modelu neodpovídá.",
       "space": "Prostor pro tento model",
-      "spaceLater": "Vybrat později, v editoru"
+      "spaceLater": "Vybrat později, v editoru",
+      "catalogueLoading": "Načítá se katalog…",
+      "count": "{count, plural, one {# model} few {# modely} other {# modelů}}",
+      "allAttributes": "Všechny",
+      "onlyRequired": "Jen povinné",
+      "kept": "Ponechané atributy: {kept} z {total}"
     },
     "addClass": "Přidat třídu",
     "addSlot": "Přidat atribut",

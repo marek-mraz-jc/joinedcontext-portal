@@ -1139,7 +1139,12 @@
       "showMore": "{count} weitere anzeigen",
       "noAttribute": "Kein Attribut dieses Modells passt.",
       "space": "Raum für dieses Modell",
-      "spaceLater": "Später im Editor wählen"
+      "spaceLater": "Später im Editor wählen",
+      "catalogueLoading": "Katalog wird geladen…",
+      "count": "{count, plural, one {# Modell} other {# Modelle}}",
+      "allAttributes": "Alle",
+      "onlyRequired": "Nur erforderliche",
+      "kept": "{kept} von {total} Attributen behalten"
     },
     "addClass": "Klasse hinzufügen",
     "addSlot": "Attribut hinzufügen",
