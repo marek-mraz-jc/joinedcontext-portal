@@ -8,6 +8,9 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
+import en from "../src/locales/en.json";
+import { AgentAccess } from "../src/pages/assistant/AgentAccess";
+import { expectNoAxeViolations, json, problem, renderPart } from "./page_contract";
 import { answeringChecks, checksSoFar } from "./checks";
 
 const PROJECT = "helsinki";
@@ -121,5 +124,55 @@ describe("Agent access on the Assistant page (UI-56)", () => {
     expect(await screen.findByText("pr-7")).toBeInTheDocument();
     // Checked before it was proposed (PF-57, T-0956).
     expect(checksSoFar().some((check) => check.includes("PUT /api/v1/projects/org/agentprofiles/app-builder"))).toBe(true);
+  });
+});
+
+/**
+ * The panel on its own (T-2137): the three answers it owes before it can list a profile — in
+ * flight, refused, and a project whose agent holds nothing. The order they are decided in is
+ * what the panel got wrong once: while the request was on its way both branches fell through
+ * and the heading stood over blank space, which reads as "no access" and is not.
+ */
+describe("the agent access panel, mounted on its own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const mounted = (answer: (url: URL) => Response | undefined) =>
+    renderPart(<AgentAccess project="helsinki" />, { answer });
+
+  it("says it is reading rather than showing an empty panel", () => {
+    mounted(() => undefined as never);
+    expect(screen.getByRole("heading", { name: en.assistantPage.access.title })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(en.app.loading);
+  });
+
+  it("says what the API said when the read is refused, and offers to ask again", async () => {
+    mounted((url) =>
+      url.pathname.endsWith("/assistant/access")
+        ? problem(403, "You may not read the agent's access in helsinki.")
+        : undefined,
+    );
+    const failed = await screen.findByRole("alert");
+    // The server's own sentence, not a generic one: a 403 and a 500 must not read the same.
+    expect(failed).toHaveTextContent("You may not read the agent's access in helsinki.");
+    expect(failed).toHaveTextContent(en.assistantPage.access.title);
+    expect(failed.textContent).not.toContain(en.app.error.generic);
+  });
+
+  it("says plainly that the agent holds no profile here", async () => {
+    mounted((url) =>
+      url.pathname.endsWith("/assistant/access") ? json({ items: [] }) : undefined,
+    );
+    expect(await screen.findByText(en.assistantPage.access.none)).toBeInTheDocument();
+    expect(screen.getByText(en.assistantPage.access.noneHint)).toBeInTheDocument();
+  });
+
+  it("has no axe violation in any of the three", async () => {
+    const empty = renderPart(<AgentAccess project="helsinki" />, {
+      answer: (url) => (url.pathname.endsWith("/assistant/access") ? json({ items: [] }) : undefined),
+    });
+    await screen.findByText(en.assistantPage.access.none);
+    await expectNoAxeViolations(empty.container);
   });
 });

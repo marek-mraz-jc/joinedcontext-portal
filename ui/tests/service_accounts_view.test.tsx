@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { ServiceAccounts } from "../src/pages/access/ServiceAccounts";
+import { expectNoAxeViolations, json, list, problem, renderPart } from "./page_contract";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -235,5 +237,53 @@ describe("service accounts view", () => {
     expect(
       fetchMock.mock.calls.some((call) => String((call[0] as Request).url ?? call[0]).includes("/keys")),
     ).toBe(false);
+  });
+});
+
+/**
+ * The panel on its own (T-2137): what it shows before there is a list — the wait, the refusal in
+ * the API's own words, and a project that holds no service account yet. A key is never among
+ * them: the panel asks for keys only where the caller may propose one (PF-40).
+ */
+describe("the service accounts panel, mounted on its own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const mounted = (answer: (url: URL) => Response | undefined) =>
+    renderPart(<ServiceAccounts project="helsinki" />, { answer });
+
+  it("announces the wait instead of an empty heading", () => {
+    mounted(() => undefined as never);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("says what the API said when the list is refused, with a way to ask again", async () => {
+    mounted((url) =>
+      url.pathname.endsWith("/serviceaccounts")
+        ? problem(403, "You may not read the service accounts of helsinki.")
+        : undefined,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("You may not read the service accounts of helsinki.");
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
+  it("says the project holds none yet, and asks for no key while it holds none", async () => {
+    const seen: string[] = [];
+    mounted((url) => {
+      seen.push(url.pathname);
+      return url.pathname.endsWith("/serviceaccounts") ? json(list([])) : undefined;
+    });
+    expect(await screen.findByText(en.access.accounts.empty)).toBeInTheDocument();
+    expect(seen.some((path) => path.includes("/keys")), "no key is read for an empty list").toBe(false);
+  });
+
+  it("has no axe violation", async () => {
+    const { container } = renderPart(<ServiceAccounts project="helsinki" />, {
+      answer: (url) => (url.pathname.endsWith("/serviceaccounts") ? json(list([])) : undefined),
+    });
+    await screen.findByText(en.access.accounts.empty);
+    await expectNoAxeViolations(container);
   });
 });

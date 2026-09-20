@@ -10,6 +10,8 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { onOpenRequest } from "../src/assistant/state";
+import { AssistantPage } from "../src/pages/assistant/AssistantPage";
+import { expectHeadingOutline, expectNoAxeViolations, json, renderPage } from "./page_contract";
 
 const PROJECT = "banskabystrica";
 
@@ -458,5 +460,49 @@ describe("Assistant page", () => {
     expect(
       await screen.findByText("application 'city-dashboard' already has a live run: run-work-1"),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The page on its own (T-2137): what it says before any run exists, and that the list it shows
+ * is the one the API answered — the filters narrow what is already there and ask for nothing a
+ * person may not see.
+ */
+describe("the assistant page, mounted on its own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const mounted = (answer: (url: URL) => Response | undefined) =>
+    renderPage(<AssistantPage project="helsinki" />, {
+      answer,
+      path: "/projects/helsinki/assistant",
+    });
+
+  it("says there is nothing yet, and offers the way to start", async () => {
+    mounted((url) => (url.pathname.endsWith("/agent-runs") ? json({ items: [] }) : undefined));
+    expect(await screen.findByRole("heading", { level: 1, name: en.assistantPage.title })).toBeInTheDocument();
+    // The header is there before the list is: the empty state is what the answer produces.
+    expect(await screen.findByText(en.assistantPage.empty)).toBeInTheDocument();
+  });
+
+  it("asks for the project in the address and for no other", async () => {
+    const asked: string[] = [];
+    mounted((url) => {
+      asked.push(url.pathname);
+      return url.pathname.endsWith("/agent-runs") ? json({ items: [] }) : undefined;
+    });
+    await screen.findByText(en.assistantPage.empty);
+    expect(asked.some((path) => path.startsWith("/api/v1/projects/helsinki/"))).toBe(true);
+    expect(asked.some((path) => /\/projects\/(?!helsinki\b)[^/]+\//.test(path))).toBe(false);
+  });
+
+  it("has no axe violation and one H1", async () => {
+    const { container } = mounted((url) =>
+      url.pathname.endsWith("/agent-runs") ? json({ items: [] }) : undefined,
+    );
+    await screen.findByText(en.assistantPage.empty);
+    expectHeadingOutline(container);
+    await expectNoAxeViolations(container);
   });
 });

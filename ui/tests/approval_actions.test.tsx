@@ -10,6 +10,9 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { expectDenied } from "./checks";
+import { ApprovalDetailPage } from "../src/routes/ApprovalDetailPage";
+import { AuthProvider } from "../src/auth/AuthProvider";
+import { expectNoAxeViolations, problem, renderPage } from "./page_contract";
 
 const APPROVER = {
   subject: "b7c1e0f4",
@@ -434,5 +437,59 @@ describe("a change brought back from a copy (UI-63)", () => {
     renderDetail({ change: proposal() });
     await screen.findByText("Marek Mráz");
     expect(screen.queryByTestId("change-workspace")).toBeNull();
+  });
+});
+
+/**
+ * The page on its own (T-2137): the two states it shows before any decision can be made — it is
+ * still reading the change, and the change could not be read. The refusal carries the API's own
+ * sentence, because "something went wrong" over a 404 and over a 403 tells a person nothing
+ * about whether to ask for access or to go back.
+ */
+describe("the approval detail page, mounted on its own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const page = (
+    <AuthProvider>
+      <ApprovalDetailPage project="helsinki" id="chg-1a2b3c4d" />
+    </AuthProvider>
+  );
+
+  it("announces the wait rather than an empty page", async () => {
+    renderPage(page, {
+      answer: (url) =>
+        url.pathname.includes("/changes/") ? (new Promise<Response>(() => {}) as never) : undefined,
+      path: "/projects/helsinki/approvals/chg-1a2b3c4d",
+    });
+    // The bars say nothing themselves; the wait is announced by the region's own name.
+    const waiting = await screen.findByRole("status");
+    expect(waiting).toHaveAttribute("aria-busy", "true");
+    expect(waiting).toHaveAccessibleName(en.app.loading);
+  });
+
+  it("says in the API's own words that there is no such change, and offers to ask again", async () => {
+    renderPage(page, {
+      answer: (url) =>
+        url.pathname.includes("/changes/")
+          ? problem(404, "No change 'chg-1a2b3c4d' in helsinki.")
+          : undefined,
+      path: "/projects/helsinki/approvals/chg-1a2b3c4d",
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("No change 'chg-1a2b3c4d' in helsinki.");
+    expect(alert.textContent).not.toContain(en.app.error.generic);
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
+  it("has no axe violation in either", async () => {
+    const { container } = renderPage(page, {
+      answer: (url) =>
+        url.pathname.includes("/changes/") ? problem(403, "You may not read this change.") : undefined,
+      path: "/projects/helsinki/approvals/chg-1a2b3c4d",
+    });
+    await screen.findByRole("alert");
+    await expectNoAxeViolations(container);
   });
 });
