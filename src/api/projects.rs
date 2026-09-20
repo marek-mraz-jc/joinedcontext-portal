@@ -391,6 +391,9 @@ pub async fn open_project(
                      platform.validation: lax (PF-65, PF-66, PF-57)",
                     change.metadata.name
                 ),
+                // Nothing was reviewed: the Portal wrote this bundle and merges it in the same
+                // call, so there is no commit an approver read to pin it to (T-1683).
+                None,
             )
             .await?;
         // Nothing is waiting for a person, so the answer says so and the UI opens the project

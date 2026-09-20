@@ -124,13 +124,15 @@ pub struct ApproveBody {
 }
 
 /// Whether the field at `path` holds a credential by its name (CC-06).
+///
+/// The one list, [`crate::api::mutate::SECRET_KEYS`], that a write is refused by (MF-24) and an
+/// export is stripped by (MF-17). It used to be a shorter copy of that list, and every name the
+/// copy lacked — `privateKey`, `accessToken`, `apiToken`, `passphrase` and the rest — travelled
+/// in cleartext through the plan diff of a Change to everyone who may read it (T-1685).
 pub fn is_sensitive_path(path: &str) -> bool {
     let last_seg = path.rsplit('.').next().unwrap_or(path);
     let clean = last_seg.split('[').next().unwrap_or(last_seg);
-    matches!(
-        clean,
-        "password" | "token" | "secret" | "clientSecret" | "client_secret" | "apiKey" | "api_key"
-    )
+    crate::api::mutate::SECRET_KEYS.contains(&clean)
 }
 
 /// Replaces sensitive field values with `"[REDACTED]"` (CC-06).
@@ -306,6 +308,18 @@ async fn find_manifest_in_tree(
     Ok(None)
 }
 
+/// The project a file of the configuration repository belongs to: the segment after `projects/`.
+///
+/// `None` for a file of the organization itself — `users/`, `environments/`, `blueprints/`,
+/// `portal/forms/`, `org.yaml` — which every project's changes may legitimately carry and whose
+/// own rules (`within_own_rights`, the organization-scoped grant) decide who may write it.
+fn project_of_path(path: &str) -> Option<&str> {
+    path.strip_prefix("projects/")?
+        .split('/')
+        .next()
+        .filter(|segment| !segment.is_empty())
+}
+
 /// Whether a pull request on `branch` is a Change of this Portal: a proposal of its own, or a
 /// workspace brought back (CC-79).
 fn is_change_branch(branch: &str) -> bool {
@@ -359,7 +373,7 @@ async fn bundle_headline(
         let git_ref = if file.deleted {
             &pr.base_branch
         } else {
-            &pr.head_branch
+            pr.head_ref()
         };
         let Some(content) = gitea.get_file(&file.path, git_ref).await? else {
             continue;
@@ -473,7 +487,7 @@ async fn load_manifest_data(
             });
 
             let path = if let Some(cand) = direct {
-                if let Ok(Some(_)) = gitea.get_file(&cand, &pr.head_branch).await {
+                if let Ok(Some(_)) = gitea.get_file(&cand, pr.head_ref()).await {
                     Some(cand)
                 } else {
                     None
@@ -485,13 +499,8 @@ async fn load_manifest_data(
             let path = match path {
                 Some(p) => Some(p),
                 None => {
-                    find_manifest_in_tree(
-                        gitea,
-                        &pr.head_branch,
-                        project,
-                        &branch_info.resource_name,
-                    )
-                    .await?
+                    find_manifest_in_tree(gitea, pr.head_ref(), project, &branch_info.resource_name)
+                        .await?
                 }
             };
 
@@ -500,7 +509,7 @@ async fn load_manifest_data(
             };
 
             let head_file = gitea
-                .get_file(&repo_path, &pr.head_branch)
+                .get_file(&repo_path, pr.head_ref())
                 .await?
                 .ok_or_else(|| {
                     ApiError::NotFound(format!(
@@ -963,7 +972,7 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
         let head = if file.deleted {
             None
         } else {
-            read(&pr.head_branch).await?
+            read(pr.head_ref()).await?
         };
         let base = if file.added {
             None
@@ -1022,13 +1031,25 @@ async fn approve_every_file(
     gitea: &GiteaClient,
     pr: &PullRequest,
 ) -> Result<Lane, ApiError> {
-    let effective = crate::permissions::for_request(state, identity, project);
+    // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
+    // Asking the project in the *path* once would check a file under `projects/other/` against a
+    // binding that never reached it: an organization-scoped grant covers every project and is
+    // meant to, a grant scoped to one project covers that one, and the difference only shows when
+    // the file's own project is the one asked about.
+    let mut grants: std::collections::HashMap<String, crate::permissions::Effective> =
+        std::collections::HashMap::new();
     let mut lane = Lane::Green;
     for file in gitea.pull_request_files(pr.number).await? {
+        // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
+        // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
+        let home = project_of_path(&file.path).unwrap_or(project).to_owned();
+        let effective = grants
+            .entry(home.clone())
+            .or_insert_with(|| crate::permissions::for_request(state, identity, &home));
         let git_ref = if file.deleted {
             &pr.base_branch
         } else {
-            &pr.head_branch
+            pr.head_ref()
         };
         let content = gitea
             .get_file(&file.path, git_ref)
@@ -1210,10 +1231,29 @@ pub async fn approve_change_for(
     // demo's, a script's) waits it out instead of failing.
     let mut attempt = 0;
     loop {
-        match gitea.merge(pr_number, MergeStyle::Squash, &merge_msg).await {
+        match gitea
+            .merge(
+                pr_number,
+                MergeStyle::Squash,
+                &merge_msg,
+                Some(&pr.head_sha),
+            )
+            .await
+        {
             Err(GitError::Api { status: 405, .. }) if attempt < 15 => {
                 attempt += 1;
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+            // The forge refuses to merge a commit other than the one this approval walked, and
+            // it refuses a branch that no longer merges into the base; both come back 409 and
+            // both mean the same thing to the person at the button (T-1683, CC-80).
+            Err(GitError::Conflict(_)) => {
+                return Err(ApiError::Conflict(format!(
+                    "change proposal '{id}' is not what it was when it was reviewed: its branch \
+                     has moved past the commit this approval read, or it no longer merges into \
+                     the base branch. Open the change again, read what it says now, and approve \
+                     that (PF-57)."
+                )))
             }
             other => break other?,
         }

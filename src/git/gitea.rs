@@ -129,12 +129,29 @@ pub struct PullRequest {
     pub title: String,
     pub body: String,
     pub head_branch: String,
+    /// The commit the head branch pointed at when the forge answered, when it said (Gitea
+    /// always does). A review reads every file at this ref and the merge is pinned to it, so a
+    /// push between the two is refused instead of merged unread (PF-57, T-1683).
+    pub head_sha: String,
     pub base_branch: String,
     pub created_at: String,
     pub author_name: String,
     pub author_email: Option<String>,
     pub mergeable: Option<bool>,
     pub merged: bool,
+}
+
+impl PullRequest {
+    /// The ref a review reads every file at: the commit the forge reported, or the branch when
+    /// it reported none. Reading the branch and merging the branch is two reads of a moving
+    /// target; reading this and merging with `head_commit_id` is one (PF-57, T-1683).
+    pub fn head_ref(&self) -> &str {
+        if self.head_sha.is_empty() {
+            &self.head_branch
+        } else {
+            &self.head_sha
+        }
+    }
 }
 
 /// One commit of the repository, as the revision picker shows it (MF-16, CC-49).
@@ -309,6 +326,8 @@ struct GiteaPullResponse {
 struct BranchRefDto {
     #[serde(rename = "ref", default)]
     git_ref: String,
+    #[serde(default)]
+    sha: String,
 }
 
 #[derive(Deserialize)]
@@ -335,7 +354,7 @@ impl From<GiteaPullResponse> for PullRequest {
             .unwrap_or_default()
             .to_string();
         let author_email = raw.user.and_then(|u| u.email);
-        let head_branch = raw.head.map(|h| h.git_ref).unwrap_or_default();
+        let (head_branch, head_sha) = raw.head.map(|h| (h.git_ref, h.sha)).unwrap_or_default();
         let base_branch = raw.base.map(|b| b.git_ref).unwrap_or_default();
 
         PullRequest {
@@ -345,6 +364,7 @@ impl From<GiteaPullResponse> for PullRequest {
             title: raw.title,
             body: raw.body.unwrap_or_default(),
             head_branch,
+            head_sha,
             base_branch,
             created_at: raw.created_at.unwrap_or_default(),
             author_name,
@@ -366,6 +386,10 @@ struct MergePayload<'a> {
     #[serde(rename = "Do")]
     do_field: MergeStyle,
     merge_message_field: &'a str,
+    /// The commit the caller reviewed. Gitea refuses the merge when the branch has moved past
+    /// it, which is the only race-free way to merge what was approved (T-1683).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    head_commit_id: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -917,16 +941,24 @@ impl GiteaClient {
     }
 
     /// `POST /pulls/{number}/merge` — merges the pull request.
+    /// Merges pull request `number`.
+    ///
+    /// `head_commit_id` is the commit whose content the caller approved: the forge refuses the
+    /// merge when the branch has moved past it, so nothing is merged that nobody reviewed
+    /// (PF-57, T-1683). `None` only where there is nothing to review — a proposal this Portal
+    /// wrote and merges in the same call.
     pub async fn merge(
         &self,
         number: u64,
         style: MergeStyle,
         message: &str,
+        head_commit_id: Option<&str>,
     ) -> Result<(), GitError> {
         let url = self.repo_url(&format!("pulls/{number}/merge"))?;
         let payload = MergePayload {
             do_field: style,
             merge_message_field: message,
+            head_commit_id: head_commit_id.filter(|sha| !sha.is_empty()),
         };
         let res = self.send(self.http.post(url).json(&payload)).await?;
         Self::check_status(res).await?;

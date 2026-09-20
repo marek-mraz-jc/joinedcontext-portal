@@ -347,16 +347,53 @@ async fn review_and_merge() {
         .and(header("authorization", "token secret-token"))
         .and(body_json(json!({
             "Do": "merge",
-            "merge_message_field": "Merge PR #17"
+            "merge_message_field": "Merge PR #17",
+            "head_commit_id": "reviewed-commit"
         })))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&server)
         .await;
 
+    // The commit the caller reviewed travels with the merge, so the forge refuses a branch that
+    // moved past it (T-1683).
     client
-        .merge(17, MergeStyle::Merge, "Merge PR #17")
+        .merge(
+            17,
+            MergeStyle::Merge,
+            "Merge PR #17",
+            Some("reviewed-commit"),
+        )
         .await
         .unwrap();
+}
+
+/// T-1683: a merge with nothing to pin it to — a proposal this Portal wrote and merges in the
+/// same call — sends no `head_commit_id` at all, rather than an empty one the forge would refuse.
+#[tokio::test]
+async fn merge_without_a_reviewed_commit_sends_no_head_commit_id() {
+    let server = MockServer::start().await;
+    let client = GiteaClient::new(
+        server.uri().parse().unwrap(),
+        "test-owner",
+        "test-repo",
+        "secret-token",
+    )
+    .unwrap();
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/18/merge"))
+        .and(body_json(json!({
+            "Do": "squash",
+            "merge_message_field": "Merge PR #18"
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&server)
+        .await;
+    for pinned in [None, Some("")] {
+        client
+            .merge(18, MergeStyle::Squash, "Merge PR #18", pinned)
+            .await
+            .unwrap();
+    }
 }
 
 #[test]

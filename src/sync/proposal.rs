@@ -98,7 +98,7 @@ pub async fn open(gitea: &GiteaClient, proposal: &Proposal<'_>) -> Result<PullRe
 
     if proposal.auto_merge {
         gitea
-            .merge(pull.number, MergeStyle::Merge, proposal.title)
+            .merge(pull.number, MergeStyle::Merge, proposal.title, None)
             .await?;
     }
     Ok(pull)

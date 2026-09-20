@@ -772,6 +772,13 @@ pub fn may_see(
 }
 
 /// The live workspace `name` of `project`, readable by the caller.
+///
+/// The two wordings of the 404 below — the store's `no workspace named 'x'` for a name nobody
+/// has, and this one for a name that belongs to another project — are an existence oracle over
+/// every workspace in the organization. That is T-2296, owned by worker-1, whose fix is one
+/// sentence here and a narrowed conflict in `open`; `edge_workspace_routes_tests` pins both
+/// wordings until then. T-1682 found the same thing and left it alone rather than land half of
+/// somebody else's task.
 pub(crate) async fn visible(
     state: &AppState,
     identity: &Identity,
@@ -1361,6 +1368,17 @@ pub async fn propose(
         };
         effective.check(&file.kind, verb, doc.as_ref())?;
         if let (Some(doc), false) = (&doc, file.operation == Op::Delete) {
+            // PF-52, T-1684: nobody brings back a grant above their own rights. Every other door
+            // to a `users/` manifest — the resource route, an operation, an import, a blueprint —
+            // asks this before the Change exists, and the bring-back asked nobody: the rights the
+            // workspace was written under are not the rights it is proposed under, and a binding
+            // narrowed in between would have ridden out on the older ones.
+            if matches!(
+                file.kind.as_str(),
+                "Role" | "RoleBinding" | "ServiceAccount"
+            ) {
+                crate::permissions::within_own_rights(state, identity, doc, "proposer")?;
+            }
             recheck(identity, state, project, &file.path, doc, file.operation).await?;
         }
         lane = crate::api::import::riskiest(lane, file.lane);
