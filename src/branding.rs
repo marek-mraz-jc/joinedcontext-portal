@@ -195,14 +195,36 @@ impl Branding {
         self
     }
 
-    /// Whether the primary colour is dark enough for white text on top of it (WCAG 1.4.3).
+    /// The readable text colour on top of the primary colour (WCAG 1.4.3).
     ///
-    /// The branding block names a primary colour but no foreground for it, and a light
-    /// primary with white text is unreadable, so the readable one is computed.
+    /// The branding block names a primary colour but no foreground for it, so the readable one
+    /// is computed: whichever of the ink and the paper has the **higher contrast ratio** against
+    /// the primary. Choosing on luminance alone instead got a band of ordinary brand colours
+    /// wrong — the crossover between black and white text sits near a relative luminance of
+    /// 0.18, not 0.5, so a mid grey (`#808080`) was given white text at 3.95:1 and `#a0a0a0`
+    /// white at 2.61:1, both under the 4.5:1 a page of text needs.
+    ///
+    /// Some brand colours cannot reach 4.5:1 with either (`#ff0000` reaches 4.46:1 at best).
+    /// The better of the two is still served — an unreadable Portal helps nobody — and the
+    /// installation is told in the log which colour it was and what it reached.
     pub fn primary_foreground(&self) -> &'static str {
-        match luminance(&self.colours.primary) {
-            Some(l) if l > 0.5 => "#0f172a",
-            _ => "#ffffff",
+        let Some(primary) = luminance(&self.colours.primary) else {
+            return FOREGROUND_ON_DARK;
+        };
+        let on_dark = contrast(primary, luminance(FOREGROUND_ON_DARK).unwrap_or(1.0));
+        let on_light = contrast(primary, luminance(FOREGROUND_ON_LIGHT).unwrap_or(0.0));
+        let best = on_dark.max(on_light);
+        if best < MIN_CONTRAST {
+            tracing::warn!(
+                primary = %self.colours.primary,
+                contrast = best,
+                "no text colour reaches {MIN_CONTRAST}:1 on this primary colour; using the better one"
+            );
+        }
+        if on_dark >= on_light {
+            FOREGROUND_ON_DARK
+        } else {
+            FOREGROUND_ON_LIGHT
         }
     }
 }
@@ -281,7 +303,19 @@ fn is_locale(value: &str) -> bool {
             .is_some_and(|b| b.is_ascii_alphabetic())
 }
 
-/// Relative luminance of a hex colour, for the one contrast decision the UI cannot make.
+/// The text the Portal puts on a dark primary colour, and on a light one.
+const FOREGROUND_ON_DARK: &str = "#ffffff";
+const FOREGROUND_ON_LIGHT: &str = "#0f172a";
+
+/// What WCAG 1.4.3 asks of text against its background.
+const MIN_CONTRAST: f32 = 4.5;
+
+/// The contrast ratio between two relative luminances (WCAG 1.4.3), lighter over darker.
+fn contrast(a: f32, b: f32) -> f32 {
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// Relative luminance of a hex colour (WCAG 2.1), for the contrast decision the UI cannot make.
 fn luminance(colour: &str) -> Option<f32> {
     let digits = colour.strip_prefix('#')?;
     let expand = |c: u8| u8::from_str_radix(&format!("{}{}", c as char, c as char), 16).ok();
@@ -297,8 +331,17 @@ fn luminance(colour: &str) -> Option<f32> {
         ),
         _ => return None,
     };
-    // The sRGB coefficients, close enough for a black-or-white decision.
-    Some((0.2126 * f32::from(r) + 0.7152 * f32::from(g) + 0.0722 * f32::from(b)) / 255.0)
+    // Each channel is linearised before it is weighted: sRGB is gamma-encoded, and weighting the
+    // encoded bytes gives a number that is not a luminance and cannot be compared to a ratio.
+    let channel = |c: u8| {
+        let c = f32::from(c) / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    Some(0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b))
 }
 
 #[cfg(test)]
@@ -467,6 +510,78 @@ languages:
         };
         assert_eq!(light.primary_foreground(), "#0f172a");
         assert_eq!(Branding::default().primary_foreground(), "#ffffff");
+    }
+
+    fn with_primary(primary: &str) -> Branding {
+        Branding {
+            colours: Colours {
+                primary: primary.into(),
+                ..Colours::default()
+            },
+            ..Branding::default()
+        }
+    }
+
+    /// The text on the primary colour is whichever reaches further, measured, not guessed.
+    #[test]
+    fn the_text_on_a_primary_colour_is_the_one_that_reads_on_it() {
+        // Every one of these was given white text by the old luminance threshold, and every one
+        // of them was unreadable with it: #808080 reached 3.95:1 and #a0a0a0 only 2.61:1.
+        for primary in [
+            "#808080", "#a0a0a0", "#c0c0c0", "#ff0000", "#00ff00", "#ffff00",
+        ] {
+            let branding = with_primary(primary);
+            let chosen = branding.primary_foreground();
+            let background = luminance(primary).expect("a hex colour");
+            let got = contrast(background, luminance(chosen).expect("a hex colour"));
+            let other = contrast(
+                background,
+                luminance(if chosen == FOREGROUND_ON_DARK {
+                    FOREGROUND_ON_LIGHT
+                } else {
+                    FOREGROUND_ON_DARK
+                })
+                .expect("a hex colour"),
+            );
+            assert!(
+                got >= other,
+                "{primary}: chose {chosen} at {got:.2}:1 over {other:.2}:1"
+            );
+        }
+
+        // A dark brand still gets white, a light one still gets ink: the ordinary cases do not
+        // move because the measure changed.
+        assert_eq!(with_primary("#1d4ed8").primary_foreground(), "#ffffff");
+        assert_eq!(with_primary("#0f172a").primary_foreground(), "#ffffff");
+        assert_eq!(with_primary("#ffffff").primary_foreground(), "#0f172a");
+        assert_eq!(with_primary("#ffe977").primary_foreground(), "#0f172a");
+    }
+
+    /// A brand that no text reads well on is served its best, never a worse one (WCAG 1.4.3).
+    #[test]
+    fn a_primary_colour_no_text_reads_on_still_gets_the_better_of_the_two() {
+        let branding = with_primary("#ff0000");
+        let chosen = branding.primary_foreground();
+        let background = luminance("#ff0000").expect("a hex colour");
+        // Neither reaches 4.5:1 on pure red; the darker one reaches further.
+        assert_eq!(chosen, FOREGROUND_ON_LIGHT);
+        assert!(contrast(background, luminance(chosen).unwrap()) > 4.4);
+        assert!(contrast(background, luminance(FOREGROUND_ON_DARK).unwrap()) < 4.1);
+    }
+
+    /// The luminance is WCAG's, so it can be compared against a ratio at all.
+    #[test]
+    fn luminance_is_linearised_before_it_is_weighted() {
+        // Byte-weighted "luminance" would put mid grey at 0.5; linearised it is near 0.216.
+        let grey = luminance("#808080").expect("a hex colour");
+        assert!((0.21..0.22).contains(&grey), "{grey}");
+        assert_eq!(luminance("#ffffff"), Some(1.0));
+        assert_eq!(luminance("#000000"), Some(0.0));
+        // The short form is the long one.
+        assert_eq!(luminance("#fff"), luminance("#ffffff"));
+        assert_eq!(luminance("not a colour"), None);
+        // White on black is the widest a screen goes.
+        assert!((contrast(1.0, 0.0) - 21.0).abs() < 0.001);
     }
 
     #[test]

@@ -55,6 +55,23 @@ const GENERIC_FAMILIES = new Set(["system-ui", "-apple-system", "blinkmacsystemf
  * A branding font stack with the Portal's bundled Inter before its first generic family, so a
  * brand font the browser does not have falls back to the same letters everywhere (T-0756).
  */
+/** `#rgb` or `#rrggbb`, which is the whole of what may reach a colour token (PF-50). */
+export function isHexColour(value: string): boolean {
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
+}
+
+/**
+ * A font stack that is only family names (PF-50).
+ *
+ * A custom property accepts almost any token stream, so `url(https://elsewhere/x)` written into
+ * `--portal-font-sans` is fetched the moment something reads it — a way to learn that this Portal
+ * was opened, from a value an administrator typed into a branding file. Only letters, digits,
+ * spaces, hyphens, underscores, quotes and the commas between families pass.
+ */
+export function isFontStack(value: string): boolean {
+  return value.length <= 200 && /^[\w\s,'"-]+$/.test(value) && !/url|\(|\)|;|\/|@/i.test(value);
+}
+
 export function withBundledFont(stack: string): string {
   const families = stack.split(",").map((family) => family.trim()).filter(Boolean);
   if (families.some((family) => family.replace(/["']/g, "").toLowerCase() === "inter")) {
@@ -69,27 +86,39 @@ export function withBundledFont(stack: string): string {
  * Writes the branding into the document: the title, and the colour and font tokens every
  * component already reads through Tailwind's theme.
  *
- * The values are custom properties on the root element, which is why the API validates each
- * colour as hex before it is served: a browser evaluates what lands here.
+ * The values are custom properties on the root element, and a browser evaluates what lands
+ * here, so each one is checked again before it is written (PF-50). The API validates the same
+ * things; this is the side that holds even when the answer did not come from it — a cached
+ * body, a proxy, or a branding file an administrator edited by hand. A value that is not a
+ * colour or a font stack is dropped with a word in the console, and the token keeps the
+ * default it already had rather than taking something unreadable.
  */
 export function applyBranding(branding: Branding, doc: Document = document): void {
   doc.title = branding.instanceName;
   const root = doc.documentElement;
-  const tokens: Record<string, string | undefined> = {
+  const colours: Record<string, string | undefined> = {
     "--portal-color-primary": branding.colours?.primary,
     "--portal-color-primary-fg": branding.primaryForeground,
     "--portal-color-secondary": branding.colours?.secondary,
     "--portal-color-accent": branding.colours?.accent,
     "--portal-color-surface": branding.colours?.background,
     "--portal-color-surface-fg": branding.colours?.text,
-    "--portal-font-sans": branding.fonts?.body && withBundledFont(branding.fonts.body),
-    "--portal-font-heading": branding.fonts?.heading && withBundledFont(branding.fonts.heading),
   };
-  for (const [token, value] of Object.entries(tokens)) {
-    if (value) {
-      root.style.setProperty(token, value);
+  const fonts: Record<string, string | undefined> = {
+    "--portal-font-sans": branding.fonts?.body,
+    "--portal-font-heading": branding.fonts?.heading,
+  };
+  const write = (token: string, value: string | undefined, ok: (v: string) => boolean) => {
+    if (!value) return;
+    if (!ok(value)) {
+      // Named, not shown: the value is what was wrong with it, and it goes nowhere near a style.
+      console.warn(`branding: ${token} is not a value this token takes; keeping the default`);
+      return;
     }
-  }
+    root.style.setProperty(token, token.startsWith("--portal-font") ? withBundledFont(value) : value);
+  };
+  for (const [token, value] of Object.entries(colours)) write(token, value, isHexColour);
+  for (const [token, value] of Object.entries(fonts)) write(token, value, isFontStack);
   const favicon = doc.querySelector<HTMLLinkElement>("link[rel~='icon']");
   if (favicon && branding.favicon) {
     favicon.href = "/api/v1/branding/favicon";
