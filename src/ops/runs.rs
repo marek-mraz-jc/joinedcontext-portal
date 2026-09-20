@@ -113,16 +113,47 @@ pub(super) fn as_user(caller: &Caller) -> CurrentUser {
     })
 }
 
-/// A run acts for the person who started it; an agent does not start another run of its own
-/// (AG-11, AG-70).
-pub(super) fn refuse_agent(caller: &Caller) -> Result<(), OpError> {
-    if caller.via == super::Via::Agent {
-        return Err(OpError::Api(crate::error::ApiError::Denied(
+/// Why an agent run never takes this operation, by name, or `None` when it may (AG-11).
+///
+/// A run acts for the person who started it, so driving another run, answering the question a run
+/// asked that person, and minting or retiring the credentials the platform authenticates with are
+/// all the person's. The reason is looked up by name because one sentence for all of them made a
+/// refused key mint read as a refused run, which tells the reader nothing they can act on.
+///
+/// [`super::Caller::may_run`] asks this before an operation is listed or run, so the refusal
+/// arrives where `GET …/ops` can see it: the listing names exactly what the caller would be let
+/// through (API/01 §21), and a refusal that lived only in the body had the registry offer a run an
+/// operation it would always be denied.
+pub(super) fn agent_refusal(operation: &str) -> Option<&'static str> {
+    Some(match operation {
+        "jc_run_create" | "jc_run_cancel" | "jc_run_publish" => {
             "an agent run does not start, cancel or publish another run; a person does (AG-11)"
-                .into(),
-        )));
+        }
+        // A run asking a question and a run answering it would be a run deciding for the person it
+        // acts for (AG-11, AG-45).
+        "jc_run_answer" => {
+            "an agent run does not answer the question a run asked the person it acts for; \
+             a person does (AG-11, AG-45)"
+        }
+        "jc_service_account_key_mint"
+        | "jc_service_account_key_rotate"
+        | "jc_service_account_key_revoke" => {
+            "an agent run does not mint, rotate or revoke a service account's key; a person does \
+             (AG-11)"
+        }
+        _ => return None,
+    })
+}
+
+/// [`agent_refusal`] applied to a caller: the second lock, in the body of the operation itself, so
+/// the rule holds even for a body reached by some other path than [`super::call`].
+pub(super) fn refuse_agent(caller: &Caller, operation: &str) -> Result<(), OpError> {
+    match agent_refusal(operation) {
+        Some(why) if caller.via == super::Via::Agent => {
+            Err(OpError::Api(crate::error::ApiError::Denied(why.into())))
+        }
+        _ => Ok(()),
     }
-    Ok(())
 }
 
 fn answer_input_schema() -> Value {
@@ -203,7 +234,7 @@ pub fn operations() -> Vec<Operation> {
             },
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_run_create")?;
                     let request = serde_json::from_value(val).map_err(|e| {
                         let (path, message) = super::serde_error_path_and_message(&e);
                         OpError::InvalidInput { path, message }
@@ -236,7 +267,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<RunIdInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_run_cancel")?;
                     let input: RunIdInput = parse_input(val)?;
                     let Json(run) = crate::api::agent_runs::cancel_run(
                         as_user(caller),
@@ -265,7 +296,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<RunIdInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_run_publish")?;
                     let input: RunIdInput = parse_input(val)?;
                     // The route answers the `Change` as a response; the operation answers the
                     // document inside it, as every other propose does.
@@ -301,9 +332,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<AnswerInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    // A run asking a question and a run answering it would be a run deciding for
-                    // the person it acts for (AG-11, AG-45).
-                    refuse_agent(caller)?;
+                    refuse_agent(caller, "jc_run_answer")?;
                     let input: AnswerInput = parse_input(val)?;
                     crate::api::agent_runs::answer_question(
                         as_user(caller),

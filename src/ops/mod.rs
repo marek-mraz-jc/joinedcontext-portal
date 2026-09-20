@@ -118,8 +118,10 @@ impl Caller {
     ///
     /// A refusal that arrives after the confirmation has the person answer a question whose
     /// answer changes nothing, and it teaches an agent that approving is something it does and
-    /// then fails at. The profile's half (AG-70) and the refusal no profile can lift (AG-11)
-    /// are both knowable from the caller and the operation alone, so they are decided here.
+    /// then fails at. The profile's half (AG-70) and the refusal no profile can lift (AG-11,
+    /// AG-82) are both knowable from the caller and the operation alone, so they are decided
+    /// here — and because [`listing`] filters on this function, an operation refused here is one
+    /// `GET …/ops` and `tools/list` do not offer either.
     pub fn may_run(&self, op: &Operation) -> Result<(), OpError> {
         // AG-11 before AG-70: a profile that names an approval is an author's mistake, and being
         // told the profile does not grant what it plainly lists explains nothing. The true reason
@@ -133,6 +135,11 @@ impl Caller {
         if op.name == "jc_workspace_discard" {
             workspaces::refuse_agent_discard(self)?;
         }
+        // The rest of what no profile can grant: another run, the answer to a run's question, and
+        // a service account's keys (AG-11). Their refusal used to live in the body alone, which
+        // left `listing` — and so `GET …/ops` and `tools/list` — offering a run an operation it
+        // would always be denied.
+        runs::refuse_agent(self, op.name)?;
         self.grants(op)
     }
 }
