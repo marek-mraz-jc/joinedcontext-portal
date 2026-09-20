@@ -20,6 +20,7 @@ import {
   TableCell,
   TableHead,
   TableHeaderCell,
+  Skeleton,
   TableRow,
   TableSkeleton,
 } from "../../components/ui";
@@ -237,12 +238,24 @@ function KeyTable({
         )}
       </div>
 
+      {/* A key list that could not be read is not "this account has no keys" (T-1763): one of
+          the two means somebody has to rotate a credential and the other does not. */}
       {keys.isError ? (
-        <p role="status" className="text-body text-fg-muted">
+        <Alert
+          role="alert"
+          tone="danger"
+          actions={
+            <Button size="sm" onClick={() => void keys.refetch()}>
+              {t("app.error.retry")}
+            </Button>
+          }
+        >
           {keys.error instanceof ApiError && keys.error.status === 503
             ? t("access.keys.noStore")
-            : t("app.error.generic")}
-        </p>
+            : keys.error instanceof ApiError
+              ? (keys.error.problem?.detail ?? keys.error.message)
+              : t("app.error.generic")}
+        </Alert>
       ) : items.length === 0 ? (
         <p className="text-body text-fg-muted">{t("access.keys.empty")}</p>
       ) : (
@@ -353,7 +366,12 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   });
 
   if (list.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return (
+      <div role="status" aria-busy="true" aria-label={t("app.loading")} className="space-y-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-24" />
+      </div>
+    );
   }
   if (list.isError) {
     return (

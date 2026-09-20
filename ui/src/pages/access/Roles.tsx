@@ -152,7 +152,11 @@ export function NewRoleDialog({
             <Button
               variant="primary"
               disabled={propose.isPending || !named}
-              aria-describedby={named ? undefined : `${ids}-name-first`}
+              // The hint used to be wired with `aria-describedby` on a hard-disabled button,
+              // which is out of the tab order: nobody could reach it to have it read. The
+              // reason belongs on the control, which then stays reachable (T-1743, UI-44).
+              disabledReason={named ? undefined : t("access.nameFirst")}
+              loading={propose.isPending}
               onClick={submit}
             >
               {t("access.projectRoles.propose")}
