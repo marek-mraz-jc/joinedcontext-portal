@@ -105,7 +105,8 @@
     "askAboutField": "Ask about this field",
     "askAboutFieldQuestion": "In the {kind} form: what goes in “{label}”, and what happens when it is left empty?",
     "fillFromSentence": "Fill this from a sentence",
-    "fillFromSentenceQuestion": "Fill in the open {kind} form from this: "
+    "fillFromSentenceQuestion": "Fill in the open {kind} form from this: ",
+    "guideLink": "Read about {kind} in the User Guide"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -198,7 +199,29 @@
     "summary": {
       "create": "{fields, plural, =0 {Create {kind} \"{name}\"} one {Create {kind} \"{name}\" ({fields} field)} other {Create {kind} \"{name}\" ({fields} fields)}}",
       "update": "{fields, plural, =0 {Update {kind} \"{name}\"} one {Update {kind} \"{name}\" ({fields} field changed)} other {Update {kind} \"{name}\" ({fields} fields changed)}}",
-      "delete": "{fields, plural, =0 {Delete {kind} \"{name}\"} one {Delete {kind} \"{name}\" ({fields} field)} other {Delete {kind} \"{name}\" ({fields} fields)}}"
+      "delete": "{fields, plural, =0 {Remove {kind} \"{name}\"} one {Remove {kind} \"{name}\" ({fields} field)} other {Remove {kind} \"{name}\" ({fields} fields)}}"
+    }
+  },
+  "glossary": {
+    "endpoint": {
+      "definition": "A published address for one context space's data, with its own rules about who may read which entities and attributes.",
+      "term": "Endpoint"
+    },
+    "policy": {
+      "definition": "The rule behind an endpoint: which operations a caller may perform, on which entity types, and which attributes come back.",
+      "term": "Policy"
+    },
+    "contextSpace": {
+      "definition": "Where one project's live data is kept, apart from every other project's; endpoints publish it and pipelines fill it.",
+      "term": "Context Space"
+    },
+    "lane": {
+      "definition": "How much review a change needs before it happens: green goes through by itself, yellow needs a domain approval, red needs several people.",
+      "term": "Risk lane"
+    },
+    "change": {
+      "definition": "A proposed edit to the configuration, recorded so a person can read it and approve it before anything in service moves.",
+      "term": "Change"
     }
   },
   "quota": {
@@ -227,8 +250,8 @@
     "typeName": "Type {name} to confirm",
     "propose": "Propose removal",
     "referenced": "Still in use",
-    "button": "Delete",
-    "action": "Delete {name}",
+    "button": "Remove",
+    "action": "Remove {name}",
     "close": "Close"
   },
   "resourceEdit": {
@@ -940,7 +963,13 @@
       "whereLabel": "Where it applies",
       "untilLabel": "Until (optional)",
       "propose": "Propose grant",
-      "emptyHint": "A role binding says who may do what in this project. Until one exists, only an administrator of the organization can change anything here."
+      "emptyHint": "A role binding says who may do what in this project. Until one exists, only an administrator of the organization can change anything here.",
+      "subjectKindHelp": "Whether the role goes to one person or to a group of them. A group is granted once and keeps its members in step.",
+      "personHelp": "The username or e-mail the identity provider carries for this person, exactly as they sign in.",
+      "groupHelp": "The name of a group declared under Groups. Everyone in it holds the role while they are a member.",
+      "roleHelp": "What the person may do: each role is a set of verbs on a set of kinds, listed under Roles.",
+      "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
+      "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs."
     },
     "projectRoles": {
       "title": "Roles",
@@ -1410,7 +1439,10 @@
       "organization": "Default organization",
       "tokenRef": "API token secret",
       "tokenHelp": "The API token itself is never entered here and never stored in Git: name the secret the operator loaded into the secret store, and the reconciler resolves it at publication time.",
-      "propose": "Propose catalogue"
+      "propose": "Propose catalogue",
+      "nameHelp": "The short name this catalogue is known by here. Lowercase letters, digits and dashes.",
+      "urlHelp": "The address of the CKAN portal the datasets are published to, with its scheme.",
+      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own."
     },
     "publications": {
       "title": "Published endpoints",

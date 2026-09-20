@@ -18,6 +18,11 @@ function flattenKeys(obj: Record<string, unknown>, prefix = ""): string[] {
   return keys.sort();
 }
 
+type Bundle = {
+  resourceDelete: { title: string; lead: string; propose: string; button: string; action: string };
+  change: { summary: { delete: string } };
+};
+
 describe("i18n", () => {
   it("has identical flattened key sets across all four bundles", () => {
     const skKeys = flattenKeys(sk);
@@ -62,5 +67,43 @@ describe("i18n", () => {
 
     await i18n.changeLanguage("en");
     expect(i18n.t("auth.signedInAs", { name: "Alice" })).toBe("Signed in as Alice");
+  });
+
+  /**
+   * One verb for one action (T-1425, UI-23). The row action opens the dialog, so the button that
+   * opens it and every control inside it name the same act; a second verb makes a person ask
+   * whether "remove" is softer than "delete". Nothing is removed until an approver confirms, so
+   * the verb is the proposing one in each language.
+   */
+  describe("resourceDelete names the action with one verb per locale", () => {
+    const VERB = {
+      en: { keeps: /remov/i, rejects: /delet/i },
+      sk: { keeps: /odstrán/i, rejects: /(zmaz|vymaz)/i },
+      cs: { keeps: /odstran/i, rejects: /(smaz|vymaz)/i },
+      de: { keeps: /entfern/i, rejects: /lösch/i },
+    } as const;
+    const BUNDLES = { en, sk, cs, de } as const;
+    // close is "Close", referenced is a state, typeName repeats the name: only these five speak
+    // the action itself. change.summary.delete is the same act read back in the approvals list,
+    // so it says the same word as the button that proposed it.
+    const SPOKEN = [
+      ["resourceDelete.title", (b: Bundle) => b.resourceDelete.title],
+      ["resourceDelete.lead", (b: Bundle) => b.resourceDelete.lead],
+      ["resourceDelete.propose", (b: Bundle) => b.resourceDelete.propose],
+      ["resourceDelete.button", (b: Bundle) => b.resourceDelete.button],
+      ["resourceDelete.action", (b: Bundle) => b.resourceDelete.action],
+      ["change.summary.delete", (b: Bundle) => b.change.summary.delete],
+    ] as const;
+
+    it.each(Object.keys(VERB) as (keyof typeof VERB)[])("%s", (locale) => {
+      const { keeps, rejects } = VERB[locale];
+      const bundle = BUNDLES[locale] as unknown as Bundle;
+      for (const [path, read] of SPOKEN) {
+        const text = read(bundle);
+        expect(text, `${locale}.${path} is missing`).toBeTruthy();
+        expect(keeps.test(text), `${locale}.${path} = ${text}`).toBe(true);
+        expect(rejects.test(text), `${locale}.${path} = ${text}`).toBe(false);
+      }
+    });
   });
 });

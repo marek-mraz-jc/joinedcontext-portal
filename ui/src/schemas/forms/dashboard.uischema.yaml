@@ -6,6 +6,7 @@ metadata:
   name: dashboard
 spec:
   for: Dashboard
+  guide: User-Guide/06-dashboards
   about:
     en: >-
       A dashboard is a page of maps and numbers built from endpoints this project can already

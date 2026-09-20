@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use common::envelope;
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::reconciler::streams::StreamDeployer;
 use joinedcontext_portal::store::ListOptions;
 use joinedcontext_portal::store::Mirror;
 use serde_json::json;
@@ -293,4 +294,107 @@ async fn the_server_binds_answers_and_opens_no_second_port_without_an_agent_runn
     );
 
     serving.abort();
+}
+
+// -------------------------------------------------------------------------------------------------
+// T-2298 a namespace that is not a namespace
+// -------------------------------------------------------------------------------------------------
+
+/// MF-02, MF-04: the mirror's key is the namespace the manifest spells, and the reconciler puts
+/// that string into the runner's URL template — which may carry `{project}` in its authority. A
+/// manifest whose namespace is not a DNS-1123 label therefore steers an outbound request of the
+/// committer's choosing, from the one network position that reaches the runner, the broker and the
+/// forge. It is refused where it enters (T-2298).
+#[tokio::test]
+async fn a_manifest_whose_namespace_is_not_a_label_is_not_in_the_mirror() {
+    let mirror = Mirror::new();
+    for namespace in [
+        "a/../../admin",
+        "a@evil.example",
+        "..",
+        "A",
+        "a b",
+        "a_b",
+        "",
+        "a.b",
+        "-a",
+        "a-",
+        "a:b",
+        "a\nb",
+        &"a".repeat(64),
+    ] {
+        mirror.upsert(envelope(
+            "ContextSpace",
+            "air",
+            namespace,
+            json!({ "isSandbox": false, "defaultLocale": "sk", "ttlDays": 30 }),
+        ));
+        assert!(
+            mirror
+                .list(namespace, "ContextSpace", &ListOptions::default())
+                .items
+                .is_empty(),
+            "{namespace:?} reached the mirror",
+        );
+    }
+    assert_eq!(
+        mirror.len(),
+        0,
+        "something was held under a namespace that is not one"
+    );
+
+    // And the label beside them is held: the check refuses what is not a namespace and nothing
+    // else, including the longest label a namespace may have.
+    for namespace in ["ovzdusie", "a", "a-b-1", &"a".repeat(63)] {
+        mirror.upsert(envelope(
+            "ContextSpace",
+            "air",
+            namespace,
+            json!({ "isSandbox": false, "defaultLocale": "sk", "ttlDays": 30 }),
+        ));
+        assert_eq!(
+            mirror
+                .list(namespace, "ContextSpace", &ListOptions::default())
+                .items
+                .len(),
+            1,
+            "{namespace:?} was refused",
+        );
+    }
+}
+
+/// T-2298: the same check at the other end, because either one alone leaves the other caller
+/// open. The runner is not asked at all — the proof is the mock server's own log: nothing
+/// arrived, so no request was made with a name that is not a project.
+#[tokio::test]
+async fn the_runner_is_never_asked_about_a_name_that_is_not_a_project() {
+    let runner = wiremock::MockServer::start().await;
+    // `{project}` in the authority is the natural shape of a per-project runner service, and it
+    // is where an unchecked name moves the request to another host entirely.
+    let deployer = StreamDeployer::new(format!("{}/{{project}}", runner.uri()));
+
+    for project in [
+        "a/../../admin",
+        "a@evil.example",
+        "..",
+        "A",
+        "a b",
+        "",
+        "a.b",
+        "a:b",
+        &"a".repeat(64),
+    ] {
+        assert!(
+            deployer.metrics(project).await.is_none(),
+            "{project:?} was scraped",
+        );
+    }
+    assert!(
+        runner
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty(),
+        "a request was made for a name that is not a project",
+    );
 }

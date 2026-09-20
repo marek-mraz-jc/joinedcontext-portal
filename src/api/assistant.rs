@@ -498,6 +498,29 @@ pub async fn execute_propose_endpoint(
 
 /// The share request rendered, not written (EP-72, API/01 §19): the manifests the person will
 /// submit, refused for a caller who may not propose an Endpoint here (PF-50).
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/assistant/propose-endpoint",
+    tag = "assistant",
+    params(("project" = String, Path, description = "Project slug")),
+    request_body(
+        content = Object,
+        description = "What to share and with whom: `contextSpace`, `name`, and optionally \
+                       `title`, `audience`, `allowedProjects`, `representations`, \
+                       `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
+        content_type = "application/json"
+    ),
+    responses(
+        (status = 200, description = "The rendering, written nowhere: `lane`, `slug`, \
+                                      `endpoint`, `policies`, `groups` and the `prefill` the \
+                                      endpoint form opens with", body = Object),
+        (status = 400, description = "A name, a space, an audience, a representation or an \
+                                      attribute the platform does not take", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "No grant proposes an Endpoint in this project", body = ProblemDetails),
+        (status = 404, description = "No such project for this caller", body = ProblemDetails)
+    )
+)]
 pub async fn propose_endpoint(
     user: CurrentUser,
     State(state): State<AppState>,

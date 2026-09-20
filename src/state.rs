@@ -59,6 +59,9 @@ pub struct AppState {
     pub activity: crate::activity::ActivityStore,
     /// The live half of the activity stream: the tail a connected browser follows.
     pub activity_events: crate::activity::ActivityHub,
+    /// What authorises a run through the sync webhook route, by source (MF-44). Always present;
+    /// empty until the reconciler has resolved a pass, so the door is shut before it is opened.
+    pub webhook_secrets: Arc<crate::sync::webhook_secrets::Accepted>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
@@ -116,6 +119,7 @@ impl AppState {
             previews: Arc::default(),
             activity,
             activity_events,
+            webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
             drift_watch: None,
             kube: None,
@@ -211,6 +215,7 @@ impl AppState {
         if let Some(client) = gitea {
             let client = Arc::new(client);
             let mut syncer = Syncer::new(Arc::clone(&client), Arc::clone(&state.mirror))
+                .with_webhook_secrets(Arc::clone(&state.webhook_secrets))
                 .with_activity(state.activity.clone())
                 .with_apps_dir(state.config.apps_dir.clone());
             // The root credential of the artifact store reaches this one object and no other,

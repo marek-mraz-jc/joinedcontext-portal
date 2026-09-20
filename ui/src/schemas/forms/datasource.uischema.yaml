@@ -6,6 +6,7 @@ metadata:
   name: datasource
 spec:
   for: DataSource
+  guide: User-Guide/04-pipelines
   about:
     en: >-
       A data source is where the platform fetches from: a feed, a broker, an API. It brings

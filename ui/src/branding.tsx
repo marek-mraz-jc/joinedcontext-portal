@@ -35,6 +35,8 @@ export const NEUTRAL_BRANDING: Branding = {
   languages: { default: "en", offered: ["en"] },
   primaryForeground: "#ffffff",
   validation: "strict",
+  // An installation that serves no User Guide; no form offers a link (UI-02).
+  documentationBaseUrl: "",
 };
 
 const BrandingContext = createContext<Branding>(NEUTRAL_BRANDING);
@@ -42,6 +44,23 @@ const BrandingContext = createContext<Branding>(NEUTRAL_BRANDING);
 /** The branding of this installation, applied and provided by {@link BrandingProvider}. */
 export function useBranding(): Branding {
   return useContext(BrandingContext);
+}
+
+/**
+ * The address of one guide page, when this installation serves the guide and the kind's
+ * arrangement names a page (UI-02, DP-11). Nothing otherwise, so a form that cannot build a
+ * live link offers none.
+ *
+ * Both halves are already checked where they enter: the base URL is served only when it is an
+ * absolute `http(s)` address (the API's `branding.rs`), and the path only when it stays inside
+ * the site (`forms/uischema.ts`). This joins them and does nothing else.
+ */
+export function guideUrl(branding: Branding, guide: string | undefined): string | undefined {
+  const base = branding.documentationBaseUrl?.trim().replace(/\/+$/, "");
+  if (!base || !guide) {
+    return undefined;
+  }
+  return `${base}/${guide}`;
 }
 
 /** `/api/v1/branding/logo` when a logo is configured, nothing otherwise. */

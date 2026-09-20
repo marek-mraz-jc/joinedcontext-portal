@@ -6,6 +6,7 @@ metadata:
   name: endpoint
 spec:
   for: Endpoint
+  guide: User-Guide/05-endpoints-and-sharing
   about:
     en: >-
       An endpoint is the door through which other people read a context space: one address, the

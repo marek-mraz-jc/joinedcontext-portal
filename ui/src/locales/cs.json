@@ -105,7 +105,8 @@
     "askAboutField": "Zeptat se na toto pole",
     "askAboutFieldQuestion": "Ve formuláři {kind}: co patří do „{label}“ a co se stane, když to zůstane prázdné?",
     "fillFromSentence": "Vyplnit z jedné věty",
-    "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: "
+    "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: ",
+    "guideLink": "Přečtěte si o {kind} v uživatelské příručce"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -198,7 +199,29 @@
     "summary": {
       "create": "{fields, plural, =0 {Vytvoření {kind} „{name}“ bez polí} one {Vytvoření {kind} „{name}“ ({fields} pole)} few {Vytvoření {kind} „{name}“ ({fields} pole)} other {Vytvoření {kind} „{name}“ ({fields} polí)}}",
       "update": "{fields, plural, =0 {Úprava {kind} „{name}“ beze změn} one {Úprava {kind} „{name}“ ({fields} změněné pole)} few {Úprava {kind} „{name}“ ({fields} změněná pole)} other {Úprava {kind} „{name}“ ({fields} změněných polí)}}",
-      "delete": "{fields, plural, =0 {Smazání {kind} „{name}“} one {Smazání {kind} „{name}“ ({fields} pole)} few {Smazání {kind} „{name}“ ({fields} pole)} other {Smazání {kind} „{name}“ ({fields} polí)}}"
+      "delete": "{fields, plural, =0 {Odstranění {kind} „{name}“} one {Odstranění {kind} „{name}“ ({fields} pole)} few {Odstranění {kind} „{name}“ ({fields} pole)} other {Odstranění {kind} „{name}“ ({fields} polí)}}"
+    }
+  },
+  "glossary": {
+    "endpoint": {
+      "definition": "Zveřejněná adresa dat jednoho kontextového prostoru s vlastními pravidly, kdo smí číst které entity a atributy.",
+      "term": "Endpoint"
+    },
+    "policy": {
+      "definition": "Pravidlo za endpointem: které operace smí volající provést, nad kterými typy entit a které atributy se vrátí.",
+      "term": "Politika"
+    },
+    "contextSpace": {
+      "definition": "Místo, kde žijí živá data jednoho projektu, odděleně od ostatních projektů; endpointy je zveřejňují, linky je plní.",
+      "term": "Kontextový prostor"
+    },
+    "lane": {
+      "definition": "Kolik posouzení změna potřebuje, než se provede: zelená projde sama, žlutá potřebuje schválení gestora, červená více lidí.",
+      "term": "Riziková dráha"
+    },
+    "change": {
+      "definition": "Navržená úprava konfigurace, zaznamenaná tak, aby si ji člověk přečetl a schválil dříve, než se cokoli v provozu pohne.",
+      "term": "Změna"
     }
   },
   "quota": {
@@ -940,7 +963,13 @@
       "whereLabel": "Kde platí",
       "untilLabel": "Do (nepovinné)",
       "propose": "Navrhnout přidělení",
-      "emptyHint": "Vazba role říká, kdo smí v tomto projektu co dělat. Dokud žádná není, může tu něco měnit jen správce organizace."
+      "emptyHint": "Vazba role říká, kdo smí v tomto projektu co dělat. Dokud žádná není, může tu něco měnit jen správce organizace.",
+      "subjectKindHelp": "Zda roli dostane jeden člověk, nebo skupina lidí. Skupina se uděluje jednou a členy si drží sama.",
+      "personHelp": "Uživatelské jméno nebo e-mail, který o tomto člověku vede poskytovatel identity, přesně jak se přihlašuje.",
+      "groupHelp": "Název skupiny vyhlášené v části Skupiny. Roli drží každý, dokud je jejím členem.",
+      "roleHelp": "Co daný člověk smí: každá role je množina sloves nad množinou druhů, vypsaná v části Role.",
+      "whereHelp": "Kam až role sahá: tento projekt, celá organizace, nebo jeden kontextový prostor projektu.",
+      "untilHelp": "Poslední den platnosti role. Prázdné pole znamená bez konce, což potřebuje stálý člen."
     },
     "projectRoles": {
       "title": "Role",
@@ -1410,7 +1439,10 @@
       "organization": "Výchozí organizace",
       "tokenRef": "Tajemství s API tokenem",
       "tokenHelp": "Samotný API token se sem nikdy nezadává a nikdy se neukládá do Gitu: uveďte název tajemství, které operátor nahrál do úložiště tajemství, a rekonciliátor jej vyřeší při publikování.",
-      "propose": "Navrhnout katalog"
+      "propose": "Navrhnout katalog",
+      "nameHelp": "Krátký název, pod kterým je tento katalog znám zde. Malá písmena, číslice a spojovníky.",
+      "urlHelp": "Adresa portálu CKAN, na který se datové sady zveřejňují, i se schématem.",
+      "organizationHelp": "Organizace v CKAN, do které sada spadne, když endpoint neurčí vlastní."
     },
     "publications": {
       "title": "Publikované endpointy",

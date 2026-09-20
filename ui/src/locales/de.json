@@ -105,7 +105,8 @@
     "askAboutField": "Zu diesem Feld fragen",
     "askAboutFieldQuestion": "Im {kind}-Formular: Was gehört in „{label}“, und was passiert, wenn es leer bleibt?",
     "fillFromSentence": "Aus einem Satz ausfüllen",
-    "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: "
+    "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
+    "guideLink": "Über {kind} im Benutzerhandbuch lesen"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -198,7 +199,29 @@
     "summary": {
       "create": "{fields, plural, =0 {{kind} „{name}“ erstellen} one {{kind} „{name}“ erstellen ({fields} Feld)} other {{kind} „{name}“ erstellen ({fields} Felder)}}",
       "update": "{fields, plural, =0 {{kind} „{name}“ aktualisieren} one {{kind} „{name}“ aktualisieren ({fields} geändertes Feld)} other {{kind} „{name}“ aktualisieren ({fields} geänderte Felder)}}",
-      "delete": "{fields, plural, =0 {{kind} „{name}“ löschen} one {{kind} „{name}“ löschen ({fields} Feld)} other {{kind} „{name}“ löschen ({fields} Felder)}}"
+      "delete": "{fields, plural, =0 {{kind} „{name}“ entfernen} one {{kind} „{name}“ entfernen ({fields} Feld)} other {{kind} „{name}“ entfernen ({fields} Felder)}}"
+    }
+  },
+  "glossary": {
+    "endpoint": {
+      "definition": "Eine veröffentlichte Adresse für die Daten eines Kontextraums, mit eigenen Regeln darüber, wer welche Entitäten und Attribute lesen darf.",
+      "term": "Endpunkt"
+    },
+    "policy": {
+      "definition": "Die Regel hinter einem Endpunkt: welche Operationen eine Aufruferin ausführen darf, auf welchen Entitätstypen, und welche Attribute zurückkommen.",
+      "term": "Richtlinie"
+    },
+    "contextSpace": {
+      "definition": "Wo die lebenden Daten eines Projekts liegen, getrennt von jedem anderen Projekt; Endpunkte veröffentlichen sie, Pipelines füllen sie.",
+      "term": "Kontextraum"
+    },
+    "lane": {
+      "definition": "Wie viel Prüfung eine Änderung braucht: Grün läuft allein durch, Gelb braucht eine Freigabe der Fachstelle, Rot mehrere Personen.",
+      "term": "Risikospur"
+    },
+    "change": {
+      "definition": "Ein vorgeschlagener Eingriff in die Konfiguration, festgehalten, damit ihn jemand liest und freigibt, bevor sich im Betrieb etwas bewegt.",
+      "term": "Änderung"
     }
   },
   "quota": {
@@ -227,8 +250,8 @@
     "typeName": "Zur Bestätigung {name} eingeben",
     "propose": "Entfernen vorschlagen",
     "referenced": "Noch in Verwendung",
-    "button": "Löschen",
-    "action": "{name} löschen",
+    "button": "Entfernen",
+    "action": "{name} entfernen",
     "close": "Schließen"
   },
   "resourceEdit": {
@@ -940,7 +963,13 @@
       "whereLabel": "Wo sie gilt",
       "untilLabel": "Bis (optional)",
       "propose": "Vergabe vorschlagen",
-      "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern."
+      "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern.",
+      "subjectKindHelp": "Ob die Rolle an eine Person oder an eine Gruppe geht. Eine Gruppe wird einmal berechtigt und hält ihre Mitglieder selbst nach.",
+      "personHelp": "Der Benutzername oder die E-Mail-Adresse, die der Identitätsanbieter für diese Person führt, genau wie sie sich anmeldet.",
+      "groupHelp": "Der Name einer unter Gruppen erklärten Gruppe. Die Rolle hält, wer Mitglied ist.",
+      "roleHelp": "Was die Person darf: jede Rolle ist eine Menge von Verben auf einer Menge von Arten, aufgeführt unter Rollen.",
+      "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
+      "untilHelp": "Der letzte Tag, an dem die Rolle gilt. Leer gelassen endet sie nicht, was ein dauerhaftes Mitglied braucht."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -1410,7 +1439,10 @@
       "organization": "Standardorganisation",
       "tokenRef": "Secret mit dem API-Token",
       "tokenHelp": "Das API-Token selbst wird hier nie eingegeben und nie in Git gespeichert: Nennen Sie das Secret, das die Betreiberin im Secret-Store hinterlegt hat; der Reconciler löst es beim Veröffentlichen auf.",
-      "propose": "Katalog vorschlagen"
+      "propose": "Katalog vorschlagen",
+      "nameHelp": "Der kurze Name, unter dem dieser Katalog hier bekannt ist. Kleinbuchstaben, Ziffern und Bindestriche.",
+      "urlHelp": "Die Adresse des CKAN-Portals, auf dem die Datensätze veröffentlicht werden, mit Schema.",
+      "organizationHelp": "Die CKAN-Organisation, in der ein Datensatz landet, wenn ein Endpunkt keine eigene nennt."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",

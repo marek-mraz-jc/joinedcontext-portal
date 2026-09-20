@@ -47,6 +47,15 @@ fn viewer() -> Identity {
     }
 }
 
+/// Proposes in `ovzdusie` and reads nothing of any other project: the caller a narrowed answer is
+/// for, because they may open a workspace and may see none of `doprava`'s.
+fn proposer() -> Identity {
+    Identity {
+        groups: vec!["editors".into()],
+        ..person("emil")
+    }
+}
+
 /// Bound to nothing at all.
 fn stranger() -> Identity {
     person("nobody")
@@ -80,6 +89,19 @@ async fn world() -> (MockServer, AppState) {
         "readers",
         ORG_NAMESPACE,
         json!({ "role": "reader", "subjects": [{ "group": "readers" }],
+                "scope": { "project": PROJECT } }),
+    ));
+    state.mirror.upsert(envelope(
+        "Role",
+        "editor",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "editors",
+        ORG_NAMESPACE,
+        json!({ "role": "editor", "subjects": [{ "group": "editors" }],
                 "scope": { "project": PROJECT } }),
     ));
     (gitea, state)
@@ -312,20 +334,21 @@ async fn a_name_the_store_refuses_is_read_from_the_forge_before_it_is_refused() 
     assert!(writes.is_empty(), "the forge was asked to {writes:?}");
 }
 
-/// A workspace name is taken across the whole organization, and the conflict says so to a caller who
-/// may not read the project that holds it.
+/// PF-59, R20: a workspace name is taken across the whole organization, and a caller who may not see
+/// what holds it is told the name is not free without being told whose it is.
 ///
-/// Today's behaviour, filed as a task: the record is keyed by name alone, because the branch and the
-/// preview host are (`src/ops/workspaces.rs:220`, CC-76, CC-78). The uniqueness is wanted; what is not
-/// is the answer, which tells a member of one project that a name is in use in another — an existence
-/// oracle over every workspace in the organization, one name at a time (PF-59, R20). When the answer is
-/// narrowed, this case is the one to change.
+/// The record is keyed by name alone, because the branch and the preview host are
+/// (`src/ops/workspaces.rs:222`, CC-76, CC-78). The uniqueness is wanted; naming it to everyone was
+/// not — one request per guessed name told anybody who may propose in any project whether a name is
+/// in use in every other. The status stays 409 either way: the request cannot be honoured and the
+/// person has to pick another name, which is not a leak and is the thing they act on (T-2296).
 #[tokio::test]
-async fn the_name_of_a_workspace_in_another_project_comes_back_as_a_conflict() {
+async fn a_name_held_out_of_sight_is_taken_without_being_named() {
     let (_gitea, state) = world().await;
     opened(&state, ELSEWHERE, "air-v2", "peter@hel.fi").await;
 
-    // The steward reads every project, so for them the conflict is plain and right.
+    // The steward reads every project, so for them the conflict is the plain one: they can go and
+    // look at what holds the name.
     let answer = send(&state, steward(), "POST", WS, Some(opening("air-v2"))).await;
     assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
     assert!(
@@ -334,9 +357,41 @@ async fn the_name_of_a_workspace_in_another_project_comes_back_as_a_conflict() {
         answer.text,
     );
 
-    // A workspace of a project the viewer cannot read is still answered to them as taken, which is
-    // what makes it an oracle. The viewer may not propose in `doprava`, so the name is asked for in
-    // `ovzdusie`, where they may not either — the conflict is reached first all the same.
+    // The proposer opens workspaces in `ovzdusie` and reads nothing of `doprava`. Same 409, and the
+    // body names neither the workspace, nor the project that holds it, nor its owner.
+    let answer = send(&state, proposer(), "POST", WS, Some(opening("air-v2"))).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    for secret in ["air-v2", ELSEWHERE, "peter@hel.fi"] {
+        assert!(
+            !answer.text.contains(secret),
+            "the refusal carries '{secret}': {}",
+            answer.text,
+        );
+    }
+    let problem: Value = serde_json::from_str(&answer.text).expect("a problem");
+    let detail = problem["detail"].as_str().expect("a detail").to_owned();
+    assert!(
+        detail.contains("not available") && detail.contains("choose another"),
+        "the refusal does not tell the person what to do: {detail}",
+    );
+
+    // A name held in their own project is still named plainly, because that is the conflict a person
+    // acts on — they can open what holds it, or ask its owner.
+    opened(&state, PROJECT, "air-v3", "emil@hel.fi").await;
+    let answer = send(&state, proposer(), "POST", WS, Some(opening("air-v3"))).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    assert!(
+        answer.text.contains("air-v3"),
+        "the conflict in the caller's own project went vague: {}",
+        answer.text,
+    );
+    assert_ne!(
+        serde_json::from_str::<Value>(&answer.text).expect("a problem")["detail"],
+        json!(detail),
+        "the two conflicts have become one wording",
+    );
+
+    // A project the viewer does not read is hidden before the name is looked at at all.
     let answer = send(
         &state,
         viewer(),
@@ -394,15 +449,15 @@ async fn a_listing_of_a_project_nobody_bound_the_caller_to_is_not_an_empty_list(
     assert_eq!(list["items"][0]["name"], json!("air-v2"), "{}", answer.text);
 }
 
-/// PF-59, R20: reading or comparing a workspace of another project is a 404, and so is one nobody has.
+/// PF-59, R20: reading or comparing a workspace of another project is a 404, and so is one nobody
+/// has — in one and the same sentence.
 ///
-/// The two 404s are not worded alike, and that is today's behaviour rather than the wanted one: a
-/// workspace that exists somewhere answers `no workspace named 'x' in project 'y'` while one that
-/// exists nowhere answers `no workspace named 'x'` (`src/ops/workspaces.rs:162` against `:785`). The
-/// difference is readable by anyone, one name at a time, so it is the same oracle as the conflict on
-/// opening and is filed with it. When both are one sentence, this case is the one to change.
+/// The two used to be worded apart: `no workspace named 'x'` for a name nobody holds against
+/// `no workspace named 'x' in project 'y'` for one held elsewhere. Both are 404, so the status was
+/// right and the body was the oracle, readable by any project reader one name at a time. `visible`
+/// now answers the second sentence for both misses (`src/ops/workspaces.rs:791`, T-2296).
 #[tokio::test]
-async fn reading_a_workspace_of_another_project_is_not_there_in_two_different_wordings() {
+async fn reading_a_workspace_of_another_project_is_not_there_in_the_same_words_as_one_nobody_has() {
     let (_gitea, state) = world().await;
     opened(&state, ELSEWHERE, "air-v2", "peter@hel.fi").await;
 
@@ -426,8 +481,13 @@ async fn reading_a_workspace_of_another_project_is_not_there_in_two_different_wo
             "{suffix}: {}",
             answer.text,
         );
+        assert!(
+            !answer.text.contains(ELSEWHERE) && !answer.text.contains("peter@hel.fi"),
+            "{suffix}: the 404 says where the name lives: {}",
+            answer.text,
+        );
 
-        // A name that exists nowhere: also 404, and worded differently, which is the pin.
+        // A name that exists nowhere: the same sentence, with the name the caller themselves typed.
         let answer = send(
             &state,
             viewer(),
@@ -440,15 +500,59 @@ async fn reading_a_workspace_of_another_project_is_not_there_in_two_different_wo
         let nowhere: Value = serde_json::from_str(&answer.text).expect("a problem");
         assert_eq!(
             nowhere["detail"],
-            json!("no workspace named 'nothing-at-all'"),
+            json!(format!(
+                "no workspace named 'nothing-at-all' in project '{PROJECT}'"
+            )),
             "{suffix}: {}",
             answer.text,
         );
-        assert_ne!(
-            there["detail"], nowhere["detail"],
-            "the two answers have become one, which is the fix: {suffix}",
+        // And the two differ in nothing but the name that was asked for.
+        assert_eq!(
+            there["detail"]
+                .as_str()
+                .expect("a detail")
+                .replace("air-v2", "NAME"),
+            nowhere["detail"]
+                .as_str()
+                .expect("a detail")
+                .replace("nothing-at-all", "NAME"),
+            "{suffix}: the two misses are worded apart again: {} against {}",
+            there["detail"],
+            nowhere["detail"],
         );
     }
+
+    // The workspace-scoped read of the resource API is the third way in: it resolves the name
+    // through `mirror_of`, which carried the same two wordings (`src/ops/workspaces.rs:454`,
+    // measured by worker-10 on T-1682). One sentence there too.
+    let mut details = Vec::new();
+    for name in ["air-v2", "nothing-at-all"] {
+        let answer = send(
+            &state,
+            viewer(),
+            "GET",
+            &format!("/api/v1/projects/{PROJECT}/spaces?workspace={name}"),
+            None,
+        )
+        .await;
+        assert_eq!(
+            answer.status,
+            StatusCode::NOT_FOUND,
+            "{name}: {}",
+            answer.text
+        );
+        let problem: Value = serde_json::from_str(&answer.text).expect("a problem");
+        details.push(
+            problem["detail"]
+                .as_str()
+                .expect("a detail")
+                .replace(name, "NAME"),
+        );
+    }
+    assert_eq!(
+        details[0], details[1],
+        "the workspace-scoped read still says which name lives in another project",
+    );
 
     // And a stranger reads neither wording: the project is refused before the name is looked at.
     for uri in [

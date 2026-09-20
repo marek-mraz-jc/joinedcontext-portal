@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { ResourceFormDialog } from "../src/components/ResourceFormDialog";
+import { BrandingProvider, NEUTRAL_BRANDING } from "../src/branding";
 import type { JsonSchema } from "../src/components/forms/types";
 
 // Monaco draws on a canvas and starts a worker, neither of which exists in jsdom; a textarea
@@ -49,7 +50,11 @@ function list(items: unknown[]) {
   return { apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items };
 }
 
-function stubFetch(forms: unknown[], preferences: Record<string, unknown> = {}) {
+function stubFetch(
+  forms: unknown[],
+  preferences: Record<string, unknown> = {},
+  branding: Partial<typeof NEUTRAL_BRANDING> = {},
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
@@ -66,6 +71,10 @@ function stubFetch(forms: unknown[], preferences: Record<string, unknown> = {}) 
     if (path.endsWith("/forms")) {
       return json(list(forms));
     }
+    // The installation's own block, which is what says whether a guide is served at all.
+    if (path === "/api/v1/branding") {
+      return json({ ...NEUTRAL_BRANDING, ...branding });
+    }
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -77,6 +86,7 @@ function renderDialog(kind?: string, submitting?: boolean) {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
+        <BrandingProvider>
         <ResourceFormDialog
           open
           onOpenChange={() => {}}
@@ -88,6 +98,7 @@ function renderDialog(kind?: string, submitting?: boolean) {
           submitting={submitting}
           onSubmit={() => {}}
         />
+        </BrandingProvider>
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -202,6 +213,66 @@ describe("a manifest form", () => {
     // It stands above the fields, so it is read before anything is typed.
     const name = screen.getByLabelText(/^Name/);
     expect(about.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  /**
+   * UI-02, DP-11, T-2252: a form links to its kind's page in the User Guide — and only when the
+   * installation serves one. `dev` serves none today, so every form there shows `about` and no
+   * link, because a dead link is worse than none.
+   */
+  it("links to its guide only when a guide is served", async () => {
+    // No documentationBaseUrl: the arrangement names its page and the form still offers nothing.
+    stubFetch([{ ...ENDPOINT_FORM, spec: { ...ENDPOINT_FORM.spec, guide: "User-Guide/05-endpoints-and-sharing" } }]);
+    renderDialog("Endpoint");
+    await screen.findByTestId("form-about");
+    expect(screen.queryByTestId("form-guide")).toBeNull();
+
+    cleanup();
+
+    // With one, the link points at the kind's own page, names it, and opens in a new tab.
+    stubFetch(
+      [{ ...ENDPOINT_FORM, spec: { ...ENDPOINT_FORM.spec, guide: "User-Guide/05-endpoints-and-sharing" } }],
+      {},
+      { documentationBaseUrl: "https://docs.example.test" },
+    );
+    renderDialog("Endpoint");
+
+    const link = await screen.findByTestId("form-guide");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://docs.example.test/User-Guide/05-endpoints-and-sharing",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer");
+    // It says where it goes, so a screen reader announces the destination and not "link".
+    expect(link.textContent ?? "").toContain("Endpoint");
+    expect(link.textContent ?? "").toContain("User Guide");
+  });
+
+  /**
+   * PF-57, T-2252: a `guide` is a page inside the documentation site, never a place. An
+   * arrangement that names one anyway is reported with the form's other problems and no link is
+   * built, so a committed manifest cannot send a person to a site of its own.
+   */
+  it("refuses a guide that would leave the documentation site", async () => {
+    for (const guide of [
+      "https://evil.example.test/phish",
+      "//evil.example.test",
+      "javascript:alert(1)",
+      "../../etc/passwd",
+      "User-Guide/../../../etc/passwd",
+      "",
+    ]) {
+      stubFetch(
+        [{ ...ENDPOINT_FORM, spec: { ...ENDPOINT_FORM.spec, guide } }],
+        {},
+        { documentationBaseUrl: "https://docs.example.test" },
+      );
+      renderDialog("Endpoint");
+      await screen.findByTestId("form-about");
+      expect(screen.queryByTestId("form-guide"), guide).toBeNull();
+      cleanup();
+    }
   });
 
   it("says so when a manifest asks for something the form cannot do", async () => {

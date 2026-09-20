@@ -488,7 +488,7 @@ describe("a viewer on the spaces list", () => {
     // Delete lives in the row's menu now (T-2279); it is listed there, disabled, with the reason,
     // because a role that is too narrow has to be readable and not merely absent (UI-44).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    const denied = await screen.findByRole("menuitem", { name: /Delete/ });
+    const denied = await screen.findByRole("menuitem", { name: new RegExp(en.resourceDelete.button) });
     expect(denied).toHaveAttribute("aria-disabled", "true");
     expect(denied).toHaveAttribute(
       "title",

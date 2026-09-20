@@ -6,6 +6,7 @@ metadata:
   name: pipeline
 spec:
   for: Pipeline
+  guide: User-Guide/04-pipelines
   about:
     en: >-
       A pipeline is what brings data in and keeps it fresh: it reads one source, maps each record

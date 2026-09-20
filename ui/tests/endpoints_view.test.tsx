@@ -218,7 +218,7 @@ describe("endpoints view", () => {
       "Disabled: your role does not permit 'propose' on 'Endpoint' in this project",
     );
     const menu = screen.getByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: /Delete/ })).toHaveAttribute(
+    expect(within(menu).getByRole("menuitem", { name: new RegExp(en.resourceDelete.button) })).toHaveAttribute(
       "aria-disabled",
       "true",
     );

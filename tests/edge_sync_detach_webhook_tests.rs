@@ -42,6 +42,10 @@ const PROJECT: &str = "bb";
 const SOURCE: &str = "regional";
 const SECRET: &str = "the-current-webhook-secret";
 const RETIRED: &str = "the-secret-being-retired";
+/// A second source's own secret: what must not open the first one.
+const OTHER: &str = "the-neighbouring-sources-secret";
+/// The forge's own hook secret, which used to authorise every sync source there was.
+const GITEA: &str = "the-forges-own-webhook-secret";
 const STATUS: &str = "/api/v1/projects/bb/syncsources/regional/status";
 const DETACH: &str = "/api/v1/projects/bb/syncsources/regional/detach";
 const HOOK: &str = "/api/v1/webhooks/sync/bb/regional";
@@ -361,83 +365,150 @@ async fn the_sync_webhook_refuses_before_it_reads_the_project_or_the_source() {
     assert!(writes.is_empty(), "the forge was asked to {writes:?}");
 }
 
-/// Two properties of the signed sync webhook that are today's behaviour rather than the wanted one,
-/// both written down in `/workspace/chyby.md`:
+/// MF-44, T-2297: a run through the sync webhook is authorised by **that source's own** secret, and
+/// by nothing platform-wide.
 ///
-/// 1. The signature covers the body and not the path, and there is one secret for every source, so a
-///    body signed for one project's source runs another project's source (`src/api/sync_sources.rs:295`).
-/// 2. The rotation window the Gitea hook has (`gitea_webhook_secret_previous`) does not exist here, so
-///    the moment the current secret is replaced every sync origin's hook is refused.
-///
-/// The case is here so that a fix has to change it on purpose: a per-source `secretRef` for the first,
-/// the same two-secret list for the second.
+/// The signature covers the request body and not the path, so one secret for every source made the
+/// same signed body work on every path: the origin of one project's source could force a run of
+/// another project's. Each source now carries `spec.webhook.secretRef`, the reconciler resolves it
+/// per pass, and the route asks what it left (`src/sync/webhook_secrets.rs`).
 #[tokio::test]
-async fn one_signature_runs_any_source_and_the_retired_secret_is_refused() {
+async fn a_source_is_run_by_its_own_secret_and_by_nobody_elses() {
     let gitea = forge().await;
-    let state = state_with(
-        &gitea,
-        &["read", "propose", "delete"],
-        Some(SECRET),
-        Some(RETIRED),
-    );
+    // The platform's own Gitea secret is a third value here, so an answer that took it would show.
+    let state = state_with(&gitea, &["read", "propose", "delete"], Some(GITEA), None);
+    state
+        .webhook_secrets
+        .replace_all(std::collections::BTreeMap::from([
+            (
+                (PROJECT.to_owned(), SOURCE.to_owned()),
+                vec![SECRET.to_owned()],
+            ),
+            (
+                (PROJECT.to_owned(), "neighbours".to_owned()),
+                vec![OTHER.to_owned()],
+            ),
+        ]));
     let body = r#"{"pushed":true}"#;
-    let signature = sign(SECRET, body);
 
-    // Signed once, accepted on the source's own path: past the signature, into the loop, which has
-    // no remote it can reach, so the run fails rather than being refused.
-    let (status, text) = hook(&state, HOOK, &[(SIGNATURE_HEADER, &signature)], body).await;
-    assert_ne!(status, StatusCode::UNAUTHORIZED, "{text}");
-    assert_ne!(status, StatusCode::NOT_FOUND, "{text}");
-
-    // The same signature on a source the caller's origin has nothing to do with: also past the
-    // signature. It is 404 only because this installation holds no such source, not because the
-    // caller was refused — one secret authorises every source there is.
+    // Its own secret: past the signature and into the loop, which has no remote it can reach, so
+    // the run fails rather than being refused.
     let (status, text) = hook(
         &state,
-        "/api/v1/webhooks/sync/dopravа/nothing-like-this",
-        &[(SIGNATURE_HEADER, &signature)],
+        HOOK,
+        &[(SIGNATURE_HEADER, &sign(SECRET, body))],
         body,
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "{text}");
+    assert_ne!(status, StatusCode::UNAUTHORIZED, "{text}");
+    assert_ne!(status, StatusCode::NOT_FOUND, "{text}");
 
-    // The secret being retired: the Gitea hook takes it, this one does not.
-    let retired = sign(RETIRED, body);
-    let (status, text) = hook(&state, HOOK, &[(SIGNATURE_HEADER, &retired)], body).await;
+    // The same signed body on the neighbouring source's path, and the neighbour's secret on this
+    // one: both refused. This is the whole point of a secret per source.
+    for (uri, signature) in [
+        ("/api/v1/webhooks/sync/bb/neighbours", sign(SECRET, body)),
+        (HOOK, sign(OTHER, body)),
+    ] {
+        let (status, text) = hook(&state, uri, &[(SIGNATURE_HEADER, &signature)], body).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri}: {text}");
+    }
+
+    // And the forge's own webhook secret, which used to open every source, opens none of them —
+    // while the Gitea hook it belongs to still takes it.
+    let forge_signed = sign(GITEA, body);
+    let (status, text) = hook(&state, HOOK, &[(SIGNATURE_HEADER, &forge_signed)], body).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{text}");
     let (status, text) = hook(
         &state,
         GITEA_HOOK,
-        &[(SIGNATURE_HEADER, &retired), (EVENT_HEADER, "ping")],
+        &[(SIGNATURE_HEADER, &forge_signed), (EVENT_HEADER, "ping")],
         body,
     )
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT, "{text}");
 }
 
-/// CC-18: with no secret configured the sync webhook is shut, and it is shut before the path is read —
-/// so an installation that never set one answers the same for a source it has and one it has not, and
-/// never runs anything.
+/// MF-44, T-0982: the secret being retired is accepted beside the current one, so the value is
+/// written in one commit and the origin's own hook moved in another. Without that window every
+/// rotation is an outage, which is why nobody rotates.
 #[tokio::test]
-async fn a_sync_webhook_without_a_secret_is_shut_for_every_path() {
+async fn the_retiring_secret_is_accepted_until_a_pass_drops_it() {
+    let gitea = forge().await;
+    let state = state_with(&gitea, &["read", "propose", "delete"], Some(GITEA), None);
+    let body = r#"{"pushed":true}"#;
+    let held = |secrets: Vec<String>| {
+        state
+            .webhook_secrets
+            .replace_all(std::collections::BTreeMap::from([(
+                (PROJECT.to_owned(), SOURCE.to_owned()),
+                secrets,
+            )]))
+    };
+
+    held(vec![SECRET.to_owned(), RETIRED.to_owned()]);
+    for secret in [SECRET, RETIRED] {
+        let (status, text) = hook(
+            &state,
+            HOOK,
+            &[(SIGNATURE_HEADER, &sign(secret, body))],
+            body,
+        )
+        .await;
+        assert_ne!(status, StatusCode::UNAUTHORIZED, "{secret}: {text}");
+    }
+
+    // The manifest drops `previousSecretRef`, the next pass resolves one secret, and the old one
+    // stops working that pass.
+    held(vec![SECRET.to_owned()]);
+    let (status, text) = hook(
+        &state,
+        HOOK,
+        &[(SIGNATURE_HEADER, &sign(RETIRED, body))],
+        body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{text}");
+}
+
+/// PF-59, R20: the sync webhook is unauthenticated until the signature verifies, so every refusal
+/// at it is one status with one body.
+///
+/// A source that is not there, a source with no `spec.webhook`, one whose reference this instance
+/// could not resolve, a wrong signature and a missing one are all the same `401`. A `404` would be
+/// an existence oracle over the sources of every project, and a `503` would say which installations
+/// have no secret backend — to a caller who has proved nothing.
+#[tokio::test]
+async fn every_refusal_at_the_sync_webhook_is_the_same_answer() {
     let gitea = forge().await;
     let state = state_with(&gitea, &["read", "propose", "delete"], None, None);
     assert!(
-        state.config.gitea_webhook_secret.is_none(),
-        "this case is about an installation that has no webhook secret",
+        state.webhook_secrets.is_empty(),
+        "this case is about a Portal that has resolved no webhook secret at all",
     );
+    let body = "{}";
+    let wrong = sign(SECRET, body);
 
-    for uri in [HOOK, "/api/v1/webhooks/sync/nothing/at-all"] {
-        for signature in ["", &sign(SECRET, "{}")] {
-            let headers: Vec<(&str, &str)> = if signature.is_empty() {
-                Vec::new()
-            } else {
-                vec![(SIGNATURE_HEADER, signature)]
-            };
-            let (status, text) = hook(&state, uri, &headers, "{}").await;
-            assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{uri}: {text}");
-        }
+    let mut answers = Vec::new();
+    for (uri, headers) in [
+        // The source this installation holds, which no pass has resolved a secret for.
+        (HOOK, vec![(SIGNATURE_HEADER, wrong.as_str())]),
+        // A source it does not hold at all.
+        (
+            "/api/v1/webhooks/sync/nothing/at-all",
+            vec![(SIGNATURE_HEADER, wrong.as_str())],
+        ),
+        // No signature at all, and one that is not hex.
+        (HOOK, Vec::new()),
+        (HOOK, vec![(SIGNATURE_HEADER, "not-a-signature")]),
+    ] {
+        let (status, text) = hook(&state, uri, &headers, body).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri}: {text}");
+        answers.push(text);
     }
+    assert!(
+        answers.windows(2).all(|pair| pair[0] == pair[1]),
+        "the refusals are not worded alike: {answers:?}",
+    );
 
     let writes: Vec<String> = touched(&gitea)
         .await

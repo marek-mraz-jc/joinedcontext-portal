@@ -30,7 +30,17 @@ import { bindingOf } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
-import { Alert, Badge, Button, Field, Input, PageHeader, Select, SourceLink } from "../../components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  SourceLink,
+  Term,
+} from "../../components/ui";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
 
@@ -249,7 +259,7 @@ export function EndpointPage({
 
       <Section title={t("endpoints.page.whatItIs")}>
         <Facts>
-          <Fact label={t("endpoints.field.space")}>
+          <Fact label={<Term name="contextSpace">{t("endpoints.field.space")}</Term>}>
             {space ? (
               <Link
                 to="/projects/$project/spaces/$name"
@@ -1131,7 +1141,7 @@ function Facts({ children }: { children: ReactNode }): JSX.Element {
   return <dl className="grid gap-3 sm:grid-cols-2">{children}</dl>;
 }
 
-function Fact({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+function Fact({ label, children }: { label: ReactNode; children: ReactNode }): JSX.Element {
   return (
     <div className="rounded-md border border-border p-3">
       <dt className="text-caption font-medium text-fg-muted">{label}</dt>

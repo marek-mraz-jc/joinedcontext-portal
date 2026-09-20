@@ -432,8 +432,15 @@ impl GiteaClient {
         })
     }
 
-    /// Reads Gitea configuration from environment variables.
-    /// Fail-closed: returns `Ok(None)` if all 4 are absent, or an error if partially set.
+    /// Reads the forge's configuration from the environment.
+    ///
+    /// `JC_GITEA_URL` (the API base the Portal dials), `JC_GITEA_OWNER`, `JC_GITEA_REPO` and
+    /// `JC_GITEA_TOKEN` (a secret: the token every push and merge request is written with).
+    /// `JC_GITEA_PUBLIC_URL` is the address a browser follows a "Source" link to, which differs
+    /// from the API base whenever the forge is reached through the edge; the API base when it
+    /// is unset.
+    ///
+    /// Fail-closed: returns `Ok(None)` if all four are absent, or an error if partially set.
     pub fn from_env(lookup: impl Fn(&str) -> Option<String>) -> Result<Option<Self>, GitError> {
         match (
             lookup("JC_GITEA_URL"),

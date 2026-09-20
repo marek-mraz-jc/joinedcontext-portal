@@ -173,6 +173,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * JSON-RPC 2.0 dispatcher for the Configuration MCP server.
+         * @description One operation in the document, with an opaque body, because that is what the route is
+         *     (T-2402): a single POST whose meaning is the JSON-RPC `method` inside it, not the path. The
+         *     alternative — leaving it out because it is not REST — made the API page and the published
+         *     contract disagree, and a route a person can call belongs in the contract whatever shape its
+         *     body has. The methods themselves are listed on the page (API/01 §21), where a JSON-RPC
+         *     surface can be written down properly.
+         */
+        post: operations["handle_mcp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preferences": {
         parameters: {
             query?: never;
@@ -493,6 +518,26 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["start_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/assistant/propose-endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The share request rendered, not written (EP-72, API/01 §19): the manifests the person will
+         *     submit, refused for a caller who may not propose an Endpoint here (PF-50).
+         */
+        post: operations["propose_endpoint"];
         delete?: never;
         options?: never;
         head?: never;
@@ -835,6 +880,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38). */
+        post: operations["test_pipeline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/{name}/metrics": {
         parameters: {
             query?: never;
@@ -1171,6 +1233,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tools/infer-schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/tools/infer-schema`: a draft model from a sample file (T-0599, DM-54, DM-55).
+         * @description The body is `multipart/form-data` with the file under `file` and an optional `format`
+         *     (`csv`, `xlsx`, `json`, `pdf`; the extension decides otherwise). The bytes go to Model Tools'
+         *     `/infer-schema` base64-encoded in JSON, are parsed there in memory and written nowhere, and
+         *     the draft comes back as Model Tools wrote it: `linkml`, `operations`, `detectedTypes`,
+         *     `matches`, `untyped`, `rows` (API/01 §11).
+         */
+        post: operations["infer_schema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tools/sdm-catalog": {
         parameters: {
             query?: never;
@@ -1396,6 +1482,15 @@ export interface components {
              * @default
              */
             contactEmail: string;
+            /**
+             * @description Where this installation serves the User Guide, or empty when it serves none (UI-02,
+             *     DP-11). A create form joins it with the page its kind's arrangement names and offers one
+             *     link; an installation that leaves it empty shows no link at all, because a dead link is
+             *     worse than none. Nothing follows it: it becomes an `href` a person may click and never a
+             *     request the Portal makes.
+             * @default
+             */
+            documentationBaseUrl: string;
             /**
              * @description The platform host.
              * @default
@@ -2956,6 +3051,65 @@ export interface operations {
             };
         };
     };
+    handle_mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The method decides what happens; the path never does (AG-60, ADR-N-021). */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The JSON-RPC response object. A refusal the protocol owns — an unknown method, a bad parameter — is an `error` member here and not an HTTP status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No bearer, or one this realm did not sign; the answer carries `WWW-Authenticate` with the metadata document */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The token is valid and its account may not use this door */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Method not allowed: the door takes POST */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Past the per-subject rate limit of this minute (AG-60) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
     get_preferences: {
         parameters: {
             query?: never;
@@ -4198,6 +4352,70 @@ export interface operations {
             };
             /** @description No agent runner, or no such profile */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    propose_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04. */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The rendering, written nowhere: `lane`, `slug`, `endpoint`, `policies`, `groups` and the `prefill` the endpoint form opens with */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A name, a space, an audience, a representation or an attribute the platform does not take */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No grant proposes an Endpoint in this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project for this caller */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5527,6 +5745,88 @@ export interface operations {
             };
             /** @description No binding of the caller covers the project */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    test_pipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description `pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, and a `format` (`csv`, `json`, `text`). API/01 §7a. */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The trace: what the harness read, what each step made of it, and the messages it would have written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A manifest that is not a Pipeline, a source that declares neither `dataSourceRef` nor `endpointRef`, or a sample past the byte limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No grant proposes a Pipeline in this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A test of this project is already running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Body larger than the limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No pipeline runner is configured, or it did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7117,6 +7417,67 @@ export interface operations {
             };
         };
     };
+    infer_schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `multipart/form-data`: the sample under `file`, and an optional `format` (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say */
+        requestBody: {
+            content: {
+                "multipart/form-data": string;
+            };
+        };
+        responses: {
+            /** @description The draft model as Model Tools wrote it: `linkml`, `operations`, `detectedTypes`, `matches`, `untyped`, `rows` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No `file` field, an upload that does not parse, or a sample past the byte limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Sample larger than the body limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No model tools service configured, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     sdm_catalog: {
         parameters: {
             query?: {
@@ -7251,7 +7612,7 @@ export interface operations {
                     "application/json": components["schemas"]["SyncRunReport"];
                 };
             };
-            /** @description Missing or invalid signature */
+            /** @description The signature is not one this source's own secret makes over this body — the same answer as for a source that is not there, one with no `spec.webhook`, and one whose reference this instance cannot resolve (MF-44, PF-59) */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -7260,16 +7621,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such project or source */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description No webhook secret or no repository configured */
+            /** @description No repository configured, or no sync loop running */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -342,6 +342,16 @@ fn object_meta(name: &str, settings: &Settings, labels: &Value) -> Value {
 
 /// The app itself: the pod's only container, on [`APP_PORT`], with a readiness probe on
 /// `/healthz` so no traffic reaches it before it can answer (Architecture/16 §5).
+///
+/// What a generated application is started with (AP-14, AP-28):
+///
+/// - `JC_BIND_ADDRESS` — where it listens, which is the port the Service routes to.
+/// - `JC_BASE_PATH` — the path it is served under, so every link it writes resolves.
+/// - `JC_ENDPOINT_URL` — the one Endpoint it may read, as a caller reaches it.
+/// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
+///   `X-Access-Token` as normal rather than as a bug.
+///
+/// Never a credential: an application calls its Endpoint with the caller's own token.
 fn app_container(
     name: &str,
     image: &str,
