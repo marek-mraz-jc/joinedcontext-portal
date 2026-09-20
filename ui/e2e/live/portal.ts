@@ -6,6 +6,12 @@ export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORT
 export const APPROVER = { user: "demo.approver@hel.fi", password: process.env.APPROVER_PASSWORD ?? "" };
 /** A person who may read the projects and change nothing. */
 export const VIEWER = { user: "demo.viewer@hel.fi", password: process.env.VIEWER_PASSWORD ?? "" };
+/**
+ * The person who proposes and decides nothing (T-2231): bound to `editor` alone, so their own
+ * change is the plain CC-34 refusal rather than the PF-58 administrator exception the steward
+ * gets, and a role they hand out may carry no verb they lack (PF-50).
+ */
+export const EDITOR = { user: "demo.editor@hel.fi", password: process.env.EDITOR_PASSWORD ?? "" };
 
 /**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
@@ -14,7 +20,10 @@ export const VIEWER = { user: "demo.viewer@hel.fi", password: process.env.VIEWER
  */
 export async function signIn(browser: Browser, who: { user: string; password: string }, path: string): Promise<{ context: BrowserContext; page: Page }> {
   if (!who.password) {
-    throw new Error(`no password in the environment for ${who.user} (PORTAL_PASSWORD / APPROVER_PASSWORD)`);
+    throw new Error(
+      `no password in the environment for ${who.user} ` +
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD)",
+    );
   }
   const context = await browser.newContext();
   const page = await context.newPage();

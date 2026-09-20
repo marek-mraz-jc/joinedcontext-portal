@@ -2,9 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 // The journeys of ui/e2e/live run against a live Portal (dev), signed in through Keycloak as
 // the demo people, with no stubbed API: what they prove is the whole path (T-0630, TS-12).
-//   PORTAL_URL=https://portal.… PORTAL_PASSWORD=… APPROVER_PASSWORD=… \
-//     npx playwright test --config playwright.live.config.ts
-// Passwords come from the environment only, read from the cluster Secret at run time.
+//   PORTAL_URL=https://portal.… PORTAL_PASSWORD=… APPROVER_PASSWORD=… VIEWER_PASSWORD=… \
+//     EDITOR_PASSWORD=… npx playwright test --config playwright.live.config.ts
+// Passwords come from the environment only, read from the cluster Secret at run time: each demo
+// person's is Secret `keycloak-user-demo-<name>` (key `password`), so `demo.editor` is
+// `keycloak-user-demo-editor` (T-2231).
 export default defineConfig({
   testDir: "./e2e/live",
   fullyParallel: false,

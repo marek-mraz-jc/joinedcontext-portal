@@ -8,19 +8,19 @@
  * `an_agent_never_approves_a_change_however_it_is_asked`. What no test proved until now is that a
  * person meets the rule where they work: in the page, in words, with the API agreeing.
  *
- * What dev's seeded people can express, and what they cannot: `demo.steward` is bound to both
- * `steward` and `org-admin` (`helsinki-rolebinding-admins.yaml`), so they administer every kind
- * and their own change is the *administrator exception*, not the refusal. `demo.approver` holds
- * `approve` alone and cannot propose, so nobody on dev can propose a change they may not then
- * approve. The plain self-approval refusal therefore stays where it is proved — in
- * `tests/changes_tests.rs` — until a fourth demo person holds `propose` without `delete`
- * (T-2231). This file plays the exception, the missing-role refusal and the grant refusal.
+ * Who plays which rule: `demo.steward` is bound to both `steward` and `org-admin`
+ * (`helsinki-rolebinding-admins.yaml`), so they administer every kind and their own change is
+ * the *administrator exception*. `demo.viewer` holds `read` and gets the missing-role refusal.
+ * `demo.editor` is bound to `editor` alone (`helsinki-rolebinding-editors.yaml`, T-2231):
+ * `propose` and `approve` on the demo kinds, `propose` on `RoleBinding`, and `delete` on
+ * nothing — so their own change is the plain self-approval refusal, and a grant they open is
+ * refused for its width rather than for their being unable to grant at all.
  *
  * Nothing is left on dev: every proposal opened here is rejected or its resource removed again.
  */
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { APPROVER, STEWARD, VIEWER, ask, csrf, proposedChange, removeCompletely, signIn } from "./portal";
+import { APPROVER, EDITOR, STEWARD, VIEWER, ask, csrf, proposedChange, removeCompletely, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 
@@ -209,6 +209,100 @@ test("nobody grants above their own rights, and the page gives the reason", asyn
       },
     });
     expect(answer.status(), await answer.text()).toBe(403);
+  } finally {
+    await context.close();
+  }
+});
+
+/**
+ * CC-34: a person who may approve the kind, and may not delete it, cannot approve their own
+ * change — the plain refusal the rule is named for, which no seeded person could play before
+ * `demo.editor` (T-2231). The same page offers the control enabled to an approver who did not
+ * write it, so what is refused is the authorship and not the role.
+ */
+test("a person who proposes and does not administer cannot approve their own change", async ({
+  browser,
+}) => {
+  const editor = await signIn(browser, EDITOR, `/projects/${PROJECT}/spaces?lang=en`);
+  const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
+  let change = "";
+  try {
+    change = await proposeSpace(editor.page, `t2231a-${Date.now().toString(36)}`);
+
+    await editor.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
+      waitUntil: "networkidle",
+    });
+    const approve = editor.page.getByRole("button", { name: "Approve", exact: true });
+    await expect(approve).toBeVisible({ timeout: 60_000 });
+    await expect(approve).toBeDisabled();
+    const reason = await describedBy(approve);
+    // `ownProposal`, not `needsRole`: this person may approve the kind, they wrote the change
+    // (ui/src/api/approval.ts, locales `approvals.ownProposal`).
+    expect(reason, "the disabled Approve says it is their own proposal (UI-44)").toMatch(
+      /own proposal/i,
+    );
+
+    // The door says the same, and nothing moved.
+    const token = await csrf(editor.context);
+    const direct = await editor.page.request.post(
+      `/api/v1/projects/${PROJECT}/changes/${change}/approve`,
+      { headers: { "x-csrf-token": token }, data: {} },
+    );
+    expect(direct.status(), await direct.text()).toBe(403);
+    expect(await phase(editor.page, change)).toBe("PendingApproval");
+
+    // Somebody else may: the change is waiting for a person, not stuck.
+    await approver.page.goto(`/projects/${PROJECT}/approvals/${change}?lang=en`, {
+      waitUntil: "networkidle",
+    });
+    await expect(
+      approver.page.getByRole("button", { name: "Approve", exact: true }),
+    ).toBeEnabled({ timeout: 60_000 });
+  } finally {
+    if (change) {
+      await withdraw(approver.page, change);
+    }
+    await editor.context.close();
+    await approver.context.close();
+  }
+});
+
+/**
+ * PF-50: a grant wider than the proposer's own rights is refused — and the person it is refused
+ * to is one who *may* grant, so what the rule stops is the width and not the role. The editor
+ * holds `propose` on `RoleBinding` and no `delete` anywhere, and `org-admin` carries `delete`
+ * over every kind.
+ */
+test("a grant wider than the proposer's own rights is refused, and a narrower control is not", async ({
+  browser,
+}) => {
+  const { context, page } = await signIn(browser, EDITOR, `/projects/${PROJECT}/access?lang=en`);
+  try {
+    // Unlike the viewer, this person reaches the form: the refusal below is about the grant.
+    const grant = page.getByRole("button", { name: "Grant a role" }).first();
+    await expect(grant).toBeVisible({ timeout: 60_000 });
+    await expect(grant).toBeEnabled();
+
+    const token = await csrf(context);
+    const answer = await page.request.post("/api/v1/projects/org/rolebindings", {
+      headers: { "x-csrf-token": token },
+      data: {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "RoleBinding",
+        metadata: { name: `t2231b-${Date.now().toString(36)}`, namespace: "org" },
+        spec: {
+          role: "org-admin",
+          subjects: [{ user: EDITOR.user }],
+          scope: { organization: "hel" },
+        },
+      },
+    });
+    const refusal = await answer.text();
+    expect(answer.status(), refusal).toBe(403);
+    // The reason names the rule and the verb that is missing, not a bare code (UI-44); the
+    // wording is the one `tests/access_escalation_tests.rs` pins server-side.
+    expect(refusal).toMatch(/may not grant more than its proposer holds/i);
+    expect(refusal).toMatch(/missing delete on/i);
   } finally {
     await context.close();
   }
