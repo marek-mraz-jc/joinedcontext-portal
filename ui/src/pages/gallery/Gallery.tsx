@@ -61,10 +61,19 @@ import {
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
 /**
- * A label of sixty characters, in German, where the compounds are longest. Every control is shown
+ * A label of sixty characters, in German, where the words are longest. Every control is shown
  * with it: what wraps, what clips and what pushes its row out of the page shows up here first.
+ *
+ * It is a phrase, not one sixty-character compound. A single unbreakable word of that length is
+ * not a label anybody writes, and holding the shared controls to it only moved where their text
+ * wraps on real pages (T-2413: it moved the `spaces` baseline at 400 px and nothing else).
+ * Where an unbreakable string is real — an entity id — it is `URN` below, in the places that
+ * actually carry one.
  */
-const LONG = "Luftqualitätsmessstationsverwaltungsberechtigungsübersicht 60";
+const LONG = "Luftqualitätsmessstation für die Verwaltung der Berechtigungen";
+
+/** What an unbreakable string really looks like in the Portal: an entity id (EP-08). */
+const URN = "urn:ngsi-ld:AirQualityObserved:banskabystrica:ovzdusie:stanica-01";
 
 /** And the other end: three characters, where a control collapses to its padding. */
 const SHORT = "Ja!";
@@ -85,7 +94,7 @@ function Specimen({ name, children }: { name: string; children: ReactNode }): JS
 /** One state of one control, with the words that say which state it is. */
 function State({ is, children }: { is: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="flex min-w-40 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1 sm:min-w-40">
       <span className="text-caption text-fg-muted">{is}</span>
       {children}
     </div>
@@ -168,19 +177,19 @@ export function Gallery(): JSX.Element {
             <Badge tone={tone}>{tone}</Badge>
           </State>
         ))}
-        <State is="mono, long">
-          <Badge mono>{LONG}</Badge>
+        <State is="mono, an entity id">
+          <Badge mono>{URN}</Badge>
         </State>
       </Specimen>
 
       <Specimen name="Card, CardHeader">
         <State is="with a header and a description">
-          <Card className="w-80">
+          <Card className="w-full max-w-80">
             <CardHeader title={LONG} description="What this card is for." actions={<Badge>2</Badge>} />
           </Card>
         </State>
         <State is="flush, for a table or a map">
-          <Card flush className="w-40">
+          <Card flush className="w-full max-w-40">
             <Skeleton className="h-16 w-full" />
           </Card>
         </State>
@@ -291,7 +300,7 @@ export function Gallery(): JSX.Element {
             </TableHead>
             <TableBody>
               <TableRow>
-                <TableRowHeaderCell>{LONG}</TableRowHeaderCell>
+                <TableRowHeaderCell>{URN}</TableRowHeaderCell>
                 <TableCell align="right">
                   <Badge tone="success">Live</Badge>
                 </TableCell>

@@ -5,13 +5,15 @@
  * dev server (the `gallery` project of `playwright.config.ts`), while every other spec runs
  * against the preview of `dist/`.
  *
- * What is asserted here is what a picture cannot: at each size nothing pushes the page sideways,
- * with a sixty-character German label on every specimen, and every specimen is on the page. The
- * measurement is the one `visual.spec.ts` already makes at phone width. The visual baselines
- * themselves are not in this file: `toHaveScreenshot` fails a lane the first time it meets a
- * missing baseline, and this sandbox's browser rasterizes text differently from the one in CI, so a baseline made
- * here would be a red lane rather than a check. They are generated once from the `ci-full` e2e
- * lane and committed — the task that does it is named in T-1729.
+ * Two things are asserted at each size. What a picture cannot say: nothing pushes the page
+ * sideways, with a sixty-character German label on every specimen, and every specimen is on the
+ * page — the measurement `visual.spec.ts` already makes at phone width. And the picture itself
+ * (T-2413): one baseline per size, compared the way the page baselines are, so a token, a
+ * radius, a focus ring or a spacing scale changed by hand is a red lane instead of something a
+ * person notices in a recording.
+ *
+ * A baseline changes only on purpose: `pnpm e2e -- --project=gallery --update-snapshots`, and
+ * the four PNGs under `gallery.spec.ts-snapshots/` are reviewed like code.
  *
  * The dark theme is `@media (prefers-color-scheme: dark)` in `src/tokens.css`, so it is a size
  * here like any other: the same page with `colorScheme: "dark"`.
@@ -66,6 +68,17 @@ for (const size of SIZES) {
       // Every specimen is on the page: one section per component, each with its heading.
       const sections = await page.getByRole("region").count();
       expect(sections).toBeGreaterThan(8);
+
+      // UI-15, UI-16, UI-27: the gallery as a person sees it. `fullPage`, because the point is
+      // every specimen, not the first screen of them.
+      await expect(page).toHaveScreenshot(`gallery-${size.name}.png`, {
+        fullPage: true,
+        animations: "disabled",
+        caret: "hide",
+        // Another machine's chromium rasterizes text a shade differently; a layout change is far
+        // above this (the ratio `visual.spec.ts` holds its own baselines at).
+        maxDiffPixelRatio: 0.03,
+      });
     });
   });
 }

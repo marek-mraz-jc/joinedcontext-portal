@@ -34,7 +34,13 @@ export function PageLoading({
       <span className="sr-only">{label}</span>
       <Skeleton className="h-6 w-64" />
       {Array.from({ length: lines }, (_, index) => (
-        <Skeleton key={index} className={index === lines - 1 ? "h-40 w-full" : "h-4 w-96"} />
+        <Skeleton
+            key={index}
+            // `max-w-96`, not `w-96`: a fixed 384 px line is wider than a 400 px screen once the
+            // page's own padding is taken off, so the wait itself scrolled sideways (UI-27,
+            // T-2413).
+            className={index === lines - 1 ? "h-40 w-full" : "h-4 w-full max-w-96"}
+          />
       ))}
     </div>
   );

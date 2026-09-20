@@ -20,7 +20,14 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: ["**/gallery.spec.ts"] },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // Both, and `**/live/**` first: a project's own `testIgnore` REPLACES the one above rather
+      // than adding to it, so naming only the gallery here put the 49 live journeys — which need
+      // a Portal and a Keycloak — back into the `e2e` lane (T-2413).
+      testIgnore: ["**/live/**", "**/gallery.spec.ts"],
+    },
     {
       name: "gallery",
       use: { ...devices["Desktop Chrome"], baseURL: GALLERY_URL },

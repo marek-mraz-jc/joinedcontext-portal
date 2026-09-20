@@ -75,7 +75,11 @@ describe("the component gallery", () => {
     expect(refused.some((button) => button.getAttribute("aria-disabled") === "true")).toBe(true);
     expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
     // The long label and the short one are both on the page, in every specimen that takes one.
-    expect(screen.getAllByText(/Luftqualitätsmessstationsverwaltungsberechtigungsübersicht/).length).toBeGreaterThan(3);
+    // The long one is a phrase, not one sixty-character compound: a word nobody writes only
+    // moved where the shared controls wrap on real pages (T-2413).
+    expect(screen.getAllByText(/Luftqualitätsmessstation für die Verwaltung/).length).toBeGreaterThan(3);
+    // And where an unbreakable string is real, it is an entity id (EP-08).
+    expect(screen.getAllByText(/urn:ngsi-ld:AirQualityObserved/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Ja!").length).toBeGreaterThan(1);
   });
 
