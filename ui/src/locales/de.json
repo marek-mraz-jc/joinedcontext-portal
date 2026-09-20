@@ -1772,7 +1772,12 @@
       "closed": "Der Lauf ist beendet und liest nichts mehr.",
       "agent": "Assistent",
       "you": "Sie",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Schreiben Sie, was gebaut oder geändert werden soll; die Assistenz antwortet hier und fragt zurück, wenn sie eine Entscheidung braucht.",
+      "dropped": "Die Live-Verbindung ist abgebrochen. Was oben steht, kann unfertig sein; öffnen Sie den Lauf erneut, um ihm weiter zu folgen.",
+      "stalled": "Seit {seconds} Sekunden keine Antwort. Der Lauf arbeitet vielleicht noch, vielleicht steht er still.",
+      "stop": "Lauf stoppen",
+      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier."
     },
     "line": {
       "status": "Jetzt {status}.",

@@ -1772,7 +1772,12 @@
       "closed": "Spuštění skončilo, už nic nečte.",
       "agent": "Asistent",
       "you": "Vy",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Napište, co se má postavit nebo změnit; asistent odpovídá tady a zeptá se, když potřebuje rozhodnutí.",
+      "dropped": "Živé spojení se přerušilo. To, co je napsáno výše, může být nedokončené; otevřete běh znovu, abyste ho dál sledovali.",
+      "stalled": "Žádná odpověď už {seconds} sekund. Běh možná ještě pracuje, nebo se zastavil.",
+      "stop": "Zastavit běh",
+      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady."
     },
     "line": {
       "status": "Nyní {status}.",

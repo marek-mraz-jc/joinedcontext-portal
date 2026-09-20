@@ -607,13 +607,16 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             onAnswer={(questionId, answers) => {
               answer.mutate({ questionId, answers });
             }}
-            onSend={(text) => {
-              send.mutate(
+            // `mutateAsync`, so the panel knows whether the message left: it empties the box on
+            // success and keeps every word of it, with the reason, when the send failed (T-1761).
+            onSend={(text) =>
+              send.mutateAsync(
                 pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
                   ? { text, endpointNames: pendingEndpoints }
                   : text,
-              );
-            }}
+              )
+            }
+            onCancel={() => cancel.mutate()}
             attach={attach}
             above={
               <>

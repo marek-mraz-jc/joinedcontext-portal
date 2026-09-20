@@ -4,7 +4,7 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 267 controls, 8 of them still untested.",
+    "lists it. Measured 2026-09-20: 86 modules, 268 controls, 8 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
@@ -527,12 +527,13 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "action_inspector.test.tsx",
         "conversation_panel.test.tsx",
-        "conversation_repeats.test.tsx"
+        "conversation_repeats.test.tsx",
+        "form_conversation_panel.test.tsx"
       ]
     },
     "src/pages/apps/EndpointProposalCard.tsx": {
@@ -654,6 +655,7 @@
       },
       "tests": [
         "explore_page.test.tsx",
+        "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
       ]
     },

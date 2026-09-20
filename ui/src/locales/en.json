@@ -1772,7 +1772,12 @@
       "closed": "The run has ended, so it reads nothing more.",
       "agent": "Assistant",
       "you": "You",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Ask for what you want built or changed; the assistant answers here and asks back when it needs a decision.",
+      "dropped": "The live connection dropped. What is written above may be unfinished; reopen the run to follow it again.",
+      "stalled": "No answer for {seconds} seconds. The run may still be working, or it may have stopped.",
+      "stop": "Stop the run",
+      "sendFailed": "The message was not sent: {reason}. What you typed is still here."
     },
     "line": {
       "status": "Now {status}.",
