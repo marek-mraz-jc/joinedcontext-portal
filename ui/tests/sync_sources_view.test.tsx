@@ -128,7 +128,8 @@ describe("sync sources view", () => {
     ).toBeInTheDocument();
     expect(within(card).getByText("Every 30m")).toBeInTheDocument();
     expect(await within(card).findByText(en.phase.pendingApproval)).toBeInTheDocument();
-    expect(await within(card).findByRole("link", { name: en.syncSources.review })).toHaveAttribute(
+    expect(await within(card).// `ExternalLink` appends "Opens in a new tab" for a screen reader, so the name is a prefix.
+      findByRole("link", { name: new RegExp(`^${en.syncSources.review}`) })).toHaveAttribute(
       "href",
       "https://forge.example/pulls/7",
     );
@@ -212,7 +213,7 @@ describe("sync sources view", () => {
     });
     const notice = await screen.findByRole("status");
     expect(notice).toHaveTextContent(en.syncSources.detached);
-    expect(within(notice).getByRole("link", { name: en.syncSources.review })).toHaveAttribute(
+    expect(within(notice).getByRole("link", { name: new RegExp(`^${en.syncSources.review}`) })).toHaveAttribute(
       "href",
       "https://forge.example/pulls/9",
     );
