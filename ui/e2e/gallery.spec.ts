@@ -94,9 +94,48 @@ for (const size of SIZES) {
         );
         return { overflow: doc.scrollWidth - doc.clientWidth, offenders: wide.slice(0, 8) };
       });
+      // Two runs listed only elements inside a scroller, which means no border box reaches past
+      // the edge at all and the width comes from something a rect scan cannot see: a margin box,
+      // a pseudo-element, a transform. So when the page is wide, ask the page itself — hide one
+      // subtree at a time and keep the one whose absence takes the overflow away.
+      const culprit =
+        overflow > 1
+          ? await page.evaluate(() => {
+              const doc = document.documentElement;
+              const excess = () => doc.scrollWidth - doc.clientWidth;
+              let node = document.body;
+              // The tree is walked downwards, so the guard is depth and not breadth; 200 is far
+              // past any page and keeps a layout that re-widens itself from looping.
+              for (let depth = 0; depth < 200; depth += 1) {
+                const child = Array.from(node.children).find((candidate) => {
+                  const element = candidate as HTMLElement;
+                  const was = element.style.display;
+                  element.style.display = "none";
+                  const gone = excess() <= 1;
+                  element.style.display = was;
+                  return gone;
+                }) as HTMLElement | undefined;
+                if (!child) {
+                  break;
+                }
+                node = child;
+              }
+              const style = getComputedStyle(node);
+              const before = getComputedStyle(node, "::before");
+              const after = getComputedStyle(node, "::after");
+              return (
+                `${node.tagName}${node.id ? `#${node.id}` : ""}` +
+                `.${String(node.className).slice(0, 60)}` +
+                ` right=${Math.round(node.getBoundingClientRect().right)} of ${doc.clientWidth}` +
+                ` margin-right=${style.marginRight} position=${style.position}` +
+                ` transform=${style.transform} width=${style.width} min-width=${style.minWidth}` +
+                ` ::before=${before.content}/${before.width} ::after=${after.content}/${after.width}`
+              );
+            })
+          : "";
       expect(
         overflow,
-        `the gallery scrolls sideways by ${overflow}px: ${offenders.join(" | ")}`,
+        `the gallery scrolls sideways by ${overflow}px.\n  hiding this takes it away: ${culprit}\n  past the edge: ${offenders.join(" | ")}`,
       ).toBeLessThanOrEqual(1);
 
       // Every specimen is on the page: one section per component, each with its heading.
