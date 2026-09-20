@@ -1,0 +1,71 @@
+# Ovzdušie v Banskej Bystrici / Air quality in Banská Bystrica
+
+One screen over the city's `ovzdusie` space: the measuring stations on a map, coloured by their
+latest PM10 against the daily limit, and one day of history for the station a reader picks. It
+reads and never writes, and it never asks anybody to sign in.
+
+## Why staleness is a band and not a footnote
+
+A station that stops reporting keeps its last number. Drawn by that number alone, a station that
+fell silent this morning at 9 µg/m³ is the greenest dot on the map, and a reader takes it for the
+cleanest air in the city. So `bandOf` decides staleness **before** the thresholds: a reading older
+than three hours is `stale`, in its own grey, with the words "staré meranie" on the card. The
+number is still shown — it is real, it is just not about now.
+
+The thresholds are Directive 2008/50/EC as `docs/Development/11` §2 quotes it: PM10 elevated from
+35 µg/m³ and above the limit from 50 µg/m³. What is judged is the station's latest reading and not
+a daily mean, and the screen says so.
+
+## What it reads
+
+One endpoint, one space, one type:
+
+| what | where |
+|---|---|
+| space | `ovzdusie` of the project `banskabystrica` |
+| endpoint | `public-air`, audience `public` |
+| type | `AirQualityObserved` |
+| attributes | `dateObserved`, `location`, `observedAt`, `pm10`, `pm25` |
+| operations | `queryEntity`, `retrieveEntity`, `queryTemporal` |
+
+The attributes are exactly the five the space's public grant serves. `reliability` and `refDevice`
+are operational and the public grant does not reach them, so asking for them would put a refusal
+into every answer (`policy-public-read.yaml`).
+
+**No login and no token.** The endpoint is public, so the bundle holds no credential and the
+browser sends none; `App.test.tsx` asserts that no request carries an `Authorization` header
+(AP-28). The endpoint is found in the served configuration by **space**, never by position.
+
+## The map is a picture of the list
+
+A canvas is not readable by a screen reader and cannot be reached by the keyboard, so the map is
+`role="img"` with a name, and the same stations are a list beside it: name, band in words and in a
+shape, both numbers, and when the reading was taken. Picking a station from the list or from the
+map is the same action. A station that publishes no location is on the list with a line saying it
+is not on the map, because leaving it off both would hide a station that exists.
+
+The basemap is the keyless OpenStreetMap raster tile service with its attribution, so the screen
+runs on a cluster with no map account and no key in any manifest.
+
+## What is the application's own, and what is the publisher's
+
+The published model (`bb-air-quality.linkml.yaml`) has no `name` slot, so a station has no name to
+show. The screen calls it after the `{localId}` of its own URN — `station-1` reads "Stanica 1" —
+rather than inventing a name no publisher stands behind. The bands and the staleness rule are the
+application's own and are stated on the page.
+
+## Building it
+
+```sh
+cd ui
+pnpm install
+pnpm typecheck && pnpm test && pnpm build
+```
+
+`@joinedcontext/sdk` is linked from this repository, which is why `vite.config.ts` dedupes React.
+
+## Related
+
+- `docs/Development/10-banska-bystrica-contract.md` — the frozen contract: spaces, endpoints, ids
+- `docs/Development/11-banska-bystrica-kpis.md` — the limits the bands come from
+- T-2435 — this application; T-2432 — the tabular representation of the same endpoint

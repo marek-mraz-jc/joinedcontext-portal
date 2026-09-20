@@ -1,0 +1,44 @@
+# Ovzdušie v Banskej Bystrici — the city's air-quality screen (AP-07, AP-14, AP-34, AP-45,
+# T-2435). Hand written, so no generated-by annotation.
+#
+# It reads and never writes, so it is `static`: a bundle the Portal static host serves under
+# /apps/banskabystrica-ovzdusie/. The endpoint behind it, `public-air`, is public, so the app
+# never asks anybody to sign in and never holds a token (AP-28).
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: banskabystrica-ovzdusie
+  namespace: banskabystrica
+  title:
+    sk: "Ovzdušie v Banskej Bystrici"
+    en: "Air quality in Banská Bystrica"
+  description:
+    sk: "Meracie stanice na mape, farebne podľa posledného PM10 voči dennému limitu, s posledným meraním a jedným dňom histórie. Stanica, ktorej meranie je staré, je označená ako stará, nie ako čistý vzduch."
+    en: "The measuring stations on a map, coloured by their latest PM10 against the daily limit, with the latest reading and one day of history. A station whose reading is old is marked as old, never as clean air."
+spec:
+  kind: static
+  source:
+    path: ./apps/banskabystrica-ovzdusie
+  build:
+    node: "22"
+  # The endpoint is public and the screen is the city's own publication, so anybody may open it.
+  # Widening an audience is what puts a publication in the yellow lane (AP-20); nothing here
+  # widens the endpoint, which was already public.
+  visibility: public
+  lifecycle: published
+  embeddable: true
+  dataNeeds:
+    # One space, one type, read only. The attributes are exactly the five the space's public
+    # grant serves (`policy-public-read.yaml`): `reliability` and `refDevice` are operational and
+    # the public never sees them, so asking for them would put a refusal in every answer.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: ovzdusie
+      types: [AirQualityObserved]
+      attrs: [dateObserved, location, observedAt, pm10, pm25]
+      operations: [queryEntity, retrieveEntity, queryTemporal]
+      temporalQ:
+        window: P1D
+      representations: [ngsi-ld, geojson]
+  limits:
+    requestsPerMinute: 600
