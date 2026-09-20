@@ -1422,7 +1422,10 @@
         "documents": "Dokumenty endpointu"
       },
       "promptPlaceholder": "Mapa stanic, filtr na ty, kde ještě jsou kola, a graf volných míst.",
-      "details": "Podrobnosti: název, druh a co smí číst ({name})"
+      "details": "Podrobnosti: název, druh a co smí číst ({name})",
+      "noEndpoints": "Tento projekt zatím nepublikuje žádný endpoint; aplikace z něj čte, takže nejdřív publikujte endpoint.",
+      "nameHint": "Malá písmena, číslice a spojovníky: stává se z toho adresa, na které se aplikace poskytuje.",
+      "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky, začíná i končí některým z nich a má nejvýše 40 znaků."
     },
     "newAction": "Vygenerovat vlastní aplikaci",
     "builds": {

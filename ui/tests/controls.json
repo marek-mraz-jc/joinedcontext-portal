@@ -4,7 +4,7 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 87 modules, 291 controls, 1 of them still untested.",
+    "lists it. Measured 2026-09-20: 87 modules, 292 controls, 1 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
@@ -499,11 +499,12 @@
     },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 3
       },
       "tests": [
         "app_generator.test.tsx",
+        "form_app_generator.test.tsx",
         "generator_types.test.ts"
       ]
     },

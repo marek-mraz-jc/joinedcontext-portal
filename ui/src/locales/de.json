@@ -1422,7 +1422,10 @@
         "documents": "Dokumente des Endpoints"
       },
       "promptPlaceholder": "Eine Karte der Stationen, ein Filter für die mit Rädern und ein Diagramm der freien Plätze.",
-      "details": "Details: Name, Art und was sie lesen darf ({name})"
+      "details": "Details: Name, Art und was sie lesen darf ({name})",
+      "noEndpoints": "Dieses Projekt veröffentlicht noch keinen Endpoint; eine Anwendung liest aus einem, veröffentlichen Sie also zuerst einen.",
+      "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche: daraus wird die Adresse, unter der die Anwendung ausgeliefert wird.",
+      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, beginnt und endet mit einem davon und hat höchstens 40 Zeichen."
     },
     "newAction": "Eigene Anwendung erzeugen",
     "builds": {

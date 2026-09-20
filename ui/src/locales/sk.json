@@ -1422,7 +1422,10 @@
         "documents": "Dokumenty endpointu"
       },
       "promptPlaceholder": "Mapa staníč, filter na tie, kde ešte sú bicykle, a graf voľných miest.",
-      "details": "Podrobnosti: názov, druh a čo smí čítať ({name})"
+      "details": "Podrobnosti: názov, druh a čo smí čítať ({name})",
+      "noEndpoints": "Tento projekt zatiaľ nepublikuje žiadny endpoint; aplikácia z neho číta, takže najprv publikujte endpoint.",
+      "nameHint": "Malé písmená, číslice a spojovníky: stáva sa z toho adresa, na ktorej sa aplikácia poskytuje.",
+      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky, začína aj končí niektorým z nich a má najviac 40 znakov."
     },
     "newAction": "Vygenerovať vlastnú aplikáciu",
     "builds": {
