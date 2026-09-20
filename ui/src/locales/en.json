@@ -1731,7 +1731,8 @@
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Export this page"
+    "export": "Export this page",
+    "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above."
   },
   "agentRun": {
     "title": "Application run",

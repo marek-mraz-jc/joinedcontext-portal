@@ -4,21 +4,22 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 266 controls, 8 of them still untested.",
+    "lists it. Measured 2026-09-20: 86 modules, 267 controls, 8 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
   "modules": {
     "src/assistant/AssistantDock.tsx": {
       "controls": {
-        "button": 11,
-        "Button": 1,
+        "button": 9,
+        "Button": 2,
         "textarea": 1
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
-        "assistant_endpoints.test.tsx"
+        "assistant_endpoints.test.tsx",
+        "assistant_layout.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -557,6 +558,7 @@
         "RadioGroup": 1
       },
       "tests": [
+        "form_kpi_card.test.tsx",
         "kpi_card.test.tsx"
       ]
     },
@@ -638,11 +640,12 @@
     },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 4,
         "Checkbox": 1
       },
       "tests": [
-        "endpoint_projection_ui.test.tsx"
+        "endpoint_projection_ui.test.tsx",
+        "form_schema_projection.test.tsx"
       ]
     },
     "src/pages/explore/ExplorePage.tsx": {

@@ -1731,7 +1731,8 @@
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Exportovat tuto stránku"
+    "export": "Exportovat tuto stránku",
+    "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše."
   },
   "agentRun": {
     "title": "Běh aplikace",

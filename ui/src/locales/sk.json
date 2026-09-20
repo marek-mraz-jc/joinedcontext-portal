@@ -1731,7 +1731,8 @@
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "deleteDenied": "Grant tejto koncovky ti nedovoľuje mazať {type}",
-    "export": "Exportovať túto stranu"
+    "export": "Exportovať túto stranu",
+    "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie."
   },
   "agentRun": {
     "title": "Beh aplikácie",
