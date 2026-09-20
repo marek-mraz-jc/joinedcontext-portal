@@ -6,6 +6,8 @@
  * paints with values and cannot be handed a class. The chrome now reads `tokens.css` at paint
  * time; the sequential ramp deliberately does not, and these cases hold both halves of that.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   basemapColour,
@@ -81,5 +83,21 @@ describe("what deck.gl can be handed", () => {
     // before `getComputedStyle` answers, but a layer must never vanish if one ever arrives raw.
     expect(rgbOf("oklch(0.7 0.1 250)")).toEqual([0, 0, 0]);
     expect(rgbOf("")).toEqual([0, 0, 0]);
+  });
+});
+
+/**
+ * T-1493: axe on dev reported `link-in-text-block` (serious) on every dashboard.
+ *
+ * MapLibre writes the attribution itself — a link inside a line of text, told apart from that text
+ * by colour alone (UI-16, UI-30). The control is the library's DOM, and jsdom draws no map, so what
+ * is held here is the rule that dresses it.
+ */
+describe("the map's own attribution", () => {
+  it("underlines its link, because colour is not the only way to tell it from the text", () => {
+    const css = readFileSync(join(__dirname, "..", "src", "index.css"), "utf8");
+    const rule = /\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/;
+
+    expect(css, "the rule lives in index.css: the element belongs to maplibre-gl").toMatch(rule);
   });
 });

@@ -121,6 +121,16 @@
   }
 }
 
+/* MapLibre writes its own attribution into the map: a link inside a line of text, told apart
+   from that text by its colour alone, which axe reports as `link-in-text-block` on every
+   dashboard (T-1493, UI-16, UI-30). The control is the library's own DOM, so the underline is
+   set here rather than in the component. */
+@layer components {
+  .maplibregl-ctrl-attrib a {
+    text-decoration: underline;
+  }
+}
+
 @layer base {
   html {
     background-color: var(--portal-bg);

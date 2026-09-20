@@ -20,6 +20,16 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // `_name` means "declared on purpose and not read" — a mock whose call tuple is typed from
+      // its signature, a test table's unused first column. Thirteen places already write it and
+      // lint passed, because the rule's default `args: "after-used"` only forgives an unused
+      // argument that a used one follows; two trailing ones turned red on main (T-2325). This
+      // says the convention out loud instead of leaving it to argument order. Only the underscore
+      // is forgiven: an ordinary unused variable is still an error.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
     },
   },
   {
