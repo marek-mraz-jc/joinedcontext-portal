@@ -122,7 +122,7 @@ impl StreamDeployer {
 
         for ns in mirror.namespaces() {
             // What the runner holds, asked once per project and only when a render is unchanged.
-            let mut running: Option<Option<HashSet<String>>> = None;
+            let mut running: Option<Option<HashMap<String, bool>>> = None;
             // What the project may keep resident (PF-74): the ones beyond its quota are not
             // scheduled at all, and the condition on each says why.
             let beyond = crate::quotas::beyond(mirror, &ns, "residentPipelines");
@@ -409,7 +409,7 @@ impl StreamDeployer {
         ns: &str,
         name: &str,
         stream_json: Value,
-        running: &mut Option<Option<HashSet<String>>>,
+        running: &mut Option<Option<HashMap<String, bool>>>,
         current_live: &mut HashSet<(String, String)>,
     ) -> StreamOutcome {
         let key = (ns.to_owned(), name.to_owned());
@@ -419,16 +419,37 @@ impl StreamDeployer {
             .lock()
             .map(|rendered| rendered.get(&key) == Some(&hash))
             .unwrap_or(false);
-        // A runner that restarted holds no streams, so an unchanged render it no longer
-        // runs is sent again; a runner that does not answer the list keeps the hash's word.
+        // A runner that restarted holds no streams, so an unchanged render it no longer runs is
+        // sent again; a runner that does not answer the list keeps the hash's word. A stream the
+        // runner holds but reports inactive is sent again too, unless its input is one that ends
+        // by itself: a clock, a broker and a socket never finish, so inactive means that stream
+        // died — a source it cannot reach, or an output that refuses its credential — and it is
+        // the reconciler counting it as live that left the city's `voda` stream dead across two
+        // applies while its render was unchanged (T-2336, PL-18, OPS-27). Sending it again
+        // restarts it on the runner, and its output fetches a fresh token as it starts.
         if unchanged {
             if running.is_none() {
                 *running = Some(self.running(ns).await);
             }
-            unchanged = running
-                .as_ref()
-                .and_then(Option::as_ref)
-                .is_none_or(|names| names.contains(name));
+            unchanged = match running.as_ref().and_then(Option::as_ref) {
+                None => true,
+                Some(streams) => match streams.get(name) {
+                    None => false,
+                    Some(true) => true,
+                    Some(false) => {
+                        let finished = input_ends_by_itself(&stream_json["input"]);
+                        if !finished {
+                            tracing::warn!(
+                                project = %ns,
+                                pipeline = %name,
+                                "the runner holds this stream but it is not running; sending it \
+                                 again"
+                            );
+                        }
+                        finished
+                    }
+                },
+            };
         }
         let outcome = if unchanged {
             StreamOutcome::Live
@@ -484,8 +505,12 @@ impl StreamDeployer {
         }
     }
 
-    /// The names of the streams the runner holds, or `None` when it gave no list.
-    async fn running(&self, project: &str) -> Option<HashSet<String>> {
+    /// What the runner holds for one project, each with whether it is still running, or `None`
+    /// when it gave no list.
+    ///
+    /// A body without the `active` flag counts as running, because a runner whose answer this does
+    /// not understand must not have all of its streams restarted on every pass.
+    async fn running(&self, project: &str) -> Option<HashMap<String, bool>> {
         let runner = self.runner_url.replace("{project}", project);
         let url = format!("{}/streams", runner.trim_end_matches('/'));
         let response = self.http.get(&url).send().await.ok()?;
@@ -493,7 +518,15 @@ impl StreamDeployer {
             return None;
         }
         let streams: HashMap<String, Value> = response.json().await.ok()?;
-        Some(streams.into_keys().collect())
+        Some(
+            streams
+                .into_iter()
+                .map(|(name, state)| {
+                    let alive = state.get("active").and_then(Value::as_bool).unwrap_or(true);
+                    (name, alive)
+                })
+                .collect(),
+        )
     }
 
     async fn deploy_stream(&self, project: &str, name: &str, stream_json: &Value) -> StreamOutcome {
@@ -1121,6 +1154,37 @@ fn with_processors(input: Value, processors: Vec<Value>) -> Value {
         fields.insert("processors".to_owned(), Value::Array(processors));
     }
     input
+}
+
+/// Whether a rendered input is one that ends on its own (PL-04, PL-50, T-2336).
+///
+/// A file, an object store or a `select` reads what is there and finishes, so a stream on one of
+/// them is done and not dead when the runner reports it inactive. A clock, a socket and a broker
+/// never finish, so an inactive stream on one of those died. A broker of several inputs ends only
+/// when every one of them does.
+fn input_ends_by_itself(input: &Value) -> bool {
+    if let Some(inputs) = input.get("broker").and_then(|b| b.get("inputs")) {
+        return inputs
+            .as_array()
+            .is_some_and(|inputs| !inputs.is_empty() && inputs.iter().all(input_ends_by_itself));
+    }
+    let Some(kind) = input.as_object().and_then(|fields| {
+        fields
+            .keys()
+            .map(String::as_str)
+            .find(|key| !matches!(*key, "label" | "processors"))
+    }) else {
+        return false;
+    };
+    // A clock is in the terminating list because a `count` makes it finite; the clock every
+    // pipeline here is rendered with has no count, and an unbounded one ticks forever.
+    if kind == "generate" {
+        return input["generate"]
+            .get("count")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count > 0);
+    }
+    jc_core::kinds::bento_inputs::TERMINATING.contains(&kind)
 }
 
 /// Checks whether a pipeline is eligible for deployment into the runner as a resident stream.
@@ -1905,6 +1969,136 @@ output:
         let mirror = helsinki_test_mirror();
         // PUT, then left running, then sent again to the empty runner: two PUTs in three passes.
         for _ in 0..3 {
+            let outcomes = deployer
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live);
+        }
+    }
+
+    /// A stream the runner holds but no longer runs is dead, not live: it is sent again, which
+    /// restarts it and makes its output fetch a fresh token (T-2336, PL-18).
+    #[tokio::test]
+    async fn a_stream_the_runner_reports_inactive_is_sent_again() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(3)
+            .mount(&server)
+            .await;
+        // The runner holds it and says it is not running: its output was refused, over and over.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "citybikes-free": { "active": false, "uptime": 1800.0 } }),
+            ))
+            .mount(&server)
+            .await;
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        // Three passes over an unchanged manifest: three PUTs, because it is dead on every one.
+        for _ in 0..3 {
+            let outcomes = deployer
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live);
+        }
+    }
+
+    /// Which inputs end on their own, because that is what tells a finished stream from a dead one
+    /// when the runner reports it inactive (T-2336, PL-50).
+    #[test]
+    fn an_endless_input_is_told_apart_from_one_that_finishes() {
+        for endless in [
+            serde_json::json!({ "generate": { "interval": "60s", "mapping": "root = \"\"" } }),
+            serde_json::json!({ "generate": { "interval": "60s", "count": 0 } }),
+            serde_json::json!({ "mqtt": { "urls": ["tcp://mqtt:1883"] } }),
+            serde_json::json!({ "nats": { "urls": ["nats://nats:4222"] } }),
+            serde_json::json!({ "kafka": { "addresses": ["kafka:9092"] } }),
+            serde_json::json!({ "http_server": {} }),
+            serde_json::json!({ "broker": { "inputs": [{ "file": {} }, { "mqtt": {} }] } }),
+            // Nothing recognisable is not a licence to let a dead stream lie.
+            serde_json::json!({}),
+            serde_json::json!({ "label": "input_0" }),
+            serde_json::json!({ "broker": { "inputs": [] } }),
+            serde_json::json!("not an input"),
+        ] {
+            assert!(
+                !input_ends_by_itself(&endless),
+                "{endless} does not end by itself"
+            );
+        }
+        for finite in [
+            serde_json::json!({ "file": { "paths": ["/data/stations.json"] } }),
+            serde_json::json!({ "csv": { "paths": ["/data/stations.csv"] } }),
+            serde_json::json!({ "parquet": { "paths": ["/data/stations.parquet"] } }),
+            serde_json::json!({ "aws_s3": { "bucket": "open-data" } }),
+            serde_json::json!({ "generate": { "interval": "1s", "count": 3 } }),
+            serde_json::json!({ "label": "input_0", "file": { "paths": ["/data/x.json"] } }),
+            serde_json::json!({ "broker": { "inputs": [{ "file": {} }, { "csv": {} }] } }),
+        ] {
+            assert!(input_ends_by_itself(&finite), "{finite} finishes");
+        }
+    }
+
+    /// The other half of the same rule: a stream that is running is left alone, so a healthy
+    /// periodic pipeline is not restarted on every pass and does not emit on every pass (T-0659).
+    #[tokio::test]
+    async fn a_stream_the_runner_reports_active_is_left_alone() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "citybikes-free": { "active": true, "uptime": 1320.0 } }),
+            ))
+            .mount(&server)
+            .await;
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        for _ in 0..3 {
+            let outcomes = deployer
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live);
+        }
+    }
+
+    /// A runner whose answer carries no `active` flag is taken at its word: an unknown body shape
+    /// must not restart every stream of a project on every pass.
+    #[tokio::test]
+    async fn a_listing_without_the_active_flag_is_taken_at_its_word() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        for body in [
+            serde_json::json!({ "citybikes-free": {} }),
+            serde_json::json!({ "citybikes-free": { "uptime": 1320.0 } }),
+            serde_json::json!({ "citybikes-free": { "active": "yes" } }),
+        ] {
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path("/streams"))
+                .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
+                .up_to_n_times(1)
+                .mount(&server)
+                .await;
+        }
+
+        let deployer = StreamDeployer::new(server.uri());
+        let mirror = helsinki_test_mirror();
+        for _ in 0..4 {
             let outcomes = deployer
                 .converge(&mirror, &Bentos::new(), &Default::default())
                 .await;
