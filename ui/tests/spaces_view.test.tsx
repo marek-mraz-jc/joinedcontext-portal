@@ -7,7 +7,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { digestOf } from "../src/api/drafts";
-import { answeringChecks, checksSoFar, expectDenied } from "./checks";
+import { answeringChecks, checksSoFar, expectDenied, expectOpen } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -288,7 +288,7 @@ describe("context spaces view", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mobilita");
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: en.spaces.propose })).toBeEnabled());
+    await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.spaces.propose })));
     await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.propose }));
 
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
@@ -345,10 +345,11 @@ describe("context spaces view", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("tab", { name: en.form.view.yaml })).toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mobilita");
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: en.spaces.propose })).toBeDisabled());
+    // Refused until the check is green, and reachable while it is refused (UI-44, T-1743).
+    await waitFor(() => expectDenied(within(dialog).getByRole("button", { name: en.spaces.propose })));
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: en.spaces.propose })).toBeEnabled());
+    await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.spaces.propose })));
     expect(checks[0]).toMatchObject({
       kind: "ContextSpace",
       metadata: { name: "mobilita" },
@@ -368,7 +369,7 @@ describe("context spaces view", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mhd");
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() => expect(within(dialog).getByRole("button", { name: en.spaces.propose })).toBeEnabled());
+    await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.spaces.propose })));
     await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.propose }));
 
     const alert = await within(dialog).findByRole("alert");

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { endpointOf, knownSecretNames, toEnvelope } from "../src/pages/datasources/DataSourcesPage";
@@ -247,7 +248,7 @@ describe("data sources view", () => {
     // Strict validation proposes nothing without a fresh green verdict (T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.datasources.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.datasources.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.propose }));
 
@@ -339,7 +340,7 @@ describe("data sources view", () => {
     await userEvent.type(within(dialog).getByLabelText(/User name/), "bb-reader");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.datasources.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.datasources.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.propose }));
 
@@ -392,7 +393,7 @@ describe("data sources view", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.datasources.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.datasources.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.propose }));
     await waitFor(() => expect(proposals(fetchMock)).toHaveLength(1));

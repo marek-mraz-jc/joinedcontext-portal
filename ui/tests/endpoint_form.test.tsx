@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { rememberPrefill } from "../src/assistant/state";
 import { App } from "../src/App";
@@ -245,7 +246,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -360,7 +361,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // The check reaches the endpoint's own dry run and its verdict, instead of dying on the
     // projection an earlier proposal drew.
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     const bundle = fetchMock.mock.calls
       .map((call) => call[0] as Request)
@@ -423,7 +424,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -508,7 +509,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -541,7 +542,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
