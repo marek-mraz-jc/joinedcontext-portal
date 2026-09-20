@@ -14,6 +14,7 @@ import { ResourceRowActions } from "../../components/ResourceRowActions";
 import {
   Button,
   EmptyState,
+  Field,
   PageHeader,
   Select,
   TableCell,
@@ -454,8 +455,9 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title={t("datasources.title")} description={t("datasources.lead")} />
         <div className="flex flex-wrap items-end gap-3">
-          <label htmlFor="datasource-type" className="flex flex-col text-sm">
-            <span className="mb-1 font-medium">{t("datasources.field.type")}</span>
+          {/* The shared Field, not a hand-made label: one place ties the label to the control
+              and carries the description and errors a choice may grow (UI-01, UI-04). */}
+          <Field id="datasource-type" label={t("datasources.field.type")}>
             <Select
               id="datasource-type"
               value={type}
@@ -494,9 +496,9 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                   );
                 })}
             </Select>
-          </label>
+          </Field>
           {selectedSummary ? (
-            <p data-testid="input-summary" className="max-w-xs text-xs text-fg-muted">
+            <p data-testid="input-summary" className="max-w-xs text-caption text-fg-muted">
               {selectedSummary}
             </p>
           ) : null}
@@ -663,27 +665,27 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           }}
         >
           <div className="space-y-2">
-            <p className="text-sm text-surface-fg/70">{t("datasources.secretHint")}</p>
+            <p className="text-body text-surface-fg/70">{t("datasources.secretHint")}</p>
           {plan ? (
             <div>
-              <h2 className="text-sm font-medium">{t("datasources.plan")}</h2>
+              <h2 className="text-body font-medium">{t("datasources.plan")}</h2>
               <PlanDiffViewer fields={plan} />
             </div>
           ) : null}
           {probe ? (
             <div data-testid="datasource-probe">
-              <h2 className="text-sm font-medium">{t("datasources.probe.title")}</h2>
+              <h2 className="text-body font-medium">{t("datasources.probe.title")}</h2>
               {probe.skipped ? (
-                <p role="status" className="text-sm text-surface-fg/70">
+                <p role="status" className="text-body text-surface-fg/70">
                   {t("datasources.probe.skipped", { reason: probe.skipped })}
                 </p>
               ) : (
                 <>
-                  <p role="status" className="text-sm">
+                  <p role="status" className="text-body">
                     {t("datasources.probe.records", { records: probe.records ?? 0, bytes: probe.bytes ?? 0 })}
                   </p>
                   {probe.sample !== undefined ? (
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-caption">
                       {JSON.stringify(probe.sample, null, 2)}
                     </pre>
                   ) : null}
