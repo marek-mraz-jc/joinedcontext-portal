@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { clsx } from "clsx";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 // No `whitespace-nowrap`: a German label is half again as long as its English original
 // ("Eine Änderung mit dem Assistenten vorschlagen"), and with `shrink-0` beside it the label ran
@@ -24,6 +24,10 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
+  // For a chip bar, where a 32 px button beside a 20 px pill is the odd one out: the assistant's
+  // data bar (T-1798) had two hand-made buttons of its own for exactly this. 24 px is still the
+  // smallest target WCAG 2.5.8 accepts, which the hand-made ones were not.
+  xs: "h-6 gap-1 px-2 text-caption",
   sm: "h-8 px-2.5 text-caption",
   md: "h-9 px-3.5 text-body",
   lg: "h-11 px-5 text-body",

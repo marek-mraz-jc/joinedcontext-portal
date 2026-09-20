@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { SUPPORTED_LOCALES } from "../i18n";
 import type { Locale } from "../i18n";
 import { offeredLocales, useBranding } from "../branding";
-import { Icon, Menu, MenuContent, MenuItem, MenuTrigger, buttonClass } from "./ui";
+import { Button, Icon, Menu, MenuContent, MenuItem, MenuTrigger } from "./ui";
 
 export function LanguageSwitcher(): React.JSX.Element {
   const { t, i18n } = useTranslation();
@@ -20,20 +20,16 @@ export function LanguageSwitcher(): React.JSX.Element {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={t("lang.label")}
-          className={buttonClass("ghost", "sm")}
-        >
+        <Button variant="ghost" size="sm" aria-label={t("lang.label")}>
           <Icon name="globe" className="size-4 text-fg-muted" />
           {/* The globe says what the button is at phone width; the language's name is what a
               wider header has room for, and `aria-label` says it to a screen reader either
               way (UI-27). */}
           <span className="hidden sm:inline">{t(`lang.${currentLang}`)}</span>
           <Icon name="chevronDown" className="size-3.5 text-fg-subtle" />
-        </button>
+        </Button>
       </MenuTrigger>
-      <MenuContent align="end" className="min-w-[9rem]">
+      <MenuContent align="end" className="min-w-36">
         {locales.map((locale) => {
           const isCurrent = locale === currentLang;
           return (
