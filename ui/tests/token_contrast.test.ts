@@ -165,6 +165,19 @@ describe("what a person can read", () => {
     expect(fixed).toEqual([]);
   });
 
+  it("an answer that predates the dark pair still paints the brand, not another one's blue", () => {
+    // `GET /api/v1/branding` is cacheable for five minutes, so a page can hold a body written by
+    // a Portal that had no `primaryDark`. The dark theme's two tokens then fall back to the
+    // derivation this file used before T-2324 — the brand lightened — and never to a literal.
+    const night = { ...light, ...dark };
+    const old: Brand = { ...INK, primaryDark: undefined, primaryForegroundDark: undefined };
+    expect(colourOf("--portal-primary", night, old)).toEqual(colourOf("--portal-primary", night, INK));
+    // And it is the old label with it, which is the pair that shipped: unreadable, but nobody's
+    // else's colour. The Portal answering the new fields is what fixes the ratio.
+    expect(round(ratioOf("--portal-primary-fg", "--portal-primary", night, old))).toBeLessThan(4.5);
+    expect(round(ratioOf("--portal-primary-fg", "--portal-primary", night, INK))).toBeGreaterThan(4.5);
+  });
+
   it("the info chip is readable for a pale brand, which is the finding it was", () => {
     // 1.57:1 before: the chip was `--portal-color-secondary` on a 12 % tint of itself.
     expect(round(ratioOf("--portal-info", "--portal-info-soft", light, PALE))).toBeGreaterThan(4.5);

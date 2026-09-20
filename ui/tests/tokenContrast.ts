@@ -17,9 +17,13 @@ export type Rgb = [number, number, number];
 export interface Brand {
   primary: string;
   primaryForeground: string;
-  /** The dark theme's pair, computed by the API from `primary` (T-2324). */
-  primaryDark: string;
-  primaryForegroundDark: string;
+  /**
+   * The dark theme's pair, computed by the API from `primary` (T-2324). Optional, because a
+   * body cached from a Portal that predates the two fields carries neither, and the stylesheet
+   * has to keep painting the brand when that is what arrives.
+   */
+  primaryDark?: string;
+  primaryForegroundDark?: string;
   secondary: string;
   accent: string;
   background: string;
