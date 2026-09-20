@@ -292,6 +292,77 @@
         }
       }
     },
+    "/api/v1/mcp": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "JSON-RPC 2.0 dispatcher for the Configuration MCP server.",
+        "description": "One operation in the document, with an opaque body, because that is what the route is\n(T-2402): a single POST whose meaning is the JSON-RPC `method` inside it, not the path. The\nalternative — leaving it out because it is not REST — made the API page and the published\ncontract disagree, and a route a person can call belongs in the contract whatever shape its\nbody has. The methods themselves are listed on the page (API/01 §21), where a JSON-RPC\nsurface can be written down properly.",
+        "operationId": "handle_mcp",
+        "requestBody": {
+          "description": "A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The method decides what happens; the path never does (AG-60, ADR-N-021).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The JSON-RPC response object. A refusal the protocol owns — an unknown method, a bad parameter — is an `error` member here and not an HTTP status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No bearer, or one this realm did not sign; the answer carries `WWW-Authenticate` with the metadata document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid and its account may not use this door",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed: the door takes POST"
+          },
+          "429": {
+            "description": "Past the per-subject rate limit of this minute (AG-60)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "mcp_bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/preferences": {
       "get": {
         "tags": [
@@ -2015,6 +2086,89 @@
           },
           "503": {
             "description": "No agent runner, or no such profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/assistant/propose-endpoint": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "The share request rendered, not written (EP-72, API/01 §19): the manifests the person will\nsubmit, refused for a caller who may not propose an Endpoint here (PF-50).",
+        "operationId": "propose_endpoint",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The rendering, written nowhere: `lane`, `slug`, `endpoint`, `policies`, `groups` and the `prefill` the endpoint form opens with",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name, a space, an audience, a representation or an attribute the platform does not take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No grant proposes an Endpoint in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project for this caller",
             "content": {
               "application/json": {
                 "schema": {
@@ -3850,6 +4004,109 @@
           },
           "404": {
             "description": "No binding of the caller covers the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelines/test": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "`POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38).",
+        "operationId": "test_pipeline",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "`pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, and a `format` (`csv`, `json`, `text`). API/01 §7a.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The trace: what the harness read, what each step made of it, and the messages it would have written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A manifest that is not a Pipeline, a source that declares neither `dataSourceRef` nor `endpointRef`, or a sample past the byte limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No grant proposes a Pipeline in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A test of this project is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body larger than the limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No pipeline runner is configured, or it did not answer",
             "content": {
               "application/json": {
                 "schema": {
@@ -6011,6 +6268,79 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No model tools service configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/infer-schema": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`POST /api/v1/tools/infer-schema`: a draft model from a sample file (T-0599, DM-54, DM-55).",
+        "description": "The body is `multipart/form-data` with the file under `file` and an optional `format`\n(`csv`, `xlsx`, `json`, `pdf`; the extension decides otherwise). The bytes go to Model Tools'\n`/infer-schema` base64-encoded in JSON, are parsed there in memory and written nowhere, and\nthe draft comes back as Model Tools wrote it: `linkml`, `operations`, `detectedTypes`,\n`matches`, `untyped`, `rows` (API/01 §11).",
+        "operationId": "infer_schema",
+        "requestBody": {
+          "description": "`multipart/form-data`: the sample under `file`, and an optional `format` (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The draft model as Model Tools wrote it: `linkml`, `operations`, `detectedTypes`, `matches`, `untyped`, `rows`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No `file` field, an upload that does not parse, or a sample past the byte limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Sample larger than the body limit",
             "content": {
               "application/json": {
                 "schema": {
