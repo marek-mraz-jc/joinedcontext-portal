@@ -199,7 +199,9 @@ describe("the space of a copy into another project (T-1441)", () => {
     show();
     await screen.findByRole("option", { name: OTHER });
     await userEvent.selectOptions(screen.getByLabelText(en.saveAs.project), OTHER);
-    const group = await screen.findByRole("group", { name: /The space/ });
+    // `radiogroup`, not `group`: a set of radios says what it is, so a screen reader announces
+    // the question before the answers and says which of three this one is (T-1254, UI-15).
+    const group = await screen.findByRole("radiogroup", { name: /The space/ });
     const radios = within(group).getAllByRole("radio");
     expect(radios).toHaveLength(3);
     // One name on all three is what makes the arrow keys walk them and Tab step over the group.

@@ -49,7 +49,7 @@
   "hand_made_control": {
     "_max": 24,
     "src/assistant/AssistantDock.tsx": {
-      "lines": 12,
+      "lines": 10,
       "group": "ui-forms"
     },
     "src/components/ResourceFormDialog.tsx": {
