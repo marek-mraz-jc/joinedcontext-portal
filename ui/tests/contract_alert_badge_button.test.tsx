@@ -139,6 +139,29 @@ describe("Button", () => {
     expect(button, "and it stays reachable, or the reason is never read").toHaveFocus();
   });
 
+  it("a_reason_on_its_own_changes_nothing_because_disabled_is_what_refuses", async () => {
+    // The pair is `disabled` beside the reason, and this case pins why it may not be loosened:
+    // a call site may hand one constant reason to a list and compute `disabled` per row
+    // (`AppGenerator`'s endpoint boxes) or per state (`SaveAsDialog`'s "check first"). Making a
+    // reason refuse on its own turns those two into controls nobody can use (T-2428). What the
+    // reason must not do is claim a refusal it does not make: with no `disabled` it is neither
+    // shown as a tooltip nor announced.
+    const onClick = vi.fn();
+    wrap(
+      <Button disabledReason="Only when three are chosen." onClick={onClick}>
+        Add another
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Add another" });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toHaveAttribute("title");
+    expect(button).not.toHaveAccessibleDescription();
+
+    await userEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it("a_button_disabled_without_a_reason_behaves_as_it_always_did", () => {
     wrap(<Button disabled>Save</Button>);
     const button = screen.getByRole("button", { name: "Save" });
