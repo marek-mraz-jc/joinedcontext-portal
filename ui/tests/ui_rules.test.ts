@@ -14,7 +14,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { breaches as breachesOf, hits, RULE_OF, staleEntries, UNLISTABLE } from "./uiRules";
+import {
+  breaches as breachesOf,
+  entriesOf,
+  hits,
+  overCeiling,
+  RULE_OF,
+  staleEntries,
+  UNLISTABLE,
+} from "./uiRules";
 import type { Allowed, Source } from "./uiRules";
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -245,11 +253,22 @@ describe("the allow-list", () => {
     expect(Object.keys(allow).filter((rule) => UNLISTABLE.has(rule))).toEqual([]);
   });
 
+  it("no_rule_names_more_files_than_its_ceiling_allows", () => {
+    // The half of the ratchet a new entry would otherwise walk past (T-2316): every other check
+    // measures the files the list already names, so listing one more file — honestly sized to
+    // the violations it exempts — satisfies all of them. `_max` is the ceiling the old `files:`
+    // total was, and raising it is a named one-line diff in the same commit as the new entry.
+    expect(
+      overCeiling(allow),
+      "fix the file, or raise this rule's _max in the same commit and say why",
+    ).toEqual([]);
+  });
+
   it("every_entry_names_a_file_that_exists_and_the_group_that_empties_it", () => {
     const known = new Set(pages.map((file) => file.path));
     const groups = new Set(["ui-components", "ui-forms", "ui-pages", "ui-parts"]);
-    for (const [rule, files] of Object.entries(allow)) {
-      for (const [path, entry] of Object.entries(files)) {
+    for (const [rule, allowance] of Object.entries(allow)) {
+      for (const [path, entry] of entriesOf(allowance)) {
         expect(known, `${rule} allows ${path}, which no source file is`).toContain(path);
         expect(entry.lines, `${rule}/${path}`).toBeGreaterThan(0);
         expect(groups, `${rule}/${path} names no group`).toContain(entry.group);

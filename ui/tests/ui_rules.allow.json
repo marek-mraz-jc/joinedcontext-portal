@@ -1,5 +1,6 @@
 {
   "check_is_not_suppressed": {
+    "_max": 6,
     "src/assistant/state.ts": {
       "lines": 1,
       "group": "ui-parts"
@@ -28,6 +29,7 @@
     }
   },
   "colour_is_a_token": {
+    "_max": 5,
     "src/api/schema.d.ts": {
       "lines": 11,
       "group": "ui-parts"
@@ -51,6 +53,7 @@
     }
   },
   "focus_is_not_stolen": {
+    "_max": 2,
     "src/components/DeleteResourceDialog.tsx": {
       "lines": 1,
       "group": "ui-forms"
@@ -61,6 +64,7 @@
     }
   },
   "hand_made_control": {
+    "_max": 32,
     "src/assistant/AssistantDock.tsx": {
       "lines": 12,
       "group": "ui-forms"
@@ -193,6 +197,7 @@
     }
   },
   "size_is_on_the_scale": {
+    "_max": 16,
     "src/assistant/AssistantDock.tsx": {
       "lines": 10,
       "group": "ui-forms"
