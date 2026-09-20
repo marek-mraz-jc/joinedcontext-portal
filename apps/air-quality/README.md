@@ -2,7 +2,7 @@
 
 The reference app of AP-34: the stations of one Context Space, their latest values, a day of
 history and a note box for the people the gateway lets write. Architecture in
-[Apps on Demand §6](https://github.com/marek-mraz/joinedcontext-docs/blob/main/Architecture/16-apps-on-demand.md).
+[Apps on Demand §6](https://github.com/marek-mraz-jc/joinedcontext-docs/blob/main/Architecture/16-apps-on-demand.md).
 
 It reaches exactly one thing, the Endpoint whose URL it is handed, and it holds no credential
 of its own. The login in front of it is the platform edge (APISIX `openid-connect`), which
