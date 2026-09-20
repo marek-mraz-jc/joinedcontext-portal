@@ -61,7 +61,7 @@ describe("a Portal widget names the ids its Field minted", () => {
     );
   });
 
-  for (const widget of ["secretRef", "entityPicker", "resourcePicker"]) {
+  for (const widget of ["secretRef", "entityPicker", "resourcePicker", "operations"]) {
     it(`${widget}_names_the_fields_description_on_every_control_it_renders`, () => {
       renderWidget(widget);
       const controls = controlsOf();

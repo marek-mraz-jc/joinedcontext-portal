@@ -1,0 +1,123 @@
+import type { JSX } from "react";
+import { ariaDescribedByIds } from "@rjsf/utils";
+import type { WidgetProps } from "@rjsf/utils";
+import { useTranslation } from "react-i18next";
+import {
+  OPERATION_GROUPS,
+  OPERATION_GROUP_NAMES,
+  expandOperations,
+  groupOf,
+} from "../../endpoints/operationGroups";
+import { Badge, Checkbox } from "../../ui";
+
+/**
+ * What a `Policy` grants, picked by the five CIM 009 names first (R8, GW34, UI-01, T-2326).
+ *
+ * A grant is written in Table 4.20-2's group names, so the five groups are the whole of what a
+ * person normally chooses between — and each one says, in the same breath, which operations it
+ * stands for, because a name nobody can expand is a word nobody can check. The individual
+ * operations are behind "more" and are the ones the groups are made of: the Portal names no
+ * operation it cannot show the source of, and the API refuses any name outside Table 4.20-1
+ * before it is stored.
+ *
+ * A group that changes context data is marked: `updateOps` and `redirectionOps` are not a
+ * heavier shade of "read" (AP-09).
+ */
+export function OperationsPicker(props: WidgetProps): JSX.Element {
+  const { id, value, disabled, readonly, onChange, rawErrors } = props;
+  const { t } = useTranslation();
+
+  const chosen: string[] = Array.isArray(value) ? (value as string[]).map(String) : [];
+  const described = ariaDescribedByIds(id);
+  const frozen = Boolean(disabled || readonly);
+
+  /**
+   * The individual operations a person can pick, each once: what the five groups are made of,
+   * plus anything this policy already grants that is none of them — a manifest written by hand
+   * keeps what it says, and a person can see it and take it away.
+   */
+  const known = expandOperations(OPERATION_GROUP_NAMES);
+  const single = [
+    ...new Set([...known, ...chosen.filter((name) => !groupOf(name))]),
+  ].sort((a, b) => a.localeCompare(b));
+  /** Every operation the current choice covers, groups expanded (T-2282). */
+  const covered = expandOperations(chosen);
+
+  const toggle = (name: string, on: boolean): void => {
+    const next = on ? [...chosen, name] : chosen.filter((held) => held !== name);
+    // The order a person ticked them in is not the order the manifest reads best: the groups
+    // first, then the individual operations, so two policies written the same way look the same.
+    const sorted = [
+      ...OPERATION_GROUP_NAMES.filter((group) => next.includes(group)),
+      ...next.filter((name) => !groupOf(name)).sort((a, b) => a.localeCompare(b)),
+    ];
+    onChange(sorted);
+  };
+
+  return (
+    <div
+      role="group"
+      aria-describedby={described}
+      data-testid="operations-picker"
+      className="flex flex-col gap-3"
+    >
+      {OPERATION_GROUP_NAMES.map((name) => {
+        const group = OPERATION_GROUPS[name];
+        const ticked = chosen.includes(name);
+        return (
+          <div key={name} className="flex flex-col gap-1">
+            <Checkbox
+              id={`${id}-${name}`}
+              aria-describedby={described}
+              checked={ticked}
+              disabled={frozen}
+              onChange={(event) => toggle(name, event.currentTarget.checked)}
+              label={
+                <span className="flex items-center gap-2">
+                  <span className="font-mono">{name}</span>
+                  {group.writes ? (
+                    <Badge tone="warning">{t("policies.operations.writes")}</Badge>
+                  ) : null}
+                </span>
+              }
+            />
+            {/* The members, always: a group is exactly the operations the table lists for it. */}
+            <p className="pl-6 text-caption text-fg-muted">
+              {t("policies.operations.covers", { count: group.operations.length })}{" "}
+              <span className="font-mono">{group.operations.join(", ")}</span>
+            </p>
+          </div>
+        );
+      })}
+
+      <details className="rounded-md border border-border p-3">
+        <summary className="cursor-pointer text-body">
+          {t("policies.operations.more")}
+        </summary>
+        <p className="mt-1 text-caption text-fg-muted">{t("policies.operations.moreHint")}</p>
+        <div className="mt-2 grid gap-1 sm:grid-cols-2">
+          {single.map((name) => (
+            <Checkbox
+              key={name}
+              id={`${id}-op-${name}`}
+              aria-describedby={described}
+              checked={chosen.includes(name)}
+              disabled={frozen}
+              onChange={(event) => toggle(name, event.currentTarget.checked)}
+              label={<span className="font-mono text-caption">{name}</span>}
+            />
+          ))}
+        </div>
+      </details>
+
+      <p className="text-caption text-fg-muted" data-testid="operations-summary">
+        {chosen.length === 0
+          ? t("policies.operations.none")
+          : t("policies.operations.total", { count: covered.length })}
+      </p>
+      {rawErrors && rawErrors.length > 0 ? (
+        <p className="text-caption text-danger">{rawErrors[0]}</p>
+      ) : null}
+    </div>
+  );
+}
