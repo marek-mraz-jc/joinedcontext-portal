@@ -12,7 +12,7 @@ import { TERMINAL_STATES, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Button, PageHeader } from "../../components/ui";
+import { Alert, Button, Icon, PageHeader, Skeleton } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40).
@@ -42,14 +42,51 @@ export function AgentRunPage({
   const frame = useRef<HTMLIFrameElement>(null);
   usePreviewBridge(frame, run.data, run.data !== undefined && !TERMINAL_STATES.includes(run.data.status));
 
+  // Each of the four states is a whole page: the way back, the shape of what is coming, and,
+  // when the record cannot be read, the API's own reason rather than "not in this project" for
+  // every one of them — a refusal, an outage and a run that really is gone used to read the
+  // same and none of them offered anything to press (UI-15, UI-16, UI-44).
   if (run.isPending) {
-    return <p role="status">{t("agentRun.loading")}</p>;
+    return (
+      <div className="space-y-4">
+        <PageHeader title={t("agentRun.title")} actions={<Button onClick={onClose}>{t("agentRun.back")}</Button>} />
+        <div role="status" aria-busy="true" className="space-y-3">
+          <span className="sr-only">{t("agentRun.loading")}</span>
+          <Skeleton className="h-6 w-64" />
+          <Skeleton className="h-preview min-h-preview-min w-full" />
+        </div>
+      </div>
+    );
   }
   if (run.isError || !run.data) {
+    const gone = run.error instanceof ApiError && run.error.status === 404;
+    const reason = gone
+      ? t("agentRun.notFound")
+      : run.error instanceof ApiError
+        ? (run.error.problem?.detail ?? run.error.message)
+        : t("app.error.generic");
     return (
-      <p role="alert" className="text-danger">
-        {t("agentRun.notFound")}
-      </p>
+      <div className="space-y-4">
+        <PageHeader title={t("agentRun.title")} actions={<Button onClick={onClose}>{t("agentRun.back")}</Button>} />
+        <Alert
+          tone="danger"
+          actions={
+            gone ? undefined : (
+              <Button
+                size="sm"
+                icon={<Icon name="refresh" className="size-4" />}
+                onClick={() => {
+                  void run.refetch();
+                }}
+              >
+                {t("app.error.retry")}
+              </Button>
+            )
+          }
+        >
+          {reason}
+        </Alert>
+      </div>
     );
   }
 
@@ -142,7 +179,7 @@ export function AgentRunPage({
                 src={preview}
                 sandbox="allow-scripts allow-forms"
                 referrerPolicy="no-referrer"
-                className="h-[82vh] min-h-[28rem] w-full rounded border border-border bg-surface"
+                className="h-preview min-h-preview-min w-full rounded border border-border bg-surface"
               />
               <a
                 href={preview}
@@ -283,7 +320,7 @@ function Building({
     <div
       role="status"
       data-testid="run-building"
-      className="flex h-[50vh] min-h-[20rem] flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center"
+      className="flex h-preview min-h-preview-min flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center"
     >
       {stuck ? (
         <>

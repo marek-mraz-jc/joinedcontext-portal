@@ -118,6 +118,11 @@
   --portal-space-stack: 0.75rem;
   --portal-content-max: 80rem;
   --portal-sidebar-width: 16rem;
+  /* The preview column of an application: the page IS the application, so the frame takes what
+     the viewport allows and never falls below a phone's screen. The building state uses the
+     same box, so the column does not jump when the preview arrives (AP-63, UI-42). */
+  --portal-preview-height: 82vh;
+  --portal-preview-min-height: 28rem;
 
   /* Radius. */
   --portal-radius-sm: 0.375rem;
