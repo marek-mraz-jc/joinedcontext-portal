@@ -4,7 +4,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
-import i18n from "../src/i18n";
+import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
+import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 import { LinkmlVisualEditor } from "../src/pages/models/LinkmlVisualEditor";
 import { diagnose, parseModel } from "../src/pages/models/linkml";
 
@@ -186,5 +187,103 @@ describe("LinkML visual editor", () => {
     const model = parseModel(source());
     expect(model.enums[0].name).toBe("QualityBand");
     expect(model.enums[0].permissible_values.map((value) => value.name)).toEqual(["good"]);
+  });
+});
+
+/**
+ * The UI contract of the structure view (T-1772, UI-04, UI-15, UI-16, UI-44, UI-48).
+ *
+ * The three flags of a slot were hand-made `<input type="checkbox">` inside a bare `<label>`,
+ * the class list was a hand-made `<button>` and the parent a hand-made `<select>`; each is now
+ * the shared control, which is what gives them one focus ring, one disabled state and a name a
+ * pointer can hit. These tests hold that: axe over the class and the slot open, every control
+ * reachable in DOM order, and the four locales on the labels.
+ */
+describe("the LinkML visual editor against the UI contract", () => {
+  /** The editor alone, over the one document it edits: no test widget beside it for axe to read. */
+  function Alone({ initial }: { initial: string }) {
+    const [source, setSource] = useState(initial);
+    return (
+      <LinkmlVisualEditor
+        source={source}
+        onChange={setSource}
+        diagnostics={diagnose(source, ["sk", "en"])}
+        locales={["sk", "en"]}
+      />
+    );
+  }
+
+  function renderAlone(initial = SOURCE) {
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <Alone initial={initial} />
+      </I18nextProvider>,
+    );
+    return { container: view.container, user: userEvent.setup() };
+  }
+
+  it("has no axe violation with a class open and with a slot open", async () => {
+    await i18n.changeLanguage("en");
+    const { container, user } = renderAlone();
+
+    await expectNoViolations(container);
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await screen.findByLabelText("Slot IRI");
+    await expectNoViolations(container);
+  });
+
+  it("ticks a flag of a slot by its own words, and says which flag it is", async () => {
+    await i18n.changeLanguage("en");
+    const { user } = renderAlone();
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+
+    // The label wraps the box, so the words beside it are the control's name and its hit area.
+    const required = screen.getByRole("checkbox", { name: "Required" });
+    expect(required).not.toBeChecked();
+    await user.click(screen.getByText("Required"));
+    expect(required).toBeChecked();
+
+    expect(screen.getByRole("checkbox", { name: "Multivalued" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Deprecated/ })).toBeInTheDocument();
+  });
+
+  it("reaches every control of the open slot by keyboard in the order it is read", async () => {
+    await i18n.changeLanguage("en");
+    const { user } = renderAlone();
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+
+    const panel = screen.getByLabelText("Slot IRI").closest("section, div[class*=flex-col]");
+    expect(panel).not.toBeNull();
+    await expectTabOrder(user, panel as HTMLElement);
+  });
+
+  it("offers the parent class as a choice, not as free text a typo breaks", async () => {
+    await i18n.changeLanguage("en");
+    const { user } = renderAlone(
+      SOURCE.replace(
+        "slots:\n  pm10:",
+        "  Station:\n    class_uri: bb:Station\n    slots: []\nslots:\n  pm10:",
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
+
+    const parent = screen.getByLabelText("The class it specialises");
+    expect(parent.tagName).toBe("SELECT");
+    expect(within(parent).getByRole("option", { name: "Station" })).toBeInTheDocument();
+  });
+
+  it.each(SUPPORTED_LOCALES)("labels the slot's flags in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    const { container, user } = renderAlone();
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+
+    for (const key of ["models.required", "models.multivalued", "models.deprecatedKeep"]) {
+      expect(
+        screen.getByRole("checkbox", { name: i18n.t(key) }),
+        `${key} has a ${locale} label`,
+      ).toBeInTheDocument();
+    }
+    expectNoRawKeys(container);
   });
 });

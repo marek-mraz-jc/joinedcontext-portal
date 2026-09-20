@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   Alert,
   Button,
+  Checkbox,
   Field,
   Input,
   Select,
@@ -172,18 +173,19 @@ export function LinkmlVisualEditor({
           <ul className="flex flex-col gap-1">
             {model.classes.map((klass) => (
               <li key={klass.name}>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setSelectedClass(klass.name)}
                   aria-current={klass.name === activeClass?.name ? "true" : undefined}
                   className={
                     klass.name === activeClass?.name
-                      ? "w-full rounded bg-surface-subtle px-2 py-1 text-left text-sm font-medium"
-                      : "w-full rounded px-2 py-1 text-left text-sm hover:bg-surface-subtle"
+                      ? "w-full justify-start bg-surface-subtle font-medium"
+                      : "w-full justify-start"
                   }
                 >
                   {klass.name}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -277,9 +279,8 @@ export function LinkmlVisualEditor({
                   A parent can only be another class of this model, so it is a choice, not a
                   free text a typo turns into a dangling reference. */}
               <Field id="class-parent" label={t("models.classParent")}>
-                <select
+                <Select
                   id="class-parent"
-                  className="focus-ring w-full rounded border border-border bg-surface px-2 py-1 text-sm"
                   value={activeClass.is_a ?? ""}
                   onChange={(event) =>
                     run({
@@ -298,7 +299,7 @@ export function LinkmlVisualEditor({
                         {other.name}
                       </option>
                     ))}
-                </select>
+                </Select>
               </Field>
               <Field id="class-mixins" label={t("models.classMixins")}>
                 <Input
@@ -375,14 +376,15 @@ export function LinkmlVisualEditor({
                 return (
                   <TableRow key={name}>
                     <TableCell primary>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="underline-offset-2 hover:underline"
                         onClick={() => openSlot(name)}
                       >
                         {name}
                         {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
-                      </button>
+                      </Button>
                     </TableCell>
                     <TableCell>{slot?.range ?? "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
@@ -488,36 +490,21 @@ export function LinkmlVisualEditor({
               </Field>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={activeSlot.required === true}
-                  onChange={(event) =>
-                    setSlotField(activeSlot.name, "required", event.target.checked)
-                  }
-                />
-                {t("models.required")}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={activeSlot.multivalued === true}
-                  onChange={(event) =>
-                    setSlotField(activeSlot.name, "multivalued", event.target.checked)
-                  }
-                />
-                {t("models.multivalued")}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={activeSlot.deprecated === true}
-                  onChange={(event) =>
-                    setSlotField(activeSlot.name, "deprecated", event.target.checked)
-                  }
-                />
-                {t("models.deprecatedKeep")}
-              </label>
+              <Checkbox
+                label={t("models.required")}
+                checked={activeSlot.required === true}
+                onChange={(event) => setSlotField(activeSlot.name, "required", event.target.checked)}
+              />
+              <Checkbox
+                label={t("models.multivalued")}
+                checked={activeSlot.multivalued === true}
+                onChange={(event) => setSlotField(activeSlot.name, "multivalued", event.target.checked)}
+              />
+              <Checkbox
+                label={t("models.deprecatedKeep")}
+                checked={activeSlot.deprecated === true}
+                onChange={(event) => setSlotField(activeSlot.name, "deprecated", event.target.checked)}
+              />
             </div>
             {activeSlot.upstream ? (
               <p className="text-xs text-surface-fg/70">

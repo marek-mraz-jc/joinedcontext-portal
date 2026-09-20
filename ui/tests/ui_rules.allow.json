@@ -59,10 +59,6 @@
     "src/components/forms/theme.tsx": {
       "lines": 4,
       "group": "ui-parts"
-    },
-    "src/routes/ApprovalDetailPage.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
     }
   },
   "hand_made_control": {
@@ -167,12 +163,9 @@
       "group": "ui-parts"
     },
     "src/pages/import/ImportPage.tsx": {
-      "lines": 2,
-      "group": "ui-forms"
-    },
-    "src/pages/models/LinkmlVisualEditor.tsx": {
-      "lines": 6,
-      "group": "ui-forms"
+      "lines": 1,
+      "group": "ui-forms",
+      "reason": "a native file input: the browser owns the file picker, and no shared control wraps it"
     },
     "src/pages/models/ModelFileDrop.tsx": {
       "lines": 1,
@@ -190,10 +183,6 @@
       "lines": 1,
       "group": "ui-forms"
     },
-    "src/pages/pipelines/PipelineStudio.tsx": {
-      "lines": 3,
-      "group": "ui-forms"
-    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "lines": 1,
       "group": "ui-parts"
@@ -204,18 +193,6 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/routes/ApprovalDetailPage.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/routes/ApprovalsPage.tsx": {
-      "lines": 1,
-      "group": "ui-parts"
-    },
-    "src/routes/DashboardsPage.tsx": {
-      "lines": 2,
       "group": "ui-parts"
     }
   },
@@ -289,8 +266,9 @@
       "group": "ui-forms"
     },
     "src/routes/DashboardsPage.tsx": {
-      "lines": 4,
-      "group": "ui-parts"
+      "lines": 2,
+      "group": "ui-pages",
+      "reason": "`h-[60vh]` sizes the map against the window and the spacing scale has no viewport step; the colour-ramp swatch takes its fill from the layer's own scale, which is a value, not a token."
     }
   }
 }
