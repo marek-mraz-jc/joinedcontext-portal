@@ -87,7 +87,9 @@
   --portal-primary-active: var(--portal-primary-700);
   --portal-primary-fg: var(--portal-brand-fg);
   --portal-primary-soft: var(--portal-primary-50);
-  --portal-primary-soft-fg: var(--portal-primary-700);
+  /* Same reason as `--portal-info`, and the same arithmetic: `primary-700` is 76 % brand over
+     the paper, which a pale brand leaves at 2.8:1 on `primary-soft` (T-1493, UI-16). */
+  --portal-primary-soft-fg: color-mix(in oklab, var(--portal-brand) 50%, var(--portal-ink));
   --portal-danger: var(--portal-danger-base);
   --portal-danger-fg: var(--portal-danger-base-fg);
   --portal-danger-hover: color-mix(in oklab, var(--portal-danger-base) 88%, var(--portal-ink));
@@ -97,7 +99,11 @@
   --portal-success-soft: color-mix(in oklab, var(--portal-success-base) 12%, var(--portal-paper));
   --portal-warning: var(--portal-warning-base);
   --portal-warning-soft: color-mix(in oklab, var(--portal-warning-base) 14%, var(--portal-paper));
-  --portal-info: var(--portal-info-base);
+  /* The tone is the brand's secondary pulled halfway to the ink, not the raw colour: `text-info`
+     sits on `bg-info-soft`, a 12 % tint of the same colour, and the raw value of a pale brand
+     measured 1.6:1 there (T-1493, UI-16). Mixing towards the ink darkens it in the light theme
+     and lightens it in the dark one, because the ink is the text end of both. */
+  --portal-info: color-mix(in oklab, var(--portal-info-base) 50%, var(--portal-ink));
   --portal-info-soft: color-mix(in oklab, var(--portal-info-base) 12%, var(--portal-paper));
   --portal-ring: var(--portal-primary-500);
   --portal-overlay: color-mix(in oklab, var(--portal-neutral-900) 45%, transparent);
@@ -166,7 +172,7 @@
     --portal-surface-muted: var(--portal-neutral-200);
     --portal-surface-raised: var(--portal-neutral-100);
     --portal-primary-soft: var(--portal-primary-100);
-    --portal-primary-soft-fg: var(--portal-primary-300);
+
     --portal-primary-hover: var(--portal-primary-400);
     --portal-primary-active: var(--portal-primary-300);
     --portal-overlay: color-mix(in oklab, black 65%, transparent);
