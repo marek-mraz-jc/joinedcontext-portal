@@ -701,7 +701,12 @@ it("tells a feed from a space and reads the attributes of a class from an inline
       targetEndpoint: "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:public-air",
     });
     expect((firstShape(body.spec).compute as { bloblang: string }).bloblang).toContain("pm10Sum");
-  });
+  }, // The whole guided flow in one case: seven steps, a sample fetched and a sum typed. It runs
+  // in 9 s here and in 20.5 s under `--coverage`, which is the file's own `testTimeout` to the
+  // millisecond, so `ci-full` failed on the instrumentation and nothing else (T-2449). Raised
+  // for this case alone: the 20 s ceiling is what catches a test that really has hung, and it
+  // stays where it is for the other 31.
+  45_000);
 
   it("keeps running or paused in the open and the rest in the row's menu (T-2287)", async () => {
     renderPipelines();
