@@ -7,7 +7,8 @@
 //!
 //! - `https://` only, checked here as well as there, because a redirect is a second URL the
 //!   module above never sees;
-//! - a public address only, by the rule of [`super::guard`]: a `SharedSpaceReference` is a URL
+//! - a public address only, by the rule of `super::guard` (named, not linked: the module is
+//!   private and a public item's documentation may not link into one): a `SharedSpaceReference` is a URL
 //!   somebody typed, this runs inside the cluster, and without the rule a peer's schema base
 //!   naming `169.254.169.254` or a `*.svc.cluster.local` Service makes the mirror a probe for
 //!   whoever can get a reference approved (T-1705);

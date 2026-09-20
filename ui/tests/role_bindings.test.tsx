@@ -232,7 +232,9 @@ describe("people and roles", () => {
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
     await userEvent.type(within(dialog).getByRole("textbox"), "admin");
-    expect(confirm).toBeDisabled();
+    // `aria-disabled`, not `disabled`: a refusal that carries a reason keeps the button in the
+    // tab order so the reason can be reached and read (T-1830, UI-44).
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     await userEvent.type(within(dialog).getByRole("textbox"), "s");
     await userEvent.click(confirm);
 
