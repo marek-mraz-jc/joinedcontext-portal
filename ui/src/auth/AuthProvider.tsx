@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, readCsrfToken, unwrap } from "../api/client";
 import type { components } from "../api/schema";
+import { clearBrowserState } from "./browserState";
 
 /** Who is signed in and through which front (`portal`, `edge` or `bearer`), from `/auth/me`. */
 export type Identity = components["schemas"]["Me"];
@@ -68,6 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     // edge they may still be there from an earlier code-flow login, and the edge's /logout
     // never reaches the Portal to clear them. A single logout is all three cookies and the
     // edge session (ADR-N-019, AP-29).
+    // Before the request, not after it: whatever the server answers, the person asked to leave
+    // this browser, and a logout that fails on the network must not leave the previous person's
+    // projects, endpoints and runs behind for the next one (UI-46).
+    clearBrowserState();
+    queryClient.clear();
     const csrf = readCsrfToken();
     const response = await fetch("/api/v1/auth/logout", {
       method: "POST",

@@ -134,17 +134,18 @@ describe("ckan publishing manager", () => {
   it("shows the dataset link and one link per published resource (EP-64)", async () => {
     renderCkan();
 
-    const dataset = await screen.findByRole("link", { name: "kvalita-ovzdusia" });
+    // `ExternalLink` adds "Opens in a new tab" for a screen reader, so the name is a prefix match.
+    const dataset = await screen.findByRole("link", { name: /^kvalita-ovzdusia/ });
     expect(dataset).toHaveAttribute(
       "href",
       "https://data.banskabystrica.sk/dataset/kvalita-ovzdusia",
     );
     const entry = dataset.closest("li") as HTMLElement;
-    expect(within(entry).getByRole("link", { name: "NGSI-LD" })).toHaveAttribute(
+    expect(within(entry).getByRole("link", { name: /^NGSI-LD/ })).toHaveAttribute(
       "href",
       `https://bb.example.com/api/endpoint/${SLUG}/ngsi-ld/v1/`,
     );
-    expect(within(entry).getByRole("link", { name: "CSV" })).toHaveAttribute(
+    expect(within(entry).getByRole("link", { name: /^CSV/ })).toHaveAttribute(
       "href",
       `https://bb.example.com/api/endpoint/${SLUG}/file.csv`,
     );

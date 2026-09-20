@@ -6,7 +6,7 @@ import { readCsrfToken } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
-import { Alert, Button, Field, Input, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Field, Input, PageHeader, safeHref, Select } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 
@@ -322,7 +322,7 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
                     <span className="font-medium">{t(`import.report.need.${need.kind}`)}</span>
                     <span className="font-mono">{need.where}</span>
                     <span className="text-fg-muted">{need.why}</span>
-                    <a className="underline" href={need.link}>
+                    <a className="underline" href={safeHref(need.link)}>
                       {t("import.report.needSet")}
                     </a>
                   </li>

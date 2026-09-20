@@ -16,6 +16,7 @@ import {
   Badge,
   Button,
   Card,
+  ExternalLink,
   Field,
   Input,
   PageHeader,
@@ -163,14 +164,9 @@ function Instances({
               <TableRow key={instance.name}>
                 <TableCell className="font-mono">{instance.name}</TableCell>
                 <TableCell>
-                  <a
-                    href={instance.url}
-                    className="underline hover:no-underline"
-                    rel="noreferrer"
-                    target="_blank"
-                  >
+                  <ExternalLink href={instance.url} hideIcon className="hover:no-underline">
                     {instance.url}
-                  </a>
+                  </ExternalLink>
                 </TableCell>
                 <TableCell>{instance.organizationDefault ?? "—"}</TableCell>
                 <TableCell className="font-mono">{instance.apiTokenRef}</TableCell>
@@ -267,14 +263,13 @@ function Publications({
                 <span className="font-mono font-semibold">{publication.endpoint}</span>
                 <StatusChip publication={publication} />
                 {publication.datasetUrl ? (
-                  <a
+                  <ExternalLink
                     href={publication.datasetUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:no-underline"
+                    hideIcon
+                    className="hover:no-underline"
                   >
                     {publication.dataset}
-                  </a>
+                  </ExternalLink>
                 ) : (
                   <span className="font-mono">{publication.dataset}</span>
                 )}
@@ -290,14 +285,13 @@ function Publications({
               <ul className="mt-2 flex flex-wrap gap-2">
                 {publication.resources.map((resource) => (
                   <li key={resource.url}>
-                    <a
+                    <ExternalLink
                       href={resource.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded border border-border px-2 py-1 text-sm underline hover:no-underline"
+                      hideIcon
+                      className="rounded border border-border px-2 py-1 text-sm hover:no-underline"
                     >
                       {resource.format}
-                    </a>
+                    </ExternalLink>
                   </li>
                 ))}
               </ul>

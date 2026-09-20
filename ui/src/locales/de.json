@@ -4,7 +4,12 @@
     "loading": "Wird geladen...",
     "error": {
       "generic": "Das Portal hat nicht geantwortet. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "crashTitle": "Diese Seite ist stehen geblieben",
+      "crashBody": "Im Portal ist beim Zeichnen dieser Seite etwas fehlgeschlagen. An dem, was Sie angesehen haben, wurde nichts geändert.",
+      "crashReference": "Nennen Sie das hier, wenn Sie es melden:",
+      "crashReload": "Seite neu laden",
+      "crashHome": "Zum Anfang"
     },
     "opensNewTab": "Wird in einem neuen Tab geöffnet"
   },
@@ -1665,6 +1670,7 @@
       "title": "Vorschau",
       "hint": "Die gebaute Anwendung, in einer Sandbox. Sie läuft ohne Zugriff auf Ihre Portal-Anmeldung.",
       "frameTitle": "Vorschau der Anwendung {app}",
+      "refused": "Die von diesem Lauf gemeldete Vorschauadresse ist keine App dieses Portals, deshalb wird nichts eingebettet: {url}. Eine Vorschau ist immer ein Pfad unter /apps/ auf diesem Host.",
       "open": "Die Anwendung in einem eigenen Tab öffnen",
       "building": "Ihre Anwendung wird erstellt",
       "reading": "Lese {types}",

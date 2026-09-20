@@ -20,6 +20,7 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
+  ExternalLink,
   PageHeader,
   Select,
 } from "../../components/ui";
@@ -300,14 +301,9 @@ function SyncSourceCard({
           <>
             <dt className="font-medium">{t("syncSources.mergeRequest")}</dt>
             <dd>
-              <a
-                href={status.data.mergeRequest}
-                className="underline"
-                rel="noreferrer"
-                target="_blank"
-              >
+              <ExternalLink href={status.data.mergeRequest}>
                 {t("syncSources.review")}
-              </a>
+              </ExternalLink>
             </dd>
           </>
         ) : null}
@@ -329,9 +325,7 @@ function SyncSourceCard({
       {detached ? (
         <p role="status" className="mt-3 text-sm">
           {t("syncSources.detached")}{" "}
-          <a href={detached} className="underline" rel="noreferrer" target="_blank">
-            {t("syncSources.review")}
-          </a>
+          <ExternalLink href={detached}>{t("syncSources.review")}</ExternalLink>
         </p>
       ) : null}
 

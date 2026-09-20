@@ -10,7 +10,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
 import type { components } from "../api/schema";
-import { Alert, Button, Dialog, Input, PageHeader, Textarea } from "../components/ui";
+import { Alert, Button, Dialog, ExternalLink, Input, PageHeader, Textarea } from "../components/ui";
 
 type ChangeProposal = components["schemas"]["ChangeProposal"];
 type ChangeFile = components["schemas"]["ChangeFile"];
@@ -253,14 +253,9 @@ export function ApprovalDetailPage({
               {t("approvals.mergeRequest")}
             </dt>
             <dd className="mt-1 text-sm font-medium">
-              <a
-                href={proposal.status.mergeRequest}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-border-focus"
-              >
+              <ExternalLink href={proposal.status.mergeRequest} className="text-primary">
                 {proposal.status.mergeRequest}
-              </a>
+              </ExternalLink>
             </dd>
           </div>
         ) : null}

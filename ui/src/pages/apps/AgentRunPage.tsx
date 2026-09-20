@@ -5,7 +5,7 @@ import { ApiError } from "../../api/client";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { isChange } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
-import { usePreviewBridge } from "./previewBridge";
+import { previewSrc, usePreviewBridge } from "./previewBridge";
 import { RunPublication } from "./RunPublication";
 import { RunTimeline } from "./RunTimeline";
 import { TERMINAL_STATES, useAgentRun } from "./useAgentRun";
@@ -57,6 +57,11 @@ export function AgentRunPage({
   const endpointTitle = endpointTitles.get(record.endpointName);
   const displayName = appDisplayName({ title: record.title, appName: record.appName, endpointTitle });
   const over = TERMINAL_STATES.includes(record.status);
+  // The run reports where its preview is served; a value that is not a path under `/apps/` on
+  // this origin is never framed, and the person is told what arrived rather than shown a blank
+  // panel or a page from somewhere else (UI-45).
+  const preview = previewSrc(record.previewUrl);
+  const refused = preview === undefined && record.previewUrl !== undefined && record.previewUrl !== "";
   // A run with a preview publishes; an unattended one ends waiting for approval with its preview
   // built and publishes from there, once (AG-69, AP-71).
   const publishable =
@@ -117,7 +122,7 @@ export function AgentRunPage({
           <h2 id="run-preview" className="text-base font-semibold">
             {t("agentRun.preview.title")}
           </h2>
-          {record.previewUrl !== undefined && record.previewUrl !== "" ? (
+          {preview !== undefined ? (
             <>
               <p className="text-sm text-fg-muted">{t("agentRun.preview.hint")}</p>
               {/*
@@ -132,14 +137,15 @@ export function AgentRunPage({
               */}
               <iframe
                 ref={frame}
-                key={record.previewUrl}
+                key={preview}
                 title={t("agentRun.preview.frameTitle", { app: displayName })}
-                src={record.previewUrl}
+                src={preview}
                 sandbox="allow-scripts allow-forms"
+                referrerPolicy="no-referrer"
                 className="h-[82vh] min-h-[28rem] w-full rounded border border-border bg-surface"
               />
               <a
-                href={record.previewUrl}
+                href={preview}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block text-sm text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
@@ -147,6 +153,10 @@ export function AgentRunPage({
                 {t("agentRun.preview.open")}
               </a>
             </>
+          ) : refused ? (
+            <p role="alert" className="text-danger">
+              {t("agentRun.preview.refused", { url: record.previewUrl })}
+            </p>
           ) : (
             <Building
               createdAt={record.createdAt}

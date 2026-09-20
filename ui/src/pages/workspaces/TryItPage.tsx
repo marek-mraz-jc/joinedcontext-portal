@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
-import { Alert, Badge, Button, PageHeader } from "../../components/ui";
+import { Alert, Badge, Button, ExternalLink, PageHeader } from "../../components/ui";
 import { copyIntoPreview, PER_TYPE } from "./copyIntoPreview";
 import type { CopyResult } from "./copyIntoPreview";
 
@@ -112,9 +112,9 @@ export function TryItPage({ project, name }: { project: string; name: string }):
                     <li key={endpoint.name} className="rounded-lg border border-border bg-surface p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-fg">{endpoint.name}</span>
-                        <a className="break-all font-mono text-sm underline" href={endpoint.url}>
+                        <ExternalLink className="break-all font-mono text-sm" href={endpoint.url}>
                           {endpoint.url}
-                        </a>
+                        </ExternalLink>
                       </div>
                       {mine && endpoint.originSlug ? (
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">

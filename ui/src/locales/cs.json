@@ -4,7 +4,12 @@
     "loading": "Načítá se...",
     "error": {
       "generic": "Portál neodpověděl. Zkontrolujte připojení a zkuste to znovu.",
-      "retry": "Zkusit znovu"
+      "retry": "Zkusit znovu",
+      "crashTitle": "Tato stránka se zastavila",
+      "crashBody": "V Portálu selhalo něco při vykreslování této stránky. Na tom, co jste si prohlíželi, se nic nezměnilo.",
+      "crashReference": "Při hlášení uveďte toto:",
+      "crashReload": "Načíst stránku znovu",
+      "crashHome": "Zpět na začátek"
     },
     "opensNewTab": "Otevře se na nové kartě"
   },
@@ -1665,6 +1670,7 @@
       "title": "Náhled",
       "hint": "Postavená aplikace v sandboxu. Běží bez přístupu k vašemu přihlášení do Portálu.",
       "frameTitle": "Náhled aplikace {app}",
+      "refused": "Adresa náhledu, kterou tento běh ohlásil, není aplikací tohoto Portálu, proto se nic nevkládá do rámu: {url}. Náhled je vždy cesta pod /apps/ na tomto hostiteli.",
       "open": "Otevřít aplikaci na vlastní kartě",
       "building": "Vytvářím vaši aplikaci",
       "reading": "Čtu {types}",

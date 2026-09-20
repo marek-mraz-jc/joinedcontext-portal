@@ -9,7 +9,7 @@ import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import type { ManifestSource } from "../../components/ResourceFormDialog";
-import { Alert, buttonClass, Icon } from "../../components/ui";
+import { Alert, buttonClass, Icon, safeHref } from "../../components/ui";
 import { pipelineSchema, pipelineUiSchema } from "../../schemas/kinds";
 import type { EndpointOption } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
@@ -483,9 +483,9 @@ export function PipelineEditorDialog({
         <Alert
           tone="info"
           actions={
-            bentoUrl ? (
+            safeHref(bentoUrl) ? (
               <a
-                href={bentoUrl}
+                href={safeHref(bentoUrl)}
                 target="_blank"
                 rel="noreferrer"
                 className={buttonClass("ghost", "sm", "text-primary")}

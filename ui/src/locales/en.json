@@ -4,7 +4,12 @@
     "loading": "Loading...",
     "error": {
       "generic": "The Portal did not answer. Check the connection and try again.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "crashTitle": "This page stopped",
+      "crashBody": "Something in the Portal failed while drawing this page. Nothing you were looking at was changed.",
+      "crashReference": "Quote this when you report it:",
+      "crashReload": "Load the page again",
+      "crashHome": "Go to the start"
     },
     "opensNewTab": "Opens in a new tab"
   },
@@ -1665,6 +1670,7 @@
       "title": "Preview",
       "hint": "The built app, framed in a sandbox. It runs with no access to your Portal session.",
       "frameTitle": "Preview of {app}",
+      "refused": "The preview address this run reported is not an app on this Portal, so nothing is framed: {url}. A preview is always a path under /apps/ on this host.",
       "open": "Open the app in its own tab",
       "building": "Building your application",
       "reading": "Reading {types}",

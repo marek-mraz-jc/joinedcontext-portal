@@ -17,7 +17,7 @@ import { requestOpen } from "../../assistant/state";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Button, buttonClass, PageHeader } from "../../components/ui";
+import { Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
 
 interface DataNeed {
   contextSpaceRef?: string | { name?: string };
@@ -352,9 +352,9 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
                 {/* AP-24: every iteration with the agent is a commit, and the prompt history
                     lives with the source. The forge shows both; the Portal does not keep a
                     second copy of a Git log. */}
-                {app.status?.sourceUrl ? (
+                {safeHref(app.status?.sourceUrl) ? (
                   <a
-                    href={app.status.sourceUrl}
+                    href={safeHref(app.status?.sourceUrl)}
                     target="_blank"
                     rel="noreferrer noopener"
                     className={buttonClass("secondary", "sm")}

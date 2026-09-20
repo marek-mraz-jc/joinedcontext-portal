@@ -133,6 +133,34 @@ export function functionPathOf(method: unknown, path: unknown, route: string): s
   return `${route}${name}${url.search}`;
 }
 
+/**
+ * The `src` a preview frame may be given, or undefined when the value cannot be framed (UI-45).
+ *
+ * A preview URL arrives from the run record and from a manifest's status, so it is data. A
+ * framed `javascript:` URL runs with the framing page's origin in browsers that still allow it,
+ * and an absolute URL on another host turns the Portal into a frame for somebody else's page.
+ *
+ * Two shapes are served: a run's own pass, under `/api/v1/projects/…/preview`, and a published
+ * app under `/apps/` (AP-14). Both are paths on this origin, and nothing else is accepted. The
+ * caller shows the words instead of framing.
+ */
+const PREVIEW = /^\/(?:apps\/|api\/v1\/projects\/[^/]+\/agent-runs\/[^/]+\/preview(?:\?|$))/;
+
+export function previewSrc(src: unknown): string | undefined {
+  if (typeof src !== "string" || !PREVIEW.test(src)) {
+    return undefined;
+  }
+  let url: URL;
+  try {
+    url = new URL(src, BASE);
+  } catch {
+    return undefined;
+  }
+  // `//evil.example/apps/` parses with an authority, and a backslash or an escape can put one
+  // back after the prefix check: the round trip is what proves the string is only a path.
+  return url.origin === BASE && `${url.pathname}${url.search}` === src ? src : undefined;
+}
+
 /** The operations the run's confirmed data needs name (AP-22): the grant, not the prompt. */
 export function grantedOperations(dataNeeds: unknown): Set<string> {
   const needs: unknown[] = Array.isArray(dataNeeds) ? dataNeeds : [];

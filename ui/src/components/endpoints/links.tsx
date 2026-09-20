@@ -1,6 +1,6 @@
 import type { JSX } from "react";
 import { clsx } from "clsx";
-import { Icon } from "../ui";
+import { Icon, safeHref } from "../ui";
 
 /**
  * Where each enabled representation answers under the endpoint's URL (EP-08, EP-44): the
@@ -53,12 +53,17 @@ export function EndpointLink({
   children: string;
   muted?: boolean;
 }): JSX.Element {
+  const safe = safeHref(href);
+  if (!safe) {
+    // A URL the Portal did not build: the words stay, the link is withheld (PF-50).
+    return <span className="font-mono text-caption text-fg-muted">{children}</span>;
+  }
   return (
     <a
-      href={href}
+      href={safe}
       target="_blank"
       rel="noreferrer"
-      title={href}
+      title={safe}
       className={clsx(
         "focus-ring inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-caption",
         muted ? LINK_MUTED : LINK_PRIMARY,

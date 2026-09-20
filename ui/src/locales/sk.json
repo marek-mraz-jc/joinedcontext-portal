@@ -4,7 +4,12 @@
     "loading": "Načítava sa...",
     "error": {
       "generic": "Portál neodpovedal. Skontrolujte pripojenie a skúste to znova.",
-      "retry": "Skúsiť znova"
+      "retry": "Skúsiť znova",
+      "crashTitle": "Táto stránka sa zastavila",
+      "crashBody": "V Portáli zlyhalo niečo pri vykresľovaní tejto stránky. Na tom, čo ste si prezerali, sa nič nezmenilo.",
+      "crashReference": "Pri hlásení uveďte toto:",
+      "crashReload": "Načítať stránku znova",
+      "crashHome": "Späť na začiatok"
     },
     "opensNewTab": "Otvorí sa na novej karte"
   },
@@ -1665,6 +1670,7 @@
       "title": "Náhľad",
       "hint": "Postavená aplikácia v sandboxe. Beží bez prístupu k vášmu prihláseniu do Portálu.",
       "frameTitle": "Náhľad aplikácie {app}",
+      "refused": "Adresa náhľadu, ktorú tento beh ohlásil, nie je aplikáciou tohto Portálu, preto sa nič nevkladá do rámu: {url}. Náhľad je vždy cesta pod /apps/ na tomto hostiteľovi.",
       "open": "Otvoriť aplikáciu na vlastnej karte",
       "building": "Vytváram vašu aplikáciu",
       "reading": "Čítam {types}",
