@@ -175,22 +175,36 @@ export function AccessPanel({
                 .join("; ")}
             </p>
           ) : null}
-          <ul className="flex flex-wrap gap-2" aria-label={t("access.panel.checks")}>
-            {(checks.data ?? CHECKED_ACTIONS.map((action) => ({ action, decision: undefined }))).map((check) => (
-              <li key={check.action}>
-                <Badge
-                  mono
-                  tone={check.decision === undefined ? "neutral" : check.decision ? "success" : "danger"}
-                >
-                  {check.decision === undefined
-                    ? t("access.panel.checking", { action: check.action })
-                    : check.decision
-                      ? t("access.panel.may", { action: check.action, type })
-                      : t("access.panel.mayNot", { action: check.action, type })}
-                </Badge>
-              </li>
-            ))}
-          </ul>
+          {/* A check that could not be made is not a check still running (T-1763): the chips
+              used to sit on "checking…" for good when the gateway refused the question, which
+              reads as "any moment now" and is the opposite of what happened. */}
+          {checks.isError ? (
+            <p role="alert" className="text-danger">
+              {t("access.panel.checkFailed", {
+                reason:
+                  checks.error instanceof Error ? checks.error.message : t("app.error.generic"),
+              })}
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-2" aria-label={t("access.panel.checks")}>
+              {(checks.data ?? CHECKED_ACTIONS.map((action) => ({ action, decision: undefined }))).map(
+                (check) => (
+                  <li key={check.action}>
+                    <Badge
+                      mono
+                      tone={check.decision === undefined ? "neutral" : check.decision ? "success" : "danger"}
+                    >
+                      {check.decision === undefined
+                        ? t("access.panel.checking", { action: check.action })
+                        : check.decision
+                          ? t("access.panel.may", { action: check.action, type })
+                          : t("access.panel.mayNot", { action: check.action, type })}
+                    </Badge>
+                  </li>
+                ),
+              )}
+            </ul>
+          )}
         </div>
       ) : null}
     </section>
