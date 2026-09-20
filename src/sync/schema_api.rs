@@ -7,7 +7,11 @@
 //!
 //! - `https://` only, checked here as well as there, because a redirect is a second URL the
 //!   module above never sees;
-//! - a redirect is followed only to another `https://` address, and only a few times;
+//! - a public address only, by the rule of [`super::guard`]: a `SharedSpaceReference` is a URL
+//!   somebody typed, this runs inside the cluster, and without the rule a peer's schema base
+//!   naming `169.254.169.254` or a `*.svc.cluster.local` Service makes the mirror a probe for
+//!   whoever can get a reference approved (T-1705);
+//! - a redirect is followed only to another public `https://` address, and only a few times;
 //! - a timeout per request, so one slow partner cannot hold a reconcile open;
 //! - a ceiling on the body, because a peer's `index.json` is a few kilobytes and a mirror that
 //!   streams a gigabyte into memory is a peer's denial of service on us.
@@ -16,9 +20,12 @@
 //! public half of an endpoint (EP-46).
 
 use std::io::Read;
+use std::sync::Arc;
 use std::time::Duration;
 
 use jcctl::foreign_models::{FetchError, SchemaApi};
+
+use super::guard::{follows, internal_host, PublicOnly};
 
 /// How long one document may take. A peer that cannot answer in this is a peer whose mirror
 /// waits until the next run.
@@ -45,18 +52,18 @@ impl PeerSchemaApi {
     /// deadlock the runtime in it.
     pub fn new() -> Result<Self, reqwest::Error> {
         let redirect = reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.url().scheme() != "https" {
-                // Not an error the peer can distinguish from a 404, and deliberately so: the
-                // mirror says the surface could not be read, not what the redirect pointed at.
-                return attempt.stop();
+            // Stopped rather than failed with a reason: the mirror says the surface could not
+            // be read, never what the redirect pointed at, so a peer learns nothing about the
+            // inside of this cluster from the shape of the answer.
+            if follows(attempt.url(), attempt.previous().len(), MAX_REDIRECTS) {
+                attempt.follow()
+            } else {
+                attempt.stop()
             }
-            if attempt.previous().len() >= MAX_REDIRECTS {
-                return attempt.stop();
-            }
-            attempt.follow()
         });
         let http = reqwest::blocking::Client::builder()
             .redirect(redirect)
+            .dns_resolver(Arc::new(PublicOnly))
             .timeout(TIMEOUT)
             .build()?;
         Ok(Self { http })
@@ -68,6 +75,12 @@ impl SchemaApi for PeerSchemaApi {
         if !url.starts_with("https://") {
             return Err(FetchError::Unavailable(format!(
                 "{url} is not https, and a schema surface is not fetched in the clear"
+            )));
+        }
+        if let Some(ip) = internal_host(url) {
+            return Err(FetchError::Unavailable(format!(
+                "{url} names {ip}, which is not a public address; a schema surface is read from \
+                 public hosts only"
             )));
         }
 
@@ -138,6 +151,46 @@ mod tests {
             matches!(error, FetchError::Unavailable(ref why) if why.contains("not https")),
             "{error}"
         );
+    }
+
+    /// DM-49, MF-28 (T-1705): the peer's base is a URL somebody typed into a manifest, and the
+    /// mirror runs inside the cluster. An address of the cluster's own network is refused
+    /// before a socket is opened, and the answer never says what was there.
+    #[test]
+    fn a_surface_inside_the_cluster_is_refused_before_a_socket_is_opened() {
+        let api = PeerSchemaApi::new().expect("a client");
+        for url in [
+            "https://169.254.169.254/latest/meta-data/",
+            "https://10.42.0.9/schema/index.json",
+            "https://127.0.0.1/schema/index.json",
+            "https://[::1]/schema/index.json",
+            "https://[fd00::1]/schema/index.json",
+        ] {
+            let error = api.get(url).expect_err("{url} was fetched");
+            assert!(
+                matches!(error, FetchError::Unavailable(ref why) if why.contains("public address")),
+                "{url}: {error}"
+            );
+        }
+    }
+
+    /// DM-49 (T-1705): a scheme that is not HTTPS never reaches the client, whichever of the
+    /// ones an SSRF reaches for it is.
+    #[test]
+    fn a_surface_that_is_not_https_is_refused_whatever_scheme_it_names() {
+        let api = PeerSchemaApi::new().expect("a client");
+        for url in [
+            "file:///etc/passwd",
+            "gopher://peer.example/1/schema",
+            "ftp://peer.example/schema/index.json",
+            "http://peer.example/schema/index.json",
+        ] {
+            let error = api.get(url).expect_err("{url} was fetched");
+            assert!(
+                matches!(error, FetchError::Unavailable(ref why) if why.contains("not https")),
+                "{url}: {error}"
+            );
+        }
     }
 
     #[test]

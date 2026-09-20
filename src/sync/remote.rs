@@ -20,13 +20,14 @@
 //! operator like a private source that quietly syncs nothing (MF-31).
 
 use std::io::Read;
-use std::net::{IpAddr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use jc_core::kinds::SyncOrigin;
 use jcctl::sync::{RemoteError, SyncRemote};
+
+use super::guard::{follows, internal_host, PublicOnly};
 
 /// How long one request may take.
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -39,6 +40,14 @@ const MAX_ENTRY: u64 = 16 * 1024 * 1024;
 
 /// How many entries an archive may hold, the ceiling the import wizard already applies.
 const MAX_ENTRIES: usize = 10_000;
+
+/// The bytes a whole checkout may occupy on disk once unpacked.
+///
+/// [`MAX_BODY`] bounds the download and [`MAX_ENTRY`] one file of it, and neither bounds their
+/// product: ten thousand entries of sixteen megabytes is a hundred and sixty gigabytes written
+/// to the node from an archive that arrived well inside both. Four times the largest download
+/// is what text compresses to and far past any configuration subtree (MF-32, T-1705).
+const MAX_CHECKOUT: u64 = 4 * MAX_BODY;
 
 /// How many `https` redirects an origin may hide behind.
 const MAX_REDIRECTS: usize = 3;
@@ -56,17 +65,11 @@ impl HttpRemote {
     /// rather than holding a runtime worker while a repository is downloaded.
     pub fn new() -> Result<Self, reqwest::Error> {
         let redirect = reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.url().scheme() != "https"
-                || attempt.previous().len() >= MAX_REDIRECTS
-                || attempt
-                    .url()
-                    .host_str()
-                    .and_then(|host| host.parse::<IpAddr>().ok())
-                    .is_some_and(is_internal)
-            {
-                return attempt.stop();
+            if follows(attempt.url(), attempt.previous().len(), MAX_REDIRECTS) {
+                attempt.follow()
+            } else {
+                attempt.stop()
             }
-            attempt.follow()
         });
         Ok(Self {
             http: reqwest::blocking::Client::builder()
@@ -92,19 +95,7 @@ impl HttpRemote {
                 status.as_u16()
             )));
         }
-        // One byte past the ceiling rather than trusting Content-Length: a chunked response
-        // declares no length at all, and that is the shape a slow drip arrives in.
-        let mut body = Vec::new();
-        response
-            .take(MAX_BODY + 1)
-            .read_to_end(&mut body)
-            .map_err(|err| RemoteError::Unavailable(format!("{url}: {err}")))?;
-        if body.len() as u64 > MAX_BODY {
-            return Err(RemoteError::Refused(format!(
-                "{url} is larger than the {MAX_BODY} bytes a sync source may carry"
-            )));
-        }
-        Ok(body)
+        bounded(response, MAX_BODY, url)
     }
 
     /// The commit a ref points at, from the advertisement every Git HTTP server serves.
@@ -300,6 +291,9 @@ fn unpack(
 
     let prefix = subtree.map(|path| path.trim_matches('/').to_owned());
     let mut written = 0usize;
+    // What is left of the checkout ceiling, counted across entries: a per-file limit alone
+    // lets ten thousand files of it fill the node (T-1705).
+    let mut budget = MAX_CHECKOUT;
     for index in 0..zip.len() {
         let mut entry = zip
             .by_index(index)
@@ -339,7 +333,7 @@ fn unpack(
         if relative.as_os_str().is_empty() {
             continue;
         }
-        write_entry(into, &relative, &mut entry)?;
+        budget = write_entry(into, &relative, &mut entry, budget)?;
         written += 1;
     }
     if written == 0 {
@@ -351,7 +345,13 @@ fn unpack(
     Ok(())
 }
 
-fn write_entry(into: &Path, relative: &Path, entry: &mut impl Read) -> Result<(), RemoteError> {
+/// One entry written under the checkout, and what is left of the checkout's byte ceiling.
+fn write_entry(
+    into: &Path,
+    relative: &Path,
+    entry: &mut impl Read,
+    budget: u64,
+) -> Result<u64, RemoteError> {
     // `enclosed_name` already refused an escaping path; this is the same rule read a second
     // time, kept because it is the one guarding the join that actually writes.
     if relative
@@ -363,18 +363,45 @@ fn write_entry(into: &Path, relative: &Path, entry: &mut impl Read) -> Result<()
             relative.display()
         )));
     }
+    let ceiling = MAX_ENTRY.min(budget);
     let mut body = Vec::new();
     entry
-        .take(MAX_ENTRY + 1)
+        .take(ceiling + 1)
         .read_to_end(&mut body)
         .map_err(|err| RemoteError::Unavailable(format!("{}: {err}", relative.display())))?;
-    if body.len() as u64 > MAX_ENTRY {
+    if body.len() as u64 > ceiling {
+        return Err(RemoteError::Refused(if ceiling == MAX_ENTRY {
+            format!(
+                "{} unpacks to more than the {MAX_ENTRY} bytes one file of a source may have",
+                relative.display()
+            )
+        } else {
+            format!(
+                "the source unpacks to more than the {MAX_CHECKOUT} bytes a checkout may occupy"
+            )
+        }));
+    }
+    write(&into.join(relative), &body)?;
+    Ok(budget - body.len() as u64)
+}
+
+/// Everything a reader has, up to a ceiling, and a refusal past it.
+///
+/// One byte past the ceiling rather than trusting `Content-Length`: a chunked response declares
+/// no length at all, and that is the shape a slow drip arrives in. The timeout on the client is
+/// the other half — this one bounds the size, that one bounds the wait (MF-32, T-1705).
+fn bounded(reader: impl Read, ceiling: u64, url: &str) -> Result<Vec<u8>, RemoteError> {
+    let mut body = Vec::new();
+    reader
+        .take(ceiling + 1)
+        .read_to_end(&mut body)
+        .map_err(|err| RemoteError::Unavailable(format!("{url}: {err}")))?;
+    if body.len() as u64 > ceiling {
         return Err(RemoteError::Refused(format!(
-            "{} unpacks to more than the {MAX_ENTRY} bytes one file of a source may have",
-            relative.display()
+            "{url} is larger than the {ceiling} bytes a sync source may carry"
         )));
     }
-    write(&into.join(relative), &body)
+    Ok(body)
 }
 
 fn write(path: &PathBuf, body: &[u8]) -> Result<(), RemoteError> {
@@ -390,78 +417,15 @@ fn write(path: &PathBuf, body: &[u8]) -> Result<(), RemoteError> {
 ///
 /// `jc-core` also accepts `ssh://` and `git@` for a Git origin, because `jcctl` on a laptop can
 /// use an agent. The Portal has no key and no `git` binary, so those are refused here by name
-/// rather than failing later as a URL nothing can parse.
-/// An address a sync source is never read from: the cluster's own network, the node, the link
-/// and everything else that is not a public host. A `SyncSource` names an origin the operator
-/// typed, and the Portal fetches it from inside the cluster; without this the fetcher is a probe
-/// for whoever can get a manifest approved, and its answer is readable in `status.last_error`
-/// (T-0802, MF-31, MF-32).
-fn is_internal(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            let [a, b, ..] = v4.octets();
-            v4.is_private()
-                || v4.is_loopback()
-                || v4.is_link_local()
-                || v4.is_unspecified()
-                || v4.is_broadcast()
-                || v4.is_documentation()
-                || a == 0
-                || a >= 224
-                // 100.64.0.0/10, the carrier-grade NAT range a cluster may sit in.
-                || (a == 100 && (64..128).contains(&b))
-        }
-        IpAddr::V6(v6) => {
-            v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                // fc00::/7 unique local, fe80::/10 link local: `is_unique_local` is unstable.
-                || (v6.segments()[0] & 0xfe00) == 0xfc00
-                || (v6.segments()[0] & 0xffc0) == 0xfe80
-                || v6.to_ipv4_mapped().is_some_and(|v4| is_internal(IpAddr::V4(v4)))
-        }
-    }
-}
-
-/// The resolver the fetcher uses: a name that answers with an internal address is refused after
-/// it resolves, not by the look of it. A public name whose answer points inside the cluster is
-/// the whole of DNS rebinding, and every redirect hop goes through the same resolver.
-struct PublicOnly;
-
-impl reqwest::dns::Resolve for PublicOnly {
-    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        let host = name.as_str().to_owned();
-        Box::pin(async move {
-            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0_u16))
-                .await
-                .map_err(|err| -> Box<dyn std::error::Error + Send + Sync> { Box::new(err) })?
-                .collect();
-            if let Some(addr) = addrs.iter().find(|addr| is_internal(addr.ip())) {
-                return Err(format!(
-                    "{host} resolves to {}, which is not a public address; a sync source is read \
-                     from public hosts only",
-                    addr.ip()
-                )
-                .into());
-            }
-            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
-        })
-    }
-}
-
+/// rather than failing later as a URL nothing can parse. The address rule itself lives in
+/// [`super::guard`], because the peer schema mirror obeys the same one (T-1705).
 fn secure(url: &str) -> Result<(), RemoteError> {
     if url.starts_with("https://") {
-        if let Some(ip) = reqwest::Url::parse(url)
-            .ok()
-            .and_then(|parsed| parsed.host_str().map(str::to_owned))
-            .and_then(|host| host.trim_matches(['[', ']']).parse::<IpAddr>().ok())
-        {
-            if is_internal(ip) {
-                return Err(RemoteError::Refused(format!(
-                    "{url} names {ip}, which is not a public address; a sync source is read from \
-                     public hosts only"
-                )));
-            }
+        if let Some(ip) = internal_host(url) {
+            return Err(RemoteError::Refused(format!(
+                "{url} names {ip}, which is not a public address; a sync source is read from \
+                 public hosts only"
+            )));
         }
         return Ok(());
     }
@@ -555,11 +519,65 @@ mod tests {
         assert!(credential_free(&git_origin(None)).is_ok());
     }
 
+    /// MF-28, DM-49 (T-1705): a sync source is read over TLS or not at all, whichever scheme
+    /// the origin reaches for.
     #[test]
     fn an_origin_that_is_not_https_is_refused_before_anything_is_requested() {
-        assert!(secure("http://git.example/models.git").is_err());
+        for url in [
+            "http://git.example/models.git",
+            "file:///etc/passwd",
+            "gopher://git.example/1/models",
+            "ftp://git.example/models.zip",
+            "data:text/yaml;base64,a2luZDogRW5kcG9pbnQK",
+        ] {
+            assert!(
+                matches!(secure(url), Err(RemoteError::Refused(_))),
+                "{url} was not refused"
+            );
+        }
         assert!(secure("git@git.example:udp/models.git").is_err());
+        assert!(secure("ssh://git@git.example/udp/models.git").is_err());
         assert!(secure("https://git.example/models.git").is_ok());
+    }
+
+    /// MF-28, MF-32 (T-1705): an origin that streams without end is cut at the ceiling rather
+    /// than read to the end of whatever it feels like sending.
+    #[test]
+    fn a_body_that_never_ends_is_cut_at_the_ceiling_and_named() {
+        let endless = std::io::repeat(b'a');
+        let error = bounded(endless, 4 * 1024, "https://git.example/models.zip").unwrap_err();
+        assert!(
+            matches!(error, RemoteError::Refused(ref why) if why.contains("is larger than")),
+            "{error}"
+        );
+        let short = bounded(
+            &b"kind: DataModel\n"[..],
+            MAX_BODY,
+            "https://git.example/one.yaml",
+        )
+        .expect("a body inside the ceiling is read whole");
+        assert_eq!(short, b"kind: DataModel\n");
+    }
+
+    /// MF-32 (T-1705): a per-file ceiling alone lets many files fill the node, so the checkout
+    /// has one of its own and the refusal says which it was.
+    #[test]
+    fn an_archive_whose_files_add_up_past_the_checkout_ceiling_is_refused() {
+        let each = "x".repeat(8 * 1024 * 1024);
+        let names: Vec<String> = (0..40)
+            .map(|index| format!("models-c0ffee/models/m{index}.yaml"))
+            .collect();
+        let entries: Vec<(&str, &str)> = names
+            .iter()
+            .map(|name| (name.as_str(), each.as_str()))
+            .collect();
+        let into = scratch("checkout-ceiling");
+        let error = unpack(&zipped(&entries), &into, None, true).unwrap_err();
+        assert!(
+            matches!(error, RemoteError::Refused(ref why) if why.contains("a checkout may occupy")),
+            "{error}"
+        );
+        let _ = std::fs::remove_dir_all(&into);
     }
 
     #[test]
@@ -585,29 +603,6 @@ mod tests {
         // A public address, and a name, still pass: a name is judged by what it resolves to.
         assert!(secure("https://93.184.216.34/bundle.zip").is_ok());
         assert!(secure("https://git.example/udp/models.git").is_ok());
-    }
-
-    #[test]
-    fn the_cluster_s_own_addresses_are_internal_and_a_public_one_is_not() {
-        for ip in [
-            "10.42.0.1",
-            "172.31.255.254",
-            "192.168.0.7",
-            "127.0.0.53",
-            "169.254.169.254",
-            "100.100.100.100",
-            "0.0.0.0",
-            "224.0.0.1",
-            "::1",
-            "fc00::1",
-            "fe80::abcd",
-            "::ffff:10.0.0.1",
-        ] {
-            assert!(is_internal(ip.parse().expect(ip)), "{ip} passed as public");
-        }
-        for ip in ["1.1.1.1", "93.184.216.34", "2606:4700:4700::1111"] {
-            assert!(!is_internal(ip.parse().expect(ip)), "{ip} was refused");
-        }
     }
 
     #[test]

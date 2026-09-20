@@ -6,6 +6,7 @@
 //! schedule turns into a merge request.
 
 pub mod driver;
+mod guard;
 pub mod mirror;
 pub mod proposal;
 pub mod remote;
