@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
+import { Badge, Button, Input } from "../components/ui";
 import { Icon } from "../components/ui/icons";
 
 /**
@@ -124,6 +125,7 @@ export function DataBar({
   const listId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLInputElement>(null);
   const full = selected.length >= MAX_ENDPOINTS;
 
   const titleOf = (name: string) => choices.find((choice) => choice.name === name)?.title ?? name;
@@ -131,6 +133,15 @@ export function DataBar({
   const shown = choices.filter(
     (choice) => words === "" || choice.name.toLowerCase().includes(words) || choice.title.toLowerCase().includes(words),
   );
+
+  // The list opens for typing, so focus goes where the next key lands — but only when it opens,
+  // which is a click of the trigger. React's prop of that name did it on mount instead, so a bar
+  // rendered already open took the focus on arrival, which is what UI-15 refuses.
+  useEffect(() => {
+    if (open) {
+      box.current?.focus();
+    }
+  }, [open]);
 
   // A click anywhere else closes the list, as every menu does.
   useEffect(() => {
@@ -196,52 +207,54 @@ export function DataBar({
           {selected.map((name) => (
             <li key={name} title={name} className={clsx(pill, "border-primary-200 bg-primary-soft pr-1 text-primary-soft-fg")}>
               <Icon name="endpoints" className="size-3" />
-              <span className="max-w-[10rem] truncate">{titleOf(name)}</span>
-              <button
-                type="button"
+              <span className="max-w-40 truncate">{titleOf(name)}</span>
+              <Button
+                variant="ghost"
+                size="xs"
                 aria-label={t("assistant.data.remove", { name })}
                 onClick={() => {
                   onChange(selected.filter((chosen) => chosen !== name));
                 }}
-                className="rounded-full px-1 leading-none hover:bg-surface focus:outline-none focus:ring-2 focus:ring-border-focus"
+                className="rounded-full px-1"
               >
                 ×
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       ) : null}
-      <button
+      <Button
         ref={trigger}
-        type="button"
+        variant="ghost"
+        size="xs"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => {
           setOpen((was) => !was);
           setActive(0);
         }}
-        className={clsx(
-          pill,
-          "border-dashed border-border text-fg-muted hover:bg-surface-subtle hover:text-fg focus:outline-none focus:ring-2 focus:ring-border-focus",
-        )}
+        className={clsx(pill, "border-dashed border-border text-fg-muted hover:text-fg")}
       >
         <Icon name="plus" className="size-3" />
         {t("assistant.data.add")}
-      </button>
+      </Button>
       {selected.length === 0 ? <span className="text-fg-muted">{t("assistant.data.empty")}</span> : null}
 
       {open ? (
         <div
           className={clsx(
-            "absolute left-0 z-50 w-[min(20rem,100%)] min-w-[14rem] rounded-lg border border-border bg-surface p-1 shadow-lg",
+            "absolute left-0 z-50 w-80 min-w-56 max-w-full rounded-lg border border-border bg-surface p-1 shadow-2",
             opens === "up" ? "bottom-full mb-1" : "top-full mt-1",
           )}
         >
-          <div className="flex items-center gap-1.5 rounded border border-border px-2">
-            <Icon name="search" className="size-3.5 text-fg-muted" />
-            <input
-              // The list opens for typing: focus goes where the next key lands.
-              autoFocus
+          <div className="relative">
+            <Icon
+              name="search"
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-fg-muted"
+            />
+            <Input
+              ref={box}
               role="combobox"
               aria-expanded
               aria-controls={listId}
@@ -254,7 +267,7 @@ export function DataBar({
                 setActive(0);
               }}
               onKeyDown={onKeyDown}
-              className="w-full bg-transparent py-1 text-xs focus:outline-none"
+              className="h-8 pl-7 text-caption"
             />
           </div>
           {full ? <p className="px-2 pt-1 text-fg-muted">{t("assistant.data.full", { max: MAX_ENDPOINTS })}</p> : null}
@@ -297,12 +310,12 @@ export function DataBar({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-fg">{choice.title}</span>
-                    <span className="block truncate font-mono text-[11px] text-fg-muted">{choice.name}</span>
+                    <span className="block truncate font-mono text-caption text-fg-muted">{choice.name}</span>
                   </span>
                   {audience ? (
-                    <span className="shrink-0 rounded-full bg-surface-subtle px-1.5 py-0.5 text-[10px] text-fg-muted">
+                    <Badge tone="neutral" className="shrink-0">
                       {audience}
-                    </span>
+                    </Badge>
                   ) : null}
                 </li>
               );
