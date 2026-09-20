@@ -51,7 +51,8 @@
     "sync": "Synchronizace",
     "activity": "Activity",
     "import": "Import",
-    "workspaces": "Kopie"
+    "workspaces": "Kopie",
+    "policies": "Politiky"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -2282,5 +2283,44 @@
   },
   "rowActions": {
     "more": "Další akce pro {name}"
+  },
+  "policies": {
+    "title": "Politiky",
+    "lead": "Kdo smí číst a zapisovat kontextová data prostorů tohoto projektu a na kterých entitách.",
+    "empty": "Tento projekt zatím nemá žádnou politiku.",
+    "add": "Nová politika",
+    "addHint": "Uložením navrhnete změnu; oprávnění platí po jejím schválení.",
+    "propose": "Navrhnout změnu",
+    "effect": {
+      "permission": "Povolení",
+      "prohibition": "Zákaz"
+    },
+    "operations": {
+      "writes": "mění data",
+      "covers": "{count, plural, one {pokrývá # operaci:} few {pokrývá # operace:} other {pokrývá # operací:}}",
+      "total": "{count, plural, =0 {zatím není povoleno nic} one {# operace celkem} few {# operace celkem} other {# operací celkem}}",
+      "none": "Dokud nezaškrtnete operaci, politika nepovoluje nic.",
+      "more": "Jednotlivé operace",
+      "moreHint": "Operace, z nichž se pět skupin skládá; oprávnění obvykle pojmenuje skupinu."
+    },
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "effect": "Účinek",
+      "assignee": "Komu",
+      "assigneeKind": "Druh příjemce",
+      "assigneeId": "Příjemce",
+      "operations": "Operace",
+      "information": "Entity a atributy",
+      "entities": "Výběry entit",
+      "entityType": "Typ entity",
+      "idPattern": "Vzor identifikátoru",
+      "propertyNames": "Vlastnosti",
+      "relationshipNames": "Vztahy",
+      "validity": "Platnost",
+      "validFrom": "Platí od",
+      "validTo": "Platí do",
+      "grants": "Povoluje"
+    }
   }
 }

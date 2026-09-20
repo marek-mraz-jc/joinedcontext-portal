@@ -51,7 +51,8 @@
     "sync": "Sync",
     "activity": "Activity",
     "import": "Import",
-    "workspaces": "Kopien"
+    "workspaces": "Kopien",
+    "policies": "Richtlinien"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -2282,5 +2283,44 @@
   },
   "rowActions": {
     "more": "Weitere Aktionen für {name}"
+  },
+  "policies": {
+    "title": "Richtlinien",
+    "lead": "Wer die Kontextdaten der Räume dieses Projekts lesen und schreiben darf, und auf welchen Entitäten.",
+    "empty": "Dieses Projekt hat noch keine Richtlinie.",
+    "add": "Neue Richtlinie",
+    "addHint": "Das Speichern schlägt eine Änderung vor; die Berechtigung gilt nach deren Freigabe.",
+    "propose": "Änderung vorschlagen",
+    "effect": {
+      "permission": "Erlaubnis",
+      "prohibition": "Verbot"
+    },
+    "operations": {
+      "writes": "ändert Daten",
+      "covers": "{count, plural, one {deckt # Operation ab:} other {deckt # Operationen ab:}}",
+      "total": "{count, plural, =0 {noch nichts erlaubt} one {# Operation insgesamt} other {# Operationen insgesamt}}",
+      "none": "Solange keine Operation angehakt ist, erlaubt die Richtlinie nichts.",
+      "more": "Einzelne Operationen",
+      "moreHint": "Die Operationen, aus denen die fünf Gruppen bestehen; eine Berechtigung nennt meist eine Gruppe."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "effect": "Wirkung",
+      "assignee": "Berechtigt",
+      "assigneeKind": "Art des Empfängers",
+      "assigneeId": "Empfänger",
+      "operations": "Operationen",
+      "information": "Entitäten und Attribute",
+      "entities": "Entitätsauswahl",
+      "entityType": "Entitätstyp",
+      "idPattern": "Kennungsmuster",
+      "propertyNames": "Eigenschaften",
+      "relationshipNames": "Beziehungen",
+      "validity": "Gültigkeit",
+      "validFrom": "Gültig ab",
+      "validTo": "Gültig bis",
+      "grants": "Erlaubt"
+    }
   }
 }
