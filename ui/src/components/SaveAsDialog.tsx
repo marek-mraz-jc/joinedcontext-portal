@@ -14,7 +14,17 @@ import { ChangeNotice } from "./ChangeNotice";
 import type { ResourceTarget } from "./DeleteResourceDialog";
 import { referenceManifest } from "./endpoints/sharing";
 import { PermissionGuard } from "./ui/PermissionGuard";
-import { Alert, Button, Dialog, Field, Input, Select } from "./ui";
+import {
+  Alert,
+  Button,
+  Dialog,
+  Field,
+  Input,
+  PageFailed,
+  PageLoading,
+  RadioGroup,
+  Select,
+} from "./ui";
 
 type ImportReport = components["schemas"]["ImportReport"];
 
@@ -276,6 +286,33 @@ export function SaveAsDialog({
   const ready =
     manifest !== undefined &&
     (!acrossWithSpace || choice !== "map" || mapTo !== "");
+
+  /** Why the target project has no space to map to, when it has none to offer. */
+  const spacesProblem =
+    acrossWithSpace && choice === "map"
+      ? targetSpaces.isError
+        ? t("saveAs.spacesUnreadable", { project: into })
+        : !targetSpaces.isPending && (targetSpaces.data ?? []).length === 0
+          ? t("saveAs.noSpaces", { project: into })
+          : undefined
+      : undefined;
+
+  /**
+   * What stands in the way of Check and Propose right now, in words (UI-44, T-1754).
+   *
+   * Both buttons used to be hard-`disabled` on `!ready || !mayProposeThere`, which took them out
+   * of the tab order and left the only explanation in a separate `Alert` tied to neither: a slow
+   * or failed GET showed a complete dialog where Check did nothing and said nothing.
+   */
+  const blocking = !mayProposeThere
+    ? t("saveAs.mayNotPropose", { project: into })
+    : current.isPending
+      ? t("saveAs.reading", { name: target.label ?? target.name })
+      : current.isError
+        ? t("saveAs.unreadable", { name: target.label ?? target.name })
+        : !ready
+          ? t("saveAs.chooseSpace")
+          : undefined;
   return (
     <Dialog
       open={open}
@@ -296,7 +333,8 @@ export function SaveAsDialog({
             </Button>
             {referencing ? null : (
               <Button
-                disabled={!ready || !mayProposeThere}
+                disabled={blocking !== undefined}
+                disabledReason={blocking}
                 loading={check.isPending}
                 onClick={() => check.mutate()}
               >
@@ -305,7 +343,8 @@ export function SaveAsDialog({
             )}
             <Button
               variant="primary"
-              disabled={!mayProposeThere || (!referencing && report === null)}
+              disabled={blocking !== undefined || (!referencing && report === null)}
+              disabledReason={blocking ?? (referencing ? undefined : t("saveAs.checkFirst"))}
               loading={propose.isPending}
               onClick={() => propose.mutate()}
             >
@@ -329,6 +368,15 @@ export function SaveAsDialog({
               {t("saveAs.mayNotPropose", { project: into })}
             </Alert>
           )}
+          {/* The manifest being copied has three states, not one (T-1754). `current.data` alone
+              showed a complete dialog while the GET was in flight, and kept showing it for ever
+              when the GET failed: the person typed a name, pressed Check, and nothing happened
+              with nothing said. */}
+          {current.isPending ? (
+            <PageLoading label={t("saveAs.reading", { name: target.label ?? target.name })} lines={1} />
+          ) : current.isError ? (
+            <PageFailed error={current.error} onRetry={() => void current.refetch()} />
+          ) : null}
           <Field id="save-as-project" label={t("saveAs.project")}>
             <Select
               id="save-as-project"
@@ -367,54 +415,59 @@ export function SaveAsDialog({
             </Field>
           )}
           {acrossWithSpace ? (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-body font-medium">
-                {t("saveAs.space", { space: from })}
-              </legend>
-              {(
-                [
-                  "copy",
-                  "map",
-                  ...(target.kind === "Endpoint" ? ["reference"] : []),
-                ] as SpaceChoice[]
-              ).map((option) => (
-                <label
-                  key={option}
-                  className="flex items-start gap-2 text-body"
+            <div className="flex flex-col gap-2">
+              {/* The shared `RadioGroup`: one tab stop for the group, the arrow keys between the
+                  options, and the `legend` naming the question — none of which the set of bare
+                  radio inputs in hand-written labels that used to stand here gives (T-1754,
+                  UI-16). */}
+              <RadioGroup<SpaceChoice>
+                name="save-as-space"
+                legend={t("saveAs.space", { space: from })}
+                value={choice}
+                options={(
+                  [
+                    "copy",
+                    "map",
+                    ...(target.kind === "Endpoint" ? ["reference"] : []),
+                  ] as SpaceChoice[]
+                ).map((option) => ({ value: option, label: t(`saveAs.choice.${option}`) }))}
+                onChange={(option) => {
+                  setChoice(option);
+                  setReport(null);
+                }}
+              />
+              {choice === "map" ? (
+                <Field
+                  id="save-as-map-to"
+                  label={t("saveAs.mapTo")}
+                  // Read out beside the box rather than left to be guessed at: an empty list and
+                  // a failed read both used to leave `mapTo` unsettable, `ready` false, and Check
+                  // closed with nothing saying why (T-1754).
+                  help={targetSpaces.isPending ? t("saveAs.readingSpaces") : undefined}
+                  errors={spacesProblem === undefined ? undefined : [spacesProblem]}
                 >
-                  <input
-                    type="radio"
-                    name="save-as-space"
-                    checked={choice === option}
-                    onChange={() => {
-                      setChoice(option);
+                  <Select
+                    id="save-as-map-to"
+                    value={mapTo}
+                    disabled={targetSpaces.isPending}
+                    onChange={(event) => {
+                      setMapTo(event.target.value);
                       setReport(null);
                     }}
-                  />
-                  <span>{t(`saveAs.choice.${option}`)}</span>
-                </label>
-              ))}
-              {choice === "map" ? (
-                <Select
-                  aria-label={t("saveAs.mapTo")}
-                  value={mapTo}
-                  onChange={(event) => {
-                    setMapTo(event.target.value);
-                    setReport(null);
-                  }}
-                >
-                  <option value="">{t("saveAs.mapTo")}</option>
-                  {(targetSpaces.data ?? []).map((space) => (
-                    <option
-                      key={space.metadata.name}
-                      value={space.metadata.name}
-                    >
-                      {space.metadata.name}
-                    </option>
-                  ))}
-                </Select>
+                  >
+                    <option value="">{t("saveAs.mapTo")}</option>
+                    {(targetSpaces.data ?? []).map((space) => (
+                      <option
+                        key={space.metadata.name}
+                        value={space.metadata.name}
+                      >
+                        {space.metadata.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
               ) : null}
-            </fieldset>
+            </div>
           ) : null}
           {report ? (
             <section

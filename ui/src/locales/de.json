@@ -2217,7 +2217,14 @@
     "check": "Prüfen",
     "propose": "Vorschlagen",
     "checked": "Geprüft: die Kopie kann vorgeschlagen werden.",
-    "mayNotPropose": "Sie dürfen diese Art in {project} nicht vorschlagen."
+    "mayNotPropose": "Sie dürfen diese Art in {project} nicht vorschlagen.",
+    "reading": "{name} wird gelesen…",
+    "unreadable": "{name} konnte nicht gelesen werden.",
+    "chooseSpace": "Wählen Sie zuerst einen Raum des Zielprojekts.",
+    "checkFirst": "Prüfen Sie die Kopie, bevor Sie sie vorschlagen.",
+    "readingSpaces": "Die Räume des Zielprojekts werden gelesen…",
+    "noSpaces": "{project} hat noch keinen Raum, auf den abgebildet werden kann.",
+    "spacesUnreadable": "Die Räume von {project} konnten nicht gelesen werden."
   },
   "workspaces": {
     "title": "Kopien",
