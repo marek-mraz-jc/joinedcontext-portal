@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
+import { Field, Input, RadioGroup } from "../../components/ui";
 
 /**
  * An indicator the assistant computed (UI-17, PF-54, PF-55): the value large, its unit, the
@@ -248,51 +249,44 @@ export function KpiCard({
             setKeeping(false);
           }}
         >
-          <label className="flex flex-wrap items-center gap-2">
-            <input
-              type="radio"
-              name={`keep-${kpi.name}`}
-              checked={!onChange}
-              onChange={() => {
-                setOnChange(false);
-              }}
-            />
-            {t("agentRun.kpi.keepEvery")}
-            <input
+          {/* One question with two answers, so the arrow keys walk them and the tab key steps
+              over the pair as one stop; the interval belongs to the first answer and is only
+              filled in while that answer is the chosen one. */}
+          <RadioGroup
+            name={`keep-${kpi.name}`}
+            legend={t("agentRun.kpi.keep")}
+            value={onChange ? "onChange" : "every"}
+            options={[
+              { value: "every", label: t("agentRun.kpi.keepEvery") },
+              { value: "onChange", label: t("agentRun.kpi.keepOnChange") },
+            ]}
+            onChange={(choice) => {
+              setOnChange(choice === "onChange");
+            }}
+          />
+          <Field id={`keep-${kpi.name}-minutes`} label={t("agentRun.kpi.keepMinutes")}>
+            <Input
+              id={`keep-${kpi.name}-minutes`}
               type="number"
               min={1}
               value={minutes}
-              aria-label={t("agentRun.kpi.keepMinutes")}
               disabled={onChange}
+              className="w-24"
               onChange={(event) => {
                 setMinutes(event.target.value);
               }}
-              className="w-16 rounded border border-border bg-surface px-1 py-0.5"
             />
-            {t("agentRun.kpi.keepMinutes")}
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name={`keep-${kpi.name}`}
-              checked={onChange}
-              onChange={() => {
-                setOnChange(true);
-              }}
-            />
-            {t("agentRun.kpi.keepOnChange")}
-          </label>
-          <label className="flex flex-wrap items-center gap-2">
-            {t("agentRun.kpi.keepSpace")}
-            <input
-              type="text"
+          </Field>
+          <Field id={`keep-${kpi.name}-space`} label={t("agentRun.kpi.keepSpace")}>
+            <Input
+              id={`keep-${kpi.name}-space`}
               value={space}
+              className="font-mono"
               onChange={(event) => {
                 setSpace(event.target.value);
               }}
-              className="min-w-0 flex-1 rounded border border-border bg-surface px-1 py-0.5 font-mono"
             />
-          </label>
+          </Field>
           <div>
             <Button type="submit" variant="primary" size="sm">
               {t("agentRun.kpi.keepSend")}

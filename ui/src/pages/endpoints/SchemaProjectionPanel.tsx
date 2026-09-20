@@ -6,7 +6,20 @@ import { ApiError } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
 import { SCHEMA_FORMALISMS } from "../../schemas/kinds";
 import type { SchemaFormalism } from "../../schemas/kinds";
-import { Button, Field, Input, Select } from "../../components/ui";
+import {
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  TableRowHeaderCell,
+} from "../../components/ui";
 
 /**
  * What an Endpoint publishes of its model, and which attributes it holds back (EP-46, EP-61).
@@ -167,48 +180,49 @@ export function SchemaProjectionPanel({
         // even if the published document still carries it.
         const effective = type.attributes.filter((name) => !hidden.includes(name));
         return (
-          <table key={type.name} className="w-full border-collapse text-left text-sm">
-            <caption className="py-1 text-left font-medium">{type.name}</caption>
-            <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="py-1 font-medium">
-                  {t("endpoints.projection.attribute")}
-                </th>
-                <th scope="col" className="py-1 font-medium">
-                  {t("endpoints.projection.hide")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {type.attributes.map((attribute) => (
-                <tr key={attribute} className="border-b border-border/50">
-                  <th scope="row" className="py-1 font-mono font-normal">
-                    {attribute}
-                  </th>
-                  <td className="py-1">
-                    <input
-                      type="checkbox"
-                      aria-label={`${t("endpoints.projection.hide")} ${attribute}`}
-                      checked={hidden.includes(attribute)}
-                      onChange={() => toggle(attribute)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={2} className="py-1 text-sm">
-                  <span className="font-medium">{t("endpoints.projection.effective")}: </span>
-                  {effective.length > 0 ? (
-                    <span className="font-mono">{effective.join(", ")}</span>
-                  ) : (
-                    <span className="text-surface-fg/70">{t("endpoints.projection.none")}</span>
-                  )}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+          // The class name is a heading a person reads, and the table's own name for a screen
+          // reader: the shared Table hides its caption, so it is written once above and passed in.
+          <section key={type.name} aria-labelledby={`projection-${type.name}`} className="space-y-1">
+            <h3 id={`projection-${type.name}`} className="font-medium text-fg">
+              {type.name}
+            </h3>
+            <Table caption={type.name}>
+              <TableHead>
+                <TableHeaderCell>{t("endpoints.projection.attribute")}</TableHeaderCell>
+                <TableHeaderCell>{t("endpoints.projection.hide")}</TableHeaderCell>
+              </TableHead>
+              <TableBody>
+                {type.attributes.map((attribute) => (
+                  <TableRow key={attribute}>
+                    <TableRowHeaderCell className="font-mono font-normal">
+                      {attribute}
+                    </TableRowHeaderCell>
+                    <TableCell>
+                      <Checkbox
+                        // The column header says "Hide"; the box itself still has to name the
+                        // attribute it hides, or a screen reader reads a row of bare checkboxes.
+                        label={
+                          <span className="sr-only">{`${t("endpoints.projection.hide")} ${attribute}`}</span>
+                        }
+                        checked={hidden.includes(attribute)}
+                        onChange={() => toggle(attribute)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {/* The summary of the table above, not a row of it: a `tfoot` cell spanning both
+                columns was read as data by a screen reader walking the rows. */}
+            <p className="text-sm">
+              <span className="font-medium">{t("endpoints.projection.effective")}: </span>
+              {effective.length > 0 ? (
+                <span className="font-mono">{effective.join(", ")}</span>
+              ) : (
+                <span className="text-fg-muted">{t("endpoints.projection.none")}</span>
+              )}
+            </p>
+          </section>
         );
       })}
 
@@ -235,10 +249,11 @@ export function SchemaProjectionPanel({
         <ul className="flex flex-wrap gap-1">
           {hidden.map((attribute) => (
             <li key={attribute}>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="xs"
+                className="font-mono"
                 onClick={() => toggle(attribute)}
-                className="focus-ring inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 font-mono text-caption hover:bg-surface-subtle"
               >
                 {attribute}
                 <span aria-hidden="true">×</span>
@@ -246,7 +261,7 @@ export function SchemaProjectionPanel({
                     "Hide": someone unhiding a field heard that they were hiding it, and the
                     endpoint then published a field they believed they had withheld. */}
                 <span className="sr-only">{t("endpoints.projection.unhide")}</span>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

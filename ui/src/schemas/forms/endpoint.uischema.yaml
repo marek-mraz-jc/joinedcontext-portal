@@ -34,6 +34,7 @@ spec:
       enabledRepresentations,
       rateLimits,
       caching,
+      publish,
     ]
   groups:
     - title:
@@ -70,6 +71,18 @@ spec:
         de: Anfragelimits und Cache-Dauer für Antworten.
       folded: true
       fields: [rateLimits, caching]
+    - title:
+        en: Open data
+        sk: Otvorené údaje
+        cs: Otevřená data
+        de: Offene Daten
+      description:
+        en: Publishing this endpoint as a dataset in the installation's open-data catalogue.
+        sk: Zverejnenie tohto rozhrania ako datasetu v katalógu otvorených údajov inštalácie.
+        cs: Zveřejnění tohoto rozhraní jako datasetu v katalogu otevřených dat instalace.
+        de: Diesen Endpunkt als Datensatz im Open-Data-Katalog der Installation veröffentlichen.
+      folded: true
+      fields: [publish]
   fields:
     name:
       placeholder: helsinki-parking
@@ -133,3 +146,36 @@ spec:
         sk: Ako dlho brána uchováva odpovede vo vyrovnávacej pamäti; nula ukladanie vypne.
         cs: Jak dlouho brána uchovává odpovědi ve vyrovnávací paměti; nula ukládání vypne.
         de: Wie lange das Gateway Antworten zwischenspeichert; Null schaltet den Cache ab.
+    publish.ckan.instanceRef:
+      placeholder: hel-fi
+      help:
+        en: The catalogue this endpoint is published to; naming one is what publishes it.
+        sk: Katalóg, do ktorého sa rozhranie publikuje; jeho uvedením sa publikovanie zapne.
+        cs: Katalog, do kterého se rozhraní publikuje; jeho uvedením se publikování zapne.
+        de: Der Katalog, in dem der Endpunkt erscheint; ihn zu nennen schaltet das Publizieren ein.
+    publish.ckan.organization:
+      placeholder: hel-fi
+      help:
+        en: The catalogue folder the dataset lands in; the catalogue's own default when empty.
+        sk: Priečinok katalógu, do ktorého dataset patrí; ak je prázdny, použije sa predvolený.
+        cs: Složka katalogu, do níž dataset patří; je-li prázdná, použije se výchozí.
+        de: Der Katalogordner des Datensatzes; leer bedeutet den Standard des Katalogs.
+    publish.ckan.name:
+      placeholder: ilmanlaatu
+      help:
+        en: The dataset name in the catalogue, which its address shows; this endpoint's name when empty.
+        sk: Názov datasetu v katalógu, ktorý sa zobrazí v jeho adrese; ak je prázdny, názov rozhrania.
+        cs: Název datasetu v katalogu, který se zobrazí v jeho adrese; je-li prázdný, název rozhraní.
+        de: Der Name des Datensatzes im Katalog, den seine Adresse zeigt; leer heißt der Endpunktname.
+    publish.ckan.datastore.representation:
+      help:
+        en: The tabular representation the sheet's rows are read through; it has to be enabled above.
+        sk: Tabuľková reprezentácia, cez ktorú sa čítajú riadky tabuľky; musí byť zapnutá vyššie.
+        cs: Tabulková reprezentace, přes kterou se čtou řádky tabulky; musí být zapnutá výše.
+        de: Die tabellarische Repräsentation für die Zeilen; sie muss oben aktiviert sein.
+    publish.ckan.datastore.refresh:
+      help:
+        en: When the sheet is brought back to the endpoint's answer; a deleted entity loses its row either way.
+        sk: Kedy sa tabuľka zarovná s odpoveďou rozhrania; zmazaná entita stráca riadok v oboch prípadoch.
+        cs: Kdy se tabulka srovná s odpovědí rozhraní; smazaná entita ztrácí řádek v obou případech.
+        de: Wann die Tabelle der Antwort des Endpunkts folgt; eine gelöschte Entität verliert ihre Zeile so oder so.

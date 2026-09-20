@@ -11,7 +11,7 @@
  * announces, and the placeholder a sighted person reads before typing. The help is asserted in
  * all four languages, because help that only exists in English is help for some of the people.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -181,18 +181,25 @@ describe("the help beside a hand-built form field", () => {
     expect(subject?.getAttribute("placeholder")).toBeTruthy();
   });
 
-  it("describes the manifest a new role and a new group are written in", async () => {
+  it("describes every field of the new role and the new group forms", async () => {
+    // Both used to be one textarea holding a manifest, and the help was a sentence about that
+    // textarea. They are schema-driven forms now (T-2400), so the help is the arrangement's, one
+    // sentence per field in four languages, which `tests/form_help.test.ts` holds them to. What is
+    // asserted here is what a person meets: every control of the open dialog carries it.
     const person = userEvent.setup();
     renderPortal("/projects/banskabystrica/access");
 
-    for (const [button, title, help] of [
-      [en.access.projectRoles.new, en.access.projectRoles.newTitle, en.access.projectRoles.sourceHelp],
-      [en.access.groups.new, en.access.groups.newTitle, en.access.groups.sourceHelp],
+    for (const [button, title] of [
+      [en.access.projectRoles.new, en.access.projectRoles.newTitle],
+      [en.access.groups.new, en.access.groups.newTitle],
     ] as const) {
       await person.click(await screen.findByRole("button", { name: button }));
       const dialog = await screen.findByRole("dialog", { name: new RegExp(title) });
-      const source = within(dialog).getByRole("textbox");
-      expect(describedText(source)).toContain(help);
+      const fields = controls(dialog).filter((field) => field.id.startsWith("root"));
+      expect(fields.length, `${title} renders its fields`).toBeGreaterThan(0);
+      for (const field of fields) {
+        expect(describedText(field).length, `${title}: ${field.id}`).toBeGreaterThan(15);
+      }
       await person.keyboard("{Escape}");
     }
   });
@@ -205,8 +212,6 @@ describe("the help beside a hand-built form field", () => {
       "access.roles.roleHelp",
       "access.roles.whereHelp",
       "access.roles.untilHelp",
-      "access.projectRoles.sourceHelp",
-      "access.groups.sourceHelp",
       "ckan.instances.nameHelp",
       "ckan.instances.urlHelp",
       "ckan.instances.organizationHelp",

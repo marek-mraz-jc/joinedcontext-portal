@@ -170,3 +170,62 @@ describe("Button", () => {
     expect(variants).not.toMatch(/(?:hover|active):opacity-/);
   });
 });
+
+/**
+ * T-2409: a refused submit does not submit.
+ *
+ * `disabledReason` makes the button `aria-disabled` rather than `disabled`, so it keeps its place
+ * in the tab order and can say why it is closed. `aria-disabled` means nothing to the browser
+ * though: a `type="submit"` button still submits the form it stands in, and dropping the React
+ * `onClick` does not stop that. Every schema-driven form of the Portal closes its submit through
+ * this prop, so "proposing is closed" and "your role may not propose a ContextSpace" sent the
+ * proposal all the same.
+ */
+describe("a refused button refuses the whole click", () => {
+  it("a_refused_submit_does_not_submit_the_form_it_stands_in", async () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <I18nextProvider i18n={i18n}>
+        <form onSubmit={onSubmit}>
+          <Button type="submit" disabled disabledReason="Proposing is closed.">
+            Propose
+          </Button>
+        </form>
+      </I18nextProvider>,
+    );
+    const button = screen.getByRole("button", { name: "Propose" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(button);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("a_refused_submit_reached_by_the_keyboard_does_not_submit_either", async () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <I18nextProvider i18n={i18n}>
+        <form onSubmit={onSubmit}>
+          <Button type="submit" disabled disabledReason="Proposing is closed.">
+            Propose
+          </Button>
+        </form>
+      </I18nextProvider>,
+    );
+    screen.getByRole("button", { name: "Propose" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard(" ");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("a_submit_nobody_refused_still_submits", async () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <I18nextProvider i18n={i18n}>
+        <form onSubmit={onSubmit}>
+          <Button type="submit">Propose</Button>
+        </form>
+      </I18nextProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Propose" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+});

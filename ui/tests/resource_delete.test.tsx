@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { expectDenied, expectOpen } from "./checks";
 
 const PROJECT = "banskabystrica";
 const NAME = "zvolen-ovzdusie";
@@ -112,12 +113,14 @@ async function rowMenuItem(name: string | RegExp) {
 
     const dialog = await screen.findByRole("dialog");
     const propose = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
-    expect(propose).toBeDisabled();
+    // Refused until the name matches, and reachable while it is refused, so the reason can be
+    // read (T-1743, T-1751): `toBeDisabled` stopped meaning "closed" when the reason arrived.
+    expectDenied(propose, `Type ${NAME} to propose its removal.`);
     const field = within(dialog).getByLabelText(`Type ${NAME} to confirm`);
     await userEvent.type(field, "zvolen-ovzdusi");
-    expect(propose).toBeDisabled();
+    expectDenied(propose);
     await userEvent.type(field, "e");
-    expect(propose).toBeEnabled();
+    expectOpen(propose);
 
     await userEvent.click(propose);
     expect(await within(dialog).findByText(CHANGE.metadata.name)).toBeInTheDocument();

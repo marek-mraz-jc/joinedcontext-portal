@@ -252,7 +252,10 @@
     "referenced": "Stále se používá",
     "button": "Odstranit",
     "action": "Odstranit {name}",
-    "close": "Zavřít"
+    "close": "Zavřít",
+    "exact": "Přesně tak, jak je napsáno, bez mezer.",
+    "mismatch": "Toto není {name}.",
+    "needName": "Odstranění navrhnete napsáním {name}."
   },
   "resourceEdit": {
     "title": "Upravit {name}",
@@ -260,7 +263,9 @@
     "propose": "Navrhnout změnu",
     "renamed": "Ponechte název {name}; jiný název by byl nový zdroj.",
     "button": "Upravit",
-    "action": "Upravit {name}"
+    "action": "Upravit {name}",
+    "loading": "Načítá se {name}…",
+    "unreadable": "{name} se nepodařilo načíst."
   },
   "resourceList": {
     "name": "Název",
@@ -421,7 +426,12 @@
       "fileLimits": "Limity souborů",
       "ckanInstance": "Portál otevřených dat",
       "ckanOrganization": "Vydavatel",
-      "catalogue": "Záznam v katalogu"
+      "catalogue": "Záznam v katalogu",
+      "publish": "Publikování",
+      "openData": "Otevřená data",
+      "datastore": "Tabulka dat",
+      "sheetFrom": "Tabulka se čte z",
+      "sheetRefresh": "Obnova tabulky"
     },
     "rateClass": {
       "strict": "Přísná",
@@ -487,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Když se entita změní",
+      "onReconcile": "Při každé rekonciliaci"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -983,10 +997,15 @@
       "new": "Nová role",
       "newTitle": "Nová role",
       "newLead": "Role projektu {project}. Může jmenovat jen druhy tohoto projektu a jen slovesa, která zde sami máte; změnu schvaluje někdo jiný.",
-      "sourceLabel": "Manifest role",
+      "field": {
+        "name": "Název role",
+        "rules": "Pravidla",
+        "kinds": "Druhy",
+        "verbs": "Operace"
+      },
+      "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
       "propose": "Navrhnout roli",
-      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu.",
-      "sourceHelp": "Manifest tak, jak se zapíše. Dejte mu název a vypište druhy a slovesa, která uděluje; tvar je už připravený."
+      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
     },
     "accounts": {
       "title": "Servisní účty",
@@ -1068,17 +1087,20 @@
       "new": "Nová skupina",
       "newTitle": "Nová skupina",
       "newLead": "Členové jsou e-mailové adresy, pod kterými je vede Keycloak. Skupina se navrhuje jako změna v červené dráze, stejně jako vazba role.",
-      "sourceLabel": "Manifest",
+      "field": {
+        "name": "Název skupiny",
+        "description": "Co je tato skupina",
+        "members": "Členové",
+        "memberUser": "Adresa"
+      },
       "propose": "Navrhnout skupinu",
       "reason": {
         "DriftCorrected": "Opraveno",
         "MemberUnknown": "Čeká na první přihlášení",
         "RealmRefused": "Nezapsáno"
       },
-      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde.",
-      "sourceHelp": "Manifest tak, jak se zapíše. Dejte skupině název a vypište e-mailové adresy jejích členů; tvar je už připravený."
-    },
-    "nameFirst": "Toto je příklad. Dejte mu název (malá písmena, číslice a spojovníky) a upravte zbytek; potom jej lze navrhnout."
+      "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde."
+    }
   },
   "flows": {
     "title": "Toky",
@@ -1348,6 +1370,7 @@
       "addEndpoint": "+ Přidat data z dalšího endpointu",
       "moreEndpoints": "Číst také",
       "moreEndpointsHint": "Aplikace čte také tyto endpointy, každý typ a atribut, který zveřejňují, a nikdy do nich nezapisuje.",
+      "moreEndpointsFull": "Do jedné aplikace jdou nejvýše {count} endpointy; chcete-li přidat další, jeden odškrtněte.",
       "prompt": "Co má aplikace dělat?",
       "promptHint": "Je to popis, ne příkaz, který platforma vykoná: nedostane se k datům, která nejsou v seznamu níže.",
       "submit": "Vygenerovat aplikaci",
@@ -1556,7 +1579,8 @@
     "nameReserved": "„org“ je vlastní jmenný prostor organizace, nikdy ne projekt.",
     "displayNameLabel": "Zobrazovaný název",
     "descriptionLabel": "Popis",
-    "notAllowed": "Tato organizace vám neumožňuje otevřít projekt."
+    "notAllowed": "Tato organizace vám neumožňuje otevřít projekt.",
+    "nameNeeded": "K otevření projektu je potřeba použitelné jméno."
   },
   "entities": {
     "type": "Typ entity",
@@ -2210,7 +2234,14 @@
     "check": "Zkontrolovat",
     "propose": "Navrhnout",
     "checked": "Zkontrolováno: kopii lze navrhnout.",
-    "mayNotPropose": "V projektu {project} nemůžete navrhovat tento druh."
+    "mayNotPropose": "V projektu {project} nemůžete navrhovat tento druh.",
+    "reading": "Načítá se {name}…",
+    "unreadable": "{name} se nepodařilo načíst.",
+    "chooseSpace": "Nejprve vyberte prostor cílového projektu.",
+    "checkFirst": "Před návrhem kopii zkontrolujte.",
+    "readingSpaces": "Načítají se prostory cílového projektu…",
+    "noSpaces": "Projekt {project} zatím nemá prostor, na který lze mapovat.",
+    "spacesUnreadable": "Prostory projektu {project} se nepodařilo načíst."
   },
   "workspaces": {
     "title": "Kopie",
@@ -2253,7 +2284,10 @@
       "scopeSpace": "Prostor {name}",
       "ttl": "Ponechat",
       "ttlDays": "{days, plural, one {# den} few {# dny} many {# dne} other {# dní}}",
-      "submit": "Začít kopii"
+      "submit": "Začít kopii",
+      "titleField": "Název",
+      "titleHint": "Volitelné; zobrazí se místo jména.",
+      "denied": "Vaše role nemůže v tomto projektu nic navrhnout, takže nemůže otevřít kopii."
     },
     "bar": {
       "label": "Kopie",

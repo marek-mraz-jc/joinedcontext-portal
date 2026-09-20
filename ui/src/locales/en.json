@@ -252,7 +252,10 @@
     "referenced": "Still in use",
     "button": "Remove",
     "action": "Remove {name}",
-    "close": "Close"
+    "close": "Close",
+    "exact": "Exactly as it is written, without spaces.",
+    "mismatch": "This is not {name}.",
+    "needName": "Type {name} to propose its removal."
   },
   "resourceEdit": {
     "title": "Edit {name}",
@@ -260,7 +263,9 @@
     "propose": "Propose change",
     "renamed": "Keep the name {name}; a different name would be a new resource.",
     "button": "Edit",
-    "action": "Edit {name}"
+    "action": "Edit {name}",
+    "loading": "Reading {name}…",
+    "unreadable": "{name} could not be read."
   },
   "resourceList": {
     "name": "Name",
@@ -421,7 +426,12 @@
       "fileLimits": "File limits",
       "ckanInstance": "Open-data portal",
       "ckanOrganization": "Publisher",
-      "catalogue": "Catalogue entry"
+      "catalogue": "Catalogue entry",
+      "publish": "Publication",
+      "openData": "Open data",
+      "datastore": "Data sheet",
+      "sheetFrom": "Sheet built from",
+      "sheetRefresh": "Sheet refresh"
     },
     "rateClass": {
       "strict": "Strict",
@@ -487,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "When an entity changes",
+      "onReconcile": "On every reconcile"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -983,10 +997,15 @@
       "new": "New role",
       "newTitle": "New role",
       "newLead": "A role of project {project}. It may name the project's own kinds, and only the verbs you hold here yourself; the change is approved by someone else.",
-      "sourceLabel": "The role manifest",
+      "field": {
+        "name": "Role name",
+        "rules": "Rules",
+        "kinds": "Kinds",
+        "verbs": "Verbs"
+      },
+      "beyondRights": "A role may not grant more than you hold here: missing {missing}.",
       "propose": "Propose the role",
-      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project.",
-      "sourceHelp": "The manifest as it will be committed. Give it a name, then list the kinds and the verbs it grants; the shape is already here."
+      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project."
     },
     "accounts": {
       "title": "Service accounts",
@@ -1068,17 +1087,20 @@
       "new": "New group",
       "newTitle": "New group",
       "newLead": "Members are e-mail addresses, the names Keycloak carries. The group is proposed as a red-lane change, like a role binding.",
-      "sourceLabel": "The manifest",
+      "field": {
+        "name": "Group name",
+        "description": "What this group is",
+        "members": "Members",
+        "memberUser": "Address"
+      },
       "propose": "Propose the group",
       "reason": {
         "DriftCorrected": "Corrected",
         "MemberUnknown": "Waiting for a first login",
         "RealmRefused": "Not written"
       },
-      "emptyHint": "A group is a name for several people, so a role is given once instead of person by person. Groups come from the identity provider or are declared here.",
-      "sourceHelp": "The manifest as it will be committed. Give the group a name and list the e-mail addresses of its members; the shape is already here."
-    },
-    "nameFirst": "This is an example. Give it a name (lowercase letters, digits and hyphens) and make the rest yours; then it can be proposed."
+      "emptyHint": "A group is a name for several people, so a role is given once instead of person by person. Groups come from the identity provider or are declared here."
+    }
   },
   "flows": {
     "title": "Flows",
@@ -1348,6 +1370,7 @@
       "addEndpoint": "+ Add data from another endpoint",
       "moreEndpoints": "Also read",
       "moreEndpointsHint": "The app reads these endpoints too, every type and attribute they publish, and never writes to them.",
+      "moreEndpointsFull": "At most {count} endpoints go into one app; clear one to add another.",
       "prompt": "What should the app do?",
       "promptHint": "A description, not an instruction the platform obeys: it cannot reach data the list below does not carry.",
       "submit": "Generate the app",
@@ -1556,7 +1579,8 @@
     "nameReserved": "'org' is the organization's own namespace, never a project.",
     "displayNameLabel": "Display name",
     "descriptionLabel": "Description",
-    "notAllowed": "This organization does not let you open a project."
+    "notAllowed": "This organization does not let you open a project.",
+    "nameNeeded": "A usable name is needed to open a project."
   },
   "entities": {
     "type": "Entity type",
@@ -2210,7 +2234,14 @@
     "check": "Check",
     "propose": "Propose",
     "checked": "Checked: the copy can be proposed.",
-    "mayNotPropose": "You may not propose this kind in {project}."
+    "mayNotPropose": "You may not propose this kind in {project}.",
+    "reading": "Reading {name}…",
+    "unreadable": "{name} could not be read.",
+    "chooseSpace": "Choose a space of the target project first.",
+    "checkFirst": "Check the copy before proposing it.",
+    "readingSpaces": "Reading the spaces of the target project…",
+    "noSpaces": "{project} has no space to map to yet.",
+    "spacesUnreadable": "The spaces of {project} could not be read."
   },
   "workspaces": {
     "title": "Copies",
@@ -2253,7 +2284,10 @@
       "scopeSpace": "Space {name}",
       "ttl": "Keep it for",
       "ttlDays": "{days, plural, one {# day} other {# days}}",
-      "submit": "Start the copy"
+      "submit": "Start the copy",
+      "titleField": "Title",
+      "titleHint": "Optional; shown instead of the name.",
+      "denied": "Your role may not propose anything in this project, so it cannot open a copy."
     },
     "bar": {
       "label": "Copy",

@@ -252,7 +252,10 @@
     "referenced": "Noch in Verwendung",
     "button": "Entfernen",
     "action": "{name} entfernen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "exact": "Genau so, wie er geschrieben steht, ohne Leerzeichen.",
+    "mismatch": "Das ist nicht {name}.",
+    "needName": "Geben Sie {name} ein, um das Entfernen vorzuschlagen."
   },
   "resourceEdit": {
     "title": "{name} bearbeiten",
@@ -260,7 +263,9 @@
     "propose": "Änderung vorschlagen",
     "renamed": "Behalten Sie den Namen {name}; ein anderer Name wäre eine neue Ressource.",
     "button": "Bearbeiten",
-    "action": "{name} bearbeiten"
+    "action": "{name} bearbeiten",
+    "loading": "{name} wird gelesen…",
+    "unreadable": "{name} konnte nicht gelesen werden."
   },
   "resourceList": {
     "name": "Name",
@@ -401,7 +406,12 @@
       "fileLimits": "Dateigrenzen",
       "ckanInstance": "Open-Data-Portal",
       "ckanOrganization": "Herausgeber",
-      "catalogue": "Katalogeintrag"
+      "catalogue": "Katalogeintrag",
+      "publish": "Veröffentlichung",
+      "openData": "Offene Daten",
+      "datastore": "Datentabelle",
+      "sheetFrom": "Tabelle gelesen aus",
+      "sheetRefresh": "Aktualisierung der Tabelle"
     },
     "rateClass": {
       "strict": "Streng",
@@ -487,6 +497,10 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
+    },
+    "refreshOption": {
+      "onChange": "Wenn sich eine Entität ändert",
+      "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -983,10 +997,15 @@
       "new": "Neue Rolle",
       "newTitle": "Neue Rolle",
       "newLead": "Eine Rolle des Projekts {project}. Sie darf nur die Arten dieses Projekts nennen und nur die Verben, die Sie hier selbst halten; die Änderung genehmigt jemand anderes.",
-      "sourceLabel": "Das Rollenmanifest",
+      "field": {
+        "name": "Name der Rolle",
+        "rules": "Regeln",
+        "kinds": "Arten",
+        "verbs": "Verben"
+      },
+      "beyondRights": "Eine Rolle gewährt nicht mehr, als Sie hier selbst halten: fehlt {missing}.",
       "propose": "Rolle vorschlagen",
-      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt.",
-      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie ihm einen Namen und führen Sie die Arten und Verben auf, die er gewährt; die Form steht schon da."
+      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
     },
     "accounts": {
       "title": "Dienstkonten",
@@ -1068,17 +1087,20 @@
       "new": "Neue Gruppe",
       "newTitle": "Neue Gruppe",
       "newLead": "Mitglieder sind E-Mail-Adressen, die Namen, unter denen Keycloak sie führt. Die Gruppe wird als Änderung der roten Spur vorgeschlagen, wie eine Rollenbindung.",
-      "sourceLabel": "Das Manifest",
+      "field": {
+        "name": "Name der Gruppe",
+        "description": "Was diese Gruppe ist",
+        "members": "Mitglieder",
+        "memberUser": "Adresse"
+      },
       "propose": "Gruppe vorschlagen",
       "reason": {
         "DriftCorrected": "Korrigiert",
         "MemberUnknown": "Wartet auf erste Anmeldung",
         "RealmRefused": "Nicht geschrieben"
       },
-      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt.",
-      "sourceHelp": "Das Manifest, wie es festgeschrieben wird. Geben Sie der Gruppe einen Namen und führen Sie die E-Mail-Adressen ihrer Mitglieder auf; die Form steht schon da."
-    },
-    "nameFirst": "Dies ist ein Beispiel. Geben Sie ihm einen Namen (Kleinbuchstaben, Ziffern und Bindestriche) und passen Sie den Rest an; dann kann es vorgeschlagen werden."
+      "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt."
+    }
   },
   "flows": {
     "title": "Abläufe",
@@ -1348,6 +1370,7 @@
       "addEndpoint": "+ Daten aus einem weiteren Endpoint hinzufügen",
       "moreEndpoints": "Auch lesen",
       "moreEndpointsHint": "Die App liest auch diese Endpoints, jeden Typ und jedes Attribut, das sie veröffentlichen, und schreibt nie in sie.",
+      "moreEndpointsFull": "Höchstens {count} Endpunkte gehen in eine App; nehmen Sie einen heraus, um einen anderen hinzuzufügen.",
       "prompt": "Was soll die Anwendung tun?",
       "promptHint": "Eine Beschreibung, keine Anweisung, der die Plattform folgt: sie erreicht keine Daten, die die Liste unten nicht enthält.",
       "submit": "Anwendung erzeugen",
@@ -1556,7 +1579,8 @@
     "nameReserved": "„org“ ist der eigene Namensraum der Organisation, nie ein Projekt.",
     "displayNameLabel": "Anzeigename",
     "descriptionLabel": "Beschreibung",
-    "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen."
+    "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
+    "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt."
   },
   "entities": {
     "type": "Entitätstyp",
@@ -2210,7 +2234,14 @@
     "check": "Prüfen",
     "propose": "Vorschlagen",
     "checked": "Geprüft: die Kopie kann vorgeschlagen werden.",
-    "mayNotPropose": "Sie dürfen diese Art in {project} nicht vorschlagen."
+    "mayNotPropose": "Sie dürfen diese Art in {project} nicht vorschlagen.",
+    "reading": "{name} wird gelesen…",
+    "unreadable": "{name} konnte nicht gelesen werden.",
+    "chooseSpace": "Wählen Sie zuerst einen Raum des Zielprojekts.",
+    "checkFirst": "Prüfen Sie die Kopie, bevor Sie sie vorschlagen.",
+    "readingSpaces": "Die Räume des Zielprojekts werden gelesen…",
+    "noSpaces": "{project} hat noch keinen Raum, auf den abgebildet werden kann.",
+    "spacesUnreadable": "Die Räume von {project} konnten nicht gelesen werden."
   },
   "workspaces": {
     "title": "Kopien",
@@ -2253,7 +2284,10 @@
       "scopeSpace": "Bereich {name}",
       "ttl": "Behalten für",
       "ttlDays": "{days, plural, one {# Tag} other {# Tage}}",
-      "submit": "Kopie starten"
+      "submit": "Kopie starten",
+      "titleField": "Titel",
+      "titleHint": "Optional; wird anstelle des Namens angezeigt.",
+      "denied": "Ihre Rolle darf in diesem Projekt nichts vorschlagen und kann daher keine Kopie öffnen."
     },
     "bar": {
       "label": "Kopie",

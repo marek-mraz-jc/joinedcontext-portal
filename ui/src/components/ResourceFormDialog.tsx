@@ -266,6 +266,9 @@ export function ResourceFormDialog<T>({
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
   const isLax = (branding as { validation?: string })?.validation === "lax";
+  // The base comes from the installation's branding, which an administrator writes, so a
+  // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
+  // in `ExternalLink`, which is where every link out of the Portal is checked.
   const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
