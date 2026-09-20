@@ -400,6 +400,25 @@
   margin: 0;
 }
 
+/* A refused control keeps its place and is visibly refused; the reason is read from the
+   `aria-describedby` span, which is why that span is hidden rather than absent. */
+.jc-grid-map__action[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.jc-grid-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* A map with no height is a map nobody can use; `vh` keeps it usable at zoom 1.5, where a fixed
    pixel height would push the rows off the screen. */
 .jc-grid-map .maplibregl-map,

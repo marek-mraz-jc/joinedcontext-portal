@@ -3,8 +3,8 @@ import type { ChangeEvent, JSX } from "react";
 import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
-import { clsx } from "clsx";
 import React from "react";
+import { Input } from "../../ui";
 
 export interface SecretRefValue {
   name: string;
@@ -123,9 +123,8 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
           <label htmlFor={`${id}__name`} className="sr-only">
             {t("datasources.secretRef.name", { defaultValue: "Secret name" })}
           </label>
-          <input
+          <Input
             id={`${id}__name`}
-            type="text"
             list={knownSecrets.length > 0 ? datalistId : undefined}
             disabled={disabled}
             readOnly={readonly}
@@ -136,10 +135,6 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
             // the server's refusal are: nothing above them reaches a control (T-2314, UI-04).
             aria-describedby={ariaDescribedByIds(id)}
             aria-invalid={hasErrors ? "true" : undefined}
-            className={clsx(
-              "block w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-surface-fg placeholder:text-surface-fg/50 focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
-              disabled && "cursor-not-allowed opacity-50"
-            )}
           />
           {knownSecrets.length > 0 && (
             <datalist id={datalistId}>
@@ -153,9 +148,8 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
           <label htmlFor={`${id}__key`} className="sr-only">
             {t("datasources.secretRef.key", { defaultValue: "Key" })}
           </label>
-          <input
+          <Input
             id={`${id}__key`}
-            type="text"
             disabled={disabled}
             readOnly={readonly}
             placeholder={t("datasources.secretRef.key", { defaultValue: "Key (e.g. password)" })}
@@ -163,10 +157,6 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
             onChange={handleKeyChange}
             aria-describedby={ariaDescribedByIds(id)}
             aria-invalid={hasErrors ? "true" : undefined}
-            className={clsx(
-              "block w-full rounded border border-border bg-surface px-3 py-1.5 text-sm text-surface-fg placeholder:text-surface-fg/50 focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus",
-              disabled && "cursor-not-allowed opacity-50"
-            )}
           />
         </div>
       </div>

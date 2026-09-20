@@ -133,9 +133,10 @@ describe("the groups of the organization on the Access page", () => {
     expect(source.value).toContain("kind: Group");
     expect(source.value).toContain("namespace: org");
 
-    // The example has no name, so an untouched form can never become a Change (T-1492).
+    // The example has no name, so an untouched form can never become a Change (T-1492). The
+    // reason is on the button and the button stays reachable, so it can be read (T-1743).
     const proposeButton = within(dialog).getByRole("button", { name: "Propose the group" });
-    expect(proposeButton).toBeDisabled();
+    expectDenied(proposeButton, /Give it a name/);
     fireEvent.change(source, { target: { value: source.value.replace('name: ""', "name: park-wardens") } });
     await user.click(proposeButton);
     await screen.findByText(/chg-0000003b/);

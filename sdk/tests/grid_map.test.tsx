@@ -122,12 +122,35 @@ describe("editing a geometry from the grid", () => {
     expect(screen.queryByRole("button", { name: DEFAULT_GRID_MAP_LABELS.editGeometry })).toBeNull();
     cleanup();
 
-    // A viewer: the grid is in edit mode but hands no writer down, so the map is still readable and
-    // the editor is not there to be opened.
+    // A viewer: the grid is in edit mode but hands no writer down, so the map is still readable
+    // and the editor cannot be opened — but the control says so where a person looks for it,
+    // instead of being missing with the reason at the foot of the panel (T-2288, UI-44).
     render(<GridMap rows={rows} attr="location" activeId="a" onActivate={() => {}} mode="edit" />);
     expect(screen.getByTestId("geo-view")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: DEFAULT_GRID_MAP_LABELS.editGeometry })).toBeNull();
+    const refused = screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.editGeometry });
+    expect(refused.getAttribute("aria-disabled")).toBe("true");
+    expect(refused.hasAttribute("disabled")).toBe(false);
+    expect(refused.getAttribute("title")).toBe(DEFAULT_GRID_MAP_LABELS.viewerCannotEdit);
+    const describedBy = refused.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(describedBy)?.textContent).toBe(
+      DEFAULT_GRID_MAP_LABELS.viewerCannotEdit,
+    );
+    // And pressing it opens nothing.
+    fireEvent.click(refused);
+    expect(screen.getByTestId("geo-view")).toBeTruthy();
+    expect(screen.queryByTestId("geo-editor")).toBeNull();
+    cleanup();
+
+    // With no row active there is no control to hang the sentence on, so the panel says it once.
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} mode="edit" />);
     expect(screen.getByText(DEFAULT_GRID_MAP_LABELS.viewerCannotEdit)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: DEFAULT_GRID_MAP_LABELS.editGeometry })).toBeNull();
+  });
+
+  it("names the refusal once: with a row active it is on the control and nowhere else", () => {
+    render(<GridMap rows={rows} attr="location" activeId="a" onActivate={() => {}} mode="edit" />);
+    // One copy, on the button, so a screen reader reads it with the control it belongs to.
+    expect(screen.queryAllByText(DEFAULT_GRID_MAP_LABELS.viewerCannotEdit)).toHaveLength(1);
   });
 
   it("puts the changed geometry into the grid's pending edits, for the row the grid has active", async () => {

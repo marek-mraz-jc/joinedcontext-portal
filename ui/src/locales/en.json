@@ -11,6 +11,11 @@
       "crashReload": "Load the page again",
       "crashHome": "Go to the start"
     },
+    "notFound": {
+      "title": "This page does not exist",
+      "description": "Nothing in the Portal answers to {path}.",
+      "home": "Go to the start"
+    },
     "opensNewTab": "Opens in a new tab",
     "alert": {
       "info": "Note",
@@ -777,6 +782,7 @@
       "run": "Test mapping",
       "running": "Testing…",
       "noMapping": "Write a Bloblang mapping first.",
+      "noSample": "Drop a sample file first.",
       "tooLarge": "The sample is over 5 MiB; cut it down.",
       "failed": "The test did not run (status {status}). Try again in a moment.",
       "input": "Input",
@@ -1134,6 +1140,8 @@
       "entity": "Entity"
     },
     "previewUnavailable": "The preview service did not answer; the source is unaffected.",
+    "previewEmpty": "Write a model in the editor and what it compiles to appears here.",
+    "previewCompiling": "Compiling the model…",
     "exampleUnmapped": "The example carries terms the @context does not define: {terms}",
     "noArtifact": "Nothing compiled yet.",
     "formPreview": "Preview only",

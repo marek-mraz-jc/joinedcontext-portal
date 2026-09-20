@@ -8,8 +8,7 @@ import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
-import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { EditResourceAction } from "../../components/EditResourceDialog";
+import { ResourceRowActions } from "../../components/ResourceRowActions";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Icon } from "../../components/ui/icons";
@@ -125,7 +124,7 @@ export function AppPreview({ app, onClose }: { app: Manifest; onClose: () => voi
           src={previewUrl(app)}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
-          className="h-[32rem] w-full rounded border border-border bg-surface"
+          className="h-128 w-full rounded border border-border bg-surface"
         />
       ) : (
         <p role="alert" className="text-danger">
@@ -362,10 +361,10 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
                     {t("apps.history")}
                   </a>
                 ) : null}
-                <EditResourceAction
-                  target={{ project, kind: "App", plural: "apps", name: app.metadata.name, label: title }}
-                />
-                <DeleteResourceAction
+                {/* What the card exists for — preview it, publish it, read its history — stays in
+                    the open; the app manifest's own four are one menu at the end (T-2288, UI-26). */}
+                <ResourceRowActions
+                  project={project}
                   target={{ project, kind: "App", plural: "apps", name: app.metadata.name, label: title }}
                 />
               </div>

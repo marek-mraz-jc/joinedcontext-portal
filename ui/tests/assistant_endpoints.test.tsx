@@ -12,6 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { expectDenied } from "./checks";
 import en from "../src/locales/en.json";
 import { AssistantDock } from "../src/assistant/AssistantDock";
 import { MAX_ENDPOINTS, runEndpointNames, sameEndpoints, storedEndpoints } from "../src/assistant/EndpointPicker";
@@ -269,10 +270,11 @@ describe("the data bar (AG-75)", () => {
       output: { items: [found("helsinki-air"), found("helsinki-bikes")] },
     });
     const results = await screen.findByRole("list", { name: en.agentRun.catalog.title });
-    expect(within(results).getByRole("button", { name: "helsinki-bikes is in use" })).toBeDisabled();
+    // Refused and reachable, so the reason is readable where the control is (T-1743, UI-44).
+    expectDenied(within(results).getByRole("button", { name: "helsinki-bikes is in use" }));
     await user.click(within(results).getByRole("button", { name: "Use helsinki-air in this conversation" }));
     expect(chipNames()).toEqual(["helsinki-bikes", "helsinki-air"]);
-    expect(within(results).getByRole("button", { name: "helsinki-air is in use" })).toBeDisabled();
+    expectDenied(within(results).getByRole("button", { name: "helsinki-air is in use" }));
   });
 
   it("compares lists in order and reads a run's endpoint names, ignoring what is not one", () => {

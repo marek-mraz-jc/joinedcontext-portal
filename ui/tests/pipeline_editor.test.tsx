@@ -6,7 +6,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
-import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
+import { expectNoRawKeys, expectNoViolations, expectTabOrder, expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
@@ -405,7 +405,7 @@ describe("pipeline editor", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
@@ -442,7 +442,7 @@ describe("pipeline editor", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
@@ -467,7 +467,7 @@ describe("pipeline editor", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
@@ -589,7 +589,7 @@ describe("pipeline editor", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
     // wasm needs module and function (PL-33): two required errors on the compute group.
@@ -743,7 +743,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
@@ -774,7 +774,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
 
@@ -798,7 +798,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
@@ -846,9 +846,7 @@ describe("the pipeline editor against the UI contract", () => {
   it("has no axe violation with the dialog open on a new pipeline", async () => {
     renderPipelines();
     const dialog = await openNew();
-    // The flow canvas is left out: it is an `<svg role="img">` with focusable nodes inside, which
-    // axe reports as `nested-interactive` (serious). That file is T-1852's, evidence in its body.
-    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(dialog);
   });
 
   it("has no axe violation with the dialog open on an existing pipeline", async () => {
@@ -860,8 +858,7 @@ describe("the pipeline editor against the UI contract", () => {
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("link", { name: /bento\.yaml/ });
 
-    // The flow canvas is T-1852's (`nested-interactive`), as above.
-    await expectNoViolations(dialog, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(dialog);
   });
 
   it("reaches the controls of the dialog's first step by keyboard in the order they are read", async () => {

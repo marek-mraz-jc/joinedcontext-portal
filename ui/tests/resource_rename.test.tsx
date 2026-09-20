@@ -100,7 +100,9 @@ describe("renaming a resource that exists", () => {
 
   it("is closed in the form and refused from the YAML view", async () => {
     const writes = renderDashboards();
-    await userEvent.click(await screen.findByRole("button", { name: en.dashboards.edit }));
+    // The dashboard's Edit is in the header's actions menu (T-2288).
+    await userEvent.click(await screen.findByRole("button", { name: /More actions for/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await screen.findByRole("dialog");
 
     expect(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.name}`))).toHaveAttribute("readonly");

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
-import { Alert, Button } from "../../components/ui";
+import { Alert, Button, FilePicker } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
 
 /**
@@ -281,19 +281,14 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
       </h3>
       <p className="text-caption text-fg-muted">{t("pipelines.test.lead")}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="cursor-pointer text-body">
+        <FilePicker
+          label={t("pipelines.test.chooseFile")}
+          accept=".csv,.json,.txt,text/csv,application/json,text/plain"
+          onFile={(file) => void takeFile(file)}
+          className="text-body"
+        >
           <span className="rounded-md border border-dashed border-border px-3 py-2">{t("pipelines.test.drop")}</span>
-          <input
-            type="file"
-            accept=".csv,.json,.txt,text/csv,application/json,text/plain"
-            aria-label={t("pipelines.test.chooseFile")}
-            className="sr-only"
-            onChange={(event) => {
-              void takeFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-        </label>
+        </FilePicker>
         {sampleUrl ? (
           <Button
             size="sm"
@@ -318,14 +313,24 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         <Button
           size="sm"
           variant="primary"
-          disabled={!sample || !bloblang || running}
+          loading={running}
+          disabled={!sample || !bloblang}
+          // Why the run is refused, where it is refused: a sentence beside the button said
+          // "write a mapping first" only for the one case of two, and a button greyed for the
+          // other told nobody anything (UI-44).
+          disabledReason={
+            !sample
+              ? t("pipelines.test.noSample")
+              : !bloblang
+                ? t("pipelines.test.noMapping")
+                : undefined
+          }
           onClick={() => {
             void run();
           }}
         >
           {running ? t("pipelines.test.running") : t("pipelines.test.run")}
         </Button>
-        {sample && !bloblang ? <span className="text-caption text-fg-muted">{t("pipelines.test.noMapping")}</span> : null}
       </div>
       {error ? (
         <Alert role="alert" tone="danger">

@@ -3,6 +3,10 @@
 # nothing here: an app has to run unchanged outside the platform (AP-37).
 [workspace]
 members = ["apps/*"]
+# A `static` app (AP-01) is a bundle and nothing else, so it has no crate for `apps/*` to load;
+# cargo's glob refuses a member directory without a `Cargo.toml` rather than skipping it, so every
+# such app is named here. The app's screens are covered by the `apps/*/ui` lane in CI.
+exclude = ["apps/bbsk-ukazovatele"]
 
 [package]
 name = "joinedcontext-portal"

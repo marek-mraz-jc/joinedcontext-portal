@@ -15,6 +15,8 @@ export type { DialogProps, DialogSize } from "./Dialog";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 export { Field, fieldIds } from "./Field";
+export { FilePicker } from "./FilePicker";
+export type { FilePickerProps } from "./FilePicker";
 export type { FieldProps } from "./Field";
 export { Icon } from "./icons";
 export type { IconName, IconProps } from "./icons";
@@ -46,6 +48,7 @@ export {
   TableHead,
   TableHeaderCell,
   TableRow,
+  TableRowHeaderCell,
   TableSkeleton,
 } from "./Table";
 export type { TableCellProps, TableHeaderCellProps, TableProps } from "./Table";

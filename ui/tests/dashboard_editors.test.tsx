@@ -197,6 +197,16 @@ async function openLayerEditor() {
   return screen.findByRole("dialog");
 }
 
+/**
+ * The dashboard's own Edit, which lives in the header's actions menu since T-2288: the header
+ * keeps the chooser and the two "new" buttons in the open, and everything that acts on the
+ * dashboard on screen is one menu behind the ⋯ button.
+ */
+async function openDashboardEditor(): Promise<void> {
+  await userEvent.click(await screen.findByRole("button", { name: /More actions for/ }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+}
+
 describe("dashboard editors", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -302,7 +312,7 @@ describe("dashboard editors", () => {
         detail: "a public dashboard may only read public endpoints: layer bikes reads helsinki-bikes whose audience is organization (UI-19)",
       },
     });
-    await userEvent.click(await screen.findByRole("button", { name: en.dashboards.edit }));
+    await openDashboardEditor();
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)), "public");
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
@@ -341,7 +351,7 @@ describe("dashboard editors", () => {
 
   it("writes the dashboard form to a draft and still proposes the manifest itself (T-0791, AG-61)", async () => {
     const fetchMock = renderDashboards();
-    await userEvent.click(await screen.findByRole("button", { name: en.dashboards.edit }));
+    await openDashboardEditor();
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(
       within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)),

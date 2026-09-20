@@ -103,6 +103,15 @@
   }
 }
 
+/* The same ring on a wrapper whose control is visually hidden inside it: a file input. */
+@utility focus-ring-within {
+  outline: none;
+  &:has(:focus-visible) {
+    outline: var(--portal-ring-width) solid var(--portal-ring);
+    outline-offset: var(--portal-ring-offset);
+  }
+}
+
 /* Same ring, drawn inside the element: for rows and cells that must not grow. */
 @utility focus-ring-inset {
   outline: none;

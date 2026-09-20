@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
-import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
+import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder, expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
@@ -283,7 +283,7 @@ describe("from a sample to a proposal", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -320,8 +320,9 @@ describe("from a sample to a proposal", () => {
     );
     const dialog = await screen.findByRole("dialog");
     const propose = () => within(dialog).getByRole("button", { name: en.pipelines.propose });
-    expect(propose()).toBeDisabled();
-    expect(within(dialog).getByText(en.pipelines.test.gate)).toBeInTheDocument();
+    expectDenied(propose(), en.pipelines.test.gate);
+    // Visible beside the button as a live region, and on the button as its description.
+    expect(within(dialog).getAllByText(en.pipelines.test.gate).length).toBeGreaterThan(0);
 
     await userEvent.upload(within(dialog).getByLabelText(en.pipelines.test.chooseFile), csvFile());
     await userEvent.click(await within(dialog).findByRole("button", { name: en.pipelines.test.run }));
@@ -329,12 +330,13 @@ describe("from a sample to a proposal", () => {
     expect(within(dialog).queryByText(en.pipelines.test.gate)).toBeNull();
     // The mapping's test is green; the manifest's own check is the second gate (AG-62).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() => expect(propose()).toBeEnabled());
+    await waitFor(() => expectOpen(propose()));
 
     // The mapping changed after the test: the verdict no longer describes the editor's text.
     await userEvent.type(within(dialog).getByLabelText(/Bloblang mapping/), "\nroot.x = 1");
-    await waitFor(() => expect(propose()).toBeDisabled());
-    expect(within(dialog).getByText(en.pipelines.test.gate)).toBeInTheDocument();
+    await waitFor(() => expectDenied(propose(), en.pipelines.test.gate));
+    // Visible beside the button as a live region, and on the button as its description.
+    expect(within(dialog).getAllByText(en.pipelines.test.gate).length).toBeGreaterThan(0);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });
@@ -372,9 +374,7 @@ describe("the pipeline studio against the UI contract", () => {
   it("has no axe violation with the studio open on a file source", async () => {
     const { container } = renderAlone(undefined, [HTTP_SOURCE]);
 
-    // The flow canvas is left out: `<svg role="img">` with focusable nodes inside is
-    // `nested-interactive` (serious), and that file is T-1852's; evidence in its body.
-    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(container);
   });
 
   it("names the Bloblang box through its Field and keeps what is typed in the draft", async () => {
@@ -402,7 +402,7 @@ describe("the pipeline studio against the UI contract", () => {
 
     await user.click(screen.getByTestId("flow-node-compute"));
     await screen.findByTestId("flow-bloblang");
-    await expectNoViolations(container, ["[data-testid=flow-canvas]"]);
+    await expectNoViolations(container);
   });
 
   it("reaches the controls of the source section by keyboard in the order they are read", async () => {

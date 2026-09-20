@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { publishedTypes } from "../src/pages/endpoints/SchemaProjectionPanel";
@@ -223,7 +224,7 @@ describe("endpoint projection ui", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -243,7 +244,7 @@ describe("endpoint projection ui", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -270,7 +271,7 @@ describe("endpoint projection ui", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
 
@@ -313,7 +314,7 @@ describe("endpoint projection ui", () => {
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: en.endpoints.propose })).toBeEnabled(),
+      expectOpen(within(dialog).getByRole("button", { name: en.endpoints.propose })),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));

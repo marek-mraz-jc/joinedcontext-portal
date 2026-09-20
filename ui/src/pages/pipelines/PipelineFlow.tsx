@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { Button, Field, Select, fieldIds } from "../../components/ui";
+import { Button, Field, Select, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS } from "../../schemas/kinds";
 import type { PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
@@ -486,8 +486,14 @@ export function PipelineFlow({
 
       {/* SVG Canvas */}
       <div className="w-full overflow-x-auto rounded-md border border-border bg-surface-subtle p-2">
+        {/*
+          A group, not an image: the canvas holds the pipeline's nodes, and every node is a
+          control a person tabs to and presses. `role="img"` promised a picture with nothing
+          inside it, which is `nested-interactive` — a serious axe violation, and a screen
+          reader that announces the diagram and then goes silent about the nine buttons in it.
+        */}
         <svg
-          role="img"
+          role="group"
           data-testid="flow-canvas"
           aria-label={t("pipelines.flow.canvas", { defaultValue: "Pipeline canvas" })}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -525,7 +531,7 @@ export function PipelineFlow({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" className="fill-border-strong" />
             </marker>
           </defs>
 
@@ -545,7 +551,7 @@ export function PipelineFlow({
                 y1={y1}
                 x2={x2 - 4}
                 y2={y2}
-                stroke="#94a3b8"
+                className="stroke-border-strong"
                 strokeWidth={2}
                 markerEnd="url(#flow-arrow)"
               />
@@ -556,16 +562,19 @@ export function PipelineFlow({
           {placed.map(({ node, x, y }, idx) => {
             const isSelected = selected === node.id;
             const nodePaint = paint[node.id] ?? { state: "idle" };
-            const strokeColor =
+            // The canvas paints with the same tokens as the page around it (UI-30): an SVG
+            // attribute takes a colour value, which is why these were six literals and why the
+            // whole diagram stayed light grey on white in the dark theme. A class is a token.
+            const strokeClass =
               nodePaint.state === "error"
-                ? "#dc2626"
+                ? "stroke-danger"
                 : nodePaint.state === "skipped"
-                  ? "#9ca3af"
+                  ? "stroke-fg-subtle"
                   : nodePaint.state === "ok"
-                    ? "#16a34a"
+                    ? "stroke-success"
                     : isSelected
-                      ? "#2563eb"
-                      : "var(--color-border, #cbd5e1)";
+                      ? "stroke-primary"
+                      : "stroke-border";
 
             const summary =
               node.summary.length > 40 ? `${node.summary.slice(0, 39)}…` : node.summary;
@@ -583,7 +592,7 @@ export function PipelineFlow({
                 data-state={nodePaint.state}
                 aria-pressed={isSelected}
                 aria-label={`${node.label}: ${node.kind}`}
-                className="cursor-pointer focus:outline-none"
+                className="focus-ring cursor-pointer"
                 onClick={() => onSelect(node.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -615,16 +624,13 @@ export function PipelineFlow({
                   width={nodeWidth}
                   height={nodeHeight}
                   rx={8}
-                  fill="var(--color-surface, #ffffff)"
-                  stroke={strokeColor}
+                  className={`fill-surface ${strokeClass}`}
                   strokeWidth={isSelected ? 2.5 : 1.5}
                 />
                 <text
                   x={x + 12}
                   y={y + 22}
-                  className="font-semibold select-none"
-                  style={{ fontSize: "13px" }}
-                  fill="var(--color-fg, #0f172a)"
+                  className="select-none fill-fg text-body font-semibold"
                 >
                   {t(
                     `pipelines.flow.node.${
@@ -641,9 +647,7 @@ export function PipelineFlow({
                   x={x + nodeWidth - 12}
                   y={y + 22}
                   textAnchor="end"
-                  className="font-mono select-none"
-                  style={{ fontSize: "11px" }}
-                  fill="var(--color-fg-muted, #64748b)"
+                  className="select-none fill-fg-muted font-mono text-caption"
                 >
                   {node.kind}
                 </text>
@@ -651,9 +655,7 @@ export function PipelineFlow({
                   <text
                     x={x + 12}
                     y={y + 44}
-                    className="select-none"
-                    style={{ fontSize: "11px" }}
-                    fill="var(--color-fg-muted, #475569)"
+                    className="select-none fill-fg-muted text-caption"
                   >
                     {summary}
                   </text>
@@ -663,9 +665,7 @@ export function PipelineFlow({
                   <text
                     x={x + 12}
                     y={y + 66}
-                    className="font-mono select-none"
-                    style={{ fontSize: "11px" }}
-                    fill="var(--color-fg-muted, #64748b)"
+                    className="select-none fill-fg-muted font-mono text-caption"
                   >
                     ↓ {nodePaint.eventsIn}  ↑ {nodePaint.eventsOut ?? 0}
                   </text>
@@ -675,9 +675,7 @@ export function PipelineFlow({
                   <text
                     x={x + 12}
                     y={y + 86}
-                    className="font-mono select-none"
-                    style={{ fontSize: "10px" }}
-                    fill="#dc2626"
+                    className="select-none fill-danger font-mono text-caption"
                   >
                     {errorSummary}
                   </text>
@@ -685,9 +683,7 @@ export function PipelineFlow({
                   <text
                     x={x + 12}
                     y={y + 86}
-                    className="font-medium select-none"
-                    style={{ fontSize: "11px" }}
-                    fill="#16a34a"
+                    className="select-none fill-success text-caption font-medium"
                   >
                     ok
                   </text>
@@ -695,9 +691,7 @@ export function PipelineFlow({
                   <text
                     x={x + 12}
                     y={y + 86}
-                    className="font-medium select-none"
-                    style={{ fontSize: "11px" }}
-                    fill="#9ca3af"
+                    className="select-none fill-fg-subtle text-caption font-medium"
                   >
                     skipped
                   </text>
@@ -821,20 +815,14 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
           help={t("pipelines.flow.stepYamlHint")}
           errors={problem ? [problem] : undefined}
         >
-          <textarea
+          {/* The Field wires `aria-describedby` and `aria-invalid` onto the control it wraps,
+              so the textarea no longer rebuilds the ids by hand (T-2314). */}
+          <Textarea
             id={id}
             data-testid="flow-step-yaml"
             rows={8}
             spellCheck={false}
-            aria-invalid={problem ? true : undefined}
-            aria-describedby={[
-              found ? fieldIds(id).description : "",
-              fieldIds(id).help,
-              problem ? fieldIds(id).error : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            className="focus-ring w-full rounded-md border border-border bg-surface p-2 font-mono text-caption text-fg"
+            className="p-2 font-mono text-caption"
             value={text}
             onChange={(e) => typed(e.target.value)}
           />

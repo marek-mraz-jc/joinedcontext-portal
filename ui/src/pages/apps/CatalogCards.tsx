@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
+import { Button } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import type { IconName } from "../../components/ui/icons";
 
@@ -170,7 +171,7 @@ export function CatalogCards({
                   </Link>
                 )}
                 {item.title && item.title !== item.name ? (
-                  <span title={item.name} className="min-w-0 truncate font-mono text-[11px] text-fg-muted">
+                  <span title={item.name} className="min-w-0 truncate font-mono text-caption text-fg-muted">
                     {item.name}
                   </span>
                 ) : null}
@@ -193,9 +194,14 @@ export function CatalogCards({
                 className={clsx("size-2 shrink-0 rounded-full", open ? "bg-success" : "bg-fg-muted opacity-50")}
               />
               {onUseEndpoint && item.kind === "Endpoint" && open ? (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
                   disabled={inUse}
+                  // Already in the run's endpoints: refused, and it says so rather than being
+                  // a grey pill somebody hovers to find out (UI-44).
+                  disabledReason={
+                    inUse ? t("agentRun.catalog.inUseLabel", { name: item.name }) : undefined
+                  }
                   aria-label={
                     inUse
                       ? t("agentRun.catalog.inUseLabel", { name: item.name })
@@ -204,26 +210,27 @@ export function CatalogCards({
                   onClick={() => {
                     onUseEndpoint(item.name);
                   }}
-                  className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-fg hover:bg-surface-subtle focus:outline-none focus:ring-2 focus:ring-border-focus disabled:cursor-default disabled:border-transparent disabled:text-fg-muted disabled:hover:bg-transparent"
+                  className="h-6 rounded-full px-2 text-caption"
                 >
                   {inUse ? t("agentRun.catalog.inUse") : t("agentRun.catalog.use")}
-                </button>
+                </Button>
               ) : null}
             </li>
           );
         })}
       </ul>
       {hidden > 0 ? (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           aria-expanded={expanded}
           onClick={() => {
             setExpanded((was) => !was);
           }}
-          className="self-start rounded px-1 py-0.5 text-fg-muted hover:text-fg focus:outline-none focus:ring-2 focus:ring-border-focus"
+          className="self-start text-fg-muted"
         >
           {expanded ? t("agentRun.catalog.showLess") : t("agentRun.catalog.showMore", { count: hidden })}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

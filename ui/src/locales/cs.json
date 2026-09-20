@@ -11,6 +11,11 @@
       "crashReload": "Načíst stránku znovu",
       "crashHome": "Zpět na začátek"
     },
+    "notFound": {
+      "title": "Tato stránka neexistuje",
+      "description": "Na adrese {path} v Portálu nic není.",
+      "home": "Přejít na začátek"
+    },
     "opensNewTab": "Otevře se na nové kartě",
     "alert": {
       "info": "Poznámka",
@@ -777,6 +782,7 @@
       "run": "Otestovat mapování",
       "running": "Testuje se…",
       "noMapping": "Nejprve napište Bloblang mapování.",
+      "noSample": "Nejprve vložte vzorový soubor.",
       "tooLarge": "Vzorek má více než 5 MiB; zkraťte jej.",
       "failed": "Test se nespustil (stav {status}). Zkuste to za chvíli znovu.",
       "input": "Vstup",
@@ -1134,6 +1140,8 @@
       "entity": "Entita"
     },
     "previewUnavailable": "Služba náhledu neodpověděla; zdroj to neovlivnilo.",
+    "previewEmpty": "Napište model v editoru a to, do čeho se zkompiluje, se zobrazí zde.",
+    "previewCompiling": "Kompiluji model…",
     "exampleUnmapped": "Vzorová entita nese pojmy, které @context nedefinuje: {terms}",
     "noArtifact": "Zatím se nic nezkompilovalo.",
     "formPreview": "Pouze náhled",
