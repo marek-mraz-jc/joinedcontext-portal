@@ -53,6 +53,14 @@ interface Wired {
  * What the child already carries wins: a control with its own `aria-describedby` keeps it and
  * the Field's ids are appended, and an explicit `aria-invalid` is never overwritten. The
  * control is the caller's — an Input, a Select, a widget of rjsf, whatever the form needs.
+ *
+ * **A `Fragment` child is not wired, and must not be.** rjsf's `SchemaField` hands
+ * `FieldTemplate` a Fragment, and a Fragment takes no props: React keeps `key` and `children`
+ * and drops every `aria-*`. Cloning into it instead would land the ids on whatever wrapper the
+ * widget happens to render, which is not the control either. Inside a form the wiring is the
+ * widget's own job: it names `ariaDescribedByIds(id)`, which is character for character what
+ * `fieldIds` mints above, and `tests/contract_widget_describedby.test.tsx` holds the two
+ * together and holds every Portal widget to it (T-2314).
  */
 export function Field({
   id,
