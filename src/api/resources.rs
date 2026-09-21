@@ -128,9 +128,11 @@ pub async fn list(
 
     let page = match (query.workspace.as_deref(), query.revision.as_deref()) {
         (Some(_), Some(_)) => return Err(both()),
-        (Some(name), None) => crate::ops::workspaces::mirror_of(&state, name, &project)
-            .await?
-            .list(&project, kind_info.kind, &opts),
+        (Some(name), None) => {
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
+                .await?
+                .list(&project, kind_info.kind, &opts)
+        }
         (None, Some(revision)) => mirror_at(&state, &project, revision, not_found)
             .await?
             .list(&project, kind_info.kind, &opts),
@@ -194,9 +196,11 @@ pub async fn get_resource(
     }
     let envelope = match (query.workspace.as_deref(), query.revision.as_deref()) {
         (Some(_), Some(_)) => return Err(both()),
-        (Some(workspace), None) => crate::ops::workspaces::mirror_of(&state, workspace, &project)
-            .await?
-            .get(&project, kind_info.kind, &name),
+        (Some(workspace), None) => {
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, workspace, &project)
+                .await?
+                .get(&project, kind_info.kind, &name)
+        }
         (None, Some(revision)) => mirror_at(&state, &project, revision, not_found).await?.get(
             &project,
             kind_info.kind,

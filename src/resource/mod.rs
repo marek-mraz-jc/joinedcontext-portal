@@ -53,6 +53,15 @@ pub fn is_dns1123(name: &str) -> bool {
     jc_core::names::validate_dns1123_label(name).is_ok()
 }
 
+/// Whether `name` is a `metadata.name` jc-core accepts for `kind`: a space's own form for a
+/// ContextSpace, a DNS-1123 label for every other kind (MF-02, T-2544).
+pub fn is_manifest_name(kind: &str, name: &str) -> bool {
+    match kind {
+        "ContextSpace" => jc_core::names::validate_space_name(name).is_ok(),
+        _ => is_dns1123(name),
+    }
+}
+
 /// The phase as it appears on the wire, for `fieldSelector=status.phase=Live`. Exhaustive on
 /// purpose: a new jc-core phase must be given its name here before it compiles.
 pub fn phase_str(phase: Phase) -> &'static str {
