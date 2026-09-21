@@ -77,3 +77,6 @@ jobs:
             [ -f "$app/package.json" ] || continue
             (cd "$app" && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build)
           done
+      # The digest map the static host checks before it serves a file (AP-12, T-2457).
+      - name: the integrity manifest a static app ships with
+        run: node --test scripts/app-integrity.test.mjs
