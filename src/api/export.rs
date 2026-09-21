@@ -734,6 +734,8 @@ fn readme(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/export",
+    summary = "Export Project",
+    description = "The project's manifests as one bundle, narrowed to the kinds and names asked for.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1031,6 +1033,8 @@ pub async fn export(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/revisions",
+    summary = "List Project Revisions",
+    description = "The project's history: the commits an export can be read from.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

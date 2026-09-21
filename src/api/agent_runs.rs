@@ -295,6 +295,8 @@ pub struct CreatedRun {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs",
+    summary = "Start Unattended Work",
+    description = "Starts an application, dashboard or analysis run, which waits for a person's approval at the end.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
     request_body = CreateRunRequest,
@@ -589,6 +591,8 @@ pub async fn create_run(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs",
+    summary = "List Runs",
+    description = "The project's agent runs, newest first, narrowed by app, kind or status.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -644,6 +648,8 @@ pub async fn list_runs(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs/{id}",
+    summary = "Read One Run",
+    description = "One of this caller's runs: what it is building, what it asks and where it stands.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -695,6 +701,8 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs/{id}/events",
+    summary = "Follow A Run",
+    description = "One run's events as Server-Sent Events: its status, what it said, the tools it used and the questions it asks. The caller's own runs, or any run for an approver of the project.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -773,6 +781,8 @@ pub async fn stream_events(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/answers",
+    summary = "Answer A Run's Question",
+    description = "Answers one question a run asked, so it carries on; a person answers, never another run.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -924,6 +934,8 @@ async fn record_answer(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/messages",
+    summary = "Send A Run A Message",
+    description = "Sends text to one of this caller's running conversations or applications.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1616,6 +1628,8 @@ pub(crate) async fn end_run(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/cancel",
+    summary = "Cancel Run",
+    description = "Stops one of this caller's runs; what it had not finished is not published.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1643,6 +1657,8 @@ pub async fn cancel_run(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/publish",
+    summary = "Publish What A Run Built",
+    description = "Proposes the application a finished run built; a person approves the change.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),

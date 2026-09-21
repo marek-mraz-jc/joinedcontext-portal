@@ -495,6 +495,8 @@ pub(crate) async fn check_source(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Read Model Source",
+    description = "One DataModel's LinkML, as the repository holds it.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -533,6 +535,8 @@ pub async fn get_source(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Write Model Source",
+    description = "Writes one DataModel's LinkML and its generated artifacts as a change a person approves.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),

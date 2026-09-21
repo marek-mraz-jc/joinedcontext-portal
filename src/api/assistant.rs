@@ -426,6 +426,8 @@ fn item(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/assistant/catalog",
+    summary = "Search Catalog",
+    description = "Find spaces, endpoints, and data models matching search keywords.",
     tag = "assistant",
     params(
         ("project" = String, Path, description = "The project the search runs in"),
@@ -524,6 +526,8 @@ pub async fn execute_propose_endpoint(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/assistant/propose-endpoint",
+    summary = "Propose Endpoint",
+    description = "Renders an Endpoint and its draft Policy manifests from a request to share data.",
     tag = "assistant",
     params(("project" = String, Path, description = "Project slug")),
     request_body(
@@ -634,6 +638,8 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/assistant/conversations",
+    summary = "Start A Conversation",
+    description = "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
     request_body = StartConversation,
@@ -844,6 +850,8 @@ pub struct AgentAccessList {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/assistant/access",
+    summary = "Read Assistant Access",
+    description = "Every agent profile of the organization with what it lets the assistant reach here, intersected with the caller's own grants. It changes nothing.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
     responses(

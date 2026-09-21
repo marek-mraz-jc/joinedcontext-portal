@@ -23,6 +23,8 @@ pub use crate::ops::{OperationAnnotations, OperationSummary};
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/ops",
+    summary = "List Operations",
+    description = "Every registry operation the caller may run in the project, with its input schema and annotations: the same list MCP clients and the assistant read.",
     tag = "ops",
     params(
         ("project" = String, Path, description = "Project slug"),
@@ -57,6 +59,8 @@ pub async fn list_ops(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/ops/{name}",
+    summary = "Run An Operation",
+    description = "Runs one registry operation with the input given, under the caller's grants. A write answers the change it opened (202); input that does not match the schema is refused with 422.",
     tag = "ops",
     params(
         ("project" = String, Path, description = "Project slug"),

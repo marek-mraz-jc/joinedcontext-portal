@@ -125,6 +125,8 @@ fn member_of(state: &AppState, user: &CurrentUser, project: &str) -> Result<(), 
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/activity",
+    summary = "List Activity",
+    description = "What happened in the project: the same events, filters and paging the activity page reads.",
     tag = "activity",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -161,6 +163,8 @@ pub async fn list_activity(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/activity/stream",
+    summary = "Follow Activity",
+    description = "The project's activity as Server-Sent Events, with the same filters as the list. Readers of the project only; the stream carries what the list would.",
     tag = "activity",
     params(
         ("project" = String, Path, description = "Project name"),

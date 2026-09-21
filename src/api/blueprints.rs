@@ -157,6 +157,8 @@ fn accept_rendered(
 #[utoipa::path(
     get,
     path = "/api/v1/blueprints",
+    summary = "List Blueprints",
+    description = "The organization's Blueprints this caller may run, for the flow gallery. A Blueprint is started in a project with POST /projects/{project}/flows.",
     tag = "blueprints",
     responses(
         (status = 200, description = "The blueprints this caller may run", body = ResourceList),
@@ -205,6 +207,8 @@ pub struct FlowRequest {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/flows",
+    summary = "Run A Blueprint",
+    description = "Expands one of the organisation's blueprints with the parameters given, as a change a person approves.",
     tag = "blueprints",
     params(("project" = String, Path, description = "Project the flow creates resources in")),
     request_body = FlowRequest,

@@ -1058,6 +1058,8 @@ async fn read_request(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/import",
+    summary = "Import A Bundle",
+    description = "Imports a bundle into the project as one change a person approves, or answers the plan alone.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project the bundle is imported into"),

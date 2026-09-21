@@ -2790,6 +2790,45 @@ mod tests {
         );
     }
 
+    /// MF-34, T-1647…T-1654: a route with an operation behind it is published in that operation's
+    /// words. The OpenAPI document, the MCP tool list and the assistant each describe the same
+    /// door, and a person reading any of them reads the same sentence: the summary is the
+    /// operation's title and the description is its description, so the two cannot drift apart.
+    #[test]
+    fn a_route_is_published_in_the_words_of_its_operation() {
+        use utoipa::OpenApi;
+        let spec = crate::openapi::ApiDoc::openapi();
+        let mut compared = 0;
+        let mut differ = Vec::new();
+        for (method, path, operation) in ROUTE_COVERAGE {
+            let Some(op) = find(operation) else { continue };
+            let Some(item) = spec.paths.paths.get(&format!("/api/v1{path}")) else {
+                continue;
+            };
+            let published = match *method {
+                "GET" => item.get.as_ref(),
+                "POST" => item.post.as_ref(),
+                "PUT" => item.put.as_ref(),
+                "PATCH" => item.patch.as_ref(),
+                "DELETE" => item.delete.as_ref(),
+                _ => None,
+            };
+            let Some(published) = published else { continue };
+            compared += 1;
+            let wanted = format!("{}.", op.description.trim_end_matches('.'));
+            if published.summary.as_deref() != Some(op.title)
+                || published.description.as_deref() != Some(wanted.as_str())
+            {
+                differ.push(format!("{method} {path} ({operation})"));
+            }
+        }
+        assert!(compared > 40, "only {compared} routes were compared");
+        assert!(
+            differ.is_empty(),
+            "published in other words than their operation's: {differ:?}"
+        );
+    }
+
     #[test]
     fn validate_detects_unknown_fields_and_reports_path() {
         let op = find("jc_catalog_search").expect("jc_catalog_search");

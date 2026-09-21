@@ -57,6 +57,8 @@ pub struct GetQuery {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/{plural}",
+    summary = "List Resources",
+    description = "Lists the resources of one kind in the project, optionally of one context space.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -153,6 +155,8 @@ pub async fn list(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Get Resource",
+    description = "Reads one resource's manifest and status by kind and name.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -203,6 +207,8 @@ pub async fn get_resource(
 #[utoipa::path(
     get,
     path = "/api/v1/endpoints",
+    summary = "List Endpoints Everywhere",
+    description = "Every Endpoint of every project the caller may read, each with the project it lives in.",
     tag = "resources",
     responses(
         (status = 200, description = "Every Endpoint the caller may read, across projects", body = ResourceList),
