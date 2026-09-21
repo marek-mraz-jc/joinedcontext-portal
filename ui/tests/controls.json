@@ -11,16 +11,16 @@
   "modules": {
     "src/assistant/AssistantDock.tsx": {
       "controls": {
-        "button": 10,
-        "Button": 2,
-        "textarea": 1
+        "button": 1,
+        "Button": 11
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
         "assistant_endpoints.test.tsx",
         "assistant_layout.test.tsx",
-        "assistant_turns.test.tsx"
+        "assistant_turns.test.tsx",
+        "form_assistant_dock.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
