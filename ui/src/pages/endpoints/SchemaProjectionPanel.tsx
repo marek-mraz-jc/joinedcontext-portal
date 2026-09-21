@@ -22,6 +22,7 @@ import {
   TableRow,
   TableRowHeaderCell,
 } from "../../components/ui";
+import { FormHeading } from "../../components/forms/FormRoute";
 
 /**
  * What an Endpoint publishes of its model, and which attributes it holds back (EP-46, EP-61).
@@ -176,9 +177,9 @@ export function SchemaProjectionPanel({
 
   return (
     <section aria-labelledby="projection-heading" className="space-y-3">
-      <h3 id="projection-heading" className="text-base font-semibold">
+      <FormHeading id="projection-heading" className="text-base font-semibold">
         {t("endpoints.projection.title")}
-      </h3>
+      </FormHeading>
       <p className="text-sm text-fg-muted">{t("endpoints.projection.hint")}</p>
 
       <Field id="projection-formalism" label={t("endpoints.projection.formalism")}>
@@ -253,9 +254,9 @@ export function SchemaProjectionPanel({
           // The class name is a heading a person reads, and the table's own name for a screen
           // reader: the shared Table hides its caption, so it is written once above and passed in.
           <section key={type.name} aria-labelledby={`projection-${type.name}`} className="space-y-1">
-            <h3 id={`projection-${type.name}`} className="font-medium text-fg">
+            <FormHeading id={`projection-${type.name}`} className="font-medium text-fg">
               {type.name}
-            </h3>
+            </FormHeading>
             <Table caption={type.name}>
               <TableHead>
                 <TableHeaderCell>{t("endpoints.projection.attribute")}</TableHeaderCell>

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Alert, Button, FilePicker } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
+import { FormHeading } from "../../components/forms/FormRoute";
 
 /**
  * A candidate pipeline tried on a sample before it is proposed (PL-43, PL-44, UI-32): a dropped
@@ -276,9 +277,9 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         void takeFile(event.dataTransfer.files[0]);
       }}
     >
-      <h3 id="studio-test" className="text-body font-semibold text-fg">
+      <FormHeading id="studio-test" className="text-body font-semibold text-fg">
         {t("pipelines.test.title")}
-      </h3>
+      </FormHeading>
       <p className="text-caption text-fg-muted">{t("pipelines.test.lead")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <FilePicker
@@ -341,19 +342,19 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         <div className="flex flex-col gap-2" data-testid="stage-inspector">
           <div className="grid gap-2 md:grid-cols-3">
             <div className={panel}>
-              <h4 className="text-caption font-semibold">{t("pipelines.test.input")}</h4>
+              <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.input")}</FormHeading>
               <p className="text-caption text-fg-muted">
                 {t("pipelines.test.events", { events: trace.input.events, bytes: trace.input.bytes })}
               </p>
               {trace.input.sample !== undefined ? <pre className={pre}>{pretty(trace.input.sample)}</pre> : null}
             </div>
             <div className={panel}>
-              <h4 className="text-caption font-semibold">{t("pipelines.test.mapping")}</h4>
+              <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.mapping")}</FormHeading>
               <p className="text-caption text-fg-muted">{t("pipelines.test.entities", { count: trace.mapping.length })}</p>
               {trace.mapping.length > 0 ? <pre className={pre}>{pretty(trace.mapping[0])}</pre> : null}
             </div>
             <div className={panel}>
-              <h4 className="text-caption font-semibold">{t("pipelines.test.validation")}</h4>
+              <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.validation")}</FormHeading>
               <ul className="text-caption">
                 {trace.validation.map((v) => (
                   <li key={v.index} className={v.ok ? "text-success" : "text-danger"}>

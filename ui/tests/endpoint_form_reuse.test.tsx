@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -121,7 +122,7 @@ describe("endpoint form projection reuse (T-0564)", () => {
     );
 
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     await waitFor(() => expect(dialog.querySelector("#projection-reuse")).not.toBeNull());
     const reuseSelect = dialog.querySelector("#projection-reuse") as HTMLSelectElement;

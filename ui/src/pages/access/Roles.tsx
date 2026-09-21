@@ -11,11 +11,11 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
   Alert,
   Button,
-  Dialog,
   EmptyState,
   Table,
   TableBody,
@@ -110,6 +110,7 @@ export function NewRoleDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const permissions = usePermissions(project);
   const [form, setForm] = useState<RoleForm | undefined>(undefined);
@@ -125,7 +126,13 @@ export function NewRoleDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={project} />);
+          close(false);
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "roles") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
@@ -160,7 +167,7 @@ export function NewRoleDialog({
 
   if (change) {
     return (
-      <Dialog
+      <FormFrame
         open={open}
         onOpenChange={close}
         size="lg"
@@ -170,7 +177,7 @@ export function NewRoleDialog({
         footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
       >
         <ChangeNotice change={change} project={project} />
-      </Dialog>
+      </FormFrame>
     );
   }
 

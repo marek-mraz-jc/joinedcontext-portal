@@ -57,7 +57,7 @@ test.setTimeout(1_800_000);
 async function openSpace(page: Page): Promise<Locator> {
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: /^New (context )?space/i }).first().click();
-  return page.getByRole("dialog");
+  return page.getByTestId("form-page");
 }
 
 /** What the form says, from the places a person is told things: the field and the live regions. */

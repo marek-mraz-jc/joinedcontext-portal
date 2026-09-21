@@ -26,9 +26,6 @@
     "/projects/$project/import": {
       "why": "covered by tests/import_wizard.test.tsx; the mocked spec is owed"
     },
-    "/projects/$project/spaces/$name": {
-      "why": "covered by tests/space_inside.test.tsx; the mocked spec is owed"
-    },
     "/projects/$project/assistant": {
       "why": "covered by tests/assistant_page.test.tsx; the mocked spec is owed"
     }
@@ -46,9 +43,6 @@
     },
     "/projects/$project/import": {
       "why": "an import journey writes a whole project; covered by tests/import_wizard.test.tsx until a throwaway project exists for it"
-    },
-    "/projects/$project/endpoints/$name": {
-      "why": "covered by tests/part_operation_groups.test.tsx and by the mocked spec; the journey is owed"
     },
     "/projects/$project/shared": {
       "why": "sharing needs a second project that opened an endpoint to this one; covered by the mocked spec e2e/sharing.spec.ts"

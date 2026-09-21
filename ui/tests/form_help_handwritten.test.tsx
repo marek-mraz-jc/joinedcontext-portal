@@ -11,7 +11,7 @@
  * announces, and the placeholder a sighted person reads before typing. The help is asserted in
  * all four languages, because help that only exists in English is help for some of the people.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -22,6 +22,7 @@ import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import en from "../src/locales/en.json";
 import sk from "../src/locales/sk.json";
+import { findFormPage } from "./formPage";
 
 const LOCALES = ["en", "sk", "cs", "de"] as const;
 
@@ -170,7 +171,7 @@ describe("the help beside a hand-built form field", () => {
     renderPortal("/projects/banskabystrica/access");
 
     await person.click(await screen.findByRole("button", { name: en.access.roles.grant }));
-    const dialog = await screen.findByRole("dialog", { name: new RegExp(en.access.roles.grantTitle) });
+    const dialog = await findFormPage(new RegExp(en.access.roles.grantTitle));
     const fields = controls(dialog);
     expect(fields.length).toBe(5);
     for (const field of fields) {
@@ -194,13 +195,13 @@ describe("the help beside a hand-built form field", () => {
       [en.access.groups.new, en.access.groups.newTitle],
     ] as const) {
       await person.click(await screen.findByRole("button", { name: button }));
-      const dialog = await screen.findByRole("dialog", { name: new RegExp(title) });
+      const dialog = await findFormPage(new RegExp(title));
       const fields = controls(dialog).filter((field) => field.id.startsWith("root"));
       expect(fields.length, `${title} renders its fields`).toBeGreaterThan(0);
       for (const field of fields) {
         expect(describedText(field).length, `${title}: ${field.id}`).toBeGreaterThan(15);
       }
-      await person.keyboard("{Escape}");
+      await person.click(within(dialog).getByRole("button", { name: en.form.backToList }));
     }
   });
 

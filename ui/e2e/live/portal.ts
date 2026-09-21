@@ -74,7 +74,7 @@ export async function proposedChange(page: Page): Promise<string> {
     await expect(review).toBeVisible({ timeout: 60_000 });
   } catch (err) {
     // What the page says instead of the notice: a verdict, a refusal, a dialog still open.
-    const said = await page.locator("[role=dialog], [role=alert], [role=status]").allInnerTexts();
+    const said = await page.locator("[data-testid=form-page], [role=dialog], [role=alert], [role=status]").allInnerTexts();
     throw new Error(`no proposal notice; the page says: ${JSON.stringify(said)}\n${String(err)}`);
   }
   const href = (await review.getAttribute("href")) ?? "";

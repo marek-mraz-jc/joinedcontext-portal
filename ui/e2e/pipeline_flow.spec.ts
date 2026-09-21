@@ -121,7 +121,7 @@ test.describe("pipeline flow canvas", () => {
     // itself (UI-01). The header's is the one a person with pipelines also has.
     await page.getByRole("button", { name: "New pipeline" }).first().click();
 
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByTestId("form-page");
     await expect(dialog).toBeVisible();
 
     const paletteBloblang = page.getByTestId("palette-bloblang");

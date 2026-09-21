@@ -12,7 +12,8 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { Alert, Badge, Button, Checkbox, Dialog, DialogClose, ExternalLink, Tabs, tabPanelProps } from "./ui";
+import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps } from "./ui";
+import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
 import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
@@ -131,7 +132,7 @@ function atPath(root: ErrorSchema, path: string[]): string[] {
   return list;
 }
 
-/** One modal for every manifest form: the schema decides the fields, the caller the kind. */
+/** One frame for every manifest form: the schema decides the fields, the caller the kind. */
 export function ResourceFormDialog<T>({
   open,
   onOpenChange,
@@ -816,7 +817,8 @@ export function ResourceFormDialog<T>({
   ) : null;
 
   return (
-    <Dialog
+    // A page at its own address where a route hosts it, the dialog elsewhere (T-2474).
+    <FormFrame
       open={open}
       onOpenChange={handleOpenChange}
       title={title}
@@ -984,9 +986,9 @@ export function ResourceFormDialog<T>({
               afterFields={afterFields}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
-                  <DialogClose asChild>
-                    <Button variant="ghost">{t("form.cancel")}</Button>
-                  </DialogClose>
+                  <Button variant="ghost" onClick={() => handleOpenChange(false)}>
+                    {t("form.cancel")}
+                  </Button>
                   {checkButton}
                   {draftKind && activeName ? (
                     <>
@@ -1049,9 +1051,9 @@ export function ResourceFormDialog<T>({
               </Alert>
             ) : null}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <DialogClose asChild>
-                <Button variant="ghost">{t("form.cancel")}</Button>
-              </DialogClose>
+              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
+                {t("form.cancel")}
+              </Button>
               {checkButton}
               {draftKind && activeName ? (
                 <>
@@ -1081,6 +1083,6 @@ export function ResourceFormDialog<T>({
           </div>
         )}
       </div>
-    </Dialog>
+    </FormFrame>
   );
 }

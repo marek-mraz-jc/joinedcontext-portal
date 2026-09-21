@@ -50,7 +50,7 @@ async function describedBy(control: Locator): Promise<string> {
 async function proposeSpace(page: Page, name: string): Promise<string> {
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: /^New (context )?space/i }).first().click();
-  const form = page.getByRole("dialog");
+  const form = page.getByTestId("form-page");
   await form.getByLabel(/^Name/).fill(name);
   const title = form.getByLabel(/^Title/);
   if (await title.count()) {

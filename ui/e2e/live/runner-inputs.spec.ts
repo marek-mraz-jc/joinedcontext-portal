@@ -172,7 +172,7 @@ for (const c of CASES) {
     // 1. The data source, from the input's own form (the type first: a type change clears the draft).
     await page.getByLabel("Type").selectOption(c.kind);
     await page.getByRole("button", { name: "New data source" }).click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByTestId("form-page");
     await dialog.locator("#root_name").fill(c.source);
     await c.connect(dialog);
     await dialog.getByRole("button", { name: "Check" }).click();
@@ -184,7 +184,7 @@ for (const c of CASES) {
     // 2. The pipeline: the sample drafts a mapping, the case's own mapping replaces it, the test runs it.
     await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
     await page.getByRole("button", { name: "New pipeline" }).click();
-    const studio = page.getByRole("dialog");
+    const studio = page.getByTestId("form-page");
     await studio.locator("#studio-source-kind").selectOption("datasource");
     await studio.locator("#studio-datasource").selectOption({ value: c.source });
     await studio.locator("#root_name").fill(c.pipeline);

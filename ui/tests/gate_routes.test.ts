@@ -162,5 +162,12 @@ describe("the rule the route gate applies", () => {
 
   it("reads the router's paths and nothing else", () => {
     expect(routerPaths('createRoute({ path: "/x" });\n// path: "/commented"')).toEqual(["/x"]);
+    const nested = [
+      'const top = createRoute({ getParentRoute: () => rootRoute, id: "protected" });',
+      'const list = createRoute({ getParentRoute: () => top, path: "/p/$plural" });',
+      'const index = createRoute({ getParentRoute: () => list, path: "/" });',
+      'const edit = createRoute({ getParentRoute: () => list, path: "$name/edit" });',
+    ].join("\n");
+    expect(routerPaths(nested)).toEqual(["/p/$plural", "/p/$plural/$name/edit"]);
   });
 });

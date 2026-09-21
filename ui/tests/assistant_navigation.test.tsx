@@ -15,6 +15,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { isPortalRoute, rememberPrefill, settlePrefill, takePrefill } from "../src/assistant/state";
 import { expectDenied } from "./checks";
+import { findFormPage } from "./formPage";
 
 const PROJECT = "banskabystrica";
 const RUN_ID = "01J8ZQ4T7K9M2N3P4Q5R6S7T8V";
@@ -235,7 +236,7 @@ describe("the assistant dock", () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe(`/projects/${PROJECT}/endpoints`);
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await waitFor(() => {
       expect((dialog.querySelector('input[name="name"], #root_name') as HTMLInputElement).value).toBe(
         "air-quality-public",
@@ -372,7 +373,7 @@ describe("the assistant dock", () => {
       },
     });
 
-    const dialog = await screen.findByRole("dialog", { name: en.access.roles.grantTitle });
+    const dialog = await findFormPage(en.access.roles.grantTitle);
     expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveValue("jana.kovacova");
   });
 

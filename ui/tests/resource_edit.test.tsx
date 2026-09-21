@@ -8,6 +8,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { rememberPrefill } from "../src/assistant/state";
 import { answeringChecks, checksSoFar } from "./checks";
+import { findFormPage } from "./formPage";
 
 // Monaco needs a canvas and a worker, which jsdom has neither of; a textarea keeps its contract.
 function MockEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
@@ -96,7 +97,7 @@ async function rowMenuItem(name: string | RegExp) {
 
 async function openEditor() {
   await userEvent.click(await rowMenuItem(new RegExp(en.resourceEdit.button)));
-  const dialog = await screen.findByRole("dialog");
+  const dialog = await findFormPage();
   const yaml = await within(dialog).findByRole("textbox", { name: "YAML" });
   return { dialog, yaml: yaml as HTMLTextAreaElement };
 }
@@ -132,7 +133,7 @@ describe("editing a resource from its list", () => {
     await userEvent.type(yaml, `kind: DataOffer\nmetadata:\n  name: ${NAME}\nspec:\n  contextSpaceRef: air\n`);
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
 
-    expect(await within(dialog).findByText(CHANGE.metadata.name)).toBeInTheDocument();
+    expect(await screen.findByText(CHANGE.metadata.name)).toBeInTheDocument();
     const sent = puts(fetchMock);
     expect(sent).toHaveLength(1);
     expect(new URL(sent[0].url).pathname).toBe(`/api/v1/projects/${PROJECT}/dataoffers/${NAME}`);
@@ -168,20 +169,20 @@ describe("editing a resource from its list", () => {
     });
     window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}&draft=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     const yaml = (await within(dialog).findByRole("textbox", { name: "YAML" })) as HTMLTextAreaElement;
     expect((parseYaml(yaml.value) as { spec: unknown }).spec).toEqual({ ...OFFER.spec, contextSpaceRef: "air" });
     expect(puts(fetchMock)).toHaveLength(0);
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
-    expect(await within(dialog).findByText(CHANGE.metadata.name)).toBeInTheDocument();
+    expect(await screen.findByText(CHANGE.metadata.name)).toBeInTheDocument();
     expect((await puts(fetchMock)[0].json()).spec.contextSpaceRef).toBe("air");
   });
 
   it("opens the editor at once for a page opened to edit one resource", async () => {
     window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(dialog).toHaveTextContent("Edit Zvolen air quality");
     expect(puts(fetchMock)).toHaveLength(0);
   });

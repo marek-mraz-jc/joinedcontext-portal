@@ -10,12 +10,12 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { groupSchema } from "../../schemas/kinds";
 import {
   Alert,
   Badge,
   Button,
-  Dialog,
   EmptyState,
   Table,
   TableBody,
@@ -104,6 +104,7 @@ export function NewGroupDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<GroupForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
@@ -118,7 +119,13 @@ export function NewGroupDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={ORG_NAMESPACE} />);
+          close(false);
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(ORG_NAMESPACE, "groups") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(ORG_NAMESPACE) });
@@ -143,7 +150,7 @@ export function NewGroupDialog({
 
   if (change) {
     return (
-      <Dialog
+      <FormFrame
         open={open}
         onOpenChange={close}
         size="lg"
@@ -153,7 +160,7 @@ export function NewGroupDialog({
         footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
       >
         <ChangeNotice change={change} project={ORG_NAMESPACE} />
-      </Dialog>
+      </FormFrame>
     );
   }
 

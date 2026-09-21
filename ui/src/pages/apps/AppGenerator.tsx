@@ -289,8 +289,8 @@ export function AppGenerator({
       if (typeof created.id === "string") {
         onStarted?.(created.id);
         void navigate({
-          to: "/projects/$project/apps/$name",
-          params: { project, name: targetName },
+          to: "/projects/$project/$plural/$name",
+          params: { plural: "apps", project, name: targetName },
         });
         return;
       }
@@ -375,8 +375,8 @@ export function AppGenerator({
           {conflictApp && (
             <p className="mt-1 text-sm">
               <Link
-                to="/projects/$project/apps/$name"
-                params={{ project, name: conflictApp }}
+                to="/projects/$project/$plural/$name"
+                params={{ plural: "apps", project, name: conflictApp }}
                 className="underline hover:no-underline"
               >
                 {t("apps.drafts.conflict", { name: conflictApp })}

@@ -126,7 +126,7 @@ for (const create of CREATES) {
       await expect(steward.page, "the request lands on the kind's own page").toHaveURL(create.route, {
         timeout: 300_000,
       });
-      const form = steward.page.getByRole("dialog");
+      const form = steward.page.getByTestId("form-page");
       await expect(form, "with the form open, not on the list alone").toBeVisible({
         timeout: 60_000,
       });

@@ -1,3 +1,4 @@
+import { useCreateForm } from "../components/forms/FormRoute";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -190,7 +191,8 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // The create form is a page at `/{plural}/new` on a routed list (T-2474).
+  const [dialogOpen, setDialogOpen] = useCreateForm();
   const [target, setTarget] = useState<RegistrationTarget>("endpointRef");
   const [form, setForm] = useState<RegistrationForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
