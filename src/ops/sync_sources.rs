@@ -209,13 +209,26 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: NameInput = parse_input(val)?;
-                    let response = crate::api::sync_sources::detach(
-                        as_user(caller),
-                        State(state.clone()),
-                        Path((project.to_owned(), input.name)),
+                    // The route's own body is the merge request and the status; the registry
+                    // answers a proposal as its Change (T-1531: parsing the route's body as one
+                    // answered 500 after the merge request was already open).
+                    let (pull, _) = crate::api::sync_sources::detach_for(
+                        state,
+                        &as_user(caller),
+                        project,
+                        &input.name,
                     )
                     .await?;
-                    super::admin::proposed(response).await
+                    let change = crate::change::Change::new(
+                        crate::change::ChangeMeta::from_merge_request(pull.number, project),
+                        crate::change::ChangeStatus::new(
+                            crate::change::Lane::Red,
+                            crate::change::ChangePhase::PendingApproval,
+                            crate::change::PlanSummary::new(0, 0, 1),
+                        )
+                        .with_merge_request(pull.url),
+                    );
+                    Ok(crate::api::mutate::ProposeOutcome::Change(change).into_value())
                 })
             },
         },

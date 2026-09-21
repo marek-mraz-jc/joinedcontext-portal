@@ -322,191 +322,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             json_response(StatusCode::OK, &result(id, json!({ "tools": tools })))
         }
         "tools/call" => {
-            let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-            let arguments = params
-                .get("arguments")
-                .cloned()
-                .unwrap_or_else(|| json!({}));
-            let project = arguments
-                .get("project")
-                .and_then(Value::as_str)
-                .or_else(|| params.get("project").and_then(Value::as_str));
-
-            let Some(project) = project.filter(|p| !p.trim().is_empty()) else {
-                return json_response(
-                    StatusCode::OK,
-                    &result(
-                        id,
-                        json!({
-                            "isError": true,
-                            "content": [{
-                                "type": "text",
-                                "text": "missing required argument: project"
-                            }]
-                        }),
-                    ),
-                );
-            };
-
-            let Some(op) = crate::ops::find(name) else {
-                return json_response(StatusCode::OK, &error(id, -32602, "unknown tool"));
-            };
-
-            let mut input = arguments.clone();
-            if let Some(map) = input.as_object_mut() {
-                map.remove("project");
-            }
-
-            // Refusal before the question (AG-63): a caller who may not run this is told so,
-            // rather than asked to confirm something that would be refused after they answered.
-            if let Err(refused) = caller
-                .may_run(op)
-                .and_then(|()| crate::ops::permitted(op, &caller.identity, &state, project))
-            {
-                return json_response(
-                    StatusCode::OK,
-                    &result(id, failure_result(&refused.to_string())),
-                );
-            }
-
-            // AG-63: a Yellow or Red lane, or a destructive tool, asks the person before it
-            // runs. The first call answers the question; the second carries their answer.
-            if op.lane != crate::change::Lane::Green || op.annotations.destructive_hint {
-                let owner = caller.identity.subject.as_str();
-                let digest = elicitation::digest_of(&input);
-                match params.get("elicitation") {
-                    None => {
-                        let elicitation_id =
-                            state.mcp_elicitations.ask(owner, op.name, project, &digest);
-                        // PF-57: a proposal whose check has not run is refused on every door
-                        // with the same three fields, so a client that reads
-                        // `verdict_required` on the REST route reads it here too. The
-                        // question is still asked: the URL is what the person needs to run
-                        // the check (ADR-N-021, T-0947).
-                        let refusal =
-                            crate::ops::verdict_refusal(&state, op, project, &input).await;
-                        let reason = refusal.as_ref().map_or(
-                            "Nothing has run: open the Portal, look at what this would \
-                             change, and send this call again with the answer."
-                                .to_owned(),
-                            |body| {
-                                let detail =
-                                    body.get("detail").and_then(Value::as_str).unwrap_or("");
-                                let check = body.get("check").and_then(Value::as_str).unwrap_or("");
-                                format!(
-                                    "Nothing has run: {detail} Run `{check}`, then send this \
-                                     call again with the answer."
-                                )
-                            },
-                        );
-                        return json_response(
-                            StatusCode::OK,
-                            &result(
-                                id,
-                                elicitation::document(
-                                    &elicitation_id,
-                                    &format!(
-                                        "{} in project '{project}' ({} lane). {reason}",
-                                        op.title,
-                                        lane_word(op.lane)
-                                    ),
-                                    &confirm_url(&state, project, op.kind, &input),
-                                    refusal,
-                                ),
-                            ),
-                        );
-                    }
-                    Some(sent) => match state
-                        .mcp_elicitations
-                        .answer(owner, op.name, project, &digest, sent)
-                    {
-                        elicitation::Answer::Accepted => {
-                            record_answer(&state, project, &caller, op.name, "accepted").await;
-                        }
-                        elicitation::Answer::Declined => {
-                            record_answer(&state, project, &caller, op.name, "declined").await;
-                            return json_response(
-                                StatusCode::OK,
-                                &result(
-                                    id,
-                                    failure_result(
-                                        "the person declined this call; nothing was run (AG-63)",
-                                    ),
-                                ),
-                            );
-                        }
-                        elicitation::Answer::Unknown => {
-                            return json_response(
-                                StatusCode::OK,
-                                &result(
-                                    id,
-                                    failure_result(
-                                        "that answer belongs to no open question of this call: \
-                                         an answer is spent once, expires in ten minutes and is \
-                                         bound to these arguments. Call again without \
-                                         `elicitation` to ask anew (AG-63)",
-                                    ),
-                                ),
-                            );
-                        }
-                    },
-                }
-            }
-
-            // A call that waits on the runner, on Model Tools or on somebody's feed answers a
-            // task at once; the client polls it instead of holding the request open (AG-60).
-            if tasks::is_long(name) || params.get("task").is_some() {
-                let owner = caller.identity.subject.clone();
-                let state_for_task = state.clone();
-                let project = project.to_owned();
-                let op_name = op.name;
-                let task = state.mcp_tasks.start(&owner, async move {
-                    let op = crate::ops::find(op_name).expect("the operation was found above");
-                    match crate::ops::call(op, &caller, &state_for_task, &project, input).await {
-                        Ok(output) => call_result(&output),
-                        Err(crate::ops::OpError::Conflict(val)) => conflict_result(&val),
-                        Err(err) => failure_result(&err.to_string()),
-                    }
-                });
-                return json_response(StatusCode::OK, &result(id, json!({ "task": task })));
-            }
-
-            let response_val = match crate::ops::call(op, &caller, &state, project, input).await {
-                Ok(output) => result(
-                    id,
-                    json!({
-                        "isError": false,
-                        "content": [{
-                            "type": "text",
-                            "text": serde_json::to_string(&output).unwrap_or_else(|_| "null".to_string())
-                        }],
-                        "structuredContent": output
-                    }),
-                ),
-                Err(crate::ops::OpError::Conflict(val)) => result(
-                    id,
-                    json!({
-                        "isError": true,
-                        "content": [{
-                            "type": "text",
-                            "text": serde_json::to_string(&val).unwrap_or_else(|_| "conflict".to_string())
-                        }],
-                        "structuredContent": val
-                    }),
-                ),
-                Err(err) => result(
-                    id,
-                    json!({
-                        "isError": true,
-                        "content": [{
-                            "type": "text",
-                            "text": err.to_string()
-                        }]
-                    }),
-                ),
-            };
-
-            json_response(StatusCode::OK, &response_val)
+            let mut envelope = tools_call(&state, caller, id, &params).await;
+            ground(&state, &mut envelope);
+            json_response(StatusCode::OK, &envelope)
         }
         "tasks/get" | "tasks/result" | "tasks/cancel" | "tasks/list" => {
             let owner = caller.identity.subject.as_str();
@@ -791,6 +609,234 @@ fn may_read(state: &AppState, caller: &crate::ops::Caller, project: &str) -> boo
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
     crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
+/// One `tools/call`, answered as its JSON-RPC envelope: an error, or a result the caller grounds.
+async fn tools_call(
+    state: &AppState,
+    caller: crate::ops::Caller,
+    id: Value,
+    params: &Value,
+) -> Value {
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let arguments = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let project = arguments
+        .get("project")
+        .and_then(Value::as_str)
+        .or_else(|| params.get("project").and_then(Value::as_str));
+
+    let Some(project) = project.filter(|p| !p.trim().is_empty()) else {
+        return result(
+            id,
+            json!({
+                "isError": true,
+                "content": [{
+                    "type": "text",
+                    "text": "missing required argument: project"
+                }]
+            }),
+        );
+    };
+
+    let Some(op) = crate::ops::find(name) else {
+        return error(id, -32602, "unknown tool");
+    };
+
+    let mut input = arguments.clone();
+    if let Some(map) = input.as_object_mut() {
+        map.remove("project");
+    }
+
+    // Refusal before the question (AG-63): a caller who may not run this is told so,
+    // rather than asked to confirm something that would be refused after they answered.
+    if let Err(refused) = caller
+        .may_run(op)
+        .and_then(|()| crate::ops::permitted(op, &caller.identity, state, project))
+    {
+        return result(id, failure_result(&refused.to_string()));
+    }
+
+    // AG-63: a Yellow or Red lane, or a destructive tool, asks the person before it
+    // runs. The first call answers the question; the second carries their answer.
+    if op.lane != crate::change::Lane::Green || op.annotations.destructive_hint {
+        let owner = caller.identity.subject.as_str();
+        let digest = elicitation::digest_of(&input);
+        match params.get("elicitation") {
+            None => {
+                let elicitation_id = state.mcp_elicitations.ask(owner, op.name, project, &digest);
+                // PF-57: a proposal whose check has not run is refused on every door
+                // with the same three fields, so a client that reads
+                // `verdict_required` on the REST route reads it here too. The
+                // question is still asked: the URL is what the person needs to run
+                // the check (ADR-N-021, T-0947).
+                let refusal = crate::ops::verdict_refusal(state, op, project, &input).await;
+                let reason = refusal.as_ref().map_or(
+                    "Nothing has run: open the Portal, look at what this would \
+                         change, and send this call again with the answer."
+                        .to_owned(),
+                    |body| {
+                        let detail = body.get("detail").and_then(Value::as_str).unwrap_or("");
+                        let check = body.get("check").and_then(Value::as_str).unwrap_or("");
+                        format!(
+                            "Nothing has run: {detail} Run `{check}`, then send this \
+                                 call again with the answer."
+                        )
+                    },
+                );
+                return result(
+                    id,
+                    elicitation::document(
+                        &elicitation_id,
+                        &format!(
+                            "{} in project '{project}' ({} lane). {reason}",
+                            op.title,
+                            lane_word(op.lane)
+                        ),
+                        &confirm_url(state, project, op.kind, &input),
+                        refusal,
+                    ),
+                );
+            }
+            Some(sent) => match state
+                .mcp_elicitations
+                .answer(owner, op.name, project, &digest, sent)
+            {
+                elicitation::Answer::Accepted => {
+                    record_answer(state, project, &caller, op.name, "accepted").await;
+                }
+                elicitation::Answer::Declined => {
+                    record_answer(state, project, &caller, op.name, "declined").await;
+                    return result(
+                        id,
+                        failure_result("the person declined this call; nothing was run (AG-63)"),
+                    );
+                }
+                elicitation::Answer::Unknown => {
+                    return result(
+                        id,
+                        failure_result(
+                            "that answer belongs to no open question of this call: \
+                                     an answer is spent once, expires in ten minutes and is \
+                                     bound to these arguments. Call again without \
+                                     `elicitation` to ask anew (AG-63)",
+                        ),
+                    );
+                }
+            },
+        }
+    }
+
+    // A call that waits on the runner, on Model Tools or on somebody's feed answers a
+    // task at once; the client polls it instead of holding the request open (AG-60).
+    if tasks::is_long(name) || params.get("task").is_some() {
+        let owner = caller.identity.subject.clone();
+        let state_for_task = state.clone();
+        let project = project.to_owned();
+        let op_name = op.name;
+        let task = state.mcp_tasks.start(&owner, async move {
+            let op = crate::ops::find(op_name).expect("the operation was found above");
+            let mut outcome =
+                match crate::ops::call(op, &caller, &state_for_task, &project, input).await {
+                    Ok(output) => call_result(&output),
+                    Err(crate::ops::OpError::Conflict(val)) => conflict_result(&val),
+                    Err(err) => failure_result(&err.to_string()),
+                };
+            // `tasks/result` answers this later: grounded when it was evaluated (AG-12).
+            if let Some(outcome) = outcome.as_object_mut() {
+                outcome.insert(
+                    "_meta".to_owned(),
+                    json!({ "joinedcontext.com/grounding": grounding(&state_for_task) }),
+                );
+            }
+            outcome
+        });
+        return result(id, json!({ "task": task }));
+    }
+
+    let response_val = match crate::ops::call(op, &caller, state, project, input).await {
+        Ok(output) => result(
+            id,
+            json!({
+                "isError": false,
+                "content": [{
+                    "type": "text",
+                    "text": serde_json::to_string(&output).unwrap_or_else(|_| "null".to_string())
+                }],
+                "structuredContent": output
+            }),
+        ),
+        Err(crate::ops::OpError::Conflict(val)) => result(
+            id,
+            json!({
+                "isError": true,
+                "content": [{
+                    "type": "text",
+                    "text": serde_json::to_string(&val).unwrap_or_else(|_| "conflict".to_string())
+                }],
+                "structuredContent": val
+            }),
+        ),
+        Err(err) => result(
+            id,
+            json!({
+                "isError": true,
+                "content": [{
+                    "type": "text",
+                    "text": err.to_string()
+                }]
+            }),
+        ),
+    };
+
+    response_val
+}
+
+/// AG-12, CC-47: the configuration a `tools/call` result was evaluated against, in its `_meta`.
+///
+/// The mirror is what every operation reads, so its revision is the commit the answer is grounded
+/// in; `drift` says whether that is the repository's head as far as the Portal knows. Nothing of
+/// the repository's address, branch or credentials is here (the status never carries them).
+fn grounding(state: &AppState) -> Value {
+    let status = state
+        .syncer
+        .as_ref()
+        .map(|syncer| syncer.status())
+        .unwrap_or_default();
+    grounding_of(&status, chrono::Utc::now())
+}
+
+fn grounding_of(
+    status: &crate::reconciler::SyncStatus,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Value {
+    let utc =
+        |at: chrono::DateTime<chrono::Utc>| at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let drift = match (&status.last_sync, &status.last_error) {
+        (None, _) => "unsynced",
+        (Some(_), Some(_)) => "sync-failed",
+        (Some(_), None) => "none",
+    };
+    json!({
+        "revision": status.revision,
+        "syncedAt": status
+            .last_sync
+            .and_then(|secs| chrono::DateTime::<chrono::Utc>::from_timestamp(secs, 0))
+            .map(utc),
+        "evaluatedAt": utc(now),
+        "drift": drift,
+    })
+}
+
+/// Writes [`grounding`] into the result of a JSON-RPC envelope; an error envelope has none.
+fn ground(state: &AppState, envelope: &mut Value) {
+    if let Some(result) = envelope.get_mut("result").and_then(Value::as_object_mut) {
+        let meta = result.entry("_meta").or_insert_with(|| json!({}));
+        if let Some(meta) = meta.as_object_mut() {
+            meta.insert("joinedcontext.com/grounding".to_owned(), grounding(state));
+        }
+    }
+}
 
 /// `jc://schemas/{Kind}`, `jc://{project}/drafts/{Kind}/{name}`,
 /// `jc://{project}/changes/{changeId}`, `jc://{project}/datamodels/{name}/linkml` or
@@ -1063,4 +1109,47 @@ fn rate_limited() -> Response {
         })),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reconciler::SyncStatus;
+
+    /// AG-12: the three states of the mirror an answer can be grounded in, each one word.
+    #[test]
+    fn drift_says_whether_the_answer_may_be_behind_the_repository() {
+        let now =
+            chrono::DateTime::<chrono::Utc>::from_timestamp(1_790_000_000, 0).expect("a time");
+        let synced = SyncStatus {
+            last_sync: Some(1_789_999_940),
+            revision: Some("4f2c1ab".into()),
+            ..SyncStatus::default()
+        };
+        let grounded = grounding_of(&synced, now);
+        assert_eq!(grounded["drift"], "none");
+        assert_eq!(grounded["revision"], "4f2c1ab");
+        assert_eq!(grounded["syncedAt"], "2026-09-21T14:12:20Z");
+        assert_eq!(grounded["evaluatedAt"], "2026-09-21T14:13:20Z");
+
+        let failed = SyncStatus {
+            last_error: Some("the forge answered 502".into()),
+            ..synced
+        };
+        let grounded = grounding_of(&failed, now);
+        assert_eq!(grounded["drift"], "sync-failed");
+        assert_eq!(
+            grounded["revision"], "4f2c1ab",
+            "the revision the answer still comes from"
+        );
+        assert!(
+            !grounded.to_string().contains("502"),
+            "the error text stays in the sync status"
+        );
+
+        assert_eq!(
+            grounding_of(&SyncStatus::default(), now)["drift"],
+            "unsynced"
+        );
+    }
 }

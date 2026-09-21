@@ -275,7 +275,10 @@
     "name": "Názov",
     "phase": "Stav",
     "empty": "Zatiaľ tu nič nie je.",
-    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Pridajte prvé alebo požiadajte asistenta a rozhodnite o tom, čo podá.",
+    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Táto stránka ho vypisuje a číta; požiadajte oň asistenta a rozhodnite o tom, čo podá.",
+    "emptyHintFor": {
+      "uischemas": "Nič v tomto projekte nemení formulár. Každý formulár má svoje rozloženie už v dodávke; organizácia ho mení v portal/forms/ svojho konfiguračného repozitára, nie tu."
+    },
     "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva."
   },
   "spaces": {
@@ -2413,6 +2416,7 @@
     "bar": {
       "label": "Kópia",
       "message": "Pracujete na kópii {title}, začatej {date}. Nič tu nie je živé.",
+      "loading": "Pracujete na kópii {name}. Nič tu nie je živé.",
       "changes": "{count, plural, =0 {Zatiaľ bez zmien} one {# zmena} few {# zmeny} many {# zmeny} other {# zmien}}",
       "gone": "Táto kópia vypršala alebo bola zahodená.",
       "leave": "Odísť",
