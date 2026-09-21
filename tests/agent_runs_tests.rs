@@ -3628,12 +3628,15 @@ async fn ticket_of(state: &AppState, id: &str) -> String {
         .ticket_hash
 }
 
-async fn job_deletes(api: &wiremock::MockServer) -> usize {
+/// The deletes of this run's Job. A reaper in another test of a shared database may end other
+/// runs through the same client, so the count is by the run's own Job name.
+async fn job_deletes(api: &wiremock::MockServer, id: &str) -> usize {
+    let job = format!("/jobs/agent-run-{id}");
     api.received_requests()
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().contains("/jobs/"))
+        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().ends_with(&job))
         .count()
 }
 
@@ -3697,7 +3700,7 @@ async fn a_pod_delete_that_answers_404_still_ends_the_run() {
             "{delete}: {run}"
         );
         assert_eq!(ticket_of(&state, &id).await, "", "{delete}");
-        assert_eq!(job_deletes(&api).await, 1, "{delete}");
+        assert_eq!(job_deletes(&api, &id).await, 1, "{delete}");
     }
 }
 
@@ -3792,7 +3795,7 @@ async fn ending_an_already_ended_run_is_idempotent_on_the_ticket_hash() {
         assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::CONFLICT);
     }
     assert_eq!(ticket_of(&state, &id).await, "");
-    assert_eq!(job_deletes(&api).await, 1);
+    assert_eq!(job_deletes(&api, &id).await, 1);
     assert_eq!(
         state
             .agents
@@ -3911,14 +3914,14 @@ async fn a_failing_ticket_invalidation_stops_before_the_pod_is_deleted() {
     let (status, body) = cancel(&app, &cookie, &id).await;
     drop_refusal(&pool, &name).await;
     assert!(status.is_server_error(), "{status}: {body}");
-    assert_eq!(job_deletes(&api).await, 0);
+    assert_eq!(job_deletes(&api, &id).await, 0);
     assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
 }
 
-/// T-2516: a status that cannot be written ends nothing: the ticket and the pod are left for
-/// the next attempt (the person's retry or the reaper), and the caller is told.
+/// T-2516, restated by T-2560 (AG-46): a status that cannot be written still leaves the ticket
+/// dead and the pod gone, the caller is told, and the retry moves the status.
 #[tokio::test]
-async fn a_failing_set_status_never_invalidates_the_ticket_or_deletes_the_pod() {
+async fn a_failing_set_status_still_leaves_the_ticket_dead_and_the_pod_gone() {
     let Some(url) = database_url() else {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
@@ -3934,12 +3937,54 @@ async fn a_failing_set_status_never_invalidates_the_ticket_or_deletes_the_pod() 
     let (status, body) = cancel(&app, &cookie, &id).await;
     drop_refusal(&pool, &name).await;
     assert!(status.is_server_error(), "{status}: {body}");
-    assert_eq!(job_deletes(&api).await, 0);
-    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+    assert_eq!(ticket_of(&state, &id).await, "");
+    assert_eq!(job_deletes(&api, &id).await, 1);
+    let run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_ne!(run.status, "cancelled");
     // The retry the caller was told to make ends it.
     let retry = cancel(&app, &cookie, &id).await;
     assert_eq!(retry.0, StatusCode::OK, "{}", retry.1);
-    assert_eq!(ticket_of(&state, &id).await, "");
+    assert_eq!(retry.1["status"], json!("cancelled"));
+}
+
+/// T-2560, AG-46: an end that failed after the ticket could not be cleared is finished by the
+/// next attempt: the ticket dies and the pod goes.
+#[tokio::test]
+async fn an_end_that_failed_after_the_status_is_finished_by_a_retry() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2560_{}", id.replace('-', "_"));
+    refuse_update(
+        &pool,
+        &name,
+        &id,
+        "NEW.ticket_hash = '' AND OLD.ticket_hash <> ''",
+    )
+    .await;
+    let first = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(first.0.is_server_error(), "{}", first.1);
+
+    cancel(&app, &cookie, &id).await;
+    reaper::reap_expired(&state).await;
+    assert_eq!(
+        ticket_of(&state, &id).await,
+        "",
+        "the ticket still verifies"
+    );
+    assert_eq!(job_deletes(&api, &id).await, 1, "the pod was never deleted");
 }
 
 /// Edge cases of the filtered run list against PostgreSQL (T-2502, MF-12, PF-59). They run when
