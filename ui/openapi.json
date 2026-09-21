@@ -6243,7 +6243,7 @@
           {
             "name": "revision",
             "in": "query",
-            "description": "Historical revision",
+            "description": "Read the project as it stood at this commit id (MF-11)",
             "required": false,
             "schema": {
               "type": "string"
@@ -6266,6 +6266,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6479,6 +6489,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "Read the project as it stood at this commit id (MF-11)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6488,6 +6507,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }

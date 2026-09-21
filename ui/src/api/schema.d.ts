@@ -7686,7 +7686,7 @@ export interface operations {
                 limit?: number;
                 /** @description Pagination continue token */
                 continue?: string;
-                /** @description Historical revision */
+                /** @description Read the project as it stood at this commit id (MF-11) */
                 revision?: string;
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
@@ -7709,6 +7709,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            /** @description A bad selector or limit, a revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -7850,6 +7859,8 @@ export interface operations {
             query?: {
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
+                /** @description Read the project as it stood at this commit id (MF-11) */
+                revision?: string;
             };
             header?: never;
             path: {
@@ -7871,6 +7882,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceEnvelope"];
+                };
+            };
+            /** @description A revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */

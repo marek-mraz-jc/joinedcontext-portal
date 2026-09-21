@@ -243,15 +243,15 @@ async fn a_query_that_is_not_one_is_the_callers_mistake_and_never_a_page() {
         );
     }
 
-    // A revision: the history is served from Git and this route says so rather than ignoring it and
-    // answering today's list as though it were the one asked for.
+    // A revision that is not a commit id: refused rather than answered with today's list as
+    // though it were the one asked for (MF-11, T-2375).
     let (status, body) = get(
         &state,
         Some(SPACE_READER),
-        &format!("{spaces}?revision=0f1e2d3"),
+        &format!("{spaces}?revision=main"),
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "{body}");
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
     // A continuation token nobody minted is ignored and the first page comes back: today's
     // behaviour, written down in `/workspace/chyby.md` rather than asserted as wanted, because a
