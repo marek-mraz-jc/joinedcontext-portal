@@ -3,5 +3,7 @@
 /// The reconciler that compiles an App into its runtime and its grants (T-0227).
 pub mod converge;
 pub mod kube;
+/// An App name is unique in the organization (AP-14a).
+pub mod names;
 pub mod reconciler;
 pub mod static_host;

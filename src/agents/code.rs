@@ -249,6 +249,98 @@ mod tests {
         assert!(system.contains("a test beside every page"));
     }
 
+    /// `n` writable stylesheets of `each` bytes: counted by SDK-11, and nothing a transpile reads.
+    fn sheets(n: usize, each: usize) -> BTreeMap<String, String> {
+        (0..n)
+            .map(|i| (format!("src/s{i}.css"), " ".repeat(each)))
+            .collect()
+    }
+
+    fn limit_problems(files: &BTreeMap<String, String>) -> Vec<String> {
+        problems(files)
+            .into_iter()
+            .filter(|p| p.contains("writable files") || p.contains("bytes;"))
+            .collect()
+    }
+
+    /// SDK-11, T-2510: only the paths the model may write count toward the limits.
+    #[test]
+    fn a_file_outside_src_and_functions_is_not_counted_toward_bytes_or_files() {
+        let mut files = sheets(MAX_FILES, 1);
+        files.insert("README.md".to_owned(), "a".repeat(MAX_BYTES + 1));
+        files.insert("package.json".to_owned(), "{}".to_owned());
+        files.insert("src/main.tsx".to_owned(), "a".repeat(10));
+        assert_eq!(limit_problems(&files), Vec::<String>::new());
+    }
+
+    /// SDK-11, T-2510: the limits are inclusive, one over is a problem, for files and bytes.
+    #[test]
+    fn the_limits_are_inclusive_and_one_over_is_a_problem() {
+        // exactly_max_files_passes, max_files_plus_one_is_a_problem
+        assert_eq!(limit_problems(&sheets(MAX_FILES, 1)), Vec::<String>::new());
+        let over = limit_problems(&sheets(MAX_FILES + 1, 1));
+        assert_eq!(over.len(), 1, "{over:?}");
+        assert!(
+            over[0].contains(&format!("{} writable files", MAX_FILES + 1)),
+            "{over:?}"
+        );
+        // exactly_max_bytes_passes, max_bytes_plus_one_is_a_problem
+        assert_eq!(limit_problems(&sheets(1, MAX_BYTES)), Vec::<String>::new());
+        let over = limit_problems(&sheets(1, MAX_BYTES + 1));
+        assert_eq!(over.len(), 1, "{over:?}");
+        assert!(
+            over[0].contains(&format!("{} bytes", MAX_BYTES + 1)),
+            "{over:?}"
+        );
+    }
+
+    /// SDK-11, T-2510: the budget is bytes, so a text of fewer characters than the limit is still
+    /// over it when its UTF-8 is.
+    #[test]
+    fn unicode_file_content_counts_bytes_not_chars() {
+        let mut files = BTreeMap::new();
+        let text = format!("/* {} */", "é".repeat(MAX_BYTES / 2));
+        assert!(text.chars().count() <= MAX_BYTES && text.len() > MAX_BYTES);
+        files.insert("src/app.css".to_owned(), text);
+        let found = limit_problems(&files);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("bytes"), "{found:?}");
+    }
+
+    /// SDK-11, T-2510: an empty map holds no writable file, so no limit is crossed; what it lacks
+    /// is the transpile's to say (the entry imports an App nothing wrote).
+    #[test]
+    fn an_empty_files_map_crosses_no_limit() {
+        assert_eq!(limit_problems(&BTreeMap::new()), Vec::<String>::new());
+    }
+
+    /// SDK-11, SDK-12, T-2510: a limit and a refused import are both reported by the same call.
+    #[test]
+    fn two_problems_from_limits_and_import_both_appear_in_one_call() {
+        let mut files = preview::template_files();
+        files.extend(sheets(MAX_FILES + 1, 1));
+        files.insert(
+            "src/pages/Broken.tsx".to_owned(),
+            "import axios from \"axios\";\nexport const x = axios;\n".to_owned(),
+        );
+        let found = problems(&files);
+        assert!(
+            found.iter().any(|p| p.contains("writable files")),
+            "{found:?}"
+        );
+        assert!(found.iter().any(|p| p.contains("axios")), "{found:?}");
+    }
+
+    /// SDK-11, T-2510: an empty writable file is still a file of the project.
+    #[test]
+    fn a_writable_zero_byte_path_still_counts_as_one_file() {
+        let mut files = sheets(MAX_FILES, 1);
+        files.insert("src/empty.css".to_owned(), String::new());
+        let found = limit_problems(&files);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("writable files"), "{found:?}");
+    }
+
     #[test]
     fn a_project_over_the_limits_is_a_problem() {
         let mut files = BTreeMap::new();
