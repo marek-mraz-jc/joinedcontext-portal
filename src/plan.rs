@@ -444,6 +444,7 @@ mod tests {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            domain_verification: None,
         });
         let mut des = sample_envelope("public-air", json!({ "audience": "public" }));
         des.status = Some(Status {
@@ -452,6 +453,7 @@ mod tests {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            domain_verification: None,
         });
 
         let plan = diff(Some(&curr), Some(&des));
