@@ -290,7 +290,10 @@ pub struct OpenProject {
     post,
     path = "/api/v1/projects",
     tag = "resources",
-    request_body = OpenProject,
+    request_body(
+        content = OpenProject,
+        example = json!({ "name": "helsinki", "displayName": "Helsinki", "description": "The city's open data" })
+    ),
     responses(
         (status = 202, description = "The change that opens the project", body = Change),
         (status = 400, description = "The name is not a DNS-1123 label", body = ProblemDetails),

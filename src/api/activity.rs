@@ -337,6 +337,22 @@ pub const COLLECTOR_CLIENT: &str = "activity-ingest";
     post,
     path = "/api/v1/activity",
     tag = "activity",
+    request_body(
+        content = Object,
+        description = "An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, \
+                       its fields as attributes",
+        content_type = "application/json",
+        example = json!({ "resourceLogs": [{ "scopeLogs": [{ "logRecords": [{
+            "timeUnixNano": "1789314063000000000",
+            "attributes": [
+                { "key": "project", "value": { "stringValue": "helsinki" } },
+                { "key": "kind", "value": { "stringValue": "access.denied" } },
+                { "key": "source", "value": { "stringValue": "gateway" } },
+                { "key": "severity", "value": { "stringValue": "warning" } },
+                { "key": "summary", "value": { "stringValue": "An anonymous caller was refused a write." } }
+            ]
+        }] }] }] })
+    ),
     responses(
         (status = 200, description = "The OTLP export response, naming what was rejected", body = ExportLogsServiceResponse),
         (status = 401, description = "Unauthorized", body = ProblemDetails),

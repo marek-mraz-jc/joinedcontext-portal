@@ -176,7 +176,19 @@ pub async fn get_draft(
         ("name" = String, Path, description = "Draft name"),
         ("workspace" = Option<String>, Query, description = "The copy the draft belongs to (CC-76)"),
     ),
-    request_body = PutDraftRequest,
+    request_body(
+        content = PutDraftRequest,
+        example = json!({ "expectedVersion": 3, "manifest": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+                "spec": {
+                    "contextSpaceRef": "air",
+                    "audience": "internal",
+                    "enabledRepresentations": ["ngsi-ld", "geojson"]
+                }
+            } })
+    ),
     responses(
         (status = 200, description = "The saved draft", body = Draft),
         (status = 400, description = "Bad request, e.g. literal secret", body = ProblemDetails),

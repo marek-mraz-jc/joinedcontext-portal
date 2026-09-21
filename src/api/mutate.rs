@@ -1168,7 +1168,16 @@ async fn propose_draft(
         ("plural" = String, Path, description = "Resource kind plural"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "audience": "internal",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1227,7 +1236,16 @@ pub async fn create(
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "audience": "internal",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1289,9 +1307,10 @@ pub async fn replace(
     // Declared by hand: the handler takes the raw `Bytes` because the media type decides how the
     // body is parsed, and utoipa cannot derive a schema from that extractor.
     request_body(
-        content = String,
+        content = Object,
         description = "RFC 7386 merge patch, as JSON or as the YAML apply-patch document",
         content_type = "application/merge-patch+json",
+        example = json!({ "spec": { "audience": "project" } }),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),

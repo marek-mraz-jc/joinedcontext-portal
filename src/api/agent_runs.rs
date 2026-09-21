@@ -297,7 +297,22 @@ pub struct CreatedRun {
     path = "/api/v1/projects/{project}/agent-runs",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
-    request_body = CreateRunRequest,
+    request_body(
+        content = CreateRunRequest,
+        example = json!({
+            "appName": "city-bikes-overview",
+            "endpointName": "helsinki-bikes",
+            "appClass": "fullstack",
+            "visibility": "project",
+            "prompt": "A live bike availability dashboard with station filtering",
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "mobility" },
+                "types": ["BikeHireDockingStation"],
+                "attrs": ["name", "location"],
+                "operations": ["queryEntity", "retrieveEntity"]
+            }]
+        })
+    ),
     responses(
         (status = 202, description = "The run, queued", body = CreatedRun),
         (status = 400, description = "A request the endpoint or the policy does not allow", body = ProblemDetails),
@@ -778,7 +793,10 @@ pub async fn stream_events(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = AnswerRequest,
+    request_body(
+        content = AnswerRequest,
+        example = json!({ "questionId": "layout", "answers": ["A map beside the table"] })
+    ),
     responses(
         (status = 204, description = "The answer is on the run's log"),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -929,7 +947,10 @@ async fn record_answer(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = MessageRequest,
+    request_body(
+        content = MessageRequest,
+        example = json!({ "text": "Show only stations with fewer than three bikes" })
+    ),
     responses(
         (status = 204, description = "The instruction is on the run's log and in its inbox"),
         (status = 400, description = "An empty or over-long instruction", body = ProblemDetails),
@@ -1022,7 +1043,10 @@ pub async fn post_message(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = PreviewErrorRequest,
+    request_body(
+        content = PreviewErrorRequest,
+        example = json!({ "message": "TypeError: rows is undefined", "file": "src/App.tsx", "line": 42 })
+    ),
     responses(
         (status = 204, description = "The error is on the run's log as a preview_error event"),
         (status = 400, description = "A blank or over-long message, an over-long file, or line 0", body = ProblemDetails),
@@ -1087,7 +1111,14 @@ pub async fn post_preview_error(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = PreviewObservationRequest,
+    request_body(
+        content = PreviewObservationRequest,
+        example = json!({
+            "version": 2,
+            "pages": [{ "label": "Overview", "text": "12 stations, 3 without a bike", "rows": [12] }],
+            "failedRequests": [{ "path": "/ngsi-ld/v1/entities", "status": 403 }]
+        })
+    ),
     responses(
         (status = 204, description = "The observation is on the run's log as a preview_observation event"),
         (status = 400, description = "A value outside the bounds of API/04 §5", body = ProblemDetails),
@@ -1251,7 +1282,12 @@ fn caller_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
         ("id" = String, Path, description = "Run id"),
         ("fn" = String, Path, description = "The function: `functions/{fn}.ts` of the run"),
     ),
-    request_body(content = serde_json::Value, description = "The function's JSON body; an empty body is null", content_type = "application/json"),
+    request_body(
+        content = serde_json::Value,
+        description = "The function's JSON body; an empty body is null",
+        content_type = "application/json",
+        example = json!({ "station": "001" })
+    ),
     responses(
         (status = 200, description = "The function's own status and JSON body, whatever status it returned", body = serde_json::Value),
         (status = 400, description = "A body that is not JSON, or function files that do not build: every problem with file and line", body = ProblemDetails),

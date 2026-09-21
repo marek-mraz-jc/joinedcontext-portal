@@ -179,7 +179,21 @@ pub async fn execute_test_pipeline(
         content = Object,
         description = "`pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, \
                        and a `format` (`csv`, `json`, `text`). API/01 §7a.",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({
+            "pipeline": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Pipeline",
+                "metadata": { "name": "shmu-air-quality" },
+                "spec": {
+                    "class": "resident",
+                    "source": { "dataSourceRef": { "kind": "DataSource", "name": "shmu-csv" } },
+                    "compute": { "kind": "bloblang", "bloblang": "root.pm10 = this.pm10.number()" },
+                    "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                }
+            },
+            "sample": { "text": "station_id,pm10\n01,18.2\n", "format": "csv" }
+        })
     ),
     responses(
         (status = 200, description = "The trace: what the harness read, what each step made of \

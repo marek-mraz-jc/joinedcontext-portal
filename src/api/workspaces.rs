@@ -33,7 +33,10 @@ fn caller(user: CurrentUser, front: Front) -> Caller {
     path = "/api/v1/projects/{project}/workspaces",
     tag = "workspaces",
     params(("project" = String, Path, description = "Project name")),
-    request_body = OpenRequest,
+    request_body(
+        content = OpenRequest,
+        example = json!({ "name": "bike-lanes", "title": "Bike lanes", "ttlDays": 7, "scope": { "kind": "space", "name": "mobility" } })
+    ),
     responses(
         (status = 201, description = "The workspace, opened", body = WorkspaceView),
         (status = 400, description = "A name, title, scope or TTL out of bounds", body = ProblemDetails),
@@ -126,7 +129,10 @@ pub async fn compare_workspace(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "Workspace name"),
     ),
-    request_body = UpdateRequest,
+    request_body(
+        content = UpdateRequest,
+        example = json!({ "resolutions": [{ "path": "projects/helsinki/endpoints/helsinki-air.yaml", "field": "spec.audience", "keep": "ours" }] })
+    ),
     responses(
         (status = 200, description = "Main merged into the workspace", body = UpdateReport),
         (status = 403, description = "Not the owner", body = ProblemDetails),
