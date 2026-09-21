@@ -2881,11 +2881,21 @@ async fn a_message_after_the_first_version_is_a_tool_loop(provider: &str) {
         ],
         "{tools:?}"
     );
+    // The opening message of the edit carries every file whole, so a read of one unchanged
+    // since answers where it is instead of sending it a second time (SDK-20, T-2466); the
+    // model still has the file, in its first request of the loop.
     assert_eq!(tools[0].1, "ok");
     assert!(
-        tools[0].2.contains("useEntities"),
-        "the read shows the file: {}",
+        tools[0]
+            .2
+            .starts_with("src/pages/Stations.tsx: shown whole in the request"),
+        "the read points at the file in the request: {}",
         tools[0].2
+    );
+    let opening = model_requests(&proxy).await[2].to_string();
+    assert!(
+        opening.contains("\"tools\"") && opening.contains("useEntities"),
+        "the edit's opening request carries the file the read points at: {opening}"
     );
     assert_eq!(tools[2].1, "failed");
     assert!(
@@ -3028,8 +3038,16 @@ async fn the_step_limit_ends_the_turn_with_a_message() {
         .mount(&proxy)
         .await;
     send_message(&app, &cookie, &id, "Look around").await;
-    let said = wait_for_thought(&app, &cookie, &id, "The step limit").await;
-    assert!(said.contains("3 tool calls"), "{said}");
+    // The stop names the limit reached and what was spent, one message (T-2467).
+    let said = wait_for_thought(&app, &cookie, &id, "I stopped before finishing").await;
+    assert!(
+        said.contains("the step limit of this run (3 tool calls a message)"),
+        "{said}"
+    );
+    assert!(
+        said.contains("smaller step"),
+        "the person is told what to do: {said}"
+    );
     tokio::time::sleep(Duration::from_millis(200)).await;
     let tools = tool_events(&events(&app, &cookie, &id).await);
     assert_eq!(tools.len(), 3, "{tools:?}");
