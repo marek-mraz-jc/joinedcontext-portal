@@ -240,30 +240,20 @@ pub(crate) async fn run_harness(
     let _slot = Slot::take(project, &id, sender)?;
 
     let stream = format!("{runner}/streams/{STREAM_PREFIX}{id}");
-    let created = http().post(&stream).json(&config).send().await.map_err(|err| {
-        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
-        ApiError::Unavailable("the pipeline runner did not answer".into())
-    })?;
-    let status = created.status();
-    let refusal = created.text().await.unwrap_or_default();
+    let outcome = create_and_trace(project, &stream, &config, &mut receiver).await;
 
-    let mut result = if status.is_success() {
-        trace(&collect(&mut receiver).await)
-    } else if status.is_client_error() {
-        TestTrace {
-            errors: lint_errors(&refusal),
-            ..TestTrace::default()
+    // Gone whatever happened: a runner that timed out or answered 5xx may still have created the
+    // stream, and one it keeps answers 409 on the next test's create. A delete it refuses (anything
+    // but 2xx, or 404 for a stream it never made) is a log line and a runner error in the trace.
+    let deleted = match http().delete(&stream).send().await {
+        Ok(answer) if answer.status().is_success() || answer.status() == StatusCode::NOT_FOUND => {
+            Ok(())
         }
-    } else {
-        tracing::warn!(project = %project, status = %status, "pipeline runner refused a test stream");
-        return Err(ApiError::Unavailable(
-            "the pipeline runner did not answer".into(),
-        ));
+        Ok(answer) => Err(answer.status().to_string()),
+        Err(err) => Err(err.to_string()),
     };
-
-    // Gone whatever happened; a runner that keeps it answers 409 on the next test's create,
-    // which is why that failure is worth a log line and nothing else.
-    if let Err(err) = http().delete(&stream).send().await {
+    let mut result = outcome?;
+    if let Err(err) = deleted {
         tracing::warn!(project = %project, error = %err, "pipeline test stream not deleted");
         result.errors.push(TestError {
             stage: "runner".into(),
@@ -274,6 +264,37 @@ pub(crate) async fn run_harness(
         });
     }
     Ok(result)
+}
+
+/// Creates the harness stream and reads its trace: what the harness posted back, or the lint
+/// errors of a create the runner refused (4xx). A create that did not answer, or answered 5xx,
+/// is the caller's 503 with the runner's words kept in the log.
+async fn create_and_trace(
+    project: &str,
+    stream: &str,
+    config: &Value,
+    receiver: &mut mpsc::UnboundedReceiver<Captured>,
+) -> Result<TestTrace, ApiError> {
+    let created = http().post(stream).json(config).send().await.map_err(|err| {
+        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
+        ApiError::Unavailable("the pipeline runner did not answer".into())
+    })?;
+    let status = created.status();
+    let refusal = created.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(trace(&collect(receiver).await))
+    } else if status.is_client_error() {
+        Ok(TestTrace {
+            errors: lint_errors(&refusal),
+            ..TestTrace::default()
+        })
+    } else {
+        tracing::warn!(project = %project, status = %status, "pipeline runner refused a test stream");
+        Err(ApiError::Unavailable(
+            "the pipeline runner did not answer".into(),
+        ))
+    }
 }
 
 /// The URL an `http` DataSource is probed at, or why it is not (MF-39): `None` for every other
