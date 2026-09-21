@@ -1522,7 +1522,22 @@
     "propose": "Navrhnout mapování",
     "sameModel": "Mapování potřebuje dva různé modely.",
     "noSpace": "Tento model neobsluhuje žádný prostor, mapování tedy nemá kam patřit.",
-    "goldenHint": "Návrh otevře změnu s mapováním. Jeho zlatý test čte ./tests/<name>.input.json a ./tests/<name>.expect.json, které se commitují vedle něj."
+    "goldenHint": "Návrh otevře změnu s mapováním. Jeho zlatý test čte ./tests/<name>.input.json a ./tests/<name>.expect.json, které se commitují vedle něj.",
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "model": "Datový model",
+      "version": "Hlavní verze",
+      "tests": "Zlaté testy",
+      "testInput": "Vstupní příklad",
+      "testExpect": "Očekávaný výstup",
+      "native": "Nativní bloky",
+      "language": "Jazyk",
+      "nativeSource": "Kód",
+      "artifacts": "Zkompilované artefakty",
+      "bloblang": "Soubor Bloblang",
+      "gatewayIr": "Soubor mapování brány"
+    }
   },
   "syncSources": {
     "title": "Zdroje synchronizace",

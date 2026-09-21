@@ -38,8 +38,11 @@ export interface EditableForm {
   uiSchema?: UiSchema;
   /** The stored manifest as the form's own model. */
   fromManifest: (manifest: unknown) => Record<string, unknown>;
-  /** The form's model back as the manifest to propose. */
-  toManifest: (form: Record<string, unknown>) => unknown;
+  /**
+   * The form's model back as the manifest to propose. `stored` is the manifest this dialog read, so
+   * a form that shows only part of a kind can write onto it and keep the rest (T-2354).
+   */
+  toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
 }
 
 /**
@@ -217,7 +220,7 @@ export function EditResourceDialog({
                   setEdited((next ?? {}) as Record<string, unknown>);
                   setInvalid(null);
                 }}
-                onSubmit={(next) => proposeManifest(form.toManifest(next))}
+                onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
               />
             ) : null
           ) : (

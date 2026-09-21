@@ -16,6 +16,7 @@ import { arrange, localized, paths } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
+import { mappingSchema } from "../src/schemas/mapping";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -67,6 +68,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   // not arrived, so both branches are arranged by the one manifest (T-2400).
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
   Group: [kinds.groupSchema(t)],
+  // Edited from the generic list; created on the Models page's Mappings tab (T-2354).
+  Mapping: [mappingSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */
