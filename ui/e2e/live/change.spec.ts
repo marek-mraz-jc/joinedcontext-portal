@@ -38,7 +38,7 @@ test("the assistant opens a change or a removal on the kind's page, and the pers
 
   await ask(page, "Set the helsinki-bikes endpoint's rate limit to 300 requests per minute");
   await expect(page).toHaveURL(/\/projects\/helsinki\/endpoints/, { timeout: 180_000 });
-  const endpointForm = page.getByRole("dialog");
+  const endpointForm = page.getByTestId("form-page");
   await expect(endpointForm).toBeVisible();
   await proposeFrom(endpointForm);
   const rateLimit = await proposedChange(page);
@@ -48,7 +48,7 @@ test("the assistant opens a change or a removal on the kind's page, and the pers
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await ask(page, "Pause the hel-news pipeline");
   await expect(page).toHaveURL(/\/projects\/helsinki\/pipelines\?edit=hel-news/, { timeout: 180_000 });
-  const pipelineForm = page.getByRole("dialog");
+  const pipelineForm = page.getByTestId("form-page");
   await expect(pipelineForm).toBeVisible();
   await proposeFrom(pipelineForm);
   const pause = await proposedChange(page);
@@ -77,7 +77,7 @@ test("the assistant drafts a role grant into the access page's form, and the per
 
   await ask(page, "Give jana.kovacova the steward role on the helsinki project");
   await expect(page).toHaveURL(/\/projects\/helsinki\/access\?grant=jana-kovacova-steward-helsinki/, { timeout: 180_000 });
-  const grant = page.getByRole("dialog", { name: "Grant a role" });
+  const grant = page.getByRole("region", { name: "Grant a role" });
   await expect(grant).toBeVisible();
   await expect(grant.getByLabel(/Username or e-mail/)).toHaveValue("jana.kovacova");
   await expect(grant.getByLabel(/^Role/)).toHaveValue("steward");

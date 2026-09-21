@@ -72,16 +72,16 @@ test("every create form, against the checklist", async ({ browser }) => {
       continue;
     }
     await opener.click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByTestId("form-page");
     if (!(await dialog.isVisible().catch(() => false))) {
-      note("New opens no dialog", (await opener.innerText()).trim());
+      note("New opens no form", (await opener.innerText()).trim());
       continue;
     }
 
     for (const violation of await axeViolations(page)) note("axe with the form open", violation);
     for (const name of await unnamedFields(dialog)) note("field without an accessible name", name);
     if (!(await dialog.evaluate((el) => el.contains(document.activeElement)))) {
-      note("focus is not moved into the dialog", "");
+      note("focus is not moved into the form", "");
     }
 
     // An empty submit: the form says what is missing, beside the field, in words.

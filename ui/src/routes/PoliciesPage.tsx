@@ -1,3 +1,4 @@
+import { useCreateForm } from "../components/forms/FormRoute";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,7 +138,8 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const queryClient = useQueryClient();
   const orgDomain = useOrgDomain(project);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // The create form is a page at `/{plural}/new` on a routed list (T-2474).
+  const [dialogOpen, setDialogOpen] = useCreateForm();
   const [form, setForm] = useState<PolicyForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);

@@ -10,6 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { findFormPage } from "./formPage";
 
 function MockEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
   return <textarea aria-label="YAML" value={value} onChange={(event) => onChange?.(event.target.value)} />;
@@ -107,7 +108,7 @@ describe("renaming a resource that exists", () => {
     // The dashboard's Edit is in the header's actions menu (T-2288).
     await userEvent.click(await screen.findByRole("button", { name: /More actions for/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.name}`))).toHaveAttribute("readonly");
 

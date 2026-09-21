@@ -1,3 +1,4 @@
+import { useCreateForm } from "../components/forms/FormRoute";
 import { useState } from "react";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import type { JSX } from "react";
@@ -128,8 +129,8 @@ function SpaceRowActions({
       }}
       primary={
         <Link
-          to="/projects/$project/spaces/$name"
-          params={{ project, name }}
+          to="/projects/$project/$plural/$name"
+          params={{ plural: "spaces", project, name }}
           className={buttonClass("secondary", "sm")}
         >
           {t("spaces.inside.open")}
@@ -153,7 +154,17 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       ? undefined
       : (new URLSearchParams(window.location.search).get("draft") ?? undefined),
   );
-  const [dialogOpen, setDialogOpen] = useState(urlDraftName !== undefined);
+  // The create form is a page at `/spaces/new` on a routed list (T-2474); a drafted space opens it
+  // where the person landed.
+  const [routedOpen, setRoutedOpen] = useCreateForm();
+  const [fromDraft, setFromDraft] = useState(urlDraftName !== undefined);
+  const dialogOpen = routedOpen || fromDraft;
+  const setDialogOpen = (open: boolean) => {
+    if (!open) {
+      setFromDraft(false);
+    }
+    setRoutedOpen(open);
+  };
   // The dialog is controlled: its draft, its YAML view and its check all read what it holds.
   const [form, setForm] = useState<SpaceForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);

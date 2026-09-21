@@ -43,7 +43,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   let start = Date.now();
   await page.getByLabel("Type").selectOption("http");
   await page.getByRole("button", { name: "New data source" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByTestId("form-page");
   await dialog.getByLabel(/^Name/).fill(SOURCE);
   await dialog.getByLabel(/^URL/).fill(FEED);
   await dialog.getByLabel(/^Timeout/).fill("15s");
@@ -79,7 +79,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
 
   start = Date.now();
   await page.getByRole("button", { name: "New pipeline" }).click();
-  const studio = page.getByRole("dialog");
+  const studio = page.getByTestId("form-page");
   await studio.locator("#studio-source-kind").selectOption("datasource");
   await studio.locator("#studio-datasource").selectOption({ value: SOURCE });
   await studio.locator("#root_name").fill(PIPELINE);

@@ -393,8 +393,8 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               </span>
               <div className="mt-auto flex flex-wrap justify-center gap-2">
                 <Link
-                  to="/projects/$project/apps/$name"
-                  params={{ project, name: draft.appName }}
+                  to="/projects/$project/$plural/$name"
+                  params={{ plural: "apps", project, name: draft.appName }}
                   className={buttonClass("secondary", "sm")}
                 >
                   {t("apps.drafts.open")}

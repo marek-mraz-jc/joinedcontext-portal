@@ -21,6 +21,7 @@ import {
   problem,
   renderRoute,
 } from "./pageHarness";
+import { findFormPage, queryFormPage } from "./formPage";
 
 const PATH = "/projects/helsinki/pipelines";
 
@@ -107,9 +108,15 @@ describe("the pipelines page", () => {
     add.focus();
     expect(add).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // The form is a page now (T-2474): it takes the focus, its back control is the first stop,
+    // and leaving it gives the focus back to the button that opened it.
+    const form = await findFormPage();
+    await waitFor(() => expect(form).toHaveFocus());
+    await userEvent.tab();
+    expect(within(form).getByRole("button", { name: en.form.backToList })).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(queryFormPage()).toBeNull());
+    expect(await screen.findByRole("button", { name: en.pipelines.add })).toHaveFocus();
   });
 
   it("a_source_address_out_of_a_manifest_is_a_link_only_when_it_could_navigate", async () => {

@@ -146,7 +146,7 @@ test("every create form is green from its own examples", async ({
         continue;
       }
       await opener.click();
-      const dialog = steward.page.getByRole("dialog");
+      const dialog = steward.page.getByTestId("form-page");
       if (!(await dialog.isVisible().catch(() => false))) {
         continue;
       }

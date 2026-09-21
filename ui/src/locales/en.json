@@ -71,6 +71,9 @@
   "form": {
     "submit": "Submit",
     "cancel": "Cancel",
+    "backToList": "Back to the list",
+    "opening": "Opening the form…",
+    "notOpen": "This form cannot be opened: there is nothing called {name} here, or you may not change it.",
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",

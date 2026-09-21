@@ -71,6 +71,9 @@
   "form": {
     "submit": "Absenden",
     "cancel": "Abbrechen",
+    "backToList": "Zurück zur Liste",
+    "opening": "Das Formular wird geöffnet…",
+    "notOpen": "Dieses Formular lässt sich nicht öffnen: Hier gibt es nichts namens {name}, oder Sie dürfen es nicht ändern.",
     "required": "Dieses Feld ist erforderlich",
     "invalid": "Ungültiger Wert",
     "choose": "Auswählen…",

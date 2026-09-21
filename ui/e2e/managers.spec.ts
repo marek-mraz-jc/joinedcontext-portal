@@ -146,7 +146,7 @@ test.describe("managers", () => {
     // The row keeps what it answers in the open and the rest behind its menu (T-2287).
     await page.getByRole("button", { name: /More actions/ }).click();
     await page.getByRole("menuitem", { name: "Edit" }).click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByTestId("form-page");
     await dialog.getByRole("checkbox", { name: "csv" }).check();
     // Strict validation proposes nothing without a fresh green verdict (T-0779).
     await dialog.getByRole("button", { name: "Check", exact: true }).click();

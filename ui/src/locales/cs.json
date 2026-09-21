@@ -71,6 +71,9 @@
   "form": {
     "submit": "Odeslat",
     "cancel": "Zrušit",
+    "backToList": "Zpět na seznam",
+    "opening": "Otevírá se formulář…",
+    "notOpen": "Tento formulář nelze otevřít: nic s názvem {name} tu není, nebo to nesmíte měnit.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",

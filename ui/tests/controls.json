@@ -168,6 +168,14 @@
         "export_modal.test.tsx"
       ]
     },
+    "src/components/forms/FormRoute.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "form_route.test.tsx"
+      ]
+    },
     "src/components/forms/theme.tsx": {
       "controls": {
         "Button": 4,

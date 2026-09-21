@@ -22,6 +22,7 @@ import {
   renderRoute,
   VIEWER,
 } from "./pageHarness";
+import { findFormPage } from "./formPage";
 
 const PATH = "/projects/helsinki/access";
 
@@ -102,7 +103,7 @@ describe("the access page", () => {
     await renderRoute({ path: PATH, answer: answering() });
 
     await userEvent.click(await screen.findByRole("button", { name: en.access.groups.new }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(
       within(dialog).getByLabelText(new RegExp(en.access.groups.field.name)),
     ).toBeInTheDocument();

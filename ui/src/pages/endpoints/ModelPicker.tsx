@@ -6,6 +6,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import { parseModel } from "../models/linkml";
 import { Button, Checkbox, Field, Input, Select } from "../../components/ui";
+import { FormHeading } from "../../components/forms/FormRoute";
 
 export interface ClassConfig {
   ticked: boolean;
@@ -295,7 +296,7 @@ export function ModelPicker({
   return (
     <div className="flex flex-col gap-3 rounded border border-border bg-surface-subtle p-3">
       <div>
-        <h4 className="text-body font-semibold text-fg">{t("endpoints.picker.title")}</h4>
+        <FormHeading sub className="text-body font-semibold text-fg">{t("endpoints.picker.title")}</FormHeading>
         <p className="text-caption text-fg-muted">{t("endpoints.picker.hint")}</p>
       </div>
 

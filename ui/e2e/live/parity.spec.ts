@@ -207,7 +207,7 @@ async function viaForm(page: Page, c: Case, manifest: Manifest): Promise<string>
   const main = page.locator("main");
   const scope = c.form!.row ? main.locator("tr").filter({ hasText: c.name }).first() : main;
   await scope.getByRole("button", { name: c.form!.edit(manifest), exact: true }).first().click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByTestId("form-page");
   await expect(dialog).toBeVisible();
   const yamlTab = dialog.getByRole("tab", { name: "YAML" });
   if (await yamlTab.count()) {
@@ -238,7 +238,7 @@ async function viaAssistant(page: Page, c: Case): Promise<string> {
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await ask(page, c.ask!.text);
   await expect(page).toHaveURL(c.ask!.url, { timeout: 180_000 });
-  const form = page.getByRole("dialog");
+  const form = page.getByTestId("form-page");
   await expect(form).toBeVisible();
   await proposeFrom(form);
   return proposedChange(page);

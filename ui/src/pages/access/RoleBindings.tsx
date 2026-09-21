@@ -11,12 +11,12 @@ import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { dns1123 } from "../../components/endpoints/sharing";
 import {
   Alert,
   Button,
   ConfirmDialog,
-  Dialog,
   EmptyState,
   Field,
   Input,
@@ -138,6 +138,7 @@ export function GrantRoleDialog({
   prefill: Record<string, unknown> | null;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const ids = useId();
   const queryClient = useQueryClient();
   const branding = useBranding();
@@ -162,7 +163,13 @@ export function GrantRoleDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={project} />);
+          leave();
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
@@ -228,7 +235,7 @@ export function GrantRoleDialog({
 
   return (
     <>
-    <Dialog
+    <FormFrame
       open={open}
       onOpenChange={close}
       title={t("access.roles.grantTitle")}
@@ -357,7 +364,7 @@ export function GrantRoleDialog({
           ) : null}
         </div>
       )}
-    </Dialog>
+    </FormFrame>
     <ConfirmDialog
       open={discarding}
       onOpenChange={(next) => {
