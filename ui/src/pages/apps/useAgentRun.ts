@@ -60,6 +60,8 @@ export interface AgentRun {
   changeId?: string;
   /** The forge's web address of the application's source (AP-71). */
   sourceUrl?: string;
+  /** The application's copy on GitHub, where the installation keeps one (AP-79). */
+  mirrorUrl?: string;
   /** Milliseconds from admission to the first frame and to the first generated version (AG-66). */
   firstFrameMs?: number | null;
   firstVersionMs?: number | null;

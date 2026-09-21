@@ -8,7 +8,11 @@ import { STEWARD, VIEWER, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 const REPORT = process.env.FORMS_REPORT ?? "test-results/forms-checklist.json";
-const ALLOWED = join(dirname(fileURLToPath(import.meta.url)), "forms-checklist.allowed.json");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ALLOWED = join(HERE, "forms-checklist.allowed.json");
+/** The three languages besides English the Portal ships, walked for overflow and leftovers (T-1600). */
+const LOCALES = ["sk", "cs", "de"] as const;
+type Lang = "en" | (typeof LOCALES)[number];
 
 interface Finding {
   page: string;
@@ -28,8 +32,10 @@ type Allowed = Record<string, Record<string, { findings: number; task: string }>
 // the end state; the first successful run against dev fills it, one entry per page and rule.
 const allowed = JSON.parse(readFileSync(ALLOWED, "utf8")) as Allowed;
 
-/** The findings the first test collected, read by the second (`workers: 1`, serial). */
+/** The findings the walks collected, read by the last test (`workers: 1`, serial). */
 let collected: Finding[] | null = null;
+/** The pages the first walk found, walked again in each language. */
+let walked: string[] = [];
 
 /** Every finding beyond what the allow-list grants that page and rule, as a line to read. */
 function unexpected(findings: Finding[]): string[] {
@@ -55,6 +61,7 @@ function unexpected(findings: Finding[]): string[] {
  */
 test.describe.serial("the create forms of a project", () => {
 test("every create form, against the checklist", async ({ browser }) => {
+  test.setTimeout(1_200_000);
   const findings: Finding[] = [];
   const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
   const pages = await projectPages(page);
@@ -72,53 +79,30 @@ test("every create form, against the checklist", async ({ browser }) => {
       continue;
     }
     await opener.click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByTestId("form-page");
     if (!(await dialog.isVisible().catch(() => false))) {
-      note("New opens no dialog", (await opener.innerText()).trim());
+      note("New opens no form", (await opener.innerText()).trim());
       continue;
     }
 
-    for (const violation of await axeViolations(page)) note("axe with the form open", violation);
-    for (const name of await unnamedFields(dialog)) note("field without an accessible name", name);
-    if (!(await dialog.evaluate((el) => el.contains(document.activeElement)))) {
-      note("focus is not moved into the dialog", "");
-    }
+    await surfaceChecks(page, dialog, note, opener, "the form");
 
     // An empty submit: the form says what is missing, beside the field, in words.
     // Only a check is ever clicked. A form that proposes on its first button would open a real
     // Change from its placeholder values; the New role form did exactly that (T-1492).
-    const submit = dialog.getByRole("button", { name: /^Check/ }).first();
-    if (await submit.count()) {
-      if (await submit.isDisabled()) {
-        const why = (await submit.getAttribute("title")) ?? (await submit.getAttribute("aria-describedby"));
-        if (!why) note("submit is disabled on an empty form without saying why", (await submit.innerText()).trim());
-      } else {
-        await submit.click();
-        await page.waitForTimeout(1500);
-        if (!(await dialog.isVisible().catch(() => false))) {
-          note("an empty form was accepted", "the dialog closed");
-        } else {
-          const invalid = await dialog.locator("[aria-invalid=true]").count();
-          const said = (await dialog.locator("[role=alert], [role=status], [aria-live]").allInnerTexts()).join(" | ");
-          if (invalid === 0 && said.trim() === "") note("an empty submit says nothing", "");
-          if (invalid === 0 && said.trim() !== "") note("the error is not tied to a field (no aria-invalid)", said.slice(0, 200));
-          if (/\b[45]\d\d\b|^\s*[{[]|bad request|unprocessable/i.test(said)) note("the error is a status code or raw JSON", said.slice(0, 200));
-        }
-      }
-    } else {
-      note("the form has no Check step before it proposes", (await dialog.getByRole("button").allInnerTexts()).join(", "));
+    await opener.click();
+    if (await dialog.isVisible().catch(() => false)) {
+      await emptyCheck(page, dialog, note);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(400);
     }
+  }
 
-    await page.setViewportSize({ width: 400, height: 900 });
-    await page.waitForTimeout(300);
-    const overflow = await dialog.evaluate((el) => el.scrollWidth - el.clientWidth);
-    if (overflow > 1) note("the form overflows sideways at 400 px", `${overflow}px`);
-    await page.setViewportSize({ width: 1600, height: 1000 });
-
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(400);
-    if (await dialog.isVisible().catch(() => false)) note("Escape does not close the form", "");
-    else if (!(await opener.evaluate((el) => el === document.activeElement))) note("focus does not return to the button that opened the form", "");
+  // UI-44: the first row's Edit and Remove, on every page — the pages without a New button
+  // included, which the walk above could only run axe on. Neither is ever confirmed.
+  for (const path of pages) {
+    const note = (check: string, detail: string) => findings.push({ page: path, check, detail });
+    await rowDialogs(page, path, "en", note);
   }
 
   // A viewer sees why, never a dead button.
@@ -136,11 +120,46 @@ test("every create form, against the checklist", async ({ browser }) => {
   writeFileSync(REPORT, JSON.stringify({ pages, findings }, null, 2));
   console.log(`forms checklist: ${pages.length} pages, ${findings.length} findings -> ${REPORT}`);
   collected = findings;
+  walked = pages;
 
   // The survey keeps discovering; the allow-list is what stops a new finding hiding in it.
   expect(
     unexpected(findings),
     "a create form broke a checklist rule that forms-checklist.allowed.json does not name",
+  ).toEqual([]);
+});
+
+// UI-45: every form in Slovak, Czech and German: nothing overflows at 400 px and no English string
+// the language translates is left on the page, the create form, or the first row's dialogs. A
+// finding is filed under the page with its language, `/projects/helsinki/spaces [sk]`.
+test("every form in the other three languages", async ({ browser }) => {
+  test.setTimeout(1_800_000);
+  expect(walked.length, "the English walk found no pages, so there is nothing to translate").toBeGreaterThan(0);
+  const findings: Finding[] = [];
+  const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
+  for (const lang of LOCALES) {
+    for (const path of walked) {
+      const note = (check: string, detail: string) => findings.push({ page: `${path} [${lang}]`, check, detail });
+      await page.setViewportSize({ width: 1600, height: 1000 });
+      await page.goto(`${path}?lang=${lang}`, { waitUntil: "load" });
+      await leftovers(page.getByRole("main"), lang, "the page", note);
+
+      // The create form by its address, so no localised button name has to be guessed (T-2474).
+      await page.goto(`${path}/new?lang=${lang}`, { waitUntil: "load" });
+      const form = page.getByTestId("form-page");
+      if (await form.isVisible().catch(() => false)) {
+        await leftovers(form, lang, "the create form", note);
+        await overflow(page, form, "the create form", note);
+      }
+      await rowDialogs(page, path, lang, note);
+    }
+  }
+  writeFileSync(REPORT, JSON.stringify({ pages: walked, findings: [...(collected ?? []), ...findings] }, null, 2));
+  console.log(`forms checklist, ${LOCALES.join("/")}: ${findings.length} findings -> ${REPORT}`);
+  collected = [...(collected ?? []), ...findings];
+  expect(
+    unexpected(findings),
+    "a translated form broke a checklist rule that forms-checklist.allowed.json does not name",
   ).toEqual([]);
 });
 
@@ -183,4 +202,175 @@ async function unnamedFields(dialog: Locator): Promise<string[]> {
       })
       .map((field) => `${field.tagName.toLowerCase()}[name=${field.getAttribute("name") ?? ""}][id=${field.id}]`),
   );
+}
+
+type Note = (check: string, detail: string) => void;
+
+/** One locale file, flattened to `key -> text`. */
+function strings(lang: Lang): Map<string, string> {
+  const flat = new Map<string, string>();
+  const walk = (node: unknown, prefix: string) => {
+    if (typeof node === "string") flat.set(prefix, node);
+    else if (node && typeof node === "object") {
+      for (const [key, value] of Object.entries(node)) walk(value, prefix ? `${prefix}.${key}` : key);
+    }
+  };
+  walk(JSON.parse(readFileSync(join(HERE, `../../src/locales/${lang}.json`), "utf8")), "");
+  return flat;
+}
+
+const english = strings("en");
+const translated = Object.fromEntries(LOCALES.map((lang) => [lang, strings(lang)])) as Record<
+  (typeof LOCALES)[number],
+  Map<string, string>
+>;
+
+/** A string of the locale files, by key, in the language asked for. */
+function say(lang: Lang, key: string): string {
+  const text = (lang === "en" ? english : translated[lang]).get(key);
+  if (text === undefined) throw new Error(`no ${key} in ${lang}.json`);
+  return text;
+}
+
+/**
+ * The English sentences a language translates differently, without placeholders: a line of the
+ * page that is exactly one of them is a string the page did not translate. Words that stay the same
+ * in both (a product name, "Name") are left out, so they are never read as a leftover.
+ */
+const leftoverLines = Object.fromEntries(
+  LOCALES.map((lang) => [
+    lang,
+    new Set(
+      [...english].flatMap(([key, text]) => {
+        const other = translated[lang].get(key);
+        return other !== undefined && other !== text && !text.includes("{") && text.includes(" ")
+          ? [text.trim()]
+          : [];
+      }),
+    ),
+  ]),
+) as Record<(typeof LOCALES)[number], Set<string>>;
+
+/** Lines of `where` left in English, and translation keys shown raw instead of their text. */
+async function leftovers(where: Locator, lang: Lang, what: string, note: Note): Promise<void> {
+  if (lang === "en") return;
+  const lines = (await where.innerText().catch(() => ""))
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of new Set(lines)) {
+    if (leftoverLines[lang].has(line)) note(`${what} shows an untranslated string`, line);
+    else if (english.has(line) && /^[a-z][A-Za-z]*(\.[A-Za-z0-9]+)+$/.test(line)) note(`${what} shows a raw translation key`, line);
+  }
+}
+
+/** How far `surface` scrolls sideways at a phone's width, noted when it does at all. */
+async function overflow(page: Page, surface: Locator, what: string, note: Note): Promise<void> {
+  await page.setViewportSize({ width: 400, height: 900 });
+  await page.waitForTimeout(300);
+  const wide = await surface.evaluate((el) => el.scrollWidth - el.clientWidth).catch(() => 0);
+  if (wide > 1) note(`${what} overflows sideways at 400 px`, `${wide}px`);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+}
+
+/**
+ * The checks every open form or dialog is held to: axe, a name on every field, focus moved in,
+ * no sideways scroll at 400 px, Escape closes it and gives focus back to what opened it.
+ */
+async function surfaceChecks(page: Page, surface: Locator, note: Note, opener: Locator, what: string): Promise<void> {
+  for (const violation of await axeViolations(page)) note(`axe with ${what} open`, violation);
+  for (const name of await unnamedFields(surface)) note("field without an accessible name", name);
+  if (!(await surface.evaluate((el) => el.contains(document.activeElement)))) {
+    note(`focus is not moved into ${what}`, "");
+  }
+  await overflow(page, surface, what, note);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  if (await surface.isVisible().catch(() => false)) note(`Escape does not close ${what}`, "");
+  else if (!(await opener.evaluate((el) => el === document.activeElement).catch(() => false))) {
+    note(`focus does not return to the button that opened ${what}`, "");
+  }
+}
+
+/** The empty-submit rule: Check on an empty form says what is missing, beside the field, in words. */
+async function emptyCheck(page: Page, dialog: Locator, note: Note): Promise<void> {
+  const submit = dialog.getByRole("button", { name: /^Check/ }).first();
+  if (!(await submit.count())) {
+    note("the form has no Check step before it proposes", (await dialog.getByRole("button").allInnerTexts()).join(", "));
+    return;
+  }
+  if (await submit.isDisabled()) {
+    const why = (await submit.getAttribute("title")) ?? (await submit.getAttribute("aria-describedby"));
+    if (!why) note("submit is disabled on an empty form without saying why", (await submit.innerText()).trim());
+    return;
+  }
+  await submit.click();
+  await page.waitForTimeout(1500);
+  if (!(await dialog.isVisible().catch(() => false))) {
+    note("an empty form was accepted", "the dialog closed");
+    return;
+  }
+  const invalid = await dialog.locator("[aria-invalid=true]").count();
+  const said = (await dialog.locator("[role=alert], [role=status], [aria-live]").allInnerTexts()).join(" | ");
+  if (invalid === 0 && said.trim() === "") note("an empty submit says nothing", "");
+  if (invalid === 0 && said.trim() !== "") note("the error is not tied to a field (no aria-invalid)", said.slice(0, 200));
+  if (/\b[45]\d\d\b|^\s*[{[]|bad request|unprocessable/i.test(said)) note("the error is a status code or raw JSON", said.slice(0, 200));
+}
+
+/** A regular expression that matches `text` literally. */
+function literal(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The first row's Edit and Remove of a list page, opened from the row's menu, checked and closed.
+ * Nothing is typed and nothing is proposed: Edit is left with Escape, and Remove's confirmation
+ * stays disabled because the name is never typed back (T-1600, UI-44). In a language other than
+ * English only what translation breaks is checked: overflow and leftover English.
+ */
+async function rowDialogs(page: Page, path: string, lang: Lang, note: Note): Promise<void> {
+  const more = new RegExp(`^${literal(say(lang, "rowActions.more").split("{name}")[0])}`);
+  for (const [key, what] of [
+    ["resourceEdit.button", "the edit form"],
+    ["resourceDelete.button", "the remove dialog"],
+  ] as const) {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto(`${path}?lang=${lang}`, { waitUntil: "load" });
+    const menu = page.getByRole("main").getByRole("button", { name: more }).first();
+    // A page with no rows, or rows without the manifest menu, has no row dialog to open.
+    if (!(await menu.isVisible({ timeout: 10_000 }).catch(() => false))) return;
+    await menu.click();
+    const item = page.getByRole("menuitem", { name: new RegExp(`^${literal(say(lang, key))}`) }).first();
+    if (!(await item.count())) {
+      note(`the row menu has no ${say(lang, key)}`, (await page.getByRole("menuitem").allInnerTexts()).join(", "));
+      await page.keyboard.press("Escape");
+      continue;
+    }
+    if ((await item.getAttribute("aria-disabled")) === "true") {
+      // A steward may edit and remove in the demo project; a disabled item has to say why.
+      if (!(await item.getAttribute("title"))) note(`${what} is disabled for a steward without a reason`, "");
+      else note(`${what} is disabled for a steward`, (await item.getAttribute("title")) ?? "");
+      await page.keyboard.press("Escape");
+      continue;
+    }
+    await item.click();
+    const surface = page.locator("[data-testid=form-page], [role=dialog]").last();
+    if (!(await surface.isVisible({ timeout: 10_000 }).catch(() => false))) {
+      note(`${say(lang, key)} opens nothing`, "");
+      continue;
+    }
+    if (key === "resourceDelete.button") {
+      const propose = surface.getByRole("button", { name: say(lang, "resourceDelete.propose") });
+      if ((await propose.count()) && !(await propose.isDisabled())) {
+        note("removal can be proposed before the name is typed back", "");
+      }
+    }
+    if (lang === "en") {
+      await surfaceChecks(page, surface, note, menu, what);
+    } else {
+      await leftovers(surface, lang, what, note);
+      await overflow(page, surface, what, note);
+      await page.keyboard.press("Escape");
+    }
+  }
 }

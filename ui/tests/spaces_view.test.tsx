@@ -8,6 +8,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { digestOf } from "../src/api/drafts";
 import { answeringChecks, checksSoFar, expectDenied, expectOpen } from "./checks";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -285,7 +286,7 @@ describe("context spaces view", () => {
     const fetchMock = renderSpaces();
 
     await userEvent.click(await screen.findByRole("button", { name: en.spaces.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mobilita");
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.spaces.propose })));
@@ -342,7 +343,7 @@ describe("context spaces view", () => {
     );
 
     await userEvent.click(await screen.findByRole("button", { name: en.spaces.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByRole("tab", { name: en.form.view.yaml })).toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mobilita");
     // Refused until the check is green, and reachable while it is refused (UI-44, T-1743).
@@ -366,7 +367,7 @@ describe("context spaces view", () => {
     });
 
     await userEvent.click(await screen.findByRole("button", { name: en.spaces.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mhd");
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
     await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.spaces.propose })));
@@ -381,7 +382,7 @@ describe("context spaces view", () => {
     const fetchMock = renderSpaces();
 
     await userEvent.click(await screen.findByRole("button", { name: en.spaces.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "Mobilita Mesta");
     await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.propose }));
 
@@ -399,7 +400,7 @@ describe("context spaces view", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/spaces?draft=kvalita-vzduchu");
     renderSpaces({ quota: 3, draft: ASSISTANT_DRAFT });
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await waitFor(() =>
       expect(within(dialog).getByLabelText(/Name/)).toHaveValue("kvalita-vzduchu"),
     );
@@ -412,7 +413,7 @@ describe("context spaces view", () => {
 
     // The dialog is open — the route asked for it — and it holds no name from a draft that the
     // Portal no longer has, so the person types their own rather than proposing someone else's.
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await waitFor(() => expect(within(dialog).getByLabelText(/Name/)).toHaveValue(""));
   });
 });
@@ -503,7 +504,7 @@ describe("a viewer on the spaces list", () => {
     // One control in the open (Open) and the rest behind the row's menu (T-2279).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     // The fields of a context space, filled in from the stored manifest — and the name, which is the
     // manifest's path, is readable but not editable (MF-11).
@@ -512,7 +513,7 @@ describe("a viewer on the spaces list", () => {
     expect(name).toHaveAttribute("readonly");
     expect(within(dialog).getByLabelText(new RegExp(`^${en.spaces.field.locale}`))).toBeInTheDocument();
     // Not the manifest as text: that is what a person was handed before.
-    expect(within(dialog).queryByLabelText("YAML")).toBeNull();
+    expect(within(dialog).queryByRole("textbox", { name: "YAML" })).toBeNull();
 
     // And the edit is proposed as a change, from the form's own submit.
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));

@@ -11,16 +11,16 @@
   "modules": {
     "src/assistant/AssistantDock.tsx": {
       "controls": {
-        "button": 10,
-        "Button": 2,
-        "textarea": 1
+        "button": 1,
+        "Button": 11
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
         "assistant_endpoints.test.tsx",
         "assistant_layout.test.tsx",
-        "assistant_turns.test.tsx"
+        "assistant_turns.test.tsx",
+        "form_assistant_dock.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -78,13 +78,14 @@
     },
     "src/components/ResourceFormDialog.tsx": {
       "controls": {
-        "Button": 6,
-        "input": 1
+        "Button": 5,
+        "Checkbox": 1
       },
       "tests": [
         "draft_form.test.tsx",
         "form_asks_the_assistant.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
+        "form_resource_form_dialog.test.tsx",
         "resource_form_dialog.test.tsx"
       ]
     },
@@ -167,6 +168,14 @@
         "export_modal.test.tsx"
       ]
     },
+    "src/components/forms/FormRoute.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "form_route.test.tsx"
+      ]
+    },
     "src/components/forms/theme.tsx": {
       "controls": {
         "Button": 4,
@@ -216,7 +225,7 @@
     },
     "src/components/layout/WorkspaceBar.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "part_workspace_bar.test.tsx",
@@ -454,7 +463,8 @@
         "Button": 2
       },
       "tests": [
-        "access_forms.test.tsx"
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
       ]
     },
     "src/pages/access/RoleBindings.tsx": {
@@ -470,15 +480,17 @@
         "Button": 2
       },
       "tests": [
-        "access_forms.test.tsx"
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
       ]
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 8
+        "Button": 9
       },
       "tests": [
-        "service_accounts_view.test.tsx"
+        "service_accounts_view.test.tsx",
+        "serviceaccount_form.test.tsx"
       ]
     },
     "src/pages/apps/ActionStep.tsx": {
@@ -915,7 +927,17 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "policy_form.test.tsx"
+      ]
+    },
+    "src/routes/RegistrationsPage.tsx": {
+      "controls": {
+        "Button": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "contextsourceregistration_form.test.tsx"
       ]
     },
     "src/routes/SpacesPage.tsx": {
@@ -923,7 +945,16 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "space_segment.test.tsx"
+      ]
+    },
+    "src/routes/SubscriptionsPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "subscription_form.test.tsx"
       ]
     },
     "src/routes/WorkspacesPage.tsx": {

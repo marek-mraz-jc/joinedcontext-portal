@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -231,7 +232,7 @@ describe("sync sources view", () => {
     expect(await screen.findByRole("link", { name: en.nav.sync })).toBeInTheDocument();
 
     await userEvent.click(await screen.findByRole("button", { name: en.syncSources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "regional-models");
     await userEvent.type(
       within(dialog).getByLabelText(/^Clone URL/),

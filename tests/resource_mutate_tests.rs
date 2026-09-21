@@ -355,7 +355,7 @@ async fn create_invalid_manifest_bodies_return_400() {
         .contains("literal secret in field 'token' is forbidden"));
 }
 
-/// T-0412: the kind's own invariants run at write time. An inline Bloblang mapping on a
+/// T-0412, MF-37: the kind's own invariants run at write time. An inline Bloblang mapping on a
 /// `mapping` step is what jc-core refuses (PL-41); the Portal refuses it too, before a branch.
 #[tokio::test]
 async fn create_with_a_spec_the_kind_refuses_returns_400_naming_the_field() {
@@ -398,6 +398,60 @@ async fn create_with_a_spec_the_kind_refuses_returns_400_naming_the_field() {
         detail.contains("Pipeline") && detail.contains("bloblang"),
         "{detail}"
     );
+}
+
+/// MF-37: a field the kind does not define is refused with a 400 that names it, before any
+/// branch or Change exists: the forge sees no request at all.
+#[tokio::test]
+async fn create_with_a_field_the_kind_does_not_define_is_400_and_writes_nothing() {
+    let forge = MockServer::start().await;
+    let client = GiteaClient::new(
+        forge.uri().parse().expect("valid mock server url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let config = Config::for_tests();
+    let app = server::app(AppState::new(config.clone(), None).with_gitea(Arc::new(client)));
+    let body = json!({
+        "apiVersion": API_VERSION,
+        "kind": "ContextSpace",
+        "metadata": { "name": "mobility", "namespace": "ovzdusie" },
+        "spec": { "isSandbox": true, "colour": "red" }
+    });
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/ovzdusie/spaces")
+                .header(header::COOKIE, session_and_csrf_cookies(&config))
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&body).expect("json")))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/problem+json"
+    );
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    let problem: serde_json::Value = serde_json::from_slice(&bytes).expect("problem json");
+    let detail = problem["detail"].as_str().unwrap_or_default();
+    assert!(
+        detail.contains("colour"),
+        "the failing field is named: {detail}"
+    );
+    let calls = forge.received_requests().await.unwrap_or_default();
+    assert!(calls.is_empty(), "the forge was reached: {calls:?}");
 }
 
 #[tokio::test]

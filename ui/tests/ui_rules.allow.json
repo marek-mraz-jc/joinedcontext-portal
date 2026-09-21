@@ -7,7 +7,8 @@
     },
     "src/components/ResourceFormDialog.tsx": {
       "lines": 2,
-      "group": "ui-forms"
+      "group": "ui-forms",
+      "reason": "two react-hooks suppressions, each with its reason on the line: the draft write keys on currentDigest, the manifest a page builds around the form, which the rule cannot see; and the YAML submit's queue is consumed in the render after onChange so the parent's widened schema judges what was typed (T-0890)"
     },
     "src/components/dashboards/MapLibreView.tsx": {
       "lines": 1,
@@ -47,14 +48,11 @@
     "_max": 1
   },
   "hand_made_control": {
-    "_max": 24,
+    "_max": 23,
     "src/assistant/AssistantDock.tsx": {
-      "lines": 10,
-      "group": "ui-forms"
-    },
-    "src/components/ResourceFormDialog.tsx": {
       "lines": 1,
-      "group": "ui-forms"
+      "group": "ui-forms",
+      "reason": "the closed dock is a 56 px round floating button; the shared Button fixes h-6..h-11 and a rounded-md, and a class passed to override them wins or loses by CSS source order. It carries the Portal focus-ring and a shadow token, and says so on the line."
     },
     "src/components/forms/widgets/ListFailed.tsx": {
       "lines": 1,
@@ -82,8 +80,9 @@
   "size_is_on_the_scale": {
     "_max": 13,
     "src/assistant/AssistantDock.tsx": {
-      "lines": 10,
-      "group": "ui-forms"
+      "lines": 3,
+      "group": "ui-forms",
+      "reason": "two computed sizes, each commented on the line: the floating panel is min(40rem, the viewport less the gaps) tall and the viewport less two 1 rem gaps wide, and the side panel is the viewport's height less the 14 header it sticks under."
     },
     "src/components/ProjectQuota.tsx": {
       "lines": 1,

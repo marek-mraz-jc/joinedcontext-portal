@@ -33,7 +33,7 @@ test("the verdict gate: unchecked refuses, a check opens it, an edit closes it a
   let change = "";
   try {
     await steward.page.getByRole("button", { name: /^New (context )?space/i }).first().click();
-    const form = steward.page.getByRole("dialog");
+    const form = steward.page.getByTestId("form-page");
     const verdict = form.getByTestId("draft-verdict");
     const propose = form.getByRole("button", { name: /^Propose/ });
     const reason = form.getByTestId("propose-reason");
@@ -102,7 +102,7 @@ test("a check refuses a model that does not exist, names the field, and a fix cl
   let change = "";
   try {
     await steward.page.getByRole("button", { name: /^New (context )?space/i }).first().click();
-    const form = steward.page.getByRole("dialog");
+    const form = steward.page.getByTestId("form-page");
     const propose = form.getByRole("button", { name: /^Propose/ });
     await form.getByLabel(/^Name/).fill(name);
     await form.getByLabel("Data model").fill(missing);

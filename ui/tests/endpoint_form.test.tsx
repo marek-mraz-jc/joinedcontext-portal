@@ -10,6 +10,7 @@ import en from "../src/locales/en.json";
 import { rememberPrefill } from "../src/assistant/state";
 import { App } from "../src/App";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage } from "./formPage";
 
 // Monaco draws on a canvas and starts a worker, neither of which exists in jsdom: the stand-in
 // is a textarea with the same contract, so the YAML view's own work is what runs.
@@ -220,7 +221,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     const fetchMock = setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "public-vehicles");
 
     // Wait for ModelPicker
@@ -314,7 +315,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("shows the model picker open, with what is ticked said above it (T-1389)", async () => {
     setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "open-picker");
 
     // No click on a disclosure: the classes are there to tick.
@@ -330,7 +331,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("refuses proposal if space has model but nothing is ticked", async () => {
     setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "empty-vehicles");
 
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
@@ -350,7 +351,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("proposes a projection the space already holds as an update, so the second share is checkable (MF-23, T-1227)", async () => {
     const fetchMock = setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "vehicles-again");
 
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
@@ -381,7 +382,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
       entityTypes: ["Vehicle"],
     });
     setupTest();
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeChecked());
     expect(within(dialog).getByLabelText("Vehicle.speed")).toBeChecked();
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.propose }));
@@ -391,7 +392,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("class ticked with no slots is identity only and shows text", async () => {
     setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
     await userEvent.click(within(dialog).getByLabelText("Vehicle"));
@@ -407,7 +408,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("writable class with idPattern and scope creates write policy", async () => {
     const fetchMock = setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "write-vehicles");
 
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
@@ -482,7 +483,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // The row's actions are behind its one menu now (T-2287).
     await userEvent.click(await screen.findByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
@@ -506,9 +507,9 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // The row's actions are behind its one menu now (T-2287).
     await userEvent.click(await screen.findByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     // 300 is no class: the form's select offers 60, 600 and 6000, plus what is stored.
     const pasted = { ...limited, status: undefined, spec: { ...limited.spec, rateLimits: { requestsPerMinute: 300, burst: 50 } } };
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
@@ -537,9 +538,9 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     // The row's actions are behind its one menu now (T-2287).
     await userEvent.click(await screen.findByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     const pasted = {
       ...stored,
       status: undefined,
@@ -561,7 +562,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   it("checks a new endpoint's bundle whole and then its endpoint with its draft, so the verdict is the form's (T-0763)", async () => {
     const fetchMock = setupTest();
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "public-vehicles");
     await waitFor(() => expect(within(dialog).getByLabelText("Vehicle")).toBeInTheDocument());
     await userEvent.click(within(dialog).getByLabelText("Vehicle"));

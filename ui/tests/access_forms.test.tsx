@@ -226,7 +226,7 @@ describe("the Group form", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(new RegExp(en.access.groups.field.name))).toBeInTheDocument();
     // The manifest is still reachable, in the YAML view, and it is not what the dialog opens on.
-    expect(within(dialog).queryByLabelText("YAML")).toBeNull();
+    expect(within(dialog).queryByRole("textbox", { name: "YAML" })).toBeNull();
   });
 });
 
@@ -407,7 +407,7 @@ describe("the Role form", () => {
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("tab", { name: en.form.view.yaml }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     // Typed as one change rather than key by key: `[` and `]` are key descriptors to userEvent,
     // and a YAML list written with them would never arrive.
     fireEvent.change(editor, {

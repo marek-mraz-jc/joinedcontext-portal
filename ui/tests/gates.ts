@@ -113,9 +113,30 @@ export function verdict(
   };
 }
 
-/** Every `path:` of the router, in the order the file declares them. */
+/**
+ * Every `path:` of the router as the address it serves, in the order the file declares them.
+ *
+ * A child route's path is relative to its parent (`new` under `/projects/$project/$plural` is
+ * `/projects/$project/$plural/new`, T-2474), and a child's index `/` is its parent's own page, so
+ * it is not a route of its own.
+ */
 export function routerPaths(source: string): string[] {
-  return [...withoutComments(source).matchAll(/path:\s*"([^"]+)"/g)].map((match) => match[1]);
+  const full = new Map<string, string>();
+  const paths: string[] = [];
+  const route =
+    /(?:const\s+(\w+)\s*=\s*)?createRoute\(\{\s*(?:getParentRoute:\s*\(\)\s*=>\s*(\w+),\s*)?(path|id):\s*"([^"]+)"/g;
+  for (const [, name, parent, key, value] of withoutComments(source).matchAll(route)) {
+    const base = parent === undefined ? undefined : full.get(parent);
+    if (key === "id") {
+      if (name) full.set(name, base ?? "");
+      continue;
+    }
+    const nested = base !== undefined && base !== "" && !value.startsWith("/");
+    const path = nested ? `${base}/${value}` : base !== undefined && base !== "" && value === "/" ? null : value;
+    if (name) full.set(name, path ?? base ?? value);
+    if (path !== null) paths.push(path);
+  }
+  return paths;
 }
 
 /** A router path as the matcher of an address: `$name` stands for one segment. */

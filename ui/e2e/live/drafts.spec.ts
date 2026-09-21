@@ -15,7 +15,7 @@ test("drafts shared across windows: typing in window A syncs to window B, check 
 
   await pageA.getByLabel("Type").selectOption("http");
   await pageA.getByRole("button", { name: "New data source" }).click();
-  const dialogA = pageA.getByRole("dialog");
+  const dialogA = pageA.getByTestId("form-page");
   await expect(dialogA).toBeVisible({ timeout: 10_000 });
 
   // 2. Type name and URL in window A
@@ -29,7 +29,7 @@ test("drafts shared across windows: typing in window A syncs to window B, check 
     `/projects/${PROJECT}/datasources?draft=${encodeURIComponent(SOURCE)}&lang=en`,
   );
   const pageB = stewardB.page;
-  const dialogB = pageB.getByRole("dialog");
+  const dialogB = pageB.getByTestId("form-page");
 
   // Window B sees the URL typed in A within 10 s
   await expect(dialogB).toBeVisible({ timeout: 10_000 });

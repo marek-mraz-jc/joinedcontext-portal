@@ -38,7 +38,7 @@ async function phase(page: Page, change: string): Promise<string> {
 async function proposeSpaceInTheForm(page: Page, name: string): Promise<void> {
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: /^New (context )?space/i }).first().click();
-  const form = page.getByRole("dialog");
+  const form = page.getByTestId("form-page");
   await form.getByLabel(/^Name/).fill(name);
   const propose = form.getByRole("button", { name: /^Propose/ });
   if (await propose.isDisabled()) {

@@ -12,6 +12,7 @@ import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import { rememberPrefill } from "../src/assistant/state";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage, queryFormPage } from "./formPage";
 
 // Monaco draws on a canvas and starts a worker, neither of which exists in jsdom. The stand-in
 // is a textarea with the same contract, so what the test exercises is the dialog's own work:
@@ -248,7 +249,7 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 
 async function openNew() {
   await userEvent.click(await screen.findByRole("button", { name: en.pipelines.add }));
-  const dialog = await screen.findByRole("dialog");
+  const dialog = await findFormPage();
   // The selects are filled from the project's lists once they arrive.
   await within(dialog).findByRole("option", { name: "mqtt-mesto" });
   return dialog;
@@ -258,7 +259,7 @@ const yamlTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name:
 const formTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name: en.form.view.form });
 // Awaited: the editor is loaded lazily, so it is behind a Suspense boundary for a moment.
 const editor = (dialog: HTMLElement) =>
-  within(dialog).findByLabelText("YAML") as Promise<HTMLTextAreaElement>;
+  within(dialog).findByRole("textbox", { name: "YAML" }) as Promise<HTMLTextAreaElement>;
 
 async function replaceYaml(dialog: HTMLElement, text: string) {
   const area = await editor(dialog);
@@ -489,7 +490,7 @@ describe("pipeline editor", () => {
       draft: { kind: "Pipeline", name: "aq-derived" },
     });
     expect(await screen.findByText(/chg-77aa11bb/)).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(queryFormPage()).not.toBeInTheDocument();
   });
 
   it("edits the first source, step and output of a merged pipeline and keeps the rest (PL-54)", () => {
@@ -735,7 +736,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     // Edit lives in the row's menu now (T-2287).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("aq-mqtt-ingest");
     expect(within(dialog).getByLabelText(/^Name/)).toHaveAttribute("readonly");
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
@@ -771,9 +772,9 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     // Edit lives in the row's menu now (T-2287).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     const pasted = { ...running, status: undefined, spec: { ...running.spec, enabled: false } };
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
@@ -795,7 +796,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     window.history.pushState({}, "", "/projects/banskabystrica/pipelines?edit=aq-mqtt-ingest&draft=aq-mqtt-ingest");
     const fetchMock = renderPipelines();
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("aq-mqtt-ingest");
     expect(within(dialog).getByLabelText(/^Period/)).toHaveValue("5m");
     expect(writes(fetchMock)).toHaveLength(0);
@@ -820,7 +821,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const fetchMock = renderPipelines();
 
     // The address named a draft, so the editor is open on it without a click.
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
 
     await waitFor(() => {
@@ -860,7 +861,7 @@ describe("the pipeline editor against the UI contract", () => {
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await within(dialog).findByRole("link", { name: /bento\.yaml/ });
 
     await expectNoViolations(dialog);
@@ -887,7 +888,7 @@ describe("the pipeline editor against the UI contract", () => {
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     // The hint about the Bloblang file stays; only the address is refused.
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
@@ -926,7 +927,7 @@ describe("the pipeline editor against the UI contract", () => {
     renderPipelines();
 
     await userEvent.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await within(dialog).findByRole("option", { name: "mqtt-mesto" });
 
     // The dialog carries the form/YAML tabs; the studio inside it has a set of its own, so both

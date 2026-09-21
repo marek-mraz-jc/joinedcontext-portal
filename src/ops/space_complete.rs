@@ -72,21 +72,25 @@ pub fn input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "space": { "type": "string", "description": "Context space name (dns-1123 label)" },
+            "space": { "type": "string", "description": "Context space name (dns-1123 label)", "maxLength": 63 },
             "files": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "name": { "type": "string" },
-                        "content": { "type": "string" }
+                        "name": { "type": "string", "description": "The file's name, as the person uploaded it", "maxLength": super::bounds::TITLE },
+                        "content": {
+                            "type": "string",
+                            "description": "The file's text; all files together at most 10 MiB (DM-55)",
+                            "maxLength": MAX_TOTAL_FILES_BYTES
+                        }
                     },
                     "required": ["name", "content"],
                     "additionalProperties": false
                 },
                 "description": "Text files defining or describing the space"
             },
-            "url": { "type": "string", "description": "HTTP endpoint (JSON, GeoJSON, GBFS or NGSI-LD)" },
+            "url": { "type": "string", "description": "HTTP endpoint (JSON, GeoJSON, GBFS or NGSI-LD)", "maxLength": super::bounds::URL },
             "typeName": {
                 "type": "string",
                 "pattern": "^[A-Z][A-Za-z0-9]{0,62}$",

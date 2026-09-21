@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kópie",
-    "policies": "Politiky"
+    "policies": "Politiky",
+    "subscriptions": "Odbery"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -70,6 +71,9 @@
   "form": {
     "submit": "Odoslať",
     "cancel": "Zrušiť",
+    "backToList": "Späť na zoznam",
+    "opening": "Otvára sa formulár…",
+    "notOpen": "Tento formulár sa nedá otvoriť: nič s názvom {name} tu nie je, alebo to nesmiete meniť.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",
@@ -271,7 +275,10 @@
     "name": "Názov",
     "phase": "Stav",
     "empty": "Zatiaľ tu nič nie je.",
-    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Pridajte prvé alebo požiadajte asistenta a rozhodnite o tom, čo podá.",
+    "emptyHint": "V projekte zatiaľ nič takého druhu nie je. Táto stránka ho vypisuje a číta; požiadajte oň asistenta a rozhodnite o tom, čo podá.",
+    "emptyHintFor": {
+      "uischemas": "Nič v tomto projekte nemení formulár. Každý formulár má svoje rozloženie už v dodávke; organizácia ho mení v portal/forms/ svojho konfiguračného repozitára, nie tu."
+    },
     "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva."
   },
   "spaces": {
@@ -1024,7 +1031,34 @@
       "empty": "Tento projekt zatiaľ nemá servisný účet.",
       "owner": "Zodpovedná osoba",
       "roles": "Role",
-      "purpose": "Účel"
+      "purpose": "Účel",
+      "add": "Nový servisný účet",
+      "addHint": "Uložením navrhnete zmenu; účet a jeho klient vzniknú po jej schválení.",
+      "propose": "Navrhnúť zmenu",
+      "field": {
+        "name": "Názov",
+        "purpose": "Účel",
+        "owner": "Vlastník",
+        "ownerUser": "Prihlásenie vlastníka",
+        "roles": "Oprávnenia",
+        "role": "Rola",
+        "scope": "Rozsah",
+        "scopeLevel": "Úroveň rozsahu",
+        "scopeName": "Názov rozsahu",
+        "operations": "Operácie",
+        "types": "Typy entít",
+        "credentials": "Prihlasovacie údaje",
+        "credentialKind": "Typ údaja",
+        "credentialName": "Názov údaja",
+        "expiresAt": "Platí do",
+        "ipAllowList": "Povolené bloky adries",
+        "limits": "Limity",
+        "requestsPerMinute": "Požiadavky za minútu",
+        "workload": "Úloha v klastri",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Menný priestor",
+        "k8sServiceAccount": "Servisný účet Kubernetes"
+      }
     },
     "keys": {
       "create": "Nový API kľúč ({credential})",
@@ -1342,6 +1376,20 @@
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}"
+    },
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "version": "Verzia",
+      "linkml": "Zdroj LinkML",
+      "lifecycle": "Životný cyklus",
+      "openWorld": "Prijímať nedeklarované atribúty"
+    },
+    "lifecycleOption": {
+      "draft": "Koncept",
+      "published": "Zverejnený",
+      "deprecated": "Zastaraný",
+      "retired": "Vyradený"
     }
   },
   "apps": {
@@ -1446,6 +1494,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Názov",
+      "kind": "Druh",
+      "visibility": "Viditeľnosť",
+      "embeddable": "Portál ju smie vložiť do rámca",
+      "source": "Zdroj",
+      "sourceFrom": "Druh zdroja",
+      "sourcePath": "Priečinok",
+      "gitUrl": "Adresa repozitára",
+      "gitRef": "Vetva, značka alebo commit",
+      "gitPath": "Priečinok v repozitári",
+      "build": "Nástroje",
+      "buildTool": "Nástroj",
+      "buildVersion": "Verzia",
+      "dataNeeds": "Potrebné údaje",
+      "space": "Kontextový priestor",
+      "types": "Typy entít",
+      "attrs": "Atribúty",
+      "operations": "Operácie",
+      "representations": "Reprezentácie",
+      "within": "V rozsahu",
+      "window": "Časové okno",
+      "csp": "Content Security Policy",
+      "connectSrc": "Smie volať",
+      "frameAncestors": "Smie ju vložiť",
+      "limits": "Limity",
+      "requestsPerMinute": "Požiadavky za minútu",
+      "maxFileRows": "Riadky na stiahnutie súboru"
     }
   },
   "appLifecycle": {
@@ -1522,7 +1599,22 @@
     "propose": "Navrhnúť mapovanie",
     "sameModel": "Mapovanie potrebuje dva rôzne modely.",
     "noSpace": "Tento model neobsluhuje žiadny priestor, mapovanie teda nemá kam patriť.",
-    "goldenHint": "Návrh otvorí zmenu s mapovaním. Jeho zlatý test číta ./tests/<name>.input.json a ./tests/<name>.expect.json, ktoré sa commitujú vedľa neho."
+    "goldenHint": "Návrh otvorí zmenu s mapovaním. Jeho zlatý test číta ./tests/<name>.input.json a ./tests/<name>.expect.json, ktoré sa commitujú vedľa neho.",
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "model": "Dátový model",
+      "version": "Hlavná verzia",
+      "tests": "Zlaté testy",
+      "testInput": "Vstupný príklad",
+      "testExpect": "Očakávaný výstup",
+      "native": "Natívne bloky",
+      "language": "Jazyk",
+      "nativeSource": "Kód",
+      "artifacts": "Skompilované artefakty",
+      "bloblang": "Súbor Bloblang",
+      "gatewayIr": "Súbor mapovania brány"
+    }
   },
   "syncSources": {
     "title": "Zdroje synchronizácie",
@@ -1961,7 +2053,8 @@
     "publication": {
       "title": "Zverejnenie",
       "source": "Zdrojový kód v Gite",
-      "approve": "Schváliť a zverejniť"
+      "approve": "Schváliť a zverejniť",
+      "mirror": "Kópia na GitHube"
     },
     "question": {
       "suggested": "navrhované",
@@ -2323,6 +2416,7 @@
     "bar": {
       "label": "Kópia",
       "message": "Pracujete na kópii {title}, začatej {date}. Nič tu nie je živé.",
+      "loading": "Pracujete na kópii {name}. Nič tu nie je živé.",
       "changes": "{count, plural, =0 {Zatiaľ bez zmien} one {# zmena} few {# zmeny} many {# zmeny} other {# zmien}}",
       "gone": "Táto kópia vypršala alebo bola zahodená.",
       "leave": "Odísť",
@@ -2420,6 +2514,87 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoľuje"
+    }
+  },
+  "subscriptions": {
+    "title": "Odbery",
+    "lead": "Trvalé dopyty priestorov tohto projektu: ktoré zmeny sa sledujú a kam broker posiela notifikáciu.",
+    "empty": "Tento projekt zatiaľ nemá žiadny odber.",
+    "add": "Nový odber",
+    "addHint": "Uložením navrhnete zmenu; broker začne posielať notifikácie po jej schválení.",
+    "propose": "Navrhnúť zmenu",
+    "watchesNothing": "Odber musí niečo sledovať: pridajte výber entít, sledovaný atribút alebo oboje.",
+    "paused": "Pozastavený",
+    "field": {
+      "name": "Názov",
+      "subscriptionName": "Zobrazovaný názov",
+      "space": "Kontextový priestor",
+      "description": "Popis",
+      "entities": "Sledované entity",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátora",
+      "watchedAttributes": "Sledované atribúty",
+      "notification": "Notifikácia",
+      "endpoint": "Príjemca",
+      "uri": "Adresa",
+      "accept": "Typ média",
+      "receiverInfo": "Hlavičky",
+      "headerName": "Názov hlavičky",
+      "headerValue": "Hodnota hlavičky",
+      "secretRef": "Prihlasovací údaj",
+      "format": "Formát",
+      "attributes": "Posielané atribúty",
+      "throttling": "Najkratší interval (sekundy)",
+      "expiresAt": "Platí do",
+      "isActive": "Posielať notifikácie",
+      "receiver": "Posiela na",
+      "watches": "Sleduje"
+    }
+  },
+  "registrations": {
+    "title": "Registrácie kontextových zdrojov",
+    "lead": "Zdroje, ktorých údajmi broker priestoru odpovedá, akoby ich držal sám: endpoint tejto platformy alebo NGSI-LD API inde.",
+    "empty": "Tento projekt zatiaľ neregistruje žiadny kontextový zdroj.",
+    "add": "Nová registrácia",
+    "addHint": "Uložením navrhnete zmenu; broker sa o zdroji dozvie po schválení zmeny.",
+    "propose": "Navrhnúť zmenu",
+    "target": "Kde sú údaje",
+    "targetKind": {
+      "endpointRef": "Endpoint tejto platformy",
+      "endpoint": "NGSI-LD API inde"
+    },
+    "targetHint": {
+      "endpointRef": "Iný priestor tohto projektu, dostupný cez svoj Endpoint a politiky toho Endpointu.",
+      "endpoint": "Broker mimo tejto platformy, podľa základnej URL jeho NGSI-LD API."
+    },
+    "column": {
+      "source": "Zdroj",
+      "covers": "Typy entít"
+    },
+    "operations": {
+      "none": "Ak nič nevyberiete, zdroj je registrovaný na operácie, ktoré registrácii predvolene dáva CIM 009.",
+      "moreHint": "Operácie, z ktorých sa skladá päť skupín; registrácia zvyčajne uvádza skupinu."
+    },
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "endpointRef": "Endpoint",
+      "endpoint": "Základná URL NGSI-LD",
+      "information": "Čo zdroj drží",
+      "entities": "Výbery entít",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátora",
+      "propertyNames": "Vlastnosti",
+      "relationshipNames": "Vzťahy",
+      "operations": "Operácie",
+      "mode": "Režim",
+      "federation": "Identita pri preposielaní",
+      "identity": "Preposielať ako",
+      "serviceAccount": "Servisný účet",
+      "interval": "Interval zrkadlenia schém",
+      "expiresAt": "Platí do"
     }
   }
 }

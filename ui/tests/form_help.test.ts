@@ -16,6 +16,8 @@ import { arrange, localized, paths } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
+import { mappingSchema } from "../src/schemas/mapping";
+import { dataModelSchema } from "../src/schemas/datamodel";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -67,6 +69,18 @@ const FORMS: Record<string, JsonSchema[]> = {
   // not arrived, so both branches are arranged by the one manifest (T-2400).
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
   Group: [kinds.groupSchema(t)],
+  Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
+  ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
+  // Edited from the generic list; created on the Models page's Mappings tab (T-2354).
+  Mapping: [mappingSchema(t)],
+  // Edited from the generic list; written in the Models page's LinkML editor (T-2357).
+  DataModel: [dataModelSchema(t)],
+  // One branch per target, as a sync source has one per origin, and the lists left empty so every
+  // example is held against the pattern the free-text field takes (T-2345).
+  ContextSourceRegistration: kinds.REGISTRATION_TARGETS.map((target) =>
+    kinds.registrationSchema(t, target, ["ovzdusie"]),
+  ),
+  App: [kinds.appSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */
@@ -327,4 +341,17 @@ describe("the help and the example beside every form field", () => {
       );
     }
   });
+});
+
+/**
+ * UI-02: a person who needs more than the one sentence beside a field has the User Guide page that
+ * walks through the whole form one click away. The registration, role and group forms shipped
+ * without one, so their dialogs offered no guide at all (T-1631).
+ */
+describe("the User Guide page beside every form", () => {
+  for (const kind of Object.keys(FORMS)) {
+    it(`${kind} links the page that walks through its form`, () => {
+      expect(manifestFor(kind).spec.guide).toMatch(/^User-Guide\/\d{2}-[a-z0-9-]+$/);
+    });
+  }
 });

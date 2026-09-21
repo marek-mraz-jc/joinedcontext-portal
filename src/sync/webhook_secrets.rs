@@ -20,31 +20,13 @@ use std::collections::BTreeMap;
 use std::sync::RwLock;
 
 use jc_core::envelope::SecretRef;
-use serde::Deserialize;
+use jc_core::kinds::sync::WebhookAuth;
 
-/// The `spec.webhook` block of a `SyncSource`, as the reconciler reads it (MF-44).
-///
-/// jc-core owns the contract and refuses a webhook schedule that carries no block; this is the
-/// reader, and the Portal reads every other manifest spec out of `serde_json::Value` the same
-/// way. ponytail: two fields restated — collapse it into `jc_core::kinds::sync::WebhookAuth`
-/// when the pinned jc-core tag carries that type.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Block {
-    /// The secret the origin signs the request body with.
-    pub secret_ref: SecretRef,
-    /// The secret being retired, accepted beside the current one for the rotation window.
-    #[serde(default)]
-    pub previous_secret_ref: Option<SecretRef>,
-}
-
-impl Block {
-    /// Its references, current first: the order they are tried in.
-    pub fn references(&self) -> Vec<&SecretRef> {
-        std::iter::once(&self.secret_ref)
-            .chain(self.previous_secret_ref.as_ref())
-            .collect()
-    }
+/// The references of a `spec.webhook` block, current first: the order they are tried in.
+pub fn references(block: &WebhookAuth) -> Vec<&SecretRef> {
+    std::iter::once(&block.secret_ref)
+        .chain(block.previous_secret_ref.as_ref())
+        .collect()
 }
 
 /// The secrets each source accepts, by `(project, name)`.

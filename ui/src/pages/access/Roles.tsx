@@ -4,18 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
   Alert,
   Button,
-  Dialog,
   EmptyState,
   Table,
   TableBody,
@@ -48,11 +48,12 @@ export interface RoleForm {
 }
 
 /** The form as the manifest the API stores. A rule keeps the constraints it came with (PF-49). */
-export function toRoleEnvelope(namespace: string, form: RoleForm): unknown {
+export function toRoleEnvelope(namespace: string, form: RoleForm, stored?: unknown): unknown {
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Role",
-    metadata: { name: form.name, namespace },
+    // What the form has no field for travels on from the manifest the edit started from (T-2470).
+    metadata: { ...storedMetadata(stored), name: form.name, namespace },
     spec: {
       rules: (form.rules ?? []).map((rule) => ({
         kinds: rule.kinds ?? [],
@@ -109,6 +110,7 @@ export function NewRoleDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const permissions = usePermissions(project);
   const [form, setForm] = useState<RoleForm | undefined>(undefined);
@@ -124,7 +126,13 @@ export function NewRoleDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={project} />);
+          close(false);
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "roles") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
@@ -159,7 +167,7 @@ export function NewRoleDialog({
 
   if (change) {
     return (
-      <Dialog
+      <FormFrame
         open={open}
         onOpenChange={close}
         size="lg"
@@ -169,7 +177,7 @@ export function NewRoleDialog({
         footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
       >
         <ChangeNotice change={change} project={project} />
-      </Dialog>
+      </FormFrame>
     );
   }
 
@@ -302,8 +310,8 @@ export function Roles({ project }: { project: string }): JSX.Element {
                             schema: editSchema,
                             fromManifest: (manifest) =>
                               fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
-                            toManifest: (edited) =>
-                              toRoleEnvelope(row.home, edited as unknown as RoleForm),
+                            toManifest: (edited, stored) =>
+                              toRoleEnvelope(row.home, edited as unknown as RoleForm, stored),
                           }}
                         />
                         <DeleteResourceAction

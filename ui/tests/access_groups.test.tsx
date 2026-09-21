@@ -15,6 +15,7 @@ import i18n from "../src/i18n";
 import { App } from "../src/App";
 import en from "../src/locales/en.json";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -132,7 +133,7 @@ describe("the groups of the organization on the Access page", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "New group" }));
-    const dialog = await screen.findByRole("dialog", { name: /New group/ });
+    const dialog = await findFormPage(/New group/);
 
     // T-2400 made this a form. The manifest is built from the fields, so the namespace is no
     // longer read out of a skeleton — it is what the POST goes to, asserted below. An untouched

@@ -40,6 +40,7 @@ import {
 import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
+import { FormHeading } from "../../components/forms/FormRoute";
 
 /** How many rows one sample shows: enough to tick a handful, small enough to read. */
 export const SAMPLE_LIMIT = 20;
@@ -657,9 +658,9 @@ export function PipelineStudio({
           aria-labelledby="studio-kpi-title"
           data-testid="studio-kpi-panel"
         >
-          <h3 id="studio-kpi-title" className="text-body font-semibold text-fg">
+          <FormHeading id="studio-kpi-title" className="text-body font-semibold text-fg">
             {t("pipelines.studio.kpi.title")}
-          </h3>
+          </FormHeading>
           <p className="text-caption text-fg-muted">{t("pipelines.studio.kpi.lead")}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="studio-kpi-endpoint" label={t("pipelines.studio.kpi.endpoint")}>
@@ -813,9 +814,9 @@ export function PipelineStudio({
         <>
           <section className={sectionClass} aria-labelledby="studio-flow">
             <div className="flex items-center justify-between">
-              <h3 id="studio-flow" className="text-body font-semibold text-fg">
+              <FormHeading id="studio-flow" className="text-body font-semibold text-fg">
                 {t("pipelines.flow.canvas", { defaultValue: "Pipeline canvas" })}
-              </h3>
+              </FormHeading>
               <div
                 role="tablist"
                 aria-label={t("pipelines.flow.canvas", { defaultValue: "Pipeline canvas" })}
@@ -1068,9 +1069,9 @@ export function PipelineStudio({
             />
           ) : null}
           <section className={sectionClass} aria-labelledby="studio-source">
-            <h3 id="studio-source" className="text-body font-semibold text-fg">
+            <FormHeading id="studio-source" className="text-body font-semibold text-fg">
               {t("pipelines.studio.source")}
-            </h3>
+            </FormHeading>
             <Field id="studio-source-kind" label={t("pipelines.studio.sourceKind")}>
               <Select
                 id="studio-source-kind"
@@ -1139,9 +1140,9 @@ export function PipelineStudio({
 
           {kind === "space" && space ? (
             <section className={sectionClass} aria-labelledby="studio-entities">
-              <h3 id="studio-entities" className="text-body font-semibold text-fg">
+              <FormHeading id="studio-entities" className="text-body font-semibold text-fg">
                 {t("pipelines.studio.entities")}
-              </h3>
+              </FormHeading>
               <EntityFilters
                 id="studio"
                 types={types}
@@ -1229,9 +1230,9 @@ export function PipelineStudio({
 
           {kind === "space" && type ? (
             <section className={sectionClass} aria-labelledby="studio-process">
-              <h3 id="studio-process" className="text-body font-semibold text-fg">
+              <FormHeading id="studio-process" className="text-body font-semibold text-fg">
                 {t("pipelines.studio.process")}
-              </h3>
+              </FormHeading>
               <p className="text-caption text-fg-muted">{t("pipelines.studio.processHint")}</p>
               <div className="flex flex-wrap items-end gap-2">
                 <Field id="studio-aggregate-attribute" label={t("pipelines.studio.attribute")}>

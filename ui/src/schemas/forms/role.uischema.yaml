@@ -6,6 +6,7 @@ metadata:
   name: role
 spec:
   for: Role
+  guide: User-Guide/07-users-roles-approvals
   about:
     en: >-
       A role is a set of verbs on a set of kinds: propose a pipeline, approve a change, read a

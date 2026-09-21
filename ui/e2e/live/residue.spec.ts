@@ -29,6 +29,11 @@ const SWEEP: { plural: string; residue: (name: string) => boolean }[] = [
   { plural: "pipelines", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
   { plural: "datasources", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
   { plural: "dashboards", residue: (name) => JOURNEY.test(name) || TAKE.test(name) || name === "city-bikes" || name === "city-bike-stations" },
+  // A dashboard names its layers, so the layers go after it (T-1546).
+  { plural: "layers", residue: (name) => JOURNEY.test(name) },
+  // What the kind journeys make (T-1539, T-1540): nothing refers to them.
+  { plural: "csrs", residue: (name) => JOURNEY.test(name) },
+  { plural: "ckaninstances", residue: (name) => JOURNEY.test(name) },
   { plural: "apps", residue: (name) => JOURNEY.test(name) || TAKE.test(name) || name === "large-map-city" },
   // A space references its model (dataModelRef), so the space goes first.
   { plural: "spaces", residue: (name) => /^citybikes-\d{4}$/.test(name) || JOURNEY.test(name) || name === "city-bikes" || name === "city-bike-stations" },

@@ -18,7 +18,7 @@
 import { writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { STEWARD, signIn, sweepDrafts } from "./portal";
+import { STEWARD, signIn, sweepDrafts, takeTheExamples } from "./portal";
 
 const PROJECT = "helsinki";
 const REPORT = process.env.FORMS_REPORT ?? "test-results/forms-examples.json";
@@ -44,54 +44,6 @@ async function projectPages(page: Page): Promise<string[]> {
       links.map((a) => new URL((a as HTMLAnchorElement).href).pathname),
     );
   return [...new Set(hrefs)];
-}
-
-/**
- * Takes the example into every required field that offers one, and says how many it took.
- *
- * Required only: a form's examples are each a value the field accepts, but two optional fields of
- * one kind can be alternatives to each other — a pipeline's schedule and its period, a compute step
- * written as Bloblang or named as a mapping — and filling both is a manifest a person would never
- * write. The buttons are re-read after every click: writing a field's example takes that field's
- * offer out of the accessibility tree.
- */
-async function takeTheExamples(dialog: Locator): Promise<number> {
-  let taken = 0;
-  for (let round = 0; round < 40; round += 1) {
-    const offers = dialog.getByRole("button", { name: "Use the example" });
-    const fields = await offers.all();
-    let clicked = false;
-    for (const offer of fields) {
-      const required = await offer.evaluate((button) => {
-        const row = button.closest("div.flex");
-        const field = row?.querySelector(
-          "input, select, textarea",
-        ) as HTMLInputElement | null;
-        if (!field) {
-          // An offer with no input beside it belongs to a choice the form makes elsewhere — the
-          // endpoint's class picker, which the check refuses to go on without (T-2258). It is
-          // taken like any other required example, and it disappears once the choice is made.
-          return button.closest("[role=note]") !== null;
-        }
-        const empty = field.value === "";
-        return (
-          empty &&
-          (field.required || field.getAttribute("aria-required") === "true")
-        );
-      });
-      if (!required) {
-        continue;
-      }
-      await offer.click();
-      taken += 1;
-      clicked = true;
-      break;
-    }
-    if (!clicked) {
-      return taken;
-    }
-  }
-  return taken;
 }
 
 /** What the form is saying right now: its alerts, its field errors, in one line. */
@@ -146,7 +98,7 @@ test("every create form is green from its own examples", async ({
         continue;
       }
       await opener.click();
-      const dialog = steward.page.getByRole("dialog");
+      const dialog = steward.page.getByTestId("form-page");
       if (!(await dialog.isVisible().catch(() => false))) {
         continue;
       }

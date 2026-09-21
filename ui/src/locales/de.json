@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kopien",
-    "policies": "Richtlinien"
+    "policies": "Richtlinien",
+    "subscriptions": "Abonnements"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -70,6 +71,9 @@
   "form": {
     "submit": "Absenden",
     "cancel": "Abbrechen",
+    "backToList": "Zurück zur Liste",
+    "opening": "Das Formular wird geöffnet…",
+    "notOpen": "Dieses Formular lässt sich nicht öffnen: Hier gibt es nichts namens {name}, oder Sie dürfen es nicht ändern.",
     "required": "Dieses Feld ist erforderlich",
     "invalid": "Ungültiger Wert",
     "choose": "Auswählen…",
@@ -271,7 +275,10 @@
     "name": "Name",
     "phase": "Zustand",
     "empty": "Hier ist noch nichts.",
-    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Diese Seite listet und liest es; bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "emptyHintFor": {
+      "uischemas": "Nichts in diesem Projekt ändert ein Formular. Jedes Formular bringt seine Anordnung mit; die Organisation ändert sie in portal/forms/ ihres Konfigurations-Repositorys, nicht hier."
+    },
     "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
   },
   "spaces": {
@@ -1024,7 +1031,34 @@
       "empty": "Dieses Projekt hat noch kein Dienstkonto.",
       "owner": "Verantwortlich",
       "roles": "Rollen",
-      "purpose": "Zweck"
+      "purpose": "Zweck",
+      "add": "Neues Dienstkonto",
+      "addHint": "Speichern schlägt eine Änderung vor; Konto und Client entstehen nach der Genehmigung.",
+      "propose": "Änderung vorschlagen",
+      "field": {
+        "name": "Name",
+        "purpose": "Zweck",
+        "owner": "Verantwortlich",
+        "ownerUser": "Anmeldung der verantwortlichen Person",
+        "roles": "Berechtigungen",
+        "role": "Rolle",
+        "scope": "Geltungsbereich",
+        "scopeLevel": "Ebene",
+        "scopeName": "Name des Bereichs",
+        "operations": "Operationen",
+        "types": "Entitätstypen",
+        "credentials": "Zugangsdaten",
+        "credentialKind": "Art der Zugangsdaten",
+        "credentialName": "Name der Zugangsdaten",
+        "expiresAt": "Läuft ab am",
+        "ipAllowList": "Erlaubte Adressblöcke",
+        "limits": "Grenzen",
+        "requestsPerMinute": "Anfragen pro Minute",
+        "workload": "Cluster-Workload",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Namespace",
+        "k8sServiceAccount": "Kubernetes-Dienstkonto"
+      }
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -1342,6 +1376,20 @@
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "version": "Version",
+      "linkml": "LinkML-Quelle",
+      "lifecycle": "Lebenszyklus",
+      "openWorld": "Nicht deklarierte Attribute annehmen"
+    },
+    "lifecycleOption": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "deprecated": "Veraltet",
+      "retired": "Zurückgezogen"
     }
   },
   "apps": {
@@ -1446,6 +1494,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Name",
+      "kind": "Art",
+      "visibility": "Sichtbarkeit",
+      "embeddable": "Darf vom Portal eingebettet werden",
+      "source": "Quelle",
+      "sourceFrom": "Art der Quelle",
+      "sourcePath": "Ordner",
+      "gitUrl": "Repository-Adresse",
+      "gitRef": "Branch, Tag oder Commit",
+      "gitPath": "Ordner im Repository",
+      "build": "Werkzeuge",
+      "buildTool": "Werkzeug",
+      "buildVersion": "Version",
+      "dataNeeds": "Benötigte Daten",
+      "space": "Kontextraum",
+      "types": "Entitätstypen",
+      "attrs": "Attribute",
+      "operations": "Operationen",
+      "representations": "Darstellungen",
+      "within": "Innerhalb des Scopes",
+      "window": "Zeitfenster",
+      "csp": "Content Security Policy",
+      "connectSrc": "Darf aufrufen",
+      "frameAncestors": "Darf eingebettet werden von",
+      "limits": "Grenzen",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "maxFileRows": "Zeilen pro Datei-Download"
     }
   },
   "appLifecycle": {
@@ -1522,7 +1599,22 @@
     "propose": "Mapping vorschlagen",
     "sameModel": "Ein Mapping braucht zwei verschiedene Modelle.",
     "noSpace": "Kein Raum bedient dieses Modell, das Mapping hat also keinen Ort.",
-    "goldenHint": "Der Vorschlag öffnet eine Änderung mit dem Mapping. Sein Golden Test liest ./tests/<name>.input.json und ./tests/<name>.expect.json, die daneben committet werden."
+    "goldenHint": "Der Vorschlag öffnet eine Änderung mit dem Mapping. Sein Golden Test liest ./tests/<name>.input.json und ./tests/<name>.expect.json, die daneben committet werden.",
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "model": "Datenmodell",
+      "version": "Hauptversion",
+      "tests": "Golden Tests",
+      "testInput": "Eingabebeispiel",
+      "testExpect": "Erwartete Ausgabe",
+      "native": "Native Blöcke",
+      "language": "Sprache",
+      "nativeSource": "Code",
+      "artifacts": "Kompilierte Artefakte",
+      "bloblang": "Bloblang-Datei",
+      "gatewayIr": "Gateway-Mapping-Datei"
+    }
   },
   "syncSources": {
     "title": "Synchronisierungsquellen",
@@ -1961,7 +2053,8 @@
     "publication": {
       "title": "Veröffentlichung",
       "source": "Quellcode in Git",
-      "approve": "Genehmigen und veröffentlichen"
+      "approve": "Genehmigen und veröffentlichen",
+      "mirror": "Kopie auf GitHub"
     },
     "question": {
       "suggested": "vorgeschlagen",
@@ -2323,6 +2416,7 @@
     "bar": {
       "label": "Kopie",
       "message": "Sie arbeiten an der Kopie {title}, gestartet am {date}. Nichts hier ist live.",
+      "loading": "Sie arbeiten an der Kopie {name}. Nichts hier ist live.",
       "changes": "{count, plural, =0 {Noch keine Änderungen} one {# Änderung} other {# Änderungen}}",
       "gone": "Diese Kopie ist abgelaufen oder wurde verworfen.",
       "leave": "Verlassen",
@@ -2420,6 +2514,87 @@
       "validFrom": "Gültig ab",
       "validTo": "Gültig bis",
       "grants": "Erlaubt"
+    }
+  },
+  "subscriptions": {
+    "title": "Abonnements",
+    "lead": "Dauerhafte Abfragen der Räume dieses Projekts: welche Änderungen beobachtet werden und wohin der Broker benachrichtigt.",
+    "empty": "Dieses Projekt hat noch kein Abonnement.",
+    "add": "Neues Abonnement",
+    "addHint": "Speichern schlägt eine Änderung vor; der Broker benachrichtigt, sobald sie genehmigt ist.",
+    "propose": "Änderung vorschlagen",
+    "watchesNothing": "Ein Abonnement beobachtet etwas: fügen Sie eine Entitätsauswahl, ein beobachtetes Attribut oder beides hinzu.",
+    "paused": "Pausiert",
+    "field": {
+      "name": "Name",
+      "subscriptionName": "Anzeigename",
+      "space": "Kontextraum",
+      "description": "Beschreibung",
+      "entities": "Beobachtete Entitäten",
+      "entityType": "Entitätstyp",
+      "entityId": "Entitätskennung",
+      "idPattern": "Kennungsmuster",
+      "watchedAttributes": "Beobachtete Attribute",
+      "notification": "Benachrichtigung",
+      "endpoint": "Empfänger",
+      "uri": "Adresse",
+      "accept": "Medientyp",
+      "receiverInfo": "Header",
+      "headerName": "Header-Name",
+      "headerValue": "Header-Wert",
+      "secretRef": "Zugangsdaten",
+      "format": "Format",
+      "attributes": "Gesendete Attribute",
+      "throttling": "Mindestabstand (Sekunden)",
+      "expiresAt": "Läuft ab am",
+      "isActive": "Benachrichtigungen senden",
+      "receiver": "Sendet an",
+      "watches": "Beobachtet"
+    }
+  },
+  "registrations": {
+    "title": "Kontextquellen-Registrierungen",
+    "lead": "Quellen, mit deren Daten der Broker eines Raums antwortet, als hielte er sie selbst: ein Endpoint dieser Plattform oder eine NGSI-LD-API anderswo.",
+    "empty": "Dieses Projekt registriert noch keine Kontextquelle.",
+    "add": "Neue Registrierung",
+    "addHint": "Speichern schlägt eine Änderung vor; der Broker erfährt von der Quelle, sobald sie genehmigt ist.",
+    "propose": "Änderung vorschlagen",
+    "target": "Wo die Daten liegen",
+    "targetKind": {
+      "endpointRef": "Ein Endpoint dieser Plattform",
+      "endpoint": "Eine NGSI-LD-API anderswo"
+    },
+    "targetHint": {
+      "endpointRef": "Ein anderer Raum dieses Projekts, erreicht über seinen Endpoint und dessen Richtlinien.",
+      "endpoint": "Ein Broker außerhalb dieser Plattform, über die Basis-URL seiner NGSI-LD-API."
+    },
+    "column": {
+      "source": "Quelle",
+      "covers": "Entitätstypen"
+    },
+    "operations": {
+      "none": "Leer gelassen, ist die Quelle für die Operationen registriert, die CIM 009 einer Registrierung standardmäßig gibt.",
+      "moreHint": "Die Operationen, aus denen die fünf Gruppen bestehen; eine Registrierung nennt normalerweise eine Gruppe."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "endpointRef": "Endpoint",
+      "endpoint": "NGSI-LD-Basis-URL",
+      "information": "Was die Quelle hält",
+      "entities": "Entitätsauswahl",
+      "entityType": "Entitätstyp",
+      "entityId": "Entitätskennung",
+      "idPattern": "Kennungsmuster",
+      "propertyNames": "Eigenschaften",
+      "relationshipNames": "Beziehungen",
+      "operations": "Operationen",
+      "mode": "Modus",
+      "federation": "Identität beim Weiterleiten",
+      "identity": "Weiterleiten als",
+      "serviceAccount": "Dienstkonto",
+      "interval": "Intervall der Schemaspiegelung",
+      "expiresAt": "Läuft ab am"
     }
   }
 }

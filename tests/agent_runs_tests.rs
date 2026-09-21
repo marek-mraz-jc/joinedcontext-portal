@@ -13,7 +13,9 @@ use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
-use joinedcontext_portal::agents::run::{digest_prompt, mint_run_id, mint_ticket, AgentRun};
+use joinedcontext_portal::agents::run::{
+    digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunStatus,
+};
 use joinedcontext_portal::agents::{preview, reaper};
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
@@ -442,9 +444,15 @@ async fn a_second_person_neither_reads_nor_steers_a_run_that_is_not_theirs() {
             body,
         )
         .await;
+        // A read is `404` (PF-59); a write is `403` before the id is looked up, as the ops door
+        // answers it, so neither tells the intruder whether the run exists (PF-50, T-2486).
+        let refused = if method == Method::GET {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::FORBIDDEN
+        };
         assert_eq!(
-            status,
-            StatusCode::NOT_FOUND,
+            status, refused,
             "{method} {path} answered a person who did not start the run"
         );
     }
@@ -601,7 +609,7 @@ async fn an_application_reads_several_endpoints_each_need_on_its_own_space() {
     )
     .await;
     assert_eq!(status, StatusCode::ACCEPTED, "{created}");
-    let run = &created["run"];
+    let run = &created;
     let run = if run.is_null() { &created } else { run };
     assert_eq!(run["endpointName"], json!("helsinki-bikes"));
     assert_eq!(run["endpointSlug"], json!(SLUG));
@@ -2254,6 +2262,7 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -2518,6 +2527,7 @@ async fn continues_validations_reject_invalid_runs() {
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -2639,6 +2649,7 @@ async fn caller_without_portal_approver_sees_only_own_runs_while_approver_sees_b
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -3159,4 +3170,343 @@ mod the_registry_a_run_reaches {
         .await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// One repository per static application (AP-75…AP-78, T-2468).
+// ---------------------------------------------------------------------------------------------
+
+/// A forge whose public address is https, as a clone address has to be (AP-02).
+fn forge(server: &wiremock::MockServer) -> Arc<joinedcontext_portal::git::GiteaClient> {
+    let mut gitea = joinedcontext_portal::git::GiteaClient::new(
+        server.uri().parse().expect("a url"),
+        "joinedcontext",
+        "configuration",
+        "forge-token",
+    )
+    .expect("a client");
+    gitea.public_base = "https://forge.example/".parse().expect("a url");
+    Arc::new(gitea)
+}
+
+fn static_body(app: &str) -> Value {
+    let mut body = create_body();
+    body["appName"] = json!(app);
+    body["appClass"] = json!("static");
+    body
+}
+
+/// A static application's run as the store holds it once it has a preview, owned by the steward.
+fn a_static_run(status: AgentRunStatus) -> AgentRun {
+    let id = mint_run_id();
+    serde_json::from_value(json!({
+        "id": id,
+        "project": PROJECT,
+        "appName": "city-bikes",
+        "title": "City bikes",
+        "endpointName": "helsinki-bikes",
+        "endpointSlug": SLUG,
+        "profile": "app-builder",
+        "kind": "application",
+        "unattended": false,
+        "appClass": "static",
+        "visibility": "project",
+        "prompt": "p",
+        "promptDigest": digest_prompt("p"),
+        "dataNeeds": [],
+        "allowsWrite": false,
+        "branch": format!("agent/app-city-bikes/{id}"),
+        "pathPrefix": "",
+        "status": status.as_str(),
+        "ticketHash": mint_ticket().1,
+        "steps": 0,
+        "tokensUsed": 0,
+        "createdBy": STEWARD,
+        "createdAt": "2026-09-21T06:00:00Z",
+        "expiresAt": "2099-09-21T06:00:00Z"
+    }))
+    .expect("a run")
+}
+
+/// AP-75, AP-78: a static application's run writes at the root of its own repository, links that
+/// repository (the name the forge would refuse is `agents::repository`'s own case).
+#[tokio::test]
+async fn a_static_application_run_lives_in_its_own_repository() {
+    let server = wiremock::MockServer::start().await;
+    let config = config();
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server));
+    let app = server::app(state);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let (status, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(static_body("city-bikes")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{created}");
+    let run = &created;
+    assert_eq!(run["pathPrefix"], json!(""), "{created}");
+    let source = run["sourceUrl"].as_str().unwrap_or_default().to_owned();
+    let (_, read) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!(
+            "/api/v1/projects/{PROJECT}/agent-runs/{}",
+            run["id"].as_str().unwrap_or_default()
+        ),
+        None,
+    )
+    .await;
+    let source = read["sourceUrl"]
+        .as_str()
+        .map(str::to_owned)
+        .unwrap_or(source);
+    assert!(
+        source.starts_with("https://forge.example/") && source.contains("helsinki_city-bikes"),
+        "the run links its application's repository: {source}"
+    );
+    assert!(!source.contains("configuration"), "{source}");
+    assert!(
+        read.get("mirrorUrl").is_none(),
+        "no GitHub copy is linked where the installation keeps none: {read}"
+    );
+}
+
+/// AP-79: where the installation keeps application repositories on GitHub as well, the run links
+/// the copy on its branch beside the forge's repository of record.
+#[tokio::test]
+async fn a_static_run_links_its_github_copy_beside_the_forge() {
+    let server = wiremock::MockServer::start().await;
+    let config = config();
+    let github =
+        joinedcontext_portal::git::github_mirror::GithubMirror::from_env(|name| match name {
+            "JC_APP_MIRROR_GITHUB_OWNER" => Some("hel-apps".to_owned()),
+            "JC_APP_MIRROR_GITHUB_TOKEN" => Some("ghp_never_shown".to_owned()),
+            _ => None,
+        })
+        .expect("valid")
+        .expect("on");
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server))
+        .with_github_mirror(Arc::new(github));
+    let app = server::app(state);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let (status, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(static_body("city-bikes")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{created}");
+    let id = created["id"].as_str().unwrap_or_default().to_owned();
+    let (_, read) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
+        None,
+    )
+    .await;
+    assert_eq!(
+        read["mirrorUrl"],
+        json!(format!(
+            "https://github.com/hel-apps/helsinki_city-bikes/tree/agent/app-city-bikes/{id}"
+        )),
+        "{read}"
+    );
+    assert!(read["sourceUrl"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("https://forge.example/"));
+    assert!(!read.to_string().contains("ghp_never_shown"), "{read}");
+}
+
+/// AP-77: a static run with nothing committed to its branch is not published, and the refusal
+/// says what to wait for; the run does not move.
+#[tokio::test]
+async fn a_static_run_with_no_commit_is_not_published() {
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path_regex(
+            "^/api/v1/repos/joinedcontext/helsinki_city-bikes/branches/.*$",
+        ))
+        .respond_with(wiremock::ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    let config = config();
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server));
+    let run = a_static_run(AgentRunStatus::Previewing);
+    state.agents.create_run(&run).await.expect("a run");
+    let app = server::app(state.clone());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{}/publish", run.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{problem}");
+    assert!(
+        problem
+            .to_string()
+            .contains("no version in the application's repository"),
+        "{problem}"
+    );
+    let stored = state
+        .agents
+        .get_run(&run.id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(stored.status, "previewing");
+}
+
+fn published_app(run: &AgentRun, sha: &str) -> ResourceEnvelope {
+    let mut manifest = envelope(
+        "App",
+        &run.app_name,
+        PROJECT,
+        json!({
+            "kind": "static",
+            "source": { "git": { "url": "https://forge.example/joinedcontext/helsinki_city-bikes.git", "ref": sha } },
+            "visibility": "project",
+            "lifecycle": "published",
+        }),
+    );
+    manifest
+        .metadata
+        .annotations
+        .insert("joinedcontext.com/agent-run".into(), run.id.clone());
+    manifest
+}
+
+/// AP-77, PF-57: approving the application's Change merges its repository's merge request at the
+/// commit the manifest names and marks the run published; a merge the forge refuses leaves the
+/// run where it was and says so on it.
+#[tokio::test]
+async fn approving_the_change_merges_the_applications_repository_at_the_published_commit() {
+    use wiremock::matchers::{body_partial_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let server = MockServer::start().await;
+    let config = config();
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server));
+    let merged = a_static_run(AgentRunStatus::AwaitingApproval);
+    let refused = a_static_run(AgentRunStatus::AwaitingApproval);
+    for run in [&merged, &refused] {
+        state.agents.create_run(run).await.expect("a run");
+    }
+    let pull = |number: u64, run: &AgentRun| {
+        json!({
+            "number": number, "html_url": "h", "state": "open", "title": "t",
+            "head": { "ref": run.branch, "sha": "abc" }, "base": { "ref": "main", "sha": "b" }
+        })
+    };
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/joinedcontext/helsinki_city-bikes/pulls",
+        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!([pull(1, &merged), pull(2, &refused)])),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/api/v1/repos/joinedcontext/helsinki_city-bikes/pulls/1/merge",
+        ))
+        .and(body_partial_json(
+            json!({ "Do": "merge", "head_commit_id": "abc" }),
+        ))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/api/v1/repos/joinedcontext/helsinki_city-bikes/pulls/2/merge",
+        ))
+        .respond_with(ResponseTemplate::new(409).set_body_string("head out of date"))
+        .mount(&server)
+        .await;
+
+    joinedcontext_portal::api::agent_runs::merge_published_application(
+        &state,
+        PROJECT,
+        Some(&published_app(&merged, "abc")),
+        "approver@hel.fi",
+    )
+    .await;
+    let stored = state
+        .agents
+        .get_run(&merged.id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(stored.status, "published");
+
+    joinedcontext_portal::api::agent_runs::merge_published_application(
+        &state,
+        PROJECT,
+        Some(&published_app(&refused, "abc")),
+        "approver@hel.fi",
+    )
+    .await;
+    let stored = state
+        .agents
+        .get_run(&refused.id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(
+        stored.status, "awaiting_approval",
+        "a refused merge published nothing"
+    );
+    let events = state
+        .agents
+        .events_since(&refused.id, 0)
+        .await
+        .expect("events");
+    assert!(
+        events.iter().any(|event| event.kind == "thought"
+            && event.payload["text"]
+                .as_str()
+                .is_some_and(|text| text.contains("did not merge"))),
+        "the refusal is said on the run: {events:?}"
+    );
+
+    // Another project's Change never reaches this project's run.
+    let other = a_static_run(AgentRunStatus::AwaitingApproval);
+    state.agents.create_run(&other).await.expect("a run");
+    joinedcontext_portal::api::agent_runs::merge_published_application(
+        &state,
+        "espoo",
+        Some(&published_app(&other, "abc")),
+        "approver@hel.fi",
+    )
+    .await;
+    let stored = state
+        .agents
+        .get_run(&other.id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(stored.status, "awaiting_approval");
 }

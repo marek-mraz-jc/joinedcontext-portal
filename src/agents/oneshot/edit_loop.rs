@@ -5,7 +5,7 @@
 
 use std::time::Instant;
 
-use super::model::{assistant_turn_message, tool_result_message, ToolCall, ToolSpec};
+use super::model::{assistant_turn_message, tool_result_message, ToolAnswer, ToolCall, ToolSpec};
 use super::*;
 use crate::agents::{code, patch};
 use crate::api::agent_runs::{invoke_function, InvokeError};
@@ -23,6 +23,14 @@ const EVENT_CAP: usize = 2 * 1024;
 const ERROR_WINDOW: usize = 20;
 /// Output budget of one editing call: an edit is small, the answer is a tool call or a sentence.
 const EDIT_OUTPUT_BUDGET: u32 = 8000;
+/// Model calls one instruction may make (SDK-20): a request that needs more is asked in steps.
+const EDIT_CALLS: u32 = 12;
+/// Input tokens one instruction may send, over all of its calls (SDK-20).
+const EDIT_INPUT_TOKENS: u64 = 500_000;
+/// Model calls a tool result is sent whole to before it is folded (SDK-20).
+const FOLD_AFTER: usize = 2;
+/// A result or an argument this long or shorter is never folded.
+const FOLD_MIN: usize = 400;
 
 /// The rules of the loop, as the model reads them (SDK-11, SDK-12, SDK-20).
 const EDIT_SYSTEM: &str =
@@ -35,7 +43,12 @@ src/**/*.tsx, src/**/*.ts, functions/*.ts and tests/**/*.test.ts; imports come f
 change files; the preview reloads when a check passes. preview_errors tells you what the frame \
 reported since the last reload; call_function runs one of the application's functions. When \
 the request is done, call finish with one plain sentence for the person: what changed, in \
-their words, no file names unless they asked.";
+their words, no file names unless they asked.\n\
+Every model call costs the person time and money, so make each one count: the files shown in \
+the request are current, do not read them again; put several tool calls in one answer when \
+they do not depend on each other, every edit the request needs in one answer, then check \
+once. An earlier tool result may come back folded to its first line: call the tool again \
+only if you need it.";
 
 /// The tools of the loop, in the shape both providers read.
 fn tools() -> Vec<ToolSpec> {
@@ -129,8 +142,9 @@ fn list_files(files: &BTreeMap<String, String>) -> String {
 }
 
 /// Every file with its size, and the application's own files whole while they fit in
-/// `OPENING_BYTES`, smallest first; a file left out says so, so the model reads it.
-fn opening(files: &BTreeMap<String, String>) -> String {
+/// `OPENING_BYTES`, smallest first; a file left out says so, so the model reads it. Answers the
+/// paths it carried whole beside the text.
+fn opening(files: &BTreeMap<String, String>) -> (String, Vec<String>) {
     let mut out = String::from("Files:\n");
     out.push_str(&list_files(files));
     let mut own: Vec<(&String, &String)> = files
@@ -139,6 +153,7 @@ fn opening(files: &BTreeMap<String, String>) -> String {
         .collect();
     own.sort_by_key(|(path, content)| (content.len(), (*path).clone()));
     let mut carried = 0usize;
+    let mut whole = Vec::new();
     let mut left_out = Vec::new();
     for (path, content) in own {
         if carried + content.len() > OPENING_BYTES {
@@ -146,6 +161,7 @@ fn opening(files: &BTreeMap<String, String>) -> String {
             continue;
         }
         carried += content.len();
+        whole.push(path.clone());
         out.push_str(&format!("\n\n=== {path} ===\n{content}"));
     }
     if !left_out.is_empty() {
@@ -154,7 +170,121 @@ fn opening(files: &BTreeMap<String, String>) -> String {
             left_out.join(", ")
         ));
     }
-    out
+    (out, whole)
+}
+
+/// A read of a file the opening message already carries whole, unchanged since, answers that
+/// instead of the file a second time (SDK-20).
+fn read_again(
+    files: &BTreeMap<String, String>,
+    shown: &BTreeMap<String, String>,
+    input: &Value,
+) -> (String, bool) {
+    let path = clean_path(arg(input, "path"));
+    let windowed = input.get("from").is_some() || input.get("to").is_some();
+    match path {
+        Some(path)
+            if !windowed
+                && shown
+                    .get(&path)
+                    .is_some_and(|c| files.get(&path) == Some(c)) =>
+        {
+            (
+                format!("{path}: shown whole in the request and unchanged since; read it there"),
+                true,
+            )
+        }
+        _ => read_file(files, input),
+    }
+}
+
+/// A long text cut to its first line and its size, so a later call knows what it was.
+fn fold(text: &str) -> String {
+    if text.len() <= FOLD_MIN {
+        return text.to_owned();
+    }
+    let first = text.lines().next().unwrap_or_default();
+    format!(
+        "{}\n… (folded, {} bytes; call the tool again if you need it)",
+        cap(first, 200),
+        text.len()
+    )
+}
+
+/// An earlier answer with its long arguments (a file written whole, a large replacement)
+/// folded to their size: the result of the call already says what it did.
+fn folded_answer(answer: &ToolAnswer) -> ToolAnswer {
+    let mut answer = answer.clone();
+    for call in &mut answer.calls {
+        if let Some(object) = call.input.as_object_mut() {
+            for value in object.values_mut() {
+                if let Some(text) = value.as_str().filter(|text| text.len() > FOLD_MIN) {
+                    *value = Value::String(format!("({} bytes, sent earlier)", text.len()));
+                }
+            }
+        }
+    }
+    answer
+}
+
+/// One model call of a turn and what its tool calls answered, by call id.
+struct Round {
+    answer: ToolAnswer,
+    results: Vec<(String, String)>,
+}
+
+/// What the next call sends: the opening, then every round, the last [`FOLD_AFTER`] whole and
+/// the ones before them folded, so the resent history stays bounded however long the turn
+/// runs (SDK-20).
+fn transcript(provider: &str, opening: &str, rounds: &[Round]) -> Vec<Value> {
+    let mut messages = vec![json!({ "role": "user", "content": opening })];
+    let whole_from = rounds.len().saturating_sub(FOLD_AFTER);
+    for (index, round) in rounds.iter().enumerate() {
+        let whole = index >= whole_from;
+        if whole {
+            messages.push(assistant_turn_message(provider, &round.answer));
+        } else {
+            messages.push(assistant_turn_message(
+                provider,
+                &folded_answer(&round.answer),
+            ));
+        }
+        for (id, result) in &round.results {
+            let content = if whole { result.clone() } else { fold(result) };
+            messages.push(tool_result_message(provider, id, &content));
+        }
+    }
+    messages
+}
+
+/// What one instruction has spent on the model so far.
+#[derive(Debug, Default, Clone, Copy)]
+struct Spent {
+    calls: u32,
+    input: u64,
+    output: u64,
+}
+
+impl Spent {
+    /// The sentence that ends the turn before the next call, when a ceiling is reached: the
+    /// profile's step limit (AG-25) or the instruction's calls and input tokens (SDK-20).
+    fn over(&self, steps: u32, step_limit: u32) -> Option<String> {
+        let reached = if steps >= step_limit {
+            format!("the step limit of this run ({step_limit} tool calls a message)")
+        } else if self.calls >= EDIT_CALLS {
+            format!("the limit of {EDIT_CALLS} model calls a message")
+        } else if self.input >= EDIT_INPUT_TOKENS {
+            format!("the limit of {EDIT_INPUT_TOKENS} input tokens a message")
+        } else {
+            return None;
+        };
+        Some(format!(
+            "I stopped before finishing: this message reached {reached} after {} model calls, \
+             {} input and {} output tokens. What passes the check is on screen; ask for the \
+             rest in a smaller step.",
+            self.calls, self.input, self.output
+        ))
+    }
 }
 
 fn read_file(files: &BTreeMap<String, String>, input: &Value) -> (String, bool) {
@@ -263,10 +393,15 @@ impl Driver {
         on_screen: Option<&Shown>,
     ) -> Result<Option<Shown>, String> {
         let tools = tools();
-        let mut messages = vec![json!({
-            "role": "user",
-            "content": self.edit_user_turn(files, conversation, instruction),
-        })];
+        let (opening, whole) = self.edit_user_turn(files, conversation, instruction);
+        // The files the opening carries whole, as it carries them: a read of one unchanged is
+        // answered from there.
+        let shown_whole: BTreeMap<String, String> = whole
+            .into_iter()
+            .filter_map(|path| files.get(&path).map(|c| (path, c.clone())))
+            .collect();
+        let mut rounds: Vec<Round> = Vec::new();
+        let mut spent = Spent::default();
         let mut shown: Option<Shown> = None;
         // Files changed since the last publish, and whether the current files passed a check.
         let mut dirty = false;
@@ -274,38 +409,41 @@ impl Driver {
         let limit = self.steps_per_run.max(1);
         let mut steps = 0u32;
         loop {
-            // The profile's limit is checked before the model is asked, never after a call
-            // it already made (AG-25).
-            if steps >= limit {
-                self.thought(&format!(
-                    "The step limit of this run ({limit} tool calls a message) is reached; \
-                     what passed the check is on screen."
-                ))
-                .await?;
-                conversation.push((
-                    instruction.to_owned(),
-                    "The step limit was reached before the work was finished.".to_owned(),
-                ));
-                return Ok(shown);
+            // The ceilings are checked before the model is asked, never after a call it
+            // already made (AG-25, SDK-20); what builds is published with the reason.
+            if let Some(stopped) = spent.over(steps, limit) {
+                return self
+                    .finish_turn(
+                        files,
+                        committed,
+                        conversation,
+                        instruction,
+                        &stopped,
+                        dirty,
+                        shown,
+                    )
+                    .await;
             }
+            let messages = transcript(&self.provider, &opening, &rounds);
             let answer = self
                 .complete_tools(EDIT_SYSTEM, &messages, &tools, EDIT_OUTPUT_BUDGET)
                 .await
                 .map_err(|err| err.said(EDIT_OUTPUT_BUDGET))?;
-            messages.push(assistant_turn_message(&self.provider, &answer));
-            // What the turn cost, on the run's counters (AG-44).
-            if let Err(err) = self
-                .state
-                .agents
-                .record_usage(
-                    &self.run_id,
-                    i64::try_from(answer.usage_tokens).unwrap_or(i64::MAX),
-                    1,
-                )
-                .await
-            {
-                tracing::warn!(run = %self.run_id, error = %err, "usage not recorded");
-            }
+            // A provider that reports no input tokens is counted by what was sent, four bytes
+            // a token, so the ceiling holds for it too.
+            let input = if answer.input_tokens > 0 {
+                answer.input_tokens
+            } else {
+                u64::try_from(Value::Array(messages).to_string().len() / 4).unwrap_or(u64::MAX)
+            };
+            spent.calls += 1;
+            spent.input += input;
+            spent.output += answer.output_tokens;
+            self.record_call(&answer, input, steps).await?;
+            let mut round = Round {
+                answer: answer.clone(),
+                results: Vec::new(),
+            };
             if answer.calls.is_empty() {
                 let message = answer.text.unwrap_or_default();
                 return self
@@ -325,7 +463,7 @@ impl Driver {
                 let started = Instant::now();
                 let (result, ok) = match call.name.as_str() {
                     "list_files" => (list_files(files), true),
-                    "read_file" => read_file(files, &call.input),
+                    "read_file" => read_again(files, &shown_whole, &call.input),
                     "edit_file" => {
                         let done = edit_file(files, &call.input);
                         dirty |= done.1;
@@ -382,13 +520,41 @@ impl Driver {
                     other => (format!("no tool named '{other}'"), false),
                 };
                 self.tool_event(call, &result, ok, started, steps).await?;
-                messages.push(tool_result_message(
-                    &self.provider,
-                    &call.id,
-                    &cap(&result, RESULT_CAP),
-                ));
+                round
+                    .results
+                    .push((call.id.clone(), cap(&result, RESULT_CAP)));
             }
+            rounds.push(round);
         }
+    }
+
+    /// One model call on the run's counters (AG-44) and as a `usage` event with its input and
+    /// output tokens (SDK-20, API/04 §4).
+    async fn record_call(&self, answer: &ToolAnswer, input: u64, step: u32) -> Result<(), String> {
+        let tokens = answer.usage_tokens.max(input + answer.output_tokens);
+        if let Err(err) = self
+            .state
+            .agents
+            .record_usage(&self.run_id, i64::try_from(tokens).unwrap_or(i64::MAX), 1)
+            .await
+        {
+            tracing::warn!(run = %self.run_id, error = %err, "usage not recorded");
+        }
+        let cumulative = match self.state.agents.get_run(&self.run_id).await {
+            Ok(Some(run)) => Some(run.tokens_used),
+            _ => None,
+        };
+        self.event(
+            "usage",
+            json!({
+                "step": step,
+                "tokensThisStep": tokens,
+                "inputTokens": input,
+                "outputTokens": answer.output_tokens,
+                "cumulativeTokens": cumulative,
+            }),
+        )
+        .await
     }
 
     /// The turn's end: unpublished changes are checked and published with the message, or
@@ -461,7 +627,7 @@ impl Driver {
         files: &BTreeMap<String, String>,
         conversation: &[(String, String)],
         instruction: &str,
-    ) -> String {
+    ) -> (String, Vec<String>) {
         let mut turn = String::new();
         if !conversation.is_empty() {
             turn.push_str("Earlier in this conversation:\n");
@@ -470,12 +636,13 @@ impl Driver {
             }
             turn.push('\n');
         }
-        turn.push_str(&opening(files));
+        let (files_text, whole) = opening(files);
+        turn.push_str(&files_text);
         if let Some(types) = files.get(code::TYPES) {
             turn.push_str(&format!("\n\nRow types ({}):\n{types}", code::TYPES));
         }
         turn.push_str(&format!("\n\nThe request:\n{instruction}"));
-        turn
+        (turn, whole)
     }
 
     /// `call_function`: one function of the run in jc-functions, as the person who started the
@@ -603,7 +770,8 @@ mod tests {
         files.insert("src/App.tsx".to_owned(), "app".to_owned());
         files.insert("src/big.ts".to_owned(), "x".repeat(OPENING_BYTES));
         files.insert("functions/f.ts".to_owned(), "fn".to_owned());
-        let text = opening(&files);
+        let (text, whole) = opening(&files);
+        assert_eq!(whole, ["functions/f.ts", "src/App.tsx"]);
         assert!(text.contains("package.json (2 bytes)"));
         assert!(
             !text.contains("=== package.json ==="),
@@ -612,7 +780,7 @@ mod tests {
         assert!(text.contains("=== src/App.tsx ===\napp"));
         assert!(text.contains("=== functions/f.ts ===\nfn"));
         assert!(text.ends_with("Not shown, read before editing: src/big.ts"));
-        assert!(opening(&BTreeMap::new()).starts_with("Files:\n"));
+        assert!(opening(&BTreeMap::new()).0.starts_with("Files:\n"));
     }
 
     #[test]
@@ -660,5 +828,216 @@ mod tests {
         let cut = cap(&text, 100);
         assert!(cut.len() < 200);
         assert!(cut.contains("more bytes"));
+    }
+
+    fn round(n: usize) -> Round {
+        Round {
+            answer: ToolAnswer {
+                text: None,
+                calls: vec![ToolCall {
+                    id: format!("c{n}"),
+                    name: "write_file".into(),
+                    input: json!({ "path": "src/A.tsx", "content": "x".repeat(30_000) }),
+                }],
+                ..ToolAnswer::default()
+            },
+            results: vec![(
+                format!("c{n}"),
+                format!("src/A.tsx: lines 1-900\n{}", "y".repeat(8_000)),
+            )],
+        }
+    }
+
+    fn sent_bytes(rounds: &[Round]) -> usize {
+        Value::Array(transcript("anthropic", "opening", rounds))
+            .to_string()
+            .len()
+    }
+
+    /// T-2467: a turn of thirty rounds sends about what a turn of three sends; the rounds before
+    /// the last two travel as a line each, not whole.
+    #[test]
+    fn the_resent_history_stays_bounded_however_long_the_turn_runs() {
+        let three: Vec<Round> = (0..3).map(round).collect();
+        let thirty: Vec<Round> = (0..30).map(round).collect();
+        let growth = sent_bytes(&thirty) - sent_bytes(&three);
+        assert!(growth < 27 * 600, "27 folded rounds added {growth} bytes");
+        let messages = transcript("anthropic", "opening", &thirty);
+        // opening + 30 × (answer, result)
+        assert_eq!(messages.len(), 61);
+        let last = messages[60].to_string();
+        assert!(
+            last.contains(&"y".repeat(8_000)),
+            "the newest result is whole"
+        );
+        let old = messages[2].to_string();
+        assert!(old.contains("folded, 8023 bytes"), "{old}");
+        assert!(messages[1]
+            .to_string()
+            .contains("(30000 bytes, sent earlier)"));
+        assert!(messages[59].to_string().contains(&"x".repeat(30_000)));
+        // Every call id keeps its result, folded or not: the provider pairs them.
+        for n in 0..30 {
+            assert!(messages[2 + 2 * n]
+                .to_string()
+                .contains(&format!("\"c{n}\"")));
+        }
+    }
+
+    #[test]
+    fn a_short_result_is_never_folded() {
+        assert_eq!(fold("src/A.tsx: replaced"), "src/A.tsx: replaced");
+        assert!(fold(&"z".repeat(FOLD_MIN + 1)).contains("folded"));
+    }
+
+    /// T-2467: the model reading a file the request already carries costs one line, until the
+    /// file changes.
+    #[test]
+    fn a_file_shown_whole_is_not_read_again_until_it_changes() {
+        let mut files = BTreeMap::new();
+        files.insert("src/A.ts".to_owned(), "a\nb\n".to_owned());
+        let shown = files.clone();
+        let (text, ok) = read_again(&files, &shown, &json!({ "path": "src/A.ts" }));
+        assert!(ok && text.contains("shown whole in the request"), "{text}");
+        let (text, _) = read_again(&files, &shown, &json!({ "path": "src/A.ts", "from": 2 }));
+        assert!(text.contains("   2 | b"), "a window is read: {text}");
+        files.insert("src/A.ts".to_owned(), "c\n".to_owned());
+        let (text, _) = read_again(&files, &shown, &json!({ "path": "src/A.ts" }));
+        assert!(text.contains("   1 | c"), "a changed file is read: {text}");
+    }
+
+    #[test]
+    fn a_ceiling_names_what_was_reached_and_what_was_spent() {
+        let spent = Spent {
+            calls: 3,
+            input: 10,
+            output: 2,
+        };
+        assert!(spent.over(0, 120).is_none());
+        let said = spent.over(120, 120).expect("the step limit");
+        assert!(said.contains("step limit of this run (120"), "{said}");
+        let said = Spent {
+            calls: EDIT_CALLS,
+            ..spent
+        }
+        .over(0, 120)
+        .expect("calls");
+        assert!(
+            said.contains("12 model calls") && said.contains("smaller step"),
+            "{said}"
+        );
+        let said = Spent {
+            input: EDIT_INPUT_TOKENS,
+            ..spent
+        }
+        .over(0, 120)
+        .expect("tokens");
+        assert!(said.contains("500000 input tokens"), "{said}");
+    }
+
+    /// A model stub that answers every call with one `list_files` call and the given usage.
+    async fn model_listing_forever(server: &wiremock::MockServer, input_tokens: u64) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "tool_use", "id": "t", "name": "list_files", "input": {} }],
+                "usage": { "input_tokens": input_tokens, "output_tokens": 30 },
+            })))
+            .mount(server)
+            .await;
+    }
+
+    async fn edit_driver(server: &wiremock::MockServer) -> Driver {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.kind = "application".into();
+        driver.steps_per_run = 120;
+        driver
+    }
+
+    async fn thoughts(driver: &Driver) -> Vec<String> {
+        driver
+            .state
+            .agents
+            .events_since(&driver.run_id, 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .map(|event| {
+                event.payload["text"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    /// T-2467: a model that makes one trivial call after another is cut off at the ceiling
+    /// with a sentence the person reads, instead of burning the profile's 120 steps.
+    #[tokio::test]
+    async fn the_call_ceiling_ends_a_turn_that_does_no_work() {
+        let server = wiremock::MockServer::start().await;
+        model_listing_forever(&server, 1_000).await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([("src/App.tsx".to_owned(), "app".to_owned())]);
+        let mut conversation = Vec::new();
+        let shown = driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut conversation,
+                "add a form",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        assert!(shown.is_none());
+        let calls = server.received_requests().await.expect("recorded").len();
+        assert_eq!(calls, EDIT_CALLS as usize);
+        let said = thoughts(&driver).await;
+        assert!(
+            said.iter().any(|t| t.contains("12 model calls")),
+            "{said:?}"
+        );
+        assert!(conversation[0].1.contains("12 model calls"));
+        let usage: Vec<_> = driver
+            .state
+            .agents
+            .events_since(&driver.run_id, 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "usage")
+            .collect();
+        assert_eq!(usage.len(), EDIT_CALLS as usize);
+        assert_eq!(usage[0].payload["inputTokens"], 1_000);
+        assert_eq!(usage[0].payload["outputTokens"], 30);
+    }
+
+    /// T-2467: the input ceiling ends a turn whose calls each resend a large context.
+    #[tokio::test]
+    async fn the_token_ceiling_ends_a_turn_that_resends_too_much() {
+        let server = wiremock::MockServer::start().await;
+        model_listing_forever(&server, 200_000).await;
+        let driver = edit_driver(&server).await;
+        let mut files = BTreeMap::from([("src/App.tsx".to_owned(), "app".to_owned())]);
+        driver
+            .edit_turn(
+                &mut files,
+                &mut BTreeMap::new(),
+                &mut Vec::new(),
+                "add KPIs",
+                None,
+            )
+            .await
+            .expect("the turn ends");
+        assert_eq!(server.received_requests().await.expect("recorded").len(), 3);
+        let said = thoughts(&driver).await;
+        assert!(
+            said.iter().any(|t| t.contains("500000 input tokens")),
+            "{said:?}"
+        );
     }
 }

@@ -219,10 +219,10 @@ export function EndpointPage({
         <PermissionGuard project={project} kind="Endpoint" verb="propose">
           <Button
             onClick={() => {
+              // The edit form is a page at its own address (T-2474).
               void navigate({
-                to: "/projects/$project/$plural",
-                params: { project, plural: "endpoints" },
-                search: { edit: name },
+                to: "/projects/$project/$plural/$name/edit",
+                params: { project, plural: "endpoints", name },
               });
             }}
           >
@@ -262,8 +262,8 @@ export function EndpointPage({
           <Fact label={<Term name="contextSpace">{t("endpoints.field.space")}</Term>}>
             {space ? (
               <Link
-                to="/projects/$project/spaces/$name"
-                params={{ project, name: space }}
+                to="/projects/$project/$plural/$name"
+                params={{ plural: "spaces", project, name: space }}
                 className="text-primary underline hover:no-underline"
               >
                 {space}

@@ -310,6 +310,9 @@ pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> V
             publication,
             instance_name,
             instance,
+            // A withdrawal deletes by name: no title is written and no organization created.
+            language: None,
+            instance_title: None,
         });
     }
     gone

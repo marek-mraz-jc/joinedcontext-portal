@@ -375,6 +375,16 @@ impl From<GiteaPullResponse> for PullRequest {
     }
 }
 
+/// One push mirror of a repository, as `GET push_mirrors` lists it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PushMirror {
+    pub remote_name: String,
+    pub remote_address: String,
+    /// What the last sync failed with; empty when it succeeded or has not run yet.
+    #[serde(default)]
+    pub last_error: String,
+}
+
 #[derive(Serialize)]
 struct ReviewPayload<'a> {
     event: ReviewEvent,
@@ -565,6 +575,113 @@ impl GiteaClient {
                 message,
             })
         }
+    }
+
+    /// The same forge, organization and token, another repository of the organization: an
+    /// application's own repository beside the configuration one (AP-75).
+    pub fn for_repository(&self, repo: impl Into<String>) -> Self {
+        Self {
+            repo: repo.into(),
+            ..self.clone()
+        }
+    }
+
+    /// The `https` address a person clones the repository from: the forge's public URL, never
+    /// the cluster-internal one (AP-77, AP-78).
+    pub fn clone_url(&self) -> String {
+        format!(
+            "{}/{}/{}.git",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        )
+    }
+
+    /// Creates the repository in the organization unless it is already there, private and
+    /// initialised on `main` so a branch can be cut from it; answers whether it created one.
+    ///
+    /// An existing repository is never recreated or overwritten, and a creation that lost a race
+    /// with another (the forge's 409) is the same answer as finding it (AP-75).
+    pub async fn ensure_repository(&self, description: &str) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let full = format!(
+            "{}/api/v1/orgs/{}/repos",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "name": self.repo,
+            "description": description,
+            "private": true,
+            "auto_init": true,
+            "default_branch": "main",
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// The push mirrors of the repository: where each one pushes, and what its last sync said
+    /// (AP-79). Answers only for a caller that administers the repository.
+    pub async fn push_mirrors(&self) -> Result<Vec<PushMirror>, GitError> {
+        let res = self
+            .send(self.http.get(self.repo_url("push_mirrors")?))
+            .await?;
+        let res = Self::check_status(res).await?;
+        res.json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse push mirrors: {e}")))
+    }
+
+    /// Adds a push mirror that syncs on every commit, with a periodic sync behind it for a
+    /// commit whose sync failed (AP-79).
+    ///
+    /// The credential travels in its own members and never inside `remote_address`: the forge
+    /// shows the address on the repository's settings page and in `push_mirrors`, and stores the
+    /// credential encrypted.
+    pub async fn add_push_mirror(
+        &self,
+        remote_address: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<(), GitError> {
+        let payload = serde_json::json!({
+            "remote_address": remote_address,
+            "remote_username": username,
+            "remote_password": password,
+            "interval": "8h0m0s",
+            "sync_on_commit": true,
+        });
+        let url = self.repo_url("push_mirrors")?;
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// Removes one push mirror by the name the forge gave it.
+    pub async fn delete_push_mirror(&self, remote_name: &str) -> Result<(), GitError> {
+        let url = self.repo_url(&format!("push_mirrors/{remote_name}"))?;
+        let res = self.send(self.http.delete(url)).await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// Pushes every mirror of the repository now instead of at its next commit or interval.
+    pub async fn sync_push_mirrors(&self) -> Result<(), GitError> {
+        let url = self.repo_url("push_mirrors-sync")?;
+        let res = self.send(self.http.post(url)).await?;
+        Self::check_status(res).await?;
+        Ok(())
     }
 
     /// `GET ""` — returns the repository's default branch.

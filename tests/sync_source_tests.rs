@@ -121,6 +121,13 @@ impl Forge {
 
 /// The SyncSource the repository carries.
 fn source(schedule: Value) -> String {
+    // A webhook-driven source names the secret its origin signs with, or jc-core refuses the
+    // manifest (MF-44); every other schedule carries none.
+    let webhook = if schedule["webhook"] == json!(true) {
+        "  webhook: { secretRef: { name: regional-hook, key: secret } }\n"
+    } else {
+        ""
+    };
     format!(
         "apiVersion: joinedcontext.com/v1alpha1\n\
          kind: SyncSource\n\
@@ -129,7 +136,8 @@ fn source(schedule: Value) -> String {
          \x20 source:\n    git: {{ url: https://git.region.sk/udp/models.git, ref: main }}\n\
          \x20 schedule: {schedule}\n\
          \x20 mode: mirror\n\
-         \x20 conflictPolicy: replace\n"
+         \x20 conflictPolicy: replace\n\
+         {webhook}"
     )
 }
 

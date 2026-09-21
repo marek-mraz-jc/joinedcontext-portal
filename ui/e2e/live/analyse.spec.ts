@@ -6,6 +6,7 @@
  * person's part: from opening the dialog to the approval, excluding platform merge/reconcile waits.
  */
 import { expect, test } from "@playwright/test";
+import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -25,9 +26,10 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
     personMs += Date.now() - start;
   };
 
+  const clock = journeyClock("Analyse");
   let start = Date.now();
   await page.getByRole("button", { name: "New pipeline" }).click();
-  const studio = page.getByRole("dialog");
+  const studio = page.getByTestId("form-page");
 
   await studio.locator("#studio-preset").selectOption("kpi");
   await studio.locator("#studio-kpi-endpoint").selectOption({ value: "helsinki-all" });
@@ -43,12 +45,14 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
   const change = await proposedChange(page);
   tick(start);
 
+  clock.person(personMs);
   expect(personMs / 1000, "steward person-seconds stays under 60").toBeLessThan(60);
 
   start = Date.now();
   await approve(approver.page, PROJECT, change);
   tick(start);
 
+  clock.person(personMs);
   const personSeconds = personMs / 1000;
   info.annotations.push({
     type: "person-seconds",
@@ -64,6 +68,7 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
     });
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
+  clock.live();
 
   // Opens Explore, chooses space/endpoint containing 'kpi' and type KeyPerformanceIndicator,
   // expecting a cell containing bikes-avg-${SUFFIX} within 200 s (reload between polls).

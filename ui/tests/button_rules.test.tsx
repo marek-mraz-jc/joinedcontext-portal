@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { routerPaths } from "./gates";
 import { jsonResponse, LOCALES, renderRoute } from "./pageHarness";
 
 const UI = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,6 +62,9 @@ const PAGES = [
   `/projects/${PROJECT}/apps`,
   `/projects/${PROJECT}/syncsources`,
   `/projects/${PROJECT}/access`,
+  // A kind's create and edit forms are pages at addresses of their own (T-2474).
+  `/projects/${PROJECT}/policies/new`,
+  `/projects/${PROJECT}/policies/verejne-citanie/edit`,
 ];
 
 /** A person who may do everything, so no control is missing for want of a grant. */
@@ -109,7 +113,10 @@ const open = (path: string) =>
  */
 const of = (variant: "bg-primary" | "bg-danger") => {
   const view = document.querySelector("main") ?? document.body;
-  return [...view.querySelectorAll<HTMLElement>(`button.${variant}, a.${variant}`)];
+  // A list behind its routed form is hidden, so it is not what the view offers (T-2474).
+  return [...view.querySelectorAll<HTMLElement>(`button.${variant}, a.${variant}`)].filter(
+    (element) => element.closest("[hidden]") === null,
+  );
 };
 
 /** What a person reads on the button, which is what "one primary" is counted over. */
@@ -126,7 +133,7 @@ afterEach(() => {
 describe("the buttons of every page", () => {
   it("every_page_of_the_router_is_here", () => {
     const router = read("src/router.tsx");
-    const paths = [...router.matchAll(/^\s*path: "([^"]+)",/gm)].map((match) => match[1]);
+    const paths = routerPaths(router);
     const missing = paths.filter((path) => {
       if (path === "/" || path === "/__gallery") return false;
       // `$param` stands for a value; the list carries one address per route.

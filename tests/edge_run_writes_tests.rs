@@ -7,7 +7,7 @@
 //! They all write to the same log, which the workspace reads as instructions (`internal_inbox`), so a
 //! value that gets past a bound reaches the agent: an answer nobody offered, a message longer than the
 //! model is given, a second observation of one version that starts a second check. The seven routes
-//! share `own_run_of` and `terminal`, so the first two cases sweep all of them and the rest take each
+//! share `own_run_to_write` and `terminal`, so the first two cases sweep all of them and the rest take each
 //! route's own bounds.
 //!
 //! Tests only (the family's rule). Every case here is green; a red one becomes its own task.
@@ -190,6 +190,7 @@ fn a_run(id: &str, project: &str, who: &str, status: AgentRunStatus, kind: &str)
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -931,4 +932,135 @@ async fn only_a_run_with_a_preview_is_published_and_never_a_dashboard_or_an_anal
             "a refused publish moved the run",
         );
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+// A binding, not authorship, lets a person write to a run (T-2486)
+// -------------------------------------------------------------------------------------------------
+
+/// PF-50, T-2486: the person who started a run and then lost their binding in the project (left the
+/// department, the RoleBinding removed) writes nothing more to it. Every write route answers `403`,
+/// and no event reaches the log the workspace reads as instructions.
+#[tokio::test]
+async fn a_run_whose_owner_lost_the_binding_takes_no_write() {
+    let (state, app, config) = state_and_app();
+    let id = mint_run_id();
+    state
+        .agents
+        .create_run(&a_run(
+            &id,
+            PROJECT,
+            OWNER,
+            AgentRunStatus::Previewing,
+            "app",
+        ))
+        .await
+        .expect("a run");
+    let binding = envelope("RoleBinding", "dev-here", "org", json!({}));
+    assert!(
+        state.mirror.remove(&binding.key()).is_some(),
+        "the fixture binds devs in {PROJECT}",
+    );
+    // The same session as before: still in the group, which no binding names any more.
+    let owner = cookie(&config, OWNER, &[], &["devs"]);
+
+    for (route, uri, body) in every_write(&id) {
+        let (status, answer) = post(&app, Some(&owner), &uri, body).await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "{route} answered {status}: {answer}"
+        );
+        assert!(
+            !answer.to_string().contains("nobody else may read"),
+            "{route} answered with the run's prompt: {answer}",
+        );
+    }
+    assert!(
+        state
+            .agents
+            .events_since(&id, 0)
+            .await
+            .expect("the log")
+            .is_empty(),
+        "a refused write left an event on the log",
+    );
+    assert_eq!(
+        state
+            .agents
+            .get_run(&id)
+            .await
+            .expect("the store")
+            .map(|run| run.status),
+        Some(AgentRunStatus::Previewing.as_str().to_owned()),
+        "a refused write changed the run",
+    );
+}
+
+/// AG-64, PF-50: a stranger to the project hears the same answer from a run's REST route as from
+/// the operation of the same action, and the answer does not depend on whether the id exists.
+#[tokio::test]
+async fn the_rest_routes_and_the_ops_door_refuse_a_stranger_alike() {
+    let (state, app, config) = state_and_app();
+    let id = mint_run_id();
+    state
+        .agents
+        .create_run(&a_run(
+            &id,
+            PROJECT,
+            OWNER,
+            AgentRunStatus::Previewing,
+            "app",
+        ))
+        .await
+        .expect("a run");
+    let stranger = cookie(&config, "eva", &[], &["another-city"]);
+
+    for probe in [id.as_str(), "run-nobody-minted"] {
+        for (route, op, input) in [
+            (
+                "messages",
+                "jc_run_message",
+                json!({ "id": probe, "text": "make the map bigger" }),
+            ),
+            (
+                "answers",
+                "jc_run_answer",
+                json!({ "id": probe, "questionId": "q1", "answers": { "answer": "yes" } }),
+            ),
+            ("cancel", "jc_run_cancel", json!({ "id": probe })),
+            ("publish", "jc_run_publish", json!({ "id": probe })),
+        ] {
+            let rest = every_write(probe)
+                .into_iter()
+                .find(|(name, _, _)| *name == route)
+                .expect("a write route");
+            let (rest_status, rest_answer) = post(&app, Some(&stranger), &rest.1, rest.2).await;
+            let (door_status, door_answer) = post(
+                &app,
+                Some(&stranger),
+                &format!("/api/v1/projects/{PROJECT}/ops/{op}"),
+                Some(input),
+            )
+            .await;
+            assert_eq!(
+                rest_status,
+                StatusCode::FORBIDDEN,
+                "{route} on {probe}: {rest_answer}"
+            );
+            assert_eq!(
+                rest_status, door_status,
+                "{route} on {probe}: {rest_answer} vs {door_answer}",
+            );
+        }
+    }
+    assert!(
+        state
+            .agents
+            .events_since(&id, 0)
+            .await
+            .expect("the log")
+            .is_empty(),
+        "a refused write left an event on the log",
+    );
 }

@@ -10,6 +10,7 @@ import { SaveAsResourceAction } from "./SaveAsDialog";
 import { WorkOnCopyAction } from "./WorkOnCopyDialog";
 import type { WorkOnCopyScope } from "./WorkOnCopyDialog";
 import { RowActions } from "./ui/RowActions";
+import { useEditForm } from "./forms/FormRoute";
 import type { RowAction } from "./ui/RowActions";
 
 /**
@@ -44,6 +45,9 @@ export function ResourceRowActions({
   const { t } = useTranslation();
   const permissions = usePermissions(target.home ?? project);
   const [openAction, setOpenAction] = useState<"edit" | "saveAs" | "copy" | "delete" | null>(null);
+  // On a routed list the edit form is a page at `/{plural}/{name}/edit` (T-2474): the menu goes
+  // there, and the address opens it.
+  const routedEdit = useEditForm(target.name);
   const opens = (action: "edit" | "saveAs" | "copy" | "delete") => (open: boolean) =>
     setOpenAction(open ? action : null);
   const denied = (verb: "propose" | "delete") =>
@@ -53,7 +57,7 @@ export function ResourceRowActions({
     {
       key: "edit",
       label: t("resourceEdit.button"),
-      onSelect: onEdit ?? (() => setOpenAction("edit")),
+      onSelect: onEdit ?? (() => (routedEdit ? routedEdit[1](true) : setOpenAction("edit"))),
       disabledReason: denied("propose"),
     },
     {
@@ -84,8 +88,8 @@ export function ResourceRowActions({
           target={target}
           form={form}
           trigger={false}
-          open={openAction === "edit"}
-          onOpenChange={opens("edit")}
+          open={routedEdit ? routedEdit[0] : openAction === "edit"}
+          onOpenChange={routedEdit ? routedEdit[1] : opens("edit")}
         />
       )}
       <SaveAsResourceAction

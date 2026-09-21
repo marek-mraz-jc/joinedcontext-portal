@@ -1,3 +1,4 @@
+import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -888,19 +889,60 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     setEditing(parsedForm);
   }, []);
 
+  /** A blank endpoint in the editor: the add button, or the address `/endpoints/new` (T-2474). */
+  const startNew = useCallback((firstSpace: string) => {
+    setFormError(null);
+    setIsNew(true);
+    setBase(null);
+    setUrlDraftName(undefined);
+    setHidden([]);
+    setActiveSlug(generateSlug());
+    setPickerState({ projectionName: "", classes: {} });
+    setEditing({
+      name: "",
+      contextSpaceRef: firstSpace,
+      audience: "project-list",
+      enabledRepresentations: ["ngsi-ld"],
+      allowedProjects: [],
+    });
+  }, []);
+
+  // `/endpoints/new`: the blank form once, after the spaces have answered, so the first space is
+  // preselected as the button does it.
+  const formRoute = useFormRoute();
+  const routedNew = formRoute?.form?.mode === "new";
+  const openedNew = useRef(false);
+  useEffect(() => {
+    if (!routedNew) {
+      openedNew.current = false;
+      return;
+    }
+    if (openedNew.current || spacesQuery.isPending) {
+      return;
+    }
+    openedNew.current = true;
+    startNew(asManifests(spacesQuery.data?.items ?? [])[0]?.metadata.name ?? "");
+  }, [routedNew, spacesQuery.isPending, spacesQuery.data, startNew]);
+
   // `?edit=<name>` from the endpoint's own settings page: the editor opens once, on the endpoint the
   // URL names, and only when the list has it — a name nobody publishes opens nothing rather than an
   // empty form that would propose a new endpoint (T-2281).
-  const openedFromUrl = useRef(false);
+  // Once per name the address carries: the list stays mounted while its forms come and go
+  // (T-2474), so the next edit address opens its own endpoint.
+  const openedFromUrl = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (openedFromUrl.current || !edit) {
+    if (!edit) {
+      openedFromUrl.current = undefined;
+      return;
+    }
+    if (openedFromUrl.current === edit) {
       return;
     }
     const wanted = endpoints.find((endpoint) => endpoint.metadata.name === edit);
     if (!wanted) {
       return;
     }
-    openedFromUrl.current = true;
+    openedFromUrl.current = edit;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     openEditor(wanted);
   }, [edit, endpoints, openEditor]);
@@ -963,29 +1005,14 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   // Rebuilt on every render: a handful of small objects, and no hook after the early returns.
   const previewManifests = editing ? buildManifests(editing) : null;
 
-  // The same control in the header and in the empty list (T-1381).
+  // The same control in the header and in the empty list (T-1381). On a routed list it goes to
+  // `/endpoints/new`, and the address opens the form (T-2474).
   const addButton = (
     <PermissionGuard project={project} kind="Endpoint" verb="propose">
       <Button
         variant="primary"
         icon={<Icon name="plus" className="size-4" />}
-        onClick={() => {
-          setFormError(null);
-          setIsNew(true);
-          setBase(null);
-          setUrlDraftName(undefined);
-          setHidden([]);
-          const newSlug = generateSlug();
-          setActiveSlug(newSlug);
-          setPickerState({ projectionName: "", classes: {} });
-          setEditing({
-            name: "",
-            contextSpaceRef: spaceNames[0] ?? "",
-            audience: "project-list",
-            enabledRepresentations: ["ngsi-ld"],
-            allowedProjects: [],
-          });
-        }}
+        onClick={() => (formRoute ? formRoute.openNew() : startNew(spaceNames[0] ?? ""))}
       >
         {t("endpoints.add")}
       </Button>
@@ -1046,8 +1073,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               <TableCell primary>
                 {/* The name opens the endpoint's own page, where every setting is (T-2281). */}
                 <Link
-                  to="/projects/$project/endpoints/$name"
-                  params={{ project, name: endpoint.metadata.name }}
+                  to="/projects/$project/$plural/$name"
+                  params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
                   className="text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
                 >
                   {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
@@ -1095,7 +1122,9 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   project={project}
                   endpoint={endpoint}
                   label={localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                  onEdit={() => openEditor(endpoint)}
+                  onEdit={() =>
+                    formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint)
+                  }
                   onExplore={
                     spec.slug
                       ? () =>
@@ -1163,8 +1192,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                         </Link>
                         {space ? (
                           <Link
-                            to="/projects/$project/spaces/$name"
-                            params={{ project: source, name: space }}
+                            to="/projects/$project/$plural/$name"
+                            params={{ plural: "spaces", project: source, name: space }}
                             className="focus-ring inline-flex items-center gap-1 rounded-sm font-mono text-caption text-primary hover:underline"
                           >
                             {space}
@@ -1348,9 +1377,9 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 click, with what is ticked said above it (T-1389). */}
             {editing?.contextSpaceRef ? (
               <section className="rounded border border-border p-3" aria-labelledby="endpoint-projection">
-                <h3 id="endpoint-projection" className="text-body font-medium text-fg">
+                <FormHeading id="endpoint-projection" className="text-body font-medium text-fg">
                   {t("endpoints.section.projection")}
-                </h3>
+                </FormHeading>
                 <p data-testid="projection-summary" className="text-caption text-fg-muted">
                   {t("endpoints.projection.summary", {
                     types: Object.values(pickerState.classes).filter((config) => config.ticked).length,
