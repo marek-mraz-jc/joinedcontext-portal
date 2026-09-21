@@ -1571,3 +1571,176 @@ export function groupSchema(t: (key: string) => string, users: string[] = []): J
     },
   };
 }
+
+/** The three notification formats CIM 009 clause 5.2.14 names; absent means the broker's own. */
+export const NOTIFICATION_FORMATS = ["normalized", "concise", "keyValues"] as const;
+
+/**
+ * An address a notification may be posted to: `http` or `https`, a host, and no `user@` in it.
+ * jc-core refuses the same three things (`NotificationEndpoint::validate`), and a credential in
+ * the query is refused there too; the form catches the shape before a round trip does.
+ */
+export const NOTIFICATION_URI_PATTERN = "^https?://[^\\s/?#@]+([/?#]\\S*)?$";
+
+/** Header names whose value is a credential, as jc-core's `CREDENTIAL_HEADERS` lists them. */
+const CREDENTIAL_HEADERS = ["authorization", "proxy-authorization", "cookie"];
+
+/**
+ * A header name, and never one of those: their value belongs in `secretRef` (MF-31). A schema
+ * pattern takes no `i` flag, so each letter is spelled in both cases.
+ */
+export const HEADER_NAME_PATTERN = `^(?!(${CREDENTIAL_HEADERS.map((name) =>
+  name.replace(/[a-z]/g, (letter) => `[${letter.toUpperCase()}${letter}]`),
+).join("|")})$)[A-Za-z0-9-]+$`;
+
+/** An RFC 3339 moment with its offset, as `expiresAt` is written into the manifest. */
+export const RFC3339_PATTERN =
+  "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})$";
+
+/**
+ * The `Subscription` a person authors: which space, what is watched, where the notification goes
+ * and how often (CC-72, DS-16, CIM 009 clause 5.2.12).
+ *
+ * The shape is the manifest's, member for member, so the YAML view and the fields agree; only
+ * `contextSpaceRef` is a name here and a reference there. A selector names a type, an id or an
+ * id pattern (`minProperties`, since rjsf drops an emptied text box), and the credential the
+ * receiver needs is a `secretRef`, never a header value: `Authorization`, `Cookie` and
+ * `Proxy-Authorization` are refused in `receiverInfo` by jc-core, and the form says why at the
+ * field rather than after the Check (MF-31, PF-36).
+ */
+export function subscriptionSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  secrets: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "contextSpaceRef", "notification"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("subscriptions.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      subscriptionName: {
+        type: "string",
+        title: t("subscriptions.field.subscriptionName"),
+        maxLength: 256,
+      },
+      contextSpaceRef: {
+        type: "string",
+        title: t("subscriptions.field.space"),
+        ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+      },
+      description: {
+        type: "string",
+        title: t("subscriptions.field.description"),
+        maxLength: 1024,
+      },
+      entities: {
+        type: "array",
+        title: t("subscriptions.field.entities"),
+        items: {
+          type: "object",
+          minProperties: 1,
+          properties: {
+            type: {
+              type: "string",
+              title: t("subscriptions.field.entityType"),
+              pattern: ENTITY_TYPE_PATTERN,
+            },
+            id: {
+              type: "string",
+              title: t("subscriptions.field.entityId"),
+              pattern: "^urn:ngsi-ld:\\S+$",
+            },
+            idPattern: { type: "string", title: t("subscriptions.field.idPattern") },
+          },
+        },
+      },
+      watchedAttributes: {
+        type: "array",
+        title: t("subscriptions.field.watchedAttributes"),
+        items: { type: "string", pattern: "^\\S+$" },
+        uniqueItems: true,
+      },
+      q: { type: "string", title: "q" },
+      geoQ: { type: "string", title: "geoQ" },
+      notification: {
+        type: "object",
+        title: t("subscriptions.field.notification"),
+        required: ["endpoint"],
+        properties: {
+          endpoint: {
+            type: "object",
+            title: t("subscriptions.field.endpoint"),
+            required: ["uri"],
+            properties: {
+              uri: {
+                type: "string",
+                title: t("subscriptions.field.uri"),
+                pattern: NOTIFICATION_URI_PATTERN,
+                maxLength: 2048,
+              },
+              accept: {
+                type: "string",
+                title: t("subscriptions.field.accept"),
+                enum: ["application/json", "application/ld+json", "application/geo+json"],
+              },
+              receiverInfo: {
+                type: "array",
+                title: t("subscriptions.field.receiverInfo"),
+                items: {
+                  type: "object",
+                  required: ["key", "value"],
+                  properties: {
+                    key: {
+                      type: "string",
+                      title: t("subscriptions.field.headerName"),
+                      pattern: HEADER_NAME_PATTERN,
+                    },
+                    value: { type: "string", title: t("subscriptions.field.headerValue") },
+                  },
+                },
+              },
+              secretRef: secretRef(t, t("subscriptions.field.secretRef"), secrets),
+            },
+          },
+          format: {
+            type: "string",
+            title: t("subscriptions.field.format"),
+            enum: [...NOTIFICATION_FORMATS],
+          },
+          attributes: {
+            type: "array",
+            title: t("subscriptions.field.attributes"),
+            items: { type: "string", pattern: "^\\S+$" },
+            uniqueItems: true,
+          },
+        },
+      },
+      throttling: {
+        type: "integer",
+        title: t("subscriptions.field.throttling"),
+        minimum: 1,
+      },
+      expiresAt: {
+        type: "string",
+        title: t("subscriptions.field.expiresAt"),
+        pattern: RFC3339_PATTERN,
+      },
+      isActive: {
+        type: "boolean",
+        title: t("subscriptions.field.isActive"),
+        default: true,
+      },
+    },
+  };
+}
+
+/** No autocomplete on the two filter expressions, for the reason `policyUiSchema` gives. */
+export const subscriptionUiSchema: UiSchema = {
+  q: { "ui:autocomplete": "off" },
+  geoQ: { "ui:autocomplete": "off" },
+};

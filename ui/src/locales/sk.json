@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kópie",
-    "policies": "Politiky"
+    "policies": "Politiky",
+    "subscriptions": "Odbery"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -2420,6 +2421,42 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoľuje"
+    }
+  },
+  "subscriptions": {
+    "title": "Odbery",
+    "lead": "Trvalé dopyty priestorov tohto projektu: ktoré zmeny sa sledujú a kam broker posiela notifikáciu.",
+    "empty": "Tento projekt zatiaľ nemá žiadny odber.",
+    "add": "Nový odber",
+    "addHint": "Uložením navrhnete zmenu; broker začne posielať notifikácie po jej schválení.",
+    "propose": "Navrhnúť zmenu",
+    "watchesNothing": "Odber musí niečo sledovať: pridajte výber entít, sledovaný atribút alebo oboje.",
+    "paused": "Pozastavený",
+    "field": {
+      "name": "Názov",
+      "subscriptionName": "Zobrazovaný názov",
+      "space": "Kontextový priestor",
+      "description": "Popis",
+      "entities": "Sledované entity",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátora",
+      "watchedAttributes": "Sledované atribúty",
+      "notification": "Notifikácia",
+      "endpoint": "Príjemca",
+      "uri": "Adresa",
+      "accept": "Typ média",
+      "receiverInfo": "Hlavičky",
+      "headerName": "Názov hlavičky",
+      "headerValue": "Hodnota hlavičky",
+      "secretRef": "Prihlasovací údaj",
+      "format": "Formát",
+      "attributes": "Posielané atribúty",
+      "throttling": "Najkratší interval (sekundy)",
+      "expiresAt": "Platí do",
+      "isActive": "Posielať notifikácie",
+      "receiver": "Posiela na",
+      "watches": "Sleduje"
     }
   }
 }

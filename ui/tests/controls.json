@@ -927,6 +927,14 @@
         "space_segment.test.tsx"
       ]
     },
+    "src/routes/SubscriptionsPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "subscription_form.test.tsx"
+      ]
+    },
     "src/routes/WorkspacesPage.tsx": {
       "controls": {
         "Button": 3
