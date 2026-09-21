@@ -79,6 +79,8 @@ fn drifted(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/drift",
+    summary = "List Drift",
+    description = "What the last scan found live in the project's spaces that differs from the repository. Members of the project only.",
     tag = "drift",
     params(("project" = String, Path, description = "Project name")),
     responses(
@@ -111,6 +113,8 @@ pub async fn list_drift(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/drift/{space}/{id}/revert",
+    summary = "Revert Drift",
+    description = "Writes the repository's entity back into the space, undoing a live edit the scan found. Needs `propose` on Entity; the scan must have reported this drift.",
     tag = "drift",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -166,6 +170,8 @@ pub async fn revert_drift(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/drift/{space}/{id}/adopt",
+    summary = "Adopt Drift",
+    description = "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
     tag = "drift",
     params(
         ("project" = String, Path, description = "Project name"),

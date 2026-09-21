@@ -31,6 +31,8 @@ fn caller(user: CurrentUser, front: Front) -> Caller {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces",
+    summary = "Open A Workspace",
+    description = "Opens a named branch of the project to change several resources in, brought back later as one Change.",
     tag = "workspaces",
     params(("project" = String, Path, description = "Project name")),
     request_body(
@@ -58,6 +60,8 @@ pub async fn open_workspace(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces",
+    summary = "List Workspaces",
+    description = "The open workspaces of the project, oldest first.",
     tag = "workspaces",
     params(("project" = String, Path, description = "Project name")),
     responses(
@@ -78,6 +82,8 @@ pub async fn list_workspaces(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}",
+    summary = "Read A Workspace",
+    description = "One workspace: whose it is, what it covers, when it expires and how many files it changes.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -101,6 +107,8 @@ pub async fn get_workspace(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}/compare",
+    summary = "Compare A Workspace",
+    description = "Every file the workspace changes with its fields and lane, and every field main changed too.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -124,6 +132,8 @@ pub async fn compare_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/update",
+    summary = "Update A Workspace From Main",
+    description = "Takes what main changed into the workspace; a field both changed needs a resolution, ours or theirs.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -153,6 +163,8 @@ pub async fn update_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/propose",
+    summary = "Bring A Workspace Back",
+    description = "Proposes the workspace as one Change a person approves; never for an agent (AG-82).",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -177,6 +189,8 @@ pub async fn propose_workspace(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/workspaces/{name}",
+    summary = "Discard A Workspace",
+    description = "Removes the workspace and its branch; nothing in it reaches main.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -200,6 +214,8 @@ pub async fn discard_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Start A Workspace Preview",
+    description = "Renders the workspace with its prefix and serves its Endpoints on slugs of their own; every pipeline stays paused (CC-78, PF-83).",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -224,6 +240,8 @@ pub async fn start_workspace_preview(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Read A Workspace Preview",
+    description = "Whether the preview runs, the addresses of its Endpoints, its paused pipelines, and why it failed when it did.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -247,6 +265,8 @@ pub async fn get_workspace_preview(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Stop A Workspace Preview",
+    description = "Stops the preview; its Endpoints stop answering. Stopping one that does not run changes nothing.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),

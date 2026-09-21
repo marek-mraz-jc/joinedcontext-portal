@@ -125,6 +125,8 @@ pub fn route_prefix(config: &Config, project: &str) -> Option<String> {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/basemap/{style}/style.json",
+    summary = "Read Basemap Style",
+    description = "The MapLibre style of one basemap, pointing its tiles at this Portal. 404 when the installation configures no basemap.",
     tag = "basemap",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -215,6 +217,8 @@ pub async fn get_style(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/basemap/{style}/{z}/{x}/{tile}",
+    summary = "Read Basemap Tile",
+    description = "One tile of a basemap, served from the Portal's cache or fetched from the configured tile source. Rate limited; a tile source that fails answers 502.",
     tag = "basemap",
     params(
         ("project" = String, Path, description = "Project name"),

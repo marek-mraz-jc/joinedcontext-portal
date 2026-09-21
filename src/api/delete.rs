@@ -151,6 +151,8 @@ impl DeleteOutcome {
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Delete Resource",
+    description = "Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

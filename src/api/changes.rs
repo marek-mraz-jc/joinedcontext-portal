@@ -681,6 +681,8 @@ fn build_proposal(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes",
+    summary = "List Changes",
+    description = "Lists open change proposals and merge requests for review.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -798,6 +800,8 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes/{id}",
+    summary = "Read One Change",
+    description = "One proposed change: what it does, who wrote it, its lane and where it stands.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -869,6 +873,8 @@ pub async fn change_for(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/approve",
+    summary = "Approve Change",
+    description = "Approves and merges a change proposal.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1291,6 +1297,8 @@ pub async fn approve_change_for(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/reject",
+    summary = "Reject Change",
+    description = "Rejects a change proposal with a reason and closes its merge request.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),

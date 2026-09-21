@@ -193,6 +193,8 @@ pub(crate) fn http() -> &'static reqwest::Client {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/pipelines/{name}/metrics",
+    summary = "Read Pipeline Counters",
+    description = "What the runner has counted for one pipeline: state, messages, errors and latency.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

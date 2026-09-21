@@ -102,6 +102,8 @@ pub struct ProjectDetail {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}",
+    summary = "Read A Project",
+    description = "The project and what it holds of each quota: context spaces, resident pipelines, public endpoints and apps.",
     tag = "resources",
     params(("project" = String, Path, description = "Project slug")),
     responses(
@@ -289,6 +291,8 @@ pub struct OpenProject {
 #[utoipa::path(
     post,
     path = "/api/v1/projects",
+    summary = "Open A Project",
+    description = "Opens a project, with the opener's steward binding in the same change; the organization's own setting says who may.",
     tag = "resources",
     request_body(
         content = OpenProject,
@@ -683,6 +687,8 @@ async fn reserved_until(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}",
+    summary = "Delete A Project",
+    description = "Proposes the one red-lane change that removes a project and every space, endpoint, app, service account, role and binding written for it.",
     tag = "resources",
     params(("project" = String, Path, description = "The project to delete")),
     responses(

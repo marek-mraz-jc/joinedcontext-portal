@@ -252,6 +252,8 @@ fn mint(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys",
+    summary = "List Service Account Keys",
+    description = "Every key of one ServiceAccount, with no token in the answer.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -281,6 +283,8 @@ pub async fn list_keys(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys",
+    summary = "Mint A Service Account Key",
+    description = "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
     tag = "access",
     request_body(
         content = MintRequest,
@@ -350,6 +354,8 @@ pub async fn create_key(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate",
+    summary = "Rotate A Service Account Key",
+    description = "Replaces one key with a successor; the old one stops working when its overlap ends.",
     tag = "access",
     request_body(content = RotateRequest, example = json!({ "overlapHours": 24 })),
     params(
@@ -422,6 +428,8 @@ pub async fn rotate_key(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}",
+    summary = "Revoke A Service Account Key",
+    description = "Stops one key at once; nothing that used it works afterwards.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
