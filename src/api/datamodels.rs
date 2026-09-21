@@ -104,6 +104,16 @@ pub fn confine_linkml_path(linkml: &str) -> Result<String, ApiError> {
             "linkml path must not contain '..' segments or be empty".into(),
         ));
     }
+    // The path becomes part of a forge URL, where `%2e%2e` is read as `..` and `?` or `#` end the
+    // path: none of them names a file of a model (T-1484).
+    if trimmed
+        .chars()
+        .any(|c| matches!(c, '%' | '?' | '#') || c.is_control())
+    {
+        return Err(ApiError::BadRequest(
+            "linkml path must not contain '%', '?', '#' or a control character".into(),
+        ));
+    }
     if !trimmed.ends_with(".linkml.yaml") {
         return Err(ApiError::BadRequest(
             "linkml path must end with .linkml.yaml".into(),
@@ -342,10 +352,21 @@ pub fn overall_severity(changes: &[ModelChange]) -> &'static str {
 
 pub fn bump_version(current: &SemVer, severity: &str) -> Result<SemVer, ApiError> {
     let (major, minor, patch) = (current.major(), current.minor(), current.patch());
+    let exhausted =
+        || ApiError::BadRequest(format!("version {current} has no next {severity} version"));
     let bumped = match severity {
-        "breaking" => format!("{}.0.0", major + 1),
-        "additive" => format!("{}.{}.0", major, minor + 1),
-        _ => format!("{}.{}.{}", major, minor, patch + 1),
+        "breaking" => format!("{}.0.0", major.checked_add(1).ok_or_else(exhausted)?),
+        "additive" => format!(
+            "{}.{}.0",
+            major,
+            minor.checked_add(1).ok_or_else(exhausted)?
+        ),
+        _ => format!(
+            "{}.{}.{}",
+            major,
+            minor,
+            patch.checked_add(1).ok_or_else(exhausted)?
+        ),
     };
     SemVer::new(&bumped).map_err(|e| ApiError::BadRequest(e.to_string()))
 }
@@ -780,4 +801,151 @@ pub fn router() -> Router<AppState> {
             get(get_source).put(put_source),
         )
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// DM-56, T-1484: a model's source stays inside its space's `datamodels/` folder.
+    #[test]
+    fn confine_linkml_path_keeps_a_source_inside_its_folder() {
+        assert_eq!(
+            confine_linkml_path("./air-quality.linkml.yaml").expect("relative"),
+            "air-quality.linkml.yaml"
+        );
+        assert_eq!(
+            confine_linkml_path("v2/meranie-ovzdušia.linkml.yaml").expect("a folder, Unicode"),
+            "v2/meranie-ovzdušia.linkml.yaml"
+        );
+        let long = format!("{}.linkml.yaml", "a".repeat(4096));
+        assert_eq!(confine_linkml_path(&long).expect("long"), long);
+        for refused in [
+            "",
+            "./",
+            "/etc/air.linkml.yaml",
+            ".//air.linkml.yaml",
+            "../air.linkml.yaml",
+            "./a/../b.linkml.yaml",
+            "a/./b.linkml.yaml",
+            "a\\..\\b.linkml.yaml",
+            "%2e%2e/%2e%2e/other/secret.linkml.yaml",
+            "air.linkml.yaml?ref=other",
+            "x#.linkml.yaml",
+            "air\n.linkml.yaml",
+            "air.yaml",
+            "air.linkml.yaml.bak",
+        ] {
+            assert!(
+                confine_linkml_path(refused).is_err(),
+                "{refused:?} was accepted"
+            );
+        }
+    }
+
+    fn classes(value: Value) -> Value {
+        json!({ "classes": value })
+    }
+
+    fn severities(prev: &Value, next: &Value) -> Vec<(String, String)> {
+        classify_linkml_changes(prev, next)
+            .into_iter()
+            .map(|change| (change.severity, change.subject))
+            .collect()
+    }
+
+    /// DM-23, T-1484: removing is breaking, adding is additive, nothing changed is nothing.
+    #[test]
+    fn classify_linkml_changes_names_each_class_and_slot_change() {
+        let before = json!({
+            "classes": { "Station": { "slots": ["name", "bikes"] } },
+            "slots": { "name": { "range": "string", "required": true }, "bikes": { "range": "integer" } }
+        });
+        assert!(severities(&before, &before).is_empty(), "nothing changed");
+        assert!(
+            severities(&json!({}), &json!({})).is_empty(),
+            "two empty schemas"
+        );
+
+        let added = json!({ "classes": { "Station": { "slots": ["name", "bikes"] }, "Dock": {} },
+                            "slots": before["slots"] });
+        assert_eq!(
+            severities(&before, &added),
+            [("additive".into(), "Dock".into())]
+        );
+        assert_eq!(
+            severities(&added, &before),
+            [("breaking".into(), "Dock".into())],
+            "a class removed"
+        );
+        assert_eq!(
+            severities(&classes(json!({})), &classes(json!({ "Dock": {} }))),
+            [("additive".into(), "Dock".into())]
+        );
+        assert_eq!(
+            severities(&json!({}), &before)
+                .iter()
+                .filter(|(severity, _)| severity == "breaking")
+                .count(),
+            1,
+            "from an empty schema, only the new required slot breaks"
+        );
+
+        let slot = |range: &str| {
+            json!({ "classes": before["classes"],
+                    "slots": { "name": before["slots"]["name"], "bikes": { "range": range } } })
+        };
+        assert_eq!(
+            severities(&before, &slot("float")),
+            [("additive".into(), "bikes".into())],
+            "integer widened to float"
+        );
+        assert_eq!(
+            severities(&slot("float"), &slot("integer")),
+            [("breaking".into(), "bikes".into())],
+            "float narrowed to integer"
+        );
+        assert_eq!(
+            severities(&slot("datetime"), &slot("boolean")),
+            [("breaking".into(), "bikes".into())],
+            "a slot's type changed"
+        );
+        let unslotted =
+            json!({ "classes": { "Station": { "slots": ["name"] } }, "slots": before["slots"] });
+        assert_eq!(
+            severities(&before, &unslotted),
+            [("breaking".into(), "Station.bikes".into())]
+        );
+    }
+
+    fn version(raw: &str) -> SemVer {
+        SemVer::new(raw).expect("a version")
+    }
+
+    /// DM-22, DM-23, T-1484: breaking bumps the major, additive the minor, anything else the patch; a
+    /// part already at its largest has no next version and says so.
+    #[test]
+    fn bump_version_moves_the_part_the_severity_names() {
+        let current = version("1.4.2");
+        let bumped = |severity: &str| {
+            bump_version(&current, severity)
+                .expect(severity)
+                .to_string()
+        };
+        assert_eq!(bumped("breaking"), "2.0.0");
+        assert_eq!(bumped("additive"), "1.5.0");
+        assert_eq!(bumped("none"), "1.4.3");
+        assert_eq!(bumped("an unknown severity"), "1.4.3");
+        assert_eq!(bumped(""), "1.4.3");
+
+        let max = u32::MAX;
+        for (raw, severity) in [
+            (format!("{max}.0.0"), "breaking"),
+            (format!("0.{max}.0"), "additive"),
+            (format!("0.0.{max}"), "none"),
+        ] {
+            let error = bump_version(&version(&raw), severity).expect_err(&raw);
+            assert!(error.to_string().contains(&raw), "{error}");
+        }
+    }
 }

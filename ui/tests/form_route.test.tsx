@@ -64,6 +64,18 @@ afterEach(() => {
 });
 
 describe("a kind's forms at their own addresses", () => {
+  // TS-19, UI-27: the host is one block of the page's column. An empty slot beside the list was a
+  // second flex child and pushed the page down by one section gap (T-2489, the endpoints goldens).
+  it("adds no empty block to the page's column while the list shows", async () => {
+    await open(LIST);
+    await screen.findByRole("heading", { level: 1, name: en.policies.title });
+
+    const column = document.querySelector("#main > div");
+    expect(column).not.toBeNull();
+    const empty = [...(column?.children ?? [])].filter((child) => child.childNodes.length === 0);
+    expect(empty).toEqual([]);
+  });
+
   it("opens the create form at /new, in the list's place, and goes back to the list", async () => {
     await open(`${LIST}/new`);
 

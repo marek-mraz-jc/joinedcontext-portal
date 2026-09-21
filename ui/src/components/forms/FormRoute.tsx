@@ -350,23 +350,27 @@ export function FormRouteHost({
   }, [showing, addressed, close]);
   return (
     <FormRouteContext.Provider value={value}>
-      {notice !== null && form === null && !showing ? <div className="mb-4">{notice}</div> : null}
-      <div hidden={showing || form !== null}>{children}</div>
-      <div ref={setSlot} />
-      {form !== null && !showing ? (
-        fetching > 0 ? (
-          <PageLoading label={t("form.opening")} lines={2} />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <Alert tone="warning" role="alert">
-              {t("form.notOpen", { name: form.mode === "edit" ? form.name : plural })}
-            </Alert>
-            <div>
-              <Button onClick={value.close}>{t("form.backToList")}</Button>
+      {/* One block of the page's column, whatever it shows: the column spaces its children, so an
+          empty slot beside the list would push the page down by a gap (T-2489). */}
+      <div>
+        {notice !== null && form === null && !showing ? <div className="mb-4">{notice}</div> : null}
+        <div hidden={showing || form !== null}>{children}</div>
+        <div ref={setSlot} />
+        {form !== null && !showing ? (
+          fetching > 0 ? (
+            <PageLoading label={t("form.opening")} lines={2} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <Alert tone="warning" role="alert">
+                {t("form.notOpen", { name: form.mode === "edit" ? form.name : plural })}
+              </Alert>
+              <div>
+                <Button onClick={value.close}>{t("form.backToList")}</Button>
+              </div>
             </div>
-          </div>
-        )
-      ) : null}
+          )
+        ) : null}
+      </div>
     </FormRouteContext.Provider>
   );
 }
