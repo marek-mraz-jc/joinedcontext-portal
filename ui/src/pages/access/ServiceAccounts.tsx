@@ -3,17 +3,27 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
-import { asManifests, localized } from "../../api/manifest";
+import { asManifests, isChange, localized, storedMetadata } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { ChangeNotice } from "../../components/ChangeNotice";
+import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { proposeChecked } from "../../api/proposal";
+import {
+  ROLE_SCOPE_LEVELS,
+  serviceAccountSchema,
+  serviceAccountUiSchema,
+} from "../../schemas/kinds";
 import {
   Alert,
   Button,
   Card,
   Dialog,
   Field,
+  Icon,
   Input,
   Table,
   TableBody,
@@ -25,7 +35,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import type { Identity } from "../../auth/AuthProvider";
-import type { Manifest } from "../../api/manifest";
+import type { Change, Manifest } from "../../api/manifest";
 import type { components } from "../../api/schema";
 
 type KeyInfo = components["schemas"]["KeyInfo"];
@@ -42,6 +52,110 @@ interface ServiceAccountSpec {
   purpose?: string;
   roles?: { role?: string; scope?: Record<string, string>; types?: string[] }[];
   credentials?: Credential[];
+}
+
+/** One grant as the form holds it: the scope is a level and a name, not three optional boxes. */
+export interface ServiceAccountGrant {
+  role: string;
+  scope: { level: (typeof ROLE_SCOPE_LEVELS)[number]; name: string };
+  operations?: string[];
+  types?: string[];
+}
+
+export interface ServiceAccountForm {
+  name: string;
+  purpose: string;
+  owner: { user: string };
+  roles: ServiceAccountGrant[];
+  credentials: { kind: string; name: string; expiresAt?: string; ipAllowList?: string[] }[];
+  limits?: { requestsPerMinute?: number };
+  workload?: { kubernetes?: { namespace?: string; serviceAccount?: string } };
+}
+
+/** A list without blank entries, or nothing: the manifest reads as what it grants. */
+function filled(values: string[] | undefined): string[] | undefined {
+  const kept = (values ?? []).map((value) => value.trim()).filter((value) => value !== "");
+  return kept.length > 0 ? kept : undefined;
+}
+
+/**
+ * The form as the manifest the API stores. `stored` is the manifest an edit started from; its
+ * title, description and labels travel on, because the form has no field for them.
+ */
+export function toServiceAccountEnvelope(
+  project: string,
+  form: ServiceAccountForm,
+  stored?: unknown,
+): unknown {
+  const kubernetes = form.workload?.kubernetes;
+  const perMinute = form.limits?.requestsPerMinute;
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "ServiceAccount",
+    metadata: { ...storedMetadata(stored), name: form.name, namespace: project },
+    spec: {
+      owner: { user: form.owner.user.trim() },
+      purpose: form.purpose.trim(),
+      roles: form.roles.map((grant) => {
+        const operations = filled(grant.operations);
+        const types = filled(grant.types);
+        return {
+          role: grant.role,
+          scope: { [grant.scope.level]: grant.scope.name },
+          ...(operations ? { operations } : {}),
+          ...(types ? { types } : {}),
+        };
+      }),
+      credentials: form.credentials.map((credential) => {
+        const ipAllowList = filled(credential.ipAllowList);
+        return {
+          kind: credential.kind,
+          name: credential.name,
+          ...(credential.expiresAt?.trim() ? { expiresAt: credential.expiresAt.trim() } : {}),
+          ...(ipAllowList ? { ipAllowList } : {}),
+        };
+      }),
+      ...(perMinute !== undefined ? { limits: { requestsPerMinute: perMinute } } : {}),
+      ...(kubernetes?.namespace && kubernetes.serviceAccount
+        ? {
+            workload: {
+              kubernetes: {
+                namespace: kubernetes.namespace,
+                serviceAccount: kubernetes.serviceAccount,
+              },
+            },
+          }
+        : {}),
+    },
+  };
+}
+
+/** The stored manifest back as the form: the same pair, so the YAML view and the fields agree. */
+export function fromServiceAccountEnvelope(manifest: unknown): ServiceAccountForm {
+  const envelope = (manifest ?? {}) as { metadata?: { name?: string }; spec?: Record<string, unknown> };
+  const spec = envelope.spec ?? {};
+  const roles = (spec.roles as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    name: envelope.metadata?.name ?? "",
+    purpose: (spec.purpose as string | undefined) ?? "",
+    owner: { user: ((spec.owner as { user?: string } | undefined)?.user) ?? "" },
+    roles: roles.map((grant) => {
+      const scope = (grant.scope as Record<string, string | null | undefined> | undefined) ?? {};
+      // jc-core admits exactly one level, so the first one written is the one there is.
+      const level = ROLE_SCOPE_LEVELS.find((candidate) => scope[candidate]) ?? "project";
+      return {
+        role: (grant.role as string | undefined) ?? "",
+        scope: { level, name: scope[level] ?? "" },
+        ...(grant.operations ? { operations: grant.operations as string[] } : {}),
+        ...(grant.types ? { types: grant.types as string[] } : {}),
+      };
+    }),
+    credentials: ((spec.credentials as ServiceAccountForm["credentials"] | undefined) ?? []).map(
+      (credential) => ({ ...credential }),
+    ),
+    ...(spec.limits ? { limits: spec.limits as ServiceAccountForm["limits"] } : {}),
+    ...(spec.workload ? { workload: spec.workload as ServiceAccountForm["workload"] } : {}),
+  };
 }
 
 /** `api-key` credentials only: an `oauth-client` lives in Keycloak and has no key here. */
@@ -350,10 +464,68 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const [minted, setMinted] = useState<MintedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState<ServiceAccountForm | undefined>(undefined);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [change, setChange] = useState<Change | null>(null);
   const identity = useIdentity();
+  const queryClient = useQueryClient();
   // The API answers keys only to the owner or someone who may propose service accounts; the
   // view asks only for those, so nobody else sees a refused request.
   const mayChange = usePermissions(project).can("ServiceAccount", "propose");
+  const schema = serviceAccountSchema(t, [project]);
+
+  const create = useMutation({
+    mutationFn: async (next: ServiceAccountForm) => {
+      setFormError(null);
+      return proposeChecked(
+        project,
+        "serviceaccounts",
+        toServiceAccountEnvelope(project, next) as { metadata: { name: string } },
+        true,
+      );
+    },
+    onSuccess: (result) => {
+      if (isChange(result)) {
+        setChange(result);
+      }
+      setDialogOpen(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "serviceaccounts") });
+    },
+    onError: (err) => {
+      setFormError(
+        err instanceof ApiError
+          ? (err.problem?.detail ?? err.message)
+          : err instanceof Error
+            ? err.message
+            : t("app.error.generic"),
+      );
+    },
+  });
+
+  const addButton = (
+    <PermissionGuard project={project} kind="ServiceAccount" verb="propose">
+      <Button
+        variant="primary"
+        icon={<Icon name="plus" className="size-4" />}
+        onClick={() => {
+          setFormError(null);
+          // A new account starts owned by the person creating it, which is who answers for it
+          // until somebody else is named (PF-34); a grant on this project is the usual first one.
+          setForm({
+            name: "",
+            purpose: "",
+            owner: { user: identity?.email ?? identity?.username ?? "" },
+            roles: [{ role: "", scope: { level: "project", name: project } }],
+            credentials: [{ kind: "oauth-client", name: "" }],
+          });
+          setDialogOpen(true);
+        }}
+      >
+        {t("access.accounts.add")}
+      </Button>
+    </PermissionGuard>
+  );
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "serviceaccounts"),
@@ -395,9 +567,14 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
 
   return (
     <section className="space-y-4" aria-labelledby="service-accounts-heading">
-      <h2 id="service-accounts-heading" className="text-title font-semibold text-fg">
-        {t("access.accounts.title")}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="service-accounts-heading" className="text-title font-semibold text-fg">
+          {t("access.accounts.title")}
+        </h2>
+        {addButton}
+      </div>
+
+      {change ? <ChangeNotice change={change} project={project} /> : null}
 
       {error ? (
         <Alert role="alert" tone="danger">
@@ -431,7 +608,21 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                       </span>
                     ) : null}
                     <span className="flex items-center gap-1.5">
-                      <EditResourceAction target={accountTarget} />
+                      <EditResourceAction
+                        target={accountTarget}
+                        form={{
+                          schema,
+                          uiSchema: serviceAccountUiSchema,
+                          fromManifest: (manifest) =>
+                            fromServiceAccountEnvelope(manifest) as unknown as Record<string, unknown>,
+                          toManifest: (edited) =>
+                            toServiceAccountEnvelope(
+                              project,
+                              edited as unknown as ServiceAccountForm,
+                              account,
+                            ),
+                        }}
+                      />
                       <DeleteResourceAction target={accountTarget} />
                     </span>
                   </div>
@@ -476,6 +667,29 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       )}
 
       <TokenDialog minted={minted} onClose={() => setMinted(null)} />
+
+      <ResourceFormDialog<ServiceAccountForm>
+        kind="ServiceAccount"
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={t("access.accounts.add")}
+        description={t("access.accounts.addHint")}
+        schema={schema}
+        uiSchema={serviceAccountUiSchema}
+        formData={form}
+        onChange={setForm}
+        project={project}
+        draftKind="ServiceAccount"
+        plural="serviceaccounts"
+        source={{
+          toManifest: (next) => toServiceAccountEnvelope(project, next),
+          fromManifest: (manifest) => fromServiceAccountEnvelope(manifest),
+        }}
+        submitLabel={t("access.accounts.propose")}
+        submitting={create.isPending}
+        error={formError}
+        onSubmit={(next) => create.mutate(next)}
+      />
     </section>
   );
 }

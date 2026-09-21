@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Copies",
-    "policies": "Policies"
+    "policies": "Policies",
+    "subscriptions": "Subscriptions"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -1024,7 +1025,34 @@
       "empty": "This project has no service account yet.",
       "owner": "Owner",
       "roles": "Roles",
-      "purpose": "Purpose"
+      "purpose": "Purpose",
+      "add": "New service account",
+      "addHint": "Saving proposes a change; the account and its client exist once the change is approved.",
+      "propose": "Propose change",
+      "field": {
+        "name": "Name",
+        "purpose": "Purpose",
+        "owner": "Owner",
+        "ownerUser": "Owner's sign-in",
+        "roles": "Grants",
+        "role": "Role",
+        "scope": "Scope",
+        "scopeLevel": "Scope level",
+        "scopeName": "Scope name",
+        "operations": "Operations",
+        "types": "Entity types",
+        "credentials": "Credentials",
+        "credentialKind": "Credential type",
+        "credentialName": "Credential name",
+        "expiresAt": "Expires at",
+        "ipAllowList": "Allowed address blocks",
+        "limits": "Limits",
+        "requestsPerMinute": "Requests per minute",
+        "workload": "Cluster workload",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Namespace",
+        "k8sServiceAccount": "Kubernetes service account"
+      }
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -2420,6 +2448,42 @@
       "validFrom": "Valid from",
       "validTo": "Valid to",
       "grants": "Grants"
+    }
+  },
+  "subscriptions": {
+    "title": "Subscriptions",
+    "lead": "Standing queries of this project's spaces: which changes are watched and where the broker sends a notification.",
+    "empty": "This project has no Subscription yet.",
+    "add": "New Subscription",
+    "addHint": "Saving proposes a change; the broker starts notifying once the change is approved.",
+    "propose": "Propose change",
+    "watchesNothing": "A subscription watches something: add an entity selector, a watched attribute, or both.",
+    "paused": "Paused",
+    "field": {
+      "name": "Name",
+      "subscriptionName": "Display name",
+      "space": "Context Space",
+      "description": "Description",
+      "entities": "Watched entities",
+      "entityType": "Entity type",
+      "entityId": "Entity identifier",
+      "idPattern": "Identifier pattern",
+      "watchedAttributes": "Watched attributes",
+      "notification": "Notification",
+      "endpoint": "Receiver",
+      "uri": "Address",
+      "accept": "Media type",
+      "receiverInfo": "Headers",
+      "headerName": "Header name",
+      "headerValue": "Header value",
+      "secretRef": "Credential",
+      "format": "Format",
+      "attributes": "Attributes sent",
+      "throttling": "Minimum interval (seconds)",
+      "expiresAt": "Expires at",
+      "isActive": "Deliver notifications",
+      "receiver": "Sends to",
+      "watches": "Watches"
     }
   }
 }
