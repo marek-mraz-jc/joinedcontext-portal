@@ -3511,6 +3511,482 @@ async fn approving_the_change_merges_the_applications_repository_at_the_publishe
     assert_eq!(stored.status, "awaiting_approval");
 }
 
+// ---- T-2516: `end_run` under failure (AG-46) ----------------------------------------------
+
+/// What the kube API saw at each workspace delete: the run's ticket hash and whether its
+/// ending status event was already published, read from the store at that moment.
+#[derive(Clone, Default)]
+struct Deletes(Arc<std::sync::Mutex<Vec<(String, bool, String)>>>);
+
+/// A Portal whose runs schedule a workspace on a kube API mock that answers every delete with
+/// `delete_status`, recording the run's state at that moment.
+async fn ending_world(
+    delete_status: u16,
+    db: Option<sqlx::PgPool>,
+) -> (
+    AppState,
+    axum::Router,
+    String,
+    wiremock::MockServer,
+    Deletes,
+) {
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let api = MockServer::start().await;
+    let config = config();
+    let (mut state, _, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    if let Some(pool) = db {
+        state = state.with_db(pool);
+    }
+    state.kube = Some(Arc::new(
+        joinedcontext_portal::apps::kube::KubeClient::with_token(&api.uri(), "kube-token")
+            .expect("a kube client"),
+    ));
+    let deletes = Deletes::default();
+    let (seen, reader) = (deletes.clone(), state.clone());
+    Mock::given(method("DELETE"))
+        .and(path_regex("/jobs/agent-run-"))
+        .respond_with(move |request: &wiremock::Request| {
+            let id = request
+                .url
+                .path()
+                .rsplit("agent-run-")
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            let store = reader.clone();
+            let run_id = id.clone();
+            // The store is read from a runtime of its own: the responder runs on the mock's.
+            let (hash, ended) = std::thread::spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("a runtime");
+                runtime.block_on(async {
+                    let hash = store
+                        .agents
+                        .get_run(&run_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|run| run.ticket_hash)
+                        .unwrap_or_default();
+                    let ended = store
+                        .agents
+                        .events_since(&run_id, 0)
+                        .await
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|e| e.kind == "status" && e.payload.to_string().contains("cancelled"));
+                    (hash, ended)
+                })
+            })
+            .join()
+            .expect("the store read");
+            if let Ok(mut log) = seen.0.lock() {
+                log.push((
+                    hash,
+                    ended,
+                    String::from_utf8_lossy(&request.body).into_owned(),
+                ));
+            }
+            ResponseTemplate::new(delete_status).set_body_json(json!({ "kind": "Status" }))
+        })
+        .mount(&api)
+        .await;
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(delete_status).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    Mock::given(wiremock::matchers::any())
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    let app = server::app(state.clone());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    (state, app, cookie, api, deletes)
+}
+
+async fn cancel(app: &axum::Router, cookie: &str, id: &str) -> (StatusCode, Value) {
+    call(
+        app,
+        cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/cancel"),
+        None,
+    )
+    .await
+}
+
+async fn ticket_of(state: &AppState, id: &str) -> String {
+    state
+        .agents
+        .get_run(id)
+        .await
+        .expect("the store")
+        .expect("the run")
+        .ticket_hash
+}
+
+/// The deletes of this run's Job. A reaper in another test of a shared database may end other
+/// runs through the same client, so the count is by the run's own Job name.
+async fn job_deletes(api: &wiremock::MockServer, id: &str) -> usize {
+    let job = format!("/jobs/agent-run-{id}");
+    api.received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().ends_with(&job))
+        .count()
+}
+
+/// T-2516, AG-46: when the pod's delete reaches the kube API, the run's ticket is already
+/// dead, so the workspace is refused by the proxy for every moment it still runs.
+#[tokio::test]
+async fn the_ticket_is_invalidated_before_the_pod_delete_call_is_made() {
+    let (state, app, cookie, _api, deletes) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let seen = deletes.0.lock().expect("the log").clone();
+    assert_eq!(seen.len(), 1, "one Job delete");
+    assert_eq!(
+        seen[0].0, "",
+        "the ticket was alive when the pod delete was sent"
+    );
+}
+
+/// T-2516, AG-46: the ending `status` event is published after the pod's delete, never before.
+#[tokio::test]
+async fn the_status_event_is_published_after_the_pod_is_gone() {
+    let (state, app, cookie, _api, deletes) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    cancel(&app, &cookie, &id).await;
+    let seen = deletes.0.lock().expect("the log").clone();
+    assert!(
+        !seen[0].1,
+        "the status event went out before the pod delete"
+    );
+    let events = state.agents.events_since(&id, 0).await.expect("events");
+    assert!(events
+        .iter()
+        .any(|e| e.kind == "status" && e.payload.to_string().contains("cancelled")));
+}
+
+/// T-2516, AG-46: a pod that is already gone (404) or a kube API that fails (500) still ends
+/// the run with its reason, and the ticket stays dead.
+#[tokio::test]
+async fn a_pod_delete_that_answers_404_still_ends_the_run() {
+    for delete in [404, 500] {
+        let (state, app, cookie, api, _) = ending_world(delete, None).await;
+        let id = create_run(&app, &cookie).await["id"]
+            .as_str()
+            .expect("an id")
+            .to_owned();
+        let (status, run) = cancel(&app, &cookie, &id).await;
+        assert_eq!(status, StatusCode::OK, "{delete}: {run}");
+        assert_eq!(run["status"], json!("cancelled"), "{delete}");
+        assert_eq!(
+            run["error"],
+            json!(format!("cancelled by {STEWARD}")),
+            "{delete}: {run}"
+        );
+        assert_eq!(ticket_of(&state, &id).await, "", "{delete}");
+        assert_eq!(job_deletes(&api, &id).await, 1, "{delete}");
+    }
+}
+
+#[tokio::test]
+async fn a_pod_delete_that_answers_500_leaves_the_ticket_dead_and_reports_the_run_ended_with_the_reason(
+) {
+    let (state, app, cookie, _api, _) = ending_world(500, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let (status, run) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{run}");
+    assert_eq!(run["error"], json!(format!("cancelled by {STEWARD}")));
+    assert!(run["finishedAt"].as_str().is_some(), "{run}");
+    assert_eq!(ticket_of(&state, &id).await, "");
+    let read = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(read.status, "cancelled");
+}
+
+/// T-2516, AG-46: a Portal that never scheduled the run's pod (no kube API, or no agent
+/// settings at all) still kills the ticket when the run ends.
+#[tokio::test]
+async fn cancelling_a_run_with_no_scheduled_pod_still_invalidates_the_ticket() {
+    let config = config();
+    let (state, app, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    assert!(state.kube.is_none());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ticket_of(&state, &id).await, "");
+}
+
+#[tokio::test]
+async fn no_agent_settings_configured_still_invalidates_the_ticket() {
+    // The run is recorded while the runner block is configured; the Portal that ends it has none
+    // (its settings were removed and it restarted), and the reaper ends what expired.
+    let config = config();
+    let (state, app, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let mut run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    run.expires_at = "2000-01-01T00:00:00Z".to_owned();
+
+    let bare =
+        AppState::new(Config::for_tests(), None).with_mirror(mirror(Some(builder_profile_spec())));
+    assert!(bare.config.agent_settings.is_none());
+    bare.agents.create_run(&run).await.expect("recorded");
+    assert!(ticket_of(&bare, &id).await.starts_with("$argon2id$"));
+    let reaped = reaper::reap_expired(&bare).await;
+    assert_eq!(reaped, 1);
+    assert_eq!(ticket_of(&bare, &id).await, "");
+    let read = bare.agents.get_run(&id).await.expect("store").expect("run");
+    assert_eq!(read.status, "expired");
+}
+
+/// T-2516, AG-46: a second end of an ended run is a conflict that changes nothing: the hash
+/// stays empty and nothing more is deleted or published.
+#[tokio::test]
+async fn ending_an_already_ended_run_is_idempotent_on_the_ticket_hash() {
+    let (state, app, cookie, api, _) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::OK);
+    let events = state
+        .agents
+        .events_since(&id, 0)
+        .await
+        .expect("events")
+        .len();
+    for _ in 0..2 {
+        assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::CONFLICT);
+    }
+    assert_eq!(ticket_of(&state, &id).await, "");
+    assert_eq!(job_deletes(&api, &id).await, 1);
+    assert_eq!(
+        state
+            .agents
+            .events_since(&id, 0)
+            .await
+            .expect("events")
+            .len(),
+        events
+    );
+}
+
+/// T-2516: the reason is the run's `error` and nothing else: no delete to the kube API
+/// carries it, and none carries the run's ticket either.
+#[tokio::test]
+async fn the_reason_string_never_reaches_the_pod_spec_or_a_log_with_a_credential() {
+    let (state, app, cookie, api, _) = ending_world(200, None).await;
+    let created = create_run(&app, &cookie).await;
+    let id = created["id"].as_str().expect("an id").to_owned();
+    let hash = ticket_of(&state, &id).await;
+    cancel(&app, &cookie, &id).await;
+    let reason = format!("cancelled by {STEWARD}");
+    for request in api.received_requests().await.unwrap_or_default() {
+        let body = String::from_utf8_lossy(&request.body);
+        if request.method.as_str() == "DELETE" {
+            assert!(!body.contains(&reason), "{} {body}", request.url);
+        }
+        assert!(
+            !body.contains(&hash),
+            "the ticket hash reached the kube API: {}",
+            request.url
+        );
+    }
+}
+
+fn database_url() -> Option<String> {
+    std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+}
+
+/// A trigger of this test alone that makes one kind of update of one run fail. The names are
+/// built from a run id the Portal minted (hex and dashes), never from input.
+async fn refuse_update(pool: &sqlx::PgPool, name: &str, id: &str, when: &str) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE OR REPLACE FUNCTION {name}() RETURNS trigger AS $$ BEGIN \
+         IF NEW.id = '{id}' AND {when} THEN RAISE EXCEPTION 'refused by the test'; END IF; \
+         RETURN NEW; END $$ LANGUAGE plpgsql"
+    )))
+    .execute(pool)
+    .await
+    .expect("the function");
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TRIGGER {name} BEFORE UPDATE ON agent_runs FOR EACH ROW EXECUTE FUNCTION {name}()"
+    )))
+    .execute(pool)
+    .await
+    .expect("the trigger");
+}
+
+async fn drop_refusal(pool: &sqlx::PgPool, name: &str) {
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP TRIGGER IF EXISTS {name} ON agent_runs"
+    )))
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP FUNCTION IF EXISTS {name}()"
+    )))
+    .execute(pool)
+    .await;
+}
+
+/// A run of an application of its own, so tests sharing one database never meet a live run of
+/// the same application from another test.
+async fn create_run_of_own_app(app: &axum::Router, cookie: &str) -> String {
+    let mut body = create_body();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or_default();
+    body["appName"] = json!(format!("ending-{nanos}"));
+    let (status, run) = call(
+        app,
+        cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{run}");
+    run["id"].as_str().expect("an id").to_owned()
+}
+
+/// T-2516, AG-46: a store that cannot clear the ticket fails the end before the pod is touched,
+/// so a pod never outlives a ticket that still verifies without somebody being told.
+#[tokio::test]
+async fn a_failing_ticket_invalidation_stops_before_the_pod_is_deleted() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2516_ticket_{}", id.replace('-', "_"));
+    refuse_update(
+        &pool,
+        &name,
+        &id,
+        "NEW.ticket_hash = '' AND OLD.ticket_hash <> ''",
+    )
+    .await;
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(status.is_server_error(), "{status}: {body}");
+    assert_eq!(job_deletes(&api, &id).await, 0);
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+}
+
+/// T-2516, restated by T-2560 (AG-46): a status that cannot be written still leaves the ticket
+/// dead and the pod gone, the caller is told, and the retry moves the status.
+#[tokio::test]
+async fn a_failing_set_status_still_leaves_the_ticket_dead_and_the_pod_gone() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2516_status_{}", id.replace('-', "_"));
+    refuse_update(&pool, &name, &id, "NEW.status = 'cancelled'").await;
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(status.is_server_error(), "{status}: {body}");
+    assert_eq!(ticket_of(&state, &id).await, "");
+    assert_eq!(job_deletes(&api, &id).await, 1);
+    let run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_ne!(run.status, "cancelled");
+    // The retry the caller was told to make ends it.
+    let retry = cancel(&app, &cookie, &id).await;
+    assert_eq!(retry.0, StatusCode::OK, "{}", retry.1);
+    assert_eq!(retry.1["status"], json!("cancelled"));
+}
+
+/// T-2560, AG-46: an end that failed after the ticket could not be cleared is finished by the
+/// next attempt: the ticket dies and the pod goes.
+#[tokio::test]
+async fn an_end_that_failed_after_the_status_is_finished_by_a_retry() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2560_{}", id.replace('-', "_"));
+    refuse_update(
+        &pool,
+        &name,
+        &id,
+        "NEW.ticket_hash = '' AND OLD.ticket_hash <> ''",
+    )
+    .await;
+    let first = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(first.0.is_server_error(), "{}", first.1);
+
+    cancel(&app, &cookie, &id).await;
+    reaper::reap_expired(&state).await;
+    assert_eq!(
+        ticket_of(&state, &id).await,
+        "",
+        "the ticket still verifies"
+    );
+    assert_eq!(job_deletes(&api, &id).await, 1, "the pod was never deleted");
+}
+
 /// Edge cases of the filtered run list against PostgreSQL (T-2502, MF-12, PF-59). They run when
 /// `JC_PORTAL_TEST_DATABASE_URL` names a database the test may write to, and skip otherwise, like
 /// the other database tests. Each test writes into projects of its own.

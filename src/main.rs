@@ -1,14 +1,16 @@
 use joinedcontext_portal::config::Config;
-use joinedcontext_portal::server;
-use tracing_subscriber::EnvFilter;
+use joinedcontext_portal::{server, telemetry};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    // OPS-15: JSON lines on stdout, nothing on disk.
+    if let Err(err) = tracing::subscriber::set_global_default(telemetry::log_subscriber(
+        std::io::stdout,
+        telemetry::log_filter(),
+    )) {
+        eprintln!("Logging error: {err}");
+        std::process::exit(1);
+    }
 
     let config = match Config::from_env() {
         Ok(cfg) => cfg,

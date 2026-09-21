@@ -11,6 +11,8 @@ use crate::state::AppState;
 #[utoipa::path(
     get,
     path = "/api/v1/sync",
+    summary = "Read Mirror Sync",
+    description = "Where the Portal's mirror of the configuration repository stands: the revision it holds and when it last synchronized. The instance's state, not a project's.",
     tag = "system",
     responses(
         (status = 200, description = "Status of the background Git mirror synchronization", body = SyncStatus),

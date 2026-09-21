@@ -390,3 +390,36 @@ fn path_of(plural: &str, namespace: &str, name: &str) -> Result<String, KubeErro
     };
     Ok(format!("{prefix}/namespaces/{namespace}/{plural}/{name}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// T-2521, CC-06: the bearer is a sensitive header, so a trace of the request or a debug
+    /// print of the headers shows `Sensitive`, and the client's own debug print redacts it.
+    #[test]
+    fn the_bearer_header_is_marked_sensitive_and_a_debug_print_never_shows_the_token() {
+        let dir = std::env::temp_dir().join(format!("t2521-sensitive-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a mount");
+        std::fs::write(dir.join("token"), "eyJ-secret-token\n").expect("a token");
+        let mounted = KubeClient::from_mount(&dir, "https://10.0.0.1:443")
+            .expect("built")
+            .expect("a token file");
+        let fixed =
+            KubeClient::with_token("https://10.0.0.1:443", "eyJ-secret-token").expect("built");
+        for client in [&mounted, &fixed] {
+            let headers = client.headers("application/json").expect("headers");
+            let bearer = &headers[AUTHORIZATION];
+            assert!(bearer.is_sensitive());
+            assert!(
+                !format!("{headers:?}").contains("eyJ-secret-token"),
+                "{headers:?}"
+            );
+            assert!(
+                !format!("{client:?}").contains("eyJ-secret-token"),
+                "{client:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

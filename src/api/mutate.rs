@@ -731,6 +731,14 @@ async fn propose_engine(
         })?;
     }
 
+    // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
+    //     `jcctl validate` runs, so the two cannot disagree about what is stale, and every stale
+    //     name is listed at once. The model is looked up in this project only, so a model of
+    //     another project is absent and nothing of it is named (R20).
+    if kind_info.kind == "ModelProjection" && operation != Operation::Delete {
+        check_projection(state, project, &envelope.spec).await?;
+    }
+
     // 4c. A ServiceAccount's Keycloak client id is derived, `{project}-{name}`, and the hyphen
     //     is a character of both, so another project's account may derive the same id. The
     //     gateway resolves such an id to nobody (T-1454); refusing it here keeps a proposal from
@@ -1055,6 +1063,36 @@ async fn propose_engine(
 const MAX_SIDECARS: usize = 16;
 const MAX_SIDECAR_BYTES: usize = 256 * 1024;
 
+/// A `ModelProjection` against the LinkML of the DataModel version it references (MP-01).
+async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
+    use jc_core::kinds::{DataModelSpec, ModelProjectionSpec};
+    // The kind's own parse ran above; a spec it accepted parses here too.
+    let projection: ModelProjectionSpec = serde_json::from_value(spec.clone())
+        .map_err(|e| ApiError::BadRequest(format!("spec is not a valid ModelProjection: {e}")))?;
+    let wanted = &projection.data_model_ref;
+    let model = state
+        .mirror
+        .get(project, "DataModel", &wanted.name)
+        .and_then(|model| serde_json::from_value::<DataModelSpec>(model.spec).ok())
+        .ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "spec.dataModelRef names DataModel '{}', which this project does not declare \
+                 (MP-01)",
+                wanted.name
+            ))
+        })?;
+    if model.version.major().to_string() != wanted.version {
+        return Err(ApiError::BadRequest(format!(
+            "spec.dataModelRef names version {} of DataModel '{}', which is at {} (MP-01)",
+            wanted.version, wanted.name, model.version
+        )));
+    }
+    let linkml = crate::api::datamodels::read_source(state, project, &wanted.name).await?;
+    projection
+        .check_against_linkml(&linkml)
+        .map_err(|e| ApiError::BadRequest(format!("spec is not a valid ModelProjection: {e}")))
+}
+
 fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, String)>, ApiError> {
     let Some(files) = files else {
         return Ok(Vec::new());
@@ -1174,6 +1212,8 @@ async fn propose_draft(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/{plural}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1242,6 +1282,8 @@ pub async fn create(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1311,6 +1353,8 @@ pub async fn replace(
 #[utoipa::path(
     patch,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

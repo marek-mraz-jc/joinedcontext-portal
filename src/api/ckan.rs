@@ -106,6 +106,8 @@ pub struct DataStoreStatus {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/ckan/status",
+    summary = "Read Catalogue Publication",
+    description = "The catalogues this project publishes to, and what each endpoint's publication is doing.",
     tag = "ckan",
     params(("project" = String, Path, description = "Project name")),
     responses(

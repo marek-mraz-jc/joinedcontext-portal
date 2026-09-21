@@ -13,6 +13,7 @@ import {
   dns1123,
   referenceManifest,
   referenceTo,
+  sharedReferenceForm,
   sharedSpaceReferenceSchema,
 } from "../src/components/endpoints/sharing";
 import type { Manifest } from "../src/api/manifest";
@@ -310,7 +311,7 @@ describe("endpoint sharing", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a shared row to one control, whichever of the two it is (T-2288, UI-26)", async () => {
+  it("keeps a shared row to its own controls in the open, never a menu (T-2288, T-2570)", async () => {
     byPath["/api/v1/projects/espoo/shared"] = list([
       {
         apiVersion: API,
@@ -322,19 +323,84 @@ describe("endpoint sharing", () => {
     ]);
     renderAt("/projects/espoo/endpoints");
 
-    // A reference is not a manifest a consumer edits, saves as or works on a copy of: the one
-    // thing this row can do is stop referencing it, so it stays in the open rather than
-    // becoming a menu of one live item and three that make no sense for it.
+    // A reference is not a manifest a consumer saves as or works on a copy of: this row changes
+    // its alias and schedule, or stops referencing it, and both stay in the open rather than
+    // becoming a menu with items that make no sense for it.
     const section = await sharedSection();
     const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
     await within(bikes).findByText(en.endpoints.shared.referenced);
-    expect(within(bikes).getAllByRole("button")).toHaveLength(1);
+    expect(within(bikes).getAllByRole("button")).toHaveLength(2);
     expect(
       within(bikes).getByRole("button", { name: new RegExp(en.resourceDelete.button) }),
+    ).toBeInTheDocument();
+    expect(
+      within(bikes).getByRole("button", { name: new RegExp(en.resourceEdit.button) }),
     ).toBeInTheDocument();
 
     const events = within(section).getByText("events").closest("tr") as HTMLElement;
     expect(within(events).getAllByRole("button")).toHaveLength(1);
+  });
+
+  // T-2570, EP-15, DM-49: the alias and the mirror schedule change in place; the source stays.
+  it("edits a declared reference's alias and schedule and keeps its source", async () => {
+    const declared = {
+      apiVersion: API,
+      kind: "SharedSpaceReference",
+      metadata: { name: "helsinki-bikes", namespace: "espoo" },
+      spec: {
+        endpointRef: { project: "helsinki", name: "bikes" },
+        alias: "city-bikes",
+        cachedTokenSecretRef: { name: "helsinki-token" },
+      },
+      status: { phase: "Live" },
+    };
+    byPath["/api/v1/projects/espoo/shared"] = list([declared]);
+    byPath["/api/v1/projects/espoo/shared/helsinki-bikes"] = declared;
+    const fetchMock = renderAt("/projects/espoo/endpoints");
+
+    const section = await sharedSection();
+    const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
+    await userEvent.click(
+      await within(bikes).findByRole("button", { name: new RegExp(en.resourceEdit.button) }),
+    );
+    const alias = await screen.findByLabelText(new RegExp(en.endpoints.shared.edit.alias));
+    await userEvent.clear(alias);
+    await userEvent.type(alias, "bikes-hki");
+    await userEvent.type(screen.getByLabelText(new RegExp(en.endpoints.shared.edit.interval)), "6h");
+    await userEvent.click(screen.getByRole("button", { name: en.resourceEdit.propose }));
+
+    await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
+    const put = writes(fetchMock)[0];
+    expect(put.method).toBe("PUT");
+    expect(new URL(put.url).pathname).toBe("/api/v1/projects/espoo/shared/helsinki-bikes");
+    const body = (await put.json()) as { spec: Record<string, unknown>; status?: unknown };
+    expect(body.spec).toEqual({
+      endpointRef: { project: "helsinki", name: "bikes" },
+      alias: "bikes-hki",
+      schedule: { interval: "6h" },
+      cachedTokenSecretRef: { name: "helsinki-token" },
+    });
+    expect(body.status).toBeUndefined();
+  });
+
+  it("drops the schedule back to the daily default when the interval is emptied", () => {
+    const form = sharedReferenceForm((key) => key);
+    const stored = {
+      apiVersion: API,
+      kind: "SharedSpaceReference",
+      metadata: { name: "r", namespace: "espoo" },
+      spec: { endpointSlug: BIKES_SLUG, alias: "a", schedule: { interval: "6h" } },
+    };
+    expect(form.fromManifest(stored)).toEqual({ alias: "a", interval: "6h" });
+    expect(form.toManifest({ alias: "b", interval: " " }, stored)).toEqual({
+      apiVersion: API,
+      kind: "SharedSpaceReference",
+      metadata: { name: "r", namespace: "espoo" },
+      spec: { endpointSlug: BIKES_SLUG, alias: "b" },
+    });
+    expect(validator.isValid(form.schema, { alias: "b", interval: "6 hours" }, form.schema)).toBe(false);
+    expect(validator.isValid(form.schema, { alias: "b", interval: "0h" }, form.schema)).toBe(false);
+    expect(validator.isValid(form.schema, { alias: "b", interval: "90m" }, form.schema)).toBe(true);
   });
 
   it("finds a declared reference by name and an older one by slug (EP-77)", () => {

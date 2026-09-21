@@ -19,6 +19,8 @@ pub const MAX_AGE_SECONDS: u32 = 300;
 #[utoipa::path(
     get,
     path = "/api/v1/branding",
+    summary = "Read Branding",
+    description = "The installation's name, colours and logo as the Portal and the catalogue theme draw them. Public: it names nothing of any project.",
     tag = "system",
     responses(
         (status = 200, description = "The branding of this installation", body = Branding)

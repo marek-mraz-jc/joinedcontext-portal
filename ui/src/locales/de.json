@@ -485,7 +485,13 @@
       "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
-      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt."
+      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt.",
+      "edit": {
+        "alias": "Alias",
+        "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
+        "interval": "Spiegelintervall",
+        "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
+      }
     },
     "slugHint": "The address is created for you and never changes, even when the endpoint is renamed.",
     "picker": {

@@ -177,7 +177,7 @@ pub struct ImportReport {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Need {
-    /// `secret`, `person`, `host` or `credential`.
+    /// `secret`, `person` or `host`.
     pub kind: String,
     /// The manifest and the path inside it, `Kind/name spec.path`.
     #[serde(rename = "where")]
@@ -195,16 +195,39 @@ pub struct Need {
 /// hosts and certificates are the origin's; a DataSource's `authorization` is a feed
 /// credential. Each is reported where it is, and nothing here blocks the import.
 pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
+    /// Every field a jc-core kind types as a `SecretRef`, or a list of them (MF-35, T-2564):
+    /// `secretRef`/`previousSecretRef` (Subscription, SyncSource), `secretRefs` (Pipeline),
+    /// `secrets` (DataSource), `passwordRef`, `headerRef` and `caCertRef` (DataSource),
+    /// `apiTokenRef` (CkanInstance), `tokenSecretRef` (DataspaceConnector) and
+    /// `cachedTokenSecretRef` (Endpoint). A new one in jc-core is added here.
+    const SECRET_FIELDS: [&str; 9] = [
+        "secretRef",
+        "previousSecretRef",
+        "secretRefs",
+        "passwordRef",
+        "headerRef",
+        "caCertRef",
+        "apiTokenRef",
+        "tokenSecretRef",
+        "cachedTokenSecretRef",
+    ];
     fn walk(value: &Value, path: &str, found: &mut Vec<String>) {
         match value {
             Value::Object(map) => {
                 for (key, child) in map {
                     let here = format!("{path}.{key}");
-                    if key == "secretRef" || (key == "secrets" && child.is_array()) {
+                    // One need per field, a list included: the report names where to set the
+                    // value, never the secret's name, key or value (CC-06).
+                    if SECRET_FIELDS.contains(&key.as_str())
+                        && (child.is_object() || child.is_array())
+                    {
+                        found.push(here);
+                        continue;
+                    }
+                    // A `secrets` list is a need of its own, and each entry is still walked: an
+                    // entry names its `secretRef`, which is one more (MF-35).
+                    if key == "secrets" && child.is_array() {
                         found.push(here.clone());
-                        if key == "secretRef" {
-                            continue;
-                        }
                     }
                     walk(child, &here, found);
                 }
@@ -237,17 +260,6 @@ pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
                 "the value behind this reference stays in the origin's secret store; set it here"
                     .into(),
             ));
-        }
-        if envelope.kind == "DataSource" {
-            if let Some(authorization) = envelope.spec.get("authorization") {
-                if !authorization.is_null() {
-                    needs.push(need(
-                        "credential",
-                        "spec.authorization",
-                        "the feed's credential is the origin's; give this project its own".into(),
-                    ));
-                }
-            }
         }
         let mut users = Vec::new();
         match envelope.kind.as_str() {
@@ -1104,6 +1116,8 @@ async fn read_request(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/import",
+    summary = "Import A Bundle",
+    description = "Imports a bundle into the project as one change a person approves, or answers the plan alone.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project the bundle is imported into"),
@@ -1946,8 +1960,10 @@ mod verification_tests {
                 "feed",
                 serde_json::json!({
                     "type": "http",
-                    "connection": { "url": "https://example.invalid/feed" },
-                    "authorization": { "type": "bearer", "secretRef": { "name": "feed", "key": "token" } },
+                    "http": {
+                        "url": "https://example.invalid/feed",
+                        "authorization": { "headerRef": { "name": "feed", "key": "token" } }
+                    },
                     "secrets": [{ "name": "feed", "key": "password", "envVar": "PASSWORD" }],
                 }),
             ),
@@ -1964,21 +1980,17 @@ mod verification_tests {
         ];
         let needs = super::needs_of(&bundle, "espoo");
         let kinds: Vec<&str> = needs.iter().map(|need| need.kind.as_str()).collect();
-        assert_eq!(
-            kinds,
-            ["secret", "secret", "credential", "person"],
-            "{needs:?}"
-        );
+        assert_eq!(kinds, ["secret", "secret", "person"], "{needs:?}");
         assert_eq!(
             needs[0].location,
-            "DataSource/feed spec.authorization.secretRef"
+            "DataSource/feed spec.http.authorization.headerRef"
         );
         assert_eq!(needs[1].location, "DataSource/feed spec.secrets");
         assert_eq!(
-            needs[3].location,
+            needs[2].location,
             "RoleBinding/stewards spec.subjects[0].user"
         );
-        assert!(needs[3].why.contains("demo.steward@hel.fi"));
+        assert!(needs[2].why.contains("demo.steward@hel.fi"));
         assert!(needs
             .iter()
             .all(|need| need.link.starts_with("/projects/espoo/")));
