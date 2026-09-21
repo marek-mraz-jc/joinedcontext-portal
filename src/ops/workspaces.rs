@@ -452,7 +452,7 @@ impl WorkspaceStore {
 /// workspace whose branch has no commit yet reads as `main`. Not persisted: it is computed for
 /// the request that asks.
 ///
-/// The workspace is resolved through [`visible`], so a copy `identity` may not see answers with
+/// The workspace is resolved through `visible`, so a copy `identity` may not see answers with
 /// the one sentence of a name nobody holds, through every route that takes `?workspace=`, and
 /// none of its branch is read (T-2562, PF-59, R20).
 pub async fn mirror_of(
