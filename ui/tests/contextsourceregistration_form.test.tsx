@@ -173,6 +173,27 @@ describe("the ContextSourceRegistration manifest the form writes", () => {
     expect(bare.interval).toBeUndefined();
   });
 
+  it("keeps the title, description and labels an edit has no field for (T-2472, T-2470)", () => {
+    const stored = {
+      metadata: {
+        name: "zvolen-ovzdusie",
+        namespace: PROJECT,
+        title: { sk: "Ovzdušie Zvolen" },
+        description: { sk: "Stanice mesta Zvolen" },
+        labels: { "joinedcontext.com/space": "stare", "team": "ovzdusie" },
+      },
+    };
+    const edited = toRegistrationEnvelope(PROJECT, FILLED, stored) as {
+      metadata: Record<string, unknown>;
+    };
+    expect(edited.metadata.title).toEqual({ sk: "Ovzdušie Zvolen" });
+    expect(edited.metadata.description).toEqual({ sk: "Stanice mesta Zvolen" });
+    // The foreign label stays, and the space label follows the form rather than the stored one.
+    expect(edited.metadata.labels).toEqual({ "joinedcontext.com/space": "ovzdusie", team: "ovzdusie" });
+    expect(edited.metadata.name).toBe("zvolen-ovzdusie");
+    expect(edited.metadata.namespace).toBe(PROJECT);
+  });
+
   it("reads a manifest with no spec as an empty form rather than throwing", () => {
     expect(fromRegistrationEnvelope(undefined)).toEqual({ name: "", contextSpaceRef: "", information: [] });
     expect(fromRegistrationEnvelope({ metadata: { name: "x" }, spec: null })).toEqual({
