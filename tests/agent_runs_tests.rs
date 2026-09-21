@@ -3628,12 +3628,15 @@ async fn ticket_of(state: &AppState, id: &str) -> String {
         .ticket_hash
 }
 
-async fn job_deletes(api: &wiremock::MockServer) -> usize {
+/// The deletes of this run's Job. A reaper in another test of a shared database may end other
+/// runs through the same client, so the count is by the run's own Job name.
+async fn job_deletes(api: &wiremock::MockServer, id: &str) -> usize {
+    let job = format!("/jobs/agent-run-{id}");
     api.received_requests()
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().contains("/jobs/"))
+        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().ends_with(&job))
         .count()
 }
 
@@ -3697,7 +3700,7 @@ async fn a_pod_delete_that_answers_404_still_ends_the_run() {
             "{delete}: {run}"
         );
         assert_eq!(ticket_of(&state, &id).await, "", "{delete}");
-        assert_eq!(job_deletes(&api).await, 1, "{delete}");
+        assert_eq!(job_deletes(&api, &id).await, 1, "{delete}");
     }
 }
 
@@ -3792,7 +3795,7 @@ async fn ending_an_already_ended_run_is_idempotent_on_the_ticket_hash() {
         assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::CONFLICT);
     }
     assert_eq!(ticket_of(&state, &id).await, "");
-    assert_eq!(job_deletes(&api).await, 1);
+    assert_eq!(job_deletes(&api, &id).await, 1);
     assert_eq!(
         state
             .agents
@@ -3911,7 +3914,7 @@ async fn a_failing_ticket_invalidation_stops_before_the_pod_is_deleted() {
     let (status, body) = cancel(&app, &cookie, &id).await;
     drop_refusal(&pool, &name).await;
     assert!(status.is_server_error(), "{status}: {body}");
-    assert_eq!(job_deletes(&api).await, 0);
+    assert_eq!(job_deletes(&api, &id).await, 0);
     assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
 }
 
@@ -3935,7 +3938,7 @@ async fn a_failing_set_status_still_leaves_the_ticket_dead_and_the_pod_gone() {
     drop_refusal(&pool, &name).await;
     assert!(status.is_server_error(), "{status}: {body}");
     assert_eq!(ticket_of(&state, &id).await, "");
-    assert_eq!(job_deletes(&api).await, 1);
+    assert_eq!(job_deletes(&api, &id).await, 1);
     let run = state
         .agents
         .get_run(&id)
@@ -3981,7 +3984,7 @@ async fn an_end_that_failed_after_the_status_is_finished_by_a_retry() {
         "",
         "the ticket still verifies"
     );
-    assert_eq!(job_deletes(&api).await, 1, "the pod was never deleted");
+    assert_eq!(job_deletes(&api, &id).await, 1, "the pod was never deleted");
 }
 
 /// Edge cases of the filtered run list against PostgreSQL (T-2502, MF-12, PF-59). They run when
