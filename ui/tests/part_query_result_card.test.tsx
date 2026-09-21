@@ -164,3 +164,54 @@ describe("the card of a query answer", () => {
     }
   });
 });
+
+// T-2460: "what alerts are there?" drew ten rows each carrying a road's MultiLineString, hundreds
+// of coordinates, and the table's width went with them.
+describe("a wide value in the card (T-2460)", () => {
+  const line = Array.from({ length: 400 }, (_, i) => [24.9 + i * 0.001, 60.1 + i * 0.0005]);
+  const alert = (index: number, extra: Record<string, unknown> = {}) =>
+    entity(index, {
+      location: { type: "GeoProperty", value: { type: "MultiLineString", coordinates: [line, [[25.5, 60], [25.6, 60.4]]] } },
+      ...extra,
+    });
+
+  it("draws a geometry as its type and where it is, never its coordinates", () => {
+    renderPart(<QueryResultCard result={card([alert(0)])} />);
+    const table = screen.getByRole("table", { name: en.assistant.query.caption });
+    expect(within(table).getByText("MultiLineString [24.9, 60 … 25.6, 60.4]")).toBeInTheDocument();
+    expect(table.textContent ?? "").not.toMatch(/\[\[/);
+    expect((table.textContent ?? "").length).toBeLessThan(400);
+  });
+
+  it("reads a point by its position and a geometry the Portal folded by its box", () => {
+    const view = viewOf([
+      entity(0, { near: { type: "GeoProperty", value: { type: "Point", coordinates: [24.93545, 60.16952] } } }),
+      entity(1, { near: { type: "GeoProperty", value: { type: "Polygon", bbox: [24.9, 60.1, 25, 60.2], positions: 90 } } }),
+    ]);
+    if (view.kind !== "table") throw new Error("a table");
+    const near = view.columns.indexOf("near");
+    expect(view.rows[0].cells[near]).toBe("Point [24.9355, 60.1695]");
+    expect(view.rows[1].cells[near]).toBe("Polygon [24.9, 60.1 … 25, 60.2]");
+  });
+
+  it("folds a very long value inside its cell instead of widening the column", () => {
+    const long = "x".repeat(4000);
+    renderPart(<QueryResultCard result={card([alert(0, { description: { type: "Property", value: long } })])} />);
+    const cell = screen.getByTitle(long);
+    const fold = cell.querySelector("span");
+    expect(fold, "the value sits in a block that can be clamped").not.toBeNull();
+    expect(fold?.className).toMatch(/\bmax-w-48\b/);
+    expect(fold?.className).toMatch(/\btruncate\b/);
+  });
+
+  it("says the size of the whole set when the answer is one page of it", () => {
+    renderPart(
+      <QueryResultCard
+        result={{ endpoint: "helsinki-alerts", tool: "query_entities", view: viewOf({ entities: [alert(0), alert(1)], total: 20, nextCursor: 2 }) }}
+      />,
+    );
+    expect(
+      screen.getByText(en.assistant.query.someRows.replace("{shown}", "2").replace("{total}", "20")),
+    ).toBeInTheDocument();
+  });
+});
