@@ -1076,7 +1076,7 @@ impl Syncer {
                 let Some(block) = envelope.spec.get("webhook") else {
                     continue;
                 };
-                let block: crate::sync::webhook_secrets::Block = match serde_json::from_value(
+                let block: jc_core::kinds::sync::WebhookAuth = match serde_json::from_value(
                     block.clone(),
                 ) {
                     Ok(block) => block,
@@ -1086,7 +1086,7 @@ impl Syncer {
                         continue;
                     }
                 };
-                let references = block.references();
+                let references = crate::sync::webhook_secrets::references(&block);
                 let mut secrets = Vec::with_capacity(references.len());
                 for reference in references {
                     match self.pipeline_secrets.as_ref() {
