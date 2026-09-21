@@ -97,6 +97,12 @@ describe("a kind's forms at their own addresses", () => {
     expect(await findFormPage(en.access.accounts.add)).toBeInTheDocument();
   });
 
+  // T-2582: a SyncSource is created in the Sync page's dialog, and its /new address opens it.
+  it("opens the sync source form at /syncsources/new", async () => {
+    await open("/projects/helsinki/syncsources/new");
+    expect(await findFormPage(en.syncSources.dialog.title)).toBeInTheDocument();
+  });
+
   it("moves the address when the list's own button opens the form, and the back button leaves it", async () => {
     await open(LIST);
 

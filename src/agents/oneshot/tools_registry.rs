@@ -413,10 +413,7 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         .map(|(_, template)| *template)
         .ok_or_else(|| format!("'{}' is not a page of the Portal", call.page))?;
     let section = match (call.page.as_str(), call.plural.as_deref()) {
-        ("new", Some(plural)) => Some(
-            crate::agents::change::section(plural.trim())
-                .ok_or_else(|| format!("'{plural}' is not a kind of the Portal"))?,
-        ),
+        ("new", Some(plural)) => Some(crate::agents::change::section(plural.trim())?),
         _ => None,
     };
     let filled = [
@@ -1155,6 +1152,7 @@ mod tests {
             ("ServiceAccount", "/projects/helsinki/access/new"),
             ("subscriptions", "/projects/helsinki/subscriptions/new"),
             ("csrs", "/projects/helsinki/csrs/new"),
+            ("syncsources", "/projects/helsinki/syncsources/new"),
         ] {
             assert_eq!(
                 route_of("helsinki", &new(Some(plural))).expect("a route"),
@@ -1164,6 +1162,10 @@ mod tests {
         }
         let unknown = route_of("helsinki", &new(Some("widgets"))).expect_err("no kind");
         assert!(unknown.contains("widgets"), "{unknown}");
+        // T-2582: a kind whose page has no routed create form is not sent to a `/new` that
+        // answers "this form cannot be opened".
+        let formless = route_of("helsinki", &new(Some("mappings"))).expect_err("no form");
+        assert!(formless.contains("Mapping"), "{formless}");
         let none = route_of("helsinki", &new(None)).expect_err("no plural");
         assert!(none.contains("plural"), "{none}");
     }

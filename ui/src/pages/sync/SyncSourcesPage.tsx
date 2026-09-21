@@ -8,6 +8,7 @@ import { prune } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { useCreateForm } from "../../components/forms/FormRoute";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { SYNC_ORIGINS, syncSourceSchema } from "../../schemas/kinds";
 import type { SyncOriginKind } from "../../schemas/kinds";
@@ -114,7 +115,8 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
 
   // A source is added here or nowhere: MF-27 has no other door into the Portal (T-0790).
   const [origin, setOrigin] = useState<SyncOriginKind>("git");
-  const [adding, setAdding] = useState(false);
+  // `/syncsources/new` opens the form too: the assistant's hand-off and a shared link (T-2582).
+  const [adding, setAdding] = useCreateForm();
   const [change, setChange] = useState<Change | null>(null);
   const proposal = useProposal(project, "syncsources", (proposed) => {
     setChange(proposed);
