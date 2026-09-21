@@ -14,6 +14,8 @@ use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::error::ApiError;
+use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
@@ -23,6 +25,8 @@ use tower::ServiceExt;
 
 const CSRF: &str = "csrf-token-value";
 const OWNER: &str = "jana.kovacova";
+/// Named as an owner, with no binding left anywhere: they left the department (T-2487).
+const FORMER: &str = "eva.horvathova";
 
 fn session_cookie(config: &Config, username: &str, roles: &[&str]) -> String {
     use axum::response::IntoResponse;
@@ -77,6 +81,52 @@ fn mirror() -> Arc<Mirror> {
         }),
         status: None,
     });
+    // The same kind of account, owned by a person who holds no binding in the project any more.
+    mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "ServiceAccount".into(),
+        metadata: ObjectMeta {
+            name: "air-push".into(),
+            namespace: Some("banskabystrica".into()),
+            ..Default::default()
+        },
+        spec: json!({
+            "owner": { "user": FORMER },
+            "purpose": "Pushes the air-quality readings of the city gateway",
+            "roles": [],
+            "credentials": [{ "kind": "api-key", "name": "legacy-push" }]
+        }),
+        status: None,
+    });
+    // The owner still works in the project: one binding that lets them read it.
+    for (kind, name, spec) in [
+        (
+            "Role",
+            "project-reader",
+            json!({ "rules": [{ "kinds": ["ServiceAccount"], "verbs": ["read"] }] }),
+        ),
+        (
+            "RoleBinding",
+            "owner-reads-banskabystrica",
+            json!({
+                "subjects": [{ "user": OWNER }],
+                "role": "project-reader",
+                "scope": { "project": "banskabystrica" },
+            }),
+        ),
+    ] {
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some(ORG_NAMESPACE.into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        });
+    }
     mirror
 }
 
@@ -442,4 +492,86 @@ async fn an_account_whose_client_id_another_project_derives_is_refused_at_check(
             answer.text
         );
     }
+}
+
+const FORMER_KEYS: &str = "/api/v1/projects/banskabystrica/serviceaccounts/air-push/keys";
+
+/// T-2487, PF-50, PF-59: the owner a manifest still names, whose last binding in the project is
+/// gone, lists, mints, rotates and revokes nothing and is answered like a stranger. Without a
+/// database an admitted caller is answered 503, so a 404 here proves the refusal comes before the
+/// key store is reached, and no key row can have been written.
+#[tokio::test]
+async fn an_owner_with_no_binding_left_manages_no_key_of_the_account() {
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config, FORMER, &[]);
+    let app = server::app(AppState::new(config, None).with_mirror(mirror()));
+    let key = format!("{FORMER_KEYS}/k-1");
+    for (method, uri, body) in [
+        (Method::GET, FORMER_KEYS.to_owned(), None),
+        (
+            Method::POST,
+            FORMER_KEYS.to_owned(),
+            Some(json!({ "credential": "legacy-push" })),
+        ),
+        (
+            Method::POST,
+            format!("{key}/rotate"),
+            Some(json!({ "overlapHours": 1 })),
+        ),
+        (Method::DELETE, key.clone(), None),
+    ] {
+        let (status, answer) = call(&app, &cookie, method.clone(), &uri, body).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{method} {uri}: {answer}");
+        assert!(answer.get("token").is_none(), "{method} {uri}: {answer}");
+    }
+}
+
+/// T-2487: the operation the assistant and MCP reach is refused the same way, as the same 404.
+#[tokio::test]
+async fn an_owner_with_no_binding_left_mints_nothing_through_the_operation() {
+    use joinedcontext_portal::ops::{self, Caller, OpError, Via};
+    let state = AppState::new(Config::for_tests(), None).with_mirror(mirror());
+    let former = Identity {
+        subject: format!("f:1:{FORMER}"),
+        username: FORMER.into(),
+        email: Some(format!("{FORMER}@banskabystrica.sk")),
+        name: None,
+        roles: Vec::new(),
+        groups: vec!["another-city".into()],
+    };
+    let op = ops::find("jc_service_account_key_mint").expect("registered");
+    let refused = ops::call(
+        op,
+        &Caller::new(former, Via::Session),
+        &state,
+        "banskabystrica",
+        json!({ "account": "air-push", "credential": "legacy-push" }),
+    )
+    .await
+    .expect_err("no key is minted");
+    assert!(
+        matches!(
+            refused,
+            OpError::Api(ApiError::NotFound(_)) | OpError::Forbidden(_)
+        ),
+        "{refused:?}"
+    );
+}
+
+/// T-2487: the owner who still reads the project is admitted as before: without a database that
+/// is the key store's 503, not the stranger's 404.
+#[tokio::test]
+async fn an_owner_who_still_reads_the_project_is_admitted() {
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config, OWNER, &[]);
+    let app = server::app(AppState::new(config, None).with_mirror(mirror()));
+    let (status, _) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        KEYS,
+        Some(json!({ "credential": "legacy-push" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
 }
