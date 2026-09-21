@@ -10,7 +10,8 @@ import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Button, buttonClass, SourceLink } from "../../components/ui";
 
 /**
- * Where an application lives and how it goes live (AP-71): its source in Git, and after Publish
+ * Where an application lives and how it goes live (AP-71): its source in Git and its copy on GitHub
+ * where there is one (AP-79), and after Publish
  * the Change that publishes it, approved right here by a person the approval rules allow
  * (CC-34, PF-50, PF-58). A red-lane Change is approved on its own page, where its name is typed
  * back (CC-39).
@@ -18,11 +19,14 @@ import { Button, buttonClass, SourceLink } from "../../components/ui";
 export function RunPublication({
   project,
   sourceUrl,
+  mirrorUrl,
   changeId,
   onApproved,
 }: {
   project: string;
   sourceUrl?: string;
+  /** The application's copy on GitHub, where the installation keeps one (AP-79). */
+  mirrorUrl?: string;
   changeId?: string;
   onApproved?: () => void;
 }): JSX.Element | null {
@@ -78,6 +82,9 @@ export function RunPublication({
     >
       {sourceUrl ? (
         <SourceLink href={sourceUrl} label={t("agentRun.publication.source")} />
+      ) : null}
+      {mirrorUrl ? (
+        <SourceLink href={mirrorUrl} label={t("agentRun.publication.mirror")} />
       ) : null}
 
       {changeId ? (

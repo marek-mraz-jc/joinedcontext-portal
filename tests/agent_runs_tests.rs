@@ -2256,6 +2256,7 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -2520,6 +2521,7 @@ async fn continues_validations_reject_invalid_runs() {
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -2641,6 +2643,7 @@ async fn caller_without_portal_approver_sees_only_own_runs_while_approver_sees_b
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -3263,6 +3266,63 @@ async fn a_static_application_run_lives_in_its_own_repository() {
         "the run links its application's repository: {source}"
     );
     assert!(!source.contains("configuration"), "{source}");
+    assert!(
+        read.get("mirrorUrl").is_none(),
+        "no GitHub copy is linked where the installation keeps none: {read}"
+    );
+}
+
+/// AP-79: where the installation keeps application repositories on GitHub as well, the run links
+/// the copy on its branch beside the forge's repository of record.
+#[tokio::test]
+async fn a_static_run_links_its_github_copy_beside_the_forge() {
+    let server = wiremock::MockServer::start().await;
+    let config = config();
+    let github =
+        joinedcontext_portal::git::github_mirror::GithubMirror::from_env(|name| match name {
+            "JC_APP_MIRROR_GITHUB_OWNER" => Some("hel-apps".to_owned()),
+            "JC_APP_MIRROR_GITHUB_TOKEN" => Some("ghp_never_shown".to_owned()),
+            _ => None,
+        })
+        .expect("valid")
+        .expect("on");
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server))
+        .with_github_mirror(Arc::new(github));
+    let app = server::app(state);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let (status, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(static_body("city-bikes")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{created}");
+    let id = created["id"].as_str().unwrap_or_default().to_owned();
+    let (_, read) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
+        None,
+    )
+    .await;
+    assert_eq!(
+        read["mirrorUrl"],
+        json!(format!(
+            "https://github.com/hel-apps/helsinki_city-bikes/tree/agent/app-city-bikes/{id}"
+        )),
+        "{read}"
+    );
+    assert!(read["sourceUrl"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("https://forge.example/"));
+    assert!(!read.to_string().contains("ghp_never_shown"), "{read}");
 }
 
 /// AP-77: a static run with nothing committed to its branch is not published, and the refusal
