@@ -900,16 +900,19 @@ a removal of its binding with change_resource.
         }
         if !errors.is_empty() {
             // The person reads what went wrong with the dashboard, never the patch protocol
-            // (T-0785, T-1662).
+            // (T-0785, T-1662) nor the JSON parser's sentence, which stays in the log (T-2546).
+            tracing::info!(run = %self.run_id, errors = %errors.join("; "), "the repair failed");
             let reasons: Vec<&str> = errors
                 .iter()
                 .map(String::as_str)
-                .filter(|e| !is_protocol(e))
+                .filter(|e| !is_protocol(e) && !kit::is_unparsed(e))
                 .collect();
-            let reasons = if reasons.is_empty() {
-                "the model answered without a change to the specification".to_owned()
-            } else {
+            let reasons = if !reasons.is_empty() {
                 reasons.join("\n")
+            } else if errors.iter().any(|e| kit::is_unparsed(e)) {
+                "the model's answer was not a dashboard specification".to_owned()
+            } else {
+                "the model answered without a change to the specification".to_owned()
             };
             self.thought(&format!(
                 "Still not a specification the kit can render:\n{reasons}"

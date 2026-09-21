@@ -287,10 +287,19 @@ pub fn schema_json() -> &'static str {
     &SCHEMA
 }
 
+/// How [`parse`] begins a reason that is the JSON parser's own sentence rather than the kit's.
+const UNPARSED: &str = "spec.json: ";
+
+/// Whether a reason of [`parse`] is the JSON parser's (`unknown field`, a line and a column): the
+/// model's business during a repair, never the person's (T-2546, UI-45).
+pub fn is_unparsed(problem: &str) -> bool {
+    problem.starts_with(UNPARSED)
+}
+
 /// `spec.json` as the model wrote it, or every reason the kit cannot render it (AP-59).
 pub fn parse(text: &str) -> Result<Spec, Vec<String>> {
     let mut spec: Spec =
-        serde_json::from_str(text).map_err(|error| vec![format!("spec.json: {error}")])?;
+        serde_json::from_str(text).map_err(|error| vec![format!("{UNPARSED}{error}")])?;
     // `id` and `type` come with every entity; a model that lists them as attributes would
     // have the endpoint answer 400 to `attrs=id,...` and the dashboard show no rows.
     for source in &mut spec.sources {
@@ -787,7 +796,7 @@ mod tests {
                 "views[4].fields[1]: 'zzz' is not among the source's attributes",
             ]
         );
-        assert!(parse("{").expect_err("json")[0].starts_with("spec.json: "));
+        assert!(is_unparsed(&parse("{").expect_err("json")[0]));
     }
 
     #[test]
