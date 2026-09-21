@@ -218,6 +218,7 @@ describe("watching a run", () => {
     expect(id.tagName).not.toMatch(/^H\d$/);
   });
 
+  // UI-38: the live timeline of the run's lifecycle phases.
   it("shows the state the run is in, and the steps it has spent", async () => {
     renderRun();
     await screen.findByRole("heading", { name: APP_TITLE });
@@ -244,6 +245,7 @@ describe("watching a run", () => {
     expect(en.agentRun.states.expired).not.toMatch(/out of time|failed/i);
   });
 
+  // UI-38: the ordered, streaming conversation of the run.
   it("renders the agent's lines as they arrive", async () => {
     renderRun();
     await screen.findByRole("heading", { name: APP_TITLE });
@@ -301,6 +303,7 @@ describe("watching a run", () => {
     });
   });
 
+  // UI-38: a question form generated from the JSON Schema the agent sent.
   it("answers a question against the schema the agent asked for", async () => {
     const user = userEvent.setup();
     const { fetchMock } = renderRun();

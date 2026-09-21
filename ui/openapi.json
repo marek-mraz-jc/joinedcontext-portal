@@ -4154,6 +4154,20 @@
             }
           }
         ],
+        "requestBody": {
+          "description": "A JSON body with `manifests` (and `targetNamespace`, `orgDomain`, `conflictPolicy`, `spaceMapping`), or `multipart/form-data` with the bundle under `file` and the same options as fields (MF-18, UI-07)",
+          "content": {
+            "application/json": {
+              "schema": {}
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Dry run: what the import would do",
@@ -4484,7 +4498,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/TestRequest"
               }
             }
           },
@@ -9842,6 +9856,40 @@
           }
         }
       },
+      "PipelineTestSample": {
+        "type": "object",
+        "description": "The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).\njcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a\nfield jcctl gains or loses fails to compile here instead of drifting from the document.",
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/PipelineTestSampleFormat",
+            "description": "How the sample is split into messages."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sample inline, at most five mebibytes."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An http(s) URL the runner fetches the sample from instead."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PipelineTestSampleFormat": {
+        "type": "string",
+        "description": "How a sample is split: one message, a CSV row each, or a JSON array's elements.",
+        "enum": [
+          "text",
+          "csv",
+          "json"
+        ]
+      },
       "PlanDiff": {
         "type": "object",
         "description": "Summary and field-level changes between two resource revisions.",
@@ -10983,6 +11031,24 @@
             ]
           }
         }
+      },
+      "TestRequest": {
+        "type": "object",
+        "description": "The request of API/01 §7a.",
+        "required": [
+          "pipeline",
+          "sample"
+        ],
+        "properties": {
+          "pipeline": {
+            "description": "The candidate Pipeline manifest, unsaved."
+          },
+          "sample": {
+            "$ref": "#/components/schemas/PipelineTestSample",
+            "description": "What the harness reads, read through `SampleRequest`, whose shape the document publishes."
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateReport": {
         "type": "object",

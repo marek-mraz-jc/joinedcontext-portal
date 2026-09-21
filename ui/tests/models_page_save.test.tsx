@@ -55,6 +55,20 @@ function renderWithClient(
   );
 }
 
+
+/** Every call as path+query and method, whichever shape it went out in (a Request, or a URL and init). */
+function requests(mock: ReturnType<typeof vi.fn>): { url: string; method: string }[] {
+  return mock.mock.calls.map((call: unknown[]) => {
+    const [req, init] = call as [RequestInfo | URL, RequestInit | undefined];
+    const raw = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+    const url = new URL(raw, window.location.origin);
+    return {
+      url: `${url.pathname}${url.search}`,
+      method: init?.method ?? (req instanceof Request ? req.method : "GET"),
+    };
+  });
+}
+
 describe("ModelsPage save and source loading (DM-56)", () => {
   let originalFetch: typeof global.fetch;
 
@@ -94,10 +108,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
     // Verify GET source called
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/v1/projects/ovzdusie/datamodels/air-quality/source"),
-        expect.anything(),
-      );
+      expect(requests(fetchMock)).toContainEqual({
+        url: "/api/v1/projects/ovzdusie/datamodels/air-quality/source",
+        method: "GET",
+      });
     });
 
     // Check that editor view loaded the classes
@@ -196,12 +210,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     await user.click(saveBtn);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/v1/projects/ovzdusie/datamodels/air-quality/source"),
-        expect.objectContaining({
-          method: "PUT",
-        }),
-      );
+      expect(requests(fetchMock)).toContainEqual({
+        url: "/api/v1/projects/ovzdusie/datamodels/air-quality/source",
+        method: "PUT",
+      });
     });
 
     // Check notice rendered
@@ -269,11 +281,11 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     /** The published model, its manifest in the list, and every PUT the page sends. */
     function forge() {
       const puts: string[] = [];
-      global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL, init?: RequestInit) => {
+      global.fetch = vi.fn().mockImplementation(async (req: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
         const method = init?.method ?? (req instanceof Request ? req.method : "GET");
         if (url.includes("/datamodels/air-quality/source") && method === "PUT") {
-          puts.push(String(init?.body));
+          puts.push(init?.body ? String(init.body) : await (req as Request).clone().text());
           return Promise.resolve(new Response(JSON.stringify({ kind: "Change", metadata: { name: "mr-9" } }), { status: 202 }));
         }
         if (url.includes("/datamodels/air-quality/source")) {
@@ -395,10 +407,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     await user.click(screen.getByRole("button", { name: /save model/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/projects/ovzdusie/datamodels/bikes/source?space=mobility",
-        expect.objectContaining({ method: "PUT" }),
-      );
+      expect(requests(fetchMock)).toContainEqual({
+        url: "/api/v1/projects/ovzdusie/datamodels/bikes/source?space=mobility",
+        method: "PUT",
+      });
     });
     expect(await screen.findByText(/mr-91/i)).toBeInTheDocument();
   });

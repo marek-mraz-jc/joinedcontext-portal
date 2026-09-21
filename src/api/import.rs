@@ -1063,6 +1063,15 @@ async fn read_request(
         ("project" = String, Path, description = "Project the bundle is imported into"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' to validate and plan without proposing"),
     ),
+    request_body(
+        description = "A JSON body with `manifests` (and `targetNamespace`, `orgDomain`, \
+                       `conflictPolicy`, `spaceMapping`), or `multipart/form-data` with the bundle \
+                       under `file` and the same options as fields (MF-18, UI-07)",
+        content(
+            (serde_json::Value = "application/json"),
+            (String = "multipart/form-data"),
+        ),
+    ),
     responses(
         (status = 202, description = "One merge request for the whole bundle", body = Change),
         (status = 200, description = "Dry run: what the import would do", body = ImportReport),

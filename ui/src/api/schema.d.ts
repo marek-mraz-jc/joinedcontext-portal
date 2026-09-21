@@ -2461,6 +2461,24 @@ export interface components {
             /** Format: int64 */
             sent?: number | null;
         };
+        /**
+         * @description The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
+         *     jcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a
+         *     field jcctl gains or loses fails to compile here instead of drifting from the document.
+         */
+        PipelineTestSample: {
+            /** @description How the sample is split into messages. */
+            format?: components["schemas"]["PipelineTestSampleFormat"];
+            /** @description The sample inline, at most five mebibytes. */
+            text?: string | null;
+            /** @description An http(s) URL the runner fetches the sample from instead. */
+            url?: string | null;
+        };
+        /**
+         * @description How a sample is split: one message, a CSV row each, or a JSON array's elements.
+         * @enum {string}
+         */
+        PipelineTestSampleFormat: "text" | "csv" | "json";
         /** @description Summary and field-level changes between two resource revisions. */
         PlanDiff: {
             fields: components["schemas"]["FieldChange"][];
@@ -2856,6 +2874,13 @@ export interface components {
             leader: boolean;
             manifests: number;
             revision?: string | null;
+        };
+        /** @description The request of API/01 §7a. */
+        TestRequest: {
+            /** @description The candidate Pipeline manifest, unsaved. */
+            pipeline: unknown;
+            /** @description What the harness reads, read through `SampleRequest`, whose shape the document publishes. */
+            sample: components["schemas"]["PipelineTestSample"];
         };
         /** @description What updating from main did (CC-80). */
         UpdateReport: {
@@ -6011,7 +6036,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        /** @description A JSON body with `manifests` (and `targetNamespace`, `orgDomain`, `conflictPolicy`, `spaceMapping`), or `multipart/form-data` with the bundle under `file` and the same options as fields (MF-18, UI-07) */
+        requestBody: {
+            content: {
+                "application/json": unknown;
+                "multipart/form-data": string;
+            };
+        };
         responses: {
             /** @description Dry run: what the import would do */
             200: {
@@ -6275,7 +6306,7 @@ export interface operations {
         /** @description `pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, and a `format` (`csv`, `json`, `text`). API/01 §7a. */
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["TestRequest"];
             };
         };
         responses: {

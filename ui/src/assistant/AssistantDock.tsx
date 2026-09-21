@@ -42,7 +42,7 @@ import {
 } from "./state";
 
 /**
- * The assistant, on the right of every page (UI-45, UI-51..UI-53).
+ * The assistant, on the right of every page (UI-45, UI-51, UI-52, UI-53).
  *
  * Renders as a round bubble at the bottom right whenever the panel is closed. When open,
  * renders a 24 rem right-docked panel (full width on small viewports, full screen on toggle).

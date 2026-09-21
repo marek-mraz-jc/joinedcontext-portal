@@ -15,6 +15,7 @@ import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
 import { greenVerdict, isCheck } from "./verdict";
+import { sentTo } from "./requests";
 
 function MockEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
   return <textarea aria-label="YAML" value={value} onChange={(event) => onChange?.(event.target.value)} />;
@@ -169,13 +170,13 @@ describe("the sample test in the studio (PL-43)", () => {
 
     await userEvent.click(screen.getByRole("button", { name: en.pipelines.test.run }));
     const call = await waitFor(() => {
-      const found = fetchMock.mock.calls.find(([input]) => String(input).includes("/pipelines/test"));
+      const [found] = sentTo(fetchMock, "/pipelines/test");
       expect(found).toBeDefined();
-      return found as [string, RequestInit];
+      return found;
     });
-    expect(call[0]).toBe("/api/v1/projects/helsinki/pipelines/test");
-    expect(call[1].method).toBe("POST");
-    const body = JSON.parse(call[1].body as string) as { pipeline: { spec: PipelineForm }; sample: { text: string; format: string } };
+    expect(call.path).toBe("/api/v1/projects/helsinki/pipelines/test");
+    expect(call.method).toBe("POST");
+    const body = (await call.json()) as { pipeline: { spec: PipelineForm }; sample: { text: string; format: string } };
     expect(body.sample).toEqual({ text: CSV, format: "csv" });
     expect(body.pipeline.spec.compute?.bloblang).toContain("this.station_id");
 
@@ -220,11 +221,11 @@ describe("the sample test in the studio (PL-43)", () => {
     expect(screen.getByText(/free_bike_status\.json · json · fetched by the runner/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: en.pipelines.test.run }));
     const call = await waitFor(() => {
-      const found = fetchMock.mock.calls.find(([input]) => String(input).includes("/pipelines/test"));
+      const [found] = sentTo(fetchMock, "/pipelines/test");
       expect(found).toBeDefined();
-      return found as [string, RequestInit];
+      return found;
     });
-    const body = JSON.parse(call[1].body as string) as { sample: unknown };
+    const body = (await call.json()) as { sample: unknown };
     expect(body.sample).toEqual({ url: "https://gbfs.example.org/free_bike_status.json", format: "json" });
     expect(await screen.findByText(/All 1 messages map to entities/)).toBeInTheDocument();
   });
@@ -244,7 +245,7 @@ describe("the sample test in the studio (PL-43)", () => {
     const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.csv", { type: "text/csv" });
     await drop(big);
     expect(await screen.findByRole("alert")).toHaveTextContent(en.pipelines.test.tooLarge);
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/pipelines/test"))).toBe(false);
+    expect(sentTo(fetchMock, "/pipelines/test")).toEqual([]);
   });
 });
 

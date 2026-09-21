@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
+import { api, queryKeys, unwrap, whilePending } from "../../api/client";
+import { readModelSource, writeModelSource } from "../../api/datamodelSource";
 import type { ProblemDetails } from "../../api/client";
 import { asManifests, refName } from "../../api/manifest";
 import { useOrgDomain } from "../../api/projects";
@@ -190,16 +191,7 @@ export function ModelsPage({
   const loaded = useQuery({
     queryKey: ["datamodel-source", project, activeModelName],
     enabled: Boolean(activeModelName) && !baseline?.source,
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/v1/projects/${encodeURIComponent(project)}/datamodels/${encodeURIComponent(activeModelName ?? "")}/source`,
-        { credentials: "same-origin", headers: { Accept: "text/yaml, text/plain, */*" } },
-      );
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      return res.text();
-    },
+    queryFn: () => readModelSource(project, activeModelName ?? ""),
   });
   const loadingSource = loaded.isLoading;
   const loadError = loaded.error instanceof Error ? loaded.error.message : null;
@@ -273,14 +265,7 @@ export function ModelsPage({
       queryKey: ["datamodel-source", project, manifest.metadata.name],
       retry: false,
       queryFn: async () => {
-        const res = await fetch(
-          `/api/v1/projects/${encodeURIComponent(project)}/datamodels/${encodeURIComponent(manifest.metadata.name)}/source`,
-          { credentials: "same-origin", headers: { Accept: "text/yaml, text/plain, */*" } },
-        );
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        return res.text();
+        return readModelSource(project, manifest.metadata.name);
       },
     })),
   });
@@ -385,18 +370,20 @@ export function ModelsPage({
 
   // The space travels with a create, and with nothing else: for a model that exists the route
   // reads the space off its manifest (DM-56).
-  const sourceUrl = (dryRun: boolean): string => {
-    const params = new URLSearchParams();
-    if (dryRun) {
-      params.set("dryRun", "All");
-    }
-    if (creating && newSpace) {
-      params.set("space", newSpace);
-    }
-    const query = params.toString();
-    const path = `/api/v1/projects/${encodeURIComponent(project)}/datamodels/${encodeURIComponent(targetName ?? "")}/source`;
-    return query ? `${path}?${query}` : path;
-  };
+  const writeSource = (dryRun: boolean) =>
+    writeModelSource({
+      project,
+      name: targetName ?? "",
+      source,
+      dryRun,
+      space: creating && newSpace ? newSpace : undefined,
+    });
+
+  const refusedBecause = (status: number, problem: Partial<ProblemDetails>): string =>
+    problem.detail ??
+    (problem.errors && problem.errors.length > 0
+      ? problem.errors.join("; ")
+      : t("models.source.refused", { reason: problem.title ?? `HTTP ${status}` }));
 
   const handleCheck = async () => {
     if (!targetName) return;
@@ -404,33 +391,11 @@ export function ModelsPage({
     setSaveError(null);
     setCheckInfo(null);
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "text/yaml; charset=utf-8",
-      };
-      const csrf = readCsrfToken();
-      if (csrf) {
-        headers["x-csrf-token"] = csrf;
-      }
-      const res = await fetch(
-        sourceUrl(true),
-        {
-          method: "PUT",
-          credentials: "same-origin",
-          headers,
-          body: source,
-        },
-      );
-      if (res.status === 200) {
-        const data = (await res.json()) as { severity: string; version: string };
-        setCheckInfo({ severity: data.severity, version: data.version });
-      } else {
-        const problem = (await res.json().catch(() => ({}))) as ProblemDetails;
-        const msg =
-          problem.detail ??
-          (problem.errors && problem.errors.length > 0
-            ? problem.errors.join("; ")
-            : t("models.source.refused", { reason: problem.title ?? `HTTP ${res.status}` }));
-        setSaveError(msg);
+      const answer = await writeSource(true);
+      if (answer.kind === "checked") {
+        setCheckInfo({ severity: answer.result.severity, version: answer.result.version });
+      } else if (answer.kind === "refused") {
+        setSaveError(refusedBecause(answer.status, answer.problem));
       }
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : String(err));
@@ -444,33 +409,11 @@ export function ModelsPage({
     setSaving(true);
     setSaveError(null);
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "text/yaml; charset=utf-8",
-      };
-      const csrf = readCsrfToken();
-      if (csrf) {
-        headers["x-csrf-token"] = csrf;
-      }
-      const res = await fetch(
-        sourceUrl(false),
-        {
-          method: "PUT",
-          credentials: "same-origin",
-          headers,
-          body: source,
-        },
-      );
-      if (res.status === 202) {
-        const change = (await res.json()) as Change;
-        setChangeNotice(change);
-      } else {
-        const problem = (await res.json().catch(() => ({}))) as ProblemDetails;
-        const msg =
-          problem.detail ??
-          (problem.errors && problem.errors.length > 0
-            ? problem.errors.join("; ")
-            : t("models.source.refused", { reason: problem.title ?? `HTTP ${res.status}` }));
-        setSaveError(msg);
+      const answer = await writeSource(false);
+      if (answer.kind === "proposed") {
+        setChangeNotice(answer.change);
+      } else if (answer.kind === "refused") {
+        setSaveError(refusedBecause(answer.status, answer.problem));
       }
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : String(err));

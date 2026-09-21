@@ -170,7 +170,9 @@ describe("authentication", () => {
       return url.includes("/auth/logout");
     });
     expect(posted).toHaveLength(1);
-    expect((posted[0][1] as RequestInit).method).toBe("POST");
+    // Through the typed client (UI-07) the method is the Request's own.
+    const [input, init] = posted[0] as [RequestInfo | URL, RequestInit | undefined];
+    expect(input instanceof Request ? input.method : init?.method).toBe("POST");
   });
 
   it("signs out through the Portal and on to Keycloak when the session is the Portal's own", async () => {

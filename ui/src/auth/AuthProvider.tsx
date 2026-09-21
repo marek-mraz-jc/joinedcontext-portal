@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, queryKeys, readCsrfToken, unwrap } from "../api/client";
+import { api, queryKeys, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { clearBrowserState } from "./browserState";
 
@@ -74,12 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     // projects, endpoints and runs behind for the next one (UI-46).
     clearBrowserState();
     queryClient.clear();
-    const csrf = readCsrfToken();
-    const response = await fetch("/api/v1/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: csrf ? { "x-csrf-token": csrf } : {},
-    });
+    const { data } = await api.POST("/api/v1/auth/logout");
     queryClient.setQueryData(queryKeys.session(), null);
     if (session.data?.front === "edge") {
       // The login front is the plugin's, and so is the logout: it ends the edge session and
@@ -87,11 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       window.location.assign(EDGE_LOGOUT_PATH);
       return;
     }
-    const target: unknown = response.ok ? await response.json() : null;
-    const endSessionUrl =
-      typeof target === "object" && target !== null && "endSessionUrl" in target
-        ? (target as { endSessionUrl: unknown }).endSessionUrl
-        : undefined;
+    const endSessionUrl = data?.endSessionUrl;
     window.location.assign(typeof endSessionUrl === "string" ? endSessionUrl : "/");
   }, [queryClient, session.data?.front]);
 

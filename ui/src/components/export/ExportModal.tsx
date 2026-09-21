@@ -15,31 +15,25 @@ export interface ExportTarget {
 }
 
 /**
- * The download URL of one export. Built here rather than in the page so the modal, the tests and
- * any future caller agree on it.
+ * The query of one export, sent through the typed client to `/export` (UI-07). Built here so the
+ * modal and its tests agree on it.
  *
  * It is fetched rather than followed as a link: a link hands the browser whatever comes back, so a
  * 403 or a 500 was saved as the export and the dialog closed on top of it (MF-16, T-1487).
  * ponytail: the archive is buffered in the browser; stream to disk when an export passes about
  * 100 MB.
  */
-export function exportUrl(
-  project: string,
+export function exportQuery(
   format: ExportFormat,
   target: ExportTarget,
   revision?: string,
-): string {
-  const query = new URLSearchParams({ format });
-  if (target.plural) {
-    query.set("kinds", target.plural);
-  }
-  if (target.name) {
-    query.set("names", target.name);
-  }
-  if (revision) {
-    query.set("revision", revision);
-  }
-  return `/api/v1/projects/${encodeURIComponent(project)}/export?${query.toString()}`;
+): { format: string; kinds?: string; names?: string; revision?: string } {
+  return {
+    format,
+    ...(target.plural ? { kinds: target.plural } : {}),
+    ...(target.name ? { names: target.name } : {}),
+    ...(revision ? { revision } : {}),
+  };
 }
 
 /** The name the server gave the file, or the one this selection would have. */
@@ -90,20 +84,17 @@ export function ExportModal({
     setRefused(null);
     setPreparing(true);
     try {
-      const url = exportUrl(project, format, target, revision || undefined);
-      const answer = await fetch(url, { credentials: "same-origin" });
-      if (!answer.ok) {
-        let reason = answer.statusText || `HTTP ${answer.status}`;
-        try {
-          const problem = (await answer.json()) as { detail?: string; title?: string };
-          reason = problem.detail ?? problem.title ?? reason;
-        } catch {
-          // Not a problem document: the status is the whole of what the server said.
-        }
-        setRefused(reason);
+      // Through the typed client (UI-07): the route and its query are the API's own.
+      const { data: blob, error, response: answer } = await api.GET("/api/v1/projects/{project}/export", {
+        params: { path: { project }, query: exportQuery(format, target, revision || undefined) },
+        parseAs: "blob",
+      });
+      if (blob === undefined) {
+        const problem = (error ?? {}) as { detail?: string; title?: string };
+        // Not a problem document: the status is the whole of what the server said.
+        setRefused(problem.detail ?? problem.title ?? (answer.statusText || `HTTP ${answer.status}`));
         return;
       }
-      const blob = await answer.blob();
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = href;

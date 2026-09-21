@@ -399,6 +399,7 @@ describe("the assistant dock", () => {
     expect(fetchCalls().some((request) => request.url.endsWith("/assistant/conversations"))).toBe(false);
   });
 
+  // UI-52: hide to the bubble, full screen, stop the run (POST …/cancel) and close.
   it("hides to a bubble at the bottom right, opens full screen, stops the run and closes", async () => {
     const user = userEvent.setup();
     renderPortal();
@@ -548,6 +549,7 @@ describe("the assistant dock", () => {
     expect(fetchCalls().some((req) => req.method === "POST")).toBe(false);
   });
 
+  // UI-52: Escape returns a full-screen panel to its place beside the page.
   it("leaves full screen on Escape key", async () => {
     const user = userEvent.setup();
     renderPortal();
@@ -565,6 +567,7 @@ describe("the assistant dock", () => {
     });
   });
 
+  // UI-52: the hidden panel's bubble shows an activity dot while the assistant works.
   it("shows busy dot on bubble while newest event is a person message", async () => {
     renderPortal();
     await screen.findByRole("heading", { name: "Ovzdusie dnes" });

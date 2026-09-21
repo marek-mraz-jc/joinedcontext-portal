@@ -15,6 +15,7 @@ import en from "../src/locales/en.json";
 import { expectDenied, expectNoRawKeys, expectNoViolations } from "./checks";
 import { PipelineTest } from "../src/pages/pipelines/PipelineTest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
+import { sentTo } from "./requests";
 
 const MAPPED: PipelineForm = {
   class: "auto",
@@ -93,7 +94,7 @@ describe("the pipeline sample test against the UI contract", () => {
     await screen.findByText(/air\.csv/);
     await userEvent.click(runButton());
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.lastCall?.[0])).toContain("/pipelines/test");
+    expect(sentTo(fetchMock, "/pipelines/test")).toHaveLength(1);
   });
 
   it("puts the file input in the tab order with its own name and the shared ring", () => {

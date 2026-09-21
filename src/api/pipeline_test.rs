@@ -23,6 +23,7 @@ use jcctl::pipeline_test::{
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::mpsc;
+use utoipa::ToSchema;
 
 use crate::agents::share;
 use crate::api::dry_run::Probe;
@@ -40,11 +41,65 @@ const QUIET: Duration = Duration::from_millis(300);
 const BODY_LIMIT: usize = MAX_SAMPLE_BYTES + 1024 * 1024;
 
 /// The request of API/01 §7a.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TestRequest {
+    /// The candidate Pipeline manifest, unsaved.
     pub pipeline: Value,
+    /// What the harness reads, read through `SampleRequest`, whose shape the document publishes.
+    #[serde(deserialize_with = "sample_of_request")]
+    #[schema(value_type = SampleRequest)]
     pub sample: Sample,
+}
+
+fn sample_of_request<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Sample, D::Error> {
+    SampleRequest::deserialize(deserializer).map(Sample::from)
+}
+
+/// The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
+/// jcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a
+/// field jcctl gains or loses fails to compile here instead of drifting from the document.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+#[schema(as = PipelineTestSample)]
+pub struct SampleRequest {
+    /// The sample inline, at most five mebibytes.
+    #[serde(default)]
+    pub text: Option<String>,
+    /// An http(s) URL the runner fetches the sample from instead.
+    #[serde(default)]
+    pub url: Option<String>,
+    /// How the sample is split into messages.
+    #[serde(default)]
+    pub format: SampleFormatRequest,
+}
+
+/// How a sample is split: one message, a CSV row each, or a JSON array's elements.
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+#[schema(as = PipelineTestSampleFormat)]
+pub enum SampleFormatRequest {
+    #[default]
+    Text,
+    Csv,
+    Json,
+}
+
+impl From<SampleRequest> for Sample {
+    fn from(request: SampleRequest) -> Self {
+        let SampleRequest { text, url, format } = request;
+        Sample {
+            text,
+            url,
+            format: match format {
+                SampleFormatRequest::Text => SampleFormat::Text,
+                SampleFormatRequest::Csv => SampleFormat::Csv,
+                SampleFormatRequest::Json => SampleFormat::Json,
+            },
+        }
+    }
 }
 
 /// A test in flight: which project it belongs to and where its captured messages go.
@@ -176,7 +231,7 @@ pub async fn execute_test_pipeline(
     tag = "pipelines",
     params(("project" = String, Path, description = "Project slug")),
     request_body(
-        content = Object,
+        content = TestRequest,
         description = "`pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, \
                        and a `format` (`csv`, `json`, `text`). API/01 §7a.",
         content_type = "application/json"
@@ -429,6 +484,45 @@ pub fn internal_router() -> Router<AppState> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// UI-07: the request the document publishes is the one the route reads, and it reaches the
+    /// harness as jcctl's own `Sample`, field for field.
+    #[test]
+    fn the_published_sample_is_the_one_jcctl_reads() {
+        let request: TestRequest = serde_json::from_value(json!({
+            "pipeline": { "kind": "Pipeline" },
+            "sample": { "url": "https://example.org/a.csv", "format": "csv" }
+        }))
+        .expect("a sample by url");
+        assert_eq!(
+            request.sample.url.as_deref(),
+            Some("https://example.org/a.csv")
+        );
+        assert_eq!(request.sample.text, None);
+        assert_eq!(request.sample.format, SampleFormat::Csv);
+
+        let inline: TestRequest = serde_json::from_value(json!({
+            "pipeline": {}, "sample": { "text": "a" }
+        }))
+        .expect("an inline sample");
+        assert_eq!(
+            inline.sample.format,
+            SampleFormat::Text,
+            "text when no format is named"
+        );
+    }
+
+    #[test]
+    fn a_sample_field_nobody_reads_is_refused() {
+        for sample in [
+            json!({ "text": "a", "encoding": "latin1" }),
+            json!({ "text": "a", "format": "xml" }),
+        ] {
+            let refused =
+                serde_json::from_value::<TestRequest>(json!({ "pipeline": {}, "sample": sample }));
+            assert!(refused.is_err(), "{sample} was accepted");
+        }
+    }
 
     fn harness_for(sample: Sample) -> Value {
         let spec: PipelineSpec = serde_json::from_value(json!({

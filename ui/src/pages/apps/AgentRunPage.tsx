@@ -15,7 +15,7 @@ import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
- * One builder run, live (UI-34…UI-40).
+ * One builder run, live (UI-34…UI-40; the timeline, the transcript and the questions are UI-38).
  *
  * The three things a person does here are answer a question, stop the run, and publish what it
  * built. Publishing is a merge request like any other change, which is why the answer to it is

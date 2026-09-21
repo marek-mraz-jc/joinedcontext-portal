@@ -13,6 +13,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
+import { sentTo } from "./requests";
 
 function MockEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
   return (
@@ -177,16 +178,9 @@ describe("PipelineStudio KPI preset", () => {
     const testBtn = screen.getByTestId("studio-kpi-test");
     await userEvent.click(testBtn);
 
-    await waitFor(() => {
-      const call = fetchMock.mock.calls.find(([input]) =>
-        String(input).includes("/pipelines/test"),
-      );
-      expect(call).toBeDefined();
-    });
+    await waitFor(() => expect(sentTo(fetchMock, "/pipelines/test")).toHaveLength(1));
 
-    const call = fetchMock.mock.calls.find(([input]) => String(input).includes("/pipelines/test"))!;
-    const requestInit = call[1] as RequestInit;
-    const body = JSON.parse(requestInit.body as string) as {
+    const body = (await sentTo(fetchMock, "/pipelines/test")[0].json()) as {
       sample: { url: string; format: string };
       pipeline: { spec: PipelineForm };
     };
@@ -285,8 +279,7 @@ describe("PipelineStudio KPI preset", () => {
     await userEvent.click(await screen.findByTestId("studio-kpi-test"));
 
     await waitFor(() => expect(onVerdict).toHaveBeenCalledWith(true, written));
-    const call = fetchMock.mock.calls.find(([input]) => String(input).includes("/pipelines/test"))!;
-    const body = JSON.parse((call[1] as RequestInit).body as string) as {
+    const body = (await sentTo(fetchMock, "/pipelines/test")[0].json()) as {
       pipeline: { spec: PipelineForm };
     };
     expect(body.pipeline.spec.compute?.bloblang).toBe(written);

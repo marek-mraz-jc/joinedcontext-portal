@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { readCsrfToken } from "../../api/client";
+import { api } from "../../api/client";
 import { useOrgDomain } from "../../api/projects";
 import {
   Alert,
@@ -79,6 +79,13 @@ export function inferAnswerOf(value: unknown): InferAnswer | null {
     untyped,
     rows: typeof answer.rows === "number" ? answer.rows : 0,
   };
+}
+
+/** The upload `tools/infer-schema` reads: the sample under `file`, with its own name. */
+export function inferForm(file: File): FormData {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return form;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -168,23 +175,21 @@ export function ModelFileDrop({
       setProblem(t("models.infer.tooLarge"));
       return;
     }
-    const form = new FormData();
-    form.append("file", file, file.name);
-    const csrf = readCsrfToken();
+    const form = inferForm(file);
     setBusy(file.name);
     try {
-      const response = await fetch("/api/v1/tools/infer-schema", {
-        method: "POST",
-        body: form,
-        credentials: "same-origin",
-        headers: csrf ? { "x-csrf-token": csrf } : {},
+      // Through the typed client (UI-07). The document types a multipart body as a string;
+      // the route reads a form with one `file` part, and the client passes a FormData through
+      // untouched so the browser writes the boundary.
+      const { data, error, response } = await api.POST("/api/v1/tools/infer-schema", {
+        body: form as unknown as string,
       });
-      if (!response.ok) {
-        const detail = record(await response.json().catch(() => null)).detail;
+      if (data === undefined) {
+        const detail = record(error).detail;
         setProblem(t("models.infer.failed", { detail: typeof detail === "string" ? detail : String(response.status) }));
         return;
       }
-      const answer = inferAnswerOf(await response.json());
+      const answer = inferAnswerOf(data);
       if (!answer) {
         setProblem(t("models.infer.unreadable"));
         return;

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, readCsrfToken, unwrap } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
@@ -40,6 +40,7 @@ import {
 import type { FlowNodeId } from "./PipelineFlow";
 import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
+import { testPipeline } from "../../api/pipelineTest";
 import { FormHeading } from "../../components/forms/FormRoute";
 
 /** How many rows one sample shows: enough to tick a handful, small enough to read. */
@@ -414,29 +415,15 @@ export function PipelineStudio({
     try {
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const url = `${origin}/api/endpoint/${slug}/ngsi-ld/v1/entities?type=${encodeURIComponent(kpiType)}&attrs=${encodeURIComponent(kpiAttribute)}&limit=1000`;
-      const response = await fetch(
-        `/api/v1/projects/${encodeURIComponent(project)}/pipelines/test`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "content-type": "application/json",
-            "x-csrf-token": readCsrfToken() ?? "",
-          },
-          body: JSON.stringify({
-            pipeline: toManifest ? toManifest(kpiForm) : kpiForm,
-            sample: { url, format: "json" },
-          }),
-        },
-      );
-      if (!response.ok) {
-        const problem = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        setKpiTestError(problem?.detail ?? t("pipelines.test.failed", { status: response.status }));
+      const answered = await testPipeline(project, toManifest ? toManifest(kpiForm) : kpiForm, {
+        url,
+        format: "json",
+      });
+      if (!("trace" in answered)) {
+        setKpiTestError(answered.detail ?? t("pipelines.test.failed", { status: answered.status }));
         return;
       }
-      const answer = (await response.json()) as Trace;
+      const answer = answered.trace;
       // A trace that carries errors has no value to show: the first error is the answer.
       if (answer.errors.length > 0) {
         const first = answer.errors[0];

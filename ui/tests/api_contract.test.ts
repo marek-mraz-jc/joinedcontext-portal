@@ -8,7 +8,7 @@
  * did not.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,5 +50,61 @@ describe("the generated API client (UI-06)", () => {
     const client = readFileSync(join(ui, "src/api/client.ts"), "utf8");
     expect(client).toMatch(/import type \{[^}]*\bpaths\b[^}]*\} from "\.\/schema"/);
     expect(client).toMatch(/createClient<paths>\(/);
+  });
+});
+
+/**
+ * The first argument of every raw `fetch(` call in a source text (not `refetch(`, not `x.fetch(`).
+ * ponytail: it reads the argument's text, so a URL built by a helper (`fetch(urlOf(x))`) is not
+ * seen; resolve the helper's body if one ever slips through.
+ */
+function fetchTargets(source: string): string[] {
+  const targets: string[] = [];
+  const call = /(^|[^A-Za-z0-9_$.])fetch\(/g;
+  for (let match = call.exec(source); match; match = call.exec(source)) {
+    let depth = 0;
+    let end = call.lastIndex;
+    for (; end < source.length; end += 1) {
+      const c = source[end];
+      if (c === "(" || c === "[" || c === "{") depth += 1;
+      else if (c === ")" || c === "]" || c === "}") {
+        if (depth === 0) break;
+        depth -= 1;
+      } else if (c === "," && depth === 0) break;
+    }
+    targets.push(source.slice(call.lastIndex, end).trim());
+  }
+  return targets;
+}
+
+function sources(directory: string): string[] {
+  return readdirSync(join(ui, directory), { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return sources(path);
+    return /\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".d.ts") ? [path] : [];
+  });
+}
+
+describe("every call to the Portal API is a typed one (UI-07)", () => {
+  it("reads the target of a raw fetch and nothing else", () => {
+    expect(fetchTargets('await fetch(`/api/v1/projects/${p}/import`, { method: "POST" })')).toEqual([
+      "`/api/v1/projects/${p}/import`",
+    ]);
+    expect(fetchTargets("fetch(new Request(url(a, b), init))")).toEqual(["new Request(url(a, b), init)"]);
+    expect(fetchTargets("void projects.refetch(); api.fetch(x); prefetch(y)")).toEqual([]);
+  });
+
+  // UI-07: a raw fetch to /api/v1 bypasses the generated types and the client's workspace,
+  // session and csrf middleware. The gateway's own surfaces (/api/endpoint, /cs) are not the
+  // Portal API and are read with fetch on purpose.
+  it("names /api/v1 only through the typed client", () => {
+    const raw = sources("src")
+      .filter((path) => path !== "src/api/client.ts")
+      .flatMap((path) =>
+        fetchTargets(readFileSync(join(ui, path), "utf8"))
+          .filter((target) => target.includes("/api/v1"))
+          .map((target) => `${path}: fetch(${target})`),
+      );
+    expect(raw, "call these through `api` from src/api/client.ts").toEqual([]);
   });
 });

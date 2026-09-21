@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, readCsrfToken, unwrap } from "../api/client";
+import { api, unwrap } from "../api/client";
 import type { ProblemDetails } from "../api/client";
 import type { Change, Manifest } from "../api/manifest";
 import { asManifests, isChange } from "../api/manifest";
@@ -126,28 +126,16 @@ async function importInto(
   body: unknown,
   dryRun: boolean,
 ): Promise<unknown> {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  const csrf = readCsrfToken();
-  if (csrf) headers["x-csrf-token"] = csrf;
-  const response = await fetch(
-    `/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
-    {
-      method: "POST",
-      credentials: "same-origin",
-      headers,
-      body: JSON.stringify(body),
-    },
-  );
-  const answered = (await response.json().catch(() => ({}))) as ProblemDetails &
-    Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(
-      answered.detail ?? answered.title ?? `HTTP ${response.status}`,
-    );
+  // Through the typed client (UI-07): the route, the dry run and the csrf token are the client's.
+  const { data, error, response } = await api.POST("/api/v1/projects/{project}/import", {
+    params: { path: { project }, query: dryRun ? { dryRun: "All" } : {} },
+    body,
+  });
+  if (data === undefined) {
+    const problem = (error ?? {}) as Partial<ProblemDetails>;
+    throw new Error(problem.detail ?? problem.title ?? `HTTP ${response.status}`);
   }
-  return answered;
+  return data;
 }
 
 async function list(project: string, plural: string): Promise<Manifest[]> {

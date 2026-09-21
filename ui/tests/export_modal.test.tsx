@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { exportUrl } from "../src/components/export/ExportModal";
+import { exportQuery } from "../src/components/export/ExportModal";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -135,15 +135,14 @@ describe("export modal", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds the download URL from the selection", () => {
-    expect(exportUrl("banskabystrica", "zip", {})).toBe(
-      "/api/v1/projects/banskabystrica/export?format=zip",
-    );
-    expect(
-      exportUrl("banskabystrica", "yaml", { plural: "endpoints", name: "public-air" }, "8c56954"),
-    ).toBe(
-      "/api/v1/projects/banskabystrica/export?format=yaml&kinds=endpoints&names=public-air&revision=8c56954",
-    );
+  it("builds the download query from the selection", () => {
+    expect(exportQuery("zip", {})).toEqual({ format: "zip" });
+    expect(exportQuery("yaml", { plural: "endpoints", name: "public-air" }, "8c56954")).toEqual({
+      format: "yaml",
+      kinds: "endpoints",
+      names: "public-air",
+      revision: "8c56954",
+    });
   });
 
   it("offers the whole project as an archive from the shell", async () => {

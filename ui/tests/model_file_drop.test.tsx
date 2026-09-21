@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { queryKeys } from "../src/api/client";
 import en from "../src/locales/en.json";
-import { ModelFileDrop, draftOf, inferAnswerOf, slotRows } from "../src/pages/models/ModelFileDrop";
+import { ModelFileDrop, draftOf, inferAnswerOf, inferForm, slotRows } from "../src/pages/models/ModelFileDrop";
 import type { InferAnswer } from "../src/pages/models/ModelFileDrop";
 import { parseModel } from "../src/pages/models/linkml";
 
@@ -82,6 +82,16 @@ function renderDrop(response: () => Response, organizations: unknown[] = []) {
   return { fetchMock, onPopulate };
 }
 
+describe("the infer-schema upload", () => {
+  it("carries the chosen file, with its own name, under `file`", () => {
+    const file = csv();
+    const form = inferForm(file);
+    expect(form.get("file")).toBeInstanceOf(File);
+    expect((form.get("file") as File).name).toBe("sensors.csv");
+    expect([...form.keys()]).toEqual(["file"]);
+  });
+});
+
 describe("a model from a dropped file", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -101,14 +111,15 @@ describe("a model from a dropped file", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(inferCalls(fetchMock)).toHaveLength(1);
-    const [url, init] = inferCalls(fetchMock)[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/v1/tools/infer-schema");
-    expect(init.method).toBe("POST");
-    expect(init.credentials).toBe("same-origin");
-    expect((init.headers as Record<string, string>)["x-csrf-token"]).toBe("csrf-token-1");
-    const form = init.body as FormData;
-    expect(form.get("file")).toBeInstanceOf(File);
-    expect((form.get("file") as File).name).toBe("sensors.csv");
+    // Through the typed client (UI-07): one Request, carrying the csrf token the client adds.
+    const request = inferCalls(fetchMock)[0][0] as Request;
+    expect(new URL(request.url).pathname).toBe("/api/v1/tools/infer-schema");
+    expect(request.method).toBe("POST");
+    expect(request.credentials).toBe("same-origin");
+    expect(request.headers.get("x-csrf-token")).toBe("csrf-token-1");
+    expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
+    // jsdom's File does not survive the Request's own FormData, so what the form holds is
+    // proven on the builder the page calls, below.
 
     expect(within(dialog).getByText("Draft from sensors.csv")).toBeInTheDocument();
     expect(within(dialog).getByText("<b>Temp</b> (°C)")).toBeInTheDocument();

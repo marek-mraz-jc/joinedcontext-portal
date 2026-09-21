@@ -54,12 +54,14 @@ describe("the preview of an endpoint", () => {
     await i18n.changeLanguage("en");
   });
 
+  // UI-36: the preview names the types and attributes the endpoint's access document grants.
   it("says what the endpoint gives, the attributes it holds back included", async () => {
     show((url) => (url.pathname.endsWith("/access") ? json(GRANT) : json([])));
     expect(await screen.findByText(/Reads AirQualityObserved, WeatherObserved/)).toBeInTheDocument();
     expect(screen.getByText(/held back: personId/)).toBeInTheDocument();
   });
 
+  // UI-36: the five-entity sample is read through the endpoint, by a type the grant names.
   it("asks for no sample while the grant names no type", async () => {
     const asked: string[] = [];
     show((url) => {

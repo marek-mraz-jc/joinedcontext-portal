@@ -76,7 +76,7 @@ function text(value: unknown): string {
 }
 
 /**
- * What the chosen Endpoint actually gives you, before you describe the app (AP-51, UI-35).
+ * What the chosen Endpoint actually gives you, before you describe the app (AP-51, UI-35, UI-36).
  *
  * The point is that nobody has to read a manifest to decide: the grant is shown in words, the
  * data in five real entities, and the model behind both is one link away. Every request here

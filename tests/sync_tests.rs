@@ -49,6 +49,8 @@ fn make_session_cookie(config: &Config) -> String {
     parts.join("; ")
 }
 
+/// UI-08: every read of configuration state is served from a mirror the sync fills from the
+/// repository's default branch, never from Git per request.
 #[tokio::test]
 async fn sync_fills_mirror_from_tree_with_live_status_and_observed_revision() {
     let server = MockServer::start().await;
@@ -372,6 +374,7 @@ status:
     assert!(status.conditions.is_empty());
 }
 
+/// UI-08: a sync that cannot read the repository keeps serving the last mirror it had.
 #[tokio::test]
 async fn failed_tree_listing_preserves_mirror_and_records_error_in_sync_status() {
     let server = MockServer::start().await;

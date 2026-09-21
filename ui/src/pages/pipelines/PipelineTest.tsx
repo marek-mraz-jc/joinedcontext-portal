@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { readCsrfToken } from "../../api/client";
+import { testPipeline } from "../../api/pipelineTest";
+import type { SampleFormat, Trace } from "../../api/pipelineTest";
 import { Alert, Button, FilePicker } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
 import { FormHeading } from "../../components/forms/FormRoute";
@@ -17,20 +18,7 @@ import { FormHeading } from "../../components/forms/FormRoute";
 /** The largest sample the route takes (API/01 §7a). */
 export const MAX_SAMPLE_BYTES = 5 * 1024 * 1024;
 
-export type SampleFormat = "csv" | "json" | "text";
-
-export interface Trace {
-  input: { events: number; bytes: number; sample?: unknown };
-  mapping: unknown[];
-  validation: { index: number; ok: boolean; problems: string[] }[];
-  errors: {
-    stage: string;
-    /** The step of `spec.steps` a `mapping` error failed at (PL-52); absent on lint and runner. */
-    step?: number | null;
-    line?: number | null;
-    message: string;
-  }[];
-}
+export type { SampleFormat, Trace } from "../../api/pipelineTest";
 
 export interface Draft {
   format: SampleFormat;
@@ -226,26 +214,20 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
     setRunning(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/projects/${encodeURIComponent(project)}/pipelines/test`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json", "x-csrf-token": readCsrfToken() ?? "" },
-        body: JSON.stringify({
-          pipeline: toManifest(draft),
-          sample:
-            sample.url !== undefined
-              ? { url: sample.url, format: sample.format }
-              : { text: sample.text, format: sample.format },
-        }),
-      });
-      if (!response.ok) {
-        const problem = (await response.json().catch(() => null)) as { detail?: string } | null;
+      const answered = await testPipeline(
+        project,
+        toManifest(draft),
+        sample.url !== undefined
+          ? { url: sample.url, format: sample.format }
+          : { text: sample.text ?? "", format: sample.format },
+      );
+      if (!("trace" in answered)) {
         setTrace(null);
         onTrace?.(null);
-        setError(problem?.detail ?? t("pipelines.test.failed", { status: response.status }));
+        setError(answered.detail ?? t("pipelines.test.failed", { status: answered.status }));
         return;
       }
-      const answer = (await response.json()) as Trace;
+      const answer = answered.trace;
       setTrace(answer);
       onTrace?.(answer);
       onVerdict?.(

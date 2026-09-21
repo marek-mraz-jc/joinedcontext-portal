@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { readCsrfToken } from "../../api/client";
+import { callOperation } from "../../api/operations";
 import { handPrefill, takePrefill } from "../../assistant/state";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { refName } from "../../api/manifest";
@@ -156,14 +156,6 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-      };
-      const csrf = readCsrfToken();
-      if (csrf) {
-        headers["x-csrf-token"] = csrf;
-      }
-
       const payload: Record<string, unknown> = {
         propose,
       };
@@ -176,20 +168,13 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
         payload.files = files;
       }
 
-      const res = await fetch(`/api/v1/projects/${encodeURIComponent(project)}/ops/jc_space_complete`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const problem = (await res.json().catch(() => null)) as { detail?: string; error?: string } | null;
-        setError(problem?.detail || problem?.error || `HTTP ${res.status}`);
+      const answer = await callOperation(project, "jc_space_complete", payload);
+      if (!answer.ok) {
+        setError(answer.reason ?? `HTTP ${answer.status}`);
         return;
       }
 
-      const data = (await res.json()) as CompleteResult;
+      const data = answer.output as CompleteResult;
       setResult(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));

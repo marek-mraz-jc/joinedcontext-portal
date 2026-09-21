@@ -12,7 +12,7 @@ import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tan
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import en from "../src/locales/en.json";
-import { ImportPage, pastedSecrets } from "../src/pages/import/ImportPage";
+import { ImportPage, importForm, pastedSecrets } from "../src/pages/import/ImportPage";
 import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
 const REPORT = {
@@ -68,7 +68,8 @@ function renderPage(options: { refusal?: string } = {}) {
     const url = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
     const method = init?.method ?? (input instanceof Request ? input.method : "GET");
     if (url.includes("/import") && method === "POST") {
-      posts.push({ url, body: init?.body as FormData });
+      // Through the typed client (UI-07) the form travels on the Request itself.
+      posts.push({ url, body: (init?.body as FormData | undefined) ?? (await (input as Request).clone().formData()) });
       if (options.refusal) {
         return new Response(
           JSON.stringify({ status: 400, title: "Bad Request", detail: options.refusal }),
@@ -113,6 +114,22 @@ function renderPage(options: { refusal?: string } = {}) {
   );
   return { posts, user: userEvent.setup(), container: view.container };
 }
+
+describe("the import upload (MF-20)", () => {
+  it("carries the chosen bundle under `file` and the options as fields", () => {
+    const file = bundle();
+    const form = importForm(file, " zvolen ", "zvolen.sk", "rename");
+    expect(form.get("file")).toBe(file);
+    expect(form.get("targetNamespace")).toBe("zvolen");
+    expect(form.get("orgDomain")).toBe("zvolen.sk");
+    expect(form.get("conflictPolicy")).toBe("rename");
+  });
+
+  it("leaves out a namespace and a domain nobody typed", () => {
+    const form = importForm(bundle(), "  ", "", "fail");
+    expect([...form.keys()]).toEqual(["file", "conflictPolicy"]);
+  });
+});
 
 describe("the import wizard", () => {
   beforeEach(async () => {
@@ -178,7 +195,9 @@ describe("the import wizard", () => {
     expect(posts[0].body.get("targetNamespace")).toBe("zvolen");
     expect(posts[0].body.get("orgDomain")).toBe("zvolen.sk");
     expect(posts[0].body.get("conflictPolicy")).toBe("rename");
-    expect(posts[0].body.get("file")).toBeInstanceOf(File);
+    // jsdom's File does not survive the Request's own FormData; the builder's test below
+    // proves the bundle is what goes under `file`.
+    expect(posts[0].body.has("file")).toBe(true);
   });
 
   /// MF-24: the credential does not leave the browser, and the refusal says which key it was.

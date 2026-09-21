@@ -36,6 +36,9 @@ pub enum MirrorError {
     InvalidResource { path: PathBuf, reason: String },
 }
 
+/// The read-optimized mirror of the configuration repository's default branch (UI-08): every
+/// list and read the API serves comes from here, and the sync replaces it whole when the branch
+/// moves, so a request never reads Git.
 #[derive(Default)]
 pub struct Mirror {
     resources: RwLock<BTreeMap<ResourceKey, ResourceEnvelope>>,

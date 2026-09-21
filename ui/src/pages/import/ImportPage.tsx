@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { readCsrfToken } from "../../api/client";
+import { api } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -72,7 +72,8 @@ export function pastedSecrets(text: string): string[] {
 }
 
 /** The body an import posts: the file and the options beside it (API/01 §4). */
-function form(file: File, namespace: string, orgDomain: string, policy: Policy): FormData {
+/** The upload the import route reads: the bundle under `file` and the options as fields (MF-20). */
+export function importForm(file: File, namespace: string, orgDomain: string, policy: Policy): FormData {
   const body = new FormData();
   body.append("file", file);
   if (namespace.trim()) {
@@ -112,22 +113,19 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
     if (!file) {
       throw new Error(t("import.noFile"));
     }
-    const headers: Record<string, string> = {};
-    const csrf = readCsrfToken();
-    if (csrf) {
-      headers["x-csrf-token"] = csrf;
-    }
-    const response = await fetch(
-      `/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
-      { method: "POST", credentials: "same-origin", headers, body: form(file, namespace, orgDomain, policy) },
-    );
-    const answered = (await response.json().catch(() => ({}))) as ProblemDetails & Record<string, unknown>;
-    if (!response.ok) {
+    // Through the typed client (UI-07). The document types a multipart body as a string; the
+    // client passes the FormData through untouched so the browser writes the boundary.
+    const { data, error, response } = await api.POST("/api/v1/projects/{project}/import", {
+      params: { path: { project }, query: dryRun ? { dryRun: "All" } : {} },
+      body: importForm(file, namespace, orgDomain, policy) as unknown as string,
+    });
+    if (data === undefined) {
+      const answered = (error ?? {}) as Partial<ProblemDetails>;
       // The refusal is the Portal's own sentence — which manifest and why (MF-24) — shown as it
       // came rather than replaced with a summary of it.
       throw new Error(answered.detail ?? answered.title ?? `HTTP ${response.status}`);
     }
-    return answered;
+    return data;
   };
 
   const check = useMutation({
