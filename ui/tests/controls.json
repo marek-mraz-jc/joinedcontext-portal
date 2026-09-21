@@ -476,10 +476,11 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 8
+        "Button": 9
       },
       "tests": [
-        "service_accounts_view.test.tsx"
+        "service_accounts_view.test.tsx",
+        "serviceaccount_form.test.tsx"
       ]
     },
     "src/pages/apps/ActionStep.tsx": {
@@ -934,6 +935,14 @@
       },
       "tests": [
         "space_segment.test.tsx"
+      ]
+    },
+    "src/routes/SubscriptionsPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "subscription_form.test.tsx"
       ]
     },
     "src/routes/WorkspacesPage.tsx": {

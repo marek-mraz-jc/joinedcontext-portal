@@ -67,6 +67,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   // not arrived, so both branches are arranged by the one manifest (T-2400).
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
   Group: [kinds.groupSchema(t)],
+  Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
+  ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
   // One branch per target, as a sync source has one per origin, and the lists left empty so every
   // example is held against the pattern the free-text field takes (T-2345).
   ContextSourceRegistration: kinds.REGISTRATION_TARGETS.map((target) =>

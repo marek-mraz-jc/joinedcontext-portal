@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kopien",
-    "policies": "Richtlinien"
+    "policies": "Richtlinien",
+    "subscriptions": "Abonnements"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -1024,7 +1025,34 @@
       "empty": "Dieses Projekt hat noch kein Dienstkonto.",
       "owner": "Verantwortlich",
       "roles": "Rollen",
-      "purpose": "Zweck"
+      "purpose": "Zweck",
+      "add": "Neues Dienstkonto",
+      "addHint": "Speichern schlägt eine Änderung vor; Konto und Client entstehen nach der Genehmigung.",
+      "propose": "Änderung vorschlagen",
+      "field": {
+        "name": "Name",
+        "purpose": "Zweck",
+        "owner": "Verantwortlich",
+        "ownerUser": "Anmeldung der verantwortlichen Person",
+        "roles": "Berechtigungen",
+        "role": "Rolle",
+        "scope": "Geltungsbereich",
+        "scopeLevel": "Ebene",
+        "scopeName": "Name des Bereichs",
+        "operations": "Operationen",
+        "types": "Entitätstypen",
+        "credentials": "Zugangsdaten",
+        "credentialKind": "Art der Zugangsdaten",
+        "credentialName": "Name der Zugangsdaten",
+        "expiresAt": "Läuft ab am",
+        "ipAllowList": "Erlaubte Adressblöcke",
+        "limits": "Grenzen",
+        "requestsPerMinute": "Anfragen pro Minute",
+        "workload": "Cluster-Workload",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Namespace",
+        "k8sServiceAccount": "Kubernetes-Dienstkonto"
+      }
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -2420,6 +2448,42 @@
       "validFrom": "Gültig ab",
       "validTo": "Gültig bis",
       "grants": "Erlaubt"
+    }
+  },
+  "subscriptions": {
+    "title": "Abonnements",
+    "lead": "Dauerhafte Abfragen der Räume dieses Projekts: welche Änderungen beobachtet werden und wohin der Broker benachrichtigt.",
+    "empty": "Dieses Projekt hat noch kein Abonnement.",
+    "add": "Neues Abonnement",
+    "addHint": "Speichern schlägt eine Änderung vor; der Broker benachrichtigt, sobald sie genehmigt ist.",
+    "propose": "Änderung vorschlagen",
+    "watchesNothing": "Ein Abonnement beobachtet etwas: fügen Sie eine Entitätsauswahl, ein beobachtetes Attribut oder beides hinzu.",
+    "paused": "Pausiert",
+    "field": {
+      "name": "Name",
+      "subscriptionName": "Anzeigename",
+      "space": "Kontextraum",
+      "description": "Beschreibung",
+      "entities": "Beobachtete Entitäten",
+      "entityType": "Entitätstyp",
+      "entityId": "Entitätskennung",
+      "idPattern": "Kennungsmuster",
+      "watchedAttributes": "Beobachtete Attribute",
+      "notification": "Benachrichtigung",
+      "endpoint": "Empfänger",
+      "uri": "Adresse",
+      "accept": "Medientyp",
+      "receiverInfo": "Header",
+      "headerName": "Header-Name",
+      "headerValue": "Header-Wert",
+      "secretRef": "Zugangsdaten",
+      "format": "Format",
+      "attributes": "Gesendete Attribute",
+      "throttling": "Mindestabstand (Sekunden)",
+      "expiresAt": "Läuft ab am",
+      "isActive": "Benachrichtigungen senden",
+      "receiver": "Sendet an",
+      "watches": "Beobachtet"
     }
   },
   "registrations": {

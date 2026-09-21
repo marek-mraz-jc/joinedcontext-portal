@@ -457,7 +457,8 @@ describe("the assistant dock", () => {
     await user.click(within(dock).getByRole("button", { name: en.assistant.floatView }));
     expect(dock.dataset.layout).toBe("float");
     expect(dock.className).toContain("fixed");
-    expect(dock.className).toContain("shadow-xl");
+    // The theme's elevation token, not a Tailwind default (T-1749).
+    expect(dock.className).toContain("shadow-3");
     expect(within(dock).getByRole("button", { name: en.assistant.floatView })).toHaveAttribute(
       "aria-pressed",
       "true",

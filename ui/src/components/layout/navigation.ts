@@ -9,6 +9,9 @@ export const NAV_SECTIONS = [
   // What this project references from other projects' endpoints lives in the Endpoints page's
   // "Shared with this project" section, not in a page of its own (T-0706, EP-15).
   { plural: "endpoints", labelKey: "nav.endpoints", icon: "endpoints" },
+  // A standing query of a space and where its notifications go; like a sync source, its page
+  // is the only way to add one, so it needs an entry of its own (CC-72, T-2344).
+  { plural: "subscriptions", labelKey: "nav.subscriptions", icon: "inbox" },
   // A source is what a pipeline reads, so it sits in front of the pipelines (MF-35).
   { plural: "datasources", labelKey: "nav.datasources", icon: "datasources" },
   { plural: "pipelines", labelKey: "nav.pipelines", icon: "pipelines" },
