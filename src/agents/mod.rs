@@ -18,6 +18,7 @@ pub mod patch;
 pub mod preview;
 pub mod profile;
 pub mod reaper;
+pub mod repository;
 pub mod run;
 pub mod share;
 pub mod store;

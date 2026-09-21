@@ -56,7 +56,14 @@ function positionOf(feature: Feature): [number, number] | null {
   if (feature.geometry?.type !== "Point") {
     return null;
   }
-  const [longitude, latitude] = feature.geometry.coordinates;
+  // Not destructured straight away: a Point whose `coordinates` arrived as null — an entity
+  // with an empty geoproperty, which a broker answers with — threw here and took the whole
+  // dashboard down with it (T-2137).
+  const coordinates: unknown = feature.geometry.coordinates;
+  if (!Array.isArray(coordinates)) {
+    return null;
+  }
+  const [longitude, latitude] = coordinates;
   return Number.isFinite(longitude) && Number.isFinite(latitude) ? [longitude, latitude] : null;
 }
 

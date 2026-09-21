@@ -9,6 +9,9 @@ export const NAV_SECTIONS = [
   // What this project references from other projects' endpoints lives in the Endpoints page's
   // "Shared with this project" section, not in a page of its own (T-0706, EP-15).
   { plural: "endpoints", labelKey: "nav.endpoints", icon: "endpoints" },
+  // A standing query of a space and where its notifications go; like a sync source, its page
+  // is the only way to add one, so it needs an entry of its own (CC-72, T-2344).
+  { plural: "subscriptions", labelKey: "nav.subscriptions", icon: "inbox" },
   // A source is what a pipeline reads, so it sits in front of the pipelines (MF-35).
   { plural: "datasources", labelKey: "nav.datasources", icon: "datasources" },
   { plural: "pipelines", labelKey: "nav.pipelines", icon: "pipelines" },
@@ -29,3 +32,33 @@ export const NAV_SECTIONS = [
   { plural: "policies", labelKey: "nav.policies", icon: "access" },
   { plural: "access", labelKey: "nav.access", icon: "access" },
 ] as const satisfies ReadonlyArray<{ plural: string; labelKey: string; icon: IconName }>;
+
+/** Where the project menu goes: the same section of the other project, never past its list. */
+export interface SameSection {
+  /** The `$plural` segment of `/projects/$project/$plural`. */
+  plural: string;
+}
+
+/**
+ * The section of the page in hand, so switching project keeps it (T-2425, UI-05).
+ *
+ * A list route is its own section and stays where it is. A route that names one resource —
+ * `/endpoints/air-quality`, `/approvals/chg-2a`, `/workspaces/air-v2/compare` — falls back to
+ * that section's list in the other project, because the name belongs to the project that was
+ * left. A path that names no section at all lands on Spaces, which is where the menu used to
+ * send every switch.
+ *
+ * Nothing of the old URL travels but the section. Every search key a route here takes —
+ * `space`, `endpoint`, `entityId`, `edit`, `workspace` — names a resource of the project being
+ * left, and a name carried into another project's URL is a 404 at best and a different resource
+ * with the same name at worst. The two that are filters rather than names (`q`, `type`) belong
+ * to Explore, whose other half is a space and an endpoint of the old project, so they have
+ * nothing to narrow on the other side; and every list route drops the search it does not
+ * declare in any case.
+ */
+export function sameSection(pathname: string): SameSection {
+  const [, , section] = pathname.split("/").filter(Boolean);
+  // A segment that is not a plural is not a section: a stray path lands on Spaces rather than
+  // building `/projects/other/%2E%2E`.
+  return { plural: section && /^[a-z][a-z0-9-]*$/.test(section) ? section : "spaces" };
+}

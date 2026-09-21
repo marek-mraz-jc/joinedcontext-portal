@@ -7,6 +7,9 @@
  * the focus back where it came from, and a footer whose address comes from a branding file and is
  * therefore rendered through `safeHref` (UI-48).
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/icons.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -40,15 +43,20 @@ const BRANDING = {
 
 let branding: Record<string, unknown>;
 
-/** The shell of one project, up once its sidebar is. */
-async function shell(path = "/projects/banskabystrica/spaces") {
+/** The shell of one project, up once its sidebar is; `answers` fills in what a page needs. */
+async function shell(
+  path = "/projects/banskabystrica/spaces",
+  answers: Record<string, unknown> = {},
+) {
   window.history.pushState({}, "", path);
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL) => {
       const href = input instanceof Request ? input.url : String(input);
       const url = new URL(href, window.location.origin);
-      const body = url.pathname.endsWith("/auth/me")
+      const body = answers[url.pathname] !== undefined
+        ? answers[url.pathname]
+        : url.pathname.endsWith("/auth/me")
         ? IDENTITY
         : url.pathname === "/api/v1/branding"
           ? branding
@@ -160,6 +168,56 @@ describe("the shell against the UI contract", () => {
     account.focus();
     await user.keyboard("{Enter}");
     expect(await screen.findByRole("menu")).toBeInTheDocument();
+  });
+
+  /** The other project's entry of the open switcher, and the active one beside it. */
+  async function switcherLinks(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: i18n.t("nav.projects") }));
+    const menu = await screen.findByRole("menu");
+    return {
+      other: within(menu).getByRole("menuitem", { name: "helsinki" }) as HTMLAnchorElement,
+      active: within(menu).getByRole("menuitem", { name: "banskabystrica" }) as HTMLAnchorElement,
+    };
+  }
+
+  it("switches project without leaving the page a person is on", async () => {
+    // The menu used to send every switch to Spaces, so comparing two projects' endpoints cost
+    // two clicks back every time (T-2425, UI-05).
+    const { user } = await shell("/projects/banskabystrica/endpoints");
+    const { other, active } = await switcherLinks(user);
+
+    expect(other).toHaveAttribute("href", "/projects/helsinki/endpoints");
+    // The active project keeps its mark, and its own entry stays on this page too.
+    // `page` when the active entry is the very page in hand, which is what the router marks it
+    // with; the explicit `true` stays for a detail page, where the entry points at the list.
+    expect(active.getAttribute("aria-current")).toBeTruthy();
+    expect(other).not.toHaveAttribute("aria-current");
+    expect(active).toHaveAttribute("href", "/projects/banskabystrica/endpoints");
+  });
+
+  it("falls back to the section's list when the page named one resource", async () => {
+    const { user } = await shell("/projects/banskabystrica/endpoints/air-quality", {
+      "/api/v1/projects/banskabystrica/endpoints/air-quality": {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "Endpoint",
+        metadata: { name: "air-quality", namespace: "banskabystrica" },
+        spec: { contextSpaceRef: "air", audience: "public", enabledRepresentations: ["ngsi-ld"] },
+        status: { slug: "abcdefghijklmnopqrstuvwxyz", phase: "Ready" },
+      },
+    });
+    expect((await switcherLinks(user)).other).toHaveAttribute("href", "/projects/helsinki/endpoints");
+  });
+
+  it("carries no name of the project being left into the other project's URL", async () => {
+    // `space` and `q` are banskabystrica's; helsinki's Explore has neither, and a name that
+    // happens to exist in both is a different resource (T-2425).
+    const { user } = await shell("/projects/banskabystrica/explore?space=air&q=bus&entityId=urn:x");
+    const href = (await switcherLinks(user)).other.getAttribute("href") ?? "";
+
+    expect(href).toBe("/projects/helsinki/explore");
+    for (const carried of ["space", "entityId", "air", "urn", "bus"]) {
+      expect(href, carried).not.toContain(carried);
+    }
   });
 
   it("writes the installation's address as a mail link, never as whatever the file said", async () => {

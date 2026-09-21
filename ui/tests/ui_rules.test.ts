@@ -156,6 +156,60 @@ describe("what a page may not do by hand", () => {
     ).toEqual([]);
   });
 
+  it("no_class_names_a_tone_or_a_size_the_theme_never_defined", () => {
+    // Tailwind emits nothing for a class the theme never declared, so the class is silently no
+    // class at all and the element renders at whatever it inherited. `text-h3` drew the activity
+    // counters at body size beside their own captions, and `text-warning-fg` — a name the theme
+    // has for `danger` and `primary` but not for `warning` — left two schema diagnostics in the
+    // ordinary foreground colour (T-2422, UI-01, UI-30). The three rules above read the shape of
+    // a stock palette, a numbered family and a tail of a real name; none of them reads a name
+    // the theme simply does not have.
+    //
+    // What a prefix may take: a colour or a size `@theme` declares, a numbered family, or one of
+    // Tailwind's own words for that prefix — listed here, because that list is short and a class
+    // outside it is the mistake this rule is for.
+    const OWN: Record<string, string[]> = {
+      text: ["left", "center", "right", "justify", "start", "end", "nowrap", "wrap", "balance",
+        "pretty", "ellipsis", "clip", "transparent", "current", "inherit",
+        "xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl"],
+      bg: ["transparent", "current", "inherit", "none", "cover", "contain", "fixed", "local",
+        "scroll", "center", "top", "bottom", "left", "right", "repeat", "no-repeat", "clip",
+        "origin", "auto"],
+      border: ["transparent", "current", "inherit", "solid", "dashed", "dotted", "double",
+        "hidden", "none", "collapse", "separate", "spacing", "x", "y", "t", "r", "b", "l", "s", "e"],
+      ring: ["transparent", "current", "inherit", "inset", "offset"],
+      // Not `fill-` or `stroke-`: a map style's paint properties are spelled the same way
+      // (`fill-color`, `fill-opacity` in MapLibreView) and they are object keys, not classes.
+      // `no_file_reaches_for_a_colour_family_the_theme_never_defined` already covers those two
+      // prefixes for the shape that matters, a stock palette colour.
+    };
+    const sizes = new Set(
+      [...readFileSync(join(ui, "src/index.css"), "utf8").matchAll(/--text-([a-z0-9-]+):/g)]
+        .map((match) => match[1])
+        .filter((name) => !name.endsWith("--line-height")),
+    );
+    const unknown = all.flatMap((file) =>
+      Object.entries(OWN).flatMap(([prefix, own]) =>
+        [...file.text.matchAll(new RegExp(`(?<![\\w-])${prefix}-([a-z][a-z0-9-]*)(?![\\w-])`, "g"))]
+          .filter(([, name]) => {
+            if (SEMANTIC.has(name) || own.includes(name)) return false;
+            if (prefix === "text" && sizes.has(name)) return false;
+            // `primary-500`, `neutral-0`: the numbered families are their own rule above.
+            const numbered = /^([a-z]+)-\d{1,3}$/.exec(name);
+            if (numbered && THEMED.has(numbered[1])) return false;
+            // `border-b-2`, `border-x-4`: a width on one side, which is a size and not a tone.
+            return !(prefix === "border" && /^[xytrbl]-\d+$/.test(name));
+          })
+          .map(
+            (match) =>
+              `${file.path}:${file.text.slice(0, match.index).split("\n").length} ${match[0]}`,
+          ),
+      ),
+    );
+    expect(sizes.size, "no type sizes were read from index.css").toBeGreaterThan(1);
+    expect(unknown).toEqual([]);
+  });
+
   it("a_size_is_on_the_scale", () => {
     expect(
       breaches(

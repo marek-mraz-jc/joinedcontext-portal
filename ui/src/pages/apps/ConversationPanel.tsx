@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { choicesOf, QuestionOptions } from "./QuestionOptions";
 import type { JsonSchema } from "../../components/forms/types";
-import { Button, ExternalLink, Textarea } from "../../components/ui";
+import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES } from "./useAgentRun";
 import { ActionStep } from "./ActionStep";
 import { CatalogCards, catalogItemsOf } from "./CatalogCards";
@@ -224,6 +224,65 @@ function labelOf(
  * questions are the agent's own JSON Schema rendered by the Portal's form stack, so an answer
  * is validated against the schema that asked for it before it is posted (AG-45, UI-37).
  */
+/** How often the wait is counted, and how long a wait is long enough to say something about. */
+const STALL_TICK_SECONDS = 5;
+const STALL_AFTER_SECONDS = 45;
+
+/**
+ * How long the run has been quiet, once that is long enough to be worth saying.
+ *
+ * An answer that never arrives looks exactly like one still being written: `progressOf` reports
+ * "working" whatever the elapsed time, so the transcript sat there and the person had nothing to
+ * read and nothing to press (T-1761).
+ */
+function StallNotice({
+  working,
+  onCancel,
+  onRetry,
+}: {
+  working: boolean;
+  onCancel?: () => void;
+  onRetry?: () => void;
+}): JSX.Element | null {
+  const { t } = useTranslation();
+  const [waited, setWaited] = useState(0);
+  useEffect(() => {
+    if (!working) return;
+    const tick = setInterval(
+      () => setWaited((seconds) => seconds + STALL_TICK_SECONDS),
+      STALL_TICK_SECONDS * 1000,
+    );
+    return () => clearInterval(tick);
+  }, [working]);
+  if (!working || waited < STALL_AFTER_SECONDS) return null;
+  return (
+    <Alert
+      tone="info"
+      className="mt-2"
+      actions={
+        onRetry || onCancel ? (
+          <>
+            {/* A run that died answers nothing, whatever it is told: asking again in a fresh
+                conversation is the way on, and stopping this one is the way out (T-2462). */}
+            {onRetry ? (
+              <Button variant="primary" size="xs" onClick={onRetry}>
+                {t("agentRun.conversation.retry")}
+              </Button>
+            ) : null}
+            {onCancel ? (
+              <Button variant="secondary" size="xs" onClick={onCancel}>
+                {t("agentRun.conversation.stop")}
+              </Button>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
+      {t("agentRun.conversation.stalled", { seconds: waited })}
+    </Alert>
+  );
+}
+
 export function ConversationPanel({
   project,
   events,
@@ -233,6 +292,9 @@ export function ConversationPanel({
   live,
   onAnswer,
   onSend,
+  onCancel,
+  onRetry,
+  onNewConversation,
   attach,
   above,
   onUseEndpoint,
@@ -248,7 +310,17 @@ export function ConversationPanel({
   /** Whether the run still reads: a finished one takes no more instructions. */
   live: boolean;
   onAnswer: (questionId: string, answers: unknown) => void;
-  onSend: (text: string) => void;
+  /**
+   * Takes the message. A promise is awaited: the box is emptied when the send succeeded and
+   * keeps every word when it did not, with the failure shown beside it (T-1761).
+   */
+  onSend: (text: string) => void | Promise<unknown>;
+  /** Stops a run that has stopped answering, offered once the wait is long enough. */
+  onCancel?: () => void;
+  /** Asks the newest question again in a fresh conversation, offered beside the stop (T-2462). */
+  onRetry?: () => void;
+  /** Leaves this conversation for an empty one: the way on once a run has ended (T-2463). */
+  onNewConversation?: () => void;
   /** A control beside the text box, such as the dock's attach button. */
   attach?: ReactNode;
   /** A row above the text box, such as the dock's data bar. */
@@ -276,6 +348,15 @@ export function ConversationPanel({
       .map((choice) => [choice.value, choice.title] as const),
   );
   const foot = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  // How long the newest turn has been the newest one. An answer that never comes is otherwise
+  // indistinguishable from one still being written: the progress line says "working" either way.
+  // The clock restarts during the render that brings a new turn, which is React's own way of
+  // adjusting state to a prop, rather than in an effect that would render the stale value first.
+  // Only while the agent owes the answer. A run that has answered and waits for the person is
+  // quiet because it is their turn: counting that as a stall told the owner "no answer for 55
+  // seconds" under an answer, and the one button offered stopped the conversation (T-2461).
+  const working = answering || progress === "working";
 
   // A chat that does not follow its own newest line is a log. `block: "nearest"` keeps the
   // scrolling inside the transcript rather than dragging the whole page; jsdom has no such
@@ -289,7 +370,18 @@ export function ConversationPanel({
     if (text === "" || sending) {
       return;
     }
-    onSend(text);
+    setFailed(null);
+    const answer = onSend(text);
+    if (answer && typeof (answer as Promise<unknown>).then === "function") {
+      void (answer as Promise<unknown>).then(
+        () => setDraft(""),
+        // The message did not leave, and the box used to be empty by then: the person saw
+        // nothing sent, nothing said, and nothing left to press send on again (T-1761).
+        (error: unknown) =>
+          setFailed(error instanceof Error ? error.message : t("app.error.generic")),
+      );
+      return;
+    }
     setDraft("");
   };
 
@@ -317,7 +409,12 @@ export function ConversationPanel({
         className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
       >
         {events.length === 0 && (
-          <p className="text-sm text-fg-muted">{t("agentRun.conversation.empty")}</p>
+          <EmptyState
+            bare
+            title={t("agentRun.conversation.empty")}
+            description={t("agentRun.conversation.emptyHint")}
+            icon="chat"
+          />
         )}
 
         <ol className="space-y-2 text-sm" aria-label={t("agentRun.conversation.title")}>
@@ -437,6 +534,19 @@ export function ConversationPanel({
           </p>
         ) : null}
 
+        {/* A stream that dies mid-answer used to be one grey word changing from "live" to
+            "offline" in the header, while half-written answers stayed on screen looking
+            finished (T-1761). */}
+        {live && !streaming ? (
+          <Alert tone="warning" className="mt-2">
+            {t("agentRun.conversation.dropped")}
+          </Alert>
+        ) : null}
+
+        {/* Keyed on the newest turn: a turn that arrives remounts the wait and starts it over,
+            which is the reset without a clock read during the render (T-1761). */}
+        <StallNotice key={events.length} working={working} onCancel={onCancel} onRetry={onRetry} />
+
         {questions.map((question) => (
           <div
             key={question.questionId}
@@ -466,6 +576,11 @@ export function ConversationPanel({
           }}
         >
           {above}
+          {failed ? (
+            <Alert tone="danger" className="mb-1">
+              {t("agentRun.conversation.sendFailed", { reason: failed })}
+            </Alert>
+          ) : null}
           <div className="flex items-end gap-2">
             {attach}
             <label className="sr-only" htmlFor="run-message">
@@ -498,9 +613,16 @@ export function ConversationPanel({
           </div>
         </form>
       ) : (
-        <p className="border-t border-border p-3 text-sm text-fg-muted">
-          {t("agentRun.conversation.closed")}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3">
+          <p className="text-sm text-fg-muted">{t("agentRun.conversation.closed")}</p>
+          {/* An ended run reads nothing more; without this the only way back to a working chat
+              was the dock's close button, which nobody reads as "start again" (T-2463). */}
+          {onNewConversation ? (
+            <Button variant="primary" size="sm" onClick={onNewConversation}>
+              {t("agentRun.conversation.newConversation")}
+            </Button>
+          ) : null}
+        </div>
       )}
     </section>
   );

@@ -24,6 +24,7 @@ use crate::agents::kit;
 use crate::agents::patch;
 use crate::agents::preview;
 use crate::agents::profile::Profile;
+use crate::agents::repository;
 use crate::agents::run::{AgentRun, AgentRunEvent, AgentRunStatus};
 use crate::agents::store::now_rfc3339;
 use crate::agents::{
@@ -61,6 +62,11 @@ const COMPLETE_TURN: &str = "Complete the application.";
 const FIRST_VERSION_BUDGET: u32 = 20000;
 /// One model call, wall clock: the budget above at a hundred tokens a second, with room.
 const CALL_TIMEOUT: Duration = Duration::from_secs(480);
+/// One model call of a conversation, wall clock. A person waits in front of it: the bikes
+/// question sat 55 s after its catalog search with nothing on screen, because a chat turn shared
+/// the builder's eight minutes per call (T-2462). Past this the turn says it failed, at once,
+/// and the person asks again.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(90);
 /// The name the driver signs its own chat lines with; a message by anyone else is a pass.
 pub const AGENT: &str = "agent";
 /// The smallest output budget worth a second call when the key's credit runs short.
@@ -143,6 +149,35 @@ fn provider_said(body: &str) -> String {
         .collect()
 }
 
+/// What a person is told when the model call is refused (T-2419).
+///
+/// The status and the provider's own words belong in the log line beside this one, where an
+/// operator reads them. The conversation gets a sentence about the question they asked. It used to
+/// get the problem document instead — `the proxy answered 401 Unauthorized to the model call:
+/// {"type":…,"status":401,"detail":"invalid run credentials"}` — which told a person their
+/// credentials were wrong for a failure they had no part in, named a component they cannot reach,
+/// and said nothing about what to do next (T-2420).
+fn refusal(status: reqwest::StatusCode) -> String {
+    match status.as_u16() {
+        // The proxy would not take the run's own credentials, or the provider would not take the
+        // Portal's key. Both are ours to fix, and neither is worth a retry by the person.
+        401 | 403 => "the assistant could not reach the model service: it refused this Portal's \
+                     credentials. Your question was not answered and nothing was changed. Tell an \
+                     administrator, then send the message again."
+            .to_owned(),
+        // Busy or briefly down: the same message, sent again, usually goes through.
+        408 | 425 | 429 | 500..=599 => {
+            "the model service did not answer in time. Your question was \
+                                        not answered and nothing was changed; send the message \
+                                        again in a moment."
+                .to_owned()
+        }
+        _ => "the model service refused this call. Your question was not answered and nothing was \
+              changed; send the message again, and tell an administrator if it keeps happening."
+            .to_owned(),
+    }
+}
+
 /// Kit capabilities JSON loaded directly from sdk/kit.json (AP-65).
 pub static KIT_CAPABILITIES: &str = include_str!("../../../sdk/kit.json");
 
@@ -214,6 +249,8 @@ struct Driver {
     model: String,
     provider: String,
     ttl: Duration,
+    /// How long one model call of a conversation may take before the turn fails (T-2462).
+    answer_timeout: Duration,
     /// Passes that produced a preview; the `v` of the preview URL.
     passes: AtomicU32,
     /// The endpoint's `schema/index.json`, read once before the first pass: which types it
@@ -226,6 +263,10 @@ struct Driver {
     /// application's folder.
     branch: String,
     path_prefix: String,
+    /// The application's own repository in the forge's organization, when the run commits
+    /// there rather than into the configuration repository (AP-75), and the application it holds.
+    repository: Option<String>,
+    app_name: String,
     created_by: String,
     /// The person who started the run: every tool call runs as them, never wider (AG-70).
     identity: Identity,
@@ -299,11 +340,16 @@ pub fn spawn(
         model: profile.model_name.clone(),
         provider: profile.model_provider.clone(),
         ttl: Duration::from_secs(settings.run_ttl_secs.max(1) as u64),
+        answer_timeout: ANSWER_TIMEOUT,
         passes: AtomicU32::new(0),
         schema_index: OnceLock::new(),
         joined: OnceLock::new(),
         branch: run.branch.clone(),
         path_prefix: run.path_prefix.clone(),
+        repository: run
+            .in_own_repository()
+            .then(|| crate::agents::repository::name(&run.project, &run.app_name)),
+        app_name: run.app_name.clone(),
         created_by: run.created_by.clone(),
         identity: identity.clone(),
         access: profile.access.clone(),
@@ -342,11 +388,14 @@ impl Driver {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user@hel.fi".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),
@@ -549,6 +598,9 @@ struct Check<'a> {
     samples: &'a Value,
     conversation: &'a [(String, String)],
     instruction: &'a str,
+    /// The version on screen came from an instruction the editing agent handled: its repair is
+    /// the editing agent's too, never a pass over the whole project (SDK-20, SDK-28).
+    edited: bool,
 }
 
 /// Verification passes after one instruction (SDK-28).
@@ -604,8 +656,12 @@ fn with_unread(refused: &[patch::Refused], unread: usize) -> Vec<patch::Refused>
 /// Whether a build problem is patch-protocol talk for the model rather than a build error a
 /// person reads (T-0785).
 fn is_protocol(problem: &str) -> bool {
-    problem.contains("<<<<<<< SEARCH")
+    problem.contains("<<<<<<< SEARCH") || problem.starts_with(NO_BLOCKS)
 }
+
+/// What a repair call is told when the answer changed nothing: the model's business, never the
+/// person's (T-0785).
+const NO_BLOCKS: &str = "the answer carried no SEARCH/REPLACE block";
 
 /// What a repair call is told about blocks it could not read.
 fn unread_problem(unread: usize) -> String {
@@ -892,6 +948,37 @@ fn urlencoding(value: &str) -> String {
 mod tests {
     use super::*;
 
+    /// T-2419: a refused model call tells the person about their question, not about a proxy.
+    #[test]
+    fn a_refused_model_call_is_a_sentence_a_person_can_act_on() {
+        use reqwest::StatusCode;
+        for status in [
+            StatusCode::UNAUTHORIZED,
+            StatusCode::FORBIDDEN,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::BAD_GATEWAY,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::IM_A_TEAPOT,
+        ] {
+            let said = refusal(status);
+            // No problem document, no internal component, no bare status code.
+            for leak in ["{", "\"type\"", "proxy", "401", "invalid run credentials"] {
+                assert!(
+                    !said.contains(leak),
+                    "{status} says {leak:?} to a person: {said}"
+                );
+            }
+            // What happened to their question, and what they do now.
+            assert!(said.contains("nothing was changed"), "{status}: {said}");
+            assert!(said.contains("send the message again"), "{status}: {said}");
+        }
+        // A refusal of this Portal's credentials is not something a person retries their way out
+        // of alone: it names the administrator.
+        assert!(refusal(reqwest::StatusCode::UNAUTHORIZED).contains("administrator"));
+        // A busy service is: it does not.
+        assert!(!refusal(reqwest::StatusCode::SERVICE_UNAVAILABLE).contains("administrator"));
+    }
+
     #[test]
     fn a_period_a_schedule_or_a_pipeline_asks_for_a_pipeline_and_a_question_does_not() {
         for yes in [
@@ -1150,11 +1237,14 @@ mod tests {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),

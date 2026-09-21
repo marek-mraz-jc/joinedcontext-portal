@@ -12,7 +12,7 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, fetchEntity, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { Alert, Button, Dialog, Field, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 
@@ -257,6 +257,15 @@ export function ExplorePage({
               </option>
             ))}
           </Select>
+          {/* Without this a failed `/spaces` left the picker at "—" and the page read like a
+              project with no spaces at all (T-1768). */}
+          {spaces.isError ? (
+            <ListFailed
+              what={t("nav.spaces")}
+              reason={reasonOf(spaces.error, t("explore.loadFailed"))}
+              onRetry={() => void spaces.refetch()}
+            />
+          ) : null}
         </Field>
         <Field
           id="explore-endpoint"
@@ -318,8 +327,18 @@ export function ExplorePage({
             </Button>
           }
         />
+      ) : space && models.isError ? (
+        <ListFailed
+          what={t("nav.models")}
+          reason={reasonOf(models.error, t("explore.loadFailed"))}
+          onRetry={() => void models.refetch()}
+        />
       ) : space ? (
-        <p className="text-caption text-fg-muted">{t("explore.noType")}</p>
+        <EmptyState
+          title={t("explore.noType")}
+          description={t("explore.noTypeHint")}
+          icon="explore"
+        />
       ) : null}
 
       {selected ? (
@@ -337,10 +356,11 @@ export function ExplorePage({
                 variant="danger"
                 data-testid="explore-delete"
                 disabled={!mayDelete}
-                title={
-                  mayDelete
-                    ? undefined
-                    : t("explore.deleteDenied", { type: query.type ?? "" })
+                // `title` on a hard-disabled button is unreachable twice over: the control is
+                // out of the tab order and `disabled:pointer-events-none` swallows the tooltip,
+                // so the grant's refusal was written and could never be read (UI-44, T-1768).
+                disabledReason={
+                  mayDelete ? undefined : t("explore.deleteDenied", { type: query.type ?? "" })
                 }
                 onClick={() => {
                   remove.reset();
@@ -359,7 +379,14 @@ export function ExplorePage({
               {detail.error instanceof ApiError ? detail.error.message : t("explore.loadFailed")}
             </Alert>
           ) : (
-            <pre className="mt-2 max-h-96 overflow-auto text-caption" data-testid="explore-entity">
+            // Opening an entity announced nothing and arriving announced nothing either: a
+            // screen-reader user was left waiting on a pane that had already filled (T-1768).
+            <pre
+              className="mt-2 max-h-96 overflow-auto text-caption"
+              data-testid="explore-entity"
+              aria-live="polite"
+              aria-busy={detail.isPending || undefined}
+            >
               {detail.data ? JSON.stringify(detail.data, null, 2) : t("app.loading")}
             </pre>
           )}

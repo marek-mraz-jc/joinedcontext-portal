@@ -145,8 +145,8 @@ export function AllEndpointsPage(): JSX.Element {
                       <div className="flex flex-col gap-0.5">
                         <span className="font-mono text-body text-fg">{space}</span>
                         <Link
-                          to="/projects/$project/spaces/$name"
-                          params={{ project, name: space }}
+                          to="/projects/$project/$plural/$name"
+                          params={{ plural: "spaces", project, name: space }}
                           aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
                           className="focus-ring inline-flex items-center gap-1 rounded-sm text-caption text-primary-soft-fg hover:underline"
                         >

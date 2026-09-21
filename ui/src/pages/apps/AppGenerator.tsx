@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -11,7 +11,8 @@ import { fetchJson, publishedTypes } from "../endpoints/SchemaProjectionPanel";
 import type { PublishedType } from "../endpoints/SchemaProjectionPanel";
 import { EndpointPreview, accessWords } from "./EndpointPreview";
 import { useAccess } from "../../components/entities/AccessPanel";
-import { Button, Checkbox, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
 /** The blueprint that turns a description into an app (AP-22, Architecture/16 §3). */
 export const BLUEPRINT = "app-from-prompt";
@@ -31,7 +32,9 @@ export const MAX_ENDPOINTS = 5;
 
 /** The published model of one endpoint, read with the person's own session. */
 export async function endpointSchema(slug: string): Promise<unknown> {
-  const base = `${window.location.origin}/api/endpoint/${slug}/schema`;
+  // The slug comes off a manifest and goes straight into a path: a `/` or a `..` in it would
+  // retarget the request at another endpoint's surface (T-1760).
+  const base = `${window.location.origin}/api/endpoint/${encodeURIComponent(slug)}/schema`;
   const index = (await fetchJson(`${base}/index.json`)) as { models?: { version?: number }[] };
   return fetchJson(`${base}/v${index.models?.[0]?.version ?? 1}/json-schema`);
 }
@@ -70,6 +73,9 @@ const FILLER = new Set(
  * stations" is `map-bike-stations`, not `create-a-map-of`). With nothing left it is the
  * endpoint's app; a person who wants another name writes it under the details.
  */
+/** What an app name may be: one DNS-1123 label, which is what a URL segment and a router param take. */
+export const APP_NAME = /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/;
+
 export function slugOf(prompt: string, endpointName = ""): string {
   const words = prompt
     .normalize("NFD")
@@ -177,6 +183,17 @@ export function AppGenerator({
   const [dropped, setDropped] = useState<string[]>([]);
   const [write, setWrite] = useState(false);
   const [conflictApp, setConflictApp] = useState<string | null>(null);
+  // Mounted twice at once — the dock renders one over the apps page's own (AssistantDock:448,
+  // AppPage:67) — and the ids were the same string in both, so a label click focused the control
+  // behind it (T-1760).
+  const base = useId();
+  const ids = {
+    endpoint: `${base}-endpoint`,
+    prompt: `${base}-prompt`,
+    name: `${base}-name`,
+    kind: `${base}-kind`,
+  };
+  const starting = useRef(false);
   const [change, setChange] = useState<Change | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** One entry per rule the parameters broke, so every bad field is named at once (CC-24). */
@@ -272,14 +289,17 @@ export function AppGenerator({
       if (typeof created.id === "string") {
         onStarted?.(created.id);
         void navigate({
-          to: "/projects/$project/apps/$name",
-          params: { project, name: targetName },
+          to: "/projects/$project/$plural/$name",
+          params: { plural: "apps", project, name: targetName },
         });
         return;
       }
       if (isChange(result)) {
         setChange(result);
       }
+    },
+    onSettled: () => {
+      starting.current = false;
     },
     onError: (err) => {
       if (err instanceof ApiError) {
@@ -298,6 +318,28 @@ export function AppGenerator({
     return <p role="status">{t("app.loading")}</p>;
   }
 
+  // A failed read is not "this deployment has no app builder": a person told that stops trying,
+  // and what happened was a 500 they could have retried (T-1760).
+  if (blueprints.isError) {
+    return (
+      <Alert
+        tone="danger"
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void blueprints.refetch()}>
+            {t("form.listRetry")}
+          </Button>
+        }
+      >
+        {t("form.listFailed", {
+          reason:
+            blueprints.error instanceof ApiError
+              ? (blueprints.error.problem?.detail ?? blueprints.error.message)
+              : t("app.error.generic"),
+        })}
+      </Alert>
+    );
+  }
+
   if (!available) {
     return <NoBuilder />;
   }
@@ -305,13 +347,22 @@ export function AppGenerator({
   // A name is needed for the URL the app is served at, not for the conversation: it is derived
   // from what the person asked for and stays editable under the details.
   const chosen = name.trim() === "" ? slugOf(prompt, endpointName) : name.trim();
-  const ready = chosen !== "" && prompt.trim() !== "" && endpointName !== "" && needs.length > 0;
+  // `slugOf` sanitises only the *derived* name. What a person types goes into `appName`, into
+  // `/projects/$project/apps/$name` and into the served URL, so spaces, slashes, upper case and
+  // two hundred characters all used to travel (T-1760).
+  const nameFault = APP_NAME.test(chosen) ? null : "apps.generate.nameInvalid";
+  const ready =
+    chosen !== "" && nameFault === null && prompt.trim() !== "" && endpointName !== "" && needs.length > 0;
 
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
+        // `generate.isPending` reaches the button one render later than a second click does,
+        // and two clicks started two runs — two applications, two agents, two bills (T-1760).
+        if (starting.current || generate.isPending) return;
+        starting.current = true;
         generate.mutate();
       }}
     >
@@ -319,35 +370,57 @@ export function AppGenerator({
 
       {change && <ChangeNotice change={change} project={project} />}
       {error && (
-        <div role="alert" className="text-danger">
+        <Alert tone="danger">
           <p>{error}</p>
           {conflictApp && (
             <p className="mt-1 text-sm">
               <Link
-                to="/projects/$project/apps/$name"
-                params={{ project, name: conflictApp }}
+                to="/projects/$project/$plural/$name"
+                params={{ plural: "apps", project, name: conflictApp }}
                 className="underline hover:no-underline"
               >
                 {t("apps.drafts.conflict", { name: conflictApp })}
               </Link>
             </p>
           )}
-        </div>
+        </Alert>
       )}
       {violations.length > 0 && (
-        <ul role="alert" className="list-disc pl-5 text-sm text-danger">
-          {violations.map((violation) => (
-            <li key={violation}>{violation}</li>
-          ))}
-        </ul>
+        <Alert tone="danger">
+          <ul className="list-disc pl-5 text-sm">
+            {violations.map((violation) => (
+              <li key={violation}>{violation}</li>
+            ))}
+          </ul>
+        </Alert>
       )}
 
       <div>
-        <label className="block text-sm font-medium" htmlFor="generator-endpoint">
-          {t("apps.generate.endpoint")}
-        </label>
+        <Field
+          id={ids.endpoint}
+          label={t("apps.generate.endpoint")}
+          help={
+            endpoints.isPending
+              ? t("app.loading")
+              : !endpoints.isError && choices.length === 0
+                ? t("apps.generate.noEndpoints")
+                : t("apps.generate.endpointHint")
+          }
+          errors={
+            endpoints.isError
+              ? [
+                  t("form.listFailed", {
+                    reason:
+                      endpoints.error instanceof ApiError
+                        ? (endpoints.error.problem?.detail ?? endpoints.error.message)
+                        : t("app.error.generic"),
+                  }),
+                ]
+              : undefined
+          }
+        >
         <Select
-          id="generator-endpoint"
+          id={ids.endpoint}
           value={endpointName}
           onChange={(event) => {
             setEndpointName(event.target.value);
@@ -363,7 +436,7 @@ export function AppGenerator({
             </option>
           ))}
         </Select>
-        <p className="mt-1 text-xs text-fg-muted">{t("apps.generate.endpointHint")}</p>
+        </Field>
         {endpointName !== "" && choices.length > 1 && (
           <div className="mt-2">
             {!addingEndpoint && extra.length === 0 ? (
@@ -419,12 +492,9 @@ export function AppGenerator({
         specification: the agent builds from it, shows what it built, and is told what to change
         next on the run page.
       */}
-      <div>
-        <label className="block text-sm font-medium" htmlFor="generator-prompt">
-          {t("apps.generate.prompt")}
-        </label>
+      <Field id={ids.prompt} label={t("apps.generate.prompt")} help={t("apps.generate.promptHint")} required>
         <Textarea
-          id="generator-prompt"
+          id={ids.prompt}
           rows={5}
           value={prompt}
           placeholder={t("apps.generate.promptPlaceholder")}
@@ -433,21 +503,22 @@ export function AppGenerator({
           }}
           className="mt-1"
         />
-        <p className="mt-1 text-xs text-fg-muted">{t("apps.generate.promptHint")}</p>
-      </div>
+      </Field>
 
-      <details className="rounded border border-border px-4 py-2">
+      <details className="rounded-md border border-border px-4 py-2">
         <summary className="cursor-pointer text-sm font-medium">
           {t("apps.generate.details", { name: chosen === "" ? "…" : chosen })}
         </summary>
 
         <div className="mt-3 space-y-4">
-          <div>
-            <label className="block text-sm font-medium" htmlFor="generator-name">
-              {t("apps.generate.name")}
-            </label>
+          <Field
+            id={ids.name}
+            label={t("apps.generate.name")}
+            help={t("apps.generate.nameHint")}
+            errors={nameFault ? [t(nameFault)] : undefined}
+          >
             <Input
-              id="generator-name"
+              id={ids.name}
               value={name}
               placeholder={slugOf(prompt, endpointName)}
               onChange={(event) => {
@@ -455,14 +526,11 @@ export function AppGenerator({
               }}
               className="mt-1"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium" htmlFor="generator-kind">
-              {t("apps.generate.kind")}
-            </label>
+          <Field id={ids.kind} label={t("apps.generate.kind")}>
             <Select
-              id="generator-kind"
+              id={ids.kind}
               value={kind}
               onChange={(event) => {
                 setKind(event.target.value as AppKind);
@@ -475,7 +543,7 @@ export function AppGenerator({
                 </option>
               ))}
             </Select>
-          </div>
+          </Field>
 
           {endpointName !== "" && (
             <NeedsChecklist
@@ -498,13 +566,14 @@ export function AppGenerator({
         </div>
       </details>
 
-      <Button
-        type="submit"
-        variant="primary"
-        disabled={!ready || generate.isPending}
-      >
-        {t("apps.generate.submit")}
-      </Button>
+      {/* The run proposes an App in this project, so that is the verb it needs. Without the
+          guard a viewer wrote the whole brief, curated the checklist, pressed the button and
+          met a raw 403 (UI-44, T-1760). */}
+      <PermissionGuard project={project} kind="App" verb="propose">
+        <Button type="submit" variant="primary" loading={generate.isPending} disabled={!ready}>
+          {t("apps.generate.submit")}
+        </Button>
+      </PermissionGuard>
     </form>
   );
 }
@@ -531,7 +600,7 @@ function NeedsChecklist({
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <section aria-labelledby="generator-needs" className="space-y-2 rounded border border-border p-4">
+    <section aria-labelledby="generator-needs" className="space-y-2 rounded-md border border-border p-4">
       <h2 id="generator-needs" className="text-base font-semibold">
         {t("apps.generate.needs.title")}
       </h2>
@@ -590,9 +659,7 @@ function NoBuilder(): JSX.Element {
   return (
     <div className="space-y-3">
       <PageHeader title={t("apps.generate.title")} />
-      <p role="note" className="rounded border border-border bg-surface-subtle p-3 text-sm">
-        {t("apps.generate.noBuilder")}
-      </p>
+      <Alert tone="info">{t("apps.generate.noBuilder")}</Alert>
       <p className="text-sm">{t("apps.generate.examplesHint")}</p>
       <ul className="list-disc pl-5 text-sm">
         {EXAMPLE_APPS.map((app) => (

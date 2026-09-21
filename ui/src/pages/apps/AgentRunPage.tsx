@@ -118,6 +118,7 @@ export function AgentRunPage({
       <RunPublication
         project={project}
         sourceUrl={record.sourceUrl}
+        mirrorUrl={record.mirrorUrl}
         changeId={record.changeId}
         onApproved={() => void run.refetch()}
       />

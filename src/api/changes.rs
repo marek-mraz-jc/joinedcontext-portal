@@ -1259,6 +1259,15 @@ pub async fn approve_change_for(
         }
     }
 
+    // A published application's own repository merges once its Change has (AP-77).
+    crate::api::agent_runs::merge_published_application(
+        state,
+        project,
+        data.head_envelope.as_ref(),
+        approver,
+    )
+    .await;
+
     if let Some(syncer) = state.syncer.as_ref() {
         let syncer = syncer.clone();
         tokio::spawn(async move {

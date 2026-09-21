@@ -7,6 +7,7 @@
  * approval, excluding the waits for the platform to merge and reconcile.
  */
 import { expect, test } from "@playwright/test";
+import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -40,10 +41,11 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   };
 
   // 1. The data source: type first (a type change clears the draft), then the dialog.
+  const clock = journeyClock("Load");
   let start = Date.now();
   await page.getByLabel("Type").selectOption("http");
   await page.getByRole("button", { name: "New data source" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByTestId("form-page");
   await dialog.getByLabel(/^Name/).fill(SOURCE);
   await dialog.getByLabel(/^URL/).fill(FEED);
   await dialog.getByLabel(/^Timeout/).fill("15s");
@@ -64,7 +66,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   tick(start);
 
   // 3. The pipeline, once the mirror lists the approved source (platform time, not the person's).
-  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
   await expect
     .poll(
       async () => {
@@ -75,11 +77,11 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
       { timeout: 240_000, intervals: [3_000] },
     )
     .toBe(true);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "load" });
 
   start = Date.now();
   await page.getByRole("button", { name: "New pipeline" }).click();
-  const studio = page.getByRole("dialog");
+  const studio = page.getByTestId("form-page");
   await studio.locator("#studio-source-kind").selectOption("datasource");
   await studio.locator("#studio-datasource").selectOption({ value: SOURCE });
   await studio.locator("#root_name").fill(PIPELINE);
@@ -112,13 +114,14 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   start = Date.now();
   await approve(approver.page, PROJECT, pipelineChange);
   tick(start);
+  clock.person(personMs);
   info.annotations.push({ type: "person-seconds", description: (personMs / 1000).toFixed(1) });
   expect(personMs, "the person's part of Load stays under a minute").toBeLessThan(60_000);
 
   // 5. The sink is live: Vehicle entities readable through the endpoint (PL-47, T-0646).
   // Explore keeps the space and the type in page state, so every poll chooses them again.
   const chooseVehicle = async () => {
-    await page.goto(`/projects/${PROJECT}/explore?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/explore?lang=en`, { waitUntil: "load" });
     await page.locator("#explore-space").selectOption(PROJECT);
     const kind = page.locator("#explore-type");
     if ((await kind.evaluate((el) => el.tagName)) === "SELECT") {
@@ -142,6 +145,7 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
       { timeout: 240_000, intervals: [10_000] },
     )
     .toBeGreaterThan(0);
+  clock.live();
 
   await steward.context.close();
   await approver.context.close();

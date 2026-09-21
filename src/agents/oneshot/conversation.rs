@@ -155,9 +155,18 @@ impl Driver {
                 base.replacen("\n## THIS TURN", &format!("\n{section}\n## THIS TURN"), 1),
                 data_query::results_section(&results)
             );
-            let answer = self
-                .complete_with_system(CONVERSATION_SYSTEM, &user)
-                .await?;
+            let answer = tokio::time::timeout(
+                self.answer_timeout,
+                self.complete_with_system(CONVERSATION_SYSTEM, &user),
+            )
+            .await
+            .map_err(|_| {
+                format!(
+                    "the model gave no answer within {} seconds; ask again, or ask something \
+                     narrower",
+                    self.answer_timeout.as_secs()
+                )
+            })??;
 
             let searches = data_query::search_calls(&answer);
             let calls = data_query::tool_calls(&answer);
@@ -208,7 +217,27 @@ impl Driver {
                                 let text = self.query_endpoint(chosen_now, &call, tools_now).await;
                                 text.map(|text| (call, text))
                             }
-                            Err((call, reason)) => Ok((call, format!("error: {reason}"))),
+                            // A call refused before it reaches an endpoint is on the log like
+                            // one the endpoint refused: an attempt at an endpoint the person may
+                            // not read leaves a trace (T-1663, AG-70).
+                            Err((call, reason)) => {
+                                let input = json!({
+                                    "endpoint": call.endpoint,
+                                    "name": call.name,
+                                    "arguments": call.arguments,
+                                });
+                                self.event(
+                                    "tool",
+                                    failed_step(
+                                        "query_endpoint",
+                                        std::time::Instant::now(),
+                                        &input,
+                                        &reason,
+                                    ),
+                                )
+                                .await?;
+                                Ok((call, format!("error: {reason}")))
+                            }
                         }
                     }))
                     .await;
@@ -870,9 +899,20 @@ a removal of its binding with change_resource.
             (prose, errors) = self.apply(files, &answer).await?;
         }
         if !errors.is_empty() {
+            // The person reads what went wrong with the dashboard, never the patch protocol
+            // (T-0785, T-1662).
+            let reasons: Vec<&str> = errors
+                .iter()
+                .map(String::as_str)
+                .filter(|e| !is_protocol(e))
+                .collect();
+            let reasons = if reasons.is_empty() {
+                "the model answered without a change to the specification".to_owned()
+            } else {
+                reasons.join("\n")
+            };
             self.thought(&format!(
-                "Still not a specification the kit can render:\n{}",
-                errors.join("\n")
+                "Still not a specification the kit can render:\n{reasons}"
             ))
             .await?;
             *files = before;
@@ -961,9 +1001,9 @@ a removal of its binding with change_resource.
         // itself is missing or wrong, so a stray extra file never costs a second call (AP-58).
         let mut errors: Vec<String> = Vec::new();
         match files.get(kit::SPEC_FILE) {
-            None if blocks.is_empty() => errors.push(
-                "the answer carried no SEARCH/REPLACE block; write spec.json as one block with an empty SEARCH".to_owned(),
-            ),
+            None if blocks.is_empty() => errors.push(format!(
+                "{NO_BLOCKS}; write spec.json as one block with an empty SEARCH"
+            )),
             None => errors.push("spec.json was not written".to_owned()),
             Some(text) => match kit::parse(text) {
                 Err(problems) => errors.extend(problems),
@@ -1404,6 +1444,70 @@ mod tests {
         assert!(pack.contains("Never propose it"), "{pack}");
         // And the values are never in the prompt: the draft is where they live.
         assert!(!pack.contains("availableBikeNumber"), "{pack}");
+    }
+
+    /// A driver whose model is the stub at `server`, answering after `delay`.
+    async fn model_answering(server: &wiremock::MockServer, delay: Duration, text: &str) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_delay(delay)
+                    .set_body_json(json!({ "content": [{ "type": "text", "text": text }] })),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// T-2462: a catalog question is answered, and the answer is on the run's log as a line of
+    /// the conversation.
+    #[tokio::test]
+    async fn a_catalog_question_ends_in_an_answer() {
+        let server = wiremock::MockServer::start().await;
+        model_answering(
+            &server,
+            Duration::ZERO,
+            "No dataset of this project mentions bikes.",
+        )
+        .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+
+        let answer = driver
+            .converse(&[], "Which datasets say anything about bikes?")
+            .await
+            .expect("an answer");
+        assert_eq!(answer, "No dataset of this project mentions bikes.");
+    }
+
+    /// T-2462: a model call that hangs fails the turn at the answer deadline, with a reason the
+    /// person can act on, instead of leaving them 55 s (or eight minutes) in front of nothing.
+    #[tokio::test]
+    async fn a_model_that_does_not_answer_fails_the_turn_at_the_deadline() {
+        let server = wiremock::MockServer::start().await;
+        model_answering(&server, Duration::from_secs(30), "too late").await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.answer_timeout = Duration::from_millis(300);
+
+        let started = std::time::Instant::now();
+        let failed = driver
+            .converse(&[], "Which datasets say anything about bikes?")
+            .await
+            .expect_err("the turn fails");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+        assert!(failed.contains("gave no answer within"), "{failed}");
+        assert!(failed.contains("ask again"), "{failed}");
+        assert!(
+            ANSWER_TIMEOUT < CALL_TIMEOUT,
+            "a chat turn waits less than a build pass"
+        );
     }
 
     /// A question asked from no form says nothing about forms: the section is absent, not empty.

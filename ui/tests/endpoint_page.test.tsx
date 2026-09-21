@@ -498,14 +498,15 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText(en.endpoints.page.everyTypeOfTheSpace)).toBeInTheDocument();
   });
 
-  it("opens the kind's own editor on this endpoint through ?edit=", async () => {
+  it("opens the kind's own editor on this endpoint at its edit address", async () => {
     renderPage();
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: en.endpoints.page.change }));
 
+    // The form is a page of its own (T-2474), so the change has an address to reload and share.
     await waitFor(() => {
-      expect(window.location.search).toBe(`?edit=${NAME}`);
+      expect(window.location.pathname).toBe(`/projects/${PROJECT}/endpoints/${NAME}/edit`);
     });
     // The list's editor opens on that endpoint: its name is in the form, not an empty one.
     expect(await screen.findByDisplayValue(NAME)).toBeInTheDocument();

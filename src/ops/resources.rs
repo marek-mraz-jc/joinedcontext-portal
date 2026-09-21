@@ -6,6 +6,7 @@ use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::bounds::{text, ID, NAME, TERM, TEXT};
 use super::{
     change_schema, manifest_input_schema, parse_input, propose_with_optional_draft, Annotations,
     Caller, ManifestInput, OpError, Operation, Via,
@@ -121,8 +122,8 @@ fn list_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string", "description": "The manifest kind, e.g. Pipeline" },
-            "space": { "type": "string", "description": "Only the resources of this context space" }
+            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "space": text("Only the resources of this context space", NAME)
         },
         "required": ["kind"],
         "additionalProperties": false
@@ -142,8 +143,8 @@ fn get_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string" },
-            "name": { "type": "string" }
+            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "name": text("The resource's metadata.name", NAME)
         },
         "required": ["kind", "name"],
         "additionalProperties": false
@@ -158,9 +159,9 @@ fn delete_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string" },
-            "name": { "type": "string" },
-            "confirm": { "type": "string", "description": "The resource's name typed back" }
+            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "name": text("The resource's metadata.name", NAME),
+            "confirm": text("The resource's name typed back", NAME)
         },
         "required": ["kind", "name", "confirm"],
         "additionalProperties": false
@@ -171,8 +172,8 @@ fn reject_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "id": { "type": "string" },
-            "reason": { "type": "string" }
+            "id": text("The Change to reject", ID),
+            "reason": text("Why, for the author to read", TEXT)
         },
         "required": ["id"],
         "additionalProperties": false

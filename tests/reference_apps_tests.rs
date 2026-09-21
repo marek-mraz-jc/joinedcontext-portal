@@ -69,8 +69,12 @@ fn a_hand_written_app_claims_no_agent_attribution() {
 
 /// AP-39. A write is the one thing that puts an app's publication in the red lane, so the
 /// list of apps that can write is worth stating out loud rather than discovering later.
+///
+/// Three apps write, and each one writes the same single attribute: the steward's note, which is
+/// the one attribute of its model that no pipeline overwrites (AP-62, T-2434). Any other app
+/// declaring a write fails this test until somebody adds it here on purpose.
 #[test]
-fn air_quality_writes_exactly_one_attribute_and_nothing_else_writes_at_all() {
+fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
     let writes = [
         "createEntity",
         "updateEntity",
@@ -93,12 +97,8 @@ fn air_quality_writes_exactly_one_attribute_and_nothing_else_writes_at_all() {
             .filter(|operation| writes.contains(operation))
             .collect();
         match name.as_str() {
-            "air-quality" => {
-                assert_eq!(
-                    writing,
-                    vec!["updateAttrs"],
-                    "air-quality writes one way only"
-                );
+            "air-quality" | "banskabystrica-zaznamy" | "bbsk-zaznamy" => {
+                assert_eq!(writing, vec!["updateAttrs"], "{name} writes one way only");
                 let attrs: Vec<_> = app
                     .spec
                     .data_needs
@@ -115,5 +115,78 @@ fn air_quality_writes_exactly_one_attribute_and_nothing_else_writes_at_all() {
                 "apps/{other} declares writes {writing:?}; add it to this test on purpose"
             ),
         }
+    }
+}
+
+/// T-2437. The city's records and the region's are one screen published twice: the same `ui/src`,
+/// byte for byte, and two manifests. Copied rather than shared because a published App belongs to
+/// one project and one space, and this repository binds one app name to one folder — so this is
+/// what stops the two copies drifting apart, the way the seed holds its two copies of one model.
+#[test]
+fn the_two_record_grids_are_the_same_screen_published_twice() {
+    let apps = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apps");
+    let city = apps.join("banskabystrica-zaznamy/ui/src");
+    let region = apps.join("bbsk-zaznamy/ui/src");
+
+    fn files(root: &std::path::Path) -> Vec<(String, Vec<u8>)> {
+        let mut found = Vec::new();
+        let mut stack = vec![root.to_path_buf()];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir)
+                .expect("a readable directory")
+                .flatten()
+            {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else {
+                    let name = path
+                        .strip_prefix(root)
+                        .expect("inside the root")
+                        .to_string_lossy()
+                        .into_owned();
+                    found.push((name, std::fs::read(&path).expect("a readable file")));
+                }
+            }
+        }
+        found.sort();
+        found
+    }
+
+    let one = files(&city);
+    let other = files(&region);
+    assert!(!one.is_empty(), "the city's grid has no source");
+    assert_eq!(
+        one.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        other.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        "the two grids hold different files"
+    );
+    for ((name, left), (_, right)) in one.iter().zip(other.iter()) {
+        assert_eq!(
+            left, right,
+            "apps/*/ui/src/{name} differs between the two grids"
+        );
+    }
+}
+
+/// AP-01. A `static` app has no crate, and cargo's `apps/*` glob refuses a member directory
+/// without a `Cargo.toml` rather than skipping it, so every one of them is excluded by name in
+/// the workspace manifest. Forgetting that is a workspace that does not load at all.
+#[test]
+fn every_static_app_is_excluded_from_the_cargo_workspace() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest =
+        std::fs::read_to_string(root.join("Cargo.toml")).expect("the workspace manifest");
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let has_crate = root.join("apps").join(&name).join("Cargo.toml").is_file();
+        if has_crate {
+            continue;
+        }
+        assert!(
+            manifest.contains(&format!("\"apps/{name}\"")),
+            "apps/{name} has no Cargo.toml; name it in the workspace `exclude` list ({:?})",
+            app.spec.class
+        );
     }
 }

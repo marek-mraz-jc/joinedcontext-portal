@@ -10,7 +10,7 @@ use std::path::{Path as FsPath, PathBuf};
 
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -27,22 +27,43 @@ use crate::state::AppState;
 pub const INTEGRITY_MANIFEST: &str = "integrity.json";
 
 /// Serves `/apps/{name}/` — the app's own index.
-async fn serve_index(user: OptionalUser, state: State<AppState>, name: Path<String>) -> Response {
-    serve(user, state, Path((name.0, "index.html".to_string()))).await
+async fn serve_index(
+    user: OptionalUser,
+    state: State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
+    name: Path<String>,
+) -> Response {
+    serve(
+        user,
+        state,
+        headers,
+        uri,
+        Path((name.0, "index.html".to_string())),
+    )
+    .await
 }
 
 /// Serves `/apps/{name}/{path}`.
 async fn serve(
     OptionalUser(user): OptionalUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
     Path((name, path)): Path<(String, String)>,
 ) -> Response {
+    if let Some(apps_url) = state.config.apps_url.as_ref() {
+        if !is_origin(&headers, apps_url) {
+            return to_apps_origin(apps_url, &uri);
+        }
+    }
+
     // Every refusal below is the same 404. A draft app, a retired app, a name that was never
     // created and a caller who may not see it are indistinguishable from outside, so the host
     // never discloses what is being worked on (AP-18).
     let not_found = || ApiError::NotFound(format!("app '{name}' not found")).into_response();
 
-    let Some((spec, build)) = published_app(&state, &name) else {
+    let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
     if !may_read(&spec, user.is_some()) {
@@ -74,6 +95,22 @@ async fn serve(
             .into_response();
     }
 
+    // The index is the one file that is not served as built: the SDK starts from the
+    // `#jc-config` the host writes into it (SDK-02), after the digest was checked on the bytes
+    // CI recorded (AP-12). An app that reads nothing is served as it was built.
+    let bytes = if path == "index.html" {
+        let domain = crate::api::assistant::org_domain(&state, &project);
+        match served_config(&state.mirror, &project, &name, &spec, &domain) {
+            Some(config) => match String::from_utf8(bytes) {
+                Ok(html) => with_config(&html, &config).into_bytes(),
+                Err(raw) => raw.into_bytes(),
+            },
+            None => bytes,
+        }
+    } else {
+        bytes
+    };
+
     let mime = mime_guess::from_path(&path).first_or_octet_stream();
     let mut response = Response::builder()
         .status(StatusCode::OK)
@@ -95,6 +132,41 @@ async fn serve(
     response
 }
 
+/// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
+/// port, the scheme's default when none is written. A request without a `Host` is not on it.
+fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
+    let Some(authority) = headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<axum::http::uri::Authority>().ok())
+    else {
+        return false;
+    };
+    origin
+        .host_str()
+        .is_some_and(|host| authority.host().eq_ignore_ascii_case(host))
+        && authority.port_u16().or(origin.port_or_known_default()) == origin.port_or_known_default()
+}
+
+/// An app asked for anywhere but its own origin, above all on the Portal's (T-2476): a `308`
+/// to the same path and query there, so every link keeps working and no byte of the bundle is
+/// ever served where it could reach the Portal API with the viewer's session. The target is
+/// the configured origin, never the request's `Host`, so this is no open redirect.
+fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
+    let target = uri
+        .path_and_query()
+        .map_or("/", axum::http::uri::PathAndQuery::as_str);
+    let location = format!("{}{target}", origin.as_str().trim_end_matches('/'));
+    match HeaderValue::from_str(&location) {
+        Ok(location) => (
+            StatusCode::PERMANENT_REDIRECT,
+            [(header::LOCATION, location)],
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 /// `X-Frame-Options` follows the app's own `frame-ancestors`: an app that may not be framed is
 /// refused by both headers, an embeddable one is left to the CSP alone.
 trait FrameOptions {
@@ -114,7 +186,10 @@ impl FrameOptions for HeaderValue {
 /// The published App manifest of this name, whatever project owns it. App names are
 /// DNS-1123 labels and the app URL has no project segment (AP-14), so the name is what
 /// identifies it here.
-fn published_app(state: &AppState, name: &str) -> Option<(AppSpec, Option<jc_core::Build>)> {
+fn published_app(
+    state: &AppState,
+    name: &str,
+) -> Option<(String, AppSpec, Option<jc_core::Build>)> {
     if !crate::resource::is_dns1123(name) {
         return None;
     }
@@ -122,8 +197,111 @@ fn published_app(state: &AppState, name: &str) -> Option<(AppSpec, Option<jc_cor
         .mirror
         .find(|env| env.kind == "App" && env.metadata.name == name)?;
     let build = envelope.status.as_ref().and_then(|s| s.build.clone());
+    let project = envelope.metadata.namespace.clone()?;
     let spec: AppSpec = serde_json::from_value(envelope.spec).ok()?;
-    (spec.lifecycle == AppLifecycle::Published).then_some((spec, build))
+    (spec.lifecycle == AppLifecycle::Published).then_some((project, spec, build))
+}
+
+/// The configuration a static app starts from (SDK-02), `None` when it reads no endpoint.
+///
+/// A static app has no pod and no rendered Endpoint of its own (AP-14), so its endpoints are the
+/// ones already there: every Endpoint of the project on a context space its `dataNeeds` name,
+/// then every Endpoint the project's `SharedSpaceReference`s point at (EP-15). The first is the
+/// primary. Slugs and spaces only, never a token: the reader's own session is what reaches each
+/// endpoint, and the gateway's Policy decides what it may read (AP-07).
+fn served_config(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    name: &str,
+    spec: &AppSpec,
+    org_domain: &str,
+) -> Option<serde_json::Value> {
+    use crate::agents::endpoints::{self, RunEndpoint, MAX_ENDPOINTS};
+    use crate::api::assistant::ref_name;
+
+    let of = |env: &crate::resource::ResourceEnvelope| {
+        let slug = env.spec.get("slug").and_then(serde_json::Value::as_str)?;
+        (!slug.is_empty()).then(|| RunEndpoint {
+            name: env.metadata.name.clone(),
+            slug: slug.to_owned(),
+            space: ref_name(&env.spec["contextSpaceRef"]).unwrap_or_default(),
+        })
+    };
+    let sorted = |mut envs: Vec<crate::resource::ResourceEnvelope>| {
+        envs.sort_by(|a, b| a.metadata.name.cmp(&b.metadata.name));
+        envs
+    };
+    let in_project = |env: &crate::resource::ResourceEnvelope, kind: &str| {
+        env.kind == kind && env.metadata.namespace.as_deref() == Some(project)
+    };
+
+    let mut found: Vec<RunEndpoint> = Vec::new();
+    for need in &spec.data_needs {
+        let space = need.context_space_ref.name();
+        let serving = mirror.matching(|env| {
+            in_project(env, "Endpoint")
+                && ref_name(&env.spec["contextSpaceRef"]).as_deref() == Some(space)
+        });
+        found.extend(sorted(serving).iter().filter_map(of));
+    }
+    for reference in sorted(mirror.matching(|env| in_project(env, "SharedSpaceReference"))) {
+        let target = &reference.spec["endpointRef"];
+        let (Some(source), Some(endpoint)) = (target["project"].as_str(), target["name"].as_str())
+        else {
+            continue;
+        };
+        found.extend(
+            mirror
+                .get(source, "Endpoint", endpoint)
+                .as_ref()
+                .and_then(of),
+        );
+    }
+
+    let mut unique: Vec<RunEndpoint> = Vec::new();
+    for endpoint in found {
+        if !unique.iter().any(|seen| seen.slug == endpoint.slug) {
+            unique.push(endpoint);
+        }
+    }
+    if unique.len() > MAX_ENDPOINTS {
+        // ponytail: the first five by space order; an app that needs more is a manifest to split.
+        tracing::warn!(app = %name, count = unique.len(), "static app resolves more endpoints than one app may read");
+        unique.truncate(MAX_ENDPOINTS);
+    }
+    let Some(primary) = unique.first().cloned() else {
+        if !spec.data_needs.is_empty() {
+            // The page renders the SDK's configuration error; this is the line that says why.
+            tracing::warn!(app = %name, project = %project, "static app reads no endpoint the platform holds");
+        }
+        return None;
+    };
+    let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
+    Some(serde_json::json!({
+        "slug": primary.slug,
+        "orgDomain": org_domain,
+        "space": primary.space,
+        "transport": "origin",
+        "appName": name,
+        "endpointName": primary.name,
+        "endpoints": endpoints::config(&unique, &needs),
+    }))
+}
+
+/// The index with its `#jc-config` element, first thing in the head so it is the one
+/// `getElementById` finds even if a bundle ships a stale one of its own.
+fn with_config(html: &str, config: &serde_json::Value) -> String {
+    let element = format!(
+        "<script id=\"jc-config\" type=\"application/json\">{}</script>",
+        crate::agents::preview::script_json(config)
+    );
+    let lower = html.to_ascii_lowercase();
+    let at = lower
+        .find("<head>")
+        .map(|at| at + "<head>".len())
+        .or_else(|| lower.find("</head>"))
+        .unwrap_or(0);
+    format!("{}{element}{}", &html[..at], &html[at..])
 }
 
 /// The directory one app is served from (AP-72, AP-74).
@@ -336,6 +514,24 @@ mod tests {
             sri_sha384(b""),
             "sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
         );
+    }
+
+    #[test]
+    fn the_configuration_opens_the_head_and_cannot_close_its_element() {
+        let config = serde_json::json!({ "appName": "</script><script>alert(1)</script>" });
+        let html = with_config(
+            "<!doctype html><HTML><Head><title>x</title></head></html>",
+            &config,
+        );
+        assert!(
+            html.starts_with("<!doctype html><HTML><Head><script id=\"jc-config\""),
+            "{html}"
+        );
+        assert_eq!(html.matches("</script>").count(), 1, "{html}");
+
+        // A document with no head at all still gets it, before anything else.
+        let bare = with_config("<p>x</p>", &config);
+        assert!(bare.starts_with("<script id=\"jc-config\""), "{bare}");
     }
 
     #[test]

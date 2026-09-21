@@ -1571,3 +1571,761 @@ export function groupSchema(t: (key: string) => string, users: string[] = []): J
     },
   };
 }
+
+/** The three notification formats CIM 009 clause 5.2.14 names; absent means the broker's own. */
+export const NOTIFICATION_FORMATS = ["normalized", "concise", "keyValues"] as const;
+
+/**
+ * An address a notification may be posted to: `http` or `https`, a host, and no `user@` in it.
+ * jc-core refuses the same three things (`NotificationEndpoint::validate`), and a credential in
+ * the query is refused there too; the form catches the shape before a round trip does.
+ */
+export const NOTIFICATION_URI_PATTERN = "^https?://[^\\s/?#@]+([/?#]\\S*)?$";
+
+/** Header names whose value is a credential, as jc-core's `CREDENTIAL_HEADERS` lists them. */
+const CREDENTIAL_HEADERS = ["authorization", "proxy-authorization", "cookie"];
+
+/**
+ * A header name, and never one of those: their value belongs in `secretRef` (MF-31). A schema
+ * pattern takes no `i` flag, so each letter is spelled in both cases.
+ */
+export const HEADER_NAME_PATTERN = `^(?!(${CREDENTIAL_HEADERS.map((name) =>
+  name.replace(/[a-z]/g, (letter) => `[${letter.toUpperCase()}${letter}]`),
+).join("|")})$)[A-Za-z0-9-]+$`;
+
+/** An RFC 3339 moment with its offset, as `expiresAt` is written into the manifest. */
+export const RFC3339_PATTERN =
+  "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})$";
+
+/**
+ * The `Subscription` a person authors: which space, what is watched, where the notification goes
+ * and how often (CC-72, DS-16, CIM 009 clause 5.2.12).
+ *
+ * The shape is the manifest's, member for member, so the YAML view and the fields agree; only
+ * `contextSpaceRef` is a name here and a reference there. A selector names a type, an id or an
+ * id pattern (`minProperties`, since rjsf drops an emptied text box), and the credential the
+ * receiver needs is a `secretRef`, never a header value: `Authorization`, `Cookie` and
+ * `Proxy-Authorization` are refused in `receiverInfo` by jc-core, and the form says why at the
+ * field rather than after the Check (MF-31, PF-36).
+ */
+export function subscriptionSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  secrets: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "contextSpaceRef", "notification"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("subscriptions.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      subscriptionName: {
+        type: "string",
+        title: t("subscriptions.field.subscriptionName"),
+        maxLength: 256,
+      },
+      contextSpaceRef: {
+        type: "string",
+        title: t("subscriptions.field.space"),
+        ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+      },
+      description: {
+        type: "string",
+        title: t("subscriptions.field.description"),
+        maxLength: 1024,
+      },
+      entities: {
+        type: "array",
+        title: t("subscriptions.field.entities"),
+        items: {
+          type: "object",
+          minProperties: 1,
+          properties: {
+            type: {
+              type: "string",
+              title: t("subscriptions.field.entityType"),
+              pattern: ENTITY_TYPE_PATTERN,
+            },
+            id: {
+              type: "string",
+              title: t("subscriptions.field.entityId"),
+              pattern: "^urn:ngsi-ld:\\S+$",
+            },
+            idPattern: { type: "string", title: t("subscriptions.field.idPattern") },
+          },
+        },
+      },
+      watchedAttributes: {
+        type: "array",
+        title: t("subscriptions.field.watchedAttributes"),
+        items: { type: "string", pattern: "^\\S+$" },
+        uniqueItems: true,
+      },
+      q: { type: "string", title: "q" },
+      geoQ: { type: "string", title: "geoQ" },
+      notification: {
+        type: "object",
+        title: t("subscriptions.field.notification"),
+        required: ["endpoint"],
+        properties: {
+          endpoint: {
+            type: "object",
+            title: t("subscriptions.field.endpoint"),
+            required: ["uri"],
+            properties: {
+              uri: {
+                type: "string",
+                title: t("subscriptions.field.uri"),
+                pattern: NOTIFICATION_URI_PATTERN,
+                maxLength: 2048,
+              },
+              accept: {
+                type: "string",
+                title: t("subscriptions.field.accept"),
+                enum: ["application/json", "application/ld+json", "application/geo+json"],
+              },
+              receiverInfo: {
+                type: "array",
+                title: t("subscriptions.field.receiverInfo"),
+                items: {
+                  type: "object",
+                  required: ["key", "value"],
+                  properties: {
+                    key: {
+                      type: "string",
+                      title: t("subscriptions.field.headerName"),
+                      pattern: HEADER_NAME_PATTERN,
+                    },
+                    value: { type: "string", title: t("subscriptions.field.headerValue") },
+                  },
+                },
+              },
+              secretRef: secretRef(t, t("subscriptions.field.secretRef"), secrets),
+            },
+          },
+          format: {
+            type: "string",
+            title: t("subscriptions.field.format"),
+            enum: [...NOTIFICATION_FORMATS],
+          },
+          attributes: {
+            type: "array",
+            title: t("subscriptions.field.attributes"),
+            items: { type: "string", pattern: "^\\S+$" },
+            uniqueItems: true,
+          },
+        },
+      },
+      throttling: {
+        type: "integer",
+        title: t("subscriptions.field.throttling"),
+        minimum: 1,
+      },
+      expiresAt: {
+        type: "string",
+        title: t("subscriptions.field.expiresAt"),
+        pattern: RFC3339_PATTERN,
+      },
+      isActive: {
+        type: "boolean",
+        title: t("subscriptions.field.isActive"),
+        default: true,
+      },
+    },
+  };
+}
+
+/** No autocomplete on the two filter expressions, for the reason `policyUiSchema` gives. */
+export const subscriptionUiSchema: UiSchema = {
+  q: { "ui:autocomplete": "off" },
+  geoQ: { "ui:autocomplete": "off" },
+};
+
+/** What a service account's grant covers, in the order a person narrows it (PF-35). */
+export const ROLE_SCOPE_LEVELS = ["project", "contextSpace", "organization"] as const;
+
+/** How a workload proves itself: a Keycloak client first, a hashed key only for a legacy caller (PF-37). */
+export const CREDENTIAL_KINDS = ["oauth-client", "api-key"] as const;
+
+/** An IPv4 or IPv6 block with its prefix length, as jc-core's `validate_cidr` reads one. */
+export const CIDR_PATTERN = "^[0-9A-Fa-f:.]+/[0-9]{1,3}$";
+
+/**
+ * The `ServiceAccount` a person authors: who answers for it, why it exists, what it may do and
+ * how it signs in (PF-34, PF-35, PF-36, PF-47).
+ *
+ * A credential is declared, never held: `kind` and `name` say which client or key exists, and
+ * the value lives in Keycloak or as an Argon2id hash in the Portal's database, so the form has no
+ * field a secret could be typed into (PF-36). A grant's scope is one of three levels in the
+ * manifest and one choice and one name here: jc-core refuses a scope naming two, and a form with
+ * three optional boxes invites exactly that (`spec.roles.scope`).
+ */
+export function serviceAccountSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "purpose", "owner", "roles", "credentials"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("access.accounts.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      purpose: {
+        type: "string",
+        title: t("access.accounts.field.purpose"),
+        minLength: 1,
+        maxLength: 1024,
+      },
+      owner: {
+        type: "object",
+        title: t("access.accounts.field.owner"),
+        required: ["user"],
+        properties: {
+          user: {
+            type: "string",
+            title: t("access.accounts.field.ownerUser"),
+            minLength: 1,
+            maxLength: 253,
+          },
+        },
+      },
+      roles: {
+        type: "array",
+        title: t("access.accounts.field.roles"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["role", "scope"],
+          properties: {
+            role: {
+              type: "string",
+              title: t("access.accounts.field.role"),
+              pattern: DNS1123,
+              maxLength: 63,
+            },
+            scope: {
+              type: "object",
+              title: t("access.accounts.field.scope"),
+              required: ["level", "name"],
+              properties: {
+                level: {
+                  type: "string",
+                  title: t("access.accounts.field.scopeLevel"),
+                  enum: [...ROLE_SCOPE_LEVELS],
+                  default: "project",
+                },
+                name: {
+                  type: "string",
+                  title: t("access.accounts.field.scopeName"),
+                  pattern: DNS1123,
+                  ...(spaces.length > 0 ? { examples: spaces } : {}),
+                },
+              },
+            },
+            operations: {
+              type: "array",
+              title: t("access.accounts.field.operations"),
+              items: {
+                type: "string",
+                enum: [...new Set([...OPERATION_CHOICES, ...granted])],
+              },
+              uniqueItems: true,
+            },
+            types: {
+              type: "array",
+              title: t("access.accounts.field.types"),
+              items: { type: "string", pattern: ENTITY_TYPE_PATTERN },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      credentials: {
+        type: "array",
+        title: t("access.accounts.field.credentials"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["kind", "name"],
+          properties: {
+            kind: {
+              type: "string",
+              title: t("access.accounts.field.credentialKind"),
+              enum: [...CREDENTIAL_KINDS],
+              default: "oauth-client",
+            },
+            name: {
+              type: "string",
+              title: t("access.accounts.field.credentialName"),
+              pattern: DNS1123,
+              maxLength: 63,
+            },
+            expiresAt: {
+              type: "string",
+              title: t("access.accounts.field.expiresAt"),
+              pattern: RFC3339_PATTERN,
+            },
+            ipAllowList: {
+              type: "array",
+              title: t("access.accounts.field.ipAllowList"),
+              items: { type: "string", pattern: CIDR_PATTERN },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      limits: {
+        type: "object",
+        title: t("access.accounts.field.limits"),
+        properties: {
+          requestsPerMinute: {
+            type: "integer",
+            title: t("access.accounts.field.requestsPerMinute"),
+            minimum: 1,
+          },
+        },
+      },
+      workload: {
+        type: "object",
+        title: t("access.accounts.field.workload"),
+        properties: {
+          kubernetes: {
+            type: "object",
+            title: t("access.accounts.field.kubernetes"),
+            required: ["namespace", "serviceAccount"],
+            properties: {
+              namespace: {
+                type: "string",
+                title: t("access.accounts.field.k8sNamespace"),
+                pattern: DNS1123,
+              },
+              serviceAccount: {
+                type: "string",
+                title: t("access.accounts.field.k8sServiceAccount"),
+                pattern: DNS1123,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+/** The operations picker for each grant, as the Policy form has it (T-2282). */
+export const serviceAccountUiSchema: UiSchema = {
+  roles: { items: { operations: { "ui:widget": "operations" } } },
+};
+
+/**
+ * Where a registered source lives (MF-36): an `Endpoint` of this platform, or the base URL of an
+ * NGSI-LD API elsewhere. Exactly one of the two, so the form asks for one and shows that one.
+ */
+export const REGISTRATION_TARGETS = ["endpointRef", "endpoint"] as const;
+export type RegistrationTarget = (typeof REGISTRATION_TARGETS)[number];
+
+/** How the broker treats the source's answer, as CIM 009 clause 5.2.9 names the modes. */
+export const REGISTRATION_MODES = ["inclusive", "exclusive", "auxiliary", "redirect"] as const;
+
+/** Which identity a forwarded request carries (PF-48). */
+export const FEDERATION_IDENTITIES = ["serviceAccount", "caller"] as const;
+
+/** An RFC 3339 instant with seconds and an offset, which is what jc-core's `DateTime<Utc>` reads. */
+export const INSTANT_PATTERN =
+  "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$";
+
+/**
+ * The `ContextSourceRegistration` a person authors: the space whose broker learns of the source,
+ * where the source is, what it claims to hold, and who this platform is when it forwards
+ * (MF-36, PF-48, SP-09).
+ *
+ * `target` is the branch the person picked, as `syncSourceSchema` takes its origin: jc-core
+ * refuses a registration that names both an Endpoint and an address, so the form holds one.
+ * `operations` is CIM 009's vocabulary, offered through the policy form's picker from the same
+ * table (T-2282), and left empty it is the specification's default. The account to forward as is
+ * required in `serviceAccount` mode, because jc-core refuses the manifest without it (PF-48).
+ */
+export function registrationSchema(
+  t: (key: string) => string,
+  target: RegistrationTarget,
+  spaces: string[] = [],
+  endpoints: string[] = [],
+  serviceAccounts: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  const targets: Record<RegistrationTarget, JsonSchema> = {
+    endpointRef: {
+      type: "string",
+      title: t("registrations.field.endpointRef"),
+      ...(endpoints.length > 0 ? { enum: endpoints } : { pattern: DNS1123 }),
+    },
+    endpoint: {
+      type: "string",
+      title: t("registrations.field.endpoint"),
+      pattern: "^https?://[^\\s/]+(/\\S*)?$",
+      maxLength: 2048,
+    },
+  };
+  return {
+    type: "object",
+    required: ["name", "contextSpaceRef", target, "information"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("registrations.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      contextSpaceRef: {
+        type: "string",
+        title: t("registrations.field.space"),
+        ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+      },
+      [target]: targets[target],
+      information: {
+        type: "array",
+        title: t("registrations.field.information"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["entities"],
+          properties: {
+            entities: {
+              type: "array",
+              title: t("registrations.field.entities"),
+              minItems: 1,
+              items: {
+                type: "object",
+                required: ["type"],
+                properties: {
+                  type: {
+                    type: "string",
+                    title: t("registrations.field.entityType"),
+                    pattern: ENTITY_TYPE_PATTERN,
+                  },
+                  id: {
+                    type: "string",
+                    title: t("registrations.field.entityId"),
+                    pattern: "^urn:ngsi-ld:[A-Z][A-Za-z0-9]{1,63}:\\S+$",
+                  },
+                  idPattern: { type: "string", title: t("registrations.field.idPattern") },
+                },
+              },
+            },
+            propertyNames: {
+              type: "array",
+              title: t("registrations.field.propertyNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+            relationshipNames: {
+              type: "array",
+              title: t("registrations.field.relationshipNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      operations: {
+        type: "array",
+        title: t("registrations.field.operations"),
+        items: { type: "string", enum: [...new Set([...OPERATION_CHOICES, ...granted])] },
+        uniqueItems: true,
+      },
+      mode: {
+        type: "string",
+        title: t("registrations.field.mode"),
+        enum: [...REGISTRATION_MODES],
+        default: "inclusive",
+      },
+      federation: {
+        type: "object",
+        title: t("registrations.field.federation"),
+        properties: {
+          identity: {
+            type: "string",
+            title: t("registrations.field.identity"),
+            enum: [...FEDERATION_IDENTITIES],
+            default: "serviceAccount",
+          },
+          serviceAccountRef: {
+            type: "string",
+            title: t("registrations.field.serviceAccount"),
+            ...(serviceAccounts.length > 0 ? { enum: serviceAccounts } : { pattern: DNS1123 }),
+          },
+        },
+        // Refused at the field rather than by the API afterwards: without the account there is no
+        // identity to forward as (PF-48).
+        if: { properties: { identity: { const: "serviceAccount" } } },
+        then: { required: ["serviceAccountRef"] },
+      },
+      interval: {
+        type: "string",
+        title: t("registrations.field.interval"),
+        pattern: "^[1-9][0-9]*(s|m|h|d)$",
+      },
+      expiresAt: {
+        type: "string",
+        title: t("registrations.field.expiresAt"),
+        pattern: INSTANT_PATTERN,
+      },
+    },
+  };
+}
+
+/**
+ * The operations picker, saying what an empty choice means for a registration: the source is
+ * registered for CIM 009's default operations, which is not the "nothing" it is on a policy.
+ */
+export function registrationUiSchema(t: (key: string) => string): UiSchema {
+  return {
+    operations: {
+      "ui:widget": "operations",
+      "ui:options": {
+        none: t("registrations.operations.none"),
+        moreHint: t("registrations.operations.moreHint"),
+      },
+    },
+    endpoint: { "ui:autocomplete": "off" },
+  };
+}
+
+
+/** How an app is built and served (AP-01), as jc-core's `AppClass` spells it. */
+export const APP_CLASSES = ["static", "service", "fullstack"] as const;
+
+/** Who may reach a published app (AP-18), narrowest first. */
+export const APP_VISIBILITIES = ["private", "project", "organization", "public"] as const;
+
+/** Where an app's source lives: exactly one of the two (AP-02). */
+export const APP_SOURCES = ["path", "git"] as const;
+
+/** Every representation an Endpoint may serve (EP-05), in jc-core's spelling. */
+export const APP_REPRESENTATIONS = [
+  "ngsi-ld",
+  "geojson",
+  "csv",
+  "xlsx",
+  "json",
+  "zip",
+  "ogc-features",
+  "sta",
+  "mcp",
+] as const;
+
+/** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
+export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";
+
+/** An ISO 8601 duration reaching back from now, such as `P1D` or `PT6H` (AP-05). */
+export const ISO_DURATION_PATTERN = "^P(?=\\d|T\\d)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$";
+
+/**
+ * The `App` a person edits: how it is built and served, who reaches it, where its source is, the
+ * toolchain CI pins, what it reads and writes, and its CSP and limits (AP-01…AP-20).
+ *
+ * `lifecycle` is not a field: publishing is the catalogue's own action, with the confirmation
+ * that says what it does (AP-20), and an edit keeps the lifecycle the manifest has. `source` is
+ * one choice and its members, because jc-core refuses a source naming both a path and a
+ * repository; `build` is a list of pins here and a map in the manifest (AP-11).
+ */
+export function appSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "kind", "visibility", "source", "build", "dataNeeds"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("apps.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      kind: {
+        type: "string",
+        title: t("apps.field.kind"),
+        enum: [...APP_CLASSES],
+        default: "static",
+      },
+      visibility: {
+        type: "string",
+        title: t("apps.field.visibility"),
+        enum: [...APP_VISIBILITIES],
+        default: "project",
+      },
+      embeddable: {
+        type: "boolean",
+        title: t("apps.field.embeddable"),
+        default: false,
+      },
+      source: {
+        type: "object",
+        title: t("apps.field.source"),
+        required: ["from"],
+        // The members the choice needs, refused at the field when one is missing (AP-02).
+        if: { properties: { from: { const: "git" } } },
+        then: { required: ["url", "ref"] },
+        else: { required: ["path"] },
+        properties: {
+          from: {
+            type: "string",
+            title: t("apps.field.sourceFrom"),
+            enum: [...APP_SOURCES],
+            default: "path",
+          },
+          path: {
+            type: "string",
+            title: t("apps.field.sourcePath"),
+            pattern: "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          },
+          url: {
+            type: "string",
+            title: t("apps.field.gitUrl"),
+            pattern: "^https://\\S+$",
+          },
+          ref: { type: "string", title: t("apps.field.gitRef"), pattern: "^\\S+$" },
+          subdirectory: {
+            type: "string",
+            title: t("apps.field.gitPath"),
+            pattern: "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          },
+        },
+      },
+      build: {
+        type: "array",
+        title: t("apps.field.build"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["tool", "version"],
+          properties: {
+            tool: {
+              type: "string",
+              title: t("apps.field.buildTool"),
+              pattern: "^[a-z][a-z0-9_-]*$",
+            },
+            version: {
+              type: "string",
+              title: t("apps.field.buildVersion"),
+              pattern: "^\\S+$",
+            },
+          },
+        },
+      },
+      dataNeeds: {
+        type: "array",
+        title: t("apps.field.dataNeeds"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["contextSpaceRef", "types", "operations"],
+          properties: {
+            contextSpaceRef: {
+              type: "string",
+              title: t("apps.field.space"),
+              ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+            },
+            types: {
+              type: "array",
+              title: t("apps.field.types"),
+              minItems: 1,
+              items: { type: "string", pattern: ENTITY_TYPE_PATTERN },
+              uniqueItems: true,
+            },
+            attrs: {
+              type: "array",
+              title: t("apps.field.attrs"),
+              items: { type: "string", pattern: "^\\S+$" },
+              uniqueItems: true,
+            },
+            operations: {
+              type: "array",
+              title: t("apps.field.operations"),
+              minItems: 1,
+              items: {
+                type: "string",
+                enum: [...new Set([...OPERATION_CHOICES, ...granted])],
+              },
+              uniqueItems: true,
+            },
+            representations: {
+              type: "array",
+              title: t("apps.field.representations"),
+              items: { type: "string", enum: [...APP_REPRESENTATIONS] },
+              uniqueItems: true,
+            },
+            q: { type: "string", title: "q" },
+            scopeQ: { type: "string", title: "scopeQ" },
+            within: {
+              type: "string",
+              title: t("apps.field.within"),
+              pattern: "^/\\S+$",
+            },
+            window: {
+              type: "string",
+              title: t("apps.field.window"),
+              pattern: ISO_DURATION_PATTERN,
+            },
+          },
+        },
+      },
+      csp: {
+        type: "object",
+        title: t("apps.field.csp"),
+        properties: {
+          connectSrc: {
+            type: "array",
+            title: t("apps.field.connectSrc"),
+            items: { type: "string", pattern: CSP_SOURCE_PATTERN },
+            uniqueItems: true,
+          },
+          frameAncestors: {
+            type: "array",
+            title: t("apps.field.frameAncestors"),
+            items: { type: "string", pattern: CSP_SOURCE_PATTERN },
+            uniqueItems: true,
+          },
+        },
+      },
+      limits: {
+        type: "object",
+        title: t("apps.field.limits"),
+        properties: {
+          requestsPerMinute: {
+            type: "integer",
+            title: t("apps.field.requestsPerMinute"),
+            minimum: 1,
+          },
+          maxFileRows: {
+            type: "integer",
+            title: t("apps.field.maxFileRows"),
+            minimum: 1,
+          },
+        },
+      },
+    },
+  };
+}
+
+/** The operations picker for each data need, as the Policy form has it (T-2282). */
+export const appUiSchema: UiSchema = {
+  dataNeeds: {
+    items: {
+      operations: { "ui:widget": "operations" },
+      q: { "ui:autocomplete": "off" },
+      scopeQ: { "ui:autocomplete": "off" },
+    },
+  },
+};

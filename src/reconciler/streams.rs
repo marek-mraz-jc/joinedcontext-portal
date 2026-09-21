@@ -230,6 +230,31 @@ impl StreamDeployer {
                         crate::spaces::segment(mirror, &ns, &space)
                     })
                     .collect();
+                // And what each source's Endpoint reads out of: the segment a mapping reads as
+                // `env("JC_SOURCE_SPACE")`. A pipeline that computes from another space records
+                // where its figures came from, and that provenance is a URN the broker parses:
+                // with nothing injected the mapping rendered `urn:ngsi-ld:Endpoint:hel.fi:<nil>:<nil>`,
+                // every indicator was refused `attribute derivedFrom: object must be a URI`, and
+                // the indicator space stayed empty (T-2445). A source that names a DataSource
+                // has no space to read, and contributes nothing here.
+                let source_segments: Vec<String> = spec
+                    .sources()
+                    .iter()
+                    .filter_map(|source| source.endpoint_ref.as_ref())
+                    .map(|reference| {
+                        let space = mirror
+                            .get(&ns, "Endpoint", reference.name())
+                            .and_then(|ep| {
+                                ep.spec.get("contextSpaceRef").and_then(|r| {
+                                    r.as_str()
+                                        .or_else(|| r.get("name").and_then(Value::as_str))
+                                        .map(str::to_owned)
+                                })
+                            })
+                            .unwrap_or_default();
+                        crate::spaces::segment(mirror, &ns, &space)
+                    })
+                    .collect();
                 // Every output's Endpoint, from the mirror (PL-52, PL-55).
                 let slugs: Result<Vec<String>, String> = spec
                     .outputs()
@@ -278,6 +303,7 @@ impl StreamDeployer {
                     match rendered {
                         Ok(mut stream_json) => {
                             jcctl::bento::inject_space(&mut stream_json, &segments);
+                            inject_source_space(&mut stream_json, &source_segments);
                             let outcome = self
                                 .apply(&ns, &name, stream_json, &mut running, &mut current_live)
                                 .await;
@@ -391,6 +417,7 @@ impl StreamDeployer {
 
                 let mut stream_json = stream_json;
                 jcctl::bento::inject_space(&mut stream_json, &segments);
+                inject_source_space(&mut stream_json, &source_segments);
                 let outcome = self
                     .apply(&ns, &name, stream_json, &mut running, &mut current_live)
                     .await;
@@ -1000,6 +1027,45 @@ fn endpoint_input(
 }
 
 /// Looks one source up in the mirror: its DataSource, or its Endpoint's slug and audience.
+/// Writes each source Endpoint's space segment into the rendered stream (PL-57, PF-84).
+///
+/// The companion of `jcctl::bento::inject_space`, which does the same for the spaces a pipeline
+/// writes. `JC_SOURCE_SPACE` is the first source, `JC_SOURCE_SPACE_2` the second, and a variable
+/// with no source behind it is left alone rather than rendered as an empty segment: a mapping
+/// then still says `env("JC_SOURCE_SPACE")`, which is a stream the runner refuses out loud,
+/// instead of minting a URN with a hole in it that every write is refused for one by one.
+fn inject_source_space(value: &mut Value, segments: &[String]) {
+    match value {
+        Value::String(text) => {
+            if !text.contains("JC_SOURCE_SPACE") {
+                return;
+            }
+            // Longest name first, so `JC_SOURCE_SPACE` never rewrites the head of
+            // `JC_SOURCE_SPACE_2`.
+            for (index, segment) in segments.iter().enumerate().rev() {
+                if segment.is_empty() {
+                    continue;
+                }
+                let var = if index == 0 {
+                    "JC_SOURCE_SPACE".to_owned()
+                } else {
+                    format!("JC_SOURCE_SPACE_{}", index + 1)
+                };
+                *text = text
+                    .replace(&format!("env(\"{var}\")"), &format!("\"{segment}\""))
+                    .replace(&format!("${{{var}}}"), segment);
+            }
+        }
+        Value::Array(items) => items
+            .iter_mut()
+            .for_each(|item| inject_source_space(item, segments)),
+        Value::Object(map) => map
+            .values_mut()
+            .for_each(|item| inject_source_space(item, segments)),
+        _ => {}
+    }
+}
+
 fn resolve_source(
     mirror: &Mirror,
     ns: &str,
@@ -2046,6 +2112,87 @@ output:
         let sent = server.received_requests().await.expect("recorded");
         let body = String::from_utf8_lossy(&sent.last().expect("a second PUT").body).to_string();
         assert!(body.contains(r#"+ \"helsinki\" +"#), "{body}");
+    }
+
+    #[tokio::test]
+    async fn the_runner_receives_the_source_segment_where_the_mapping_reads_jc_source_space() {
+        // An indicator pipeline records where its figures came from, as the source Endpoint's
+        // URN. Nothing injected `JC_SOURCE_SPACE`, so the mapping reached the runner with the
+        // variable still in it, the runner resolved it to nothing, and every indicator was
+        // refused `attribute derivedFrom: object must be a URI` one by one while the stream
+        // reported a 2xx for the batch. The space it writes stayed empty (T-2445).
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/kpi-pipe"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let mirror = Mirror::new();
+        for (name, space) in [
+            ("kpi-writer", "helsinki-kpi"),
+            ("helsinki-all", "helsinki-raw"),
+        ] {
+            mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_string(),
+                kind: "Endpoint".to_string(),
+                metadata: ObjectMeta {
+                    name: name.to_string(),
+                    namespace: Some("helsinki".to_string()),
+                    ..Default::default()
+                },
+                spec: serde_json::json!({
+                    "contextSpaceRef": space,
+                    "slug": "targetslug1234567890123456",
+                    "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld"]
+                }),
+                status: None,
+            });
+        }
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_string(),
+            kind: "ContextSpace".to_string(),
+            metadata: ObjectMeta {
+                name: "helsinki-raw".to_string(),
+                namespace: Some("helsinki".to_string()),
+                ..Default::default()
+            },
+            spec: serde_json::json!({ "urnSegment": "helsinki-raw" }),
+            status: None,
+        });
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_string(),
+            kind: "Pipeline".to_string(),
+            metadata: ObjectMeta {
+                name: "kpi-pipe".to_string(),
+                namespace: Some("helsinki".to_string()),
+                ..Default::default()
+            },
+            spec: serde_json::json!({
+                "class": "scheduled",
+                "schedule": "7 * * * *",
+                "source": {
+                    "endpointRef": { "kind": "Endpoint", "name": "helsinki-all" },
+                    "query": { "type": "BikeHireDockingStation" }
+                },
+                "compute": {
+                    "kind": "bloblang",
+                    "bloblang": "root.derivedFrom = \"urn:ngsi-ld:Endpoint:x:\" + env(\"JC_SOURCE_SPACE\") + \":all\""
+                },
+                "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki-kpi:kpi-writer"
+            }),
+            status: None,
+        });
+
+        let outcomes = StreamDeployer::new(server.uri())
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+        let sent = server.received_requests().await.expect("recorded");
+        let body = String::from_utf8_lossy(&sent[0].body).to_string();
+        assert!(body.contains(r#"+ \"helsinki-raw\" +"#), "{body}");
+        assert!(!body.contains("JC_SOURCE_SPACE"), "{body}");
     }
 
     #[tokio::test]

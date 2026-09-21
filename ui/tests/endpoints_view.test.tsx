@@ -10,6 +10,7 @@ import { App } from "../src/App";
 import { generateSlug, SLUG_PATTERN } from "../src/schemas/kinds";
 import { rememberPrefill } from "../src/assistant/state";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -282,7 +283,7 @@ describe("endpoints view", () => {
     renderEndpoints();
 
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     const slugCode = within(dialog).getByTestId("endpoint-slug");
     expect(slugCode.textContent).toMatch(new RegExp(SLUG_PATTERN));
     const urlCode = within(dialog).getByTestId("endpoint-url");
@@ -295,7 +296,7 @@ describe("endpoints view", () => {
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     await userEvent.click(await rowMenuItem(row, en.endpoints.edit));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     // The person reads what a representation is; the manifest keeps the contract's word.
     expect(
       within(dialog).getByRole("checkbox", { name: en.endpoints.representationOption["ngsi-ld"] }),
@@ -340,7 +341,7 @@ describe("endpoints view", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/endpoints?draft=public-air");
     const fetchMock = renderEndpoints();
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByRole("heading", { name: en.endpoints.edit })).toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByTestId("endpoint-slug").textContent).toBe(SLUG));
     expect(
@@ -382,7 +383,7 @@ describe("endpoints view", () => {
     const fetchMock = renderEndpoints();
     await screen.findByText("public-air");
     await userEvent.click(screen.getByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     const audience = dialog.querySelector("#root_audience") as HTMLSelectElement;
     const labels = [...audience.options].map((option) => option.textContent);
@@ -418,7 +419,7 @@ describe("endpoints view", () => {
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     await userEvent.click(await rowMenuItem(row, en.endpoints.edit));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.click(within(dialog).getByRole("button", { name: en.endpoints.check }));
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
@@ -575,7 +576,7 @@ describe("what an endpoint answers", () => {
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     await userEvent.click(await rowMenuItem(row, en.endpoints.edit));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     // Folded until a person asks for it: the form is long enough already.
     await userEvent.click(within(dialog).getByText(en.endpoints.data.title));
     expect(await within(dialog).findByText("12 GQ")).toBeInTheDocument();

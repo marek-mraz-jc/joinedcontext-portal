@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { LOCALES, jsonResponse, list, renderRoute } from "./pageHarness";
+import { findFormPage } from "./formPage";
 
 const PROJECT = "helsinki";
 
@@ -113,7 +114,7 @@ describe("the card headers that still carried a loose pair", () => {
     );
 
     await userEvent.click(within(menu).getByRole("menuitem", { name: en.resourceEdit.button }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await findFormPage()).toBeInTheDocument();
   });
 
   it("keeps a sync source's header to one control, with its three own actions below", async () => {

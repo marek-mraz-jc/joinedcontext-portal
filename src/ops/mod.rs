@@ -77,7 +77,8 @@ impl Via {
 pub struct Caller {
     pub identity: Identity,
     pub via: Via,
-    /// What the run's `AgentProfile` grants, when this call belongs to an agent run (AG-70).
+    /// What the run's `AgentProfile` grants, when this call belongs to an agent run (AG-70). The
+    /// identity is always the person who started the run: an agent has no ambient access (AG-03).
     ///
     /// `None` is a person at a keyboard or a program with their own token: their bindings alone
     /// decide. A profile is the second half and only ever narrows — an operation the person may
@@ -294,8 +295,38 @@ pub async fn call(
 ) -> Result<Value, OpError> {
     caller.may_run(op)?;
     permitted(op, &caller.identity, state, project)?;
+    within_schema(op, &input)?;
     (op.validate)(&input)?;
     (op.run)(caller, state, project, input).await
+}
+
+/// The input against the schema the operation publishes (T-1659): what `tools/list` promises an
+/// MCP client is what the door enforces, so an unbounded string or a member nobody named is
+/// refused here, with the path of the first thing wrong, before the operation parses anything.
+fn within_schema(op: &Operation, input: &Value) -> Result<(), OpError> {
+    // ponytail: compiled per call; the schemas are a few dozen lines. Cache per operation when
+    // a profile shows this on the hot path.
+    let validator = jsonschema::validator_for(&(op.input)()).map_err(|e| {
+        OpError::Api(ApiError::Internal(format!(
+            "the input schema of {} does not compile: {e}",
+            op.name
+        )))
+    })?;
+    let first = validator
+        .iter_errors(input)
+        .next()
+        .map(|error| (error.instance_path().to_string(), error.to_string()));
+    match first {
+        None => Ok(()),
+        Some((path, message)) => Err(OpError::InvalidInput {
+            path: if path.is_empty() {
+                "/".to_owned()
+            } else {
+                path
+            },
+            message,
+        }),
+    }
 }
 
 /// The person's half of a call (PF-50), as the REST route of the same action decides it: the
@@ -368,6 +399,36 @@ pub struct CatalogSearchInput {
 pub struct DraftRef {
     pub kind: String,
     pub name: String,
+}
+
+/// A draft of a workspace is written and dropped by the workspace's owner alone, as every other
+/// write into it is (API/01 §22, CC-76, T-2482): the workspace name is not a key anybody may
+/// pick. `None` is the project's own draft, which the kind's `propose` already decides.
+async fn draft_workspace_owned(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+    action: &str,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::owned(state, &caller.identity, project, name, action).await?;
+    }
+    Ok(())
+}
+
+/// A draft of a workspace is read where the workspace is (PF-59, T-2482): a copy the caller may
+/// not see, or a name that is no live workspace, answers the workspace's own 404.
+async fn draft_workspace_visible(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::visible(state, &caller.identity, project, name).await?;
+    }
+    Ok(())
 }
 
 fn draft_error(err: DraftError) -> OpError {
@@ -555,13 +616,87 @@ pub struct ModelInferInput {
 // Schemas
 // ---------------------------------------------------------------------------
 
+/// The bounds every input schema draws from (T-1659, AG-64, MF-40). The input schema is what an
+/// MCP client reads in `tools/list`, what the assistant is prompted with, and what [`call`]
+/// checks an input against before the operation's own parse: a property says what it is, a
+/// string says how long it may be, and an object either names its properties or says how many
+/// it may carry.
+pub(crate) mod bounds {
+    use serde_json::{json, Value};
+
+    /// A Kubernetes object name (DNS-1123 subdomain).
+    pub const NAME: u64 = 253;
+    /// A kind, a type, an attribute, a unit or a format name.
+    pub const TERM: u64 = 128;
+    /// An id: a URN, a change id, a key id.
+    pub const ID: u64 = 512;
+    /// A title or a short label a person reads.
+    pub const TITLE: u64 = 256;
+    /// A query expression.
+    pub const QUERY: u64 = 2048;
+    /// A URL.
+    pub const URL: u64 = 2048;
+    /// A message, a prompt, an answer: what a person or a model writes.
+    pub const TEXT: u64 = 20_000;
+    /// The top-level members of a manifest: apiVersion, kind, metadata, spec, status.
+    pub const MANIFEST_MEMBERS: u64 = 5;
+    /// The members of one free-form record: an entity, a sample row, a parameter map.
+    pub const RECORD_MEMBERS: u64 = 512;
+
+    /// A string property with its description and its length bound.
+    pub fn text(description: &str, max: u64) -> Value {
+        json!({ "type": "string", "description": description, "maxLength": max })
+    }
+
+    /// A list of bounded strings.
+    pub fn texts(description: &str, max: u64) -> Value {
+        json!({
+            "type": "array",
+            "description": description,
+            "items": { "type": "string", "maxLength": max }
+        })
+    }
+
+    /// A whole manifest as an object; the kind's own parse checks everything inside it (MF-37).
+    pub fn manifest(description: &str) -> Value {
+        json!({
+            "type": "object",
+            "description": description,
+            "maxProperties": MANIFEST_MEMBERS
+        })
+    }
+
+    /// The saved draft to act on instead of an inline manifest.
+    pub fn draft_ref() -> Value {
+        json!({
+            "type": "object",
+            "description": "A saved draft to use instead of an inline manifest",
+            "properties": {
+                "kind": text("The draft's kind, e.g. Endpoint", TERM),
+                "name": text("The draft's metadata.name", NAME)
+            },
+            "required": ["kind", "name"],
+            "additionalProperties": false
+        })
+    }
+
+    /// The workspace a draft belongs to; absent is the project's own (CC-76, T-2267).
+    pub fn workspace() -> Value {
+        text(
+            "The workspace (copy) the draft belongs to; leave out for the project's own drafts",
+            NAME,
+        )
+    }
+}
+
 fn catalog_search_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "q": { "type": "string", "description": "Search keyword query" },
-            "query": { "type": "string", "description": "Alternative query parameter" },
-            "scope": { "type": "string", "description": "Narrow to ContextSpace, Endpoint, or DataModel" }
+            "q": text("Search keywords, matched against names, titles and descriptions", QUERY),
+            "query": text("The same as q, for clients that name it query; q wins when both are set", QUERY),
+            "scope": text("Narrow to one kind: ContextSpace, Endpoint or DataModel", TERM)
         },
         "additionalProperties": false
     })
@@ -578,45 +713,74 @@ fn catalog_output_schema() -> Value {
 }
 
 fn endpoint_propose_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "contextSpace": { "type": "string" },
-            "name": { "type": "string" },
-            "title": { "type": "string" },
-            "audience": { "type": "string" },
-            "allowedProjects": { "type": "array", "items": { "type": "string" } },
-            "representations": { "type": "array", "items": { "type": "string" } },
-            "hiddenAttributes": { "type": "array", "items": { "type": "string" } },
-            "entityTypes": { "type": "array", "items": { "type": "string" } },
-            "rateLimits": { "type": "object" },
-            "manifest": { "type": "object" },
-            "draft": {
+            "contextSpace": text("The ContextSpace the endpoint serves, by name", NAME),
+            "name": text("The endpoint's name (DNS-1123)", NAME),
+            "title": text("The endpoint's title as people read it", TITLE),
+            "audience": {
+                "type": "string",
+                "description": "Who may read it: the listed projects, the whole organization, or the public",
+                "enum": ["project-list", "organization", "public"]
+            },
+            "allowedProjects": texts("With audience project-list: the projects that may read, by name", NAME),
+            "representations": {
+                "type": "array",
+                "description": "The formats it serves; ngsi-ld and geojson when left out",
+                "items": { "type": "string", "enum": crate::agents::share::REPRESENTATIONS }
+            },
+            "hiddenAttributes": texts("Attributes the endpoint never returns", TERM),
+            "entityTypes": texts("The entity types it serves", TERM),
+            "rateLimits": {
                 "type": "object",
+                "description": "How many requests a caller may make",
                 "properties": {
-                    "kind": { "type": "string" },
-                    "name": { "type": "string" }
+                    "requestsPerMinute": {
+                        "type": "integer",
+                        "description": "Requests a minute per caller",
+                        "minimum": 1,
+                        "maximum": crate::agents::share::MAX_REQUESTS_PER_MINUTE
+                    },
+                    "burst": {
+                        "type": "integer",
+                        "description": "Requests allowed at once above the steady rate",
+                        "minimum": 0,
+                        "maximum": crate::agents::share::MAX_REQUESTS_PER_MINUTE
+                    }
                 },
-                "required": ["kind", "name"],
+                "required": ["requestsPerMinute"],
                 "additionalProperties": false
-            }
+            },
+            "manifest": manifest("A whole Endpoint manifest to propose instead of the fields above"),
+            "draft": draft_ref()
         },
         "additionalProperties": false
     })
 }
 
 fn kpi_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string" },
-            "title": { "type": "string" },
-            "type": { "type": "string" },
-            "attribute": { "type": "string" },
-            "agg": { "type": "string", "enum": ["avg", "sum", "count", "min", "max"] },
-            "unit": { "type": "string" },
-            "q": { "type": "string" },
-            "rows": { "type": "array", "items": { "type": "object" } }
+            "name": text("The indicator's name, the {localId} of its URN", NAME),
+            "title": text("The indicator's title as people read it", TITLE),
+            "type": text("The entity type the value is computed over", TERM),
+            "attribute": text("The attribute folded; ignored by count", TERM),
+            "agg": {
+                "type": "string",
+                "description": "How the attribute's values are folded into one",
+                "enum": ["avg", "sum", "count", "min", "max"]
+            },
+            "unit": text("A UN/CEFACT common code for the value", TERM),
+            "q": text("An NGSI-LD q narrowing the entities read", QUERY),
+            "rows": {
+                "type": "array",
+                "description": "The entities to compute over, when the caller already holds them",
+                "items": { "type": "object", "maxProperties": RECORD_MEMBERS }
+            }
         },
         "required": ["name", "type", "agg"],
         "additionalProperties": false
@@ -624,34 +788,31 @@ fn kpi_input_schema() -> Value {
 }
 
 fn manifest_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "manifest": { "type": "object" },
-            "draft": {
-                "type": "object",
-                "properties": {
-                    "kind": { "type": "string" },
-                    "name": { "type": "string" }
-                },
-                "required": ["kind", "name"],
-                "additionalProperties": false
-            }
+            "manifest": manifest("The whole manifest; give this or draft"),
+            "draft": draft_ref()
         },
         "additionalProperties": false
     })
 }
 
 fn draft_put_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string" },
-            "name": { "type": "string" },
-            "manifest": { "type": "object" },
-            "expectedVersion": { "type": "integer" },
-            // The copy this draft belongs to; absent means the project's own (CC-76, T-2267).
-            "workspace": { "type": "string" }
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "manifest": manifest("The whole manifest to save as the draft"),
+            "expectedVersion": {
+                "type": "integer",
+                "description": "The version last read; a save over a newer one is refused as a conflict",
+                "minimum": 0
+            },
+            "workspace": workspace()
         },
         "required": ["kind", "name", "manifest"],
         "additionalProperties": false
@@ -659,12 +820,13 @@ fn draft_put_input_schema() -> Value {
 }
 
 fn draft_get_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string" },
-            "name": { "type": "string" },
-            "workspace": { "type": "string" }
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "workspace": workspace()
         },
         "required": ["kind", "name"],
         "additionalProperties": false
@@ -675,7 +837,7 @@ fn draft_list_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "workspace": { "type": "string" }
+            "workspace": bounds::workspace()
         },
         "additionalProperties": false
     })
@@ -767,27 +929,29 @@ fn draft_drop_output_schema() -> Value {
 }
 
 fn pipeline_test_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "pipeline": { "type": "object" },
+            "pipeline": manifest("The Pipeline manifest to run; give this or draft"),
             "sample": {
                 "type": "object",
+                "description": "What the pipeline is run on: the sample inline or a URL to fetch it from",
                 "properties": {
-                    "text": { "type": "string" },
-                    "url": { "type": "string" },
-                    "format": { "type": "string", "enum": ["csv", "json", "text"] }
-                }
-            },
-            "draft": {
-                "type": "object",
-                "properties": {
-                    "kind": { "type": "string" },
-                    "name": { "type": "string" }
+                    "text": text(
+                        "The sample inline",
+                        jcctl::pipeline_test::MAX_SAMPLE_BYTES as u64
+                    ),
+                    "url": text("An http(s) URL the runner fetches the sample from instead", URL),
+                    "format": {
+                        "type": "string",
+                        "description": "How the sample is split into messages",
+                        "enum": ["csv", "json", "text"]
+                    }
                 },
-                "required": ["kind", "name"],
                 "additionalProperties": false
-            }
+            },
+            "draft": draft_ref()
         },
         "required": ["sample"],
         "additionalProperties": false
@@ -803,11 +967,15 @@ pub(super) fn empty_input_schema() -> Value {
 }
 
 fn change_approve_input_schema() -> Value {
+    use bounds::*;
     json!({
         "type": "object",
         "properties": {
-            "id": { "type": "string" },
-            "confirm": { "type": "string" }
+            "id": text("The Change to approve", ID),
+            "confirm": text(
+                "For a red-lane Change: the Change's name, typed out as the confirmation (CC-19)",
+                NAME
+            )
         },
         "required": ["id"],
         "additionalProperties": false
@@ -815,13 +983,19 @@ fn change_approve_input_schema() -> Value {
 }
 
 fn model_infer_input_schema() -> Value {
+    use bounds::*;
+    let sample_bytes = crate::tools::model_tools::MAX_SAMPLE_BYTES as u64;
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string" },
-            "content": { "type": "string", "description": "Base64 encoded sample content" },
-            "sample": { "type": "string", "description": "Text sample content" },
-            "format": { "type": "string", "enum": ["csv", "xlsx", "json", "pdf"] }
+            "name": text("The name to give the inferred model", NAME),
+            "content": text("The sample file, base64 encoded", sample_bytes.div_ceil(3) * 4),
+            "sample": text("The sample as plain text, instead of content", sample_bytes),
+            "format": {
+                "type": "string",
+                "description": "The sample's format",
+                "enum": ["csv", "xlsx", "json", "pdf"]
+            }
         },
         "additionalProperties": false
     })
@@ -2078,6 +2252,7 @@ fn core_operations() -> Vec<Operation> {
                     let input: DraftPutInput = parse_input(val)?;
                     crate::permissions::for_request(state, &caller.identity, project)
                         .check(&input.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
                     let draft = draft_store(state)
                         .put_in(
                             input.workspace.as_deref(),
@@ -2113,6 +2288,7 @@ fn core_operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let d: DraftGetInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, d.workspace.as_deref()).await?;
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
                     let draft = draft_store(state)
                         .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
@@ -2148,6 +2324,7 @@ fn core_operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let asked: DraftListInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, asked.workspace.as_deref()).await?;
                     // A draft is readable exactly where its manifest would be (PF-59, T-1455).
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
                     // A line per draft, never the manifest and never the verdict's trace
@@ -2184,6 +2361,7 @@ fn core_operations() -> Vec<Operation> {
                     let d: DraftDropInput = parse_input(val)?;
                     crate::permissions::for_request(state, &caller.identity, project)
                         .check(&d.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
                     let dropped = draft_store(state)
                         .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
@@ -2273,6 +2451,40 @@ fn core_operations() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-1659, AG-64: the door enforces the schema it publishes. A bounded string past its
+    /// bound and a member the schema does not name are refused with the path to them, before
+    /// the operation's own parse; an input inside the schema goes through.
+    #[test]
+    fn an_input_outside_the_published_schema_is_refused_at_the_door() {
+        let op = find("jc_catalog_search").expect("the operation is registered");
+        assert!(within_schema(op, &json!({ "q": "air quality" })).is_ok());
+
+        let long = "x".repeat(bounds::QUERY as usize + 1);
+        match within_schema(op, &json!({ "q": long })) {
+            Err(OpError::InvalidInput { path, .. }) => assert_eq!(path, "/q"),
+            other => panic!("an over-long query went through: {other:?}"),
+        }
+        match within_schema(op, &json!({ "q": "a", "sql": "drop table" })) {
+            Err(OpError::InvalidInput { path, message }) => {
+                assert_eq!(path, "/");
+                assert!(message.contains("sql"), "{message}");
+            }
+            other => panic!("an unnamed member went through: {other:?}"),
+        }
+    }
+
+    /// Every published input schema compiles, or every call of that operation would fail.
+    #[test]
+    fn every_input_schema_compiles() {
+        for op in registry() {
+            assert!(
+                jsonschema::validator_for(&(op.input)()).is_ok(),
+                "{} publishes a schema that does not compile",
+                op.name
+            );
+        }
+    }
 
     #[test]
     fn registry_lists_all_operations() {

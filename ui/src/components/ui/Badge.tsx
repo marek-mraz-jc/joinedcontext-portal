@@ -28,6 +28,20 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
  * The text wraps. A chip is put in a table cell and handed a translated label — "natives
  * Bloblang, ungeprüft", "Wartet auf Freigabe" — and `whitespace-nowrap` made those push the
  * column wide or run past it with no way to read the end.
+ *
+ * Wrapping between words is not enough for the one label that has none: an entity id
+ * (`urn:ngsi-ld:AirQualityObserved:banskabystrica:ovzdusie:stanica-01`) is a single token, so its
+ * minimum width is the whole string and every ancestor inherits it. At 400px that pushed the
+ * page sideways against UI-27 — and only where the monospace font draws a shade wider, which is
+ * why it failed on the CI runner and nowhere else (T-2446). `anywhere`, not `break-word`: only
+ * `anywhere` lets the break opportunity count towards the minimum width, which is the number
+ * that decides whether an ancestor can shrink.
+ *
+ * On `mono` alone, which is the variant that carries an id. `anywhere` puts a break opportunity
+ * between every pair of characters, so a chip that is a flex item shrinks to one letter if the
+ * row is tight: applied to every chip it turned "Pending approval" into a circle reading
+ * "Pendin g approv al". A label of words wraps between them and keeps the longest word as its
+ * minimum, which is what a person reads.
  */
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
   { tone = "neutral", mono, className, children, ...rest },
@@ -38,7 +52,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
       ref={ref}
       className={clsx(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-medium",
-        mono && "font-mono",
+        mono && "font-mono [overflow-wrap:anywhere]",
         TONES[tone],
         className,
       )}

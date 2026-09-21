@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { Alert } from "../src/components/ui/Alert";
 import { Button } from "../src/components/ui/Button";
 import { Field } from "../src/components/ui/Field";
-import { checkForm, type FormSpec } from "./formContract";
+import { checkForm, screen, type FormSpec } from "./formContract";
 
 const SUBMIT_PATH = "/api/v1/projects/helsinki/policies";
 const REFUSAL = "A policy of this name is already there; give this one another name.";
@@ -36,12 +36,15 @@ type Break =
 
 interface FormProps {
   broken: Break;
+  /** A form that proposes through a callback rather than a request, as the KPI card does. */
+  propose?: () => void;
 }
 
 /** The smallest form that meets the contract, with one switch per rule to break. */
-function DemoForm({ broken }: FormProps): React.JSX.Element {
+function DemoForm({ broken, propose: handOver }: FormProps): React.JSX.Element {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [kind, setKind] = useState("");
   const [secret, setSecret] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [refused, setRefused] = useState<string | null>(null);
@@ -59,6 +62,11 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
         document.getElementById("policy-name")?.focus();
         return;
       }
+      if (kind === "") {
+        setErrors({ kind: ["Choose what the policy applies to."] });
+        document.getElementById("policy-kind")?.focus();
+        return;
+      }
       if (broken !== "browser-rule" && urlIsBad) {
         setErrors({ url: ["An address starts with http:// or https://."] });
         return;
@@ -66,6 +74,12 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
     }
     if (running.current && broken !== "double-send") return;
     running.current = true;
+    if (handOver) {
+      // Handed over once. The form does not reopen itself, which is how the KPI card answers
+      // the same rule: its keep-form closes the moment the message is on its way.
+      handOver();
+      return;
+    }
     setPending(true);
     const answer = await fetch(SUBMIT_PATH, {
       method: "POST",
@@ -122,6 +136,19 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
           onChange={(event) => setUrl(event.target.value)}
           className="border border-border"
         />
+      </Field>
+      <Field id="policy-kind" label="Applies to" required errors={errors.kind}>
+        <select
+          id="policy-kind"
+          name="policy-kind"
+          value={kind}
+          onChange={(event) => setKind(event.target.value)}
+          className="border border-border"
+        >
+          <option value="">Choose a kind</option>
+          <option value="Endpoint">Endpoint</option>
+          <option value="ContextSpace">Context space</option>
+        </select>
       </Field>
       <Field id="policy-secret" label="Token">
         <input
@@ -186,6 +213,7 @@ function DemoForm({ broken }: FormProps): React.JSX.Element {
 const spec: FormSpec = {
   fields: [
     { id: "policy-name", label: "Name", value: "air-quality", required: true },
+    { id: "policy-kind", label: "Applies to", value: "Endpoint", required: true },
     {
       id: "policy-url",
       label: "Address",
@@ -203,6 +231,36 @@ const spec: FormSpec = {
 describe("the form contract (T-1730)", () => {
   it("passes a form that meets it", async () => {
     await checkForm(() => <DemoForm broken="none" />, spec);
+  });
+
+  it("counts what a form proposes through a callback, with no request to see", async () => {
+    // What the KPI card does: it hands its message to the conversation instead of posting it.
+    // Without this the counting rules would wait for a request that never comes.
+    await checkForm(
+      (proposed) => <DemoForm broken="none" propose={proposed} />,
+      { ...spec, submitPath: undefined, refusal: undefined },
+    );
+  });
+
+  it("opens a form that lives behind a button before it holds it to anything", async () => {
+    function Behind(): React.JSX.Element {
+      const [open, setOpen] = useState(false);
+      return open ? <DemoForm broken="none" /> : <Button onClick={() => setOpen(true)}>Add a policy</Button>;
+    }
+    await checkForm(() => <Behind />, {
+      ...spec,
+      open: async (user) => {
+        await user.click(screen.getByRole("button", { name: "Add a policy" }));
+      },
+    });
+  });
+
+  it("reads the ids off the controls when the spec names none", async () => {
+    // What every dialog that mints its ids with `useId` passes: labels and values, no ids.
+    await checkForm(() => <DemoForm broken="none" />, {
+      ...spec,
+      fields: spec.fields.map(({ id: _id, ...field }) => field),
+    });
   });
 
   for (const [broken, rule] of [

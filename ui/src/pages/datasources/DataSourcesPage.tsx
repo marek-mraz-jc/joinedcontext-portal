@@ -1,3 +1,4 @@
+import { useFormRoute, useOpenFromAddress } from "../../components/forms/FormRoute";
 import { useMemo, useState } from "react";
 import { ResourceList } from "../../components/ResourceList";
 import type { JSX } from "react";
@@ -441,10 +442,18 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     setDialogOpen(true);
   }
 
+  // On a routed list the forms are pages at `/datasources/new` and `/datasources/{name}/edit`
+  // (T-2474): the controls go to the address, and the address opens the editor.
+  const formRoute = useFormRoute();
+  useOpenFromAddress(list.data ? sources : undefined, (source) => source.metadata.name, {
+    create: openCreate,
+    edit: openEdit,
+  });
+
   // The same control in the header and in the empty list (T-1381).
   const addButton = (
     <PermissionGuard project={project} kind="DataSource" verb="propose">
-      <Button variant="primary" onClick={openCreate}>
+      <Button variant="primary" onClick={() => (formRoute ? formRoute.openNew() : openCreate())}>
         {t("datasources.add")}
       </Button>
     </PermissionGuard>
@@ -564,7 +573,9 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                     plural: "datasources",
                     name: source.metadata.name,
                   }}
-                  onEdit={() => openEdit(source)}
+                  onEdit={() =>
+                    formRoute ? formRoute.openEdit(source.metadata.name) : openEdit(source)
+                  }
                 />
               </TableCell>
             </TableRow>

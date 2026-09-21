@@ -75,7 +75,7 @@ test("a viewer is refused with a reason on every page, and at the door", async (
     expect(pages.length, "the viewer's navigation lists the project's pages").toBeGreaterThan(4);
 
     for (const route of pages) {
-      await page.goto(`${route}?lang=en`, { waitUntil: "networkidle" });
+      await page.goto(`${route}?lang=en`, { waitUntil: "load" });
       // Every control that changes something, by the words the pages use for them.
       // The verb, then a word break: a list of model classes holds buttons named
       // `StopCommandMessage`, which is a type and not a control (found on the models page).

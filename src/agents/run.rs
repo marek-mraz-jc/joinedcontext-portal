@@ -145,6 +145,11 @@ pub struct AgentRun {
     #[sqlx(skip)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    /// The GitHub copy of the application's repository on the run's branch, when the installation
+    /// keeps one (AP-79). The forge's `source_url` stays the repository of record.
+    #[sqlx(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirror_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_url: Option<String>,
     /// Milliseconds from creation to the first preview, set once (AP-57).

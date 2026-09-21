@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Copies",
-    "policies": "Policies"
+    "policies": "Policies",
+    "subscriptions": "Subscriptions"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -70,6 +71,9 @@
   "form": {
     "submit": "Submit",
     "cancel": "Cancel",
+    "backToList": "Back to the list",
+    "opening": "Opening the form…",
+    "notOpen": "This form cannot be opened: there is nothing called {name} here, or you may not change it.",
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",
@@ -271,7 +275,10 @@
     "name": "Name",
     "phase": "State",
     "empty": "Nothing here yet.",
-    "emptyHint": "Nothing of this kind is in the project yet. Add the first one, or ask the assistant for it and decide what it proposes.",
+    "emptyHint": "Nothing of this kind is in the project yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
+    "emptyHintFor": {
+      "uischemas": "Nothing in this project changes a form. Every form ships with its own arrangement; the organization changes one in portal/forms/ of its configuration repository, not here."
+    },
     "lead": "Everything of this kind the project holds. Each row opens what it names."
   },
   "spaces": {
@@ -470,7 +477,14 @@
       "addHidden": "Hide an attribute by name",
       "add": "Hide",
       "attribute": "Attribute",
-      "summary": "Publishing {types} types with {attributes} attributes."
+      "summary": "Publishing {types} types with {attributes} attributes.",
+      "noTypes": "This endpoint publishes no types yet.",
+      "noTypesHint": "Once its model is compiled, every type it serves is listed here with the attributes you can hide.",
+      "addHint": "One of the attribute names listed above, exactly as it is written.",
+      "addEmpty": "Type the name of an attribute.",
+      "addAlready": "This attribute is already hidden.",
+      "addUnknown": "This endpoint publishes no attribute called {names} today, so nothing is hidden by it yet.",
+      "addShape": "An attribute name has no spaces: letters, digits, dots, colons, dashes and underscores."
     },
     "link": {
       "index": "index",
@@ -983,7 +997,12 @@
       "groupHelp": "The name of a group declared under Groups. Everyone in it holds the role while they are a member.",
       "roleHelp": "What the person may do: each role is a set of verbs on a set of kinds, listed under Roles.",
       "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
-      "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs."
+      "untilHelp": "The last day the role holds. Left empty it does not expire, which is what a permanent member needs.",
+      "rolesEmpty": "This organization has no roles yet. One has to be declared under Roles before it can be granted.",
+      "spacesFailed": "The context spaces of this project could not be loaded, so grants that apply to a single space are missing from this list: {reason}",
+      "discardTitle": "Discard this grant?",
+      "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
+      "discard": "Discard the grant"
     },
     "projectRoles": {
       "title": "Roles",
@@ -1012,7 +1031,34 @@
       "empty": "This project has no service account yet.",
       "owner": "Owner",
       "roles": "Roles",
-      "purpose": "Purpose"
+      "purpose": "Purpose",
+      "add": "New service account",
+      "addHint": "Saving proposes a change; the account and its client exist once the change is approved.",
+      "propose": "Propose change",
+      "field": {
+        "name": "Name",
+        "purpose": "Purpose",
+        "owner": "Owner",
+        "ownerUser": "Owner's sign-in",
+        "roles": "Grants",
+        "role": "Role",
+        "scope": "Scope",
+        "scopeLevel": "Scope level",
+        "scopeName": "Scope name",
+        "operations": "Operations",
+        "types": "Entity types",
+        "credentials": "Credentials",
+        "credentialKind": "Credential type",
+        "credentialName": "Credential name",
+        "expiresAt": "Expires at",
+        "ipAllowList": "Allowed address blocks",
+        "limits": "Limits",
+        "requestsPerMinute": "Requests per minute",
+        "workload": "Cluster workload",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Namespace",
+        "k8sServiceAccount": "Kubernetes service account"
+      }
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -1330,6 +1376,20 @@
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
       "more": "and {count} more"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context space",
+      "version": "Version",
+      "linkml": "LinkML source",
+      "lifecycle": "Lifecycle",
+      "openWorld": "Accept undeclared attributes"
+    },
+    "lifecycleOption": {
+      "draft": "Draft",
+      "published": "Published",
+      "deprecated": "Deprecated",
+      "retired": "Retired"
     }
   },
   "apps": {
@@ -1410,7 +1470,10 @@
         "documents": "The endpoint's documents"
       },
       "promptPlaceholder": "A map of the docking stations, with a filter for the ones that still have bikes, and a chart of free slots.",
-      "details": "Details: name, kind, and what it may read ({name})"
+      "details": "Details: name, kind, and what it may read ({name})",
+      "noEndpoints": "This project publishes no endpoint yet; an application reads from one, so publish an endpoint first.",
+      "nameHint": "Lowercase letters, digits and dashes: it becomes the address the application is served at.",
+      "nameInvalid": "A name is lowercase letters, digits and dashes, starts and ends with one of them, and is at most 40 characters."
     },
     "newAction": "Generate your own app",
     "builds": {
@@ -1431,6 +1494,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Name",
+      "kind": "Kind",
+      "visibility": "Visibility",
+      "embeddable": "May be framed by the Portal",
+      "source": "Source",
+      "sourceFrom": "Source kind",
+      "sourcePath": "Folder",
+      "gitUrl": "Repository address",
+      "gitRef": "Branch, tag or commit",
+      "gitPath": "Folder in the repository",
+      "build": "Toolchain",
+      "buildTool": "Tool",
+      "buildVersion": "Version",
+      "dataNeeds": "Data it needs",
+      "space": "Context Space",
+      "types": "Entity types",
+      "attrs": "Attributes",
+      "operations": "Operations",
+      "representations": "Representations",
+      "within": "Inside scope",
+      "window": "Time window",
+      "csp": "Content Security Policy",
+      "connectSrc": "May call",
+      "frameAncestors": "May be framed by",
+      "limits": "Limits",
+      "requestsPerMinute": "Requests per minute",
+      "maxFileRows": "Rows per file download"
     }
   },
   "appLifecycle": {
@@ -1457,15 +1549,21 @@
       "propose": "Propose catalogue",
       "nameHelp": "The short name this catalogue is known by here. Lowercase letters, digits and dashes.",
       "urlHelp": "The address of the CKAN portal the datasets are published to, with its scheme.",
-      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own."
+      "organizationHelp": "The CKAN organization a dataset lands in when an endpoint names none of its own.",
+      "emptyHint": "A catalogue is a CKAN portal this project publishes to. Name one below and the reconciler registers its datasets.",
+      "nameInvalid": "A name is lowercase letters, digits and dashes, and starts and ends with a letter or a digit.",
+      "urlInvalid": "The address starts with http:// or https://.",
+      "secretRequired": "Name the secret the operator loaded; the token itself is never entered here."
     },
     "publications": {
       "title": "Published endpoints",
       "empty": "No endpoint in this project publishes to a catalogue.",
       "datastore": "DataStore mirror from {representation}, refreshed {refresh}.",
       "publishedTo": "published to {instance}",
-      "missingInstance": "catalogue {instance} is missing"
-    }
+      "missingInstance": "catalogue {instance} is missing",
+      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here."
+    },
+    "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}"
   },
   "mappings": {
     "pair": "Models",
@@ -1501,7 +1599,22 @@
     "propose": "Propose the mapping",
     "sameModel": "A mapping needs two different models.",
     "noSpace": "No space serves this model, so the mapping has nowhere to belong.",
-    "goldenHint": "Proposing opens a change with the mapping. Its golden test reads ./tests/<name>.input.json and ./tests/<name>.expect.json, which are committed beside it."
+    "goldenHint": "Proposing opens a change with the mapping. Its golden test reads ./tests/<name>.input.json and ./tests/<name>.expect.json, which are committed beside it.",
+    "field": {
+      "name": "Name",
+      "space": "Context space",
+      "model": "Data model",
+      "version": "Major version",
+      "tests": "Golden tests",
+      "testInput": "Input example",
+      "testExpect": "Expected output",
+      "native": "Native blocks",
+      "language": "Language",
+      "nativeSource": "Code",
+      "artifacts": "Compiled artifacts",
+      "bloblang": "Bloblang file",
+      "gatewayIr": "Gateway mapping file"
+    }
   },
   "syncSources": {
     "title": "Sync sources",
@@ -1713,7 +1826,8 @@
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Export this page"
+    "export": "Export this page",
+    "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above."
   },
   "agentRun": {
     "title": "Application run",
@@ -1753,7 +1867,14 @@
       "closed": "The run has ended, so it reads nothing more.",
       "agent": "Assistant",
       "you": "You",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Ask for what you want built or changed; the assistant answers here and asks back when it needs a decision.",
+      "dropped": "The live connection dropped. What is written above may be unfinished; reopen the run to follow it again.",
+      "stalled": "No answer for {seconds} seconds. The run may still be working, or it may have stopped.",
+      "stop": "Stop the run",
+      "retry": "Ask again",
+      "newConversation": "New conversation",
+      "sendFailed": "The message was not sent: {reason}. What you typed is still here."
     },
     "line": {
       "status": "Now {status}.",
@@ -1877,7 +1998,10 @@
       "keepSpace": "Into the space",
       "keepSend": "Draft the pipeline",
       "keepEveryMessage": "Keep the indicator {name} updated: {over}, every {minutes}m, into the space {space}.",
-      "keepOnChangeMessage": "Keep the indicator {name} updated: {over}, on every change, into the space {space}."
+      "keepOnChangeMessage": "Keep the indicator {name} updated: {over}, on every change, into the space {space}.",
+      "overCount": "count of {type}",
+      "overAgg": "{agg} of {attribute} over {type}",
+      "overWhere": "{over} where {filter}"
     },
     "changeTest": {
       "title": "The change's test",
@@ -1929,7 +2053,8 @@
     "publication": {
       "title": "Publication",
       "source": "Source in Git",
-      "approve": "Approve and publish"
+      "approve": "Approve and publish",
+      "mirror": "Copy on GitHub"
     },
     "question": {
       "suggested": "suggested",
@@ -1942,6 +2067,7 @@
     }
   },
   "assistant": {
+    "newConversation": "Start a new conversation",
     "navigated": "Opened {page}",
     "pageNamed": "{page}: {name}",
     "anotherPage": "another page",
@@ -1965,8 +2091,6 @@
       },
       "composer": "Ask the assistant",
       "send": "Send",
-      "resume": "Resume: {title}",
-      "recent": "Recent conversations",
       "failed": "The conversation did not start. Check the message and try again."
     },
     "data": {
@@ -2292,6 +2416,7 @@
     "bar": {
       "label": "Copy",
       "message": "You are working on the copy {title}, started {date}. Nothing here is live.",
+      "loading": "You are working on the copy {name}. Nothing here is live.",
       "changes": "{count, plural, =0 {No changes yet} one {# change} other {# changes}}",
       "gone": "This copy has expired or was discarded.",
       "leave": "Leave",
@@ -2389,6 +2514,87 @@
       "validFrom": "Valid from",
       "validTo": "Valid to",
       "grants": "Grants"
+    }
+  },
+  "subscriptions": {
+    "title": "Subscriptions",
+    "lead": "Standing queries of this project's spaces: which changes are watched and where the broker sends a notification.",
+    "empty": "This project has no Subscription yet.",
+    "add": "New Subscription",
+    "addHint": "Saving proposes a change; the broker starts notifying once the change is approved.",
+    "propose": "Propose change",
+    "watchesNothing": "A subscription watches something: add an entity selector, a watched attribute, or both.",
+    "paused": "Paused",
+    "field": {
+      "name": "Name",
+      "subscriptionName": "Display name",
+      "space": "Context Space",
+      "description": "Description",
+      "entities": "Watched entities",
+      "entityType": "Entity type",
+      "entityId": "Entity identifier",
+      "idPattern": "Identifier pattern",
+      "watchedAttributes": "Watched attributes",
+      "notification": "Notification",
+      "endpoint": "Receiver",
+      "uri": "Address",
+      "accept": "Media type",
+      "receiverInfo": "Headers",
+      "headerName": "Header name",
+      "headerValue": "Header value",
+      "secretRef": "Credential",
+      "format": "Format",
+      "attributes": "Attributes sent",
+      "throttling": "Minimum interval (seconds)",
+      "expiresAt": "Expires at",
+      "isActive": "Deliver notifications",
+      "receiver": "Sends to",
+      "watches": "Watches"
+    }
+  },
+  "registrations": {
+    "title": "Context source registrations",
+    "lead": "Sources whose data a space's broker answers with as if it held it: an endpoint of this platform, or an NGSI-LD API elsewhere.",
+    "empty": "This project registers no context source yet.",
+    "add": "New registration",
+    "addHint": "Saving proposes a change; the broker learns of the source once the change is approved.",
+    "propose": "Propose change",
+    "target": "Where the data is",
+    "targetKind": {
+      "endpointRef": "An endpoint of this platform",
+      "endpoint": "An NGSI-LD API elsewhere"
+    },
+    "targetHint": {
+      "endpointRef": "Another space of this project, reached through its Endpoint and that Endpoint's policies.",
+      "endpoint": "A broker outside this platform, by the base URL of its NGSI-LD API."
+    },
+    "column": {
+      "source": "Source",
+      "covers": "Entity types"
+    },
+    "operations": {
+      "none": "Left empty, the source is registered for the operations CIM 009 gives a registration by default.",
+      "moreHint": "The operations the five groups are made of; a registration normally names a group instead."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context Space",
+      "endpointRef": "Endpoint",
+      "endpoint": "NGSI-LD base URL",
+      "information": "What the source holds",
+      "entities": "Entity selectors",
+      "entityType": "Entity type",
+      "entityId": "Entity identifier",
+      "idPattern": "Identifier pattern",
+      "propertyNames": "Properties",
+      "relationshipNames": "Relationships",
+      "operations": "Operations",
+      "mode": "Mode",
+      "federation": "Forwarding identity",
+      "identity": "Forward as",
+      "serviceAccount": "Service account",
+      "interval": "Schema mirror interval",
+      "expiresAt": "Expires at"
     }
   }
 }

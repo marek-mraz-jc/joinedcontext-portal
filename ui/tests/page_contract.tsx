@@ -142,8 +142,16 @@ export function renderPage(element: ReactElement, harness: PageHarness): RenderR
  * by the test carries no `<html lang>` of its own and no landmark shell around it, and failing a
  * page for the harness around it says nothing about the page.
  */
-export async function expectNoAxeViolations(container: HTMLElement): Promise<void> {
-  const results = await axe.run(container, {
+export async function expectNoAxeViolations(
+  container: HTMLElement,
+  /**
+   * Selectors to leave out, for a violation that is already a task of its own. Each one is named
+   * with that task in the case that passes it, so the exclusion disappears with the fix rather
+   * than outliving it.
+   */
+  exclude: string[] = [],
+): Promise<void> {
+  const results = await axe.run(exclude.length > 0 ? { include: [container], exclude } : container, {
     rules: {
       "html-has-lang": { enabled: false },
       "landmark-one-main": { enabled: false },

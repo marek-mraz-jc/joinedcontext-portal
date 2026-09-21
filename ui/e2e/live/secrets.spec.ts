@@ -34,10 +34,10 @@ test.setTimeout(300_000);
 
 /** Opens the new-data-source dialog for one type; the type is chosen first, as the page requires. */
 async function openDataSource(page: Page, type: string, name: string): Promise<Locator> {
-  await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "load" });
   await page.getByLabel("Type").selectOption(type);
   await page.getByRole("button", { name: "New data source" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByTestId("form-page");
   await dialog.locator("#root_name").fill(name);
   return dialog;
 }

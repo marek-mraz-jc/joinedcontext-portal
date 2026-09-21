@@ -9,6 +9,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { publishedTypes } from "../src/pages/endpoints/SchemaProjectionPanel";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage } from "./formPage";
 
 /**
  * T-0301: the attributes an Endpoint holds back, and the formalisms it publishes
@@ -158,7 +159,7 @@ async function openEditor() {
   // The row's actions are behind its one menu now (T-2287).
   await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
   await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-  return screen.findByRole("dialog");
+  return findFormPage();
 }
 
 function hideBox(dialog: HTMLElement, attribute: string) {
@@ -289,7 +290,7 @@ describe("endpoint projection ui", () => {
     const fetchMock = renderEndpoints();
     await screen.findByText("public-air");
     await userEvent.click(screen.getByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(dialog.querySelector("#root_name") as HTMLElement, "bikes-regional");
     await userEvent.selectOptions(dialog.querySelector("#root_contextSpaceRef") as HTMLElement, "ovzdusie");
     await userEvent.selectOptions(

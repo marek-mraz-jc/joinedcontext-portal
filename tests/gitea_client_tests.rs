@@ -704,3 +704,153 @@ async fn a_branch_with_a_slash_is_resolved_before_its_tree_is_read() {
         .await;
     assert!(client.list_tree_blobs("main").await.unwrap().is_empty());
 }
+
+/// AP-75: an application's repository is created in the organization, private and initialised on
+/// `main`, when the forge does not have it.
+#[tokio::test]
+async fn a_missing_application_repository_is_created_private_on_main() {
+    let server = MockServer::start().await;
+    let config = GiteaClient::new(
+        server.uri().parse().unwrap(),
+        "joinedcontext",
+        "configuration",
+        "secret-token",
+    )
+    .unwrap();
+    let repo = config.for_repository("helsinki_city-bikes");
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/joinedcontext/helsinki_city-bikes"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/orgs/joinedcontext/repos"))
+        .and(header("authorization", "token secret-token"))
+        .and(body_json(json!({
+            "name": "helsinki_city-bikes",
+            "description": "the city bikes app",
+            "private": true,
+            "auto_init": true,
+            "default_branch": "main"
+        })))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "name": "helsinki_city-bikes" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    assert!(repo.ensure_repository("the city bikes app").await.unwrap());
+}
+
+/// AP-75: an existing repository is never recreated or overwritten, and one another request
+/// created a moment earlier (409) is the same answer.
+#[tokio::test]
+async fn an_existing_application_repository_is_left_as_it_is() {
+    let server = MockServer::start().await;
+    let config = GiteaClient::new(
+        server.uri().parse().unwrap(),
+        "joinedcontext",
+        "configuration",
+        "t",
+    )
+    .unwrap();
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/joinedcontext/helsinki_city-bikes"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/joinedcontext/helsinki_raced"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/orgs/joinedcontext/repos"))
+        .and(body_json(json!({
+            "name": "helsinki_raced",
+            "description": "d",
+            "private": true,
+            "auto_init": true,
+            "default_branch": "main"
+        })))
+        .respond_with(ResponseTemplate::new(409).set_body_string("repository already exists"))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    assert!(!config
+        .for_repository("helsinki_city-bikes")
+        .ensure_repository("d")
+        .await
+        .unwrap());
+    assert!(!config
+        .for_repository("helsinki_raced")
+        .ensure_repository("d")
+        .await
+        .unwrap());
+}
+
+/// AP-75: a forge that refuses the creation (the token lacks the organization scope) is an
+/// error the run says, never a silent success.
+#[tokio::test]
+async fn a_refused_repository_creation_is_an_error() {
+    let server = MockServer::start().await;
+    let config = GiteaClient::new(
+        server.uri().parse().unwrap(),
+        "joinedcontext",
+        "configuration",
+        "t",
+    )
+    .unwrap();
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/joinedcontext/helsinki_city-bikes"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/orgs/joinedcontext/repos"))
+        .respond_with(
+            ResponseTemplate::new(403).set_body_string("token does not have write:organization"),
+        )
+        .mount(&server)
+        .await;
+
+    let err = config
+        .for_repository("helsinki_city-bikes")
+        .ensure_repository("d")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GitError::Api { status: 403, .. }), "{err:?}");
+}
+
+/// AP-77, AP-78: the clone address is the forge's public https one, never the cluster name.
+#[test]
+fn the_clone_address_is_the_public_forge() {
+    let config = GiteaClient::from_env(|key| {
+        match key {
+            "JC_GITEA_URL" => Some("http://gitea-http.dev.svc.cluster.local:3000"),
+            "JC_GITEA_OWNER" => Some("joinedcontext"),
+            "JC_GITEA_REPO" => Some("configuration"),
+            "JC_GITEA_TOKEN" => Some("t"),
+            "JC_GITEA_PUBLIC_URL" => Some("https://2.28.67.127.sslip.io/gitea/"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .unwrap()
+    .unwrap();
+    let repo = config.for_repository("helsinki_city-bikes");
+    assert_eq!(
+        repo.clone_url(),
+        "https://2.28.67.127.sslip.io/gitea/joinedcontext/helsinki_city-bikes.git"
+    );
+    assert_eq!(repo.owner, "joinedcontext");
+    assert_eq!(
+        config.repo, "configuration",
+        "the configuration client is unchanged"
+    );
+}

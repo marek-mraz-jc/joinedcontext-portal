@@ -36,7 +36,11 @@ jobs:
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
   ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # 12, not 8: the suite grew past the old budget and the lane began cancelling itself. Measured
+    # on 26a690f (run 35532422811): 251 of the 253 test files passed in the 8 minutes, and the job
+    # was cut two files from the end — no failure, no hang, nothing to fix but the budget. The
+    # number follows the suite; it does not skip, shard or shorten anything it runs (T-2447).
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: has
@@ -73,3 +77,6 @@ jobs:
             [ -f "$app/package.json" ] || continue
             (cd "$app" && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build)
           done
+      # The digest map the static host checks before it serves a file (AP-12, T-2457).
+      - name: the integrity manifest a static app ships with
+        run: node --test scripts/app-integrity.test.mjs

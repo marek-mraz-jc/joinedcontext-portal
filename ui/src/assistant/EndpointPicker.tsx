@@ -300,7 +300,7 @@ export function DataBar({
                     }
                   }}
                   className={clsx(
-                    "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5",
+                    "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5",
                     index === active && "bg-surface-subtle",
                     disabled && "cursor-not-allowed opacity-50",
                   )}

@@ -29,7 +29,7 @@ function expected(who: string, response: Response): boolean {
 }
 
 async function routesOf(page: Page, project: string): Promise<string[]> {
-  await page.goto(`/projects/${project}/spaces?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${project}/spaces?lang=en`, { waitUntil: "load" });
   const nav = page.getByRole("navigation", { name: "Main navigation" });
   const hrefs = await nav.locator("a[href^='/']").evaluateAll((links) =>
     links.map((link) => (link as HTMLAnchorElement).getAttribute("href") ?? ""),
@@ -76,14 +76,14 @@ for (const [who, person] of [
     for (const project of PROJECTS) {
       for (const next of await routesOf(page, project)) {
         route = next;
-        await page.goto(`${next}${next.includes("?") ? "&" : "?"}lang=en`, { waitUntil: "networkidle" });
+        await page.goto(`${next}${next.includes("?") ? "&" : "?"}lang=en`, { waitUntil: "load" });
         if (await page.getByText("Something went wrong!").count()) {
           findings.push({ who, route, kind: "error-screen", detail: (await page.locator("body").innerText()).slice(0, 300) });
         }
       }
       // The assistant opens and closes on a project page without an error.
       route = `/projects/${project}/spaces (assistant)`;
-      await page.goto(`/projects/${project}/spaces?lang=en`, { waitUntil: "networkidle" });
+      await page.goto(`/projects/${project}/spaces?lang=en`, { waitUntil: "load" });
       const bubble = page.getByRole("button", { name: "Open the assistant" });
       if (await bubble.count()) {
         await bubble.first().click();
@@ -127,7 +127,7 @@ for (const [who, person] of [
         if (items.length === 0) {
           continue;
         }
-        await page.goto(`/projects/${project}/${route}?lang=en`, { waitUntil: "networkidle" });
+        await page.goto(`/projects/${project}/${route}?lang=en`, { waitUntil: "load" });
         const main = page.locator("main");
         const edits = await main.getByRole("button", { name: /^Edit\b/ }).count();
         const deletes = await main.getByRole("button", { name: /^Delete\b/ }).count();

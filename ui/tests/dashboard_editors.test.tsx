@@ -18,6 +18,7 @@ import {
 import { dashboardSchema } from "../src/schemas/kinds";
 import type { JsonSchema } from "../src/components/forms/types";
 import { answeringChecks, checksSoFar } from "./checks";
+import { findFormPage } from "./formPage";
 
 const calls = vi.hoisted(() => ({
   sources: [] as { id: string; source: Record<string, unknown> }[],
@@ -194,7 +195,7 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 
 async function openLayerEditor() {
   await userEvent.click(await screen.findByRole("button", { name: `${en.dashboards.editLayer}: bikes` }));
-  return screen.findByRole("dialog");
+  return findFormPage();
 }
 
 /**
@@ -253,7 +254,7 @@ describe("dashboard editors", () => {
     window.history.pushState({}, "", "/projects/helsinki/dashboards?edit=bikes&draft=bikes");
     const fetchMock = renderDashboards();
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(writes(fetchMock)).toHaveLength(0);
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
@@ -287,10 +288,17 @@ describe("dashboard editors", () => {
       },
     });
 
-    const dialog = await screen.findByRole("dialog", { name: en.dashboards.add });
+    const dialog = await findFormPage(en.dashboards.add);
     expect(writes(fetchMock)).toHaveLength(0);
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some((call) => (call[0] as Request).url.endsWith("/drafts/Layer/stations"))).toBe(true),
+      expect(
+        fetchMock.mock.calls.some((call) => {
+          // The layer's GeoJSON is read with a plain URL string; the draft goes through the client.
+          const input = call[0] as RequestInfo | URL;
+          const url = input instanceof Request ? input.url : String(input);
+          return new URL(url, window.location.origin).pathname.endsWith("/drafts/Layer/stations");
+        }),
+      ).toBe(true),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
@@ -313,7 +321,7 @@ describe("dashboard editors", () => {
       },
     });
     await openDashboardEditor();
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)), "public");
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
 
@@ -352,7 +360,7 @@ describe("dashboard editors", () => {
   it("writes the dashboard form to a draft and still proposes the manifest itself (T-0791, AG-61)", async () => {
     const fetchMock = renderDashboards();
     await openDashboardEditor();
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.selectOptions(
       within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)),
       "organization",

@@ -176,7 +176,11 @@ impl KubeClient {
     }
 
     fn build(base: Url, token: TokenSource, ca: Option<&[u8]>) -> Result<Self, KubeError> {
-        let mut builder = reqwest::Client::builder();
+        // A hung API server costs one reconcile an error, never the loop (T-1716). Every call
+        // here is a single get, apply or delete; nothing watches or streams.
+        let mut builder = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(30));
         if let Some(pem) = ca {
             let certificate =
                 Certificate::from_pem(pem).map_err(|err| KubeError::Client(err.to_string()))?;

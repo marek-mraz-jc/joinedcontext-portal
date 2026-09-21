@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bridgeTransport, CSRF_COOKIE, CSRF_HEADER, originTransport, transportFor } from "../src/sdk/transport";
 
+/** Sends one request through the bridge transport the document names; the answer never comes. */
+function bridgeFor(base: { slug: string; orgDomain: string; space: string }) {
+  return transportFor({ ...base, transport: "bridge" })({ method: "GET", path: "/api/endpoint/demo/access" });
+}
+
 describe("originTransport", () => {
   it("includes CSRF header and content-type on PATCH, and omits them on GET", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
@@ -123,22 +128,34 @@ describe("bridgeTransport", () => {
     expect((res.body as { title: string }).title).toBe("The Portal did not answer.");
   });
 
-  it("selects transport based on config.transport", () => {
-    const origin = transportFor({
-      slug: "demo",
-      orgDomain: "example.org",
-      space: "demo",
-      transport: "origin",
-      appName: "test-app",
-    });
-    expect(typeof origin).toBe("function");
+  // SDK-06: the served document decides the transport, and each choice really is that
+  // transport: `origin` is a same-origin fetch and never a message, `bridge` is a message to the
+  // Portal frame and never a fetch of its own.
+  it("takes the transport the served document names, and nothing else", async () => {
+    const fetchSpy = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const postSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    try {
+      const base = { slug: "demo", orgDomain: "example.org", space: "demo" };
 
-    const bridge = transportFor({
-      slug: "demo",
-      orgDomain: "example.org",
-      space: "demo",
-      transport: "bridge",
-    });
-    expect(typeof bridge).toBe("function");
+      await transportFor({ ...base, transport: "origin", appName: "test-app" })({
+        method: "GET",
+        path: "/api/endpoint/demo/access",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(postSpy).not.toHaveBeenCalled();
+
+      vi.useFakeTimers();
+      const pending = bridgeFor(base);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(postSpy).toHaveBeenCalledTimes(1);
+      expect((postSpy.mock.calls[0][0] as { kind: string }).kind).toBe("jc-request");
+      vi.runAllTimers();
+      expect((await pending).status).toBe(0);
+    } finally {
+      vi.useRealTimers();
+      postSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });

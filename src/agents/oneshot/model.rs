@@ -65,9 +65,7 @@ impl Driver {
             // The proxy's audit line carries the status alone, so a refusal is otherwise only
             // visible in the person's own conversation and never in the logs (T-2247).
             tracing::warn!(%status, provider = %said, "the model provider refused the call");
-            return Err(CallError::Failed(format!(
-                "the proxy answered {status} to the model call: {said}"
-            )));
+            return Err(CallError::Failed(refusal(status)));
         }
         let answer: Value = serde_json::from_str(&text)
             .map_err(|err| CallError::Failed(format!("the model's answer is not JSON: {err}")))?;
@@ -227,21 +225,17 @@ impl Driver {
             } else {
                 Some(text_parts.join("\n"))
             };
-            let usage_tokens = answer
-                .pointer("/usage/input_tokens")
-                .and_then(Value::as_u64)
-                .unwrap_or(0)
-                + answer
-                    .pointer("/usage/output_tokens")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(0);
+            let input_tokens = usage_at(&answer, "/usage/input_tokens");
+            let output_tokens = usage_at(&answer, "/usage/output_tokens");
             if text.as_deref().unwrap_or("").trim().is_empty() && calls.is_empty() {
                 return Err(CallError::Empty);
             }
             Ok(ToolAnswer {
                 text,
                 calls,
-                usage_tokens,
+                usage_tokens: input_tokens + output_tokens,
+                input_tokens,
+                output_tokens,
             })
         } else {
             let tools_json = tools
@@ -301,10 +295,12 @@ impl Driver {
                     calls.push(ToolCall { id, name, input });
                 }
             }
+            let input_tokens = usage_at(&answer, "/usage/prompt_tokens");
+            let output_tokens = usage_at(&answer, "/usage/completion_tokens");
             let usage_tokens = answer
                 .pointer("/usage/total_tokens")
                 .and_then(Value::as_u64)
-                .unwrap_or(0);
+                .unwrap_or(input_tokens + output_tokens);
             if text.as_deref().unwrap_or("").trim().is_empty() && calls.is_empty() {
                 return Err(CallError::Empty);
             }
@@ -312,6 +308,8 @@ impl Driver {
                 text,
                 calls,
                 usage_tokens,
+                input_tokens,
+                output_tokens,
             })
         }
     }
@@ -725,6 +723,13 @@ pub(super) struct ToolAnswer {
     pub text: Option<String>,
     pub calls: Vec<ToolCall>,
     pub usage_tokens: u64,
+    /// The two halves of `usage_tokens`, 0 when the provider does not report them.
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+fn usage_at(answer: &Value, pointer: &str) -> u64 {
+    answer.pointer(pointer).and_then(Value::as_u64).unwrap_or(0)
 }
 
 /// Anthropic takes alternating roles: two turns of one role in a row are one turn with the

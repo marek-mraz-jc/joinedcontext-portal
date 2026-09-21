@@ -9,6 +9,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { RATE_LIMIT_CLASSES } from "../src/schemas/kinds";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage } from "./formPage";
 
 /**
  * T-0300: representations, rate limit class, cache TTL and the allowed-project list of an
@@ -137,7 +138,7 @@ async function openEditor() {
   // The row's actions are behind its one menu now (T-2287).
   await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
   await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-  return screen.findByRole("dialog");
+  return findFormPage();
 }
 
 describe("endpoint editor toggles", () => {
@@ -266,7 +267,7 @@ describe("endpoint editor toggles", () => {
     const fetchMock = renderEndpoints();
 
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "mestska-doprava");
     await addAllowedProject(dialog, "doprava");
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).

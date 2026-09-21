@@ -32,11 +32,12 @@ use crate::agents::run::{
     digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunEvent, AgentRunStatus,
 };
 use crate::agents::store::{now_rfc3339, StatusChangeError, StoreError};
-use crate::agents::{kit, oneshot, preview, transpile};
+use crate::agents::{kit, oneshot, preview, repository, transpile};
 use crate::auth::session::{Front, EDGE_TOKEN_HEADER};
 use crate::auth::CurrentUser;
 use crate::config::AgentSettings;
 use crate::error::{ApiError, ProblemDetails};
+use crate::git::GitError;
 use crate::resource::is_dns1123;
 use crate::state::AppState;
 
@@ -380,6 +381,14 @@ pub async fn create_run(
     } else {
         request.unattended
     };
+    // A static application is its own repository on the forge (AP-75): a name the forge would
+    // refuse is refused here, before anything is recorded.
+    let own_repository = repository::owns_repository(&request.app_class, &request.kind);
+    if own_repository {
+        if let Some(refusal) = repository::name_refusal(&project, &request.app_name) {
+            return Err(ApiError::BadRequest(refusal));
+        }
+    }
 
     // The endpoints first: every name the project has, with a slug, at most five (AP-44).
     let names = crate::agents::endpoints::requested(
@@ -457,13 +466,20 @@ pub async fn create_run(
         data_needs: serde_json::Value::Array(request.data_needs.clone()),
         allows_write,
         branch: format!("agent/app-{}/{}", request.app_name, id),
-        path_prefix: format!("projects/{project}/apps/{}/", request.app_name),
+        // The application's own repository holds it at its root; a workspace run writes its
+        // folder of the configuration repository (AP-75, Architecture/19).
+        path_prefix: if own_repository {
+            String::new()
+        } else {
+            format!("projects/{project}/apps/{}/", request.app_name)
+        },
         status: AgentRunStatus::Queued.as_str().to_owned(),
         ticket_hash,
         workspace: None,
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -659,7 +675,18 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
         .map(|number| crate::change::ChangeMeta::from_merge_request(number, "").name);
     if let Some(gitea) = state.gitea.as_deref() {
         if !run.branch.is_empty() {
-            run.source_url = Some(gitea.browse_url(&run.path_prefix, &run.branch));
+            run.source_url = Some(if run.in_own_repository() {
+                gitea
+                    .for_repository(repository::name(&run.project, &run.app_name))
+                    .browse_url("", &run.branch)
+            } else {
+                gitea.browse_url(&run.path_prefix, &run.branch)
+            });
+            if run.in_own_repository() {
+                run.mirror_url = state.github_mirror.as_deref().map(|mirror| {
+                    mirror.web_url(&repository::name(&run.project, &run.app_name), &run.branch)
+                });
+            }
         }
     }
     run
@@ -766,7 +793,7 @@ pub async fn answer_question(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<AnswerRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and asks nothing",
@@ -917,7 +944,7 @@ pub async fn post_message(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<MessageRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and reads nothing",
@@ -1012,7 +1039,7 @@ pub async fn post_preview_error(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<PreviewErrorRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and repairs nothing",
@@ -1078,7 +1105,7 @@ pub async fn post_preview_observation(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<PreviewObservationRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and verifies nothing",
@@ -1246,7 +1273,7 @@ pub async fn call_function(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and runs no function",
@@ -1606,12 +1633,7 @@ pub async fn cancel_run(
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
 ) -> Result<Json<AgentRun>, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
-    crate::permissions::for_request(&state, &user.0.identity, &project).check(
-        "App",
-        jc_core::kinds::Verb::Propose,
-        None,
-    )?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
 
     let reason = format!("cancelled by {}", user.0.identity.username);
     let cancelled = end_run(&state, &run, AgentRunStatus::Cancelled, &reason).await?;
@@ -1639,7 +1661,7 @@ pub async fn publish_run(
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if run.kind == "dashboard" {
         return Err(ApiError::Conflict(
             "publishing a dashboard run is not available yet".into(),
@@ -1661,7 +1683,7 @@ pub async fn publish_run(
 
     // The application is published the way every other manifest is: one merge request, the
     // project's own approval rules, no path around review (AP-10, AP-55).
-    let manifest = app_manifest(&run);
+    let manifest = app_manifest(&run, publish_source(&state, &run).await?);
     let operation = match state.mirror.get(&project, "App", &run.app_name) {
         Some(_) => crate::change::Operation::Update,
         None => crate::change::Operation::Create,
@@ -1711,13 +1733,125 @@ pub async fn publish_run(
     Ok(response)
 }
 
+/// Where the published application's source is, as its manifest says (AP-02).
+///
+/// A static application lives in its own repository: the merge request from the run's branch
+/// into `main` is opened (or the open one reused), and the manifest names the exact commit the
+/// branch points at, so the Change a reviewer approves is one commit and nothing pushed later
+/// rides along (AP-77). A workspace run's source sits beside the manifest.
+async fn publish_source(state: &AppState, run: &AgentRun) -> Result<serde_json::Value, ApiError> {
+    if !run.in_own_repository() {
+        return Ok(serde_json::json!({ "path": "./src" }));
+    }
+    let gitea = state.gitea.as_deref().ok_or_else(|| {
+        ApiError::Unavailable(
+            "no forge is configured, so the application's repository cannot be published (AP-77)"
+                .into(),
+        )
+    })?;
+    let repo = gitea.for_repository(repository::name(&run.project, &run.app_name));
+    let sha = match repo.branch_head(&run.branch).await {
+        Ok(sha) => sha,
+        Err(GitError::NotFound) => {
+            return Err(ApiError::Conflict(format!(
+                "run '{}' has no version in the application's repository yet: publish once a \
+                 version has been committed to its branch '{}' (AP-77)",
+                run.id, run.branch
+            )))
+        }
+        Err(err) => return Err(err.into()),
+    };
+    repository::open_merge_request(&repo, run).await?;
+    Ok(serde_json::json!({ "git": { "url": repo.clone_url(), "ref": sha } }))
+}
+
+/// After the Change that publishes a static application is merged: the application's merge
+/// request merges at the commit the approved manifest names, and the run is `published` (AP-77).
+///
+/// The approval already stands when this runs, so nothing here undoes it: a merge the forge
+/// refuses (the branch moved after publish, a conflict with `main`) is said on the run, where
+/// the person who published it reads it, and in the log.
+pub async fn merge_published_application(
+    state: &AppState,
+    project: &str,
+    manifest: Option<&crate::resource::ResourceEnvelope>,
+    approver: &str,
+) {
+    let Some(manifest) = manifest.filter(|manifest| manifest.kind == "App") else {
+        return;
+    };
+    let Some(run_id) = manifest.metadata.annotations.get(AGENT_RUN_ANNOTATION) else {
+        return;
+    };
+    let Some(sha) = manifest
+        .spec
+        .pointer("/source/git/ref")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return;
+    };
+    let Some(gitea) = state.gitea.as_deref() else {
+        return;
+    };
+    let run = match state.agents.get_run(run_id).await {
+        Ok(Some(run)) if run.project == project && run.in_own_repository() => run,
+        Ok(_) => return,
+        Err(err) => {
+            tracing::warn!(run = %run_id, error = %err, "published application's run not read");
+            return;
+        }
+    };
+    let repo = gitea.for_repository(repository::name(&run.project, &run.app_name));
+    match repository::merge_published(&repo, &run, sha, approver).await {
+        Ok(()) => {
+            if let Err(err) = state
+                .agents
+                .set_status(&run.id, AgentRunStatus::Published, None)
+                .await
+            {
+                tracing::warn!(run = %run.id, error = %err, "published run not marked published");
+                return;
+            }
+            if let Err(err) = publish_event(
+                state,
+                &run.id,
+                "status",
+                status_payload(AgentRunStatus::Published),
+            )
+            .await
+            {
+                tracing::warn!(run = %run.id, error = ?err, "published status not streamed");
+            }
+        }
+        Err(err) => {
+            tracing::warn!(run = %run.id, error = %err, "application merge request not merged");
+            let text = format!(
+                "The Change is approved, but the application's repository did not merge branch \
+                 '{}' into main: {err}. Open the merge request in the repository, bring the \
+                 branch back to the published commit {sha} or merge it there (AP-77).",
+                run.branch
+            );
+            if let Err(err) = publish_event(
+                state,
+                &run.id,
+                "thought",
+                serde_json::json!({ "text": text }),
+            )
+            .await
+            {
+                tracing::warn!(run = %run.id, error = ?err, "merge refusal not streamed");
+            }
+        }
+    }
+}
+
 /// The `App` manifest a published run leaves behind (AP-01, AP-51).
 ///
 /// Built from the run rather than from anything the workspace wrote: the agent's commits are the
 /// application's source, and what the platform deploys is derived from the request a person
 /// approved. `dataNeeds` is the list that was checked against the endpoint before the run
 /// started, so the manifest cannot widen what the application may reach.
-fn app_manifest(run: &AgentRun) -> serde_json::Value {
+fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "apiVersion": crate::resource::API_VERSION,
         "kind": "App",
@@ -1733,8 +1867,9 @@ fn app_manifest(run: &AgentRun) -> serde_json::Value {
         },
         "spec": {
             "kind": run.app_class,
-            // Beside the manifest, which is where the agent committed it (`path_prefix`).
-            "source": { "path": "./src" },
+            // Where the run committed it: the application's repository at the commit it
+            // published, or beside the manifest (`path_prefix`).
+            "source": source,
             "build": build_toolchains(&run.app_class),
             "visibility": run.visibility,
             "lifecycle": "published",
@@ -2078,6 +2213,24 @@ async fn own_run_of(
     Err(ApiError::NotFound(format!(
         "run '{id}' not found in project '{project}'"
     )))
+}
+
+/// [`own_run_of`] for a write (PF-50, T-2486): the caller's live bindings in the project are
+/// checked before the run is looked up, as the ops door checks `jc_run_message` and its siblings.
+/// Having started the run is not a grant: a person whose binding was removed writes nothing to it,
+/// and a stranger hears the same `403` here as there, before any id is looked up.
+async fn own_run_to_write(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    id: &str,
+) -> Result<AgentRun, ApiError> {
+    crate::permissions::for_request(state, &user.0.identity, project).check(
+        "App",
+        jc_core::kinds::Verb::Propose,
+        None,
+    )?;
+    own_run_of(state, user, project, id).await
 }
 
 /// Records one event and hands it to every connected stream.

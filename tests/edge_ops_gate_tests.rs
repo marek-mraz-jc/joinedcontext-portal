@@ -328,6 +328,53 @@ fn no_profile_however_wide_lets_a_run_decide_a_change_or_move_a_workspace() {
     );
 }
 
+/// AG-03: an agent has no ambient rights. The widest profile an author can write, run for a
+/// viewer, takes no operation that carries a verb, because every call is decided on the bindings
+/// of the person who started the run; the same profile run for a steward of the project passes the
+/// gate for the proposal the steward could make themselves, and for nothing a steward cannot do.
+#[tokio::test]
+async fn an_agent_holds_the_rights_of_the_person_it_runs_for_and_nothing_more() {
+    let state = state_with_bindings(Config::for_tests());
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "steward-binding",
+        json!({
+            "subjects": [{ "group": "city-stewards" }],
+            "role": "steward-role",
+            "scope": { "project": PROJECT },
+        }),
+    ));
+    let for_viewer = Caller::for_run(
+        identity("jana", &["city-viewers"]),
+        access_naming_everything(),
+    );
+    let for_steward = Caller::for_run(
+        identity("stela", &["city-stewards"]),
+        access_naming_everything(),
+    );
+
+    let mut refused = 0;
+    for op in ops::registry().iter().filter(|op| op.verb.is_some()) {
+        let answer = ops::call(op, &for_viewer, &state, PROJECT, json!({})).await;
+        match answer {
+            Err(err) => assert!(
+                matches!(answered(err), StatusCode::FORBIDDEN | StatusCode::NOT_FOUND),
+                "{} was refused to a viewer's run for a reason other than who they are",
+                op.name,
+            ),
+            Ok(_) => panic!("{} ran for a viewer's run with the widest profile", op.name),
+        }
+        refused += 1;
+    }
+    assert!(refused > 0, "the registry holds no operation with a verb");
+
+    // The happy path: the steward's run passes both halves for a proposal on a kind their role
+    // grants, which is the same gate the steward meets at the keyboard.
+    let propose = ops::find("jc_endpoint_propose").expect("registered");
+    assert!(for_steward.may_run(propose).is_ok());
+    assert!(ops::permitted(propose, &for_steward.identity, &state, PROJECT).is_ok());
+}
+
 /// AG-59: `may_run` is the caller's half only. It answers on the caller and the operation alone, so
 /// it may not be read as permission — a person with no binding anywhere passes it for every
 /// operation, and the person's half (`permitted`) is what refuses them.
