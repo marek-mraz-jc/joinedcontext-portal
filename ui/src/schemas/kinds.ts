@@ -1743,6 +1743,8 @@ export function subscriptionSchema(
 export const subscriptionUiSchema: UiSchema = {
   q: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },
+  // UI-03: an entity's id is picked from what the chosen space serves, under the person's session.
+  entities: { items: { "ui:field": "entitySelector", "ui:options": { spaceField: "contextSpaceRef" } } },
 };
 
 /** What a service account's grant covers, in the order a person narrows it (PF-35). */

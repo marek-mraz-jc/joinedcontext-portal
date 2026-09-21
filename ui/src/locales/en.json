@@ -79,6 +79,7 @@
     "choose": "Choose…",
     "useExample": "Use the example",
     "noResults": "No results",
+    "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
     "listFailed": "The list could not be loaded: {reason}",
     "listRetry": "Try again",
     "errors": "{count, plural, =0 {No errors} one {# error} other {# errors}}",

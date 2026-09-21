@@ -9,6 +9,9 @@ import { searchEntities } from "../../../api/gateway";
 import type { GatewayEntity } from "../../../api/gateway";
 import { Input } from "../../ui";
 
+/** An NGSI-LD entity id, as a person pastes one. */
+const URN = /^urn:ngsi-ld:\S+$/;
+
 export function EntityPicker(props: WidgetProps): JSX.Element {
   const {
     id,
@@ -21,6 +24,7 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
     onFocus,
     options,
     rawErrors,
+    placeholder,
   } = props;
 
   const { t } = useTranslation();
@@ -30,6 +34,9 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
     typeof options?.entityType === "string" ? options.entityType : undefined;
 
   const isConfigured = Boolean(space && entityType);
+  // Set by the entity selector field (UI-03): the space and the type come from the form and may
+  // simply not be chosen yet, which is a step still to take, not a misconfigured field.
+  const dependent = options?.dependent === true;
   const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +112,31 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
     };
   }, []);
 
+  if (!isConfigured && dependent) {
+    // Nothing to list yet: the id can still be typed or pasted, as before the picker existed.
+    return (
+      <div className="relative">
+        <Input
+          id={id}
+          autoComplete="off"
+          placeholder={placeholder}
+          disabled={disabled}
+          readOnly={readonly}
+          required={required}
+          value={typeof value === "string" ? value : ""}
+          aria-describedby={`${ariaDescribedByIds(id)} ${id}__pending`}
+          aria-invalid={hasErrors ? "true" : undefined}
+          onChange={(e) => onChange(e.target.value.trim() === "" ? undefined : e.target.value)}
+          onBlur={() => onBlur?.(id, value)}
+          onFocus={() => onFocus?.(id, value)}
+        />
+        <p id={`${id}__pending`} className="mt-1 text-caption text-fg-muted">
+          {t("form.entityPickerPending")}
+        </p>
+      </div>
+    );
+  }
+
   if (!isConfigured) {
     return (
       <div className="relative">
@@ -161,7 +193,12 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
         setActiveIndex((prev) => (prev > 0 ? prev - 1 : entities.length - 1));
       }
     } else if (e.key === "Enter") {
-      if (isOpen && entities.length > 0) {
+      if (typedUrn && activeIndex < 0) {
+        e.preventDefault();
+        setTyped(null);
+        onChange(typedUrn);
+        setIsOpen(false);
+      } else if (isOpen && entities.length > 0) {
         e.preventDefault();
         const chosen = activeIndex >= 0 ? entities[activeIndex] : entities[0];
         if (chosen) {
@@ -180,10 +217,18 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
     onFocus?.(id, value);
   };
 
+  // An id typed or pasted whole is taken as it is: the list offers what the search found, and a
+  // person who already holds the URN should not have to find it by name.
+  const typedUrn = typed !== null && URN.test(typed.trim()) ? typed.trim() : undefined;
+
   const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
     if (!containerRef.current?.contains(e.relatedTarget as Node)) {
       setIsOpen(false);
       setActiveIndex(-1);
+      if (typedUrn) {
+        setTyped(null);
+        onChange(typedUrn);
+      }
     }
     onBlur?.(id, value);
   };
@@ -211,6 +256,7 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
         disabled={disabled}
         readOnly={readonly}
         value={displayValue}
+        placeholder={placeholder}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={handleFocus}

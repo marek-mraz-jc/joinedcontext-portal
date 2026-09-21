@@ -13,7 +13,7 @@ import {
   portalTemplates,
   portalThemeWidgets,
 } from "./theme";
-import { portalWidgets } from "./widgets";
+import { FormDataContext, portalFields, portalWidgets } from "./widgets";
 import { DNS1123, ENTITY_TYPE_PATTERN } from "../../schemas/kinds";
 
 /** The theme's widgets and the Portal's own (`secretRef`, `entityPicker`), which a uiSchema names. */
@@ -191,6 +191,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
     >
       <FormAfterFieldsContext.Provider value={afterFields ?? null}>
         <FormSubmitStateContext.Provider value={submitState}>
+          <FormDataContext.Provider value={held ?? formData}>
           <Form<T>
             validator={validator}
             schema={schema}
@@ -204,6 +205,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
             transformErrors={transformErrors}
             templates={portalTemplates}
             widgets={widgets}
+            fields={portalFields}
             onSubmit={(data) => {
               onSubmit(data.formData as T);
             }}
@@ -212,6 +214,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
               onChange?.(data.formData as T | undefined);
             }}
           />
+          </FormDataContext.Provider>
         </FormSubmitStateContext.Provider>
       </FormAfterFieldsContext.Provider>
     </FormActionsContext.Provider>
