@@ -300,6 +300,33 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         endpointTitle: endpointTitles.get(record.data.endpointName),
       })
     : "";
+  // Leaves this conversation for an empty one, whatever state its run is in: a run that hung
+  // or died used to hold the dock, and the owner had no way back to a working chat (T-2463).
+  // A run that is still going is stopped rather than left reading an inbox nobody writes to.
+  const newConversation = (): void => {
+    if (run && !over) {
+      cancel.mutate(run.runId);
+    }
+    setStartError(null);
+    rememberRun(null);
+  };
+  // The newest question the person asked, asked again in a fresh conversation (T-2462).
+  const lastQuestion = [...events]
+    .reverse()
+    .find(
+      (event) =>
+        event.kind === "message" &&
+        event.payload.sentBy !== "agent" &&
+        typeof event.payload.text === "string",
+    )
+    ?.payload.text as string | undefined;
+  const retry =
+    lastQuestion !== undefined && lastQuestion.trim() !== ""
+      ? () => {
+          newConversation();
+          void startConversation(lastQuestion);
+        }
+      : undefined;
   const lastEvent = events.length > 0 ? events[events.length - 1] : undefined;
   const isBusy = Boolean(run && !over && lastEvent && lastEvent.kind === "message");
 
@@ -393,6 +420,17 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
           ) : null}
         </div>
         <div className="flex items-center gap-1">
+          {run ? (
+            <button
+              type="button"
+              aria-label={t("assistant.newConversation")}
+              title={t("assistant.newConversation")}
+              onClick={newConversation}
+              className={iconButton}
+            >
+              <Icon name="plus" className="size-4" />
+            </button>
+          ) : null}
           {run && !over ? (
             <button
               type="button"
@@ -617,6 +655,8 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               )
             }
             onCancel={() => cancel.mutate()}
+            onRetry={retry}
+            onNewConversation={newConversation}
             attach={attach}
             above={
               <>
