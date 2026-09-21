@@ -90,6 +90,13 @@ describe("a kind's forms at their own addresses", () => {
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
   });
 
+  // T-2577, AG-73: the assistant opens a kind it does not draft at its /new address; a
+  // ServiceAccount is created on the access page, and that address opens its form too.
+  it("opens the service account form at /access/new", async () => {
+    await open("/projects/helsinki/access/new");
+    expect(await findFormPage(en.access.accounts.add)).toBeInTheDocument();
+  });
+
   it("moves the address when the list's own button opens the form, and the back button leaves it", async () => {
     await open(LIST);
 
