@@ -77,7 +77,8 @@ impl Via {
 pub struct Caller {
     pub identity: Identity,
     pub via: Via,
-    /// What the run's `AgentProfile` grants, when this call belongs to an agent run (AG-70).
+    /// What the run's `AgentProfile` grants, when this call belongs to an agent run (AG-70). The
+    /// identity is always the person who started the run: an agent has no ambient access (AG-03).
     ///
     /// `None` is a person at a keyboard or a program with their own token: their bindings alone
     /// decide. A profile is the second half and only ever narrows — an operation the person may
