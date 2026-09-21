@@ -212,6 +212,14 @@ fn page<'a>(kind: &str, plural: &'a str) -> &'a str {
     }
 }
 
+/// The section a kind's create form opens in, from its plural or its kind as the model spells
+/// it: `/projects/{project}/{section}/new` (T-2577, AG-73). `None` for what is no kind.
+pub fn section(plural_or_kind: &str) -> Option<&'static str> {
+    let info = crate::resource::by_plural(plural_or_kind)
+        .or_else(|| crate::resource::by_kind(plural_or_kind))?;
+    Some(page(info.kind, info.plural))
+}
+
 /// Where the person reviews the change: the kind's page with the resource's editor open
 /// (`?edit=`), or its removal dialog (`?delete=`). The endpoint form opens from the draft it is
 /// handed, as it did for `edit_endpoint`.
