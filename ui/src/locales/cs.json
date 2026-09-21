@@ -1152,6 +1152,25 @@
         "RealmRefused": "Nezapsáno"
       },
       "emptyHint": "Skupina je název pro více lidí, takže roli dáte jednou místo člověka po člověku. Skupiny přicházejí od poskytovatele identity nebo se deklarují zde."
+    },
+    "domain": {
+      "title": "Doména",
+      "lead": "Zda je prokázáno, že doména organizace patří jí. Dokud není, zveřejněte záznam níže v DNS domény; portál jej ověří znovu při příští synchronizaci.",
+      "state": {
+        "pending": "Zatím neověřená",
+        "verified": "Ověřená",
+        "failed": "Ověření selhalo"
+      },
+      "unchecked": "Zatím nekontrolovaná",
+      "method": {
+        "dns-txt": "záznamu DNS TXT",
+        "did-web": "dokumentu did:web"
+      },
+      "checkedBy": "Ověřená pomocí {method}, zkontrolováno {when}.",
+      "checked": "Naposledy zkontrolováno {when}.",
+      "publish": "Zveřejněte tento záznam TXT v DNS domény:",
+      "copy": "Kopírovat záznam",
+      "copied": "Záznam zkopírován"
     }
   },
   "flows": {
