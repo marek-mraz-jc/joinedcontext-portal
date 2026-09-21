@@ -207,7 +207,10 @@ pub struct FlowRequest {
     path = "/api/v1/projects/{project}/flows",
     tag = "blueprints",
     params(("project" = String, Path, description = "Project the flow creates resources in")),
-    request_body = FlowRequest,
+    request_body(
+        content = FlowRequest,
+        example = json!({ "blueprint": "cross-city-sharing", "version": "1.2.0", "parameters": {} })
+    ),
     responses(
         (status = 202, description = "Change proposal opened", body = Change),
         (status = 401, description = "Unauthorized", body = ProblemDetails),

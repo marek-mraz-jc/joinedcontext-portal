@@ -52,6 +52,8 @@ pub struct GetQuery {
     /// Read inside this workspace: its branch over `main` (CC-76).
     #[serde(default)]
     pub workspace: Option<String>,
+    /// Read the project as it stood at this commit id (MF-11).
+    pub revision: Option<String>,
 }
 
 #[utoipa::path(
@@ -65,11 +67,12 @@ pub struct GetQuery {
         ("fieldSelector" = Option<String>, Query, description = "Field selector"),
         ("limit" = Option<usize>, Query, description = "Page limit"),
         ("continue" = Option<String>, Query, description = "Pagination continue token"),
-        ("revision" = Option<String>, Query, description = "Historical revision"),
+        ("revision" = Option<String>, Query, description = "Read the project as it stood at this commit id (MF-11)"),
         ("workspace" = Option<String>, Query, description = "Read inside this workspace (CC-76)"),
     ),
     responses(
         (status = 200, description = "List of resources", body = ResourceList),
+        (status = 400, description = "A bad selector or limit, a revision that is not a commit id, or one beside a workspace", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Resource not found", body = ProblemDetails)
     )
@@ -91,11 +94,6 @@ pub async fn list(
     if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read(kind_info.kind)
     {
         return Err(not_found());
-    }
-    if query.revision.is_some() {
-        return Err(ApiError::NotImplemented(
-            "historical revisions are served from Git".into(),
-        ));
     }
 
     let limit = match query.limit {
@@ -126,11 +124,17 @@ pub async fn list(
         continue_token: query.continue_token,
     };
 
-    let page = match query.workspace.as_deref() {
-        Some(name) => crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
+    let page = match (query.workspace.as_deref(), query.revision.as_deref()) {
+        (Some(_), Some(_)) => return Err(both()),
+        (Some(name), None) => {
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
+                .await?
+                .list(&project, kind_info.kind, &opts)
+        }
+        (None, Some(revision)) => mirror_at(&state, &project, revision, not_found)
             .await?
             .list(&project, kind_info.kind, &opts),
-        None => state.mirror.list(&project, kind_info.kind, &opts),
+        (None, None) => state.mirror.list(&project, kind_info.kind, &opts),
     };
 
     let remaining_item_count = if page.continue_token.is_some() {
@@ -159,9 +163,11 @@ pub async fn list(
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("workspace" = Option<String>, Query, description = "Read inside this workspace (CC-76)"),
+        ("revision" = Option<String>, Query, description = "Read the project as it stood at this commit id (MF-11)"),
     ),
     responses(
         (status = 200, description = "Resource envelope", body = ResourceEnvelope),
+        (status = 400, description = "A revision that is not a commit id, or one beside a workspace", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Resource not found", body = ProblemDetails)
     )
@@ -184,17 +190,82 @@ pub async fn get_resource(
     {
         return Err(not_found());
     }
-    let envelope = match query.workspace.as_deref() {
-        Some(workspace) => {
+    let envelope = match (query.workspace.as_deref(), query.revision.as_deref()) {
+        (Some(_), Some(_)) => return Err(both()),
+        (Some(workspace), None) => {
             crate::ops::workspaces::mirror_of(&state, &user.0.identity, workspace, &project)
                 .await?
                 .get(&project, kind_info.kind, &name)
         }
-        None => state.mirror.get(&project, kind_info.kind, &name),
+        (None, Some(revision)) => mirror_at(&state, &project, revision, not_found).await?.get(
+            &project,
+            kind_info.kind,
+            &name,
+        ),
+        (None, None) => state.mirror.get(&project, kind_info.kind, &name),
     }
     .ok_or_else(not_found)?;
 
     Ok(Json(envelope))
+}
+
+fn both() -> ApiError {
+    ApiError::BadRequest("read a workspace or a revision, not both".into())
+}
+
+/// The project as it stood at one commit (MF-11, MF-16): its subtree of the repository at
+/// `revision`, loaded the way the live mirror is, with no status, because status is what the
+/// Portal computes now and a past commit has none (MF-04).
+///
+/// Only a commit id is a revision. A branch name would read a workspace's unmerged edits past
+/// the workspace's own door (CC-76). A commit the forge does not know answers the caller's own
+/// 404, so a guessed sha tells nothing (R20); the read grants are the caller's current ones,
+/// checked before this runs, so a binding that once allowed a read does not allow it now.
+// ponytail: one forge read per file per request; cache by commit id if history reads get hot.
+async fn mirror_at(
+    state: &AppState,
+    project: &str,
+    revision: &str,
+    not_found: impl Fn() -> ApiError,
+) -> Result<crate::store::Mirror, ApiError> {
+    if !crate::api::export::is_commit(revision) {
+        return Err(ApiError::BadRequest(
+            "revision is a commit id: 7 to 40 lowercase hex digits".into(),
+        ));
+    }
+    let gitea = state
+        .gitea
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("no repository is configured".into()))?;
+    let paths = match gitea.list_tree(revision).await {
+        Ok(paths) => paths,
+        Err(crate::git::GitError::NotFound) => return Err(not_found()),
+        Err(crate::git::GitError::Api { status, .. }) if (400..500).contains(&status) => {
+            return Err(not_found())
+        }
+        Err(err) => return Err(err.into()),
+    };
+    let prefix = format!("projects/{project}/");
+    let mirror = crate::store::Mirror::new();
+    for path in paths {
+        if !path.starts_with(&prefix) || !(path.ends_with(".yaml") || path.ends_with(".yml")) {
+            continue;
+        }
+        let Some(file) = gitea.get_file(&path, revision).await? else {
+            continue;
+        };
+        let Some(mut envelope) = crate::store::envelope_of(&file.content) else {
+            continue;
+        };
+        match envelope.metadata.namespace.as_deref() {
+            None | Some("") => envelope.metadata.namespace = Some(project.to_owned()),
+            Some(namespace) if namespace != project => continue,
+            Some(_) => {}
+        }
+        envelope.strip_status();
+        mirror.upsert(envelope);
+    }
+    Ok(mirror)
 }
 
 /// `GET /api/v1/endpoints` (PF-60, PF-61): every Endpoint of every project this caller may

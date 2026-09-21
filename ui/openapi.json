@@ -18,9 +18,59 @@
         "summary": "The collector's route. One batch a request; a record with an unknown project or a kind outside\nthe vocabulary is rejected on its own, because one malformed record must not cost the other\nfour hundred.",
         "operationId": "ingest_activity",
         "requestBody": {
+          "description": "An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, its fields as attributes",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "resourceLogs": [
+                  {
+                    "scopeLogs": [
+                      {
+                        "logRecords": [
+                          {
+                            "attributes": [
+                              {
+                                "key": "project",
+                                "value": {
+                                  "stringValue": "helsinki"
+                                }
+                              },
+                              {
+                                "key": "kind",
+                                "value": {
+                                  "stringValue": "access.denied"
+                                }
+                              },
+                              {
+                                "key": "source",
+                                "value": {
+                                  "stringValue": "gateway"
+                                }
+                              },
+                              {
+                                "key": "severity",
+                                "value": {
+                                  "stringValue": "warning"
+                                }
+                              },
+                              {
+                                "key": "summary",
+                                "value": {
+                                  "stringValue": "An anonymous caller was refused a write."
+                                }
+                              }
+                            ],
+                            "timeUnixNano": "1789314063000000000"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           },
           "required": true
@@ -73,6 +123,9 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/BackChannelLogoutForm"
+              },
+              "example": {
+                "logout_token": "the-realms-signed-logout-token"
               }
             }
           },
@@ -469,6 +522,12 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "tools/list",
+                "params": {}
               }
             }
           },
@@ -589,6 +648,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Preferences"
+              },
+              "example": {
+                "advancedMode": false,
+                "defaultProject": "helsinki",
+                "locale": "sk",
+                "theme": "dark"
               }
             }
           },
@@ -690,6 +755,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OpenProject"
+              },
+              "example": {
+                "description": "The city's open data",
+                "displayName": "Helsinki",
+                "name": "helsinki"
               }
             }
           },
@@ -1261,6 +1331,32 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateRunRequest"
+              },
+              "example": {
+                "appClass": "fullstack",
+                "appName": "city-bikes-overview",
+                "dataNeeds": [
+                  {
+                    "attrs": [
+                      "name",
+                      "location"
+                    ],
+                    "contextSpaceRef": {
+                      "kind": "ContextSpace",
+                      "name": "mobility"
+                    },
+                    "operations": [
+                      "queryEntity",
+                      "retrieveEntity"
+                    ],
+                    "types": [
+                      "BikeHireDockingStation"
+                    ]
+                  }
+                ],
+                "endpointName": "helsinki-bikes",
+                "prompt": "A live bike availability dashboard with station filtering",
+                "visibility": "project"
               }
             }
           },
@@ -1421,6 +1517,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AnswerRequest"
+              },
+              "example": {
+                "answers": [
+                  "A map beside the table"
+                ],
+                "questionId": "layout"
               }
             }
           },
@@ -1669,7 +1771,10 @@
           "description": "The function's JSON body; an empty body is null",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {},
+              "example": {
+                "station": "001"
+              }
             }
           },
           "required": true
@@ -1795,6 +1900,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MessageRequest"
+              },
+              "example": {
+                "text": "Show only stations with fewer than three bikes"
               }
             }
           },
@@ -1966,6 +2074,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PreviewErrorRequest"
+              },
+              "example": {
+                "file": "src/App.tsx",
+                "line": 42,
+                "message": "TypeError: rows is undefined"
               }
             }
           },
@@ -2060,6 +2173,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PreviewObservationRequest"
+              },
+              "example": {
+                "failedRequests": [
+                  {
+                    "path": "/ngsi-ld/v1/entities",
+                    "status": 403
+                  }
+                ],
+                "pages": [
+                  {
+                    "label": "Overview",
+                    "rows": [
+                      12
+                    ],
+                    "text": "12 stations, 3 without a bike"
+                  }
+                ],
+                "version": 2
               }
             }
           },
@@ -2354,6 +2485,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StartConversation"
+              },
+              "example": {
+                "message": "Which endpoints publish air quality?"
               }
             }
           },
@@ -2437,6 +2571,20 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "allowedProjects": [
+                  "regional-transport"
+                ],
+                "contextSpace": "mobility",
+                "entityTypes": [
+                  "BikeHireDockingStation"
+                ],
+                "hiddenAttributes": [
+                  "maintenanceNote"
+                ],
+                "name": "bikes-regional-transport",
+                "title": "City bikes for the regional transport team"
               }
             }
           },
@@ -2807,7 +2955,7 @@
           }
         ],
         "requestBody": {
-          "description": "Optional approval confirmation for red-lane changes",
+          "description": "Optional approval confirmation for red-lane changes: `confirm` repeats the resource's name",
           "content": {
             "application/json": {
               "schema": {
@@ -2819,6 +2967,9 @@
                     "$ref": "#/components/schemas/ApproveBody"
                   }
                 ]
+              },
+              "example": {
+                "confirm": "helsinki-air"
               }
             }
           }
@@ -2926,6 +3077,9 @@
                     "$ref": "#/components/schemas/ApproveBody"
                   }
                 ]
+              },
+              "example": {
+                "reason": "The endpoint would publish the stations' maintenance notes"
               }
             }
           }
@@ -3172,7 +3326,8 @@
             "text/yaml": {
               "schema": {
                 "type": "string"
-              }
+              },
+              "example": "id: https://hel.fi/models/air\nname: air\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports: [linkml:types]\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
             }
           },
           "required": true
@@ -3503,6 +3658,27 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PutDraftRequest"
+              },
+              "example": {
+                "expectedVersion": 3,
+                "manifest": {
+                  "apiVersion": "joinedcontext.com/v1alpha1",
+                  "kind": "Endpoint",
+                  "metadata": {
+                    "name": "helsinki-air",
+                    "namespace": "helsinki",
+                    "title": "Air quality"
+                  },
+                  "spec": {
+                    "audience": "organization",
+                    "contextSpaceRef": "air",
+                    "enabledRepresentations": [
+                      "ngsi-ld",
+                      "geojson"
+                    ],
+                    "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                  }
+                }
               }
             }
           },
@@ -4049,6 +4225,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FlowRequest"
+              },
+              "example": {
+                "blueprint": "cross-city-sharing",
+                "parameters": {},
+                "version": "1.2.0"
               }
             }
           },
@@ -4319,10 +4500,13 @@
           }
         ],
         "requestBody": {
-          "description": "Operation input parameters",
+          "description": "Operation input parameters, as the operation's own input schema names them",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {},
+              "example": {
+                "query": "air quality"
+              }
             }
           }
         },
@@ -4485,6 +4669,33 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "pipeline": {
+                  "apiVersion": "joinedcontext.com/v1alpha1",
+                  "kind": "Pipeline",
+                  "metadata": {
+                    "name": "shmu-air-quality"
+                  },
+                  "spec": {
+                    "class": "resident",
+                    "compute": {
+                      "bloblang": "root.pm10 = this.pm10.number()",
+                      "kind": "bloblang"
+                    },
+                    "source": {
+                      "dataSourceRef": {
+                        "kind": "DataSource",
+                        "name": "shmu-csv"
+                      }
+                    },
+                    "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                  }
+                },
+                "sample": {
+                  "format": "csv",
+                  "text": "station_id,pm10\n01,18.2\n"
+                }
               }
             }
           },
@@ -4802,7 +5013,13 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/MintRequest"
+              },
+              "example": {
+                "credential": "ingest",
+                "expiresAt": "2027-01-01T00:00:00Z"
+              }
             }
           },
           "required": true
@@ -4991,7 +5208,12 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/RotateRequest"
+              },
+              "example": {
+                "overlapHours": 24
+              }
             }
           },
           "required": true
@@ -5171,6 +5393,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PauseRequest"
+              },
+              "example": {
+                "paused": true
               }
             }
           },
@@ -5441,6 +5666,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OpenRequest"
+              },
+              "example": {
+                "name": "bike-lanes",
+                "scope": {
+                  "kind": "space",
+                  "name": "mobility"
+                },
+                "title": "Bike lanes",
+                "ttlDays": 7
               }
             }
           },
@@ -5904,6 +6138,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateRequest"
+              },
+              "example": {
+                "resolutions": [
+                  {
+                    "field": "spec.audience",
+                    "keep": "ours",
+                    "path": "projects/helsinki/endpoints/helsinki-air.yaml"
+                  }
+                ]
               }
             }
           },
@@ -6001,7 +6244,7 @@
           {
             "name": "revision",
             "in": "query",
-            "description": "Historical revision",
+            "description": "Read the project as it stood at this commit id (MF-11)",
             "required": false,
             "schema": {
               "type": "string"
@@ -6024,6 +6267,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6089,6 +6342,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResourceEnvelope"
+              },
+              "example": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": {
+                  "name": "helsinki-air",
+                  "namespace": "helsinki",
+                  "title": "Air quality"
+                },
+                "spec": {
+                  "audience": "organization",
+                  "contextSpaceRef": "air",
+                  "enabledRepresentations": [
+                    "ngsi-ld",
+                    "geojson"
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                }
               }
             }
           },
@@ -6220,6 +6491,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "Read the project as it stood at this commit id (MF-11)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6229,6 +6509,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6303,6 +6593,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResourceEnvelope"
+              },
+              "example": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": {
+                  "name": "helsinki-air",
+                  "namespace": "helsinki",
+                  "title": "Air quality"
+                },
+                "spec": {
+                  "audience": "organization",
+                  "contextSpaceRef": "air",
+                  "enabledRepresentations": [
+                    "ngsi-ld",
+                    "geojson"
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                }
               }
             }
           },
@@ -6565,7 +6873,12 @@
           "content": {
             "application/merge-patch+json": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "spec": {
+                  "audience": "organization"
+                }
               }
             }
           },
@@ -6726,6 +7039,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GenerateRequest"
+              },
+              "example": {
+                "source": "id: https://hel.fi/models/air\nname: air\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
               }
             }
           },
@@ -6796,6 +7112,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ImportSdmRequest"
+              },
+              "example": {
+                "model": "AirQualityObserved"
               }
             }
           },
@@ -6868,7 +7187,11 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "file": "station_id,pm10\n01,18.2\n",
+                "format": "csv"
               }
             }
           },
@@ -7023,7 +7346,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                "ref": "refs/heads/main",
+                "repository": {
+                  "full_name": "hel/config"
+                }
               }
             }
           },
@@ -7108,8 +7438,10 @@
           "description": "Whatever the origin sends; the body is what the signature covers",
           "content": {
             "application/json": {
-              "schema": {
-                "type": "string"
+              "schema": {},
+              "example": {
+                "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                "ref": "refs/heads/main"
               }
             }
           },
@@ -9250,6 +9582,26 @@
         },
         "additionalProperties": false
       },
+      "MintRequest": {
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "properties": {
+          "credential": {
+            "type": "string",
+            "description": "Name of the `api-key` credential in the manifest this key belongs to."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Overrides the credential's own expiry; absent means the manifest's, or never."
+          }
+        },
+        "additionalProperties": false
+      },
       "MintedKey": {
         "type": "object",
         "description": "A minted key. The only place a raw token ever appears (PF-36).",
@@ -10547,6 +10899,20 @@
             }
           }
         }
+      },
+      "RotateRequest": {
+        "type": "object",
+        "properties": {
+          "overlapHours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the rotated key keeps working beside its successor, in hours (PF-38)."
+          }
+        },
+        "additionalProperties": false
       },
       "RunContext": {
         "type": "object",

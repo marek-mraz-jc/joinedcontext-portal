@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use utoipa::ToSchema;
 
+use super::Operation;
+use super::OperationAnnotations;
 use crate::api::import::ImportReport;
 use crate::change::{Change, Lane};
 use crate::error::ApiError;
@@ -16,6 +18,7 @@ use crate::ops::{self, draft_store, Caller, OpError};
 use crate::resource::{self, is_dns1123, API_VERSION};
 use crate::state::AppState;
 use crate::tools::model_tools;
+use jc_core::kinds::Verb;
 
 const MAX_TOTAL_FILES_BYTES: usize = 10 * 1024 * 1024; // 10 MiB (DM-55)
 /// The longest description a completion carries onto its drafts (AG-73).
@@ -1554,6 +1557,35 @@ fn draft_error(err: ops::drafts::DraftError) -> OpError {
         ))),
         ops::drafts::DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The registry's operation that completes a space (AG-62).
+// ---------------------------------------------------------------------------------------------
+/// This module's operations in the registry (`super::init_registry`).
+pub fn operations() -> Vec<Operation> {
+    vec![        Operation {
+            name: "jc_space_complete",
+            title: "Complete this space",
+            description: "Opens an endpoint or folder that partly defines a space and completes LinkML, data source, and pipeline drafts (MCP clients pass the files)",
+            input: input_schema,
+            output: output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "ContextSpace",
+            verb: Some(Verb::Propose),
+            lane: Lane::Yellow,
+            validate: validate_input,
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    run(caller, state, project, val).await
+                })
+            },
+        },
+    ]
 }
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ pub mod federation;
 pub mod forms;
 pub mod health;
 pub mod import;
+pub mod internal;
 pub mod mutate;
 pub mod ops;
 pub mod permissions;
