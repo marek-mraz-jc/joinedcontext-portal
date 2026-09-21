@@ -200,7 +200,8 @@ describe("the copy's bar and query parameter", () => {
         <WorkspaceBar project="helsinki" />
       </WorkspaceProvider>,
     );
-    const bar = await screen.findByRole("region", { name: "Copy" });
+    await waitFor(() => expect(screen.queryByTestId("workspace-bar-loading")).toBeNull());
+    const bar = screen.getByRole("region", { name: "Copy" });
     expect(bar.textContent).toContain("Air cleanup");
     expect(bar.textContent).toContain("3 changes");
     expect(within(bar).getByText("Bring back").closest("a")?.getAttribute("href")).toBe(
@@ -221,9 +222,31 @@ describe("the copy bar's states (T-1253, UI-61)", () => {
     );
     // The steady bar is a landmark; the line that replaces it when the copy is gone is a
     // `status`, so that it is announced to somebody reading elsewhere on the page (T-1254).
-    // Both carry the bar's label, which is what finds either of them here.
-    return screen.findByLabelText("Copy");
+    // Both carry the bar's label, which is what finds either of them here, once the frame drawn
+    // while the copy is read has given way to what the read answered (T-1489).
+    await waitFor(() => expect(screen.queryByTestId("workspace-bar-loading")).toBeNull());
+    return screen.getByLabelText("Copy");
   }
+
+  // UI-61: the name is in the address before the copy's record is read, so the bar is there from
+  // the first frame, busy, with the way out — not absent until the request answers, which made
+  // the page jump and let a person start working without seeing they were in a copy (T-1489).
+  it("shows_the_copy_name_while_loading", async () => {
+    search = { workspace: "air-v2" };
+    handler = (_req, url) =>
+      url.pathname.endsWith("/workspaces/air-v2") ? new Promise<Response>(() => {}) : undefined;
+    const { WorkspaceProvider } = await import("../src/components/layout/WorkspaceContext");
+    show(
+      <WorkspaceProvider>
+        <WorkspaceBar project="helsinki" />
+      </WorkspaceProvider>,
+    );
+    const bar = screen.getByRole("region", { name: "Copy" });
+    expect(bar).toHaveAttribute("aria-busy", "true");
+    expect(bar.textContent).toContain("air-v2");
+    expect(bar.textContent).toContain("Nothing here is live");
+    expect(within(bar).getByRole("button", { name: "Leave" })).toBeEnabled();
+  });
 
   it("says nothing changed yet and offers no bring back on an empty copy", async () => {
     const bar = await barFor(json({ ...WORKSPACE, changes: 0 }));

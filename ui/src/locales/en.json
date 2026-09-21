@@ -2413,6 +2413,7 @@
     "bar": {
       "label": "Copy",
       "message": "You are working on the copy {title}, started {date}. Nothing here is live.",
+      "loading": "You are working on the copy {name}. Nothing here is live.",
       "changes": "{count, plural, =0 {No changes yet} one {# change} other {# changes}}",
       "gone": "This copy has expired or was discarded.",
       "leave": "Leave",

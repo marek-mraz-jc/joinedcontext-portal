@@ -225,7 +225,7 @@
     },
     "src/components/layout/WorkspaceBar.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "part_workspace_bar.test.tsx",

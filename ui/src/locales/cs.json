@@ -2413,6 +2413,7 @@
     "bar": {
       "label": "Kopie",
       "message": "Pracujete na kopii {title}, začaté {date}. Nic tady není živé.",
+      "loading": "Pracujete na kopii {name}. Nic tady není živé.",
       "changes": "{count, plural, =0 {Zatím beze změn} one {# změna} few {# změny} many {# změny} other {# změn}}",
       "gone": "Tato kopie vypršela nebo byla zahozena.",
       "leave": "Odejít",

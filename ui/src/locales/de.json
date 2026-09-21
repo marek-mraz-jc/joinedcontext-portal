@@ -2413,6 +2413,7 @@
     "bar": {
       "label": "Kopie",
       "message": "Sie arbeiten an der Kopie {title}, gestartet am {date}. Nichts hier ist live.",
+      "loading": "Sie arbeiten an der Kopie {name}. Nichts hier ist live.",
       "changes": "{count, plural, =0 {Noch keine Änderungen} one {# Änderung} other {# Änderungen}}",
       "gone": "Diese Kopie ist abgelaufen oder wurde verworfen.",
       "leave": "Verlassen",
