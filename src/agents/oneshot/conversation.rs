@@ -217,7 +217,27 @@ impl Driver {
                                 let text = self.query_endpoint(chosen_now, &call, tools_now).await;
                                 text.map(|text| (call, text))
                             }
-                            Err((call, reason)) => Ok((call, format!("error: {reason}"))),
+                            // A call refused before it reaches an endpoint is on the log like
+                            // one the endpoint refused: an attempt at an endpoint the person may
+                            // not read leaves a trace (T-1663, AG-70).
+                            Err((call, reason)) => {
+                                let input = json!({
+                                    "endpoint": call.endpoint,
+                                    "name": call.name,
+                                    "arguments": call.arguments,
+                                });
+                                self.event(
+                                    "tool",
+                                    failed_step(
+                                        "query_endpoint",
+                                        std::time::Instant::now(),
+                                        &input,
+                                        &reason,
+                                    ),
+                                )
+                                .await?;
+                                Ok((call, format!("error: {reason}")))
+                            }
                         }
                     }))
                     .await;
