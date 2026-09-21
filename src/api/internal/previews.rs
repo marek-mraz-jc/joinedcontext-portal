@@ -5,11 +5,10 @@ use crate::error::ApiError;
 use crate::ops::previews::{self, ServedList};
 use crate::state::AppState;
 use axum::extract::State;
-use axum::http::{header, HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::http::HeaderMap;
+use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
-use sha2::{Digest, Sha256};
 
 /// Every running preview for the gateway, on the internal listener only (Architecture/06 §7.2,
 /// Architecture/13 §6).
@@ -30,23 +29,7 @@ pub async fn served_previews(
     let list: ServedList = previews::served(&state).await?;
     let body = serde_json::to_vec(&list)
         .map_err(|e| ApiError::Internal(format!("the preview list did not serialise: {e}")))?;
-    let etag = format!("\"{:x}\"", Sha256::digest(&body));
-    let unchanged = headers
-        .get(header::IF_NONE_MATCH)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.split(',').any(|tag| tag.trim() == etag));
-    if unchanged {
-        return Ok((StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response());
-    }
-    Ok((
-        StatusCode::OK,
-        [
-            (header::ETAG, etag),
-            (header::CONTENT_TYPE, "application/json".to_owned()),
-        ],
-        body,
-    )
-        .into_response())
+    Ok(super::polled_json(&headers, body))
 }
 
 pub fn router() -> Router<AppState> {

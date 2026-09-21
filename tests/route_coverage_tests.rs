@@ -31,6 +31,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/internal/agent-runs/{id}/inbox", "the runner's own callback, authenticated as a workload"),
 ("POST", "/internal/agent-runs/{id}/mcp", "the whole registry for one run, narrowed by its AgentProfile (AG-70) and refused an approval (AG-11)"),
 ("POST", "/internal/pipeline-tests/{id}", "the runner's own callback, authenticated as a workload"),
+("GET", "/internal/domain-verifications", "the gateway's read of each Organization's domain state, authenticated as a workload"),
 ("GET", "/internal/previews", "the gateway's read of the running previews, authenticated as a workload"),
 ("GET", "/mcp", "the MCP door itself, which dispatches this registry"),
 ("POST", "/mcp", "the MCP door itself, which dispatches this registry"),
