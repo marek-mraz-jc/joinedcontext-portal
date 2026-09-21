@@ -64,7 +64,8 @@ fn org(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
 }
 
 /// One ServiceAccount owned by `OWNER` with one api-key credential, one SyncSource, and the bindings
-/// that tell a steward who may propose from a reader who may only read.
+/// that tell a steward who may propose from a reader who may only read. The owner reads the project
+/// like any member: an owner with no binding left in it manages none of the keys (T-2487, T-2567).
 fn mirror() -> Arc<Mirror> {
     let mirror = Arc::new(Mirror::new());
     mirror.upsert(envelope(
@@ -105,6 +106,7 @@ fn mirror() -> Arc<Mirror> {
     for (name, user, role) in [
         ("stewards", STEWARD, "account-steward"),
         ("readers", READER, "account-reader"),
+        ("owners", OWNER, "account-reader"),
     ] {
         mirror.upsert(org(
             "RoleBinding",
