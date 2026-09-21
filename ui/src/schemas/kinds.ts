@@ -2099,3 +2099,233 @@ export function registrationUiSchema(t: (key: string) => string): UiSchema {
     endpoint: { "ui:autocomplete": "off" },
   };
 }
+
+
+/** How an app is built and served (AP-01), as jc-core's `AppClass` spells it. */
+export const APP_CLASSES = ["static", "service", "fullstack"] as const;
+
+/** Who may reach a published app (AP-18), narrowest first. */
+export const APP_VISIBILITIES = ["private", "project", "organization", "public"] as const;
+
+/** Where an app's source lives: exactly one of the two (AP-02). */
+export const APP_SOURCES = ["path", "git"] as const;
+
+/** Every representation an Endpoint may serve (EP-05), in jc-core's spelling. */
+export const APP_REPRESENTATIONS = [
+  "ngsi-ld",
+  "geojson",
+  "csv",
+  "xlsx",
+  "json",
+  "zip",
+  "ogc-features",
+  "sta",
+  "mcp",
+] as const;
+
+/** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
+export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";
+
+/** An ISO 8601 duration reaching back from now, such as `P1D` or `PT6H` (AP-05). */
+export const ISO_DURATION_PATTERN = "^P(?=\\d|T\\d)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$";
+
+/**
+ * The `App` a person edits: how it is built and served, who reaches it, where its source is, the
+ * toolchain CI pins, what it reads and writes, and its CSP and limits (AP-01…AP-20).
+ *
+ * `lifecycle` is not a field: publishing is the catalogue's own action, with the confirmation
+ * that says what it does (AP-20), and an edit keeps the lifecycle the manifest has. `source` is
+ * one choice and its members, because jc-core refuses a source naming both a path and a
+ * repository; `build` is a list of pins here and a map in the manifest (AP-11).
+ */
+export function appSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "kind", "visibility", "source", "build", "dataNeeds"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("apps.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      kind: {
+        type: "string",
+        title: t("apps.field.kind"),
+        enum: [...APP_CLASSES],
+        default: "static",
+      },
+      visibility: {
+        type: "string",
+        title: t("apps.field.visibility"),
+        enum: [...APP_VISIBILITIES],
+        default: "project",
+      },
+      embeddable: {
+        type: "boolean",
+        title: t("apps.field.embeddable"),
+        default: false,
+      },
+      source: {
+        type: "object",
+        title: t("apps.field.source"),
+        required: ["from"],
+        // The members the choice needs, refused at the field when one is missing (AP-02).
+        if: { properties: { from: { const: "git" } } },
+        then: { required: ["url", "ref"] },
+        else: { required: ["path"] },
+        properties: {
+          from: {
+            type: "string",
+            title: t("apps.field.sourceFrom"),
+            enum: [...APP_SOURCES],
+            default: "path",
+          },
+          path: {
+            type: "string",
+            title: t("apps.field.sourcePath"),
+            pattern: "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          },
+          url: {
+            type: "string",
+            title: t("apps.field.gitUrl"),
+            pattern: "^https://\\S+$",
+          },
+          ref: { type: "string", title: t("apps.field.gitRef"), pattern: "^\\S+$" },
+          subdirectory: {
+            type: "string",
+            title: t("apps.field.gitPath"),
+            pattern: "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          },
+        },
+      },
+      build: {
+        type: "array",
+        title: t("apps.field.build"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["tool", "version"],
+          properties: {
+            tool: {
+              type: "string",
+              title: t("apps.field.buildTool"),
+              pattern: "^[a-z][a-z0-9_-]*$",
+            },
+            version: {
+              type: "string",
+              title: t("apps.field.buildVersion"),
+              pattern: "^\\S+$",
+            },
+          },
+        },
+      },
+      dataNeeds: {
+        type: "array",
+        title: t("apps.field.dataNeeds"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["contextSpaceRef", "types", "operations"],
+          properties: {
+            contextSpaceRef: {
+              type: "string",
+              title: t("apps.field.space"),
+              ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+            },
+            types: {
+              type: "array",
+              title: t("apps.field.types"),
+              minItems: 1,
+              items: { type: "string", pattern: ENTITY_TYPE_PATTERN },
+              uniqueItems: true,
+            },
+            attrs: {
+              type: "array",
+              title: t("apps.field.attrs"),
+              items: { type: "string", pattern: "^\\S+$" },
+              uniqueItems: true,
+            },
+            operations: {
+              type: "array",
+              title: t("apps.field.operations"),
+              minItems: 1,
+              items: {
+                type: "string",
+                enum: [...new Set([...OPERATION_CHOICES, ...granted])],
+              },
+              uniqueItems: true,
+            },
+            representations: {
+              type: "array",
+              title: t("apps.field.representations"),
+              items: { type: "string", enum: [...APP_REPRESENTATIONS] },
+              uniqueItems: true,
+            },
+            q: { type: "string", title: "q" },
+            scopeQ: { type: "string", title: "scopeQ" },
+            within: {
+              type: "string",
+              title: t("apps.field.within"),
+              pattern: "^/\\S+$",
+            },
+            window: {
+              type: "string",
+              title: t("apps.field.window"),
+              pattern: ISO_DURATION_PATTERN,
+            },
+          },
+        },
+      },
+      csp: {
+        type: "object",
+        title: t("apps.field.csp"),
+        properties: {
+          connectSrc: {
+            type: "array",
+            title: t("apps.field.connectSrc"),
+            items: { type: "string", pattern: CSP_SOURCE_PATTERN },
+            uniqueItems: true,
+          },
+          frameAncestors: {
+            type: "array",
+            title: t("apps.field.frameAncestors"),
+            items: { type: "string", pattern: CSP_SOURCE_PATTERN },
+            uniqueItems: true,
+          },
+        },
+      },
+      limits: {
+        type: "object",
+        title: t("apps.field.limits"),
+        properties: {
+          requestsPerMinute: {
+            type: "integer",
+            title: t("apps.field.requestsPerMinute"),
+            minimum: 1,
+          },
+          maxFileRows: {
+            type: "integer",
+            title: t("apps.field.maxFileRows"),
+            minimum: 1,
+          },
+        },
+      },
+    },
+  };
+}
+
+/** The operations picker for each data need, as the Policy form has it (T-2282). */
+export const appUiSchema: UiSchema = {
+  dataNeeds: {
+    items: {
+      operations: { "ui:widget": "operations" },
+      q: { "ui:autocomplete": "off" },
+      scopeQ: { "ui:autocomplete": "off" },
+    },
+  },
+};
