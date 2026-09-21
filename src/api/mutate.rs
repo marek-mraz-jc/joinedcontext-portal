@@ -631,6 +631,19 @@ async fn propose_engine(
         ))
     })?;
 
+    // 1a. Whether the caller may propose this kind here at all, before anything of the
+    //     manifest is read: a viewer's create is a 403 whatever it sends, never a validation
+    //     answer that teaches the kind's schema (T-2576, PF-50, PF-51). What the content may
+    //     be is step 4c's.
+    if !crate::permissions::for_request(state, identity, project)
+        .may(kind_info.kind, jc_core::kinds::Verb::Propose)
+    {
+        return Err(ApiError::Denied(format!(
+            "no role grants propose on {} in project {project} (PF-50)",
+            kind_info.kind
+        )));
+    }
+
     // 2. Deserialize envelope and validate apiVersion, kind and path name
     let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
         .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
