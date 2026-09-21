@@ -279,3 +279,76 @@ async fn a_portal_without_those_clients_answers_nobody_on_them_either() {
         StatusCode::UNAUTHORIZED
     );
 }
+
+async fn previews_with(
+    app: &axum::Router,
+    bearer: Option<&str>,
+    if_none_match: Option<&str>,
+) -> (StatusCode, Option<String>, Vec<u8>) {
+    let mut request = Request::builder().method("GET").uri("/internal/previews");
+    if let Some(token) = bearer {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    if let Some(tag) = if_none_match {
+        request = request.header(header::IF_NONE_MATCH, tag);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).expect("request"))
+        .await
+        .expect("response");
+    let status = response.status();
+    let etag = response
+        .headers()
+        .get(header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .expect("a body")
+        .to_vec();
+    (status, etag, body)
+}
+
+/// CC-78: the gateway asks every ten seconds, so an unchanged list answers `304` with no body to
+/// the ETag it was last given; another tag gets the list again, and a caller without the
+/// gateway's token is refused before any tag is compared.
+#[tokio::test]
+async fn an_unchanged_preview_list_answers_304_to_its_own_etag_and_only_to_the_gateway() {
+    let (app, signer, issuer) = listener(Some(GATEWAY_CLIENT)).await;
+    let gateway = token(&signer, &issuer, INTERNAL_AUDIENCE, GATEWAY_CLIENT);
+
+    let (status, etag, body) = previews_with(&app, Some(&gateway), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&body).expect("json"),
+        json!({ "items": [] })
+    );
+    let etag = etag.expect("an ETag");
+    assert!(
+        etag.starts_with('"') && etag.ends_with('"') && etag.len() == 66,
+        "{etag}"
+    );
+
+    let (status, again, body) = previews_with(&app, Some(&gateway), Some(&etag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    assert_eq!(again.as_deref(), Some(etag.as_str()));
+    assert!(body.is_empty());
+
+    let listed = format!("\"stale\", {etag}");
+    let (status, _, _) = previews_with(&app, Some(&gateway), Some(&listed)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED, "one of several tags");
+
+    for other in ["\"stale\"", "", "W/\"stale\""] {
+        let (status, _, body) = previews_with(&app, Some(&gateway), Some(other)).await;
+        assert_eq!(status, StatusCode::OK, "{other:?}");
+        assert!(!body.is_empty(), "{other:?}");
+    }
+
+    let (status, etag_seen, _) = previews_with(&app, None, Some(&etag)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(
+        etag_seen.is_none(),
+        "no tag leaks to a caller without the token"
+    );
+}
