@@ -67,7 +67,10 @@ pub fn find_literal_secret(val: &Value) -> Option<String> {
     match val {
         Value::Object(map) => {
             for (k, v) in map {
-                if SECRET_KEYS.contains(&k.as_str()) && v.is_string() {
+                // Any scalar: YAML reads `password: 123456` unquoted as a number, and it is still a
+                // secret typed into a manifest (T-2540). `null` is an absent value.
+                let scalar = v.is_string() || v.is_number() || v.is_boolean();
+                if SECRET_KEYS.contains(&k.as_str()) && scalar {
                     return Some(k.clone());
                 }
                 if let Some(found) = find_literal_secret(v) {
@@ -1452,6 +1455,19 @@ mod tests {
         assert_eq!(
             find_literal_secret(&json!({ "apiKey": "12345" })),
             Some("apiKey".into())
+        );
+        // T-2540, MF-24: a number or a boolean under a credential name is a literal too.
+        assert_eq!(
+            find_literal_secret(&json!({ "spec": { "password": 123456 } })),
+            Some("password".into())
+        );
+        assert_eq!(
+            find_literal_secret(&json!({ "spec": { "token": true } })),
+            Some("token".into())
+        );
+        assert_eq!(
+            find_literal_secret(&json!({ "spec": { "password": null } })),
+            None
         );
 
         assert_eq!(
