@@ -1166,7 +1166,18 @@ pub async fn approve_change_for(
                     &data.kind,
                     jc_core::kinds::Verb::Delete,
                     base.as_ref(),
-                )?
+                )?;
+                // PF-03: what was fine when proposed may be the last administrator by now.
+                if let Some(base) = &data.base_envelope {
+                    crate::permissions::keeps_an_administrator(
+                        &state.mirror,
+                        crate::permissions::AccessChange::Remove {
+                            kind: &data.kind,
+                            namespace: base.metadata.namespace.as_deref().unwrap_or(project),
+                            name: &base.metadata.name,
+                        },
+                    )?;
+                }
             }
             (_, Some(head)) => {
                 let manifest =
