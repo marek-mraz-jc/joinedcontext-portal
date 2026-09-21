@@ -7,6 +7,7 @@
  * approval, excluding the wait for the platform to merge and reconcile.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, listedNames, proposeDelete, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -39,6 +40,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/endpoints?lang=en`);
   let personSeconds = 0;
 
+  const clock = journeyClock("Share");
   let start = Date.now();
   await page.getByRole("button", { name: "New endpoint" }).click();
   const dialog = page.getByTestId("form-page");
@@ -60,6 +62,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   start = Date.now();
   await approve(approver.page, PROJECT, change, ENDPOINT);
   personSeconds += (Date.now() - start) / 1000;
+  clock.person(personSeconds * 1000);
   console.log(`person-seconds: ${personSeconds.toFixed(1)}`);
   expect(personSeconds).toBeLessThan(60);
 
@@ -69,6 +72,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
     await page.goto(`/projects/${PROJECT}/endpoints?lang=en`, { waitUntil: "load" });
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
+  clock.live();
   const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");
   expect(href).toContain("/api/endpoint/");
   const link = href ?? "";
