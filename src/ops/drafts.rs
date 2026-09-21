@@ -18,8 +18,20 @@ use sqlx::Row;
 use tokio::sync::{broadcast, RwLock};
 use utoipa::ToSchema;
 
+use super::bounds;
+use super::parse_input;
+use super::verdict_schema;
+use super::workspaces;
+use super::Caller;
+use super::OpError;
+use super::Operation;
+use super::OperationAnnotations;
+use crate::change::Lane;
+use crate::error::ApiError;
 use crate::ops::verdict::Verdict;
 use crate::state::AppState;
+use jc_core::kinds::Verb;
+use serde_json::json;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -124,23 +136,85 @@ pub enum DraftError {
     },
 }
 
-#[derive(Clone, Default)]
+/// The PostgreSQL channel every replica's draft events cross (OPS-51, Architecture/09 §10).
+pub const DRAFT_EVENTS_CHANNEL: &str = "jc_draft_events";
+
+/// Who is typing in which draft, fanned out per project: to this process's streams, and, when the
+/// drafts live in PostgreSQL, to every other replica through [`DRAFT_EVENTS_CHANNEL`].
+#[derive(Clone)]
 pub struct DraftHub {
     channels: Arc<RwLock<HashMap<String, broadcast::Sender<DraftEvent>>>>,
+    /// This replica's name on the channel, so its own notifications are not delivered twice.
+    origin: Arc<str>,
+    /// Set once by [`DraftHub::connect`]; shared by every clone of the hub.
+    database: Arc<std::sync::OnceLock<sqlx::PgPool>>,
+}
+
+/// One event on the channel: the event's key and metadata with the space the streams filter on,
+/// and the replica that sent it. Never the manifest.
+#[derive(Serialize, Deserialize)]
+struct Notice {
+    origin: String,
+    event: DraftEvent,
+    space: Option<String>,
+}
+
+impl Default for DraftHub {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DraftHub {
     pub fn new() -> Self {
-        Self::default()
+        use argon2::password_hash::rand_core::{OsRng, RngCore};
+        let mut bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut bytes);
+        let origin: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        Self {
+            channels: Arc::default(),
+            origin: Arc::from(origin),
+            database: Arc::default(),
+        }
+    }
+
+    /// Joins the replicas sharing this database: every event is also a `NOTIFY`, and a listener
+    /// forwards the other replicas' events to this process's streams. A second call is a no-op.
+    pub fn connect(&self, pool: sqlx::PgPool) {
+        if self.database.set(pool.clone()).is_err() {
+            return;
+        }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            tracing::warn!("no async runtime: draft events stay inside this process");
+            return;
+        };
+        let hub = self.clone();
+        runtime.spawn(async move { hub.listen(pool).await });
     }
 
     pub async fn broadcast(&self, event: &DraftEvent) {
-        let mut map = self.channels.write().await;
-        let sender = map.entry(event.project.clone()).or_insert_with(|| {
-            let (tx, _) = broadcast::channel(128);
-            tx
-        });
-        let _ = sender.send(event.clone());
+        self.deliver(event.clone()).await;
+        let Some(pool) = self.database.get() else {
+            return;
+        };
+        let notice = Notice {
+            origin: self.origin.to_string(),
+            event: event.clone(),
+            space: event.space.clone(),
+        };
+        let Ok(payload) = serde_json::to_string(&notice) else {
+            return;
+        };
+        // This process's streams have it already; a failed NOTIFY only costs the other replicas
+        // this one event, and the reader refetches the draft on its next open anyway.
+        if let Err(error) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind(DRAFT_EVENTS_CHANNEL)
+            .bind(payload)
+            .execute(pool)
+            .await
+        {
+            tracing::warn!(%error, project = %event.project, "a draft event did not reach the other replicas");
+        }
     }
 
     pub async fn subscribe(&self, project: &str) -> broadcast::Receiver<DraftEvent> {
@@ -150,6 +224,54 @@ impl DraftHub {
             tx
         });
         sender.subscribe()
+    }
+
+    async fn deliver(&self, event: DraftEvent) {
+        let mut map = self.channels.write().await;
+        let sender = map.entry(event.project.clone()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(128);
+            tx
+        });
+        let _ = sender.send(event);
+    }
+
+    /// Another replica's notice, as this process's event; `None` for this replica's own and for
+    /// anything that is not a notice.
+    fn received(&self, payload: &str) -> Option<DraftEvent> {
+        let notice: Notice = serde_json::from_str(payload).ok()?;
+        if *notice.origin == *self.origin {
+            return None;
+        }
+        let mut event = notice.event;
+        event.space = notice.space;
+        Some(event)
+    }
+
+    /// Listens for as long as the process runs, reconnecting after a lost connection. Events sent
+    /// while it reconnects are missed, as they would be by a stream that reconnects.
+    async fn listen(self, pool: sqlx::PgPool) {
+        loop {
+            match sqlx::postgres::PgListener::connect_with(&pool).await {
+                Ok(mut listener) => match listener.listen(DRAFT_EVENTS_CHANNEL).await {
+                    Ok(()) => loop {
+                        match listener.recv().await {
+                            Ok(notification) => {
+                                if let Some(event) = self.received(notification.payload()) {
+                                    self.deliver(event).await;
+                                }
+                            }
+                            Err(error) => {
+                                tracing::warn!(%error, "the draft event listener lost its connection");
+                                break;
+                            }
+                        }
+                    },
+                    Err(error) => tracing::warn!(%error, "could not listen for draft events"),
+                },
+                Err(error) => tracing::warn!(%error, "could not connect the draft event listener"),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
     }
 }
 
@@ -667,6 +789,352 @@ pub(crate) fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
         .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
+// ---------------------------------------------------------------------------------------------
+// The registry's operations on drafts (AG-61).
+// ---------------------------------------------------------------------------------------------
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DraftRef {
+    pub kind: String,
+    pub name: String,
+}
+
+/// A draft of a workspace is written and dropped by the workspace's owner alone, as every other
+/// write into it is (API/01 §22, CC-76, T-2482): the workspace name is not a key anybody may
+/// pick. `None` is the project's own draft, which the kind's `propose` already decides.
+async fn draft_workspace_owned(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+    action: &str,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::owned(state, &caller.identity, project, name, action).await?;
+    }
+    Ok(())
+}
+
+/// A draft of a workspace is read where the workspace is (PF-59, T-2482): a copy the caller may
+/// not see, or a name that is no live workspace, answers the workspace's own 404.
+async fn draft_workspace_visible(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::visible(state, &caller.identity, project, name).await?;
+    }
+    Ok(())
+}
+
+pub(crate) fn draft_error(err: DraftError) -> OpError {
+    match err {
+        DraftError::Conflict { current } => OpError::Conflict(json!({
+            "type": "https://joinedcontext.com/problems/draft-conflict",
+            "error": "draft_conflict",
+            "current": current,
+        })),
+        DraftError::Secret(path) => OpError::Api(ApiError::BadRequest(format!(
+            "literal secret in field '{path}' is forbidden; use secretRef instead (MF-24)"
+        ))),
+        DraftError::NotFound {
+            project,
+            kind,
+            name,
+        } => OpError::Api(ApiError::NotFound(format!(
+            "draft '{kind}/{name}' not found in project '{project}'"
+        ))),
+        DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DraftPutInput {
+    pub kind: String,
+    pub name: String,
+    pub manifest: Value,
+    #[serde(default)]
+    pub expected_version: Option<i64>,
+    /// The copy this draft belongs to; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftGetInput {
+    pub kind: String,
+    pub name: String,
+    /// The copy to read it in; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftDropInput {
+    pub kind: String,
+    pub name: String,
+    /// The copy to drop it in; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+/// Which drafts to list: those of one copy, or the project's own (CC-76, T-2267).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftListInput {
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+fn draft_put_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "manifest": manifest("The whole manifest to save as the draft"),
+            "expectedVersion": {
+                "type": "integer",
+                "description": "The version last read; a save over a newer one is refused as a conflict",
+                "minimum": 0
+            },
+            "workspace": workspace()
+        },
+        "required": ["kind", "name", "manifest"],
+        "additionalProperties": false
+    })
+}
+
+fn draft_get_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "workspace": workspace()
+        },
+        "required": ["kind", "name"],
+        "additionalProperties": false
+    })
+}
+
+fn draft_list_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "workspace": bounds::workspace()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// One draft as the operations answer it (T-0838: no `$ref` a client cannot resolve).
+fn draft_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "project": { "type": "string" },
+            "kind": { "type": "string" },
+            "name": { "type": "string" },
+            "manifest": { "type": "object" },
+            "verdict": verdict_schema(),
+            "touchedBy": { "type": "string" },
+            "touchedKind": { "type": "string", "description": "person, assistant, mcp, api-key or agent" },
+            "version": { "type": "integer" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["project", "kind", "name", "manifest", "version"]
+    })
+}
+
+fn draft_list_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "description": "A line per draft; the manifest is read with jc_draft_get (T-2248)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": { "type": "string" },
+                        "name": { "type": "string" },
+                        "workspace": { "type": "string" },
+                        "touchedBy": { "type": "string" },
+                        "touchedKind": { "type": "string" },
+                        "version": { "type": "integer" },
+                        "updatedAt": { "type": "string", "format": "date-time" },
+                        "verdict": {
+                            "type": "object",
+                            "properties": {
+                                "ok": { "type": "boolean" },
+                                "findings": { "type": "integer" },
+                                "checkedAt": { "type": "string", "format": "date-time" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn draft_drop_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "dropped": { "type": "boolean" }
+        }
+    })
+}
+
+/// This module's operations in the registry (`super::init_registry`).
+pub fn operations() -> Vec<Operation> {
+    vec![        Operation {
+            name: "jc_draft_put",
+            title: "Put Draft",
+            description: "Writes the shared draft of a manifest every window, assistant run and MCP client sees (AG-61)",
+            input: draft_put_input_schema,
+            output: draft_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftPutInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let input: DraftPutInput = parse_input(val)?;
+                    crate::permissions::for_request(state, &caller.identity, project)
+                        .check(&input.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
+                    let draft = draft_store(state)
+                        .put_in(
+                            input.workspace.as_deref(),
+                            project,
+                            &input.kind,
+                            &input.name,
+                            input.manifest,
+                            input.expected_version,
+                            &caller.identity.username,
+                            caller.via.touched_kind(),
+                        )
+                        .await
+                        .map_err(draft_error)?;
+                    Ok(serde_json::to_value(draft)?)
+                })
+            },
+        },        Operation {
+            name: "jc_draft_get",
+            title: "Get Draft",
+            description: "Reads one shared draft with its verdict (AG-61)",
+            input: draft_get_input_schema,
+            output: draft_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftGetInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let d: DraftGetInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, d.workspace.as_deref()).await?;
+                    let effective = crate::permissions::for_request(state, &caller.identity, project);
+                    let draft = draft_store(state)
+                        .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
+                        .await
+                        .map_err(draft_error)?
+                        // Not readable is not there (PF-59, R20, T-1455).
+                        .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+                        .ok_or_else(|| {
+                            ApiError::NotFound(format!(
+                                "draft '{}/{}' not found in project '{project}'",
+                                d.kind, d.name
+                            ))
+                        })?;
+                    Ok(serde_json::to_value(draft)?)
+                })
+            },
+        },        Operation {
+            name: "jc_draft_list",
+            title: "List Drafts",
+            description: "Lists the shared drafts of a project, or of one copy of it (AG-61, CC-76)",
+            input: draft_list_input_schema,
+            output: draft_list_output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftListInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let asked: DraftListInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, asked.workspace.as_deref()).await?;
+                    // A draft is readable exactly where its manifest would be (PF-59, T-1455).
+                    let effective = crate::permissions::for_request(state, &caller.identity, project);
+                    // A line per draft, never the manifest and never the verdict's trace
+                    // (T-2248): the manifest is read one at a time with jc_draft_get.
+                    let items: Vec<crate::ops::drafts::DraftLine> = draft_store(state)
+                        .list_in(asked.workspace.as_deref(), project)
+                        .await
+                        .map_err(draft_error)?
+                        .iter()
+                        .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+                        .map(crate::ops::drafts::DraftLine::from)
+                        .collect();
+                    Ok(json!({ "items": items }))
+                })
+            },
+        },        Operation {
+            name: "jc_draft_drop",
+            title: "Drop Draft",
+            description: "Discards a shared draft (AG-61)",
+            input: draft_get_input_schema,
+            output: draft_drop_output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftDropInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let d: DraftDropInput = parse_input(val)?;
+                    crate::permissions::for_request(state, &caller.identity, project)
+                        .check(&d.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
+                    let dropped = draft_store(state)
+                        .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
+                        .await
+                        .map_err(draft_error)?;
+                    Ok(json!({ "dropped": dropped }))
+                })
+            },
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -806,5 +1274,50 @@ mod tests {
         assert_eq!(ev.name, "ep-1");
         assert_eq!(ev.event, "put");
         assert_eq!(ev.version, 1);
+    }
+
+    /// OPS-51: another replica's notice becomes this process's event, space included, so the
+    /// stream still filters it by the reader's binding; this replica's own notice and anything
+    /// that is not a notice are dropped.
+    #[test]
+    fn a_notice_from_another_replica_is_delivered_and_its_own_is_not() {
+        let here = DraftHub::new();
+        let there = DraftHub::new();
+        assert_ne!(here.origin, there.origin, "two replicas never share a name");
+
+        let event = DraftEvent {
+            project: "helsinki".into(),
+            kind: "Endpoint".into(),
+            name: "ep-1".into(),
+            version: 3,
+            touched_by: "steward".into(),
+            touched_kind: "person".into(),
+            event: "put".into(),
+            updated_at: chrono::Utc::now(),
+            space: Some("mobility".into()),
+        };
+        let notice = |origin: &str| {
+            serde_json::to_string(&Notice {
+                origin: origin.to_owned(),
+                event: event.clone(),
+                space: event.space.clone(),
+            })
+            .expect("a notice")
+        };
+
+        let received = here
+            .received(&notice(&there.origin))
+            .expect("another replica's event");
+        assert_eq!(received.name, "ep-1");
+        assert_eq!(received.version, 3);
+        assert_eq!(received.space.as_deref(), Some("mobility"));
+        assert!(
+            here.received(&notice(&here.origin)).is_none(),
+            "its own is already delivered"
+        );
+        assert!(here.received("not json").is_none());
+        assert!(here.received(r#"{"origin":"x"}"#).is_none());
+        // The manifest never rides on the channel.
+        assert!(!notice(&there.origin).contains("manifest"));
     }
 }
