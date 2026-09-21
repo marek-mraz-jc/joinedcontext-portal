@@ -17,6 +17,7 @@ use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::ops::drafts::{DraftError, DraftHub, DraftStore};
 use joinedcontext_portal::ops::verdict::{digest_of, Finding, Level, Verdict};
+use joinedcontext_portal::ops::workspaces::{Opening, Scope};
 use joinedcontext_portal::resource::API_VERSION;
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
@@ -866,6 +867,20 @@ async fn draft_without_workspace_still_works_and_serializes_without_one() {
 async fn a_draft_of_a_copy_lives_in_that_copy() {
     let config = Config::for_tests();
     let state = AppState::new(config.clone(), None).with_mirror(Arc::new(Mirror::new()));
+    // The copy is the steward's own: only its owner writes into it (API/01 §22, T-2482).
+    state
+        .workspaces
+        .create(Opening {
+            name: "air-v2",
+            title: None,
+            project: "ovzdusie",
+            owner: "steward.user",
+            base_revision: "base1",
+            scope: Scope::Project {},
+            ttl_hours: 24,
+        })
+        .await
+        .expect("opened");
     let app = server::app(state);
     let cookie = session_cookie(
         &config,
