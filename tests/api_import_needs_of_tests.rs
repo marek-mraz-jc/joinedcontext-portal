@@ -30,21 +30,19 @@ fn text(needs: &[Need]) -> String {
     serde_json::to_string(needs).expect("needs serialise")
 }
 
-/// T-2519, CC-84, CC-06: a DataSource's feed credential is one need that names the field; the
-/// secret's name and key stay out of it. This is the top-level `spec.authorization` the code reads
-/// today; the typed blocks (`spec.http.authorization.headerRef`, `spec.mqtt.passwordRef`,
-/// `spec.tls.caCertRef`) report nothing, which is T-2564.
+/// T-2519, T-2564, CC-84, CC-06: a DataSource's feed credential is one need that names the
+/// field where the schema puts it; the secret's name and key stay out of it.
 #[test]
 fn a_datasource_with_a_present_authorization_reports_one_need_naming_the_field_not_the_value() {
     let source = manifest(
         "DataSource",
         "feed",
-        json!({ "authorization": { "headerRef": { "name": "feed-token-7f3a", "key": "token" } } }),
+        json!({ "http": { "url": "https://x", "authorization": { "headerRef": { "name": "feed-token-7f3a", "key": "token" } } } }),
     );
     let needs = needs_of(&[source], PROJECT);
     assert_eq!(
         listed(&needs),
-        ["credential DataSource/feed spec.authorization"]
+        ["secret DataSource/feed spec.http.authorization.headerRef"]
     );
     assert!(
         !text(&needs).contains("feed-token-7f3a"),
