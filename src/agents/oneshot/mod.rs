@@ -587,6 +587,9 @@ struct Check<'a> {
     samples: &'a Value,
     conversation: &'a [(String, String)],
     instruction: &'a str,
+    /// The version on screen came from an instruction the editing agent handled: its repair is
+    /// the editing agent's too, never a pass over the whole project (SDK-20, SDK-28).
+    edited: bool,
 }
 
 /// Verification passes after one instruction (SDK-28).
