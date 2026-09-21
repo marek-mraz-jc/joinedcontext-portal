@@ -61,6 +61,7 @@ fn seed_demo_mirror() -> Arc<Mirror> {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            domain_verification: None,
         }),
     });
 
@@ -86,6 +87,7 @@ fn seed_demo_mirror() -> Arc<Mirror> {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            domain_verification: None,
         }),
     });
 

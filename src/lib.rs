@@ -13,6 +13,7 @@ pub mod change;
 pub mod config;
 pub mod dashboards;
 pub mod db;
+pub mod domain_verification;
 pub mod error;
 pub mod git;
 pub mod mcp;

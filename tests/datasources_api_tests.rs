@@ -88,6 +88,7 @@ fn seeded_mirror() -> Arc<Mirror> {
             source_url: None,
             conditions: Vec::new(),
             build: None,
+            domain_verification: None,
         }),
     });
     // Another project's source, to prove the list is scoped and not merely filtered by kind.
