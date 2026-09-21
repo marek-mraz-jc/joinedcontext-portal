@@ -33,6 +33,23 @@ COPY sdk/ ./
 RUN pnpm build && test -s dist/kit.js && test -s dist/kit.css && test -s dist/kit-worker.js \
     && test -s dist/runtime/runtime.json && test -s dist/functions-server.js
 
+# The static apps the Portal serves under /apps/{name}/ (AP-14): each built bundle with the
+# `integrity.json` the host checks every file against before it serves it (AP-12). An app without
+# that map serves nothing, so the stage fails rather than ship one without it (T-2457).
+FROM node:24-slim AS apps
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+WORKDIR /work
+COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
+COPY apps/bbsk-ukazovatele/ui/package.json apps/bbsk-ukazovatele/ui/pnpm-lock.yaml ./apps/bbsk-ukazovatele/ui/
+RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
+    && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile
+COPY sdk/ ./sdk/
+COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
+COPY scripts/app-integrity.mjs ./scripts/
+RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
+    && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-ukazovatele
+
 FROM rust:1.97-slim-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock build.rs ./
@@ -69,7 +86,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=build /joinedcontext-portal /usr/local/bin/joinedcontext-portal
+COPY --from=apps /srv/apps /srv/apps
 USER nonroot:nonroot
 EXPOSE 8080
 ENV JC_PORTAL_BIND=0.0.0.0:8080
+# The bundles above; a deployment that mounts its own artifact root sets it elsewhere.
+ENV JC_PORTAL_APPS_DIR=/srv/apps
 ENTRYPOINT ["/usr/local/bin/joinedcontext-portal"]

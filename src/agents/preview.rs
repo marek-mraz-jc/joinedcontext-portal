@@ -163,7 +163,7 @@ fn data_url(code: &str) -> String {
 }
 
 /// JSON inside a `<script>` element: `<` written as `\u003c`, so nothing in it can close the element.
-fn script_json(value: &serde_json::Value) -> String {
+pub(crate) fn script_json(value: &serde_json::Value) -> String {
     serde_json::to_string(value)
         .unwrap_or_default()
         .replace('<', "\\u003c")

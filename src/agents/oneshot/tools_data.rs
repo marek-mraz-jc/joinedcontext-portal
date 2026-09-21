@@ -167,10 +167,16 @@ impl Driver {
             .await?;
             return Ok(format!("error: {reason}"));
         }
-        let answer = self
-            .call_endpoint(chosen, index.unwrap_or(0), &data_query::rpc(call))
-            .await;
-        let text = self.redacted(&data_query::result_text(&answer));
+        let answer = data_query::compact_geometry(
+            &self
+                .call_endpoint(chosen, index.unwrap_or(0), &data_query::rpc(call))
+                .await,
+        );
+        let text = self.redacted(&format!(
+            "{}{}",
+            data_query::result_text(&answer),
+            data_query::reading_notes(call, &answer)
+        ));
         let failed = answer.get("error").is_some()
             || answer.pointer("/result/isError").and_then(Value::as_bool) == Some(true);
         let mut payload = json!({
