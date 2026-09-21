@@ -3327,3 +3327,39 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
     assert_eq!(tools[2].1, "failed");
     assert!(tools[2].2.contains("no function 'nope'"), "{}", tools[2].2);
 }
+
+/// T-2546, T-0703, UI-45: a repair that fails again is said in the kit's words; the JSON
+/// parser's own sentence (`unknown field`, `expected one of`, a line and column) stays in the log.
+#[tokio::test]
+async fn errors_from_a_failed_repair_are_shown_in_the_kits_own_words_never_the_serde_error() {
+    let unknown = VALID_SPEC.replacen('{', "{\n  \"lane\": \"green\",", 1);
+    let (app, cookie, _proxy) = portal(
+        "anthropic",
+        &[
+            answer("First.", &[("spec.json", "", &unknown)]),
+            answer("Second.", &[("spec.json", "", &unknown)]),
+        ],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("a run id")
+        .to_owned();
+    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
+    for machine in [
+        "unknown field",
+        "expected one of",
+        "line ",
+        "column ",
+        "spec.json:",
+    ] {
+        assert!(
+            !said.contains(machine),
+            "the person read {machine:?}: {said}"
+        );
+    }
+    assert!(
+        said.contains("not a dashboard specification"),
+        "the person reads what happened: {said}"
+    );
+}
