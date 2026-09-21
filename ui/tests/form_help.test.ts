@@ -69,6 +69,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   Group: [kinds.groupSchema(t)],
   Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
   ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
+  App: [kinds.appSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */

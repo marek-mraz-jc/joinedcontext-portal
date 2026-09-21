@@ -1474,6 +1474,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Názov",
+      "kind": "Druh",
+      "visibility": "Viditeľnosť",
+      "embeddable": "Portál ju smie vložiť do rámca",
+      "source": "Zdroj",
+      "sourceFrom": "Druh zdroja",
+      "sourcePath": "Priečinok",
+      "gitUrl": "Adresa repozitára",
+      "gitRef": "Vetva, značka alebo commit",
+      "gitPath": "Priečinok v repozitári",
+      "build": "Nástroje",
+      "buildTool": "Nástroj",
+      "buildVersion": "Verzia",
+      "dataNeeds": "Potrebné údaje",
+      "space": "Kontextový priestor",
+      "types": "Typy entít",
+      "attrs": "Atribúty",
+      "operations": "Operácie",
+      "representations": "Reprezentácie",
+      "within": "V rozsahu",
+      "window": "Časové okno",
+      "csp": "Content Security Policy",
+      "connectSrc": "Smie volať",
+      "frameAncestors": "Smie ju vložiť",
+      "limits": "Limity",
+      "requestsPerMinute": "Požiadavky za minútu",
+      "maxFileRows": "Riadky na stiahnutie súboru"
     }
   },
   "appLifecycle": {

@@ -1474,6 +1474,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Name",
+      "kind": "Kind",
+      "visibility": "Visibility",
+      "embeddable": "May be framed by the Portal",
+      "source": "Source",
+      "sourceFrom": "Source kind",
+      "sourcePath": "Folder",
+      "gitUrl": "Repository address",
+      "gitRef": "Branch, tag or commit",
+      "gitPath": "Folder in the repository",
+      "build": "Toolchain",
+      "buildTool": "Tool",
+      "buildVersion": "Version",
+      "dataNeeds": "Data it needs",
+      "space": "Context Space",
+      "types": "Entity types",
+      "attrs": "Attributes",
+      "operations": "Operations",
+      "representations": "Representations",
+      "within": "Inside scope",
+      "window": "Time window",
+      "csp": "Content Security Policy",
+      "connectSrc": "May call",
+      "frameAncestors": "May be framed by",
+      "limits": "Limits",
+      "requestsPerMinute": "Requests per minute",
+      "maxFileRows": "Rows per file download"
     }
   },
   "appLifecycle": {

@@ -9,6 +9,9 @@ import type { Change, Manifest } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceRowActions } from "../../components/ResourceRowActions";
+import { appSchema, appUiSchema } from "../../schemas/kinds";
+import { fromAppEnvelope, toAppEnvelope } from "./appForm";
+import type { AppForm } from "./appForm";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Icon } from "../../components/ui/icons";
@@ -366,6 +369,16 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
                 <ResourceRowActions
                   project={project}
                   target={{ project, kind: "App", plural: "apps", name: app.metadata.name, label: title }}
+                  // The kind's own form, not the manifest as text (T-2343). Publishing stays the
+                  // button above, with its confirmation: the form keeps the stored lifecycle.
+                  form={{
+                    schema: appSchema(t),
+                    uiSchema: appUiSchema,
+                    fromManifest: (manifest) =>
+                      fromAppEnvelope(manifest) as unknown as Record<string, unknown>,
+                    toManifest: (edited) =>
+                      toAppEnvelope(project, edited as unknown as AppForm, app),
+                  }}
                 />
               </div>
             </li>

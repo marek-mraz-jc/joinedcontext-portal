@@ -1474,6 +1474,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Name",
+      "kind": "Art",
+      "visibility": "Sichtbarkeit",
+      "embeddable": "Darf vom Portal eingebettet werden",
+      "source": "Quelle",
+      "sourceFrom": "Art der Quelle",
+      "sourcePath": "Ordner",
+      "gitUrl": "Repository-Adresse",
+      "gitRef": "Branch, Tag oder Commit",
+      "gitPath": "Ordner im Repository",
+      "build": "Werkzeuge",
+      "buildTool": "Werkzeug",
+      "buildVersion": "Version",
+      "dataNeeds": "Benötigte Daten",
+      "space": "Kontextraum",
+      "types": "Entitätstypen",
+      "attrs": "Attribute",
+      "operations": "Operationen",
+      "representations": "Darstellungen",
+      "within": "Innerhalb des Scopes",
+      "window": "Zeitfenster",
+      "csp": "Content Security Policy",
+      "connectSrc": "Darf aufrufen",
+      "frameAncestors": "Darf eingebettet werden von",
+      "limits": "Grenzen",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "maxFileRows": "Zeilen pro Datei-Download"
     }
   },
   "appLifecycle": {
