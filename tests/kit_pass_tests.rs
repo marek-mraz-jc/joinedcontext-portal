@@ -1903,10 +1903,54 @@ fn template_file(path: &str) -> String {
 }
 
 /// A forge that takes one commit of many files (SDK-17).
+/// The application's own repository (AP-75), already created: the run's branch is cut from
+/// `main` on the first pass, which then reads its tree once.
+const APP_REPO: &str = "/api/v1/repos/org/helsinki_city-bikes-overview";
+
 async fn code_forge() -> MockServer {
     let forge = forge().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/repos/org/manifests/contents"))
+        .respond_with(
+            ResponseTemplate::new(201)
+                .set_body_json(json!({ "files": [], "commit": { "sha": "c0de" } })),
+        )
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(APP_REPO))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{APP_REPO}/branches/")))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{APP_REPO}/branches/")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head" } })),
+        )
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{APP_REPO}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{APP_REPO}/git/trees/head")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "truncated": false,
+            "tree": [{ "path": "README.md", "type": "blob", "sha": "r" }]
+        })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{APP_REPO}/contents")))
         .respond_with(
             ResponseTemplate::new(201)
                 .set_body_json(json!({ "files": [], "commit": { "sha": "c0de" } })),
@@ -2355,15 +2399,14 @@ async fn an_application_is_written_in_one_call_and_the_template_never_reaches_th
         "{tool:?}"
     );
 
-    // One commit on the run branch with the whole project under the application's folder.
+    // One commit on the run branch with the whole project at the root of the application's
+    // own repository, and its README (AP-75, AP-76).
     let commits: Vec<Value> = forge
         .received_requests()
         .await
         .unwrap_or_default()
         .into_iter()
-        .filter(|r| {
-            r.method.as_str() == "POST" && r.url.path() == "/api/v1/repos/org/manifests/contents"
-        })
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == format!("{APP_REPO}/contents"))
         .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
         .collect();
     assert_eq!(commits.len(), 1, "{commits:?}");
@@ -2374,9 +2417,10 @@ async fn an_application_is_written_in_one_call_and_the_template_never_reaches_th
         .filter_map(|f| f["path"].as_str())
         .collect();
     for path in [
-        "projects/helsinki/apps/city-bikes-overview/src/pages/Stations.tsx",
-        "projects/helsinki/apps/city-bikes-overview/src/jc-types.ts",
-        "projects/helsinki/apps/city-bikes-overview/package.json",
+        "src/pages/Stations.tsx",
+        "src/jc-types.ts",
+        "package.json",
+        "README.md",
     ] {
         assert!(paths.contains(&path), "{path} not in {paths:?}");
     }

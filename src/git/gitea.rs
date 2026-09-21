@@ -567,6 +567,60 @@ impl GiteaClient {
         }
     }
 
+    /// The same forge, organization and token, another repository of the organization: an
+    /// application's own repository beside the configuration one (AP-75).
+    pub fn for_repository(&self, repo: impl Into<String>) -> Self {
+        Self {
+            repo: repo.into(),
+            ..self.clone()
+        }
+    }
+
+    /// The `https` address a person clones the repository from: the forge's public URL, never
+    /// the cluster-internal one (AP-77, AP-78).
+    pub fn clone_url(&self) -> String {
+        format!(
+            "{}/{}/{}.git",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        )
+    }
+
+    /// Creates the repository in the organization unless it is already there, private and
+    /// initialised on `main` so a branch can be cut from it; answers whether it created one.
+    ///
+    /// An existing repository is never recreated or overwritten, and a creation that lost a race
+    /// with another (the forge's 409) is the same answer as finding it (AP-75).
+    pub async fn ensure_repository(&self, description: &str) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let full = format!(
+            "{}/api/v1/orgs/{}/repos",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "name": self.repo,
+            "description": description,
+            "private": true,
+            "auto_init": true,
+            "default_branch": "main",
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
     /// `GET ""` — returns the repository's default branch.
     pub async fn default_branch(&self) -> Result<String, GitError> {
         let url = self.repo_url("")?;

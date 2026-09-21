@@ -735,6 +735,11 @@ impl Driver {
     /// What changed since `committed`, as one commit on the run's branch (SDK-17, AP-24). A
     /// Portal without a forge keeps the run in its store alone; a forge that refuses is said in
     /// the chat and the version stands.
+    ///
+    /// A static application commits to its own repository (AP-75, AP-76): the first commit of a
+    /// run creates the repository when it is not there yet, and makes the run's branch hold
+    /// exactly the run's files and the README, so a branch cut from an earlier version keeps
+    /// nothing the run no longer has.
     pub(super) async fn commit_files(
         &self,
         files: &BTreeMap<String, String>,
@@ -747,7 +752,12 @@ impl Driver {
         if self.branch.is_empty() {
             return Ok(());
         }
-        let uploads: Vec<(String, String)> = files
+        let repo = match &self.repository {
+            Some(name) => gitea.for_repository(name.clone()),
+            None => (*gitea).clone(),
+        };
+        let first = committed.is_empty();
+        let mut uploads: Vec<(String, String)> = files
             .iter()
             .filter(|(path, content)| committed.get(*path) != Some(*content))
             .map(|(path, content)| (format!("{}{path}", self.path_prefix), content.clone()))
@@ -760,29 +770,63 @@ impl Driver {
         if uploads.is_empty() && gone.is_empty() {
             return Ok(());
         }
+        let own = self.repository.is_some();
+        let readme = if own && first && !files.contains_key(repository::README) {
+            let title = match self.state.agents.get_run(&self.run_id).await {
+                Ok(Some(run)) => run.title,
+                _ => None,
+            };
+            Some(repository::readme(
+                &self.project,
+                &self.app_name,
+                title.as_deref(),
+                &repo.clone_url(),
+            ))
+        } else {
+            None
+        };
         let outcome: Result<String, GitError> = async {
-            if gitea.branch_head(&self.branch).await.is_err() {
-                let base = gitea.default_branch().await?;
-                gitea.create_branch(&self.branch, &base).await?;
+            if own {
+                repo.ensure_repository(&format!(
+                    "Application {} of project {}, generated in the joinedcontext Portal",
+                    self.app_name, self.project
+                ))
+                .await?;
+            }
+            if repo.branch_head(&self.branch).await.is_err() {
+                let base = repo.default_branch().await?;
+                repo.create_branch(&self.branch, &base).await?;
             }
             let mut deletes = Vec::new();
-            for path in gone {
-                if let Some(file) = gitea.get_file(&path, &self.branch).await? {
-                    deletes.push((path, file.sha));
+            if own && first {
+                for (path, sha) in repo.list_tree_blobs(&self.branch).await? {
+                    let kept = files.contains_key(&path)
+                        || (readme.is_some() && path == repository::README);
+                    if !kept {
+                        deletes.push((path, sha));
+                    }
+                }
+            } else {
+                for path in gone {
+                    if let Some(file) = repo.get_file(&path, &self.branch).await? {
+                        deletes.push((path, file.sha));
+                    }
                 }
             }
-            gitea
-                .change_files(
-                    &self.branch,
-                    &commit_message(message),
-                    Author {
-                        name: &self.created_by,
-                        email: "agent@joinedcontext.local",
-                    },
-                    &uploads,
-                    &deletes,
-                )
-                .await
+            if let Some(readme) = readme {
+                uploads.push((repository::README.to_owned(), readme));
+            }
+            repo.change_files(
+                &self.branch,
+                &commit_message(message),
+                Author {
+                    name: &self.created_by,
+                    email: "agent@joinedcontext.local",
+                },
+                &uploads,
+                &deletes,
+            )
+            .await
         }
         .await;
         match outcome {
@@ -814,5 +858,251 @@ impl Driver {
                 crate::telemetry::record_run_timing("first_version", &r.profile, ms);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod repository_tests {
+    use std::sync::Arc;
+
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+    use crate::git::GiteaClient;
+
+    const REPO: &str = "/api/v1/repos/joinedcontext/helsinki_city-bikes";
+    const BRANCH: &str = "agent/app-city-bikes/run-1";
+
+    fn driver(server: &MockServer) -> (AppState, Driver) {
+        let gitea = GiteaClient::new(
+            server.uri().parse().expect("a url"),
+            "joinedcontext",
+            "configuration",
+            "t",
+        )
+        .expect("a client");
+        let state =
+            AppState::new(crate::config::Config::for_tests(), None).with_gitea(Arc::new(gitea));
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.repository = Some("helsinki_city-bikes".into());
+        driver.app_name = "city-bikes".into();
+        driver.path_prefix = String::new();
+        driver.branch = BRANCH.into();
+        (state, driver)
+    }
+
+    fn files() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("package.json".to_owned(), "{}".to_owned()),
+            ("src/App.tsx".to_owned(), "export default 1".to_owned()),
+        ])
+    }
+
+    /// The one `POST /contents` commit the forge received: `(operation, path, sha)` per file.
+    async fn commit_of(server: &MockServer) -> Vec<(String, String, Option<String>)> {
+        let commits: Vec<Value> = server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|request| {
+                request.method.as_str() == "POST"
+                    && request.url.path() == format!("{REPO}/contents")
+            })
+            .map(|request| serde_json::from_slice(&request.body).expect("json"))
+            .collect();
+        assert_eq!(commits.len(), 1, "one commit per pass");
+        let mut files: Vec<_> = commits[0]["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .map(|file| {
+                (
+                    file["operation"].as_str().unwrap_or_default().to_owned(),
+                    file["path"].as_str().unwrap_or_default().to_owned(),
+                    file["sha"].as_str().map(str::to_owned),
+                )
+            })
+            .collect();
+        files.sort();
+        files
+    }
+
+    /// AP-75, AP-76: the first commit of a run creates the application's repository, cuts the
+    /// run's branch from `main`, and leaves the branch holding exactly the run's files and the
+    /// README: a file of an earlier version is deleted, nothing lands in the configuration
+    /// repository.
+    #[tokio::test]
+    async fn the_first_commit_creates_the_repository_and_the_branch_holds_the_whole_application() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/orgs/joinedcontext/repos"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head1" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/branches")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/head1")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "truncated": false,
+                "tree": [
+                    { "path": "README.md", "type": "blob", "sha": "r1" },
+                    { "path": "src/App.tsx", "type": "blob", "sha": "a1" },
+                    { "path": "src/Old.tsx", "type": "blob", "sha": "o1" },
+                    { "path": "src", "type": "tree", "sha": "t1" }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+            )
+            .mount(&server)
+            .await;
+
+        let (state, driver) = driver(&server);
+        let mut committed = BTreeMap::new();
+        driver
+            .commit_files(&files(), &mut committed, "First version")
+            .await
+            .expect("committed");
+
+        assert_eq!(
+            commit_of(&server).await,
+            vec![
+                ("delete".into(), "src/Old.tsx".into(), Some("o1".into())),
+                ("upload".into(), "README.md".into(), None),
+                ("upload".into(), "package.json".into(), None),
+                ("upload".into(), "src/App.tsx".into(), None),
+            ]
+        );
+        assert_eq!(
+            committed,
+            files(),
+            "the next pass commits what changed since this one"
+        );
+        let requests = server.received_requests().await.unwrap_or_default();
+        assert!(
+            requests
+                .iter()
+                .all(|request| !request.url.path().contains("/configuration")),
+            "the configuration repository was written to"
+        );
+        let events = state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events");
+        assert!(
+            events
+                .iter()
+                .any(|event| event.kind == "commit" && event.payload["sha"] == "c1"),
+            "the run links its commit: {events:?}"
+        );
+    }
+
+    /// AP-75, AP-76: a later pass in a repository that exists creates nothing and changes only
+    /// what changed; a model that wrote its own README keeps it.
+    #[tokio::test]
+    async fn a_later_pass_commits_only_what_changed_and_never_recreates_the_repository() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/orgs/joinedcontext/repos"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head2" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/src/Gone.tsx")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "sha": "g1", "content": "" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c2" } })),
+            )
+            .mount(&server)
+            .await;
+
+        let (_, driver) = driver(&server);
+        let mut committed = files();
+        committed.insert("src/Gone.tsx".into(), "x".into());
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        next.insert("README.md".into(), "# mine".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("committed");
+
+        assert_eq!(
+            commit_of(&server).await,
+            vec![
+                ("delete".into(), "src/Gone.tsx".into(), Some("g1".into())),
+                ("upload".into(), "README.md".into(), None),
+                ("upload".into(), "src/App.tsx".into(), None),
+            ]
+        );
+        let requests = server.received_requests().await.unwrap_or_default();
+        assert!(
+            requests
+                .iter()
+                .all(|request| !request.url.path().contains("/git/trees")),
+            "a later pass read the whole tree"
+        );
     }
 }
