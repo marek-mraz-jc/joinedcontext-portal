@@ -5,7 +5,7 @@ import { I18nextProvider } from "react-i18next";
 import validator from "@rjsf/validator-ajv8";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { expectOpen } from "./checks";
+import { expectDenied, expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import {
@@ -266,6 +266,22 @@ describe("endpoint sharing", () => {
     );
     // The write is a Change in the approvals flow, and the page says so.
     expect(await screen.findByText("chg-77aa11bb")).toBeInTheDocument();
+  });
+
+  // UI-44: a viewer of the consuming project sees the button closed, with the verb it lacks, and
+  // clicking it writes nothing; before, it was open and the API's 403 was the first they heard.
+  it("closes the one-click reference to a role that may not propose one, and writes nothing", async () => {
+    byPath["/api/v1/projects/espoo/permissions/me"] = { project: "espoo", bootstrap: false, grants: [] };
+    const fetchMock = renderAt("/projects/espoo/endpoints");
+
+    const section = await sharedSection();
+    await within(section).findByText("bikes");
+    const use = within(section).getByRole("button", { name: `${en.endpoints.shared.use}: helsinki/bikes` });
+    await waitFor(() => {
+      expectDenied(use, "Disabled: your role does not permit 'propose' on 'SharedSpaceReference' in this project");
+    });
+    await userEvent.click(use);
+    expect(writes(fetchMock)).toHaveLength(0);
   });
 
   it("shows a reference already declared with its alias instead of the button", async () => {
