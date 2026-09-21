@@ -465,6 +465,15 @@ fn every_request_body_has_an_example_that_validates_against_its_schema() {
                 if let Some(refused) = refused {
                     wrong.push(format!("{call} ({media}): {refused}"));
                 }
+                // A manifest in an example, whole or under `manifest`, is one its kind's own
+                // typed parse accepts (MF-37): the envelope's schema leaves `spec` open.
+                let manifest = example.get("manifest").unwrap_or(example);
+                if let Some(kind) = manifest.get("kind").and_then(|k| k.as_str()) {
+                    let yaml = serde_json::to_string(manifest).expect("an example serializes");
+                    if let Some(Err(err)) = jc_core::registry::validate_yaml(kind, &yaml) {
+                        wrong.push(format!("{call} ({media}): the {kind} is not one: {err}"));
+                    }
+                }
             }
         }
     }

@@ -5741,12 +5741,13 @@ export interface operations {
                  *           "title": "Air quality"
                  *         },
                  *         "spec": {
-                 *           "audience": "internal",
+                 *           "audience": "organization",
                  *           "contextSpaceRef": "air",
                  *           "enabledRepresentations": [
                  *             "ngsi-ld",
                  *             "geojson"
-                 *           ]
+                 *           ],
+                 *           "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                  *         }
                  *       }
                  *     }
@@ -7767,12 +7768,13 @@ export interface operations {
                  *         "title": "Air quality"
                  *       },
                  *       "spec": {
-                 *         "audience": "internal",
+                 *         "audience": "organization",
                  *         "contextSpaceRef": "air",
                  *         "enabledRepresentations": [
                  *           "ngsi-ld",
                  *           "geojson"
-                 *         ]
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                  *       }
                  *     }
                  */
@@ -7942,12 +7944,13 @@ export interface operations {
                  *         "title": "Air quality"
                  *       },
                  *       "spec": {
-                 *         "audience": "internal",
+                 *         "audience": "organization",
                  *         "contextSpaceRef": "air",
                  *         "enabledRepresentations": [
                  *           "ngsi-ld",
                  *           "geojson"
-                 *         ]
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                  *       }
                  *     }
                  */
@@ -8145,7 +8148,7 @@ export interface operations {
                 /**
                  * @example {
                  *       "spec": {
-                 *         "audience": "project"
+                 *         "audience": "organization"
                  *       }
                  *     }
                  */

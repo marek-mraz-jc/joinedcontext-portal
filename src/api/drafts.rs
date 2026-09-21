@@ -184,7 +184,8 @@ pub async fn get_draft(
                 "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
                 "spec": {
                     "contextSpaceRef": "air",
-                    "audience": "internal",
+                    "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                    "audience": "organization",
                     "enabledRepresentations": ["ngsi-ld", "geojson"]
                 }
             } })

@@ -3670,12 +3670,13 @@
                     "title": "Air quality"
                   },
                   "spec": {
-                    "audience": "internal",
+                    "audience": "organization",
                     "contextSpaceRef": "air",
                     "enabledRepresentations": [
                       "ngsi-ld",
                       "geojson"
-                    ]
+                    ],
+                    "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                   }
                 }
               }
@@ -6351,12 +6352,13 @@
                   "title": "Air quality"
                 },
                 "spec": {
-                  "audience": "internal",
+                  "audience": "organization",
                   "contextSpaceRef": "air",
                   "enabledRepresentations": [
                     "ngsi-ld",
                     "geojson"
-                  ]
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                 }
               }
             }
@@ -6601,12 +6603,13 @@
                   "title": "Air quality"
                 },
                 "spec": {
-                  "audience": "internal",
+                  "audience": "organization",
                   "contextSpaceRef": "air",
                   "enabledRepresentations": [
                     "ngsi-ld",
                     "geojson"
-                  ]
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                 }
               }
             }
@@ -6874,7 +6877,7 @@
               },
               "example": {
                 "spec": {
-                  "audience": "project"
+                  "audience": "organization"
                 }
               }
             }

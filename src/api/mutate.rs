@@ -1174,7 +1174,8 @@ async fn propose_draft(
             "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
             "spec": {
                 "contextSpaceRef": "air",
-                "audience": "internal",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
                 "enabledRepresentations": ["ngsi-ld", "geojson"]
             }
         })),
@@ -1242,7 +1243,8 @@ pub async fn create(
             "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
             "spec": {
                 "contextSpaceRef": "air",
-                "audience": "internal",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
                 "enabledRepresentations": ["ngsi-ld", "geojson"]
             }
         })),
@@ -1310,7 +1312,7 @@ pub async fn replace(
         content = Object,
         description = "RFC 7386 merge patch, as JSON or as the YAML apply-patch document",
         content_type = "application/merge-patch+json",
-        example = json!({ "spec": { "audience": "project" } }),
+        example = json!({ "spec": { "audience": "organization" } }),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
