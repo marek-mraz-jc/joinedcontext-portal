@@ -129,6 +129,10 @@ pub struct Syncer {
     /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
     /// gateway host configured can honestly do.
     ckan: Option<Arc<super::ckan::CkanSync>>,
+    /// Whether each Organization owns the domain it declares (PF-41, T-2377). `None` without a
+    /// database: a challenge that did not outlive a restart would fail every published record.
+    domains:
+        Option<Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>>,
 }
 
 impl Syncer {
@@ -155,7 +159,18 @@ impl Syncer {
             pipeline_secrets: None,
             webhook_secrets: None,
             ckan: None,
+            domains: None,
         }
+    }
+
+    /// Makes each run record whether every Organization owns its declared domain (PF-41). The
+    /// state is reported on the Organization; nothing here refuses a write.
+    pub fn with_domain_verification(
+        mut self,
+        verifier: Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>,
+    ) -> Self {
+        self.domains = Some(verifier);
+        self
     }
 
     /// Makes each run mint the scoped artifact-store credentials of every Organization it reads
@@ -628,6 +643,7 @@ impl Syncer {
                 source_url: Some(self.gitea.browse_url(&path, &default_branch)),
                 conditions: Vec::new(),
                 build,
+                domain_verification: None,
             });
 
             fresh_mirror.upsert(envelope);
@@ -960,6 +976,33 @@ impl Syncer {
                             )];
                         }
                         self.mirror.upsert(envelope);
+                    }
+                }
+            }
+        }
+
+        // 6d. Whether each Organization owns the domain it declares (PF-41, T-2377): minted,
+        //     checked when due and stored, then reported on the Organization's status. A lookup
+        //     that fails is a recorded state; a database that fails is a log line, and the
+        //     Organization shows no state rather than a stale one.
+        if let Some(domains) = self.domains.as_ref() {
+            for mut envelope in self
+                .mirror
+                .matching(|envelope| envelope.kind == "Organization")
+            {
+                let Some(domain) = envelope.spec["domain"].as_str().map(str::to_owned) else {
+                    continue;
+                };
+                let name = envelope.metadata.name.clone();
+                match domains.verify(&name, &domain, chrono::Utc::now()).await {
+                    Ok(verification) => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.domain_verification = Some(verification);
+                        }
+                        self.mirror.upsert(envelope);
+                    }
+                    Err(err) => {
+                        tracing::warn!(organization = %name, error = %err, "the domain verification was not stored")
                     }
                 }
             }

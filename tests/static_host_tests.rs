@@ -84,6 +84,7 @@ fn mirror_with_build(spec: serde_json::Value, commit: &str) -> Arc<Mirror> {
             sdk_version: "0.4.1".to_owned(),
             built_at: chrono::Utc::now(),
         }),
+        domain_verification: None,
     });
     mirror.upsert(envelope);
     mirror

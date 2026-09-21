@@ -93,6 +93,10 @@ pub struct Status {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Object)]
     pub build: Option<jc_core::Build>,
+    /// Whether an Organization owns the domain it declares (PF-41): computed by the reconciler,
+    /// never read from Git, and only ever on an Organization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain_verification: Option<crate::domain_verification::DomainVerification>,
 }
 
 /// The phase of a manifest whose status says nothing about one: the Portal has not reconciled

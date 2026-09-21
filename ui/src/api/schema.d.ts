@@ -1931,6 +1931,19 @@ export interface components {
             /** @description The tabular representation the rows are read through. */
             representation: string;
         };
+        /** @description `status.domainVerification` of an Organization (PF-41, Architecture/03 §3). */
+        DomainVerification: {
+            /** @description What the TXT record carries after `jc-verify=`. Not a secret: it is published in DNS. */
+            challenge: string;
+            /** Format: date-time */
+            checkedAt?: string | null;
+            method?: null | components["schemas"]["Method"];
+            /** @description Why a `failed` domain failed, in words a person acts on; never a resolver's answer. */
+            reason?: string | null;
+            /** @description The record to publish, spelled out: `_joinedcontext.{domain} TXT "jc-verify={challenge}"`. */
+            record: string;
+            state: components["schemas"]["State"];
+        };
         Draft: {
             kind: string;
             manifest: unknown;
@@ -2286,6 +2299,11 @@ export interface components {
             endpointNames?: string[] | null;
             text: string;
         };
+        /**
+         * @description Which of the two proofs verified the domain.
+         * @enum {string}
+         */
+        Method: "dns-txt" | "did-web";
         MintRequest: {
             /** @description Name of the `api-key` credential in the manifest this key belongs to. */
             credential: string;
@@ -2819,6 +2837,11 @@ export interface components {
             profile?: string | null;
         };
         /**
+         * @description Where an Organization's domain stands (PF-41).
+         * @enum {string}
+         */
+        State: "pending" | "verified" | "failed";
+        /**
          * @description The status the Portal API reports (MF-04). It is `jc_core::Status` plus `sourceUrl` and a phase
          *     that is always known; it stays a Portal type until jc-core carries `sourceUrl` too (docs API/01
          *     section 6 is the contract), then it becomes a re-export like its neighbours.
@@ -2831,6 +2854,7 @@ export interface components {
              */
             build?: Record<string, never>;
             conditions?: components["schemas"]["Condition"][];
+            domainVerification?: null | components["schemas"]["DomainVerification"];
             observedRevision?: string | null;
             phase?: components["schemas"]["Phase"];
             /**

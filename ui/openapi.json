@@ -8690,6 +8690,53 @@
           }
         }
       },
+      "DomainVerification": {
+        "type": "object",
+        "description": "`status.domainVerification` of an Organization (PF-41, Architecture/03 §3).",
+        "required": [
+          "state",
+          "challenge",
+          "record"
+        ],
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "description": "What the TXT record carries after `jc-verify=`. Not a secret: it is published in DNS."
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Method"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why a `failed` domain failed, in words a person acts on; never a resolver's answer."
+          },
+          "record": {
+            "type": "string",
+            "description": "The record to publish, spelled out: `_joinedcontext.{domain} TXT \"jc-verify={challenge}\"`."
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          }
+        },
+        "additionalProperties": false
+      },
       "Draft": {
         "type": "object",
         "required": [
@@ -9601,6 +9648,14 @@
           }
         },
         "additionalProperties": false
+      },
+      "Method": {
+        "type": "string",
+        "description": "Which of the two proofs verified the domain.",
+        "enum": [
+          "dns-txt",
+          "did-web"
+        ]
       },
       "MintRequest": {
         "type": "object",
@@ -11208,6 +11263,15 @@
         },
         "additionalProperties": false
       },
+      "State": {
+        "type": "string",
+        "description": "Where an Organization's domain stands (PF-41).",
+        "enum": [
+          "pending",
+          "verified",
+          "failed"
+        ]
+      },
       "Status": {
         "type": "object",
         "description": "The status the Portal API reports (MF-04). It is `jc_core::Status` plus `sourceUrl` and a phase\nthat is always known; it stays a Portal type until jc-core carries `sourceUrl` too (docs API/01\nsection 6 is the contract), then it becomes a re-export like its neighbours.",
@@ -11221,6 +11285,17 @@
             "items": {
               "$ref": "#/components/schemas/Condition"
             }
+          },
+          "domainVerification": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DomainVerification",
+                "description": "Whether an Organization owns the domain it declares (PF-41): computed by the reconciler,\nnever read from Git, and only ever on an Organization."
+              }
+            ]
           },
           "observedRevision": {
             "type": [

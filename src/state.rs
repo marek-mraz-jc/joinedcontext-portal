@@ -276,6 +276,21 @@ impl AppState {
             // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
             if let Some(pool) = state.db.as_ref() {
                 syncer = syncer.with_leadership(Arc::new(Leadership::reconciler(pool.clone())));
+                // PF-41: the challenge lives in the database, so the check runs only with one.
+                let host = state.config.public_base_url.host_str().map(str::to_owned);
+                match (crate::domain_verification::NetLookup::new(), host) {
+                    (Ok(lookup), Some(host)) => {
+                        syncer = syncer.with_domain_verification(Arc::new(
+                            crate::domain_verification::Verifier::new(pool.clone(), lookup, host),
+                        ));
+                    }
+                    (Err(err), _) => {
+                        tracing::warn!(error = %err, "no domain is verified: the resolver did not start")
+                    }
+                    (_, None) => {
+                        tracing::warn!("no domain is verified: the public URL names no host")
+                    }
+                }
             }
             // Applying an app's objects needs two halves: a cluster to write into and the
             // settings that say where. Either missing leaves the reconciler reading apps and
