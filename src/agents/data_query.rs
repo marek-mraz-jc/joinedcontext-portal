@@ -179,13 +179,155 @@ pub fn result_text(answer: &Value) -> String {
     format!("{flagged}{capped}")
 }
 
+/// GeoJSON geometry types whose `coordinates` are a list of positions or deeper.
+const WIDE_GEOMETRIES: [&str; 6] = [
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+    "MultiPoint",
+    "GeometryCollection",
+];
+
+/// A tool answer with every GeoJSON geometry wider than a point folded into its bounding box.
+///
+/// A `MultiLineString` of a road-work situation is hundreds of coordinates: it answered no
+/// question anybody asked in words, filled the 12 000 characters of a result so the rows after
+/// it were cut, and reached the person as a wall of digits (T-2460). What is kept is where the
+/// shape is (`bbox`, west-south-east-north) and how big it is (`positions`); a `Point` is its own
+/// summary and stays as it is.
+pub fn compact_geometry(value: &Value) -> Value {
+    match value {
+        Value::Object(object) => {
+            let kind = object.get("type").and_then(Value::as_str).unwrap_or("");
+            if WIDE_GEOMETRIES.contains(&kind)
+                && (object.contains_key("coordinates") || object.contains_key("geometries"))
+            {
+                let mut positions = Vec::new();
+                collect_positions(value, &mut positions);
+                let mut folded = serde_json::Map::new();
+                folded.insert("type".to_owned(), json!(kind));
+                if let Some(bbox) = bbox_of(&positions) {
+                    folded.insert("bbox".to_owned(), json!(bbox));
+                }
+                folded.insert("positions".to_owned(), json!(positions.len()));
+                return Value::Object(folded);
+            }
+            Value::Object(
+                object
+                    .iter()
+                    .map(|(key, value)| (key.clone(), compact_geometry(value)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(items.iter().map(compact_geometry).collect()),
+        // A tool answer's text is often the JSON itself: fold inside it too.
+        Value::String(text) if text.contains("\"coordinates\"") => {
+            match serde_json::from_str::<Value>(text) {
+                Ok(inner @ (Value::Object(_) | Value::Array(_))) => {
+                    Value::String(compact_geometry(&inner).to_string())
+                }
+                _ => value.clone(),
+            }
+        }
+        other => other.clone(),
+    }
+}
+
+/// Every `[x, y, …]` position under a geometry, in any nesting.
+fn collect_positions(value: &Value, into: &mut Vec<(f64, f64)>) {
+    match value {
+        Value::Array(items) => {
+            if let (Some(x), Some(y)) = (
+                items.first().and_then(Value::as_f64),
+                items.get(1).and_then(Value::as_f64),
+            ) {
+                into.push((x, y));
+            } else {
+                for item in items {
+                    collect_positions(item, into);
+                }
+            }
+        }
+        Value::Object(object) => {
+            for key in ["coordinates", "geometries"] {
+                if let Some(inner) = object.get(key) {
+                    collect_positions(inner, into);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn bbox_of(positions: &[(f64, f64)]) -> Option<[f64; 4]> {
+    let (&(x, y), rest) = positions.split_first()?;
+    Some(rest.iter().fold([x, y, x, y], |[w, s, e, n], &(x, y)| {
+        [w.min(x), s.min(y), e.max(x), n.max(y)]
+    }))
+}
+
+/// What a `query_entities` answer does not say by itself, written under it for the model: which
+/// attributes the call read, so a value of any other is not taken for data (T-2459), and whether
+/// the set goes on, with the cursor of the next page, so reading on is the expected move rather
+/// than an option (T-2460).
+pub fn reading_notes(call: &QueryCall, answer: &Value) -> String {
+    let failed = answer.get("error").is_some()
+        || answer.pointer("/result/isError").and_then(Value::as_bool) == Some(true);
+    if call.name != "query_entities" || failed {
+        return String::new();
+    }
+    let mut notes = Vec::new();
+    let attrs: Vec<&str> = match call.arguments.get("attrs") {
+        Some(Value::Array(names)) => names.iter().filter_map(Value::as_str).collect(),
+        Some(Value::String(names)) => names.split(',').map(str::trim).collect(),
+        _ => Vec::new(),
+    };
+    if !attrs.is_empty() {
+        notes.push(format!(
+            "This call read only the attributes {}. A value of any other attribute is not in \
+             this answer: read it before you name it.",
+            attrs.join(", ")
+        ));
+    }
+    let structured = answer.pointer("/result/structuredContent");
+    let read = structured
+        .and_then(|s| s.get("entities"))
+        .and_then(Value::as_array)
+        .map(Vec::len);
+    let total = structured
+        .and_then(|s| s.get("total"))
+        .and_then(Value::as_u64);
+    let next = structured
+        .and_then(|s| s.get("nextCursor"))
+        .and_then(Value::as_u64);
+    match (next, total) {
+        (Some(next), Some(total)) => notes.push(format!(
+            "The set goes on: this page holds {} of {total}. Call again with \"cursor\": {next} \
+             before you answer which or how many.",
+            read.unwrap_or(0)
+        )),
+        (Some(next), None) => notes.push(format!(
+            "The set goes on past this page. Call again with \"cursor\": {next} before you \
+             answer which or how many."
+        )),
+        (None, Some(total)) => notes.push(format!("This is the whole set: {total} in all.")),
+        (None, None) => {}
+    }
+    if notes.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n{}", notes.join("\n"))
+    }
+}
+
 /// The read tools every endpoint's façade offers, for a conversation that has not opened one yet.
 fn facade_tools() -> Value {
     json!([
         { "name": "list_types", "arguments": {} },
         { "name": "describe_schema", "arguments": { "type": "<entity type>" } },
         { "name": "list_attributes", "arguments": { "type": "<entity type>" } },
-        { "name": "query_entities", "arguments": { "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 20 } },
+        { "name": "query_entities", "arguments": { "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true, "cursor": 0 } },
         { "name": "get_entity", "arguments": { "id": "<entity id>" } }
     ])
 }
@@ -212,6 +354,24 @@ where, the latest, one entity, the attributes of a type), and any indicator or p
 draft, is grounded in the data, never in memory or an endpoint's title. Look before you draft:
 list the types, describe the schema, read a page of entities.
 
+Say only what you read (T-2459):
+
+- Ask in `attrs` for the attributes the question needs, and for every attribute that decides
+  the answer: asked "what kind of alerts", the attribute that says the kind is in `attrs`. A
+  value of an attribute you did not read is not in the data you have; never infer it from a
+  description, a name or an id. If you did not read it, read it, or say that you did not.
+- Quote a value as it arrived. A value that is cut, misspelt or in another language stays as it
+  is: never complete, correct or translate it into a fact. "Välillä Kumpulantie meentie" is
+  quoted as that, not as a street name the source never published.
+- Geometry (`location` and other GeoJSON) answers "where", nothing else: leave it out of `attrs`
+  unless the question is about place, and then name the place from an address or name attribute
+  if the type carries one. The platform shows you a geometry as its bounding box.
+
+Read the whole set (T-2460). A question of "which", "what" or "how many" is answered from every
+entity, not from the first page: ask with `"count": true`, and while an answer carries
+`nextCursor`, call again with `"cursor"` set to it. Several small targeted calls beat one wide
+one. If the calls of this message run out first, say how many of the total you read.
+
 Find the data yourself too. Search the project's catalog with your own words, as often as you
 need:
 
@@ -233,7 +393,7 @@ run at once, on one endpoint or several, so ask for everything you need together
   "tool": "query_endpoint",
   "endpoint": "<an endpoint name from either list below>",
   "name": "<a read tool name>",
-  "arguments": {{ "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 20 }}
+  "arguments": {{ "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true }}
 }}
 ```
 
@@ -528,5 +688,138 @@ mod tests {
         assert!(text.ends_with("smaller limit)"));
         assert!(result_text(&json!({ "result": { "isError": true, "content": [{ "type": "text", "text": "denied" }] } }))
             .starts_with("error: denied"));
+    }
+
+    /// T-2459: asked "what alerts are there?", the model read `address, category, dateIssued,
+    /// description, location`, then labelled each situation "Road work" or "Traffic
+    /// announcement" — the value of `subCategory`, which it never asked for — and completed the
+    /// cut "Kumpulantie meentie" into "Hämeentie". The rules are in the prompt, and every answer
+    /// says which attributes it holds, so the model is told, not left to notice.
+    #[test]
+    fn an_answer_says_which_attributes_it_holds_and_the_prompt_forbids_inferring_or_completing() {
+        let call = QueryCall {
+            endpoint: "helsinki-alerts".into(),
+            name: "query_entities".into(),
+            arguments: json!({ "type": "Alert", "attrs": ["address", "category", "description"] }),
+        };
+        let cut = json!({ "result": { "structuredContent": { "entities": [{
+            "id": "urn:ngsi-ld:Alert:hel.fi:helsinki:GUID50459335",
+            "category": { "type": "Property", "value": "traffic" },
+            "description": { "type": "Property", "value": "Välillä Kumpulantie meentie" }
+        }] } } });
+        let notes = reading_notes(&call, &cut);
+        assert!(
+            notes.contains("read only the attributes address, category, description"),
+            "{notes}"
+        );
+        assert!(notes.contains("not in this answer"), "{notes}");
+        // The cut value reaches the model exactly as it arrived.
+        assert!(result_text(&cut).contains("Välillä Kumpulantie meentie"));
+        // A comma-separated attrs is read the same way.
+        let listed = QueryCall {
+            arguments: json!({ "attrs": "address,category" }),
+            ..call.clone()
+        };
+        assert!(reading_notes(&listed, &cut).contains("attributes address, category."));
+        // Nothing is said about a read that failed or a tool that is not a query.
+        let refused = json!({ "result": { "isError": true, "content": [] } });
+        assert_eq!(reading_notes(&call, &refused), "");
+        let schema = QueryCall {
+            name: "describe_schema".into(),
+            ..call
+        };
+        assert_eq!(reading_notes(&schema, &cut), "");
+
+        let text = section(&[], &[], &[]);
+        assert!(text.contains("never infer it from"), "{text}");
+        assert!(
+            text.contains("never complete, correct or translate it into a fact"),
+            "{text}"
+        );
+    }
+
+    /// T-2460: one page of 20 of the alerts was read and six were named, and every row carried a
+    /// `MultiLineString` hundreds of coordinates long. The set's end is now named under every
+    /// page, with the cursor of the next, and a wide geometry reaches nobody as coordinates.
+    #[test]
+    fn a_page_that_is_not_the_whole_set_says_where_the_next_begins() {
+        let call = QueryCall {
+            endpoint: "helsinki-alerts".into(),
+            name: "query_entities".into(),
+            arguments: json!({ "type": "Alert", "count": true }),
+        };
+        let page = |next: Option<u64>| {
+            let mut structured = json!({ "entities": [{ "id": "a" }, { "id": "b" }], "total": 20 });
+            if let Some(next) = next {
+                structured["nextCursor"] = json!(next);
+            }
+            json!({ "result": { "structuredContent": structured } })
+        };
+        let first = reading_notes(&call, &page(Some(2)));
+        assert!(first.contains("this page holds 2 of 20"), "{first}");
+        assert!(first.contains("\"cursor\": 2"), "{first}");
+        let last = reading_notes(&call, &page(None));
+        assert!(last.contains("whole set: 20"), "{last}");
+        assert!(!last.contains("cursor"), "{last}");
+
+        let text = section(&[], &[], &[]);
+        assert!(text.contains("\"count\": true"), "{text}");
+        assert!(text.contains("nextCursor"), "{text}");
+        assert!(text.contains("\"limit\": 100"), "{text}");
+    }
+
+    #[test]
+    fn a_wide_geometry_is_folded_into_its_bounding_box_and_a_point_is_kept() {
+        let line: Vec<Value> = (0..400)
+            .map(|i| json!([24.9 + f64::from(i) * 0.001, 60.1 + f64::from(i) * 0.0005]))
+            .collect();
+        let entity = json!({
+            "id": "urn:ngsi-ld:Alert:hel.fi:helsinki:GUID50447794",
+            "location": { "type": "GeoProperty", "value": {
+                "type": "MultiLineString", "coordinates": [line.clone(), [[25.5, 60.0], [25.6, 60.4]]]
+            } },
+            "near": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [24.9, 60.1] } }
+        });
+        let answer = json!({ "result": {
+            "structuredContent": { "entities": [entity.clone()] },
+            "content": [{ "type": "text", "text": json!({ "entities": [entity] }).to_string() }]
+        } });
+
+        let folded = compact_geometry(&answer);
+        let location = folded
+            .pointer("/result/structuredContent/entities/0/location/value")
+            .expect("the location stays");
+        assert_eq!(location["type"], "MultiLineString");
+        assert_eq!(location["positions"], 402);
+        assert!(location.get("coordinates").is_none(), "{location}");
+        let bbox = location["bbox"].as_array().expect("a bbox");
+        assert_eq!(bbox[0], 24.9);
+        assert_eq!(bbox[1], 60.0);
+        assert_eq!(bbox[2], 25.6);
+        assert_eq!(bbox[3], 60.4);
+        // A point is its own summary.
+        assert_eq!(
+            folded.pointer("/result/structuredContent/entities/0/near/value/coordinates"),
+            Some(&json!([24.9, 60.1]))
+        );
+        // The text part that carries the same JSON is folded too, and the model's read is short.
+        let text = folded
+            .pointer("/result/content/0/text")
+            .and_then(Value::as_str)
+            .expect("text");
+        assert!(text.contains("\"positions\":402"), "{text}");
+        assert!(
+            result_text(&folded).len() < 1_000,
+            "{}",
+            result_text(&folded)
+        );
+        // Text that is not JSON, or JSON without geometry, is left as it is.
+        let prose = json!({ "text": "the \"coordinates\" of the site are not public" });
+        assert_eq!(compact_geometry(&prose), prose);
+        let empty = json!({ "type": "Polygon", "coordinates": [] });
+        assert_eq!(
+            compact_geometry(&empty),
+            json!({ "type": "Polygon", "positions": 0 })
+        );
     }
 }

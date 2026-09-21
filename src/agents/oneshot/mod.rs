@@ -61,6 +61,11 @@ const COMPLETE_TURN: &str = "Complete the application.";
 const FIRST_VERSION_BUDGET: u32 = 20000;
 /// One model call, wall clock: the budget above at a hundred tokens a second, with room.
 const CALL_TIMEOUT: Duration = Duration::from_secs(480);
+/// One model call of a conversation, wall clock. A person waits in front of it: the bikes
+/// question sat 55 s after its catalog search with nothing on screen, because a chat turn shared
+/// the builder's eight minutes per call (T-2462). Past this the turn says it failed, at once,
+/// and the person asks again.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(90);
 /// The name the driver signs its own chat lines with; a message by anyone else is a pass.
 pub const AGENT: &str = "agent";
 /// The smallest output budget worth a second call when the key's credit runs short.
@@ -243,6 +248,8 @@ struct Driver {
     model: String,
     provider: String,
     ttl: Duration,
+    /// How long one model call of a conversation may take before the turn fails (T-2462).
+    answer_timeout: Duration,
     /// Passes that produced a preview; the `v` of the preview URL.
     passes: AtomicU32,
     /// The endpoint's `schema/index.json`, read once before the first pass: which types it
@@ -328,6 +335,7 @@ pub fn spawn(
         model: profile.model_name.clone(),
         provider: profile.model_provider.clone(),
         ttl: Duration::from_secs(settings.run_ttl_secs.max(1) as u64),
+        answer_timeout: ANSWER_TIMEOUT,
         passes: AtomicU32::new(0),
         schema_index: OnceLock::new(),
         joined: OnceLock::new(),
@@ -371,6 +379,7 @@ impl Driver {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
@@ -1210,6 +1219,7 @@ mod tests {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
