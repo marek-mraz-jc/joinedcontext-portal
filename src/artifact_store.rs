@@ -197,9 +197,16 @@ impl Client {
                 .ok_or_else(|| Error::Endpoint("the endpoint names no host".to_owned()))?
                 .to_owned(),
         };
+        // A store that accepts and never answers costs provisioning an error, not the reconciler
+        // loop it runs in (T-1716).
+        let http = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| Error::Endpoint(e.to_string()))?;
         Ok(Self {
             settings,
-            http: reqwest::Client::new(),
+            http,
             host,
         })
     }
