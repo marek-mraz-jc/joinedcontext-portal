@@ -10,6 +10,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::bounds::{text, NAME};
 use super::runs::as_user;
 use super::{parse_input, Annotations, OpError, Operation};
 use crate::change::Lane;
@@ -31,7 +32,7 @@ pub struct PauseInput {
 fn name_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "name": { "type": "string", "description": "The SyncSource's name" } },
+        "properties": { "name": text("The SyncSource's name", NAME) },
         "required": ["name"],
         "additionalProperties": false
     })
@@ -41,7 +42,7 @@ fn pause_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string" },
+            "name": text("The SyncSource's name", NAME),
             "paused": { "type": "boolean", "description": "true switches the loop off, false switches it back on" }
         },
         "required": ["name", "paused"],
