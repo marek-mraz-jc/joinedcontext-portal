@@ -1152,6 +1152,25 @@
         "RealmRefused": "Nicht geschrieben"
       },
       "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt."
+    },
+    "domain": {
+      "title": "Domain",
+      "lead": "Ob nachgewiesen ist, dass die Domain der Organisation ihr gehört. Solange nicht, veröffentlichen Sie den folgenden Eintrag im DNS der Domain; das Portal prüft ihn bei der nächsten Synchronisierung erneut.",
+      "state": {
+        "pending": "Noch nicht verifiziert",
+        "verified": "Verifiziert",
+        "failed": "Verifizierung fehlgeschlagen"
+      },
+      "unchecked": "Noch nicht geprüft",
+      "method": {
+        "dns-txt": "einen DNS-TXT-Eintrag",
+        "did-web": "ihr did:web-Dokument"
+      },
+      "checkedBy": "Verifiziert über {method}, geprüft {when}.",
+      "checked": "Zuletzt geprüft {when}.",
+      "publish": "Veröffentlichen Sie diesen TXT-Eintrag im DNS der Domain:",
+      "copy": "Eintrag kopieren",
+      "copied": "Eintrag kopiert"
     }
   },
   "flows": {
