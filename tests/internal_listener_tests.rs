@@ -92,6 +92,16 @@ async fn listener_for(
     .expect("config");
 
     let state = AppState::new(config, None);
+    // One Organization, so the gateway's read of the domain states has something to list.
+    state.mirror.upsert(
+        serde_json::from_value(json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Organization",
+            "metadata": { "name": "hel", "namespace": "org" },
+            "spec": { "domain": "hel.fi", "locales": ["fi", "en"], "defaultLocale": "fi" }
+        }))
+        .expect("an Organization envelope"),
+    );
     // The realm's keys, as the Portal warms them at startup.
     state
         .bearer
@@ -351,4 +361,66 @@ async fn an_unchanged_preview_list_answers_304_to_its_own_etag_and_only_to_the_g
         etag_seen.is_none(),
         "no tag leaks to a caller without the token"
     );
+}
+
+async fn domain_states(
+    app: &axum::Router,
+    bearer: Option<&str>,
+    if_none_match: Option<&str>,
+) -> (StatusCode, String, Value) {
+    let mut request = Request::builder()
+        .method("GET")
+        .uri("/internal/domain-verifications");
+    if let Some(token) = bearer {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    if let Some(tag) = if_none_match {
+        request = request.header(header::IF_NONE_MATCH, tag);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).expect("request"))
+        .await
+        .expect("response");
+    let status = response.status();
+    let etag = response
+        .headers()
+        .get(header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let bytes = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .expect("body")
+        .to_bytes();
+    let body = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    (status, etag, body)
+}
+
+/// PF-41, PF-46, T-2572: the domain states the gateway enforces on answer its own token and
+/// nothing else; a Portal that never checked (no database here) says `pending`, never
+/// `verified`, and nothing but the state leaves: no challenge, no record, no reason.
+#[tokio::test]
+async fn the_domain_states_answer_the_gateway_alone_and_say_pending_when_unchecked() {
+    let (app, signer, issuer) = listener(Some(GATEWAY_CLIENT)).await;
+
+    let (status, _, _) = domain_states(&app, None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let other = token(&signer, &issuer, INTERNAL_AUDIENCE, PROXY_CLIENT);
+    let (status, _, _) = domain_states(&app, Some(&other), None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let gateway = token(&signer, &issuer, INTERNAL_AUDIENCE, GATEWAY_CLIENT);
+    let (status, etag, body) = domain_states(&app, Some(&gateway), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body,
+        json!({ "items": [ { "organization": "hel", "domain": "hel.fi", "state": "pending" } ] })
+    );
+
+    // Unchanged, it answers its own tag with 304, and a caller without the token still 401.
+    let (status, _, _) = domain_states(&app, Some(&gateway), Some(&etag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    let (status, _, _) = domain_states(&app, None, Some(&etag)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

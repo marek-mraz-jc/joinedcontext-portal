@@ -304,6 +304,46 @@ impl Lookup for NetLookup {
     }
 }
 
+/// What the gateway decides a write on: one Organization, its domain and where it stands
+/// (`GET /internal/domain-verifications`, Architecture/03 §3). The challenge, the record and
+/// the reason stay with the Portal.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GateState {
+    pub organization: String,
+    pub domain: String,
+    pub state: State,
+}
+
+/// The state of each `(organization, domain)`, from the database every replica shares, so the
+/// answer does not depend on which replica the gateway reached. A row for another domain is an
+/// Organization whose `spec.domain` changed and has not been checked since; it and an
+/// Organization with no row, or a Portal with no database, are `pending`, which is what the
+/// gateway refuses under `enforce`.
+pub async fn gate_states(
+    pool: Option<&sqlx::PgPool>,
+    organizations: &[(String, String)],
+) -> Result<Vec<GateState>, sqlx::Error> {
+    let rows: Vec<(String, String, String)> = match pool {
+        Some(pool) => {
+            sqlx::query_as("SELECT organization, domain, state FROM domain_verifications")
+                .fetch_all(pool)
+                .await?
+        }
+        None => Vec::new(),
+    };
+    Ok(organizations
+        .iter()
+        .map(|(organization, domain)| GateState {
+            organization: organization.clone(),
+            domain: domain.clone(),
+            state: rows
+                .iter()
+                .find(|(name, stored, _)| name == organization && stored == domain)
+                .map_or(State::Pending, |(_, _, state)| State::parse(state)),
+        })
+        .collect())
+}
+
 /// The stored verification of each Organization, one row per Organization (PF-41).
 pub struct Verifier<L: Lookup> {
     pool: sqlx::PgPool,

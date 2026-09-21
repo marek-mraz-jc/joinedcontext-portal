@@ -7,7 +7,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{DateTime, Duration, Utc};
-use joinedcontext_portal::domain_verification::{Lookup, Method, State, Unanswered, Verifier};
+use joinedcontext_portal::domain_verification::{
+    gate_states, Lookup, Method, State, Unanswered, Verifier,
+};
 use serde_json::Value;
 
 fn database_url() -> Option<String> {
@@ -154,4 +156,40 @@ async fn a_look_happens_only_when_due_and_a_new_domain_starts_over() {
         "{}",
         moved.record
     );
+}
+
+/// Architecture/03 §3, T-2572: what the gateway reads is the stored state of each Organization
+/// for the domain it declares now; a domain changed since the last look, and an Organization
+/// never looked at, are `pending`, whichever replica answers.
+#[tokio::test]
+async fn the_gate_reads_the_stored_state_for_the_declared_domain() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let organization = fresh_organization();
+    let never_looked_at = fresh_organization();
+    let pool = pool(&url).await;
+    let first = Verifier::new(pool.clone(), &Published::new(&[]), "portal.hel.fi")
+        .verify(&organization, "hel.fi", now())
+        .await
+        .expect("stored");
+    let published = Published::new(&[format!("jc-verify={}", first.challenge)]);
+    Verifier::new(pool.clone(), &published, "portal.hel.fi")
+        .verify(&organization, "hel.fi", now() + Duration::minutes(11))
+        .await
+        .expect("stored");
+
+    let asked = [
+        (organization.clone(), "hel.fi".to_owned()),
+        (never_looked_at.clone(), "espoo.fi".to_owned()),
+    ];
+    let states = gate_states(Some(&pool), &asked).await.expect("read");
+    assert_eq!(states[0].state, State::Verified);
+    assert_eq!(states[1].state, State::Pending);
+
+    // The same Organization now declaring another domain is not verified by the old record.
+    let moved = [(organization.clone(), "vantaa.fi".to_owned())];
+    let states = gate_states(Some(&pool), &moved).await.expect("read");
+    assert_eq!(states[0].state, State::Pending);
 }
