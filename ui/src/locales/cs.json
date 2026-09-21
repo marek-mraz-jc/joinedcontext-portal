@@ -275,7 +275,10 @@
     "name": "Název",
     "phase": "Stav",
     "empty": "Zatím tu nic není.",
-    "emptyHint": "V projektu zatím nic tohoto druhu není. Přidejte první nebo požádejte asistenta a rozhodněte o tom, co podá.",
+    "emptyHint": "V projektu zatím nic tohoto druhu není. Tato stránka jej vypisuje a čte; požádejte o něj asistenta a rozhodněte o tom, co podá.",
+    "emptyHintFor": {
+      "uischemas": "Nic v tomto projektu nemění formulář. Každý formulář má své rozložení už v dodávce; organizace ho mění v portal/forms/ svého konfiguračního repozitáře, ne zde."
+    },
     "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává."
   },
   "spaces": {

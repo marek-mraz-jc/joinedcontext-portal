@@ -142,7 +142,10 @@ function GenericListPage({
       count={items.length}
       empty={<EmptyState bare
             title={t("resourceList.empty")}
-            description={t("resourceList.emptyHint")} />}
+            // The page lists and reads; it has no create action, so the hint names none (T-2488).
+            description={t(`resourceList.emptyHintFor.${plural}`, {
+              defaultValue: t("resourceList.emptyHint"),
+            })} />}
     >
       {items.map((item) => {
           const title = localized(item.metadata.title, locale, item.metadata.name);
