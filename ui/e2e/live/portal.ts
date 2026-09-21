@@ -114,6 +114,9 @@ export async function approve(page: Page, project: string, change: string, confi
   // and this types it when the page asks; a Yellow change has no such field, and waiting for one
   // would fail on a change that needed no confirmation.
   const input = page.locator("#confirm-resource-name");
+  // The lane arrives with the change's plan, after the load: wait until the page has either
+  // enabled Approve (Yellow) or rendered the name field (Red), then answer the field if it is there.
+  await expect(button.and(page.locator(":enabled")).or(input).first()).toBeVisible({ timeout: 60_000 });
   if (confirm && (await input.count())) {
     await expect(input).toBeEnabled({ timeout: 60_000 });
     await input.pressSequentially(confirm, { delay: 60 });
