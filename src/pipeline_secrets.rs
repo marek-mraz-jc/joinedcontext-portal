@@ -221,9 +221,23 @@ impl Resolver {
         jwt_path: &Path,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
-        let unresolved = |name: &str, err: openbao::BaoError| SecretError::Unresolved {
-            name: name.to_owned(),
-            reason: err.to_string(),
+        // A refusal about one secret names that secret; the login, the transport and the token
+        // file belong to no reference, so those carry the first one (T-2508).
+        let unresolved = |first: &str, err: openbao::BaoError| {
+            let name = match &err {
+                openbao::BaoError::SecretNotFound { name, .. }
+                | openbao::BaoError::SecretDeleted { name, .. }
+                | openbao::BaoError::KeyNotFound { name, .. }
+                | openbao::BaoError::KeyRequired { name }
+                | openbao::BaoError::NotAString { name, .. }
+                | openbao::BaoError::InvalidName { name }
+                | openbao::BaoError::NoEnvVar { name } => name.clone(),
+                _ => first.to_owned(),
+            };
+            SecretError::Unresolved {
+                name,
+                reason: err.to_string(),
+            }
         };
         let settings = openbao::Settings::new(role);
         let jwt = openbao::service_account_jwt(jwt_path)
