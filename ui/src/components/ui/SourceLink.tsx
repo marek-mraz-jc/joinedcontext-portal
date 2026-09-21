@@ -29,7 +29,7 @@ export function SourceLink({ href, label }: SourceLinkProps): JSX.Element | null
       rel="noreferrer"
       aria-label={label}
       title={label}
-      className={buttonClass("ghost", "sm", "text-primary")}
+      className={buttonClass("ghost", "sm", "text-primary-soft-fg")}
     >
       <Icon name="git" className="size-4" />
     </a>

@@ -666,7 +666,7 @@ function NoBuilder(): JSX.Element {
           <li key={app}>
             <a
               href={`/apps/${app}/`}
-              className="text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+              className="text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
             >
               {t(`apps.generate.examples.${app}`)}
             </a>
