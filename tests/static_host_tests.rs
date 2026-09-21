@@ -414,3 +414,132 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
         "nothing is missing once the build is there"
     );
 }
+
+fn envelope(kind: &str, project: &str, name: &str, spec: serde_json::Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: kind.into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some(project.into()),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    }
+}
+
+/// The `#jc-config` element of a served index, parsed.
+fn served_config(body: &[u8]) -> serde_json::Value {
+    let html = String::from_utf8(body.to_vec()).expect("an html index");
+    let open = "<script id=\"jc-config\" type=\"application/json\">";
+    let start = html.find(open).expect("the index carries #jc-config") + open.len();
+    let end = start + html[start..].find("</script>").expect("the element closes");
+    assert_eq!(
+        html.matches("id=\"jc-config\"").count(),
+        1,
+        "exactly one configuration: {html}"
+    );
+    serde_json::from_str(&html[start..end]).expect("the configuration is JSON")
+}
+
+/// T-2457: the region's application reads its own indicators and the city's through the shared
+/// reference, so the index it is served names both endpoints, by space, and never a token.
+#[tokio::test]
+async fn the_served_index_names_the_apps_endpoint_and_the_shared_one() {
+    let index: &[u8] = b"<!doctype html><html><head><title>kpi</title></head><body></body></html>";
+    let dir = app_root("config", &[("index.html", index)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "bbsk-kpi" },
+        "types": ["KeyPerformanceIndicator"],
+        "operations": ["queryEntity"]
+    }]);
+
+    let mirror = mirror_with_app(spec);
+    let endpoint =
+        |space: &str, slug: &str| serde_json::json!({ "contextSpaceRef": space, "slug": slug });
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "bbsk-kpi",
+        endpoint("bbsk-kpi", "regionslug"),
+    ));
+    // Another space of the same project: not a need of the app, so not in its configuration.
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "bbsk-kraj",
+        endpoint("bbsk-kraj", "rawslug"),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        "banskabystrica",
+        "banskabystrica-kpi",
+        endpoint("banskabystrica-kpi", "cityslug"),
+    ));
+    mirror.upsert(envelope(
+        "SharedSpaceReference",
+        "ovzdusie",
+        "mesto-kpi",
+        serde_json::json!({
+            "alias": "mesto-kpi",
+            "endpointRef": { "project": "banskabystrica", "name": "banskabystrica-kpi" }
+        }),
+    ));
+    // A reference to an endpoint that is not there adds nothing and breaks nothing.
+    mirror.upsert(envelope(
+        "SharedSpaceReference",
+        "ovzdusie",
+        "gone",
+        serde_json::json!({ "alias": "gone", "endpointRef": { "project": "nowhere", "name": "x" } }),
+    ));
+
+    let (status, body) = get_with(dir.path(), mirror, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    let config = served_config(&body);
+    assert_eq!(config["transport"], "origin");
+    assert_eq!(config["appName"], "air-quality");
+    assert_eq!(
+        config["slug"], "regionslug",
+        "the app's own endpoint is the primary"
+    );
+    assert_eq!(config["space"], "bbsk-kpi");
+    assert_eq!(config["endpointName"], "bbsk-kpi");
+    let endpoints: Vec<(String, String)> = config["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .map(|e| {
+            (
+                e["slug"].as_str().unwrap().into(),
+                e["space"].as_str().unwrap().into(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        endpoints,
+        vec![
+            ("regionslug".to_owned(), "bbsk-kpi".to_owned()),
+            ("cityslug".to_owned(), "banskabystrica-kpi".to_owned()),
+        ]
+    );
+    assert_eq!(
+        config["endpoints"][0]["types"],
+        serde_json::json!(["KeyPerformanceIndicator"])
+    );
+    let text = config.to_string().to_lowercase();
+    assert!(
+        !text.contains("token") && !text.contains("bearer"),
+        "{config}"
+    );
+}
+
+/// An index that reads nothing is served byte for byte as it was built and signed.
+#[tokio::test]
+async fn an_app_without_data_needs_is_served_as_built() {
+    let dir = app_root("asbuilt", &[("index.html", INDEX)]);
+    let (status, _, body) = get_from(dir.path(), app_spec("published"), "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, INDEX);
+}
