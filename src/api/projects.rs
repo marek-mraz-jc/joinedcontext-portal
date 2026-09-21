@@ -360,6 +360,7 @@ pub async fn open_project(
         replaced: Vec::new(),
         skipped: Vec::new(),
         renamed: Default::default(),
+        reassigned: Default::default(),
         native_files: 0,
         lane: crate::change::Lane::Yellow,
         source: None,

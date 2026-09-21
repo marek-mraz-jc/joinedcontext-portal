@@ -151,6 +151,10 @@ pub struct ImportReport {
     pub skipped: Vec<String>,
     /// Resources imported under a new name, `old -> new` (`rename`).
     pub renamed: BTreeMap<String, String>,
+    /// Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+    /// to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub reassigned: BTreeMap<String, String>,
     /// Files carried through untouched: `bento.yaml`, LinkML sources, schema artifacts.
     pub native_files: usize,
     /// The lane the whole bundle lands in: the riskiest of everything it carries (CC-63).
@@ -327,6 +331,15 @@ impl ImportReport {
         }
         let equal = self.verified.iter().filter(|file| file.equal).count();
         Some(format!("{equal} of {} files equal", self.verified.len()))
+    }
+
+    /// One line per Policy whose assigner the import rewrote, for the `Change` body: the person
+    /// who approves sees that the grant is signed by this organisation now (R6, T-2256).
+    fn reassignment_lines(&self) -> Vec<String> {
+        self.reassigned
+            .iter()
+            .map(|(policy, carried)| format!("{policy}: assigner {carried} is now {OWN_ASSIGNER}"))
+            .collect()
     }
 }
 
@@ -795,6 +808,39 @@ fn remap(
             }
         }
     }
+}
+
+/// The assigner every Policy of this repository writes: the loader renders it for the
+/// organisation that owns the file (CC-82).
+const OWN_ASSIGNER: &str = "did:web:{orgDomain}";
+
+/// Rewrites every Policy's `assigner` that is not [`OWN_ASSIGNER`] to it, and answers what each
+/// carried, keyed `Policy/{name}` by the name it lands under.
+///
+/// A Policy grants over a space of the project it lands in, so the organisation that may give
+/// that data away is this one (R6); a DID from the bundle would read as another organisation's
+/// decision. Rewritten rather than refused, so a migration keeps its grants, and reported, so the
+/// person who approves the Change sees it (T-2256).
+fn reassign_policies(manifests: &mut [ResourceEnvelope]) -> BTreeMap<String, String> {
+    let mut reassigned = BTreeMap::new();
+    for envelope in manifests
+        .iter_mut()
+        .filter(|envelope| envelope.kind == "Policy")
+    {
+        let Some(assigner) = envelope.spec.get_mut("assigner") else {
+            continue;
+        };
+        if assigner.as_str() == Some(OWN_ASSIGNER) {
+            continue;
+        }
+        let carried = match &*assigner {
+            Value::String(text) => text.clone(),
+            other => other.to_string(),
+        };
+        *assigner = Value::String(OWN_ASSIGNER.to_owned());
+        reassigned.insert(format!("Policy/{}", envelope.metadata.name), carried);
+    }
+    reassigned
 }
 
 /// The namespace a kind is stored in: `org` for an organization-scoped kind, the project
@@ -1301,9 +1347,15 @@ pub async fn propose_bundle(
     let detail = serde_json::to_string_pretty(&report).unwrap_or_else(|_| "imported bundle".into());
     // The one line an approver reads before the report: whether the transfer arrived whole
     // (MF-42). A bundle without checksums has no such line rather than a reassuring one.
-    let body = match report.verification_summary() {
-        Some(summary) => format!("{summary}\n\n{detail}"),
-        None => detail,
+    let lead: Vec<String> = report
+        .verification_summary()
+        .into_iter()
+        .chain(report.reassignment_lines())
+        .collect();
+    let body = if lead.is_empty() {
+        detail
+    } else {
+        format!("{}\n\n{detail}", lead.join("\n"))
     };
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
@@ -1487,6 +1539,7 @@ fn plan_import(
         replaced: Vec::new(),
         skipped: Vec::new(),
         renamed: BTreeMap::new(),
+        reassigned: BTreeMap::new(),
         native_files: natives.len(),
         lane: Lane::Green,
         source,
@@ -1596,6 +1649,7 @@ fn plan_import(
         }
     }
 
+    report.reassigned = reassign_policies(&mut keep);
     report.needs = needs_of(&keep, project);
 
     let missing = unresolved(&keep, state, project);
@@ -1842,6 +1896,7 @@ mod verification_tests {
             replaced: Vec::new(),
             skipped: Vec::new(),
             renamed: std::collections::BTreeMap::new(),
+            reassigned: std::collections::BTreeMap::new(),
             native_files: 0,
             lane: Lane::Green,
             source: None,
