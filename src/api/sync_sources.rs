@@ -178,7 +178,7 @@ pub async fn sync_now(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "SyncSource name"),
     ),
-    request_body = PauseRequest,
+    request_body(content = PauseRequest, example = json!({ "paused": true })),
     responses(
         (status = 200, description = "What the source reports afterwards", body = SyncSourceStatus),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -302,9 +302,10 @@ pub(crate) async fn detach_for(
         ("x-gitea-signature" = String, Header, description = "HMAC-SHA256 of the request body"),
     ),
     request_body(
-        content = String,
+        content = serde_json::Value,
         description = "Whatever the origin sends; the body is what the signature covers",
         content_type = "application/json",
+        example = json!({ "ref": "refs/heads/main", "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49" }),
     ),
     responses(
         (status = 200, description = "The run the source's origin asked for", body = SyncRunReport),

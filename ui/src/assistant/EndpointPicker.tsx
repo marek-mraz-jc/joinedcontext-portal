@@ -305,7 +305,7 @@ export function DataBar({
                     disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
-                  <span className="flex size-4 shrink-0 items-center justify-center text-primary">
+                  <span className="flex size-4 shrink-0 items-center justify-center text-primary-soft-fg">
                     {checked ? <Icon name="check" className="size-3.5" /> : null}
                   </span>
                   <span className="min-w-0 flex-1">

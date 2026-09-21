@@ -3941,3 +3941,249 @@ async fn a_failing_set_status_never_invalidates_the_ticket_or_deletes_the_pod() 
     assert_eq!(retry.0, StatusCode::OK, "{}", retry.1);
     assert_eq!(ticket_of(&state, &id).await, "");
 }
+
+/// Edge cases of the filtered run list against PostgreSQL (T-2502, MF-12, PF-59). They run when
+/// `JC_PORTAL_TEST_DATABASE_URL` names a database the test may write to, and skip otherwise, like
+/// the other database tests. Each test writes into projects of its own.
+mod filtered_list_edges {
+    use joinedcontext_portal::agents::run::AgentRun;
+    use joinedcontext_portal::agents::store::RunFilter;
+    use joinedcontext_portal::db;
+    use serde_json::json;
+    use sqlx::PgPool;
+
+    async fn pool() -> Option<PgPool> {
+        let url = std::env::var("JC_PORTAL_TEST_DATABASE_URL").ok()?;
+        if url.trim().is_empty() {
+            return None;
+        }
+        Some(db::connect(&url).await.expect("connect and migrate"))
+    }
+
+    /// A project name no other run of any test has used.
+    fn fresh(tag: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        format!("t2502-{tag}-{nanos}")
+    }
+
+    /// `(id, app, kind, status, created_by, created_at)`
+    type Row<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str, &'a str);
+
+    async fn insert(pool: &PgPool, project: &str, rows: &[Row<'_>]) {
+        for (id, app, kind, status, created_by, created_at) in rows {
+            let run: AgentRun = serde_json::from_value(json!({
+                "id": format!("{project}-{id}"), "project": project, "appName": app,
+                "endpointName": "air", "endpointSlug": "air", "profile": "builder",
+                "kind": kind, "unattended": false, "appClass": "dashboard",
+                "visibility": "internal", "prompt": "p", "promptDigest": "d",
+                "dataNeeds": [], "allowsWrite": false, "branch": "b", "pathPrefix": "apps/x",
+                "status": status, "ticketHash": "h", "steps": 0, "tokensUsed": 0,
+                "createdBy": created_by, "createdAt": created_at,
+                "expiresAt": "2099-01-01T00:00:00Z",
+            }))
+            .expect("a run");
+            db::insert_agent_run(pool, &run).await.expect("insert");
+        }
+    }
+
+    async fn ids(pool: &PgPool, project: &str, filter: RunFilter, limit: i64) -> Vec<String> {
+        db::list_agent_runs_filtered(pool, project, &filter, limit)
+            .await
+            .expect("the list")
+            .into_iter()
+            .map(|run| run.id.trim_start_matches(&format!("{project}-")).to_owned())
+            .collect()
+    }
+
+    fn filter(
+        app: Option<&str>,
+        kind: Option<&str>,
+        status: Option<&str>,
+        by: Option<&str>,
+    ) -> RunFilter {
+        RunFilter {
+            app: app.map(str::to_owned),
+            kind: kind.map(str::to_owned),
+            status: status.map(str::to_owned),
+            created_by: by.map(str::to_owned),
+        }
+    }
+
+    /// Four runs that differ in one field each from `a`, oldest first.
+    const ROWS: [Row<'static>; 5] = [
+        ("a", "kpi", "app", "running", "anna", "2026-09-21T10:00:00Z"),
+        ("b", "map", "app", "running", "anna", "2026-09-21T10:01:00Z"),
+        (
+            "c",
+            "kpi",
+            "edit",
+            "running",
+            "anna",
+            "2026-09-21T10:02:00Z",
+        ),
+        ("d", "kpi", "app", "failed", "anna", "2026-09-21T10:03:00Z"),
+        (
+            "e",
+            "kpi",
+            "app",
+            "running",
+            "boris",
+            "2026-09-21T10:04:00Z",
+        ),
+    ];
+
+    /// Cases 2 to 5 and 11, table-driven: every combination of the four filters binds each value
+    /// to its own column, and no filter at all lists every run once, newest first.
+    #[tokio::test]
+    async fn every_filter_alone_and_together_binds_its_own_column() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("filters");
+        insert(&pool, &project, &ROWS).await;
+        let cases: [(RunFilter, &[&str]); 7] = [
+            (filter(None, None, None, None), &["e", "d", "c", "b", "a"]),
+            (filter(Some("map"), None, None, None), &["b"]),
+            (filter(None, Some("edit"), None, None), &["c"]),
+            (filter(None, None, Some("failed"), None), &["d"]),
+            (filter(None, None, None, Some("boris")), &["e"]),
+            (
+                filter(Some("kpi"), Some("app"), Some("running"), Some("anna")),
+                &["a"],
+            ),
+            // A value in the wrong column matches nothing: `kpi` is an app, not a kind.
+            (filter(None, Some("kpi"), None, None), &[]),
+        ];
+        for (filter, expected) in cases {
+            let said = format!("{filter:?}");
+            assert_eq!(ids(&pool, &project, filter, 50).await, expected, "{said}");
+        }
+    }
+
+    /// Case 3: two filters before it do not move the `LIMIT` placeholder onto a filter value.
+    #[tokio::test]
+    async fn app_and_status_together_do_not_shift_the_limit_placeholder() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("limit");
+        insert(&pool, &project, &ROWS).await;
+        let page = ids(
+            &pool,
+            &project,
+            filter(Some("kpi"), None, Some("running"), None),
+            2,
+        )
+        .await;
+        assert_eq!(page, ["e", "c"]);
+    }
+
+    /// Case 1 and 8: a run of another project never reaches this one's page, whatever the
+    /// filters, and a project with no runs is an empty page, not an error.
+    #[tokio::test]
+    async fn two_projects_never_leak_into_each_others_filtered_page() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let (mine, theirs) = (fresh("mine"), fresh("theirs"));
+        insert(&pool, &mine, &ROWS[..1]).await;
+        insert(&pool, &theirs, &ROWS).await;
+        for filter in [
+            filter(None, None, None, None),
+            filter(Some("map"), None, None, None),
+            filter(None, None, None, Some("boris")),
+        ] {
+            let page = db::list_agent_runs_filtered(&pool, &mine, &filter, 50)
+                .await
+                .expect("the list");
+            assert!(page.iter().all(|run| run.project == mine), "{filter:?}");
+        }
+        let nobody = fresh("nobody");
+        let all = filter(Some("kpi"), Some("app"), Some("running"), Some("anna"));
+        assert!(ids(&pool, &nobody, all, 50).await.is_empty());
+    }
+
+    /// Cases 6 and 7: a value is bound, never spliced into the SQL, so `%`, `_` and a quote are
+    /// the characters they are.
+    #[tokio::test]
+    async fn a_filter_value_is_bound_so_wildcards_and_quotes_are_literal() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("literal");
+        insert(&pool, &project, &ROWS).await;
+        for value in [
+            "%",
+            "kp_",
+            "k%",
+            "kpi' OR '1'='1",
+            "kpi\"; DROP TABLE agent_runs; --",
+        ] {
+            for filter in [
+                filter(Some(value), None, None, None),
+                filter(None, None, None, Some(value)),
+            ] {
+                let said = format!("{filter:?}");
+                assert!(ids(&pool, &project, filter, 50).await.is_empty(), "{said}");
+            }
+        }
+        assert_eq!(
+            ids(&pool, &project, filter(None, None, None, None), 50)
+                .await
+                .len(),
+            5
+        );
+    }
+
+    /// Cases 9 and 10: `LIMIT 0` is an empty page, and a limit above the rows is every row once.
+    /// The route refuses a limit below one before it reaches here.
+    #[tokio::test]
+    async fn the_limit_bounds_the_page_at_both_ends() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("bounds");
+        insert(&pool, &project, &ROWS).await;
+        let none = filter(None, None, None, None);
+        assert!(ids(&pool, &project, none.clone(), 0).await.is_empty());
+        assert_eq!(ids(&pool, &project, none.clone(), 5).await.len(), 5);
+        assert_eq!(ids(&pool, &project, none.clone(), 6).await.len(), 5);
+        assert_eq!(ids(&pool, &project, none, 4).await, ["e", "d", "c", "b"]);
+    }
+
+    /// Runs created in the same instant come in the order the memory store gives them (by id),
+    /// so a page is the same between two calls whichever store serves it.
+    #[tokio::test]
+    async fn runs_created_at_one_instant_come_in_id_order() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("ties");
+        let at = "2026-09-21T10:00:00Z";
+        insert(
+            &pool,
+            &project,
+            &[
+                ("c", "kpi", "app", "running", "anna", at),
+                ("a", "kpi", "app", "running", "anna", at),
+                ("b", "kpi", "app", "running", "anna", at),
+            ],
+        )
+        .await;
+        let none = filter(None, None, None, None);
+        assert_eq!(
+            ids(&pool, &project, none.clone(), 50).await,
+            ["a", "b", "c"]
+        );
+        assert_eq!(ids(&pool, &project, none, 2).await, ["a", "b"]);
+    }
+}

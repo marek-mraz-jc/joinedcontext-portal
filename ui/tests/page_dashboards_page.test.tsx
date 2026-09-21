@@ -177,6 +177,22 @@ describe("the dashboards page", () => {
     expect(screen.queryByText(en.dashboards.empty)).toBeNull();
   });
 
+  // UI-16, T-1503: the dashboard is read and its features are not: the map's frame holds its
+  // place and says it is loading, while the page around it is already there.
+  it("holds_the_maps_frame_while_its_features_are_on_their_way", async () => {
+    const answer = answering([dashboard()]);
+    await renderRoute({
+      path: PATH,
+      answer: (path) =>
+        path.startsWith("/api/endpoint/") ? (new Promise<Response>(() => {}) as never) : answer(path),
+    });
+    // The dashboard itself has arrived: its pages are named.
+    expect(await screen.findByRole("tab", { name: "Map" })).toBeInTheDocument();
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByRole("status", { name: en.app.loading })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("says_why_the_dashboards_could_not_be_read", async () => {
     await renderRoute({
       path: PATH,

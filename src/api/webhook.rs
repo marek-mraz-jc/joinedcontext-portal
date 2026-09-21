@@ -107,9 +107,14 @@ fn should_sync(headers: &HeaderMap, payload: &Value) -> bool {
         ("x-gitea-event" = Option<String>, Header, description = "Gitea event type (e.g. push, pull_request)"),
     ),
     request_body(
-        content = String,
+        content = Object,
         description = "Gitea webhook event payload",
         content_type = "application/json",
+        example = json!({
+            "ref": "refs/heads/main",
+            "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+            "repository": { "full_name": "hel/config" }
+        }),
     ),
     responses(
         (status = 202, description = "Webhook accepted and synchronization triggered"),
