@@ -1152,6 +1152,25 @@
         "RealmRefused": "Not written"
       },
       "emptyHint": "A group is a name for several people, so a role is given once instead of person by person. Groups come from the identity provider or are declared here."
+    },
+    "domain": {
+      "title": "Domain",
+      "lead": "Whether the organization's domain is proven to be its own. Until it is, publish the record below in the domain's DNS; the Portal checks it again on the next sync.",
+      "state": {
+        "pending": "Not verified yet",
+        "verified": "Verified",
+        "failed": "Verification failed"
+      },
+      "unchecked": "Not checked yet",
+      "method": {
+        "dns-txt": "a DNS TXT record",
+        "did-web": "its did:web document"
+      },
+      "checkedBy": "Verified through {method}, checked {when}.",
+      "checked": "Last checked {when}.",
+      "publish": "Publish this TXT record in the domain's DNS:",
+      "copy": "Copy the record",
+      "copied": "Record copied"
     }
   },
   "flows": {
