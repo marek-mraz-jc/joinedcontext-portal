@@ -13,6 +13,8 @@ use crate::state::AppState;
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/permissions/me",
+    summary = "Read My Permissions",
+    description = "The caller's effective rules in the project: which verbs on which kinds, from which bindings. 404 when no binding covers the project.",
     tag = "permissions",
     params(("project" = String, Path, description = "Project slug")),
     responses(

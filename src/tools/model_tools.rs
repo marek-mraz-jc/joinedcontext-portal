@@ -227,6 +227,8 @@ async fn compile(
 #[utoipa::path(
     post,
     path = "/api/v1/tools/generate",
+    summary = "Generate Model Artifacts",
+    description = "Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing.",
     tag = "tools",
     request_body(
         content = GenerateRequest,
@@ -250,6 +252,8 @@ pub async fn generate(
 #[utoipa::path(
     post,
     path = "/api/v1/tools/import-sdm",
+    summary = "Import A Smart Data Model",
+    description = "Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change.",
     tag = "tools",
     request_body(content = ImportSdmRequest, example = json!({ "model": "AirQualityObserved" })),
     responses(
@@ -277,6 +281,8 @@ pub async fn import_sdm(
 #[utoipa::path(
     get,
     path = "/api/v1/tools/sdm-catalog",
+    summary = "List Smart Data Models",
+    description = "The Smart Data Models catalogue index, from the cache when a refresh did not reach the catalogue.",
     tag = "tools",
     params(("refresh" = Option<bool>, Query, description = "Refresh the cached index now instead of waiting for the daily run")),
     responses(

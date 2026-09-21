@@ -25,6 +25,8 @@ const UI_SCHEMA_KIND: &str = "UiSchema";
 #[utoipa::path(
     get,
     path = "/api/v1/forms",
+    summary = "List Forms",
+    description = "Every UiSchema manifest the Portal arranges its forms by. Any signed-in caller may read them; they hold layout, never data.",
     tag = "forms",
     responses(
         (status = 200, description = "Every UiSchema manifest in portal/forms/", body = ResourceList),

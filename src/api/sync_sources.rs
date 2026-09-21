@@ -109,6 +109,8 @@ pub struct PauseRequest {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/syncsources/{name}/status",
+    summary = "Read Sync State",
+    description = "Where one SyncSource stands: its phase, the revision it saw and why the last run stopped.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -147,6 +149,8 @@ pub async fn status(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/sync",
+    summary = "Sync Now",
+    description = "Runs one SyncSource at once; what it finds becomes changes a person approves.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -173,6 +177,8 @@ pub async fn sync_now(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/pause",
+    summary = "Pause Or Resume Syncing",
+    description = "Switches one SyncSource's loop off, or back on; nothing already proposed is touched.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -208,6 +214,8 @@ pub async fn pause(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/detach",
+    summary = "Detach A Sync Source",
+    description = "Stops the loop and proposes removing the SyncSource; what it imported stays.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -295,6 +303,8 @@ pub(crate) async fn detach_for(
 #[utoipa::path(
     post,
     path = "/api/v1/webhooks/sync/{project}/{name}",
+    summary = "Sync Source Webhook",
+    description = "Called by a SyncSource's origin to run it now. The body must carry the signature of the source's own secret; every other case answers the same 401, so the call reveals nothing (MF-44, PF-59).",
     tag = "system",
     params(
         ("project" = String, Path, description = "Project name"),

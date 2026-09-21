@@ -151,6 +151,8 @@ impl DeleteOutcome {
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Delete Resource",
+    description = "Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -239,6 +241,15 @@ pub async fn delete_with_identity(
         return Err(not_found());
     }
     effective.check(kind_info.kind, jc_core::kinds::Verb::Delete, Some(&target))?;
+    // PF-03: the last administrator of the organization is not removed by any door.
+    crate::permissions::keeps_an_administrator(
+        &mirror,
+        crate::permissions::AccessChange::Remove {
+            kind: kind_info.kind,
+            namespace: project,
+            name,
+        },
+    )?;
 
     // 2. Every resource in the mirror that still references the target (MF-07, R20)
     let dependents = mirror.matching(|candidate| {
