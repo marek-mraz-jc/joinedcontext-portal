@@ -2021,7 +2021,8 @@
     "publication": {
       "title": "Veröffentlichung",
       "source": "Quellcode in Git",
-      "approve": "Genehmigen und veröffentlichen"
+      "approve": "Genehmigen und veröffentlichen",
+      "mirror": "Kopie auf GitHub"
     },
     "question": {
       "suggested": "vorgeschlagen",

@@ -67,15 +67,16 @@ function change(overrides: Record<string, unknown> = {}) {
 
 interface World {
   sourceUrl?: string;
+  mirrorUrl?: string;
   changeId?: string;
   body?: Record<string, unknown>;
   approveFails?: { status: number; detail: string };
 }
 
 function renderPublication(world: World = {}) {
-  const { sourceUrl = SOURCE, changeId = CHANGE_ID, body = change(), approveFails } = world;
+  const { sourceUrl = SOURCE, mirrorUrl, changeId = CHANGE_ID, body = change(), approveFails } = world;
   return renderPage(
-    <RunPublication project={PROJECT} sourceUrl={sourceUrl} changeId={changeId} />,
+    <RunPublication project={PROJECT} sourceUrl={sourceUrl} mirrorUrl={mirrorUrl} changeId={changeId} />,
     {
       path: `/projects/${PROJECT}/apps/air`,
       answer: (url) => {
@@ -115,6 +116,21 @@ describe("how an application goes live", () => {
     const link = await screen.findByRole("link", { name: en.agentRun.publication.source });
     expect(link).toHaveAttribute("href", SOURCE);
     expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+  });
+
+  // AP-79: the copy on GitHub sits beside the forge's repository of record, named as a copy.
+  it("links the application's copy on GitHub beside the forge, and only where there is one", async () => {
+    const mirror = "https://github.com/hel-apps/helsinki_air/tree/agent/app-air/r1";
+    renderPublication({ changeId: undefined, mirrorUrl: mirror });
+    const copy = await screen.findByRole("link", { name: en.agentRun.publication.mirror });
+    expect(copy).toHaveAttribute("href", mirror);
+    expect(copy).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+    expect(screen.getByRole("link", { name: en.agentRun.publication.source })).toHaveAttribute("href", SOURCE);
+    cleanup();
+
+    renderPublication({ changeId: undefined });
+    await screen.findByRole("link", { name: en.agentRun.publication.source });
+    expect(screen.queryByRole("link", { name: en.agentRun.publication.mirror })).not.toBeInTheDocument();
   });
 
   // PF-50: `status.sourceUrl` is written by whoever authored the manifest. An address that

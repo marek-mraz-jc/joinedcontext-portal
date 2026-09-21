@@ -2021,7 +2021,8 @@
     "publication": {
       "title": "Publication",
       "source": "Source in Git",
-      "approve": "Approve and publish"
+      "approve": "Approve and publish",
+      "mirror": "Copy on GitHub"
     },
     "question": {
       "suggested": "suggested",

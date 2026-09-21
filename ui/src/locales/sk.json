@@ -2021,7 +2021,8 @@
     "publication": {
       "title": "Zverejnenie",
       "source": "Zdrojový kód v Gite",
-      "approve": "Schváliť a zverejniť"
+      "approve": "Schváliť a zverejniť",
+      "mirror": "Kópia na GitHube"
     },
     "question": {
       "suggested": "navrhované",

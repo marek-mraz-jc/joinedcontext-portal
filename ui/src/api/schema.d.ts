@@ -1481,6 +1481,11 @@ export interface components {
             kind: string;
             /** Format: int32 */
             mergeRequest?: number | null;
+            /**
+             * @description The GitHub copy of the application's repository on the run's branch, when the installation
+             *     keeps one (AP-79). The forge's `source_url` stays the repository of record.
+             */
+            mirrorUrl?: string | null;
             pathPrefix: string;
             previewUrl?: string | null;
             profile: string;
