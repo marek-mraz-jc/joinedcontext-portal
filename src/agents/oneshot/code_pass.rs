@@ -449,16 +449,21 @@ impl Driver {
         if !errors.is_empty() {
             *files = before;
             let errors: Vec<String> = errors.into_iter().filter(|e| !is_protocol(e)).collect();
+            // Only the patch protocol went wrong: the person reads what happened, not the
+            // protocol (T-0785, T-1662).
+            let reasons = if errors.is_empty() {
+                "the model answered without a change to the files".to_owned()
+            } else {
+                errors.join("\n")
+            };
             let said = if on_screen {
                 format!(
                     "The application still does not build, so the preview keeps the version \
-                     before this request:\n{}",
-                    errors.join("\n")
+                     before this request:\n{reasons}"
                 )
             } else {
                 format!(
-                    "The application could not be built:\n{}\nSend a message to try again.",
-                    errors.join("\n")
+                    "The application could not be built:\n{reasons}\nSend a message to try again."
                 )
             };
             self.thought(&said).await?;
@@ -517,10 +522,7 @@ impl Driver {
             problems.push(unread_problem(unread));
         }
         if blocks.is_empty() && conversation.is_empty() {
-            problems.push(
-                "the answer carried no SEARCH/REPLACE block; write the application as blocks"
-                    .to_owned(),
-            );
+            problems.push(format!("{NO_BLOCKS}; write the application as blocks"));
         }
         if !problems.is_empty() {
             problems.extend(
