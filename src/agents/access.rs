@@ -1,6 +1,8 @@
 //! What an agent may call (AG-70): the profile's `spec.access` narrows the operation registry,
 //! and the person who started the run narrows it again at every call, so a profile never widens
-//! anyone. Read from the untyped spec like the rest of the profile (see `profile.rs`).
+//! anyone. Read from the untyped spec like the rest of the profile (see `profile.rs`). An agent
+//! therefore has no rights of its own (AG-03): what it may touch is the person's `Policy` and
+//! bindings, and every write it makes is a proposal on the configuration repository under them.
 
 use std::collections::{BTreeMap, BTreeSet};
 
