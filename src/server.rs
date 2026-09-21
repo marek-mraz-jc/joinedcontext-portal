@@ -128,9 +128,7 @@ async fn api_cache_control_middleware(request: Request, next: Next) -> Response 
 /// bearer is the whole of its authentication, checked inside the handlers.
 pub fn internal_app(state: AppState) -> Router {
     Router::new()
-        .merge(api::agent_runs::internal_router())
-        .merge(api::pipeline_test::internal_router())
-        .merge(api::workspaces::internal_router())
+        .merge(api::internal::router())
         .with_state(state)
 }
 

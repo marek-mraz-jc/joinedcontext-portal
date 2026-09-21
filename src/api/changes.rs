@@ -681,6 +681,8 @@ fn build_proposal(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes",
+    summary = "List Changes",
+    description = "Lists open change proposals and merge requests for review.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -798,6 +800,8 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes/{id}",
+    summary = "Read One Change",
+    description = "One proposed change: what it does, who wrote it, its lane and where it stands.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -869,6 +873,8 @@ pub async fn change_for(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/approve",
+    summary = "Approve Change",
+    description = "Approves and merges a change proposal.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -876,8 +882,10 @@ pub async fn change_for(
     ),
     request_body(
         content = Option<ApproveBody>,
-        description = "Optional approval confirmation for red-lane changes",
-        content_type = "application/json"
+        description = "Optional approval confirmation for red-lane changes: `confirm` repeats \
+                       the resource's name",
+        content_type = "application/json",
+        example = json!({ "confirm": "helsinki-air" })
     ),
     responses(
         (status = 202, description = "Change proposal approved and deploying", body = Change),
@@ -1158,7 +1166,18 @@ pub async fn approve_change_for(
                     &data.kind,
                     jc_core::kinds::Verb::Delete,
                     base.as_ref(),
-                )?
+                )?;
+                // PF-03: what was fine when proposed may be the last administrator by now.
+                if let Some(base) = &data.base_envelope {
+                    crate::permissions::keeps_an_administrator(
+                        &state.mirror,
+                        crate::permissions::AccessChange::Remove {
+                            kind: &data.kind,
+                            namespace: base.metadata.namespace.as_deref().unwrap_or(project),
+                            name: &base.metadata.name,
+                        },
+                    )?;
+                }
             }
             (_, Some(head)) => {
                 let manifest =
@@ -1289,6 +1308,8 @@ pub async fn approve_change_for(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/reject",
+    summary = "Reject Change",
+    description = "Rejects a change proposal with a reason and closes its merge request.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1297,7 +1318,8 @@ pub async fn approve_change_for(
     request_body(
         content = Option<ApproveBody>,
         description = "Optional reject payload",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({ "reason": "The endpoint would publish the stations' maintenance notes" })
     ),
     responses(
         (status = 202, description = "Change proposal rejected", body = Change),

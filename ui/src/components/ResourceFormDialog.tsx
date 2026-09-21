@@ -267,7 +267,8 @@ export function ResourceFormDialog<T>({
   const isLax = (branding as { validation?: string })?.validation === "lax";
   // The base comes from the installation's branding, which an administrator writes, so a
   // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
-  // in `ExternalLink`, which is where every link out of the Portal is checked.
+  // in `ExternalLink`, which is where every link out of the Portal is checked — and which keeps
+  // the words when the address is not a place, instead of dropping the sentence.
   const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
@@ -870,7 +871,7 @@ export function ResourceFormDialog<T>({
             <ExternalLink
               data-testid="form-guide"
               href={guideHref}
-              className="text-accent underline-offset-2"
+              className="text-primary-soft-fg underline-offset-2"
             >
               {t("form.guideLink", { kind })}
             </ExternalLink>

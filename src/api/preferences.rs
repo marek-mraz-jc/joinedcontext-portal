@@ -96,6 +96,8 @@ fn db_error(err: sqlx::Error) -> ApiError {
 #[utoipa::path(
     get,
     path = "/api/v1/preferences",
+    summary = "Read Preferences",
+    description = "The caller's own Portal preferences, empty before the first save. Nobody reads another person's.",
     tag = "preferences",
     responses(
         (status = 200, description = "The caller's preferences, empty before the first save", body = Preferences),
@@ -121,8 +123,13 @@ pub async fn get_preferences(
 #[utoipa::path(
     put,
     path = "/api/v1/preferences",
+    summary = "Save Preferences",
+    description = "Stores the caller's own Portal preferences and answers what is now saved. A field the Portal understands is validated; the rest is kept as sent.",
     tag = "preferences",
-    request_body = Preferences,
+    request_body(
+        content = Preferences,
+        example = json!({ "locale": "sk", "theme": "dark", "advancedMode": false, "defaultProject": "helsinki" })
+    ),
     responses(
         (status = 200, description = "Stored; the body is what is now saved", body = Preferences),
         (status = 400, description = "A field the Portal understands is invalid", body = ProblemDetails),

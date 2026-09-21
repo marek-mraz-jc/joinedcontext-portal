@@ -147,7 +147,7 @@ export function TemporalChart({
               stroke="currentColor"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
-              className="text-primary"
+              className="text-primary-soft-fg"
             />
           </svg>
           <p className="text-caption text-fg-muted">

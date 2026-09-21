@@ -345,6 +345,63 @@ impl Driver {
         .await
     }
 
+    /// Every manifest `new_dashboard` drafted through the platform's dry run, in order; the first
+    /// refusal comes back with the manifest it refused.
+    ///
+    /// The dashboard is dry-run against a copy of the mirror that already holds the layers
+    /// drafted beside it, since they land in its one proposal (T-2553): every check, UI-19's
+    /// included, sees the dashboard as it will be, so a new layer on a non-public endpoint is
+    /// refused exactly like an existing one. The mirror itself is not touched.
+    pub(super) async fn dry_run_drafted(&self, drafted: &[Value]) -> Result<(), (String, Value)> {
+        let refuse = |manifest: &Value, findings: String| {
+            (
+                format!(
+                    "the platform's check refuses {} '{}': {findings}",
+                    manifest["kind"].as_str().unwrap_or_default(),
+                    manifest["metadata"]["name"].as_str().unwrap_or_default()
+                ),
+                manifest.clone(),
+            )
+        };
+        let mut beside = self.state.clone();
+        let view = self.state.mirror.snapshot();
+        for layer in drafted
+            .iter()
+            .filter(|manifest| manifest["kind"] == "Layer")
+        {
+            let envelope =
+                serde_json::from_value::<crate::resource::ResourceEnvelope>(layer.clone())
+                    .map_err(|err| refuse(layer, err.to_string()))?;
+            view.upsert(envelope);
+        }
+        beside.mirror = std::sync::Arc::new(view);
+        for manifest in drafted {
+            let state = if manifest["kind"] == "Dashboard" {
+                &beside
+            } else {
+                &self.state
+            };
+            match crate::api::dry_run::execute_dry_run(
+                &self.identity,
+                state,
+                &self.project,
+                manifest.clone(),
+            )
+            .await
+            {
+                Ok(result) if result.valid => {}
+                Ok(result) => {
+                    return Err(refuse(
+                        manifest,
+                        serde_json::to_string(&result.plan).unwrap_or_default(),
+                    ))
+                }
+                Err(err) => return Err(refuse(manifest, err.to_string())),
+            }
+        }
+        Ok(())
+    }
+
     /// A new dashboard with the new layers its pages draw (AG-77, UI-17, UI-18). Every manifest
     /// passes the dry run and is kept as the person's draft, and the dashboard editor opens on
     /// the dashboard; its one proposal carries the layers with it. What the model got wrong goes
@@ -383,35 +440,16 @@ impl Driver {
                     .await;
             }
         };
-        for manifest in &drafted {
-            let refused = match crate::api::dry_run::execute_dry_run(
-                &self.identity,
-                &self.state,
-                &self.project,
-                manifest.clone(),
-            )
-            .await
-            {
-                Ok(result) if result.valid => None,
-                Ok(result) => Some(serde_json::to_string(&result.plan).unwrap_or_default()),
-                Err(err) => Some(err.to_string()),
-            };
-            if let Some(findings) = refused {
-                let reason = format!(
-                    "the platform's check refuses {} '{}': {findings}",
-                    manifest["kind"].as_str().unwrap_or_default(),
-                    manifest["metadata"]["name"].as_str().unwrap_or_default()
-                );
-                self.event("tool", failed_step(TOOL, started, &input, &reason))
-                    .await?;
-                return self
-                    .again(
-                        last,
-                        format!("error: {reason}; the manifest was {manifest}"),
-                        format!("The dashboard does not pass the platform's check: {reason}"),
-                    )
-                    .await;
-            }
+        if let Err((reason, manifest)) = self.dry_run_drafted(&drafted).await {
+            self.event("tool", failed_step(TOOL, started, &input, &reason))
+                .await?;
+            return self
+                .again(
+                    last,
+                    format!("error: {reason}; the manifest was {manifest}"),
+                    format!("The dashboard does not pass the platform's check: {reason}"),
+                )
+                .await;
         }
         for manifest in &drafted {
             let kind = manifest["kind"].as_str().unwrap_or_default();
@@ -1495,5 +1533,425 @@ mod workspace_guard_tests {
             .await
             .unwrap();
         assert_eq!(driver.second_resource("DataSource", "feed").await, None);
+    }
+}
+
+#[cfg(test)]
+mod new_dashboard_tests {
+    //! `new_dashboard` (T-2514; UI-19, AG-77): a `change_resource` Dashboard create turned into
+    //! Layer and Dashboard manifests, refused before any draft when it would not stand.
+
+    use super::*;
+    use crate::agents::change::{ChangeResource, NewLayer};
+    use crate::git::GiteaClient;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+    use crate::state::AppState;
+    use std::sync::Arc;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const LINKML: &str = "id: https://hel.fi/models/bikes\nname: bikes\nclasses:\n  BikeHireDockingStation:\n    slots: [id, name, availableBikeNumber]\nslots:\n  id: {}\n  name: { range: string }\n  availableBikeNumber: { range: integer }\n";
+
+    fn put(state: &AppState, kind: &str, name: &str, spec: Value) {
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some("helsinki".into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        });
+    }
+
+    /// The forge serving the `bikes` model's source, and the project around it: a public and a
+    /// private endpoint over the space, one existing layer on each, one existing dashboard.
+    async fn world() -> (Driver, MockServer) {
+        let forge = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/org/manifests/contents/projects/helsinki/spaces/helsinki/datamodels/bikes.linkml.yaml"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "s",
+                "content": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, LINKML),
+            })))
+            .mount(&forge)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/org/manifests"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&forge)
+            .await;
+        let client = GiteaClient::new(forge.uri().parse().expect("url"), "org", "manifests", "t")
+            .expect("a forge client");
+        let state =
+            AppState::new(crate::config::Config::for_tests(), None).with_gitea(Arc::new(client));
+        put(
+            &state,
+            "ContextSpace",
+            "helsinki",
+            json!({ "dataModelRef": "bikes" }),
+        );
+        put(
+            &state,
+            "DataModel",
+            "bikes",
+            json!({ "contextSpaceRef": "helsinki", "linkml": "bikes.linkml.yaml" }),
+        );
+        put(
+            &state,
+            "Endpoint",
+            "bikes-open",
+            json!({ "contextSpaceRef": "helsinki", "audience": "public" }),
+        );
+        put(
+            &state,
+            "Endpoint",
+            "bikes-staff",
+            json!({ "contextSpaceRef": "helsinki", "audience": "project" }),
+        );
+        put(
+            &state,
+            "Endpoint",
+            "bikes-unsaid",
+            json!({ "contextSpaceRef": "helsinki" }),
+        );
+        put(
+            &state,
+            "Layer",
+            "open-stations",
+            json!({ "sourceEndpointRef": "bikes-open", "entityType": "BikeHireDockingStation" }),
+        );
+        put(
+            &state,
+            "Layer",
+            "staff-stations",
+            json!({ "sourceEndpointRef": "bikes-staff", "entityType": "BikeHireDockingStation" }),
+        );
+        put(
+            &state,
+            "Dashboard",
+            "bikes",
+            json!({ "title": "Bikes", "visibility": "project", "pages": [] }),
+        );
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
+        (driver, forge)
+    }
+
+    /// What the caller does with every drafted manifest before it is stored: the platform's dry
+    /// run, `mutate::propose` with its UI-19 check and the kind's schema (`change_resource`).
+    async fn dry_run_refuses(driver: &Driver, params: &ChangeResource) -> bool {
+        let manifests = driver
+            .new_dashboard("Dashboard", &params.name, params)
+            .await
+            .expect("drafted");
+        driver.dry_run_drafted(&manifests).await.is_err()
+    }
+
+    fn layer(name: &str, endpoint: &str, extra: Value) -> NewLayer {
+        let mut spec = json!({ "sourceEndpointRef": endpoint, "entityType": "BikeHireDockingStation", "style": "circle" });
+        if let (Some(spec), Some(extra)) = (spec.as_object_mut(), extra.as_object()) {
+            spec.extend(extra.clone());
+        }
+        NewLayer {
+            name: name.to_owned(),
+            spec,
+        }
+    }
+
+    fn create(visibility: &str, draws: &[&str], layers: Vec<NewLayer>) -> ChangeResource {
+        ChangeResource {
+            kind: "Dashboard".into(),
+            name: "stations".into(),
+            patch: Some(json!({ "spec": {
+                "title": "Stations",
+                "visibility": visibility,
+                "pages": [{ "title": "Map", "layout": "full-map", "layers": draws }],
+            } })),
+            create: true,
+            layers,
+            ..Default::default()
+        }
+    }
+
+    async fn drafted(driver: &Driver, params: &ChangeResource) -> Result<Vec<String>, String> {
+        driver
+            .new_dashboard("Dashboard", &params.name, params)
+            .await
+            .map(|manifests| {
+                manifests
+                    .iter()
+                    .map(|m| {
+                        format!(
+                            "{}/{}",
+                            m["kind"].as_str().unwrap_or(""),
+                            m["metadata"]["name"].as_str().unwrap_or("")
+                        )
+                    })
+                    .collect()
+            })
+    }
+
+    /// T-2553, UI-18, UI-19: a public dashboard over new public layers passes the platform's check.
+    #[tokio::test]
+    async fn a_public_dashboard_over_new_public_layers_is_drafted() {
+        let (driver, _forge) = world().await;
+        let params = create(
+            "public",
+            &["new"],
+            vec![layer("new", "bikes-open", json!({}))],
+        );
+        let manifests = driver
+            .new_dashboard("Dashboard", &params.name, &params)
+            .await
+            .expect("drafted");
+        let checked = driver.dry_run_drafted(&manifests).await;
+        assert!(checked.is_ok(), "{checked:?}");
+    }
+
+    /// T-2514, UI-19: a public dashboard reads only public endpoints, whether its layer is new
+    /// or one the project has, and an endpoint that says no audience is not public.
+    #[tokio::test]
+    async fn a_public_dashboard_layer_on_a_private_endpoint_is_refused() {
+        let (driver, _forge) = world().await;
+        for (case, params) in [
+            (
+                "a new layer on a project endpoint",
+                create(
+                    "public",
+                    &["new"],
+                    vec![layer("new", "bikes-staff", json!({}))],
+                ),
+            ),
+            (
+                "a new layer on an endpoint with no audience",
+                create(
+                    "public",
+                    &["new"],
+                    vec![layer("new", "bikes-unsaid", json!({}))],
+                ),
+            ),
+            (
+                "a public and a private new layer",
+                create(
+                    "public",
+                    &["a", "b"],
+                    vec![
+                        layer("a", "bikes-open", json!({})),
+                        layer("b", "bikes-staff", json!({})),
+                    ],
+                ),
+            ),
+        ] {
+            let refused = drafted(&driver, &params).await.expect_err(case);
+            assert!(refused.contains("UI-19"), "{case}: {refused}");
+        }
+        // A layer the project has is not looked at here; the caller's dry run refuses it before
+        // anything is drafted (mutate.rs 4b', dashboards::check), and passes a public one.
+        let existing = create("public", &["staff-stations"], Vec::new());
+        assert!(dry_run_refuses(&driver, &existing).await);
+        assert!(!dry_run_refuses(&driver, &create("public", &["open-stations"], Vec::new())).await);
+        let drawn = create(
+            "public",
+            &["open-stations", "new"],
+            vec![layer("new", "bikes-open", json!({}))],
+        );
+        assert_eq!(
+            drafted(&driver, &drawn).await,
+            Ok(vec![
+                "Layer/new".to_owned(),
+                "Dashboard/stations".to_owned()
+            ])
+        );
+    }
+
+    /// T-2514, UI-19: a project dashboard may read any endpoint of the project.
+    #[tokio::test]
+    async fn a_private_dashboard_may_read_a_private_endpoint() {
+        let (driver, _forge) = world().await;
+        for visibility in ["project", "organization"] {
+            let params = create(
+                visibility,
+                &["staff", "staff-stations"],
+                vec![layer("staff", "bikes-staff", json!({}))],
+            );
+            assert_eq!(
+                drafted(&driver, &params).await,
+                Ok(vec![
+                    "Layer/staff".to_owned(),
+                    "Dashboard/stations".to_owned()
+                ]),
+                "{visibility}"
+            );
+        }
+    }
+
+    /// T-2514, AG-77: a create never overwrites what exists; nor is any other kind created here.
+    #[tokio::test]
+    async fn an_existing_dashboard_name_is_refused_as_a_patch_not_a_create() {
+        let (driver, _forge) = world().await;
+        let mut params = create("project", &["open-stations"], Vec::new());
+        params.name = "bikes".into();
+        let refused = drafted(&driver, &params)
+            .await
+            .expect_err("an existing dashboard");
+        assert!(
+            refused.contains("already exists; change it with a patch"),
+            "{refused}"
+        );
+        let other = driver
+            .new_dashboard("Endpoint", "x", &params)
+            .await
+            .expect_err("an endpoint");
+        assert!(
+            other.contains("only a Dashboard is created here"),
+            "{other}"
+        );
+    }
+
+    /// T-2514: a layer reading something that is not an endpoint of the project is refused with
+    /// the project's endpoints, so the model can name one that exists.
+    #[tokio::test]
+    async fn a_layer_naming_an_unknown_endpoint_lists_the_projects_endpoints() {
+        let (driver, _forge) = world().await;
+        for source in ["bikes-gone", "", "../bikes-open"] {
+            let params = create("project", &["new"], vec![layer("new", source, json!({}))]);
+            let refused = drafted(&driver, &params).await.expect_err(source);
+            assert!(
+                refused.ends_with("its endpoints are bikes-open, bikes-staff, bikes-unsaid"),
+                "{source}: {refused}"
+            );
+        }
+    }
+
+    /// T-2514: a new layer never replaces one the project has, spaces around its name included.
+    #[tokio::test]
+    async fn a_layer_reusing_an_existing_layer_name_is_refused() {
+        let (driver, _forge) = world().await;
+        for name in ["open-stations", " open-stations "] {
+            let params = create(
+                "project",
+                &["open-stations"],
+                vec![layer(name, "bikes-open", json!({}))],
+            );
+            let refused = drafted(&driver, &params).await.expect_err(name);
+            assert!(
+                refused.contains("Layer 'open-stations' already exists"),
+                "{refused}"
+            );
+        }
+    }
+
+    /// T-2514: an attribute the type does not have, named anywhere in the layer, is refused with
+    /// the type's real attributes.
+    #[tokio::test]
+    async fn an_unknown_attribute_named_by_a_layer_lists_the_types_real_attributes() {
+        let (driver, _forge) = world().await;
+        for extra in [
+            json!({ "colorBy": { "property": "freeBikes" } }),
+            json!({ "sizeBy": { "property": "freeBikes" } }),
+            json!({ "popupProperties": ["name", "freeBikes"] }),
+        ] {
+            let params = create(
+                "project",
+                &["new"],
+                vec![layer("new", "bikes-open", extra.clone())],
+            );
+            let refused = drafted(&driver, &params)
+                .await
+                .expect_err("an unknown attribute");
+            assert!(
+                refused.contains("names freeBikes, which BikeHireDockingStation"),
+                "{extra}: {refused}"
+            );
+            assert!(refused.contains("availableBikeNumber"), "{refused}");
+            assert!(refused.contains("name"), "{refused}");
+        }
+        let known = create(
+            "project",
+            &["new"],
+            vec![layer(
+                "new",
+                "bikes-open",
+                json!({ "colorBy": { "property": "availableBikeNumber" }, "popupProperties": ["name"] }),
+            )],
+        );
+        assert!(drafted(&driver, &known).await.is_ok());
+    }
+
+    /// T-2514: a type the endpoint's model does not have is refused when the layer names an
+    /// attribute of it.
+    #[tokio::test]
+    async fn an_entity_type_the_endpoints_schema_does_not_have_is_refused() {
+        let (driver, _forge) = world().await;
+        let mut unknown = layer("new", "bikes-open", json!({ "popupProperties": ["name"] }));
+        unknown.spec["entityType"] = json!("WeatherObserved");
+        let refused = drafted(&driver, &create("project", &["new"], vec![unknown]))
+            .await
+            .expect_err("a type");
+        assert_eq!(
+            refused,
+            "the data model behind 'bikes-open' has no type 'WeatherObserved'"
+        );
+    }
+
+    /// T-2514: every layer a page draws is new or the project's own.
+    #[tokio::test]
+    async fn a_page_drawing_a_layer_that_is_neither_new_nor_existing_is_refused() {
+        let (driver, _forge) = world().await;
+        let params = create("project", &["open-stations", "ghost"], Vec::new());
+        let refused = drafted(&driver, &params).await.expect_err("a ghost layer");
+        assert!(refused.contains("draws 'ghost'"), "{refused}");
+        assert!(
+            refused.ends_with("the project's layers are open-stations, staff-stations"),
+            "{refused}"
+        );
+    }
+
+    /// T-2514: a create without the dashboard's spec is refused with the shape it needs.
+    #[tokio::test]
+    async fn a_dashboard_with_no_spec_patch_is_refused() {
+        let (driver, _forge) = world().await;
+        for patch in [
+            None,
+            Some(json!("spec")),
+            Some(json!({ "spec": "x" })),
+            Some(json!({ "spec": [] })),
+        ] {
+            let mut params = create("project", &[], Vec::new());
+            params.patch = patch.clone();
+            let refused = drafted(&driver, &params).await.expect_err("no spec");
+            assert!(
+                refused.contains("a new dashboard carries its spec as the patch"),
+                "{patch:?}: {refused}"
+            );
+        }
+        // A patch that is an object is the spec itself (`change::spec_of`); an empty one is
+        // drafted here and refused by the caller's dry run, so it never becomes a draft.
+        for patch in [json!({}), json!({ "spec": {} }), json!({ "metadata": {} })] {
+            let mut params = create("project", &[], Vec::new());
+            params.patch = Some(patch.clone());
+            assert!(dry_run_refuses(&driver, &params).await, "{patch}");
+        }
+    }
+
+    /// T-2514: a layer that names no attribute needs no schema: the forge is never read.
+    #[tokio::test]
+    async fn a_layer_naming_no_attributes_skips_the_schema_fetch_entirely() {
+        let (driver, forge) = world().await;
+        let mut plain = layer("new", "bikes-open", json!({}));
+        plain.spec["entityType"] = json!("AnyType");
+        assert!(drafted(&driver, &create("project", &["new"], vec![plain]))
+            .await
+            .is_ok());
+        assert!(forge
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
     }
 }

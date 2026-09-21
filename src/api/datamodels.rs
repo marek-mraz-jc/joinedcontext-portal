@@ -495,6 +495,8 @@ pub(crate) async fn check_source(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Read Model Source",
+    description = "One DataModel's LinkML, as the repository holds it.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -533,6 +535,8 @@ pub async fn get_source(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Write Model Source",
+    description = "Writes one DataModel's LinkML and its generated artifacts as a change a person approves.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -545,6 +549,7 @@ pub async fn get_source(
         content = String,
         description = "LinkML source in YAML format",
         content_type = "text/yaml",
+        example = json!("id: https://hel.fi/models/air\nname: air\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports: [linkml:types]\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),

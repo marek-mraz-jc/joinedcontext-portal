@@ -12,6 +12,8 @@ pub struct Health {
 #[utoipa::path(
     get,
     path = "/api/v1/health",
+    summary = "Liveness",
+    description = "Whether this process answers at all. Public and cheap; it says nothing about the repository or the cluster.",
     tag = "system",
     responses(
         (status = 200, description = "Service is healthy", body = Health)
@@ -34,6 +36,8 @@ pub struct Readiness {
 #[utoipa::path(
     get,
     path = "/api/v1/ready",
+    summary = "Readiness",
+    description = "Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). Answers 503 until the mirror has loaded.",
     tag = "system",
     responses(
         (status = 200, description = "The mirror holds the repository", body = Readiness),

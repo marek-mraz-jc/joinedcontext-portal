@@ -592,3 +592,337 @@ async fn a_data_source_check_with_no_runner_still_names_a_probe() {
         "a refusing runner is not blamed on the feed: {skipped}"
     );
 }
+
+/// How many requests of one method the runner saw.
+async fn requests_of(runner: &MockServer, verb: &str) -> usize {
+    runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == verb)
+        .count()
+}
+
+/// A runner that answers the create with `create` and the delete with `delete`.
+async fn runner_answering(create: ResponseTemplate, delete: ResponseTemplate) -> MockServer {
+    let runner = MockServer::start().await;
+    for (verb, answer) in [("POST", create), ("DELETE", delete)] {
+        Mock::given(method(verb))
+            .and(path_regex(
+                r"^/[a-z0-9-]+/streams/pipeline-test-[a-z2-7]{26}$",
+            ))
+            .respond_with(answer)
+            .mount(&runner)
+            .await;
+    }
+    runner
+}
+
+/// T-2565, PL-43: a runner that answered the create with 5xx, or too late, may still hold the
+/// stream, so it is deleted all the same; the caller still gets 503.
+#[tokio::test]
+async fn the_stream_is_deleted_whatever_the_create_answered() {
+    for (project, create) in [
+        ("t2565-a", ResponseTemplate::new(502)),
+        (
+            "t2565-b",
+            ResponseTemplate::new(200).set_delay(Duration::from_secs(5)),
+        ),
+    ] {
+        let runner = runner_answering(create, ResponseTemplate::new(200)).await;
+        let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+        let (status, body) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{project}: {body}");
+        assert_eq!(requests_of(&runner, "DELETE").await, 1, "{project}");
+    }
+}
+
+/// T-2565, PL-43: a delete the runner refuses leaves the stream behind, and the trace says so
+/// as a runner error; a delete of a stream already gone (404) is not a failure.
+#[tokio::test]
+async fn a_refused_delete_is_said_as_a_runner_error() {
+    for (project, delete, said) in [
+        ("t2565-c", ResponseTemplate::new(500), true),
+        ("t2565-d", ResponseTemplate::new(404), false),
+    ] {
+        let create = ResponseTemplate::new(400).set_body_string("line 3 char 1: bad mapping");
+        let runner = runner_answering(create, delete).await;
+        let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+        let (status, body) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(status, StatusCode::OK, "{project}: {body}");
+        let runner_errors = body["errors"]
+            .as_array()
+            .map(|errors| errors.iter().filter(|e| e["stage"] == "runner").count())
+            .unwrap_or_default();
+        assert_eq!(runner_errors, usize::from(said), "{project}: {body}");
+    }
+}
+
+// ---- T-2520: `run_harness`, one test stream per project, always removed (PL-43) -------------
+// The running tests are one table per process, so every case below has a project of its own.
+
+const STREAM: &str = r"^/[a-z0-9-]+/streams/pipeline-test-[a-z2-7]{26}$";
+
+/// A runner answering the create with `create` and the delete with `delete`, and a Portal on it.
+async fn world_of(
+    project: &str,
+    create: ResponseTemplate,
+    delete: ResponseTemplate,
+) -> (MockServer, AppState) {
+    let runner = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(create)
+        .mount(&runner)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(STREAM))
+        .respond_with(delete)
+        .mount(&runner)
+        .await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+    (runner, state)
+}
+
+/// The runner's requests of `verb`, as paths.
+async fn asked(runner: &MockServer, verb: &str) -> Vec<String> {
+    runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == verb)
+        .map(|r| r.url.path().to_owned())
+        .collect()
+}
+
+/// T-2520, PL-43: one test at a time per project; the second is refused before it reaches the
+/// runner, and the first finishes and removes its stream.
+#[tokio::test]
+async fn a_second_test_of_the_same_project_while_one_is_running_is_409() {
+    let (runner, state) = world_of(
+        "t2520-one",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let body = request("root = this");
+    let first = {
+        let (state, body) = (state.clone(), body.clone());
+        tokio::spawn(async move { post(&state, "dev@hel.fi", "t2520-one", &body).await })
+    };
+    for _ in 0..100 {
+        if !asked(&runner, "POST").await.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let (status, answer) = post(&state, "dev@hel.fi", "t2520-one", &body).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{answer}");
+    assert_eq!(
+        asked(&runner, "POST").await.len(),
+        1,
+        "the second reached the runner"
+    );
+
+    let (status, answer) = first.await.expect("the first test");
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(asked(&runner, "DELETE").await, asked(&runner, "POST").await);
+}
+
+/// T-2520, PL-43: another project's test runs beside it.
+#[tokio::test]
+async fn two_different_projects_test_concurrently_without_conflicting() {
+    let (runner_a, state_a) = world_of(
+        "t2520-a",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let (runner_b, state_b) = world_of(
+        "t2520-b",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let body = request("root = this");
+    let ((a, _), (b, _)) = tokio::join!(post(&state_a, "dev@hel.fi", "t2520-a", &body), async {
+        // B starts once A's stream exists, so the two overlap.
+        for _ in 0..100 {
+            if !asked(&runner_a, "POST").await.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        post(&state_b, "dev@hel.fi", "t2520-b", &body).await
+    },);
+    assert_eq!((a, b), (StatusCode::OK, StatusCode::OK));
+    assert_eq!(asked(&runner_a, "DELETE").await.len(), 1);
+    assert_eq!(asked(&runner_b, "DELETE").await.len(), 1);
+}
+
+/// T-2520, PL-43: a failed test gives its project's slot back, so the next one runs.
+#[tokio::test]
+async fn the_slot_is_released_after_a_failed_run_so_a_later_test_of_the_same_project_succeeds() {
+    let (runner, state) = world_of(
+        "t2520-again",
+        ResponseTemplate::new(400).set_body_string("line 3: expected something"),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let body = request("root = this");
+    for _ in 0..2 {
+        let (status, answer) = post(&state, "dev@hel.fi", "t2520-again", &body).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "a refused harness is a lint trace: {answer}"
+        );
+    }
+    runner.reset().await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&runner)
+        .await;
+    let (status, _) = post(&state, "dev@hel.fi", "t2520-again", &body).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    runner.reset().await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    let (status, answer) = post(&state, "dev@hel.fi", "t2520-again", &body).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+}
+
+/// T-2520, PL-43: a runner that creates the stream and never posts a message still gets the
+/// delete, once the test's deadline has passed.
+#[tokio::test]
+async fn a_runner_that_times_out_mid_test_still_gets_the_delete() {
+    let (runner, state) = world_of(
+        "t2520-silent",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let started = std::time::Instant::now();
+    let (status, answer) = post(
+        &state,
+        "dev@hel.fi",
+        "t2520-silent",
+        &request("root = this"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(answer["input"]["events"], 0, "{answer}");
+    assert!(started.elapsed() < Duration::from_secs(10));
+    let created = asked(&runner, "POST").await;
+    assert_eq!(asked(&runner, "DELETE").await, created);
+}
+
+/// T-2520, PL-43: a project name reaches the runner's URL template only as a DNS label: one
+/// with reserved characters is not a project, and no stream is created for it.
+#[tokio::test]
+async fn the_project_name_is_url_templated_safely_even_with_reserved_characters() {
+    let (runner, state) = world_of(
+        "t2520-safe",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    for project in ["a%2Fb", "a..b", "UPPER", "a%40evil.example", "a%3Fx%3D1"] {
+        let (status, answer) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{project}: {answer}");
+    }
+    assert!(runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .is_empty());
+}
+
+/// T-2520: every test names a fresh stream: 26 characters of base32 from the OS's randomness,
+/// and the delete names the stream the create made.
+#[tokio::test]
+async fn the_stream_id_is_unique_per_call_never_reused() {
+    let (runner, state) = world_of(
+        "t2520-ids",
+        ResponseTemplate::new(400).set_body_string("line 1: no"),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    for _ in 0..5 {
+        post(&state, "dev@hel.fi", "t2520-ids", &request("root = this")).await;
+    }
+    let mut created = asked(&runner, "POST").await;
+    assert_eq!(created.len(), 5);
+    assert_eq!(asked(&runner, "DELETE").await, created);
+    created.sort();
+    created.dedup();
+    assert_eq!(created.len(), 5, "a stream id was used twice");
+}
+
+/// T-2520, PL-43: without a capture route there is nowhere for the harness to post, so the
+/// test is `503` before any stream exists.
+#[tokio::test]
+async fn a_capture_route_not_configured_is_503_before_a_stream_is_created() {
+    let (runner, _) = world_of(
+        "t2520-nocap",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let mut config = config(Some(&runner));
+    config.pipeline_test_capture_url = None;
+    let state = AppState::new(config, None).with_mirror(mirror("t2520-nocap"));
+    let (status, answer) = post(&state, "dev@hel.fi", "t2520-nocap", &request("root = this")).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{answer}");
+    assert!(runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .is_empty());
+}
+
+/// T-2520: what the person reads about a runner that failed names no runner address and no
+/// credential, whichever way it failed.
+#[tokio::test]
+async fn the_runner_error_shown_to_the_person_carries_no_runner_url_or_credential() {
+    for (project, create) in [
+        (
+            "t2520-quiet-a",
+            ResponseTemplate::new(500)
+                .set_body_string("panic at http://runner.internal:4195 token=abc"),
+        ),
+        (
+            "t2520-quiet-b",
+            ResponseTemplate::new(200).set_delay(Duration::from_secs(5)),
+        ),
+    ] {
+        let (runner, state) = world_of(project, create, ResponseTemplate::new(200)).await;
+        let (status, answer) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(
+            status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "{project}: {answer}"
+        );
+        let text = answer.to_string();
+        for leak in [
+            runner.uri().as_str(),
+            "127.0.0.1",
+            "runner.internal",
+            "token=",
+            "streams/",
+        ] {
+            assert!(!text.contains(leak), "{project}: {leak} in {text}");
+        }
+    }
+}

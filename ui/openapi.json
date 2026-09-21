@@ -18,9 +18,59 @@
         "summary": "The collector's route. One batch a request; a record with an unknown project or a kind outside\nthe vocabulary is rejected on its own, because one malformed record must not cost the other\nfour hundred.",
         "operationId": "ingest_activity",
         "requestBody": {
+          "description": "An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, its fields as attributes",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "resourceLogs": [
+                  {
+                    "scopeLogs": [
+                      {
+                        "logRecords": [
+                          {
+                            "attributes": [
+                              {
+                                "key": "project",
+                                "value": {
+                                  "stringValue": "helsinki"
+                                }
+                              },
+                              {
+                                "key": "kind",
+                                "value": {
+                                  "stringValue": "access.denied"
+                                }
+                              },
+                              {
+                                "key": "source",
+                                "value": {
+                                  "stringValue": "gateway"
+                                }
+                              },
+                              {
+                                "key": "severity",
+                                "value": {
+                                  "stringValue": "warning"
+                                }
+                              },
+                              {
+                                "key": "summary",
+                                "value": {
+                                  "stringValue": "An anonymous caller was refused a write."
+                                }
+                              }
+                            ],
+                            "timeUnixNano": "1789314063000000000"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           },
           "required": true
@@ -73,6 +123,9 @@
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/BackChannelLogoutForm"
+              },
+              "example": {
+                "logout_token": "the-realms-signed-logout-token"
               }
             }
           },
@@ -290,6 +343,8 @@
         "tags": [
           "blueprints"
         ],
+        "summary": "List Blueprints",
+        "description": "The organization's Blueprints this caller may run, for the flow gallery. A Blueprint is started in a project with POST /projects/{project}/flows.",
         "operationId": "list_blueprints",
         "responses": {
           "200": {
@@ -320,6 +375,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Read Branding",
+        "description": "The installation's name, colours and logo as the Portal and the catalogue theme draw them. Public: it names nothing of any project.",
         "operationId": "get_branding",
         "responses": {
           "200": {
@@ -379,7 +436,8 @@
         "tags": [
           "resources"
         ],
-        "summary": "`GET /api/v1/endpoints` (PF-60, PF-61): every Endpoint of every project this caller may\nread, each carrying the project it lives in. An `org-admin` bound at organization scope sees\nall of them, a project's steward those of their projects, a binding scoped to one context\nspace only that space's, and a person no binding names an empty list — never a 403, because\nwhat is not readable is not there (R20).",
+        "summary": "List Endpoints Everywhere",
+        "description": "Every Endpoint of every project the caller may read, each with the project it lives in.",
         "operationId": "list_endpoints_everywhere",
         "responses": {
           "200": {
@@ -410,6 +468,8 @@
         "tags": [
           "forms"
         ],
+        "summary": "List Forms",
+        "description": "Every UiSchema manifest the Portal arranges its forms by. Any signed-in caller may read them; they hold layout, never data.",
         "operationId": "list_forms",
         "responses": {
           "200": {
@@ -440,6 +500,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Liveness",
+        "description": "Whether this process answers at all. Public and cheap; it says nothing about the repository or the cluster.",
         "operationId": "health",
         "responses": {
           "200": {
@@ -469,6 +531,12 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "tools/list",
+                "params": {}
               }
             }
           },
@@ -545,6 +613,8 @@
         "tags": [
           "preferences"
         ],
+        "summary": "Read Preferences",
+        "description": "The caller's own Portal preferences, empty before the first save. Nobody reads another person's.",
         "operationId": "get_preferences",
         "responses": {
           "200": {
@@ -583,12 +653,20 @@
         "tags": [
           "preferences"
         ],
+        "summary": "Save Preferences",
+        "description": "Stores the caller's own Portal preferences and answers what is now saved. A field the Portal understands is validated; the rest is kept as sent.",
         "operationId": "put_preferences",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Preferences"
+              },
+              "example": {
+                "advancedMode": false,
+                "defaultProject": "helsinki",
+                "locale": "sk",
+                "theme": "dark"
               }
             }
           },
@@ -683,13 +761,19 @@
         "tags": [
           "resources"
         ],
-        "summary": "`POST /api/v1/projects`: opens a project, with the opener's steward binding in the same\nchange (PF-65, PF-66, PF-67).",
+        "summary": "Open A Project",
+        "description": "Opens a project, with the opener's steward binding in the same change; the organization's own setting says who may.",
         "operationId": "open_project",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OpenProject"
+              },
+              "example": {
+                "description": "The city's open data",
+                "displayName": "Helsinki",
+                "name": "helsinki"
               }
             }
           },
@@ -764,7 +848,8 @@
         "tags": [
           "resources"
         ],
-        "summary": "`GET /api/v1/projects/{project}`: the project and what it holds of each quota, so a person\nsees the limit before the verdict does (PF-75). A project no binding of the caller covers is\n`404`, like every other read of it (PF-59, R20).",
+        "summary": "Read A Project",
+        "description": "The project and what it holds of each quota: context spaces, resident pipelines, public endpoints and apps.",
         "operationId": "get_project",
         "parameters": [
           {
@@ -814,7 +899,8 @@
         "tags": [
           "resources"
         ],
-        "summary": "`DELETE /api/v1/projects/{project}`: proposes the one red-lane change that removes a project\nand everything written for it (PF-77).",
+        "summary": "Delete A Project",
+        "description": "Proposes the one red-lane change that removes a project and every space, endpoint, app, service account, role and binding written for it.",
         "operationId": "delete_project",
         "parameters": [
           {
@@ -896,6 +982,8 @@
         "tags": [
           "activity"
         ],
+        "summary": "List Activity",
+        "description": "What happened in the project: the same events, filters and paging the activity page reads.",
         "operationId": "list_activity",
         "parameters": [
           {
@@ -1026,6 +1114,8 @@
         "tags": [
           "activity"
         ],
+        "summary": "Follow Activity",
+        "description": "The project's activity as Server-Sent Events, with the same filters as the list. Readers of the project only; the stream carries what the list would.",
         "operationId": "stream_activity",
         "parameters": [
           {
@@ -1139,6 +1229,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "List Runs",
+        "description": "The project's agent runs, newest first, narrowed by app, kind or status.",
         "operationId": "list_runs",
         "parameters": [
           {
@@ -1244,6 +1336,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Start Unattended Work",
+        "description": "Starts an application, dashboard or analysis run, which waits for a person's approval at the end.",
         "operationId": "create_run",
         "parameters": [
           {
@@ -1261,6 +1355,32 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateRunRequest"
+              },
+              "example": {
+                "appClass": "fullstack",
+                "appName": "city-bikes-overview",
+                "dataNeeds": [
+                  {
+                    "attrs": [
+                      "name",
+                      "location"
+                    ],
+                    "contextSpaceRef": {
+                      "kind": "ContextSpace",
+                      "name": "mobility"
+                    },
+                    "operations": [
+                      "queryEntity",
+                      "retrieveEntity"
+                    ],
+                    "types": [
+                      "BikeHireDockingStation"
+                    ]
+                  }
+                ],
+                "endpointName": "helsinki-bikes",
+                "prompt": "A live bike availability dashboard with station filtering",
+                "visibility": "project"
               }
             }
           },
@@ -1335,6 +1455,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Read One Run",
+        "description": "One of this caller's runs: what it is building, what it asks and where it stands.",
         "operationId": "get_run",
         "parameters": [
           {
@@ -1395,6 +1517,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Answer A Run's Question",
+        "description": "Answers one question a run asked, so it carries on; a person answers, never another run.",
         "operationId": "answer_question",
         "parameters": [
           {
@@ -1421,6 +1545,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AnswerRequest"
+              },
+              "example": {
+                "answers": [
+                  "A map beside the table"
+                ],
+                "questionId": "layout"
               }
             }
           },
@@ -1488,6 +1618,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Cancel Run",
+        "description": "Stops one of this caller's runs; what it had not finished is not published.",
         "operationId": "cancel_run",
         "parameters": [
           {
@@ -1568,6 +1700,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Follow A Run",
+        "description": "One run's events as Server-Sent Events: its status, what it said, the tools it used and the questions it asks. The caller's own runs, or any run for an approver of the project.",
         "operationId": "stream_events",
         "parameters": [
           {
@@ -1669,7 +1803,10 @@
           "description": "The function's JSON body; an empty body is null",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {},
+              "example": {
+                "station": "001"
+              }
             }
           },
           "required": true
@@ -1769,6 +1906,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Send A Run A Message",
+        "description": "Sends text to one of this caller's running conversations or applications.",
         "operationId": "post_message",
         "parameters": [
           {
@@ -1795,6 +1934,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MessageRequest"
+              },
+              "example": {
+                "text": "Show only stations with fewer than three bikes"
               }
             }
           },
@@ -1966,6 +2108,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PreviewErrorRequest"
+              },
+              "example": {
+                "file": "src/App.tsx",
+                "line": 42,
+                "message": "TypeError: rows is undefined"
               }
             }
           },
@@ -2060,6 +2207,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PreviewObservationRequest"
+              },
+              "example": {
+                "failedRequests": [
+                  {
+                    "path": "/ngsi-ld/v1/entities",
+                    "status": 403
+                  }
+                ],
+                "pages": [
+                  {
+                    "label": "Overview",
+                    "rows": [
+                      12
+                    ],
+                    "text": "12 stations, 3 without a bike"
+                  }
+                ],
+                "version": 2
               }
             }
           },
@@ -2127,6 +2292,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Publish What A Run Built",
+        "description": "Proposes the application a finished run built; a person approves the change.",
         "operationId": "publish_run",
         "parameters": [
           {
@@ -2217,6 +2384,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Read Assistant Access",
+        "description": "Every agent profile of the organization with what it lets the assistant reach here, intersected with the caller's own grants. It changes nothing.",
         "operationId": "get_access",
         "parameters": [
           {
@@ -2268,6 +2437,8 @@
         "tags": [
           "assistant"
         ],
+        "summary": "Search Catalog",
+        "description": "Find spaces, endpoints, and data models matching search keywords.",
         "operationId": "get_catalog",
         "parameters": [
           {
@@ -2337,6 +2508,8 @@
         "tags": [
           "agents"
         ],
+        "summary": "Start A Conversation",
+        "description": "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.",
         "operationId": "start_conversation",
         "parameters": [
           {
@@ -2354,6 +2527,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StartConversation"
+              },
+              "example": {
+                "message": "Which endpoints publish air quality?"
               }
             }
           },
@@ -2418,7 +2594,8 @@
         "tags": [
           "assistant"
         ],
-        "summary": "The share request rendered, not written (EP-72, API/01 §19): the manifests the person will\nsubmit, refused for a caller who may not propose an Endpoint here (PF-50).",
+        "summary": "Propose Endpoint",
+        "description": "Renders an Endpoint and its draft Policy manifests from a request to share data.",
         "operationId": "propose_endpoint",
         "parameters": [
           {
@@ -2437,6 +2614,20 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "allowedProjects": [
+                  "regional-transport"
+                ],
+                "contextSpace": "mobility",
+                "entityTypes": [
+                  "BikeHireDockingStation"
+                ],
+                "hiddenAttributes": [
+                  "maintenanceNote"
+                ],
+                "name": "bikes-regional-transport",
+                "title": "City bikes for the regional transport team"
               }
             }
           },
@@ -2501,6 +2692,8 @@
         "tags": [
           "basemap"
         ],
+        "summary": "Read Basemap Style",
+        "description": "The MapLibre style of one basemap, pointing its tiles at this Portal. 404 when the installation configures no basemap.",
         "operationId": "get_style",
         "parameters": [
           {
@@ -2547,6 +2740,8 @@
         "tags": [
           "basemap"
         ],
+        "summary": "Read Basemap Tile",
+        "description": "One tile of a basemap, served from the Portal's cache or fetched from the configured tile source. Rate limited; a tile source that fails answers 502.",
         "operationId": "get_tile",
         "parameters": [
           {
@@ -2654,6 +2849,8 @@
         "tags": [
           "changes"
         ],
+        "summary": "List Changes",
+        "description": "Lists open change proposals and merge requests for review.",
         "operationId": "list_changes",
         "parameters": [
           {
@@ -2705,6 +2902,8 @@
         "tags": [
           "changes"
         ],
+        "summary": "Read One Change",
+        "description": "One proposed change: what it does, who wrote it, its lane and where it stands.",
         "operationId": "get_change",
         "parameters": [
           {
@@ -2785,6 +2984,8 @@
         "tags": [
           "changes"
         ],
+        "summary": "Approve Change",
+        "description": "Approves and merges a change proposal.",
         "operationId": "approve_change",
         "parameters": [
           {
@@ -2807,7 +3008,7 @@
           }
         ],
         "requestBody": {
-          "description": "Optional approval confirmation for red-lane changes",
+          "description": "Optional approval confirmation for red-lane changes: `confirm` repeats the resource's name",
           "content": {
             "application/json": {
               "schema": {
@@ -2819,6 +3020,9 @@
                     "$ref": "#/components/schemas/ApproveBody"
                   }
                 ]
+              },
+              "example": {
+                "confirm": "helsinki-air"
               }
             }
           }
@@ -2892,6 +3096,8 @@
         "tags": [
           "changes"
         ],
+        "summary": "Reject Change",
+        "description": "Rejects a change proposal with a reason and closes its merge request.",
         "operationId": "reject_change",
         "parameters": [
           {
@@ -2926,6 +3132,9 @@
                     "$ref": "#/components/schemas/ApproveBody"
                   }
                 ]
+              },
+              "example": {
+                "reason": "The endpoint would publish the stations' maintenance notes"
               }
             }
           }
@@ -2999,6 +3208,8 @@
         "tags": [
           "ckan"
         ],
+        "summary": "Read Catalogue Publication",
+        "description": "The catalogues this project publishes to, and what each endpoint's publication is doing.",
         "operationId": "get_status",
         "parameters": [
           {
@@ -3040,6 +3251,8 @@
         "tags": [
           "datamodels"
         ],
+        "summary": "Read Model Source",
+        "description": "One DataModel's LinkML, as the repository holds it.",
         "operationId": "get_source",
         "parameters": [
           {
@@ -3118,6 +3331,8 @@
         "tags": [
           "datamodels"
         ],
+        "summary": "Write Model Source",
+        "description": "Writes one DataModel's LinkML and its generated artifacts as a change a person approves.",
         "operationId": "put_source",
         "parameters": [
           {
@@ -3172,7 +3387,8 @@
             "text/yaml": {
               "schema": {
                 "type": "string"
-              }
+              },
+              "example": "id: https://hel.fi/models/air\nname: air\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports: [linkml:types]\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
             }
           },
           "required": true
@@ -3256,6 +3472,8 @@
         "tags": [
           "drafts"
         ],
+        "summary": "List Drafts",
+        "description": "Lists the shared drafts of a project, or of one copy of it (AG-61, CC-76).",
         "operationId": "list_drafts",
         "parameters": [
           {
@@ -3326,6 +3544,8 @@
         "tags": [
           "drafts"
         ],
+        "summary": "Follow Drafts",
+        "description": "The project's shared drafts as Server-Sent Events: a draft written, checked or dropped, by any window, assistant run or MCP client. Readers of the project only.",
         "operationId": "stream_draft_events",
         "parameters": [
           {
@@ -3373,6 +3593,8 @@
         "tags": [
           "drafts"
         ],
+        "summary": "Get Draft",
+        "description": "Reads one shared draft with its verdict (AG-61).",
         "operationId": "get_draft",
         "parameters": [
           {
@@ -3459,6 +3681,8 @@
         "tags": [
           "drafts"
         ],
+        "summary": "Put Draft",
+        "description": "Writes the shared draft of a manifest every window, assistant run and MCP client sees (AG-61).",
         "operationId": "put_draft",
         "parameters": [
           {
@@ -3503,6 +3727,27 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PutDraftRequest"
+              },
+              "example": {
+                "expectedVersion": 3,
+                "manifest": {
+                  "apiVersion": "joinedcontext.com/v1alpha1",
+                  "kind": "Endpoint",
+                  "metadata": {
+                    "name": "helsinki-air",
+                    "namespace": "helsinki",
+                    "title": "Air quality"
+                  },
+                  "spec": {
+                    "audience": "organization",
+                    "contextSpaceRef": "air",
+                    "enabledRepresentations": [
+                      "ngsi-ld",
+                      "geojson"
+                    ],
+                    "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                  }
+                }
               }
             }
           },
@@ -3585,6 +3830,8 @@
         "tags": [
           "drafts"
         ],
+        "summary": "Drop Draft",
+        "description": "Discards a shared draft (AG-61).",
         "operationId": "drop_draft",
         "parameters": [
           {
@@ -3673,6 +3920,8 @@
         "tags": [
           "drift"
         ],
+        "summary": "List Drift",
+        "description": "What the last scan found live in the project's spaces that differs from the repository. Members of the project only.",
         "operationId": "list_drift",
         "parameters": [
           {
@@ -3717,6 +3966,8 @@
         "tags": [
           "drift"
         ],
+        "summary": "Adopt Drift",
+        "description": "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
         "operationId": "adopt_drift",
         "parameters": [
           {
@@ -3809,6 +4060,8 @@
         "tags": [
           "drift"
         ],
+        "summary": "Revert Drift",
+        "description": "Writes the repository's entity back into the space, undoing a live edit the scan found. Needs `propose` on Entity; the scan must have reported this drift.",
         "operationId": "revert_drift",
         "parameters": [
           {
@@ -3891,6 +4144,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Export Project",
+        "description": "The project's manifests as one bundle, narrowed to the kinds and names asked for.",
         "operationId": "export",
         "parameters": [
           {
@@ -3991,6 +4246,8 @@
         "tags": [
           "federation"
         ],
+        "summary": "Read Federation",
+        "description": "The project's spaces, endpoints, pipelines and apps, and what links them.",
         "operationId": "get_graph",
         "parameters": [
           {
@@ -4032,6 +4289,8 @@
         "tags": [
           "blueprints"
         ],
+        "summary": "Run A Blueprint",
+        "description": "Expands one of the organisation's blueprints with the parameters given, as a change a person approves.",
         "operationId": "start_flow",
         "parameters": [
           {
@@ -4049,6 +4308,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FlowRequest"
+              },
+              "example": {
+                "blueprint": "cross-city-sharing",
+                "parameters": {},
+                "version": "1.2.0"
               }
             }
           },
@@ -4133,6 +4397,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Import A Bundle",
+        "description": "Imports a bundle into the project as one change a person approves, or answers the plan alone.",
         "operationId": "import",
         "parameters": [
           {
@@ -4243,6 +4509,8 @@
         "tags": [
           "ops"
         ],
+        "summary": "List Operations",
+        "description": "Every registry operation the caller may run in the project, with its input schema and annotations: the same list MCP clients and the assistant read.",
         "operationId": "list_ops",
         "parameters": [
           {
@@ -4297,6 +4565,8 @@
         "tags": [
           "ops"
         ],
+        "summary": "Run An Operation",
+        "description": "Runs one registry operation with the input given, under the caller's grants. A write answers the change it opened (202); input that does not match the schema is refused with 422.",
         "operationId": "run_op",
         "parameters": [
           {
@@ -4319,10 +4589,13 @@
           }
         ],
         "requestBody": {
-          "description": "Operation input parameters",
+          "description": "Operation input parameters, as the operation's own input schema names them",
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {},
+              "example": {
+                "query": "air quality"
+              }
             }
           }
         },
@@ -4415,6 +4688,8 @@
         "tags": [
           "permissions"
         ],
+        "summary": "Read My Permissions",
+        "description": "The caller's effective rules in the project: which verbs on which kinds, from which bindings. 404 when no binding covers the project.",
         "operationId": "permissions_me",
         "parameters": [
           {
@@ -4466,7 +4741,8 @@
         "tags": [
           "pipelines"
         ],
-        "summary": "`POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38).",
+        "summary": "Pipeline Test",
+        "description": "Tests candidate pipeline mapping and validation on runner without writing.",
         "operationId": "test_pipeline",
         "parameters": [
           {
@@ -4485,6 +4761,33 @@
             "application/json": {
               "schema": {
                 "type": "object"
+              },
+              "example": {
+                "pipeline": {
+                  "apiVersion": "joinedcontext.com/v1alpha1",
+                  "kind": "Pipeline",
+                  "metadata": {
+                    "name": "shmu-air-quality"
+                  },
+                  "spec": {
+                    "class": "resident",
+                    "compute": {
+                      "bloblang": "root.pm10 = this.pm10.number()",
+                      "kind": "bloblang"
+                    },
+                    "source": {
+                      "dataSourceRef": {
+                        "kind": "DataSource",
+                        "name": "shmu-csv"
+                      }
+                    },
+                    "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                  }
+                },
+                "sample": {
+                  "format": "csv",
+                  "text": "station_id,pm10\n01,18.2\n"
+                }
               }
             }
           },
@@ -4569,6 +4872,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Read Pipeline Counters",
+        "description": "What the runner has counted for one pipeline: state, messages, errors and latency.",
         "operationId": "get_metrics",
         "parameters": [
           {
@@ -4639,6 +4944,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "List Project Revisions",
+        "description": "The project's history: the commits an export can be read from.",
         "operationId": "revisions",
         "parameters": [
           {
@@ -4710,6 +5017,8 @@
         "tags": [
           "access"
         ],
+        "summary": "List Service Account Keys",
+        "description": "Every key of one ServiceAccount, with no token in the answer.",
         "operationId": "list_keys",
         "parameters": [
           {
@@ -4778,6 +5087,8 @@
         "tags": [
           "access"
         ],
+        "summary": "Mint A Service Account Key",
+        "description": "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
         "operationId": "create_key",
         "parameters": [
           {
@@ -4802,7 +5113,13 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/MintRequest"
+              },
+              "example": {
+                "credential": "ingest",
+                "expiresAt": "2027-01-01T00:00:00Z"
+              }
             }
           },
           "required": true
@@ -4876,6 +5193,8 @@
         "tags": [
           "access"
         ],
+        "summary": "Revoke A Service Account Key",
+        "description": "Stops one key at once; nothing that used it works afterwards.",
         "operationId": "revoke_key",
         "parameters": [
           {
@@ -4958,6 +5277,8 @@
         "tags": [
           "access"
         ],
+        "summary": "Rotate A Service Account Key",
+        "description": "Replaces one key with a successor; the old one stops working when its overlap ends.",
         "operationId": "rotate_key",
         "parameters": [
           {
@@ -4991,7 +5312,12 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/RotateRequest"
+              },
+              "example": {
+                "overlapHours": 24
+              }
             }
           },
           "required": true
@@ -5065,6 +5391,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Detach A Sync Source",
+        "description": "Stops the loop and proposes removing the SyncSource; what it imported stays.",
         "operationId": "detach",
         "parameters": [
           {
@@ -5145,6 +5473,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Pause Or Resume Syncing",
+        "description": "Switches one SyncSource's loop off, or back on; nothing already proposed is touched.",
         "operationId": "pause",
         "parameters": [
           {
@@ -5171,6 +5501,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PauseRequest"
+              },
+              "example": {
+                "paused": true
               }
             }
           },
@@ -5235,6 +5568,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Read Sync State",
+        "description": "Where one SyncSource stands: its phase, the revision it saw and why the last run stopped.",
         "operationId": "status",
         "parameters": [
           {
@@ -5305,6 +5640,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Sync Now",
+        "description": "Runs one SyncSource at once; what it finds becomes changes a person approves.",
         "operationId": "sync_now",
         "parameters": [
           {
@@ -5385,6 +5722,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "List Workspaces",
+        "description": "The open workspaces of the project, oldest first.",
         "operationId": "list_workspaces",
         "parameters": [
           {
@@ -5424,6 +5763,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Open A Workspace",
+        "description": "Opens a named branch of the project to change several resources in, brought back later as one Change.",
         "operationId": "open_workspace",
         "parameters": [
           {
@@ -5441,6 +5782,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OpenRequest"
+              },
+              "example": {
+                "name": "bike-lanes",
+                "scope": {
+                  "kind": "space",
+                  "name": "mobility"
+                },
+                "title": "Bike lanes",
+                "ttlDays": 7
               }
             }
           },
@@ -5505,6 +5855,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Read A Workspace",
+        "description": "One workspace: whose it is, what it covers, when it expires and how many files it changes.",
         "operationId": "get_workspace",
         "parameters": [
           {
@@ -5553,6 +5905,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Discard A Workspace",
+        "description": "Removes the workspace and its branch; nothing in it reaches main.",
         "operationId": "discard_workspace",
         "parameters": [
           {
@@ -5606,6 +5960,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Compare A Workspace",
+        "description": "Every file the workspace changes with its fields and lane, and every field main changed too.",
         "operationId": "compare_workspace",
         "parameters": [
           {
@@ -5656,6 +6012,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Read A Workspace Preview",
+        "description": "Whether the preview runs, the addresses of its Endpoints, its paused pipelines, and why it failed when it did.",
         "operationId": "get_workspace_preview",
         "parameters": [
           {
@@ -5704,6 +6062,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Start A Workspace Preview",
+        "description": "Renders the workspace with its prefix and serves its Endpoints on slugs of their own; every pipeline stays paused (CC-78, PF-83).",
         "operationId": "start_workspace_preview",
         "parameters": [
           {
@@ -5772,6 +6132,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Stop A Workspace Preview",
+        "description": "Stops the preview; its Endpoints stop answering. Stopping one that does not run changes nothing.",
         "operationId": "stop_workspace_preview",
         "parameters": [
           {
@@ -5825,6 +6187,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Bring A Workspace Back",
+        "description": "Proposes the workspace as one Change a person approves; never for an agent (AG-82).",
         "operationId": "propose_workspace",
         "parameters": [
           {
@@ -5878,6 +6242,8 @@
         "tags": [
           "workspaces"
         ],
+        "summary": "Update A Workspace From Main",
+        "description": "Takes what main changed into the workspace; a field both changed needs a resolution, ours or theirs.",
         "operationId": "update_workspace",
         "parameters": [
           {
@@ -5904,6 +6270,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateRequest"
+              },
+              "example": {
+                "resolutions": [
+                  {
+                    "field": "spec.audience",
+                    "keep": "ours",
+                    "path": "projects/helsinki/endpoints/helsinki-air.yaml"
+                  }
+                ]
               }
             }
           },
@@ -5941,6 +6316,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "List Resources",
+        "description": "Lists the resources of one kind in the project, optionally of one context space.",
         "operationId": "list",
         "parameters": [
           {
@@ -6001,7 +6378,7 @@
           {
             "name": "revision",
             "in": "query",
-            "description": "Historical revision",
+            "description": "Read the project as it stood at this commit id (MF-11)",
             "required": false,
             "schema": {
               "type": "string"
@@ -6024,6 +6401,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6054,6 +6441,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Propose Resource",
+        "description": "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
         "operationId": "create",
         "parameters": [
           {
@@ -6089,6 +6478,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResourceEnvelope"
+              },
+              "example": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": {
+                  "name": "helsinki-air",
+                  "namespace": "helsinki",
+                  "title": "Air quality"
+                },
+                "spec": {
+                  "audience": "organization",
+                  "contextSpaceRef": "air",
+                  "enabledRepresentations": [
+                    "ngsi-ld",
+                    "geojson"
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                }
               }
             }
           },
@@ -6183,6 +6590,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Get Resource",
+        "description": "Reads one resource's manifest and status by kind and name.",
         "operationId": "get_resource",
         "parameters": [
           {
@@ -6220,6 +6629,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "Read the project as it stood at this commit id (MF-11)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6229,6 +6647,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A revision that is not a commit id, or one beside a workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -6259,6 +6687,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Propose Resource",
+        "description": "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
         "operationId": "replace",
         "parameters": [
           {
@@ -6303,6 +6733,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ResourceEnvelope"
+              },
+              "example": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": {
+                  "name": "helsinki-air",
+                  "namespace": "helsinki",
+                  "title": "Air quality"
+                },
+                "spec": {
+                  "audience": "organization",
+                  "contextSpaceRef": "air",
+                  "enabledRepresentations": [
+                    "ngsi-ld",
+                    "geojson"
+                  ],
+                  "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                }
               }
             }
           },
@@ -6395,6 +6843,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Delete Resource",
+        "description": "Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it.",
         "operationId": "delete_resource",
         "parameters": [
           {
@@ -6521,6 +6971,8 @@
         "tags": [
           "resources"
         ],
+        "summary": "Propose Resource",
+        "description": "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
         "operationId": "patch",
         "parameters": [
           {
@@ -6565,7 +7017,12 @@
           "content": {
             "application/merge-patch+json": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "spec": {
+                  "audience": "organization"
+                }
               }
             }
           },
@@ -6660,6 +7117,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Readiness",
+        "description": "Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). Answers 503 until the mirror has loaded.",
         "operationId": "ready",
         "responses": {
           "200": {
@@ -6690,6 +7149,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Read Mirror Sync",
+        "description": "Where the Portal's mirror of the configuration repository stands: the revision it holds and when it last synchronized. The instance's state, not a project's.",
         "operationId": "get_sync_status",
         "responses": {
           "200": {
@@ -6720,12 +7181,17 @@
         "tags": [
           "tools"
         ],
+        "summary": "Generate Model Artifacts",
+        "description": "Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing.",
         "operationId": "generate",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GenerateRequest"
+              },
+              "example": {
+                "source": "id: https://hel.fi/models/air\nname: air\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
               }
             }
           },
@@ -6790,12 +7256,17 @@
         "tags": [
           "tools"
         ],
+        "summary": "Import A Smart Data Model",
+        "description": "Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change.",
         "operationId": "import_sdm",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ImportSdmRequest"
+              },
+              "example": {
+                "model": "AirQualityObserved"
               }
             }
           },
@@ -6868,7 +7339,11 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "file": "station_id,pm10\n01,18.2\n",
+                "format": "csv"
               }
             }
           },
@@ -6943,6 +7418,8 @@
         "tags": [
           "tools"
         ],
+        "summary": "List Smart Data Models",
+        "description": "The Smart Data Models catalogue index, from the cache when a refresh did not reach the catalogue.",
         "operationId": "sdm_catalog",
         "parameters": [
           {
@@ -6994,6 +7471,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Forge Webhook",
+        "description": "Called by the forge on a push: a signed payload makes the mirror synchronize. An unsigned or wrongly signed call is refused with 401.",
         "operationId": "gitea_webhook",
         "parameters": [
           {
@@ -7023,7 +7502,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object"
+              },
+              "example": {
+                "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                "ref": "refs/heads/main",
+                "repository": {
+                  "full_name": "hel/config"
+                }
               }
             }
           },
@@ -7074,6 +7560,8 @@
         "tags": [
           "system"
         ],
+        "summary": "Sync Source Webhook",
+        "description": "Called by a SyncSource's origin to run it now. The body must carry the signature of the source's own secret; every other case answers the same 401, so the call reveals nothing (MF-44, PF-59).",
         "operationId": "webhook",
         "parameters": [
           {
@@ -7108,8 +7596,10 @@
           "description": "Whatever the origin sends; the body is what the signature covers",
           "content": {
             "application/json": {
-              "schema": {
-                "type": "string"
+              "schema": {},
+              "example": {
+                "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                "ref": "refs/heads/main"
               }
             }
           },
@@ -7703,10 +8193,20 @@
             "description": "The legal publisher, which is also the DCAT-AP `dcterms:publisher`.",
             "default": ""
           },
+          "primaryDark": {
+            "type": "string",
+            "description": "The primary colour as a dark page paints it: the brand lightened towards white, because\na navy button on a navy page is not a button. Computed, never authored.",
+            "default": "#5985e7"
+          },
           "primaryForeground": {
             "type": "string",
             "description": "Readable text on top of the primary colour. Always computed from that colour, never\ntaken from the file: the block names a primary colour but no foreground, and white on\na light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.",
             "default": "#ffffff"
+          },
+          "primaryForegroundDark": {
+            "type": "string",
+            "description": "Readable text on top of `primary_dark` — on the lightened colour, not on the configured\none. The dark theme used to rule that this is always the branded text pushed to black,\nwhich left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,\nUI-30). Computed here because the choice needs the ratio of the lightened colour.",
+            "default": "#0f172a"
           },
           "shortName": {
             "type": "string",
@@ -8999,6 +9499,16 @@
             },
             "description": "What the bundle cannot carry and has to be provided where it lands (CC-84): secret\nvalues, people, hosts, feed credentials. Empty means nothing is to be provided. Never a\nsecret value, only where one is set."
           },
+          "reassigned": {
+            "type": "object",
+            "description": "Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`\nto the DID the bundle carried: the grant is this organisation's now (CC-82, R6).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "renamed": {
             "type": "object",
             "description": "Resources imported under a new name, `old -> new` (`rename`).",
@@ -9250,6 +9760,26 @@
         },
         "additionalProperties": false
       },
+      "MintRequest": {
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "properties": {
+          "credential": {
+            "type": "string",
+            "description": "Name of the `api-key` credential in the manifest this key belongs to."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Overrides the credential's own expiry; absent means the manifest's, or never."
+          }
+        },
+        "additionalProperties": false
+      },
       "MintedKey": {
         "type": "object",
         "description": "A minted key. The only place a raw token ever appears (PF-36).",
@@ -9309,7 +9839,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "description": "`secret`, `person`, `host` or `credential`."
+            "description": "`secret`, `person` or `host`."
           },
           "link": {
             "type": "string",
@@ -10547,6 +11077,20 @@
             }
           }
         }
+      },
+      "RotateRequest": {
+        "type": "object",
+        "properties": {
+          "overlapHours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the rotated key keeps working beside its successor, in hours (PF-38)."
+          }
+        },
+        "additionalProperties": false
       },
       "RunContext": {
         "type": "object",

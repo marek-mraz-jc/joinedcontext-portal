@@ -265,7 +265,7 @@ export function ActivityFeed({
                       <div className="mt-0.5">
                         <a
                           href={`/projects/${encodeURIComponent(project)}/${object}`}
-                          className="focus-ring rounded-sm font-mono text-caption text-primary hover:underline"
+                          className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
                         >
                           {object}
                         </a>

@@ -1039,11 +1039,20 @@ impl Syncer {
         }
 
         if !runner.is_empty() {
-            match self.credentials.as_ref() {
+            let written = match self.credentials.as_ref() {
                 Some((kube, namespace)) => self.write_runner_secret(kube, namespace, &runner).await,
-                None => tracing::info!(
-                    "no cluster: a pipeline's credentials resolve and reach no runner"
-                ),
+                None => {
+                    tracing::info!(
+                        "no cluster: a pipeline's credentials resolve and reach no runner"
+                    );
+                    false
+                }
+            };
+            if !written {
+                runner.refuse_resolved(
+                    "the credential resolved, but the pipeline runner's Secret could not be \
+                     written, so the stream would start without it; the Portal's log says why",
+                );
             }
         }
 
@@ -1120,15 +1129,18 @@ impl Syncer {
     /// An environment variable is read once, when the pod starts, so a rotated credential
     /// reaches a running pipeline only with a restart. The annotation carries the fingerprint of
     /// the values, so an unchanged environment patches the same bytes and rolls nothing.
+    ///
+    /// Whether the Secret was written. A roll that fails only delays a rotation, so it is logged
+    /// and still counts as written.
     async fn write_runner_secret(
         &self,
         kube: &crate::apps::kube::KubeClient,
         namespace: &str,
         runner: &crate::pipeline_secrets::RunnerEnvironment,
-    ) {
+    ) -> bool {
         if let Err(err) = kube.apply(&runner.secret(namespace)).await {
             tracing::warn!(error = %err, "the pipeline runner's secrets were not written");
-            return;
+            return false;
         }
         tracing::info!(
             variables = runner.variables().count(),
@@ -1145,6 +1157,7 @@ impl Syncer {
         if let Err(err) = kube.apply(&rollout).await {
             tracing::warn!(error = %err, "the pipeline runner was not rolled, so a rotated credential is not in its environment yet");
         }
+        true
     }
 
     /// Writes one organization's reader credential into the namespace its serving workloads
@@ -1323,10 +1336,12 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
             continue;
         };
         mapping.remove("status");
-        let kind = mapping
-            .get("kind")
-            .and_then(serde_yaml_ng::Value::as_str)
-            .unwrap_or_default();
+        // A document without a `kind` is not a manifest (a LinkML source beside its DataModel,
+        // a note): nothing for an operator to act on. A kind the catalogue lacks is (OPS-27).
+        let Some(kind) = mapping.get("kind").and_then(serde_yaml_ng::Value::as_str) else {
+            tracing::debug!("a document without a kind, skipped");
+            continue;
+        };
         if crate::resource::by_kind(kind).is_none() {
             tracing::warn!(kind = %kind, "manifest of an unknown kind, skipped");
             continue;
@@ -1407,8 +1422,9 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
                 scratch.write(path, &text)?;
                 staged += 1;
             }
+            // Each unknown kind has said so above; a file of none is not a manifest.
             Ok(None) => {
-                tracing::warn!(path = %path, "no document of a kind the Portal serves, skipped")
+                tracing::debug!(path = %path, "no document of a kind the Portal serves, skipped")
             }
             Err(err) => {
                 tracing::warn!(path = %path, error = %err, "not YAML, skipped")
@@ -1546,6 +1562,57 @@ output_error{stream="kpi"} 6
         assert_eq!(failing(RUNNING_STREAM, "aq"), None);
         // A runner that exports no error counter for a stream says nothing about it either.
         assert_eq!(failing(RUNNING_STREAM, "nothing-of-that-name"), None);
+    }
+
+    /// What `stageable` logs at `warn`, captured on this thread.
+    fn warnings_of(content: &str) -> (Option<String>, String) {
+        #[derive(Clone, Default)]
+        struct Log(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for Log {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .map_err(|_| std::io::Error::other("poisoned"))?
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let log = Log::default();
+        let writer = log.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let staged =
+            tracing::subscriber::with_default(subscriber, || stageable(content).expect("YAML"));
+        let said = String::from_utf8_lossy(&log.0.lock().expect("log")).into_owned();
+        (staged, said)
+    }
+
+    /// T-2254, OPS-27: a LinkML source beside its DataModel is not a manifest and says nothing at
+    /// `warn`; a manifest of a kind the catalogue lacks still does, and names the kind.
+    #[test]
+    fn a_document_without_a_kind_is_skipped_quietly_and_an_unknown_kind_is_named() {
+        let linkml = "id: https://hel.fi/models/bikes\nname: bikes\nclasses:\n  Station:\n    slots: [name]\n";
+        let (staged, said) = warnings_of(linkml);
+        assert_eq!(staged, None);
+        assert_eq!(said, "");
+
+        let (staged, said) = warnings_of(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Nonsense\nmetadata:\n  name: x\n",
+        );
+        assert_eq!(staged, None);
+        assert!(said.contains("WARN"), "{said}");
+        assert!(said.contains("kind=Nonsense"), "{said}");
+
+        // A known manifest beside a kindless document in one file keeps its place, quietly.
+        let (staged, said) = warnings_of("note: not a manifest\n---\napiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n");
+        assert!(staged.is_some_and(|text| text.contains("ContextSpace")));
+        assert_eq!(said, "");
     }
 
     use base64::Engine as _;

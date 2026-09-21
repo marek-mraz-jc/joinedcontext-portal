@@ -3327,3 +3327,240 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
     assert_eq!(tools[2].1, "failed");
     assert!(tools[2].2.contains("no function 'nope'"), "{}", tools[2].2);
 }
+
+// ---- T-2512: what `pass` does with an answer (AG-61, AG-62, AG-76, PF-55) ----
+
+/// The run's log once `until` holds for it, or a panic after ten seconds.
+async fn log_once(
+    app: &axum::Router,
+    cookie: &str,
+    id: &str,
+    until: impl Fn(&[(String, Value)]) -> bool,
+) -> Vec<(String, Value)> {
+    for _ in 0..200 {
+        let log = events(app, cookie, id).await;
+        if until(&log) {
+            return log;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    panic!(
+        "the run's log never got there: {:?}",
+        kinds(&events(app, cookie, id).await)
+    );
+}
+
+fn count_tool(log: &[(String, Value)], tool: &str) -> usize {
+    log.iter()
+        .filter(|(kind, payload)| kind == "tool" && payload["tool"] == json!(tool))
+        .count()
+}
+
+/// The dashboard retitled: a block that would change `spec.json` if it were ever applied.
+fn retitled() -> String {
+    answer(
+        "",
+        &[(
+            "spec.json",
+            "  \"title\": \"Helsinki city bikes\",\n",
+            "  \"title\": \"Taken over\",",
+        )],
+    )
+}
+
+/// T-2512, AG-76, EP-72: an answer that is a share call is handed to the endpoint form and is
+/// never also a patch, even when the model put a block beside the call.
+#[tokio::test]
+async fn a_share_tool_call_never_falls_through_to_apply() {
+    let share = format!(
+        "Drafted the endpoint.\n\n```json\n{}\n```\n\n{}",
+        r#"{"tool": "propose_endpoint", "contextSpace": "helsinki", "name": "bikes-regional", "title": "Bikes", "allowedProjects": ["regional-transport"], "entityTypes": ["BikeHireDockingStation"]}"#,
+        retitled()
+    );
+    let (app, cookie, _proxy) = portal(
+        "anthropic",
+        &[answer("Built.", &[("spec.json", "", VALID_SPEC)]), share],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
+    send_message(
+        &app,
+        &cookie,
+        &id,
+        "share the stations with regional transport",
+    )
+    .await;
+
+    let log = log_once(&app, &cookie, &id, |log| {
+        count_tool(log, "propose_endpoint") == 1
+    })
+    .await;
+    assert_eq!(count_tool(&log, "apply_patch"), 1, "{:?}", kinds(&log));
+    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
+    let (_, preview) = json(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/preview?v=1"),
+        None,
+    )
+    .await;
+    assert!(!preview.to_string().contains("Taken over"));
+}
+
+/// T-2512, PF-55: an indicator is computed and shown; a block beside the call is never applied.
+#[tokio::test]
+async fn a_kpi_tool_call_never_falls_through_to_apply() {
+    let kpi = format!(
+        "Average free bikes.\n\n```json\n{}\n```\n\n{}",
+        r#"{"tool":"compute_kpi","name":"average-free-bikes","title":"Average free bikes","type":"BikeHireDockingStation","attribute":"availableBikeNumber","agg":"avg","unit":"C62"}"#,
+        retitled()
+    );
+    let (app, cookie, _proxy) = portal(
+        "anthropic",
+        &[answer("Built.", &[("spec.json", "", VALID_SPEC)]), kpi],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
+    send_message(&app, &cookie, &id, "the average of free bikes as a KPI").await;
+
+    let log = log_once(&app, &cookie, &id, |log| {
+        count_tool(log, "compute_kpi") == 1
+    })
+    .await;
+    assert_eq!(count_tool(&log, "apply_patch"), 1, "{:?}", kinds(&log));
+    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
+}
+
+/// T-2512, AG-62: one repair round and no second, even when the model would answer a third time.
+#[tokio::test]
+async fn two_repair_rounds_are_never_attempted_only_one() {
+    let (app, cookie, proxy) = portal(
+        "anthropic",
+        &[
+            "No block.".to_owned(),
+            "Still no block.".to_owned(),
+            answer("A third try.", &[("spec.json", "", VALID_SPEC)]),
+        ],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(model_requests(&proxy).await.len(), 2);
+    let log = events(&app, &cookie, &id).await;
+    assert_eq!(
+        log.iter().filter(|(kind, _)| kind == "preview").count(),
+        0,
+        "{:?}",
+        kinds(&log)
+    );
+}
+
+/// T-2512, AP-60: a block that writes `spec.json` back as it was changes no file, so nothing is
+/// committed or stored and the preview keeps its number.
+#[tokio::test]
+async fn an_answer_that_changes_no_file_is_never_committed_or_stored() {
+    let forge = forge().await;
+    let same = answer(
+        "Kept as it is.",
+        &[(
+            "spec.json",
+            "  \"title\": \"Helsinki city bikes\",\n",
+            "  \"title\": \"Helsinki city bikes\",",
+        )],
+    );
+    let (app, cookie, proxy) = portal_with(
+        "anthropic",
+        &[answer("Bikes.", &[("spec.json", "", VALID_SPEC)]), same],
+        Some(&forge),
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    wait_for(&app, &cookie, &id, &["awaiting_approval"]).await;
+    send_message(&app, &cookie, &id, "keep the title").await;
+
+    let log = log_once(&app, &cookie, &id, |log| {
+        log.iter()
+            .any(|(_, payload)| payload["text"] == json!("Kept as it is."))
+    })
+    .await;
+    assert_eq!(
+        count_tool(&log, "apply_patch"),
+        2,
+        "the block was read: {:?}",
+        kinds(&log)
+    );
+    assert_eq!(
+        log.iter().filter(|(kind, _)| kind == "commit").count(),
+        1,
+        "{:?}",
+        kinds(&log)
+    );
+    assert_eq!(log.iter().filter(|(kind, _)| kind == "preview").count(), 1);
+    assert_eq!(model_requests(&proxy).await.len(), 2);
+    let (_, run) = json(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
+        None,
+    )
+    .await;
+    assert!(
+        run["previewUrl"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("?v=1")),
+        "{run}"
+    );
+}
+
+/// T-2546, T-0703, UI-45: a repair that fails again is said in the kit's words; the JSON
+/// parser's own sentence (`unknown field`, `expected one of`, a line and column) stays in the log.
+#[tokio::test]
+async fn errors_from_a_failed_repair_are_shown_in_the_kits_own_words_never_the_serde_error() {
+    let unknown = VALID_SPEC.replacen('{', "{\n  \"lane\": \"green\",", 1);
+    let (app, cookie, _proxy) = portal(
+        "anthropic",
+        &[
+            answer("First.", &[("spec.json", "", &unknown)]),
+            answer("Second.", &[("spec.json", "", &unknown)]),
+        ],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("a run id")
+        .to_owned();
+    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
+    for machine in [
+        "unknown field",
+        "expected one of",
+        "line ",
+        "column ",
+        "spec.json:",
+    ] {
+        assert!(
+            !said.contains(machine),
+            "the person read {machine:?}: {said}"
+        );
+    }
+    assert!(
+        said.contains("not a dashboard specification"),
+        "the person reads what happened: {said}"
+    );
+}

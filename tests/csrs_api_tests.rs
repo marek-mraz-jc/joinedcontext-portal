@@ -1,4 +1,6 @@
-//! T-0304: the registrations of a project and the graph they form (MF-36, UI-27, EP-71, PF-48).
+//! T-0304: the registrations of a project and the graph they form (MF-36, UI-27, EP-71, PF-48),
+//! read-only for every role that may read the project (CC-36). A city joins or leaves a
+//! federation by a registration manifest alone, proposed like any other (CC-14).
 //!
 //! Creating a registration is deliberately not tested against a route of its own. A
 //! `ContextSourceRegistration` is a manifest, so it is written through the resource API as a
@@ -36,16 +38,20 @@ const MANIFEST_PATH: &str = "projects/ovzdusie/spaces/ovzdusie/registrations/zvo
 const EXTERNAL_URL: &str = "https://context.zvolen.sk/ngsi-ld/v1";
 
 fn cookies(config: &Config) -> String {
+    cookies_for(config, "demo.steward", &["portal-approver"])
+}
+
+fn cookies_for(config: &Config, username: &str, groups: &[&str]) -> String {
     use axum::response::IntoResponse;
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
-            subject: "f:1:demo.steward".into(),
-            username: "demo.steward".into(),
-            email: Some("demo.steward@banskabystrica.sk".into()),
-            name: Some("Demo Steward".into()),
+            subject: format!("f:1:{username}"),
+            username: username.into(),
+            email: Some(format!("{username}@banskabystrica.sk")),
+            name: None,
             roles: Vec::new(),
-            groups: vec!["portal-approver".into()],
+            groups: groups.iter().map(|g| (*g).to_owned()).collect(),
         },
         expires_at: now + 3600,
         issued_at: now,
@@ -192,6 +198,15 @@ fn seeded() -> Arc<Mirror> {
 async fn get(uri: &str, mirror: Arc<Mirror>) -> (StatusCode, Value) {
     let config = Config::for_tests();
     let cookie = cookies(&config);
+    get_as(uri, mirror, config, cookie).await
+}
+
+async fn get_as(
+    uri: &str,
+    mirror: Arc<Mirror>,
+    config: Config,
+    cookie: String,
+) -> (StatusCode, Value) {
     let app = server::app(AppState::new(config, None).with_mirror(mirror));
     let response = app
         .oneshot(
@@ -294,8 +309,9 @@ async fn the_kind_is_addressable_by_its_plural_and_lands_in_its_space() {
     .is_err());
 }
 
-/// CC-63: a federation edge is a Red-lane change however it is proposed, because it makes one
-/// tenant's data answerable in another.
+/// CC-63, CC-14: a federation edge is a Red-lane change however it is proposed, because it makes
+/// one tenant's data answerable in another; and joining is that one registration manifest at
+/// its own path, with no code and no broker step beside it.
 #[tokio::test]
 async fn a_write_becomes_a_red_lane_merge_request_at_the_kinds_own_path() {
     assert_eq!(
@@ -645,6 +661,49 @@ async fn a_registration_onto_a_missing_endpoint_still_draws_its_edge() {
             .all(|node| node["id"] != json!("Endpoint/gone")),
         "the target is drawn as missing, not invented: {graph}"
     );
+}
+
+/// CC-36: a person bound only to a read role sees the same registrations and the same graph
+/// as a steward, and somebody bound to nothing in the organization sees no project at all.
+#[tokio::test]
+async fn a_viewer_reads_the_topology_and_a_stranger_does_not() {
+    let mirror = seeded();
+    mirror.upsert(envelope(
+        "Role",
+        "viewer",
+        "org",
+        json!({ "rules": [{ "kinds": ["ContextSpace", "Endpoint", "ContextSourceRegistration", "Pipeline", "App", "ServiceAccount", "CkanInstance"], "verbs": ["read"] }] }),
+        None,
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "jana-viewer",
+        "org",
+        json!({ "subjects": [{ "user": "jana.viewer@banskabystrica.sk" }], "role": "viewer",
+                "scope": { "organization": "bbsk" } }),
+        None,
+    ));
+    for uri in [
+        "/api/v1/projects/ovzdusie/csrs",
+        "/api/v1/projects/ovzdusie/federation-graph",
+    ] {
+        let (steward, as_steward) = get(uri, mirror.clone()).await;
+        assert_eq!(steward, StatusCode::OK, "{uri}: {as_steward}");
+
+        let config = Config::for_tests();
+        let viewer = cookies_for(&config, "jana.viewer", &[]);
+        let (status, as_viewer) = get_as(uri, mirror.clone(), config, viewer).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {as_viewer}");
+        assert_eq!(
+            as_viewer, as_steward,
+            "{uri}: a viewer sees what a steward sees"
+        );
+
+        let config = Config::for_tests();
+        let stranger = cookies_for(&config, "cudzi.clovek", &[]);
+        let (status, body) = get_as(uri, mirror.clone(), config, stranger).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{uri}: {body}");
+    }
 }
 
 /// Both routes are behind the session, so an unauthenticated reader learns nothing about who

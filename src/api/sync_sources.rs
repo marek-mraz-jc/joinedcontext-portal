@@ -109,6 +109,8 @@ pub struct PauseRequest {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/syncsources/{name}/status",
+    summary = "Read Sync State",
+    description = "Where one SyncSource stands: its phase, the revision it saw and why the last run stopped.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -147,6 +149,8 @@ pub async fn status(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/sync",
+    summary = "Sync Now",
+    description = "Runs one SyncSource at once; what it finds becomes changes a person approves.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -173,12 +177,14 @@ pub async fn sync_now(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/pause",
+    summary = "Pause Or Resume Syncing",
+    description = "Switches one SyncSource's loop off, or back on; nothing already proposed is touched.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "SyncSource name"),
     ),
-    request_body = PauseRequest,
+    request_body(content = PauseRequest, example = json!({ "paused": true })),
     responses(
         (status = 200, description = "What the source reports afterwards", body = SyncSourceStatus),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -208,6 +214,8 @@ pub async fn pause(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/syncsources/{name}/detach",
+    summary = "Detach A Sync Source",
+    description = "Stops the loop and proposes removing the SyncSource; what it imported stays.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -295,6 +303,8 @@ pub(crate) async fn detach_for(
 #[utoipa::path(
     post,
     path = "/api/v1/webhooks/sync/{project}/{name}",
+    summary = "Sync Source Webhook",
+    description = "Called by a SyncSource's origin to run it now. The body must carry the signature of the source's own secret; every other case answers the same 401, so the call reveals nothing (MF-44, PF-59).",
     tag = "system",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -302,9 +312,10 @@ pub(crate) async fn detach_for(
         ("x-gitea-signature" = String, Header, description = "HMAC-SHA256 of the request body"),
     ),
     request_body(
-        content = String,
+        content = serde_json::Value,
         description = "Whatever the origin sends; the body is what the signature covers",
         content_type = "application/json",
+        example = json!({ "ref": "refs/heads/main", "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49" }),
     ),
     responses(
         (status = 200, description = "The run the source's origin asked for", body = SyncRunReport),

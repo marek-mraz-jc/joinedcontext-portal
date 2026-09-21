@@ -127,6 +127,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Blueprints
+         * @description The organization's Blueprints this caller may run, for the flow gallery. A Blueprint is started in a project with POST /projects/{project}/flows.
+         */
         get: operations["list_blueprints"];
         put?: never;
         post?: never;
@@ -143,6 +147,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Branding
+         * @description The installation's name, colours and logo as the Portal and the catalogue theme draw them. Public: it names nothing of any project.
+         */
         get: operations["get_branding"];
         put?: never;
         post?: never;
@@ -183,11 +191,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /api/v1/endpoints` (PF-60, PF-61): every Endpoint of every project this caller may
-         *     read, each carrying the project it lives in. An `org-admin` bound at organization scope sees
-         *     all of them, a project's steward those of their projects, a binding scoped to one context
-         *     space only that space's, and a person no binding names an empty list — never a 403, because
-         *     what is not readable is not there (R20).
+         * List Endpoints Everywhere
+         * @description Every Endpoint of every project the caller may read, each with the project it lives in.
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
@@ -205,6 +210,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Forms
+         * @description Every UiSchema manifest the Portal arranges its forms by. Any signed-in caller may read them; they hold layout, never data.
+         */
         get: operations["list_forms"];
         put?: never;
         post?: never;
@@ -221,6 +230,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Liveness
+         * @description Whether this process answers at all. Public and cheap; it says nothing about the repository or the cluster.
+         */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -282,7 +295,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Preferences
+         * @description The caller's own Portal preferences, empty before the first save. Nobody reads another person's.
+         */
         get: operations["get_preferences"];
+        /**
+         * Save Preferences
+         * @description Stores the caller's own Portal preferences and answers what is now saved. A field the Portal understands is validated; the rest is kept as sent.
+         */
         put: operations["put_preferences"];
         post?: never;
         delete?: never;
@@ -308,8 +329,8 @@ export interface paths {
         get: operations["list_projects"];
         put?: never;
         /**
-         * `POST /api/v1/projects`: opens a project, with the opener's steward binding in the same
-         *     change (PF-65, PF-66, PF-67).
+         * Open A Project
+         * @description Opens a project, with the opener's steward binding in the same change; the organization's own setting says who may.
          */
         post: operations["open_project"];
         delete?: never;
@@ -326,16 +347,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * `GET /api/v1/projects/{project}`: the project and what it holds of each quota, so a person
-         *     sees the limit before the verdict does (PF-75). A project no binding of the caller covers is
-         *     `404`, like every other read of it (PF-59, R20).
+         * Read A Project
+         * @description The project and what it holds of each quota: context spaces, resident pipelines, public endpoints and apps.
          */
         get: operations["get_project"];
         put?: never;
         post?: never;
         /**
-         * `DELETE /api/v1/projects/{project}`: proposes the one red-lane change that removes a project
-         *     and everything written for it (PF-77).
+         * Delete A Project
+         * @description Proposes the one red-lane change that removes a project and every space, endpoint, app, service account, role and binding written for it.
          */
         delete: operations["delete_project"];
         options?: never;
@@ -350,6 +370,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Activity
+         * @description What happened in the project: the same events, filters and paging the activity page reads.
+         */
         get: operations["list_activity"];
         put?: never;
         post?: never;
@@ -366,6 +390,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Follow Activity
+         * @description The project's activity as Server-Sent Events, with the same filters as the list. Readers of the project only; the stream carries what the list would.
+         */
         get: operations["stream_activity"];
         put?: never;
         post?: never;
@@ -382,8 +410,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Runs
+         * @description The project's agent runs, newest first, narrowed by app, kind or status.
+         */
         get: operations["list_runs"];
         put?: never;
+        /**
+         * Start Unattended Work
+         * @description Starts an application, dashboard or analysis run, which waits for a person's approval at the end.
+         */
         post: operations["create_run"];
         delete?: never;
         options?: never;
@@ -398,6 +434,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read One Run
+         * @description One of this caller's runs: what it is building, what it asks and where it stands.
+         */
         get: operations["get_run"];
         put?: never;
         post?: never;
@@ -416,6 +456,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Answer A Run's Question
+         * @description Answers one question a run asked, so it carries on; a person answers, never another run.
+         */
         post: operations["answer_question"];
         delete?: never;
         options?: never;
@@ -432,6 +476,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Cancel Run
+         * @description Stops one of this caller's runs; what it had not finished is not published.
+         */
         post: operations["cancel_run"];
         delete?: never;
         options?: never;
@@ -446,6 +494,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Follow A Run
+         * @description One run's events as Server-Sent Events: its status, what it said, the tools it used and the questions it asks. The caller's own runs, or any run for an approver of the project.
+         */
         get: operations["stream_events"];
         put?: never;
         post?: never;
@@ -484,6 +536,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Send A Run A Message
+         * @description Sends text to one of this caller's running conversations or applications.
+         */
         post: operations["post_message"];
         delete?: never;
         options?: never;
@@ -562,6 +618,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Publish What A Run Built
+         * @description Proposes the application a finished run built; a person approves the change.
+         */
         post: operations["publish_run"];
         delete?: never;
         options?: never;
@@ -576,6 +636,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Assistant Access
+         * @description Every agent profile of the organization with what it lets the assistant reach here, intersected with the caller's own grants. It changes nothing.
+         */
         get: operations["get_access"];
         put?: never;
         post?: never;
@@ -592,6 +656,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Search Catalog
+         * @description Find spaces, endpoints, and data models matching search keywords.
+         */
         get: operations["get_catalog"];
         put?: never;
         post?: never;
@@ -610,6 +678,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Start A Conversation
+         * @description Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.
+         */
         post: operations["start_conversation"];
         delete?: never;
         options?: never;
@@ -627,8 +699,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * The share request rendered, not written (EP-72, API/01 §19): the manifests the person will
-         *     submit, refused for a caller who may not propose an Endpoint here (PF-50).
+         * Propose Endpoint
+         * @description Renders an Endpoint and its draft Policy manifests from a request to share data.
          */
         post: operations["propose_endpoint"];
         delete?: never;
@@ -644,6 +716,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Basemap Style
+         * @description The MapLibre style of one basemap, pointing its tiles at this Portal. 404 when the installation configures no basemap.
+         */
         get: operations["get_style"];
         put?: never;
         post?: never;
@@ -660,6 +736,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Basemap Tile
+         * @description One tile of a basemap, served from the Portal's cache or fetched from the configured tile source. Rate limited; a tile source that fails answers 502.
+         */
         get: operations["get_tile"];
         put?: never;
         post?: never;
@@ -676,6 +756,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Changes
+         * @description Lists open change proposals and merge requests for review.
+         */
         get: operations["list_changes"];
         put?: never;
         post?: never;
@@ -692,6 +776,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read One Change
+         * @description One proposed change: what it does, who wrote it, its lane and where it stands.
+         */
         get: operations["get_change"];
         put?: never;
         post?: never;
@@ -710,6 +798,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Approve Change
+         * @description Approves and merges a change proposal.
+         */
         post: operations["approve_change"];
         delete?: never;
         options?: never;
@@ -726,6 +818,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Reject Change
+         * @description Rejects a change proposal with a reason and closes its merge request.
+         */
         post: operations["reject_change"];
         delete?: never;
         options?: never;
@@ -740,6 +836,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Catalogue Publication
+         * @description The catalogues this project publishes to, and what each endpoint's publication is doing.
+         */
         get: operations["get_status"];
         put?: never;
         post?: never;
@@ -756,7 +856,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Model Source
+         * @description One DataModel's LinkML, as the repository holds it.
+         */
         get: operations["get_source"];
+        /**
+         * Write Model Source
+         * @description Writes one DataModel's LinkML and its generated artifacts as a change a person approves.
+         */
         put: operations["put_source"];
         post?: never;
         delete?: never;
@@ -772,6 +880,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Drafts
+         * @description Lists the shared drafts of a project, or of one copy of it (AG-61, CC-76).
+         */
         get: operations["list_drafts"];
         put?: never;
         post?: never;
@@ -788,6 +900,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Follow Drafts
+         * @description The project's shared drafts as Server-Sent Events: a draft written, checked or dropped, by any window, assistant run or MCP client. Readers of the project only.
+         */
         get: operations["stream_draft_events"];
         put?: never;
         post?: never;
@@ -804,9 +920,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Get Draft
+         * @description Reads one shared draft with its verdict (AG-61).
+         */
         get: operations["get_draft"];
+        /**
+         * Put Draft
+         * @description Writes the shared draft of a manifest every window, assistant run and MCP client sees (AG-61).
+         */
         put: operations["put_draft"];
         post?: never;
+        /**
+         * Drop Draft
+         * @description Discards a shared draft (AG-61).
+         */
         delete: operations["drop_draft"];
         options?: never;
         head?: never;
@@ -820,6 +948,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Drift
+         * @description What the last scan found live in the project's spaces that differs from the repository. Members of the project only.
+         */
         get: operations["list_drift"];
         put?: never;
         post?: never;
@@ -838,6 +970,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Adopt Drift
+         * @description Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.
+         */
         post: operations["adopt_drift"];
         delete?: never;
         options?: never;
@@ -854,6 +990,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revert Drift
+         * @description Writes the repository's entity back into the space, undoing a live edit the scan found. Needs `propose` on Entity; the scan must have reported this drift.
+         */
         post: operations["revert_drift"];
         delete?: never;
         options?: never;
@@ -868,6 +1008,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Export Project
+         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for.
+         */
         get: operations["export"];
         put?: never;
         post?: never;
@@ -884,6 +1028,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Federation
+         * @description The project's spaces, endpoints, pipelines and apps, and what links them.
+         */
         get: operations["get_graph"];
         put?: never;
         post?: never;
@@ -902,6 +1050,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Run A Blueprint
+         * @description Expands one of the organisation's blueprints with the parameters given, as a change a person approves.
+         */
         post: operations["start_flow"];
         delete?: never;
         options?: never;
@@ -918,6 +1070,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Import A Bundle
+         * @description Imports a bundle into the project as one change a person approves, or answers the plan alone.
+         */
         post: operations["import"];
         delete?: never;
         options?: never;
@@ -932,6 +1088,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Operations
+         * @description Every registry operation the caller may run in the project, with its input schema and annotations: the same list MCP clients and the assistant read.
+         */
         get: operations["list_ops"];
         put?: never;
         post?: never;
@@ -950,6 +1110,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Run An Operation
+         * @description Runs one registry operation with the input given, under the caller's grants. A write answers the change it opened (202); input that does not match the schema is refused with 422.
+         */
         post: operations["run_op"];
         delete?: never;
         options?: never;
@@ -964,6 +1128,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read My Permissions
+         * @description The caller's effective rules in the project: which verbs on which kinds, from which bindings. 404 when no binding covers the project.
+         */
         get: operations["permissions_me"];
         put?: never;
         post?: never;
@@ -982,7 +1150,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** `POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38). */
+        /**
+         * Pipeline Test
+         * @description Tests candidate pipeline mapping and validation on runner without writing.
+         */
         post: operations["test_pipeline"];
         delete?: never;
         options?: never;
@@ -997,6 +1168,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Pipeline Counters
+         * @description What the runner has counted for one pipeline: state, messages, errors and latency.
+         */
         get: operations["get_metrics"];
         put?: never;
         post?: never;
@@ -1013,6 +1188,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Project Revisions
+         * @description The project's history: the commits an export can be read from.
+         */
         get: operations["revisions"];
         put?: never;
         post?: never;
@@ -1029,8 +1208,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Service Account Keys
+         * @description Every key of one ServiceAccount, with no token in the answer.
+         */
         get: operations["list_keys"];
         put?: never;
+        /**
+         * Mint A Service Account Key
+         * @description Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.
+         */
         post: operations["create_key"];
         delete?: never;
         options?: never;
@@ -1048,6 +1235,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * Revoke A Service Account Key
+         * @description Stops one key at once; nothing that used it works afterwards.
+         */
         delete: operations["revoke_key"];
         options?: never;
         head?: never;
@@ -1063,6 +1254,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Rotate A Service Account Key
+         * @description Replaces one key with a successor; the old one stops working when its overlap ends.
+         */
         post: operations["rotate_key"];
         delete?: never;
         options?: never;
@@ -1079,6 +1274,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Detach A Sync Source
+         * @description Stops the loop and proposes removing the SyncSource; what it imported stays.
+         */
         post: operations["detach"];
         delete?: never;
         options?: never;
@@ -1095,6 +1294,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Pause Or Resume Syncing
+         * @description Switches one SyncSource's loop off, or back on; nothing already proposed is touched.
+         */
         post: operations["pause"];
         delete?: never;
         options?: never;
@@ -1109,6 +1312,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Sync State
+         * @description Where one SyncSource stands: its phase, the revision it saw and why the last run stopped.
+         */
         get: operations["status"];
         put?: never;
         post?: never;
@@ -1127,6 +1334,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Sync Now
+         * @description Runs one SyncSource at once; what it finds becomes changes a person approves.
+         */
         post: operations["sync_now"];
         delete?: never;
         options?: never;
@@ -1141,8 +1352,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Workspaces
+         * @description The open workspaces of the project, oldest first.
+         */
         get: operations["list_workspaces"];
         put?: never;
+        /**
+         * Open A Workspace
+         * @description Opens a named branch of the project to change several resources in, brought back later as one Change.
+         */
         post: operations["open_workspace"];
         delete?: never;
         options?: never;
@@ -1157,9 +1376,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read A Workspace
+         * @description One workspace: whose it is, what it covers, when it expires and how many files it changes.
+         */
         get: operations["get_workspace"];
         put?: never;
         post?: never;
+        /**
+         * Discard A Workspace
+         * @description Removes the workspace and its branch; nothing in it reaches main.
+         */
         delete: operations["discard_workspace"];
         options?: never;
         head?: never;
@@ -1173,6 +1400,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Compare A Workspace
+         * @description Every file the workspace changes with its fields and lane, and every field main changed too.
+         */
         get: operations["compare_workspace"];
         put?: never;
         post?: never;
@@ -1189,9 +1420,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read A Workspace Preview
+         * @description Whether the preview runs, the addresses of its Endpoints, its paused pipelines, and why it failed when it did.
+         */
         get: operations["get_workspace_preview"];
         put?: never;
+        /**
+         * Start A Workspace Preview
+         * @description Renders the workspace with its prefix and serves its Endpoints on slugs of their own; every pipeline stays paused (CC-78, PF-83).
+         */
         post: operations["start_workspace_preview"];
+        /**
+         * Stop A Workspace Preview
+         * @description Stops the preview; its Endpoints stop answering. Stopping one that does not run changes nothing.
+         */
         delete: operations["stop_workspace_preview"];
         options?: never;
         head?: never;
@@ -1207,6 +1450,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Bring A Workspace Back
+         * @description Proposes the workspace as one Change a person approves; never for an agent (AG-82).
+         */
         post: operations["propose_workspace"];
         delete?: never;
         options?: never;
@@ -1223,6 +1470,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Update A Workspace From Main
+         * @description Takes what main changed into the workspace; a field both changed needs a resolution, ours or theirs.
+         */
         post: operations["update_workspace"];
         delete?: never;
         options?: never;
@@ -1237,8 +1488,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Resources
+         * @description Lists the resources of one kind in the project, optionally of one context space.
+         */
         get: operations["list"];
         put?: never;
+        /**
+         * Propose Resource
+         * @description Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.
+         */
         post: operations["create"];
         delete?: never;
         options?: never;
@@ -1253,12 +1512,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Get Resource
+         * @description Reads one resource's manifest and status by kind and name.
+         */
         get: operations["get_resource"];
+        /**
+         * Propose Resource
+         * @description Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.
+         */
         put: operations["replace"];
         post?: never;
+        /**
+         * Delete Resource
+         * @description Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it.
+         */
         delete: operations["delete_resource"];
         options?: never;
         head?: never;
+        /**
+         * Propose Resource
+         * @description Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.
+         */
         patch: operations["patch"];
         trace?: never;
     };
@@ -1269,6 +1544,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Readiness
+         * @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). Answers 503 until the mirror has loaded.
+         */
         get: operations["ready"];
         put?: never;
         post?: never;
@@ -1285,6 +1564,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Read Mirror Sync
+         * @description Where the Portal's mirror of the configuration repository stands: the revision it holds and when it last synchronized. The instance's state, not a project's.
+         */
         get: operations["get_sync_status"];
         put?: never;
         post?: never;
@@ -1303,6 +1586,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Generate Model Artifacts
+         * @description Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing.
+         */
         post: operations["generate"];
         delete?: never;
         options?: never;
@@ -1319,6 +1606,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Import A Smart Data Model
+         * @description Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change.
+         */
         post: operations["import_sdm"];
         delete?: never;
         options?: never;
@@ -1357,6 +1648,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * List Smart Data Models
+         * @description The Smart Data Models catalogue index, from the cache when a refresh did not reach the catalogue.
+         */
         get: operations["sdm_catalog"];
         put?: never;
         post?: never;
@@ -1375,6 +1670,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Forge Webhook
+         * @description Called by the forge on a push: a signed payload makes the mirror synchronize. An unsigned or wrongly signed call is refused with 401.
+         */
         post: operations["gitea_webhook"];
         delete?: never;
         options?: never;
@@ -1391,6 +1690,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Sync Source Webhook
+         * @description Called by a SyncSource's origin to run it now. The body must carry the signature of the source's own secret; every other case answers the same 401, so the call reveals nothing (MF-44, PF-59).
+         */
         post: operations["webhook"];
         delete?: never;
         options?: never;
@@ -1652,12 +1955,26 @@ export interface components {
              */
             organisation: string;
             /**
+             * @description The primary colour as a dark page paints it: the brand lightened towards white, because
+             *     a navy button on a navy page is not a button. Computed, never authored.
+             * @default #5985e7
+             */
+            primaryDark: string;
+            /**
              * @description Readable text on top of the primary colour. Always computed from that colour, never
              *     taken from the file: the block names a primary colour but no foreground, and white on
              *     a light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.
              * @default #ffffff
              */
             primaryForeground: string;
+            /**
+             * @description Readable text on top of `primary_dark` — on the lightened colour, not on the configured
+             *     one. The dark theme used to rule that this is always the branded text pushed to black,
+             *     which left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,
+             *     UI-30). Computed here because the choice needs the ratio of the lightened colour.
+             * @default #0f172a
+             */
+            primaryForegroundDark: string;
             /**
              * @description Short name: sidebars, tabs, e-mail subjects. A block that omits it gets the full name,
              *     so the field default is empty rather than the struct's.
@@ -2164,6 +2481,13 @@ export interface components {
              *     secret value, only where one is set.
              */
             needs: components["schemas"]["Need"][];
+            /**
+             * @description Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+             *     to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+             */
+            reassigned?: {
+                [key: string]: string;
+            };
             /** @description Resources imported under a new name, `old -> new` (`rename`). */
             renamed: {
                 [key: string]: string;
@@ -2265,6 +2589,12 @@ export interface components {
             endpointNames?: string[] | null;
             text: string;
         };
+        MintRequest: {
+            /** @description Name of the `api-key` credential in the manifest this key belongs to. */
+            credential: string;
+            /** @description Overrides the credential's own expiry; absent means the manifest's, or never. */
+            expiresAt?: string | null;
+        };
         /** @description A minted key. The only place a raw token ever appears (PF-36). */
         MintedKey: {
             credential: string;
@@ -2281,7 +2611,7 @@ export interface components {
         };
         /** @description One thing a copy cannot carry (CC-84, API/01 §10). */
         Need: {
-            /** @description `secret`, `person`, `host` or `credential`. */
+            /** @description `secret`, `person` or `host`. */
             kind: string;
             /** @description The Portal page that sets it. */
             link: string;
@@ -2691,6 +3021,13 @@ export interface components {
         RevisionList: {
             items: components["schemas"]["Revision"][];
         };
+        RotateRequest: {
+            /**
+             * Format: int64
+             * @description How long the rotated key keeps working beside its successor, in hours (PF-38).
+             */
+            overlapHours?: number | null;
+        };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
          *
@@ -2938,9 +3275,59 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
+        /** @description An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, its fields as attributes */
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "resourceLogs": [
+                 *         {
+                 *           "scopeLogs": [
+                 *             {
+                 *               "logRecords": [
+                 *                 {
+                 *                   "attributes": [
+                 *                     {
+                 *                       "key": "project",
+                 *                       "value": {
+                 *                         "stringValue": "helsinki"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "kind",
+                 *                       "value": {
+                 *                         "stringValue": "access.denied"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "source",
+                 *                       "value": {
+                 *                         "stringValue": "gateway"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "severity",
+                 *                       "value": {
+                 *                         "stringValue": "warning"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "summary",
+                 *                       "value": {
+                 *                         "stringValue": "An anonymous caller was refused a write."
+                 *                       }
+                 *                     }
+                 *                   ],
+                 *                   "timeUnixNano": "1789314063000000000"
+                 *                 }
+                 *               ]
+                 *             }
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2983,6 +3370,11 @@ export interface operations {
         /** @description The provider's signed logout token */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "logout_token": "the-realms-signed-logout-token"
+                 *     }
+                 */
                 "application/x-www-form-urlencoded": components["schemas"]["BackChannelLogoutForm"];
             };
         };
@@ -3325,6 +3717,14 @@ export interface operations {
         /** @description A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The method decides what happens; the path never does (AG-60, ADR-N-021). */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "id": 1,
+                 *       "jsonrpc": "2.0",
+                 *       "method": "tools/list",
+                 *       "params": {}
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -3439,6 +3839,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "advancedMode": false,
+                 *       "defaultProject": "helsinki",
+                 *       "locale": "sk",
+                 *       "theme": "dark"
+                 *     }
+                 */
                 "application/json": components["schemas"]["Preferences"];
             };
         };
@@ -3528,6 +3936,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "description": "The city's open data",
+                 *       "displayName": "Helsinki",
+                 *       "name": "helsinki"
+                 *     }
+                 */
                 "application/json": components["schemas"]["OpenProject"];
             };
         };
@@ -3871,6 +4286,34 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "appClass": "fullstack",
+                 *       "appName": "city-bikes-overview",
+                 *       "dataNeeds": [
+                 *         {
+                 *           "attrs": [
+                 *             "name",
+                 *             "location"
+                 *           ],
+                 *           "contextSpaceRef": {
+                 *             "kind": "ContextSpace",
+                 *             "name": "mobility"
+                 *           },
+                 *           "operations": [
+                 *             "queryEntity",
+                 *             "retrieveEntity"
+                 *           ],
+                 *           "types": [
+                 *             "BikeHireDockingStation"
+                 *           ]
+                 *         }
+                 *       ],
+                 *       "endpointName": "helsinki-bikes",
+                 *       "prompt": "A live bike availability dashboard with station filtering",
+                 *       "visibility": "project"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateRunRequest"];
             };
         };
@@ -3988,6 +4431,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "answers": [
+                 *         "A map beside the table"
+                 *       ],
+                 *       "questionId": "layout"
+                 *     }
+                 */
                 "application/json": components["schemas"]["AnswerRequest"];
             };
         };
@@ -4168,6 +4619,11 @@ export interface operations {
         /** @description The function's JSON body; an empty body is null */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "station": "001"
+                 *     }
+                 */
                 "application/json": unknown;
             };
         };
@@ -4269,6 +4725,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "text": "Show only stations with fewer than three bikes"
+                 *     }
+                 */
                 "application/json": components["schemas"]["MessageRequest"];
             };
         };
@@ -4402,6 +4863,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "file": "src/App.tsx",
+                 *       "line": 42,
+                 *       "message": "TypeError: rows is undefined"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewErrorRequest"];
             };
         };
@@ -4474,6 +4942,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "failedRequests": [
+                 *         {
+                 *           "path": "/ngsi-ld/v1/entities",
+                 *           "status": 403
+                 *         }
+                 *       ],
+                 *       "pages": [
+                 *         {
+                 *           "label": "Overview",
+                 *           "rows": [
+                 *             12
+                 *           ],
+                 *           "text": "12 stations, 3 without a bike"
+                 *         }
+                 *       ],
+                 *       "version": 2
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewObservationRequest"];
             };
         };
@@ -4701,6 +5189,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "message": "Which endpoints publish air quality?"
+                 *     }
+                 */
                 "application/json": components["schemas"]["StartConversation"];
             };
         };
@@ -4765,6 +5258,22 @@ export interface operations {
         /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04. */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "allowedProjects": [
+                 *         "regional-transport"
+                 *       ],
+                 *       "contextSpace": "mobility",
+                 *       "entityTypes": [
+                 *         "BikeHireDockingStation"
+                 *       ],
+                 *       "hiddenAttributes": [
+                 *         "maintenanceNote"
+                 *       ],
+                 *       "name": "bikes-regional-transport",
+                 *       "title": "City bikes for the regional transport team"
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -5031,9 +5540,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Optional approval confirmation for red-lane changes */
+        /** @description Optional approval confirmation for red-lane changes: `confirm` repeats the resource's name */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "confirm": "helsinki-air"
+                 *     }
+                 */
                 "application/json": null | components["schemas"]["ApproveBody"];
             };
         };
@@ -5109,6 +5623,11 @@ export interface operations {
         /** @description Optional reject payload */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "reason": "The endpoint would publish the stations' maintenance notes"
+                 *     }
+                 */
                 "application/json": null | components["schemas"]["ApproveBody"];
             };
         };
@@ -5284,6 +5803,17 @@ export interface operations {
         /** @description LinkML source in YAML format */
         requestBody: {
             content: {
+                /**
+                 * @example id: https://hel.fi/models/air
+                 *     name: air
+                 *     prefixes:
+                 *       linkml: https://w3id.org/linkml/
+                 *     imports: [linkml:types]
+                 *     classes:
+                 *       AirQualityObserved:
+                 *         attributes:
+                 *           pm10: { range: float }
+                 */
                 "text/yaml": string;
             };
         };
@@ -5523,6 +6053,29 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "expectedVersion": 3,
+                 *       "manifest": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha1",
+                 *         "kind": "Endpoint",
+                 *         "metadata": {
+                 *           "name": "helsinki-air",
+                 *           "namespace": "helsinki",
+                 *           "title": "Air quality"
+                 *         },
+                 *         "spec": {
+                 *           "audience": "organization",
+                 *           "contextSpaceRef": "air",
+                 *           "enabledRepresentations": [
+                 *             "ngsi-ld",
+                 *             "geojson"
+                 *           ],
+                 *           "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *         }
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["PutDraftRequest"];
             };
         };
@@ -5929,6 +6482,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "blueprint": "cross-city-sharing",
+                 *       "parameters": {},
+                 *       "version": "1.2.0"
+                 *     }
+                 */
                 "application/json": components["schemas"]["FlowRequest"];
             };
         };
@@ -6140,9 +6700,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Operation input parameters */
+        /** @description Operation input parameters, as the operation's own input schema names them */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "query": "air quality"
+                 *     }
+                 */
                 "application/json": unknown;
             };
         };
@@ -6275,6 +6840,35 @@ export interface operations {
         /** @description `pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, and a `format` (`csv`, `json`, `text`). API/01 §7a. */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "pipeline": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha1",
+                 *         "kind": "Pipeline",
+                 *         "metadata": {
+                 *           "name": "shmu-air-quality"
+                 *         },
+                 *         "spec": {
+                 *           "class": "resident",
+                 *           "compute": {
+                 *             "bloblang": "root.pm10 = this.pm10.number()",
+                 *             "kind": "bloblang"
+                 *           },
+                 *           "source": {
+                 *             "dataSourceRef": {
+                 *               "kind": "DataSource",
+                 *               "name": "shmu-csv"
+                 *             }
+                 *           },
+                 *           "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                 *         }
+                 *       },
+                 *       "sample": {
+                 *         "format": "csv",
+                 *         "text": "station_id,pm10\n01,18.2\n"
+                 *       }
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -6515,7 +7109,13 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "credential": "ingest",
+                 *       "expiresAt": "2027-01-01T00:00:00Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MintRequest"];
             };
         };
         responses: {
@@ -6652,7 +7252,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "overlapHours": 24
+                 *     }
+                 */
+                "application/json": components["schemas"]["RotateRequest"];
             };
         };
         responses: {
@@ -6787,6 +7392,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "paused": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["PauseRequest"];
             };
         };
@@ -6995,6 +7605,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "bike-lanes",
+                 *       "scope": {
+                 *         "kind": "space",
+                 *         "name": "mobility"
+                 *       },
+                 *       "title": "Bike lanes",
+                 *       "ttlDays": 7
+                 *     }
+                 */
                 "application/json": components["schemas"]["OpenRequest"];
             };
         };
@@ -7337,6 +7958,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "resolutions": [
+                 *         {
+                 *           "field": "spec.audience",
+                 *           "keep": "ours",
+                 *           "path": "projects/helsinki/endpoints/helsinki-air.yaml"
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateRequest"];
             };
         };
@@ -7379,7 +8011,7 @@ export interface operations {
                 limit?: number;
                 /** @description Pagination continue token */
                 continue?: string;
-                /** @description Historical revision */
+                /** @description Read the project as it stood at this commit id (MF-11) */
                 revision?: string;
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
@@ -7402,6 +8034,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            /** @description A bad selector or limit, a revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -7441,6 +8082,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "apiVersion": "joinedcontext.com/v1alpha1",
+                 *       "kind": "Endpoint",
+                 *       "metadata": {
+                 *         "name": "helsinki-air",
+                 *         "namespace": "helsinki",
+                 *         "title": "Air quality"
+                 *       },
+                 *       "spec": {
+                 *         "audience": "organization",
+                 *         "contextSpaceRef": "air",
+                 *         "enabledRepresentations": [
+                 *           "ngsi-ld",
+                 *           "geojson"
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ResourceEnvelope"];
             };
         };
@@ -7524,6 +8185,8 @@ export interface operations {
             query?: {
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
+                /** @description Read the project as it stood at this commit id (MF-11) */
+                revision?: string;
             };
             header?: never;
             path: {
@@ -7545,6 +8208,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceEnvelope"];
+                };
+            };
+            /** @description A revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -7586,6 +8258,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "apiVersion": "joinedcontext.com/v1alpha1",
+                 *       "kind": "Endpoint",
+                 *       "metadata": {
+                 *         "name": "helsinki-air",
+                 *         "namespace": "helsinki",
+                 *         "title": "Air quality"
+                 *       },
+                 *       "spec": {
+                 *         "audience": "organization",
+                 *         "contextSpaceRef": "air",
+                 *         "enabledRepresentations": [
+                 *           "ngsi-ld",
+                 *           "geojson"
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ResourceEnvelope"];
             };
         };
@@ -7777,7 +8469,14 @@ export interface operations {
         /** @description RFC 7386 merge patch, as JSON or as the YAML apply-patch document */
         requestBody: {
             content: {
-                "application/merge-patch+json": string;
+                /**
+                 * @example {
+                 *       "spec": {
+                 *         "audience": "organization"
+                 *       }
+                 *     }
+                 */
+                "application/merge-patch+json": Record<string, never>;
             };
         };
         responses: {
@@ -7922,6 +8621,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "source": "id: https://hel.fi/models/air\nname: air\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
+                 *     }
+                 */
                 "application/json": components["schemas"]["GenerateRequest"];
             };
         };
@@ -7982,6 +8686,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "model": "AirQualityObserved"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ImportSdmRequest"];
             };
         };
@@ -8043,7 +8752,13 @@ export interface operations {
         /** @description `multipart/form-data`: the sample under `file`, and an optional `format` (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say */
         requestBody: {
             content: {
-                "multipart/form-data": string;
+                /**
+                 * @example {
+                 *       "file": "station_id,pm10\n01,18.2\n",
+                 *       "format": "csv"
+                 *     }
+                 */
+                "multipart/form-data": Record<string, never>;
             };
         };
         responses: {
@@ -8159,7 +8874,16 @@ export interface operations {
         /** @description Gitea webhook event payload */
         requestBody: {
             content: {
-                "application/json": string;
+                /**
+                 * @example {
+                 *       "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                 *       "ref": "refs/heads/main",
+                 *       "repository": {
+                 *         "full_name": "hel/config"
+                 *       }
+                 *     }
+                 */
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -8224,7 +8948,13 @@ export interface operations {
         /** @description Whatever the origin sends; the body is what the signature covers */
         requestBody: {
             content: {
-                "application/json": string;
+                /**
+                 * @example {
+                 *       "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                 *       "ref": "refs/heads/main"
+                 *     }
+                 */
+                "application/json": unknown;
             };
         };
         responses: {

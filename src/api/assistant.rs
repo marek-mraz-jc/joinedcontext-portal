@@ -426,6 +426,8 @@ fn item(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/assistant/catalog",
+    summary = "Search Catalog",
+    description = "Find spaces, endpoints, and data models matching search keywords.",
     tag = "assistant",
     params(
         ("project" = String, Path, description = "The project the search runs in"),
@@ -524,6 +526,8 @@ pub async fn execute_propose_endpoint(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/assistant/propose-endpoint",
+    summary = "Propose Endpoint",
+    description = "Renders an Endpoint and its draft Policy manifests from a request to share data.",
     tag = "assistant",
     params(("project" = String, Path, description = "Project slug")),
     request_body(
@@ -531,7 +535,15 @@ pub async fn execute_propose_endpoint(
         description = "What to share and with whom: `contextSpace`, `name`, and optionally \
                        `title`, `audience`, `allowedProjects`, `representations`, \
                        `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({
+            "contextSpace": "mobility",
+            "name": "bikes-regional-transport",
+            "title": "City bikes for the regional transport team",
+            "allowedProjects": ["regional-transport"],
+            "hiddenAttributes": ["maintenanceNote"],
+            "entityTypes": ["BikeHireDockingStation"]
+        })
     ),
     responses(
         (status = 200, description = "The rendering, written nowhere: `lane`, `slug`, \
@@ -634,9 +646,14 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/assistant/conversations",
+    summary = "Start A Conversation",
+    description = "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
-    request_body = StartConversation,
+    request_body(
+        content = StartConversation,
+        example = json!({ "message": "Which endpoints publish air quality?" })
+    ),
     responses(
         (status = 202, description = "The conversation run, queued", body = CreatedRun),
         (status = 400, description = "Invalid request or invalid continuation", body = ProblemDetails),
@@ -844,6 +861,8 @@ pub struct AgentAccessList {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/assistant/access",
+    summary = "Read Assistant Access",
+    description = "Every agent profile of the organization with what it lets the assistant reach here, intersected with the caller's own grants. It changes nothing.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
     responses(

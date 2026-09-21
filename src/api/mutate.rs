@@ -830,6 +830,18 @@ async fn propose_engine(
         )?;
     }
 
+    // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
+    //     project, so another project's App of the same name is refused before a Change exists.
+    if operation != Operation::Delete {
+        crate::apps::names::check(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+        )?;
+    }
+
     // Every resource this manifest names has to be there, so a person meets a missing name in the
     // form they typed it into and not in the reconciler's log (MF-13, T-2233).
     if operation != Operation::Delete {
@@ -1162,13 +1174,25 @@ async fn propose_draft(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/{plural}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1220,6 +1244,8 @@ pub async fn create(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1227,7 +1253,17 @@ pub async fn create(
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1279,6 +1315,8 @@ pub async fn replace(
 #[utoipa::path(
     patch,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1289,9 +1327,10 @@ pub async fn replace(
     // Declared by hand: the handler takes the raw `Bytes` because the media type decides how the
     // body is parsed, and utoipa cannot derive a schema from that extractor.
     request_body(
-        content = String,
+        content = Object,
         description = "RFC 7386 merge patch, as JSON or as the YAML apply-patch document",
         content_type = "application/merge-patch+json",
+        example = json!({ "spec": { "audience": "organization" } }),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
