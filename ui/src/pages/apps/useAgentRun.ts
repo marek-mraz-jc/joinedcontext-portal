@@ -60,6 +60,8 @@ export interface AgentRun {
   changeId?: string;
   /** The forge's web address of the application's source (AP-71). */
   sourceUrl?: string;
+  /** The application's copy on GitHub, where the installation keeps one (AP-79). */
+  mirrorUrl?: string;
   /** Milliseconds from admission to the first frame and to the first generated version (AG-66). */
   firstFrameMs?: number | null;
   firstVersionMs?: number | null;
@@ -229,10 +231,12 @@ export function useAgentRun(project: string, runId: string | null) {
   });
 
   const cancel = useMutation({
-    mutationFn: async () =>
+    // A caller that moves on from the run in the same click names it: the mutation runs with the
+    // newest render's `runId`, which by then is the next conversation's or none (T-2463).
+    mutationFn: async (id?: string) =>
       unwrap(
         await api.POST("/api/v1/projects/{project}/agent-runs/{id}/cancel", {
-          params: { path: { project, id: runId ?? "" } },
+          params: { path: { project, id: id ?? runId ?? "" } },
         }),
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),

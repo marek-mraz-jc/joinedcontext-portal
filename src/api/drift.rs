@@ -19,6 +19,7 @@ use serde_json::{json, Value};
 
 use crate::auth::session::CurrentUser;
 use crate::error::ApiError;
+use crate::error::ProblemDetails;
 use crate::resource::is_dns1123;
 use crate::state::AppState;
 use jc_core::kinds::Verb;
@@ -80,7 +81,11 @@ fn drifted(
     path = "/api/v1/projects/{project}/drift",
     tag = "drift",
     params(("project" = String, Path, description = "Project name")),
-    responses((status = 200, description = "What the last scan found")),
+    responses(
+        (status = 200, description = "What the last scan found"),
+        (status = 401, description = "No session", body = ProblemDetails),
+        (status = 404, description = "No such project, or not one the caller belongs to", body = ProblemDetails),
+    ),
 )]
 pub async fn list_drift(
     State(state): State<AppState>,
@@ -112,7 +117,13 @@ pub async fn list_drift(
         ("space" = String, Path, description = "The Context Space holding the entity"),
         ("id" = String, Path, description = "The entity's URN, percent-encoded"),
     ),
-    responses((status = 204, description = "Git's entity written back into the space")),
+    responses(
+        (status = 204, description = "Git's entity written back into the space"),
+        (status = 401, description = "No session", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose an Entity in this project", body = ProblemDetails),
+        (status = 404, description = "No such project, or the last scan reported no such drift", body = ProblemDetails),
+        (status = 503, description = "The space or the repository cannot be reached now", body = ProblemDetails),
+    ),
 )]
 pub async fn revert_drift(
     State(state): State<AppState>,
@@ -161,7 +172,14 @@ pub async fn revert_drift(
         ("space" = String, Path, description = "The Context Space holding the entity"),
         ("id" = String, Path, description = "The entity's URN, percent-encoded"),
     ),
-    responses((status = 202, description = "The live entity proposed as the seed file's content")),
+    responses(
+        (status = 202, description = "The live entity proposed as the seed file's content"),
+        (status = 401, description = "No session", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose an Entity in this project", body = ProblemDetails),
+        (status = 404, description = "No such project, or the last scan reported no such drift", body = ProblemDetails),
+        (status = 409, description = "The entity is not in the space, so there is nothing to adopt", body = ProblemDetails),
+        (status = 503, description = "The space or the repository cannot be reached now", body = ProblemDetails),
+    ),
 )]
 pub async fn adopt_drift(
     State(state): State<AppState>,

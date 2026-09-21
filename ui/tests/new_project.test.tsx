@@ -3,6 +3,9 @@
  * disabled with the API's own reason when the organization does not let this caller open one,
  * and the name is checked while it is typed, before anything is sent.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/layout/NewProject.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

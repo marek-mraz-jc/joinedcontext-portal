@@ -316,7 +316,7 @@ describe("apps catalog", () => {
 
     window.removeEventListener("jc:assistant-open", listener);
     expect(intents).toEqual(["build"]);
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).toBeNull();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).toBeNull();
   });
 
   it("names a draft by its run's title, else its name as words, never the id", async () => {

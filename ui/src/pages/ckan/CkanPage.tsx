@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import {
   Badge,
   Button,
   Card,
+  EmptyState,
   ExternalLink,
   Field,
   Input,
@@ -90,20 +91,40 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
       {change ? <ChangeNotice change={change} project={project} /> : null}
       {create.error ? (
         <Alert role="alert" tone="danger">
-          {create.error instanceof ApiError ? create.error.message : t("app.error.generic")}
+          {create.error instanceof ApiError
+            ? (create.error.problem?.detail ?? create.error.message)
+            : t("app.error.generic")}
+        </Alert>
+      ) : null}
+      {/* Without this the page answered a failed `/ckan/status` with its empty state: it told a
+          steward as a fact that the project has no catalogue and publishes nothing, and the
+          next move is to propose a catalogue that is already there (T-1765). */}
+      {status.isError ? (
+        <Alert role="alert" tone="danger">
+          {t("ckan.statusFailed", {
+            reason:
+              status.error instanceof ApiError
+                ? (status.error.problem?.detail ?? status.error.message)
+                : t("app.error.generic"),
+          })}
         </Alert>
       ) : null}
 
       <Instances
+        // A proposal that came back clears the form; a refusal keeps every word of it. The key
+        // is the change's own name, so the reset happens on success and only on success.
+        key={change?.metadata.name ?? "draft"}
         project={project}
         instances={status.data?.instances ?? []}
         loading={status.isLoading}
+        failed={status.isError}
         onSubmit={(draft) => create.mutate(draft)}
         submitting={create.isPending}
       />
       <Publications
         publications={status.data?.publications ?? []}
         loading={status.isLoading}
+        failed={status.isError}
       />
     </section>
   );
@@ -125,21 +146,45 @@ const EMPTY_DRAFT: InstanceDraft = {
   secretKey: "apiToken",
 };
 
+/** What the form itself refuses, before anything is proposed (UI-04). */
+function faults(draft: InstanceDraft): Partial<Record<"name" | "url" | "secretName", string>> {
+  const found: Partial<Record<"name" | "url" | "secretName", string>> = {};
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(draft.name)) found.name = "ckan.instances.nameInvalid";
+  // `type="url"` accepts `javascript:alert(1)` and `file:///etc/passwd`: the browser checks the
+  // shape of a URL and not its scheme. A catalogue is fetched over HTTP by the reconciler, so
+  // anything else is refused here rather than by a reconciler the steward cannot see (T-1765).
+  if (!/^https?:\/\/[^\s/]+/i.test(draft.url.trim())) found.url = "ckan.instances.urlInvalid";
+  if (draft.secretName.trim() === "") found.secretName = "ckan.instances.secretRequired";
+  return found;
+}
+
 function Instances({
   project,
   instances,
   loading,
+  failed,
   onSubmit,
   submitting,
 }: {
   project: string;
   instances: CkanStatus["instances"];
   loading: boolean;
+  /** The catalogue list could not be read, so "none" is not a thing this section may say. */
+  failed: boolean;
   onSubmit: (draft: InstanceDraft) => void;
   submitting: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<InstanceDraft>(EMPTY_DRAFT);
+  const [shown, setShown] = useState<Partial<Record<"name" | "url" | "secretName", string>>>({});
+  const fields = useRef<Record<string, HTMLInputElement | null>>({});
+  // A second press while the first proposal is in flight. `submitting` arrives with the render
+  // after the mutation starts, which is one render too late for a double click: measured, two
+  // clicks sent two proposals and the project got two catalogues (T-1765, UI-48).
+  const sending = useRef(false);
+  useEffect(() => {
+    if (!submitting) sending.current = false;
+  }, [submitting]);
 
   return (
     <section aria-labelledby="ckan-instances" className="space-y-3">
@@ -147,7 +192,9 @@ function Instances({
         {t("ckan.instances.title")}
       </h2>
       {loading ? <p role="status">{t("app.loading")}</p> : null}
-      {!loading && instances.length === 0 ? <p>{t("ckan.instances.empty")}</p> : null}
+      {!loading && !failed && instances.length === 0 ? (
+        <EmptyState title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />
+      ) : null}
       {instances.length > 0 ? (
         <Table caption={t("ckan.instances.title")}>
           <TableHead>
@@ -188,37 +235,56 @@ function Instances({
 
       <form
         className="max-w-4xl space-y-2"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
+          if (sending.current || submitting) return;
+          const found = faults(draft);
+          setShown(found);
+          const first = (["name", "url", "secretName"] as const).find((field) => found[field]);
+          if (first) {
+            fields.current[first]?.focus();
+            return;
+          }
+          // Nothing is cleared here: what the steward typed survives a refusal, and a proposal
+          // that came back remounts this form from the page above (T-1765).
+          sending.current = true;
           onSubmit(draft);
-          setDraft(EMPTY_DRAFT);
         }}
       >
         <Field
           id="ckan-instance-name"
           label={t("ckan.instances.name")}
           description={t("ckan.instances.nameHelp")}
+          required
+          errors={shown.name ? [t(shown.name)] : undefined}
         >
           <Input
             id="ckan-instance-name"
+            ref={(node) => {
+              fields.current.name = node;
+            }}
             value={draft.name}
             placeholder="opendata-bb"
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            required
           />
         </Field>
         <Field
           id="ckan-instance-url"
           label={t("ckan.instances.url")}
           description={t("ckan.instances.urlHelp")}
+          required
+          errors={shown.url ? [t(shown.url)] : undefined}
         >
           <Input
             id="ckan-instance-url"
+            ref={(node) => {
+              fields.current.url = node;
+            }}
             type="url"
             value={draft.url}
             placeholder="https://opendata.example.sk"
             onChange={(event) => setDraft({ ...draft, url: event.target.value })}
-            required
           />
         </Field>
         <Field
@@ -237,20 +303,24 @@ function Instances({
           id="ckan-instance-secret"
           label={t("ckan.instances.tokenRef")}
           description={t("ckan.instances.tokenHelp")}
+          required
+          errors={shown.secretName ? [t(shown.secretName)] : undefined}
         >
           <Input
             id="ckan-instance-secret"
+            ref={(node) => {
+              fields.current.secretName = node;
+            }}
             value={draft.secretName}
             placeholder="ckan-api-token"
             onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
-            required
           />
         </Field>
         {/* The catalogue is proposed as this project's `CkanInstance`, so that is the permission
             the control needs. Without the guard a viewer filled the form and met the 403 only
             after pressing it (T-2243, UI-44). */}
         <PermissionGuard project={project} kind="CkanInstance" verb="propose">
-          <Button type="submit" variant="primary" disabled={submitting}>
+          <Button type="submit" variant="primary" loading={submitting}>
             {t("ckan.instances.propose")}
           </Button>
         </PermissionGuard>
@@ -262,9 +332,11 @@ function Instances({
 function Publications({
   publications,
   loading,
+  failed,
 }: {
   publications: PublicationStatus[];
   loading: boolean;
+  failed: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
@@ -273,7 +345,13 @@ function Publications({
         {t("ckan.publications.title")}
       </h2>
       {loading ? <p role="status">{t("app.loading")}</p> : null}
-      {!loading && publications.length === 0 ? <p>{t("ckan.publications.empty")}</p> : null}
+      {!loading && !failed && publications.length === 0 ? (
+        <EmptyState
+          title={t("ckan.publications.empty")}
+          description={t("ckan.publications.emptyHint")}
+          icon="share"
+        />
+      ) : null}
       <ul className="space-y-4">
         {publications.map((publication) => (
           <li key={publication.endpoint}>

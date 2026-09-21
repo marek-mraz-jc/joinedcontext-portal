@@ -7,6 +7,9 @@
  * looked like nothing else in the Portal. The input is the shared `FilePicker` now, the refusal
  * is the button's own `disabledReason`, and the message is an `Alert`.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/FilePicker.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";

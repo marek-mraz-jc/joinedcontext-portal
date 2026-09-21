@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::bounds::{text, ID, NAME, QUERY, TERM};
 use super::runs::as_user;
 use super::{parse_input, Annotations, Caller, OpError, Operation};
 use crate::change::Lane;
@@ -82,7 +83,7 @@ pub struct RevisionsInput {
 fn named_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "name": { "type": "string", "description": "The resource's name" } },
+        "properties": { "name": text("The resource's name", NAME) },
         "required": ["name"],
         "additionalProperties": false
     })
@@ -113,14 +114,14 @@ fn activity_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "space": { "type": "string" },
-            "kind": { "type": "string", "description": "One or more event kinds, comma-separated" },
-            "source": { "type": "string" },
+            "space": text("Only the events of this context space, by name", NAME),
+            "kind": text("One or more event kinds, comma-separated", QUERY),
+            "source": text("Only the events this component wrote, e.g. reconciler", TERM),
             "severity": { "type": "string", "enum": ["info", "warning", "error"], "description": "This severity and everything above it" },
-            "since": { "type": "string", "format": "date-time" },
-            "object": { "type": "string", "description": "One object the events belong to, as {plural}/{name}" },
-            "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
-            "cursor": { "type": "string" }
+            "since": { "type": "string", "format": "date-time", "description": "RFC 3339 instant, the oldest event to return", "maxLength": 64 },
+            "object": text("One object the events belong to, as {plural}/{name}", NAME),
+            "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "At most this many events" },
+            "cursor": text("Where the previous page ended, as that page returned it", ID)
         },
         "additionalProperties": false
     })
@@ -178,7 +179,7 @@ fn source_output_schema() -> Value {
 fn id_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "id": { "type": "string" } },
+        "properties": { "id": text("The id of the one to read", ID) },
         "required": ["id"],
         "additionalProperties": false
     })
@@ -206,10 +207,21 @@ fn run_list_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "limit": { "type": "integer", "minimum": 1 },
-            "app": { "type": "string" },
-            "kind": { "type": "string", "enum": ["application", "dashboard", "analysis", "conversation"] },
-            "status": { "type": "string" },
+            "limit": { "type": "integer", "minimum": 1, "description": "At most this many runs, newest first" },
+            "app": text("Only the runs that build this application, by name", NAME),
+            "kind": {
+                "type": "string",
+                "description": "Only runs of this kind",
+                "enum": ["application", "dashboard", "analysis", "conversation"]
+            },
+            "status": {
+                "type": "string",
+                "description": "Only runs in this state",
+                "enum": [
+                    "queued", "starting", "interviewing", "building", "testing", "previewing",
+                    "awaiting_approval", "published", "failed", "cancelled", "expired"
+                ]
+            },
             "mine": { "type": "boolean", "description": "Only the runs this caller started" }
         },
         "additionalProperties": false
@@ -243,7 +255,7 @@ fn run_list_output_schema() -> Value {
 fn account_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "account": { "type": "string", "description": "The ServiceAccount's name" } },
+        "properties": { "account": text("The ServiceAccount's name", NAME) },
         "required": ["account"],
         "additionalProperties": false
     })
@@ -290,7 +302,7 @@ fn ckan_status_output_schema() -> Value {
 fn revisions_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "limit": { "type": "integer", "minimum": 1, "maximum": 100 } },
+        "properties": { "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "At most this many revisions, newest first" } },
         "additionalProperties": false
     })
 }

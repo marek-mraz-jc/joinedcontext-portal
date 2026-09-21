@@ -119,6 +119,7 @@ const SPACE_ROWS = [
 function renderInside(
   gateway: { status: number; count?: number },
   surface: { status: number; rows?: unknown[] } = { status: 200 },
+  seed: { space?: unknown; models?: unknown } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = urlOf(input);
@@ -153,10 +154,10 @@ function renderInside(
       });
     }
     if (path.endsWith("/spaces/ovzdusie")) {
-      return json(SPACE);
+      return json(seed.space ?? SPACE);
     }
     if (path.endsWith("/datamodels")) {
-      return json(MODELS);
+      return json(seed.models ?? MODELS);
     }
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
@@ -255,6 +256,57 @@ describe("space inside view", () => {
     expect(gatewayCalls.some((url) => url.searchParams.get("count") === "true" && url.searchParams.get("limit") === "1")).toBe(true);
     expect(gatewayCalls.some((url) => url.searchParams.get("options") === "keyValues" && url.searchParams.get("limit") === "3")).toBe(true);
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
+  });
+
+  it("takes the space's types from the model that names it, with no dataModelRef on the space", async () => {
+    // How every seeded space is written: `DataModel.spec.contextSpaceRef` is required and names
+    // the space, while the space's own `dataModelRef` is an optional pointer at the primary
+    // model and no seed sets it. Reading only the pointer left this table empty on dev for
+    // every space there is, each of them holding hundreds of entities (T-2450).
+    const { dataModelRef: _pointer, ...spec } = SPACE.spec as Record<string, unknown>;
+    renderInside(
+      { status: 200, count: 532 },
+      { status: 200 },
+      {
+        space: { ...SPACE, spec },
+        models: list([
+          manifest("DataModel", "statistical-observation", {
+            contextSpaceRef: "ovzdusie",
+            linkml: "./statistical-observation.linkml.yaml",
+            version: "1.1.0",
+            classes: ["StatisticalObservation"],
+          }),
+        ]),
+      },
+    );
+
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    const row = within(table).getByText("StatisticalObservation").closest("tr") as HTMLElement;
+    expect(await within(row).findByText("532")).toBeInTheDocument();
+  });
+
+  it("puts the model the space points at first, so the grid opens on it", async () => {
+    renderInside(
+      { status: 200, count: 1 },
+      { status: 200 },
+      {
+        models: list([
+          manifest("DataModel", "other", {
+            contextSpaceRef: "ovzdusie",
+            classes: ["Something"],
+          }),
+          manifest("DataModel", "bb-air-quality", {
+            contextSpaceRef: "ovzdusie",
+            classes: ["AirQualityObserved"],
+          }),
+        ]),
+      },
+    );
+
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("AirQualityObserved");
+    expect(rows.map((row) => row.textContent)).toHaveLength(2);
   });
 
   it("lists only the endpoints and policies of this space, with a catalogue link per endpoint", async () => {

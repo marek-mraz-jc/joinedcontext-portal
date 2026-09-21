@@ -34,8 +34,24 @@ export interface ColumnFilter {
   value2?: string;
 }
 
-/** What a column can be asked, by the kind of thing it holds. */
-export type FilterKind = "text" | "number" | "date" | "relationship" | "id" | "geo" | "none";
+/**
+ * What a column can be asked, by the kind of thing it holds.
+ *
+ * `untyped` is for a caller that has attribute names and no model to read their types from — the
+ * endpoint page's condition builder is the one. It offers no operators of its own and its value
+ * is judged by the shape of what was typed, which is the only rule available when the type is
+ * genuinely unknown. A caller that does know the type says so, because the shape rule alone gets
+ * a period or a territory code wrong.
+ */
+export type FilterKind =
+  | "text"
+  | "number"
+  | "date"
+  | "relationship"
+  | "id"
+  | "geo"
+  | "none"
+  | "untyped";
 
 const TEXT_OPS: FilterOp[] = ["contains", "equals", "notEquals", "empty", "present"];
 const ORDERED_OPS: FilterOp[] = ["equals", "notEquals", "gt", "gte", "lt", "lte", "between", "empty", "present"];
@@ -86,13 +102,28 @@ export function complete(filter: ColumnFilter | undefined): boolean {
 const NUMBER = /^-?\d+(\.\d+)?$/;
 const ISO = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
-/** A value as a `q` literal: bare for a number, a boolean or a timestamp, quoted otherwise. */
-function literal(raw: string): string {
+/**
+ * A value as a `q` literal: bare for a number, a boolean or a timestamp, quoted otherwise.
+ *
+ * `kind` is the column's, and it decides before the shape of the typed text does: a period
+ * (`refPeriod == "2023"`), a territory code or any other string that happens to read as a number
+ * is stored as a string, and `refPeriod==2023` asks the broker for a number and matches nothing.
+ * A filter that silently answers "no rows" is worse than one that answers 400 (T-2436).
+ *
+ * `untyped` and an absent kind fall to the shape rule, which is what a caller with no model to
+ * read has. Quoting there would turn every numeric condition an endpoint publishes into a
+ * comparison against a string — `pm10>"50"` — and match nothing at all (T-2448).
+ */
+function literal(raw: string, kind?: FilterKind): string {
   const value = raw.trim();
+  const quoted = `"${value.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+  if (kind === "text" || kind === "relationship" || kind === "id") {
+    return quoted;
+  }
   if (value === "true" || value === "false" || NUMBER.test(value) || ISO.test(value)) {
     return value;
   }
-  return `"${value.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+  return quoted;
 }
 
 /** A value inside a pattern: every regular-expression metacharacter stands for itself. */
@@ -110,7 +141,12 @@ export function term(attr: string, meta?: MetaKey | null): string {
 }
 
 /** One filter as a `q` term; `undefined` when it asks for nothing. */
-function termOf(attr: string, meta: MetaKey | null | undefined, filter: ColumnFilter): string | undefined {
+function termOf(
+  attr: string,
+  meta: MetaKey | null | undefined,
+  filter: ColumnFilter,
+  kind?: FilterKind,
+): string | undefined {
   if (!complete(filter)) {
     return undefined;
   }
@@ -123,19 +159,19 @@ function termOf(attr: string, meta: MetaKey | null | undefined, filter: ColumnFi
     case "contains":
       return `${path}~="${quotePattern(filter.value)}"`;
     case "equals":
-      return `${path}==${literal(filter.value)}`;
+      return `${path}==${literal(filter.value, kind)}`;
     case "notEquals":
-      return `${path}!=${literal(filter.value)}`;
+      return `${path}!=${literal(filter.value, kind)}`;
     case "gt":
-      return `${path}>${literal(filter.value)}`;
+      return `${path}>${literal(filter.value, kind)}`;
     case "gte":
-      return `${path}>=${literal(filter.value)}`;
+      return `${path}>=${literal(filter.value, kind)}`;
     case "lt":
-      return `${path}<${literal(filter.value)}`;
+      return `${path}<${literal(filter.value, kind)}`;
     case "lte":
-      return `${path}<=${literal(filter.value)}`;
+      return `${path}<=${literal(filter.value, kind)}`;
     case "between":
-      return `${path}>=${literal(filter.value)};${path}<=${literal(filter.value2 ?? "")}`;
+      return `${path}>=${literal(filter.value, kind)};${path}<=${literal(filter.value2 ?? "", kind)}`;
     // A pattern belongs to the id, which is not part of `q`.
     case "pattern":
       return undefined;
@@ -175,7 +211,7 @@ export function queryFromFilters(
     if (!column.attr) {
       continue;
     }
-    const built = termOf(column.attr, column.meta, filter);
+    const built = termOf(column.attr, column.meta, filter, column.kind);
     if (built) {
       terms.push(built);
     }

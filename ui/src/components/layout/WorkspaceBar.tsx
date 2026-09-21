@@ -58,7 +58,27 @@ export function WorkspaceBar({ project }: { project: string }): React.JSX.Elemen
   }
   if (workspace.isError) return notice(t("workspaces.bar.gone"));
 
-  if (!workspace.data) return null;
+  // UI-61: the copy's name is known before its record is read, so the bar is there from the first
+  // frame, busy, instead of appearing late and pushing the page down under a person who had not
+  // yet seen that they are in a copy (T-1489). A disabled query (no name) never gets here.
+  if (!workspace.data) {
+    return (
+      <div
+        role="region"
+        aria-label={t("workspaces.bar.label")}
+        aria-busy="true"
+        data-testid="workspace-bar-loading"
+        className="flex flex-wrap items-center gap-3 border-b border-primary/30 bg-primary-soft px-4 py-2 text-sm"
+      >
+        <span className="font-medium">{t("workspaces.bar.loading", { name })}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={leave}>
+            {t("workspaces.bar.leave")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const { title, name: wsName, createdAt, expiresAt, owner, changes } = workspace.data;
   // Expiry is judged at the moment the copy was read, so the render stays pure.

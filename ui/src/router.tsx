@@ -4,8 +4,10 @@ import {
   createRouter,
   Link,
   Navigate,
+  notFound,
   Outlet,
   redirect,
+  useChildMatches,
   useRouterState,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -16,6 +18,8 @@ import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
+import { FormRouteHost } from "./components/forms/FormRoute";
+import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
 import { ApprovalsPage } from "./routes/ApprovalsPage";
 import { ApprovalDetailPage } from "./routes/ApprovalDetailPage";
@@ -33,6 +37,7 @@ import { WorkspacesPage } from "./routes/WorkspacesPage";
 import { ComparePage } from "./pages/workspaces/ComparePage";
 import { BringBackPage } from "./pages/workspaces/BringBackPage";
 import { TryItPage } from "./pages/workspaces/TryItPage";
+import { Gallery } from "./pages/gallery/Gallery";
 import type { AuthState } from "./auth/AuthProvider";
 
 export interface RouterContext {
@@ -396,7 +401,7 @@ const federationRoute = createRoute({
 
 import { SpaceComplete } from "./pages/spaces/SpaceComplete";
 
-/** Space Complete route (registered before spaceInsideRoute so /spaces/complete is matched statically). */
+/** Space Complete route (static, so `/spaces/complete` is never read as a space called "complete"). */
 const spaceCompleteRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/spaces/complete",
@@ -407,48 +412,6 @@ const spaceCompleteRoute = createRoute({
         <HandOff>
           <SpaceComplete project={project} />
         </HandOff>
-      </Shell>
-    );
-  },
-});
-
-/** What one Context Space holds: entity types with counts, endpoints, policies (UI-01). */
-const spaceInsideRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/projects/$project/spaces/$name",
-  component: function SpaceInsideRoute() {
-    const { project, name } = spaceInsideRoute.useParams();
-    return (
-      <Shell project={project}>
-        <SpaceInside project={project} name={name} />
-      </Shell>
-    );
-  },
-});
-
-/** One endpoint and every setting it has (T-2281, EP-51). */
-const endpointRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/projects/$project/endpoints/$name",
-  component: function EndpointRoute() {
-    const { project, name } = endpointRoute.useParams();
-    return (
-      <Shell project={project}>
-        <EndpointPage project={project} name={name} />
-      </Shell>
-    );
-  },
-});
-
-/** An application and its runs (AP-68, AP-69, T-0559). */
-const appRoute = createRoute({
-  getParentRoute: () => protectedRoute,
-  path: "/projects/$project/apps/$name",
-  component: function AppRoute() {
-    const { project, name } = appRoute.useParams();
-    return (
-      <Shell project={project}>
-        <AppPage project={project} name={name} />
       </Shell>
     );
   },
@@ -487,29 +450,141 @@ const sharedRedirectRoute = createRoute({
   },
 });
 
-const resourceListRoute = createRoute({
+/** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
+const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps"]);
+
+/**
+ * One section of a project: its list, one of its forms as a page of its own (T-2474, UI-27), or
+ * one resource's page. The list and its forms are one mounted page whichever the address names,
+ * so leaving a form returns to the list as it was left, with the Change a proposal opened.
+ */
+const sectionRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/$plural",
-  // `?edit=<name>` opens the kind's own editor on that resource (T-2281): the endpoint's settings
-  // page sends a person here instead of carrying a second copy of the form.
+  // `?edit=<name>` opens the kind's own editor on that resource (T-2281): the assistant's hand-off
+  // and older links; the endpoint's settings page links the edit address itself.
   validateSearch: (search: Record<string, unknown>): { edit?: string } => ({
     edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
   }),
-  component: function ResourceListRoute() {
-    const { project, plural } = resourceListRoute.useParams();
-    const { edit } = resourceListRoute.useSearch();
+  component: function SectionRoute() {
+    const { project, plural } = sectionRoute.useParams();
+    const { edit } = sectionRoute.useSearch();
+    const child = useChildMatches({
+      select: (matches) => {
+        const first = matches[0];
+        return first
+          ? { routeId: first.routeId as string, name: (first.params as { name?: string }).name }
+          : null;
+      },
+    });
+    if (child?.routeId === sectionDetailRoute.id && child.name !== undefined) {
+      return <DetailPage project={project} plural={plural} name={child.name} />;
+    }
+    const form: FormTarget | null =
+      child?.routeId === sectionNewRoute.id
+        ? { mode: "new" }
+        : child?.routeId === sectionEditRoute.id && child.name !== undefined
+          ? { mode: "edit", name: child.name }
+          : null;
     return (
       <Shell project={project}>
         <HandOff>
-          <ResourceListPage project={project} plural={plural} edit={edit} />
+          <FormRouteHost project={project} plural={plural} form={form}>
+            <ResourceListPage
+              project={project}
+              plural={plural}
+              edit={form?.mode === "edit" ? form.name : edit}
+            />
+          </FormRouteHost>
         </HandOff>
       </Shell>
     );
   },
 });
 
+function DetailPage({
+  project,
+  plural,
+  name,
+}: {
+  project: string;
+  plural: string;
+  name: string;
+}): React.JSX.Element {
+  return (
+    <Shell project={project}>
+      {plural === "spaces" ? (
+        <SpaceInside project={project} name={name} />
+      ) : plural === "endpoints" ? (
+        <EndpointPage project={project} name={name} />
+      ) : (
+        <AppPage project={project} name={name} />
+      )}
+    </Shell>
+  );
+}
+
+/** Rendered by the section: the children only name which of its views the address asks for. */
+function Nothing(): null {
+  return null;
+}
+
+const sectionIndexRoute = createRoute({
+  getParentRoute: () => sectionRoute,
+  path: "/",
+  component: Nothing,
+});
+
+/** A kind's create form, at `/projects/{project}/{plural}/new` (T-2474). */
+const sectionNewRoute = createRoute({
+  getParentRoute: () => sectionRoute,
+  path: "new",
+  component: Nothing,
+});
+
+/** One resource's edit form, at `/projects/{project}/{plural}/{name}/edit` (T-2474). */
+const sectionEditRoute = createRoute({
+  getParentRoute: () => sectionRoute,
+  path: "$name/edit",
+  component: Nothing,
+});
+
+/**
+ * What one Context Space holds, one endpoint's settings, an application and its runs; `new` is
+ * the create form above, so a resource called `new` has only its edit address.
+ */
+const sectionDetailRoute = createRoute({
+  getParentRoute: () => sectionRoute,
+  path: "$name",
+  beforeLoad: ({ params }) => {
+    // The Portal's own "no such page", the one an address that matches nothing gets, and not
+    // the section's page around it.
+    if (!DETAIL_PAGES.has(params.plural)) {
+      throw notFound({ routeId: rootRoute.id });
+    }
+  },
+  component: Nothing,
+});
+
+/**
+ * The component gallery (T-1729), development only: no session, no project, no API. The route is
+ * built only when `import.meta.env.DEV`, which a production build replaces with `false` — the
+ * branch goes, the import with it, and `gallery_axe.test.tsx` holds that nothing else imports
+ * the module.
+ */
+const devRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__gallery",
+        component: Gallery,
+      }),
+    ]
+  : [];
+
 export const routeTree = rootRoute.addChildren([
   loginRoute,
+  ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,
     activityRoute,
@@ -523,16 +598,18 @@ export const routeTree = rootRoute.addChildren([
     importRoute,
     federationRoute,
     spaceCompleteRoute,
-    spaceInsideRoute,
-    endpointRoute,
-    appRoute,
     assistantRoute,
     sharedRedirectRoute,
     workspacesRoute,
     workspaceTryItRoute,
     workspaceCompareRoute,
     workspaceBringBackRoute,
-    resourceListRoute,
+    sectionRoute.addChildren([
+      sectionIndexRoute,
+      sectionNewRoute,
+      sectionEditRoute,
+      sectionDetailRoute,
+    ]),
   ]),
 ]);
 

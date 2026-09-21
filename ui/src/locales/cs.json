@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kopie",
-    "policies": "Politiky"
+    "policies": "Politiky",
+    "subscriptions": "Odběry"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -70,6 +71,9 @@
   "form": {
     "submit": "Odeslat",
     "cancel": "Zrušit",
+    "backToList": "Zpět na seznam",
+    "opening": "Otevírá se formulář…",
+    "notOpen": "Tento formulář nelze otevřít: nic s názvem {name} tu není, nebo to nesmíte měnit.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",
@@ -271,7 +275,10 @@
     "name": "Název",
     "phase": "Stav",
     "empty": "Zatím tu nic není.",
-    "emptyHint": "V projektu zatím nic tohoto druhu není. Přidejte první nebo požádejte asistenta a rozhodněte o tom, co podá.",
+    "emptyHint": "V projektu zatím nic tohoto druhu není. Tato stránka jej vypisuje a čte; požádejte o něj asistenta a rozhodněte o tom, co podá.",
+    "emptyHintFor": {
+      "uischemas": "Nic v tomto projektu nemění formulář. Každý formulář má své rozložení už v dodávce; organizace ho mění v portal/forms/ svého konfiguračního repozitáře, ne zde."
+    },
     "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává."
   },
   "spaces": {
@@ -470,7 +477,14 @@
       "addHidden": "Skrýt atribut podle názvu",
       "add": "Skrýt",
       "attribute": "Atribut",
-      "summary": "Zveřejňuje {types} typů s {attributes} atributy."
+      "summary": "Zveřejňuje {types} typů s {attributes} atributy.",
+      "noTypes": "Tento endpoint zatím nepublikuje žádné typy.",
+      "noTypesHint": "Jakmile se jeho model zkompiluje, bude tu vypsán každý typ, který poskytuje, s atributy, které lze skrýt.",
+      "addHint": "Jeden z atributů vypsaných výše, přesně tak, jak je napsán.",
+      "addEmpty": "Napište název atributu.",
+      "addAlready": "Tento atribut je už skrytý.",
+      "addUnknown": "Tento endpoint dnes nepublikuje atribut s názvem {names}, takže jím zatím není skryto nic.",
+      "addShape": "Název atributu nemá mezery: písmena, číslice, tečky, dvojtečky, spojovníky a podtržítka."
     },
     "link": {
       "index": "index",
@@ -983,7 +997,12 @@
       "groupHelp": "Název skupiny vyhlášené v části Skupiny. Roli drží každý, dokud je jejím členem.",
       "roleHelp": "Co daný člověk smí: každá role je množina sloves nad množinou druhů, vypsaná v části Role.",
       "whereHelp": "Kam až role sahá: tento projekt, celá organizace, nebo jeden kontextový prostor projektu.",
-      "untilHelp": "Poslední den platnosti role. Prázdné pole znamená bez konce, což potřebuje stálý člen."
+      "untilHelp": "Poslední den platnosti role. Prázdné pole znamená bez konce, což potřebuje stálý člen.",
+      "rolesEmpty": "Tato organizace zatím nemá žádné role. Než ji lze přidělit, musí ji někdo vyhlásit v části Role.",
+      "spacesFailed": "Kontextové prostory tohoto projektu se nepodařilo načíst, takže přidělení platná pro jeden prostor v tomto seznamu chybí: {reason}",
+      "discardTitle": "Zahodit toto přidělení?",
+      "discardConfirm": "To, co jste napsali, se ztratí a nic se nenavrhne. Již přidělené role se nemění.",
+      "discard": "Zahodit přidělení"
     },
     "projectRoles": {
       "title": "Role",
@@ -1012,7 +1031,34 @@
       "empty": "Tento projekt zatím nemá servisní účet.",
       "owner": "Odpovědná osoba",
       "roles": "Role",
-      "purpose": "Účel"
+      "purpose": "Účel",
+      "add": "Nový servisní účet",
+      "addHint": "Uložením navrhnete změnu; účet a jeho klient vzniknou po jejím schválení.",
+      "propose": "Navrhnout změnu",
+      "field": {
+        "name": "Název",
+        "purpose": "Účel",
+        "owner": "Vlastník",
+        "ownerUser": "Přihlášení vlastníka",
+        "roles": "Oprávnění",
+        "role": "Role",
+        "scope": "Rozsah",
+        "scopeLevel": "Úroveň rozsahu",
+        "scopeName": "Název rozsahu",
+        "operations": "Operace",
+        "types": "Typy entit",
+        "credentials": "Přihlašovací údaje",
+        "credentialKind": "Typ údaje",
+        "credentialName": "Název údaje",
+        "expiresAt": "Platí do",
+        "ipAllowList": "Povolené bloky adres",
+        "limits": "Limity",
+        "requestsPerMinute": "Požadavky za minutu",
+        "workload": "Úloha v clusteru",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Jmenný prostor",
+        "k8sServiceAccount": "Servisní účet Kubernetes"
+      }
     },
     "keys": {
       "create": "Nový API klíč ({credential})",
@@ -1330,6 +1376,20 @@
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
       "more": "a dalších {count}"
+    },
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "version": "Verze",
+      "linkml": "Zdroj LinkML",
+      "lifecycle": "Životní cyklus",
+      "openWorld": "Přijímat nedeklarované atributy"
+    },
+    "lifecycleOption": {
+      "draft": "Koncept",
+      "published": "Zveřejněný",
+      "deprecated": "Zastaralý",
+      "retired": "Vyřazený"
     }
   },
   "apps": {
@@ -1410,7 +1470,10 @@
         "documents": "Dokumenty endpointu"
       },
       "promptPlaceholder": "Mapa stanic, filtr na ty, kde ještě jsou kola, a graf volných míst.",
-      "details": "Podrobnosti: název, druh a co smí číst ({name})"
+      "details": "Podrobnosti: název, druh a co smí číst ({name})",
+      "noEndpoints": "Tento projekt zatím nepublikuje žádný endpoint; aplikace z něj čte, takže nejdřív publikujte endpoint.",
+      "nameHint": "Malá písmena, číslice a spojovníky: stává se z toho adresa, na které se aplikace poskytuje.",
+      "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky, začíná i končí některým z nich a má nejvýše 40 znaků."
     },
     "newAction": "Vygenerovat vlastní aplikaci",
     "builds": {
@@ -1431,6 +1494,35 @@
     },
     "kpi": {
       "badge": "KPI"
+    },
+    "field": {
+      "name": "Název",
+      "kind": "Druh",
+      "visibility": "Viditelnost",
+      "embeddable": "Portál ji smí vložit do rámu",
+      "source": "Zdroj",
+      "sourceFrom": "Druh zdroje",
+      "sourcePath": "Složka",
+      "gitUrl": "Adresa repozitáře",
+      "gitRef": "Větev, značka nebo commit",
+      "gitPath": "Složka v repozitáři",
+      "build": "Nástroje",
+      "buildTool": "Nástroj",
+      "buildVersion": "Verze",
+      "dataNeeds": "Potřebná data",
+      "space": "Kontextový prostor",
+      "types": "Typy entit",
+      "attrs": "Atributy",
+      "operations": "Operace",
+      "representations": "Reprezentace",
+      "within": "V rozsahu",
+      "window": "Časové okno",
+      "csp": "Content Security Policy",
+      "connectSrc": "Smí volat",
+      "frameAncestors": "Smí ji vložit",
+      "limits": "Limity",
+      "requestsPerMinute": "Požadavky za minutu",
+      "maxFileRows": "Řádky na stažení souboru"
     }
   },
   "appLifecycle": {
@@ -1457,15 +1549,21 @@
       "propose": "Navrhnout katalog",
       "nameHelp": "Krátký název, pod kterým je tento katalog znám zde. Malá písmena, číslice a spojovníky.",
       "urlHelp": "Adresa portálu CKAN, na který se datové sady zveřejňují, i se schématem.",
-      "organizationHelp": "Organizace v CKAN, do které sada spadne, když endpoint neurčí vlastní."
+      "organizationHelp": "Organizace v CKAN, do které sada spadne, když endpoint neurčí vlastní.",
+      "emptyHint": "Katalog je portál CKAN, do kterého tento projekt publikuje. Pojmenujte ho níže a rekonciliátor jeho datové sady zaregistruje.",
+      "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky a začíná i končí písmenem nebo číslicí.",
+      "urlInvalid": "Adresa začíná na http:// nebo https://.",
+      "secretRequired": "Pojmenujte tajemství, které nahrál operátor; samotný token se tu nikdy nezadává."
     },
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žádný endpoint tohoto projektu nepublikuje do katalogu.",
       "datastore": "Kopie řádků v DataStore z {representation}, obnovovaná {refresh}.",
       "publishedTo": "publikováno do {instance}",
-      "missingInstance": "katalog {instance} chybí"
-    }
+      "missingInstance": "katalog {instance} chybí",
+      "emptyHint": "Endpoint publikuje, když to jeho manifest vyhlásí. Otevřete endpoint a přidejte publikování, aby se tu zobrazilo."
+    },
+    "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}"
   },
   "mappings": {
     "pair": "Modely",
@@ -1501,7 +1599,22 @@
     "propose": "Navrhnout mapování",
     "sameModel": "Mapování potřebuje dva různé modely.",
     "noSpace": "Tento model neobsluhuje žádný prostor, mapování tedy nemá kam patřit.",
-    "goldenHint": "Návrh otevře změnu s mapováním. Jeho zlatý test čte ./tests/<name>.input.json a ./tests/<name>.expect.json, které se commitují vedle něj."
+    "goldenHint": "Návrh otevře změnu s mapováním. Jeho zlatý test čte ./tests/<name>.input.json a ./tests/<name>.expect.json, které se commitují vedle něj.",
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "model": "Datový model",
+      "version": "Hlavní verze",
+      "tests": "Zlaté testy",
+      "testInput": "Vstupní příklad",
+      "testExpect": "Očekávaný výstup",
+      "native": "Nativní bloky",
+      "language": "Jazyk",
+      "nativeSource": "Kód",
+      "artifacts": "Zkompilované artefakty",
+      "bloblang": "Soubor Bloblang",
+      "gatewayIr": "Soubor mapování brány"
+    }
   },
   "syncSources": {
     "title": "Zdroje synchronizace",
@@ -1713,7 +1826,8 @@
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
-    "export": "Exportovat tuto stránku"
+    "export": "Exportovat tuto stránku",
+    "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše."
   },
   "agentRun": {
     "title": "Běh aplikace",
@@ -1753,7 +1867,14 @@
       "closed": "Spuštění skončilo, už nic nečte.",
       "agent": "Asistent",
       "you": "Vy",
-      "somethingElse": "Something else…"
+      "somethingElse": "Something else…",
+      "emptyHint": "Napište, co se má postavit nebo změnit; asistent odpovídá tady a zeptá se, když potřebuje rozhodnutí.",
+      "dropped": "Živé spojení se přerušilo. To, co je napsáno výše, může být nedokončené; otevřete běh znovu, abyste ho dál sledovali.",
+      "stalled": "Žádná odpověď už {seconds} sekund. Běh možná ještě pracuje, nebo se zastavil.",
+      "stop": "Zastavit běh",
+      "retry": "Zeptat se znovu",
+      "newConversation": "Nová konverzace",
+      "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady."
     },
     "line": {
       "status": "Nyní {status}.",
@@ -1877,7 +1998,10 @@
       "keepSpace": "Do prostoru",
       "keepSend": "Navrhnout pipeline",
       "keepEveryMessage": "Průběžně aktualizuj ukazatel {name}: {over}, každých {minutes}m, do prostoru {space}.",
-      "keepOnChangeMessage": "Průběžně aktualizuj ukazatel {name}: {over}, při každé změně, do prostoru {space}."
+      "keepOnChangeMessage": "Průběžně aktualizuj ukazatel {name}: {over}, při každé změně, do prostoru {space}.",
+      "overCount": "počet typu {type}",
+      "overAgg": "{agg} atributu {attribute} nad typem {type}",
+      "overWhere": "{over}, kde {filter}"
     },
     "changeTest": {
       "title": "Test změny",
@@ -1929,7 +2053,8 @@
     "publication": {
       "title": "Zveřejnění",
       "source": "Zdrojový kód v Gitu",
-      "approve": "Schválit a zveřejnit"
+      "approve": "Schválit a zveřejnit",
+      "mirror": "Kopie na GitHubu"
     },
     "question": {
       "suggested": "navrhováno",
@@ -1942,6 +2067,7 @@
     }
   },
   "assistant": {
+    "newConversation": "Začít novou konverzaci",
     "navigated": "Otevřeno: {page}",
     "pageNamed": "{page}: {name}",
     "anotherPage": "jiná stránka",
@@ -2290,6 +2416,7 @@
     "bar": {
       "label": "Kopie",
       "message": "Pracujete na kopii {title}, začaté {date}. Nic tady není živé.",
+      "loading": "Pracujete na kopii {name}. Nic tady není živé.",
       "changes": "{count, plural, =0 {Zatím beze změn} one {# změna} few {# změny} many {# změny} other {# změn}}",
       "gone": "Tato kopie vypršela nebo byla zahozena.",
       "leave": "Odejít",
@@ -2387,6 +2514,87 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoluje"
+    }
+  },
+  "subscriptions": {
+    "title": "Odběry",
+    "lead": "Trvalé dotazy prostorů tohoto projektu: které změny se sledují a kam broker posílá notifikaci.",
+    "empty": "Tento projekt zatím nemá žádný odběr.",
+    "add": "Nový odběr",
+    "addHint": "Uložením navrhnete změnu; broker začne posílat notifikace po jejím schválení.",
+    "propose": "Navrhnout změnu",
+    "watchesNothing": "Odběr musí něco sledovat: přidejte výběr entit, sledovaný atribut nebo obojí.",
+    "paused": "Pozastavený",
+    "field": {
+      "name": "Název",
+      "subscriptionName": "Zobrazovaný název",
+      "space": "Kontextový prostor",
+      "description": "Popis",
+      "entities": "Sledované entity",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátoru",
+      "watchedAttributes": "Sledované atributy",
+      "notification": "Notifikace",
+      "endpoint": "Příjemce",
+      "uri": "Adresa",
+      "accept": "Typ média",
+      "receiverInfo": "Hlavičky",
+      "headerName": "Název hlavičky",
+      "headerValue": "Hodnota hlavičky",
+      "secretRef": "Přihlašovací údaj",
+      "format": "Formát",
+      "attributes": "Posílané atributy",
+      "throttling": "Nejkratší interval (sekundy)",
+      "expiresAt": "Platí do",
+      "isActive": "Posílat notifikace",
+      "receiver": "Posílá na",
+      "watches": "Sleduje"
+    }
+  },
+  "registrations": {
+    "title": "Registrace kontextových zdrojů",
+    "lead": "Zdroje, jejichž daty broker prostoru odpovídá, jako by je držel sám: endpoint této platformy nebo NGSI-LD API jinde.",
+    "empty": "Tento projekt zatím neregistruje žádný kontextový zdroj.",
+    "add": "Nová registrace",
+    "addHint": "Uložením navrhnete změnu; broker se o zdroji dozví po schválení změny.",
+    "propose": "Navrhnout změnu",
+    "target": "Kde jsou data",
+    "targetKind": {
+      "endpointRef": "Endpoint této platformy",
+      "endpoint": "NGSI-LD API jinde"
+    },
+    "targetHint": {
+      "endpointRef": "Jiný prostor tohoto projektu, dostupný přes svůj Endpoint a politiky toho Endpointu.",
+      "endpoint": "Broker mimo tuto platformu, podle základní URL jeho NGSI-LD API."
+    },
+    "column": {
+      "source": "Zdroj",
+      "covers": "Typy entit"
+    },
+    "operations": {
+      "none": "Když nic nevyberete, zdroj je registrován pro operace, které registraci ve výchozím stavu dává CIM 009.",
+      "moreHint": "Operace, z nichž se skládá pět skupin; registrace obvykle uvádí skupinu."
+    },
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "endpointRef": "Endpoint",
+      "endpoint": "Základní URL NGSI-LD",
+      "information": "Co zdroj drží",
+      "entities": "Výběry entit",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátoru",
+      "propertyNames": "Vlastnosti",
+      "relationshipNames": "Vztahy",
+      "operations": "Operace",
+      "mode": "Režim",
+      "federation": "Identita při přeposílání",
+      "identity": "Přeposílat jako",
+      "serviceAccount": "Servisní účet",
+      "interval": "Interval zrcadlení schémat",
+      "expiresAt": "Platí do"
     }
   }
 }

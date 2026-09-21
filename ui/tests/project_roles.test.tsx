@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/pages/access/Roles.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +10,7 @@ import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 import en from "../src/locales/en.json";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -153,7 +157,7 @@ describe("the roles of a project on the Access page", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "New role" }));
-    const dialog = await screen.findByRole("dialog", { name: /New role/ });
+    const dialog = await findFormPage(/New role/);
     expect(
       within(dialog).getByText(/banskabystrica/),
       "the form says which project the role belongs to",
@@ -171,7 +175,7 @@ describe("the roles of a project on the Access page", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "New role" }));
-    const dialog = await screen.findByRole("dialog", { name: /New role/ });
+    const dialog = await findFormPage(/New role/);
     await fillTheRole(dialog, user);
 
     await user.click(within(dialog).getByRole("button", { name: en.form.check }));
@@ -193,7 +197,7 @@ describe("the roles of a project on the Access page", () => {
       spec: { rules: [{ kinds: ["Pipeline"], verbs: ["propose"] }] },
     });
     // The change it answered with is what the person is shown, not a silent close.
-    expect(await within(await screen.findByRole("dialog")).findByText(/chg-0000002a/)).toBeTruthy();
+    expect(await screen.findByText(/chg-0000002a/)).toBeTruthy();
   });
 
   it("refuses a proposal that was never checked, and says why", async () => {
@@ -204,7 +208,7 @@ describe("the roles of a project on the Access page", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "New role" }));
-    const dialog = await screen.findByRole("dialog", { name: /New role/ });
+    const dialog = await findFormPage(/New role/);
     await fillTheRole(dialog, user);
 
     const propose = within(dialog).getByRole("button", { name: en.access.projectRoles.propose });

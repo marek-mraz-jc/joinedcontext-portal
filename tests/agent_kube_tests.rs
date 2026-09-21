@@ -86,6 +86,7 @@ fn run() -> AgentRun {
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,

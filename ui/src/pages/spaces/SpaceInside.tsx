@@ -442,11 +442,19 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   }
 
   const manifest = space.data as Manifest;
+  // Every DataModel that names this space, not only the one the space names back. A model's
+  // `contextSpaceRef` is required and a space's `dataModelRef` is an optional pointer at the
+  // primary one (kinds: `DataModelSpec`, `SpaceSpec`), and no seeded space sets it — so reading
+  // the pointer alone left this table empty for every space on dev, Helsinki's included, while
+  // the space held hundreds of entities (T-2450). The pointer still decides which model is
+  // first, and so which type the grid below opens on.
   const dataModelRef = refName(manifest.spec.dataModelRef);
-  const model = asManifests(models.data?.items ?? []).find(
-    (m) => m.metadata.name === dataModelRef,
-  );
-  const types = model ? entityTypesOf(model) : [];
+  const allModels = asManifests(models.data?.items ?? []);
+  const owned = allModels.filter((m) => spaceOf(m) === name);
+  const primary = allModels.find((m) => m.metadata.name === dataModelRef);
+  const named = [...(primary ? [primary] : []), ...owned.filter((m) => m !== primary)];
+  const model = named[0];
+  const types = [...new Set(named.flatMap(entityTypesOf))];
   const spaceEndpoints = asManifests(endpoints.data?.items ?? []).filter(
     (endpoint) => spaceOf(endpoint) === name,
   );

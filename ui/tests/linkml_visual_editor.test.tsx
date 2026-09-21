@@ -170,9 +170,13 @@ describe("LinkML visual editor", () => {
     await user.type(screen.getByLabelText("Title (sk)"), "Kvalita ovzdušia");
 
     expect(parseModel(source()).classes[0].title).toEqual({ sk: "Kvalita ovzdušia" });
-    expect(
-      await screen.findByText(/has no title in en/, { selector: "p" }),
-    ).toBeInTheDocument();
+    const warning = await screen.findByText(/has no title in en/, { selector: "p" });
+    expect(warning).toBeInTheDocument();
+    // In the warning tone, and in a size the theme defines: `text-warning-fg` is a name the
+    // theme has for `danger` and `primary` but not for `warning`, so Tailwind emitted nothing
+    // and the diagnostic read as ordinary text (T-2422, UI-30).
+    expect(warning.className).toContain("text-warning");
+    expect(warning.className).toMatch(/\btext-(caption|body)\b/);
   });
 
   it("adds an enum and a value to it", async () => {

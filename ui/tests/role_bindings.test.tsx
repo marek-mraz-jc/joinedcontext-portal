@@ -3,6 +3,9 @@
  * proposed from a form the assistant may have filled, a refusal shown in the API's words, and the
  * removal of a binding with its name typed back, all against the organization's routes.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/pages/access/RoleBindings.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +16,7 @@ import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { rememberPrefill } from "../src/assistant/state";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
+import { findFormPage, queryFormPage } from "./formPage";
 
 /**
  * The verb the remove control is announced with, read from the bundle rather than typed here.
@@ -161,9 +165,16 @@ describe("people and roles", () => {
     const fetchMock = renderAccess({ grants: ADMIN });
 
     await userEvent.click(await screen.findByRole("button", { name: en.access.roles.grant }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage(en.access.roles.grantTitle);
     const propose = within(dialog).getByRole("button", { name: en.access.roles.propose });
-    expect(propose).toBeDisabled();
+    // Propose is operable on an empty form and says which field is missing instead of being a
+    // button that does nothing; it proposes only once the form is filled (T-1759, T-1492).
+    await userEvent.click(propose);
+    expect(writes(fetchMock), "an empty form proposed something").toHaveLength(0);
+    expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     await userEvent.type(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel)), "jana.kovacova@hel.fi");
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "steward" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel)), "steward");
@@ -183,7 +194,9 @@ describe("people and roles", () => {
         scope: { contextSpace: "citybikes" },
       },
     });
-    expect(await within(dialog).findByText("chg-00000301")).toBeInTheDocument();
+    // Saved, the form goes back to the list and the change is shown there (T-2474).
+    expect(await screen.findByText("chg-00000301")).toBeInTheDocument();
+    expect(queryFormPage()).toBeNull();
     // Checked before it was proposed (PF-57, T-0956).
     expect(checksSoFar().some((check) => check.includes("POST /api/v1/projects/org/rolebindings"))).toBe(true);
   });
@@ -196,7 +209,7 @@ describe("people and roles", () => {
     });
     renderAccess({ grants: ADMIN, refusal });
 
-    const dialog = await screen.findByRole("dialog", { name: en.access.roles.grantTitle });
+    const dialog = await findFormPage(en.access.roles.grantTitle);
     expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveValue("jana.kovacova");
     await waitFor(() => expect(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel))).toHaveValue("org-admin"));
     expect(within(dialog).getByLabelText(en.access.roles.whereLabel)).toHaveValue("project");
@@ -208,7 +221,7 @@ describe("people and roles", () => {
   it("opens the grant the assistant drafts while the person is already on the access page", async () => {
     renderAccess({ grants: ADMIN });
     await screen.findByText("demo.steward@hel.fi");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(queryFormPage()).not.toBeInTheDocument();
 
     // What the dock does with a navigate event: the form in hand, then the route with the draft.
     const route = `/projects/${PROJECT}/access?grant=jana-kovacova-steward-helsinki`;
@@ -218,7 +231,7 @@ describe("people and roles", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
 
-    const dialog = await screen.findByRole("dialog", { name: en.access.roles.grantTitle });
+    const dialog = await findFormPage(en.access.roles.grantTitle);
     expect(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel))).toHaveValue("jana.kovacova");
     await waitFor(() => expect(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel))).toHaveValue("steward"));
   });

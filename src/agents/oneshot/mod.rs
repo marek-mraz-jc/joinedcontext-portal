@@ -24,6 +24,7 @@ use crate::agents::kit;
 use crate::agents::patch;
 use crate::agents::preview;
 use crate::agents::profile::Profile;
+use crate::agents::repository;
 use crate::agents::run::{AgentRun, AgentRunEvent, AgentRunStatus};
 use crate::agents::store::now_rfc3339;
 use crate::agents::{
@@ -61,6 +62,11 @@ const COMPLETE_TURN: &str = "Complete the application.";
 const FIRST_VERSION_BUDGET: u32 = 20000;
 /// One model call, wall clock: the budget above at a hundred tokens a second, with room.
 const CALL_TIMEOUT: Duration = Duration::from_secs(480);
+/// One model call of a conversation, wall clock. A person waits in front of it: the bikes
+/// question sat 55 s after its catalog search with nothing on screen, because a chat turn shared
+/// the builder's eight minutes per call (T-2462). Past this the turn says it failed, at once,
+/// and the person asks again.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(90);
 /// The name the driver signs its own chat lines with; a message by anyone else is a pass.
 pub const AGENT: &str = "agent";
 /// The smallest output budget worth a second call when the key's credit runs short.
@@ -243,6 +249,8 @@ struct Driver {
     model: String,
     provider: String,
     ttl: Duration,
+    /// How long one model call of a conversation may take before the turn fails (T-2462).
+    answer_timeout: Duration,
     /// Passes that produced a preview; the `v` of the preview URL.
     passes: AtomicU32,
     /// The endpoint's `schema/index.json`, read once before the first pass: which types it
@@ -255,6 +263,10 @@ struct Driver {
     /// application's folder.
     branch: String,
     path_prefix: String,
+    /// The application's own repository in the forge's organization, when the run commits
+    /// there rather than into the configuration repository (AP-75), and the application it holds.
+    repository: Option<String>,
+    app_name: String,
     created_by: String,
     /// The person who started the run: every tool call runs as them, never wider (AG-70).
     identity: Identity,
@@ -328,11 +340,16 @@ pub fn spawn(
         model: profile.model_name.clone(),
         provider: profile.model_provider.clone(),
         ttl: Duration::from_secs(settings.run_ttl_secs.max(1) as u64),
+        answer_timeout: ANSWER_TIMEOUT,
         passes: AtomicU32::new(0),
         schema_index: OnceLock::new(),
         joined: OnceLock::new(),
         branch: run.branch.clone(),
         path_prefix: run.path_prefix.clone(),
+        repository: run
+            .in_own_repository()
+            .then(|| crate::agents::repository::name(&run.project, &run.app_name)),
+        app_name: run.app_name.clone(),
         created_by: run.created_by.clone(),
         identity: identity.clone(),
         access: profile.access.clone(),
@@ -371,11 +388,14 @@ impl Driver {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user@hel.fi".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),
@@ -578,6 +598,9 @@ struct Check<'a> {
     samples: &'a Value,
     conversation: &'a [(String, String)],
     instruction: &'a str,
+    /// The version on screen came from an instruction the editing agent handled: its repair is
+    /// the editing agent's too, never a pass over the whole project (SDK-20, SDK-28).
+    edited: bool,
 }
 
 /// Verification passes after one instruction (SDK-28).
@@ -633,8 +656,12 @@ fn with_unread(refused: &[patch::Refused], unread: usize) -> Vec<patch::Refused>
 /// Whether a build problem is patch-protocol talk for the model rather than a build error a
 /// person reads (T-0785).
 fn is_protocol(problem: &str) -> bool {
-    problem.contains("<<<<<<< SEARCH")
+    problem.contains("<<<<<<< SEARCH") || problem.starts_with(NO_BLOCKS)
 }
+
+/// What a repair call is told when the answer changed nothing: the model's business, never the
+/// person's (T-0785).
+const NO_BLOCKS: &str = "the answer carried no SEARCH/REPLACE block";
 
 /// What a repair call is told about blocks it could not read.
 fn unread_problem(unread: usize) -> String {
@@ -1210,11 +1237,14 @@ mod tests {
             model: "test-model".into(),
             provider: "anthropic".into(),
             ttl: Duration::from_secs(60),
+            answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
             schema_index: OnceLock::new(),
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),

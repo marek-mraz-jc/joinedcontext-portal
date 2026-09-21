@@ -49,7 +49,7 @@ test("an employee copies the project, edits in the copy, and brings it back as o
 
     // 2. Inside the copy, the bar says so: a person editing has to be able to see that nothing
     //    they do here is live (CC-77).
-    await page.goto(`/projects/${PROJECT}/pipelines?workspace=${COPY}&lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/pipelines?workspace=${COPY}&lang=en`, { waitUntil: "load" });
     const bar = page.getByRole("region", { name: "Copy" });
     await expect(bar).toContainText("You are working on the copy", { timeout: 30_000 });
     await expect(bar).toContainText("No changes yet");
@@ -77,7 +77,7 @@ test("an employee copies the project, edits in the copy, and brings it back as o
 
     // 5. Compare says what the copy changes, in the copy's own words: one file changed, its kind,
     //    and the field the edit touched (CC-79).
-    await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/compare?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/compare?lang=en`, { waitUntil: "load" });
     const compare = page.getByRole("region", { name: "What the copy changes" });
     await expect(compare.getByRole("heading", { name: "What the copy changes" })).toBeVisible({
       timeout: 30_000,
@@ -91,7 +91,7 @@ test("an employee copies the project, edits in the copy, and brings it back as o
     await expect(changed).toContainText("spec.enabled");
 
     // 6. Bring it back: one Change, in the lane of its riskiest file, which an approver decides.
-    await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/bring-back?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/bring-back?lang=en`, { waitUntil: "load" });
     await page.getByRole("button", { name: "Propose as one change" }).click();
     await expect(page.getByText(/Proposed as/)).toBeVisible({ timeout: 120_000 });
     // The page links the change it opened; the id is what the approvals route takes.

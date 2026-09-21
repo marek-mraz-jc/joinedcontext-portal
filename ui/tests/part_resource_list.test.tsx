@@ -5,6 +5,9 @@
  * this is where they are held to the contract: axe in each state, the retry reachable and used by
  * keyboard, and the words of each state in the four locales.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/components/ui/EmptyState.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";

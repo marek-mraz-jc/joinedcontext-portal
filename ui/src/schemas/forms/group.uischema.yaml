@@ -6,6 +6,7 @@ metadata:
   name: group
 spec:
   for: Group
+  guide: User-Guide/07-users-roles-approvals
   about:
     en: >-
       A group is one name for several people, so a role is given once instead of person by person.

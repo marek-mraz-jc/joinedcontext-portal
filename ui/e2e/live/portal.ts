@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import type { Browser, BrowserContext, Page } from "@playwright/test";
+import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
 export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };
@@ -27,25 +27,49 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   }
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(path, { waitUntil: "networkidle" });
+  await goSignedIn(page, who, path);
+  return { context, page };
+}
+
+/** The Portal's own landmark: what every Portal page has once the sign-in is over. */
+export const portalReady = (page: Page): Locator => page.getByRole("navigation", { name: "Main navigation" });
+
+/**
+ * Opens `url` and walks whatever sign-in stands in the way — the Portal's /login button, Keycloak's
+ * form — until `ready` is visible. An application page has no Portal navigation, so a journey into
+ * one names its own landmark (the app's heading) rather than waiting for one that never comes
+ * (T-2309).
+ */
+export async function goSignedIn(
+  page: Page,
+  who: { user: string; password: string },
+  url: string,
+  ready: (page: Page) => Locator = portalReady,
+): Promise<void> {
+  // `load`, never `networkidle`: the Portal holds an activity stream and a drafts stream open
+  // (`src/api/activity.ts`, `src/api/drafts.ts`, both `EventSource`) and polls a pending list
+  // every ten seconds, so the network is never idle on any signed-in page. Waiting for it spent
+  // the whole test budget on the login hop and every journey read as a timeout on whatever came
+  // next (T-2452). Each step below waits for the thing it actually needs instead.
+  await page.goto(url, { waitUntil: "load" });
   for (let step = 0; step < 4; step += 1) {
     if (await page.locator("#username").count()) {
       await page.fill("#username", who.user);
       await page.fill("#password", who.password);
-      await page.click("#kc-login");
-      await page.waitForLoadState("networkidle");
+      await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
       continue;
     }
     const signInButton = page.getByRole("button", { name: "Sign in" });
     if (page.url().includes("/login") && (await signInButton.count())) {
-      await signInButton.first().click();
-      await page.waitForLoadState("networkidle");
+      await Promise.all([
+        page.waitForURL(() => true, { waitUntil: "load" }),
+        signInButton.first().click(),
+      ]);
       continue;
     }
     break;
   }
-  await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible({ timeout: 60_000 });
-  return { context, page };
+  await expect(ready(page)).toBeVisible({ timeout: 60_000 });
 }
 
 /** Asks in the docked assistant: its first composer, or the conversation's once one is running. */
@@ -68,7 +92,7 @@ export async function proposedChange(page: Page): Promise<string> {
     await expect(review).toBeVisible({ timeout: 60_000 });
   } catch (err) {
     // What the page says instead of the notice: a verdict, a refusal, a dialog still open.
-    const said = await page.locator("[role=dialog], [role=alert], [role=status]").allInnerTexts();
+    const said = await page.locator("[data-testid=form-page], [role=dialog], [role=alert], [role=status]").allInnerTexts();
     throw new Error(`no proposal notice; the page says: ${JSON.stringify(said)}\n${String(err)}`);
   }
   const href = (await review.getAttribute("href")) ?? "";
@@ -84,7 +108,7 @@ export async function proposedChange(page: Page): Promise<string> {
  * (a public Endpoint, CC-19) asks for the resource name, typed as a person would.
  */
 export async function approve(page: Page, project: string, change: string, confirm?: string): Promise<void> {
-  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "load" });
   const button = page.getByRole("button", { name: "Approve", exact: true });
   // Only a Red lane asks for the name typed back (CC-19). A caller that knows the name passes it
   // and this types it when the page asks; a Yellow change has no such field, and waiting for one
@@ -112,7 +136,7 @@ export async function reject(
   change: string,
   reason = "Rejected by a live journey: this change was proposed only to prove the form.",
 ): Promise<void> {
-  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "networkidle" });
+  await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "load" });
   const button = page.getByRole("button", { name: "Reject", exact: true });
   await expect(button).toBeEnabled({ timeout: 60_000 });
   await button.click();
@@ -244,4 +268,52 @@ export async function removeCompletely(
     throw new Error(`the removal of ${plural}/${name} named no change`);
   }
   await approve(owner.page, project, change, name);
+}
+
+/**
+ * Takes the example into every required field that offers one, and says how many it took.
+ *
+ * Required only: a form's examples are each a value the field accepts, but two optional fields of
+ * one kind can be alternatives to each other — a pipeline's schedule and its period, a compute step
+ * written as Bloblang or named as a mapping — and filling both is a manifest a person would never
+ * write. The buttons are re-read after every click: writing a field's example takes that field's
+ * offer out of the accessibility tree.
+ */
+export async function takeTheExamples(dialog: Locator): Promise<number> {
+  let taken = 0;
+  for (let round = 0; round < 40; round += 1) {
+    const offers = dialog.getByRole("button", { name: "Use the example" });
+    const fields = await offers.all();
+    let clicked = false;
+    for (const offer of fields) {
+      const required = await offer.evaluate((button) => {
+        const row = button.closest("div.flex");
+        const field = row?.querySelector(
+          "input, select, textarea",
+        ) as HTMLInputElement | null;
+        if (!field) {
+          // An offer with no input beside it belongs to a choice the form makes elsewhere — the
+          // endpoint's class picker, which the check refuses to go on without (T-2258). It is
+          // taken like any other required example, and it disappears once the choice is made.
+          return button.closest("[role=note]") !== null;
+        }
+        const empty = field.value === "";
+        return (
+          empty &&
+          (field.required || field.getAttribute("aria-required") === "true")
+        );
+      });
+      if (!required) {
+        continue;
+      }
+      await offer.click();
+      taken += 1;
+      clicked = true;
+      break;
+    }
+    if (!clicked) {
+      return taken;
+    }
+  }
+  return taken;
 }

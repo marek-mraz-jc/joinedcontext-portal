@@ -130,7 +130,7 @@ test("the assistant works in a copy and leaves both ways out to a person", async
     // 5. What the copy holds is what a person can read for themselves (CC-79), and it says the same
     //    thing the API did: the assistant's work is a draft, so the copy's own files are untouched.
     await page.goto(`/projects/${PROJECT}/workspaces/${COPY}/compare?lang=en`, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
     });
     const compare = page.getByRole("region", { name: "What the copy changes" });
     await expect(compare.getByRole("heading", { name: "What the copy changes" })).toBeVisible({

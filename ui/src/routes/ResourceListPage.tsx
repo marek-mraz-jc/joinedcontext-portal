@@ -6,6 +6,16 @@ import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
 import { humanizeName } from "../pages/apps/appTitle";
 import { ResourceRowActions } from "../components/ResourceRowActions";
+import type { EditableForm } from "../components/EditResourceDialog";
+import {
+  fromMappingManifest,
+  mappingSchema,
+  mappingUiSchema,
+  toMappingManifest,
+} from "../schemas/mapping";
+import type { MappingForm } from "../schemas/mapping";
+import { dataModelSchema, fromDataModelManifest, toDataModelManifest } from "../schemas/datamodel";
+import type { DataModelForm } from "../schemas/datamodel";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
   EmptyState,
@@ -20,6 +30,8 @@ import { EndpointsPage } from "./EndpointsPage";
 import { DashboardsPage } from "./DashboardsPage";
 import { PipelinesPage } from "./PipelinesPage";
 import { PoliciesPage } from "./PoliciesPage";
+import { SubscriptionsPage } from "./SubscriptionsPage";
+import { RegistrationsPage } from "./RegistrationsPage";
 import { DataSourcesPage } from "../pages/datasources/DataSourcesPage";
 import { AccessPage } from "../pages/access/AccessPage";
 import { FlowGallery } from "../pages/flows/Gallery";
@@ -32,6 +44,10 @@ const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.E
   pipelines: PipelinesPage,
   // A Policy is authored through a form like every other kind, not as YAML (T-2326).
   policies: PoliciesPage,
+  // A Subscription is authored through a form too, not as YAML (T-2344).
+  subscriptions: SubscriptionsPage,
+  // A ContextSourceRegistration too: which space's broker answers with whose data (T-2345, MF-36).
+  csrs: RegistrationsPage,
   datasources: DataSourcesPage,
   dashboards: DashboardsPage,
   // "flows" is a section too: the gallery reads organization-level Blueprints, not a project
@@ -45,6 +61,24 @@ const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.E
   syncsources: SyncSourcesPage,
   // "access" is a section, not a kind: ServiceAccounts and the caller's own grants (PF-40, EP-60).
   access: AccessPage,
+};
+
+/**
+ * The edit form of a kind that has no page of its own. It writes onto the manifest the edit dialog
+ * read, so it keeps what it does not show (T-2354). A kind not listed here opens as YAML.
+ */
+const EDIT_FORMS: Record<string, (t: (key: string) => string) => EditableForm> = {
+  mappings: (t) => ({
+    schema: mappingSchema(t),
+    uiSchema: mappingUiSchema,
+    fromManifest: (manifest) => fromMappingManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toMappingManifest(stored, form as MappingForm),
+  }),
+  datamodels: (t) => ({
+    schema: dataModelSchema(t),
+    fromManifest: (manifest) => fromDataModelManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toDataModelManifest(stored, form as DataModelForm),
+  }),
 };
 
 /** `/api/v1/projects/{project}/{plural}`: a kind's own page, or its resources in a table (MF-11…MF-15). */
@@ -108,7 +142,10 @@ function GenericListPage({
       count={items.length}
       empty={<EmptyState bare
             title={t("resourceList.empty")}
-            description={t("resourceList.emptyHint")} />}
+            // The page lists and reads; it has no create action, so the hint names none (T-2488).
+            description={t(`resourceList.emptyHintFor.${plural}`, {
+              defaultValue: t("resourceList.emptyHint"),
+            })} />}
     >
       {items.map((item) => {
           const title = localized(item.metadata.title, locale, item.metadata.name);
@@ -126,7 +163,7 @@ function GenericListPage({
               </TableCell>
               <TableCell align="right">
                 {/* One menu at the end of the row, for every kind that falls through here (T-2287). */}
-                <ResourceRowActions project={project} target={target} />
+                <ResourceRowActions project={project} target={target} form={EDIT_FORMS[plural]?.(t)} />
               </TableCell>
             </TableRow>
           );

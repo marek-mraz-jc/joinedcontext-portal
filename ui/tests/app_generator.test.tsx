@@ -6,6 +6,9 @@
  * a deployment without a builder agent says so rather than opening a merge request nothing
  * will pick up.
  */
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/pages/apps/EndpointPreview.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -200,12 +203,12 @@ async function runBody(fetchMock: ReturnType<typeof vi.fn>): Promise<Record<stri
 
 /** Fills the form the way a user would, and waits for the derived needs to arrive. */
 async function fill(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(en.apps.generate.name), "ovzdusie-dnes");
+  await user.type(screen.getByLabelText(en.apps.generate.name, { exact: false }), "ovzdusie-dnes");
   await user.type(
-    screen.getByLabelText(en.apps.generate.prompt),
+    screen.getByLabelText(en.apps.generate.prompt, { exact: false }),
     "A map of the stations with today's PM10",
   );
-  await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+  await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
   await screen.findByRole("group", { name: "AirQualityObserved" });
 }
 
@@ -223,13 +226,13 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.prompt);
+    await screen.findByLabelText(en.apps.generate.prompt, { exact: false });
 
-    await user.type(screen.getByLabelText(en.apps.generate.prompt), "Show me the buses");
+    await user.type(screen.getByLabelText(en.apps.generate.prompt, { exact: false }), "Show me the buses");
 
-    expect(screen.getByLabelText(en.apps.generate.prompt)).toHaveValue("Show me the buses");
+    expect(screen.getByLabelText(en.apps.generate.prompt, { exact: false })).toHaveValue("Show me the buses");
     // The kit pass is the fast path, so it is what the form starts on (AP-56).
-    expect(screen.getByLabelText(en.apps.generate.kind)).toHaveValue("static");
+    expect(screen.getByLabelText(en.apps.generate.kind, { exact: false })).toHaveValue("static");
   });
 
   it("fills the endpoint list from the project's own endpoints", async () => {
@@ -245,7 +248,7 @@ describe("the app generator", () => {
     });
     await openGenerator(user);
 
-    const select = await screen.findByLabelText(en.apps.generate.endpoint);
+    const select = await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     const options = within(select).getAllByRole("option");
 
     expect(options.map((option) => option.textContent)).toEqual([
@@ -259,9 +262,9 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
 
-    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     const needs = await screen.findByRole("group", { name: "AirQualityObserved" });
     for (const attribute of ["pm10", "pm25", "location", "name"]) {
@@ -277,7 +280,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     const fetchMock = renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     await user.click(screen.getByLabelText("pm25"));
@@ -305,7 +308,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     const fetchMock = renderGenerator({ endpoints: [ENDPOINT, kpis] });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     await user.click(screen.getByRole("button", { name: en.apps.generate.addEndpoint }));
@@ -340,7 +343,7 @@ describe("the app generator", () => {
       },
     });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     const option = await screen.findByRole("checkbox", { name: /updateAttrs/ });
@@ -358,7 +361,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
     expect(screen.queryByRole("checkbox", { name: /updateAttrs/ })).toBeNull();
   });
@@ -367,7 +370,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
@@ -378,7 +381,7 @@ describe("the app generator", () => {
     // The page names the app in words with its endpoint's title, never by its id.
     expect(await screen.findByRole("heading", { name: "Ovzdusie dnes · Air quality open data" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.agentRun.back })).toBeInTheDocument();
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).not.toBeInTheDocument();
     // The builder ran in the assistant, which now follows the run it started.
     expect(window.sessionStorage.getItem("jc.assistant.run")).toContain(CREATED_RUN.id);
   });
@@ -397,7 +400,7 @@ describe("the app generator", () => {
       },
     });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
@@ -418,10 +421,10 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
 
     // The endpoint is public, and the app built on it still is not.
-    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     expect(await screen.findByText(en.apps.generate.needs.loginOnly)).toBeInTheDocument();
   });
@@ -430,9 +433,9 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
 
-    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     const preview = await screen.findByRole("region", { name: en.apps.generate.preview.title });
     // One line: the types, the attributes and, for a read grant, nothing that promises a write.
@@ -459,9 +462,9 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
 
-    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     // The samples fold away under one summary that counts them.
     expect(
@@ -481,7 +484,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator({ grantStatus: 403, entities: { body: [], status: 200 } });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     const preview = screen.getByRole("region", { name: en.apps.generate.preview.title });
@@ -497,7 +500,7 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator({ runStatus: "previewing" });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
     await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
 
@@ -522,7 +525,7 @@ describe("the app generator", () => {
       },
     });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
     await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
@@ -535,10 +538,10 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.name);
+    await screen.findByLabelText(en.apps.generate.name, { exact: false });
 
-    await user.type(screen.getByLabelText(en.apps.generate.name), "ovzdusie-dnes");
-    await user.type(screen.getByLabelText(en.apps.generate.prompt), "Anything at all");
+    await user.type(screen.getByLabelText(en.apps.generate.name, { exact: false }), "ovzdusie-dnes");
+    await user.type(screen.getByLabelText(en.apps.generate.prompt, { exact: false }), "Anything at all");
 
     expect(screen.getByRole("button", { name: en.apps.generate.submit })).toBeDisabled();
   });
@@ -547,9 +550,9 @@ describe("the app generator", () => {
     const user = userEvent.setup();
     renderGenerator({ schemaStatus: 406 });
     await openGenerator(user);
-    await screen.findByLabelText(en.apps.generate.endpoint);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
 
-    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint), "ovzdusie-public");
+    await user.selectOptions(screen.getByLabelText(en.apps.generate.endpoint, { exact: false }), "ovzdusie-public");
 
     expect(await screen.findByText(en.apps.generate.needs.unavailable)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.apps.generate.submit })).toBeDisabled();
@@ -568,7 +571,7 @@ describe("the app generator", () => {
       screen.getByRole("link", { name: en.apps.generate.examples["air-quality"] }),
     ).toHaveAttribute("href", "/apps/air-quality/");
     // No form means no way to open a merge request nothing would pick up.
-    expect(screen.queryByLabelText(en.apps.generate.prompt)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(en.apps.generate.prompt, { exact: false })).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.map((call) => call[0] as Request).some((r) => r.method === "POST"),
     ).toBe(false);

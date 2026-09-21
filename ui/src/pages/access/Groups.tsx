@@ -4,18 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { groupSchema } from "../../schemas/kinds";
 import {
   Alert,
   Badge,
   Button,
-  Dialog,
   EmptyState,
   Table,
   TableBody,
@@ -49,12 +49,13 @@ export interface GroupForm {
 }
 
 /** The form as the manifest the API stores: an empty description is left out, not written blank. */
-export function toGroupEnvelope(form: GroupForm): unknown {
+export function toGroupEnvelope(form: GroupForm, stored?: unknown): unknown {
   const description = form.description?.trim();
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Group",
-    metadata: { name: form.name, namespace: ORG_NAMESPACE },
+    // What the form has no field for travels on from the manifest the edit started from (T-2470).
+    metadata: { ...storedMetadata(stored), name: form.name, namespace: ORG_NAMESPACE },
     spec: {
       ...(description ? { description } : {}),
       members: (form.members ?? []).filter((member) => (member.user ?? "").trim() !== ""),
@@ -103,6 +104,7 @@ export function NewGroupDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<GroupForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
@@ -117,7 +119,13 @@ export function NewGroupDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={ORG_NAMESPACE} />);
+          close(false);
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(ORG_NAMESPACE, "groups") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(ORG_NAMESPACE) });
@@ -142,7 +150,7 @@ export function NewGroupDialog({
 
   if (change) {
     return (
-      <Dialog
+      <FormFrame
         open={open}
         onOpenChange={close}
         size="lg"
@@ -152,7 +160,7 @@ export function NewGroupDialog({
         footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
       >
         <ChangeNotice change={change} project={ORG_NAMESPACE} />
-      </Dialog>
+      </FormFrame>
     );
   }
 
@@ -221,7 +229,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
         </div>
         {/* The organization is where a group lives, so the right to propose one is read there. */}
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
-          <Button variant="primary" onClick={() => setWriting(true)}>
+          {/* One primary per view: the Access page's own action is "Grant a role" (T-1731). */}
+          <Button variant="secondary" onClick={() => setWriting(true)}>
             {t("access.groups.new")}
           </Button>
         </PermissionGuard>
@@ -306,8 +315,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
                             schema: memberSchema,
                             fromManifest: (manifest) =>
                               fromGroupEnvelope(manifest) as unknown as Record<string, unknown>,
-                            toManifest: (edited) =>
-                              toGroupEnvelope(edited as unknown as GroupForm),
+                            toManifest: (edited, stored) =>
+                              toGroupEnvelope(edited as unknown as GroupForm, stored),
                           }}
                         />
                         <DeleteResourceAction

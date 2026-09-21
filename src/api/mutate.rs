@@ -1156,7 +1156,7 @@ async fn propose_draft(
                 _ => output,
             },
         );
-    crate::api::ops::respond(result)
+    crate::api::ops::respond(op, result)
 }
 
 #[utoipa::path(

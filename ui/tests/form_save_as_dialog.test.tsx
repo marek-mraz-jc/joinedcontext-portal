@@ -199,7 +199,9 @@ describe("the space of a copy into another project (T-1441)", () => {
     show();
     await screen.findByRole("option", { name: OTHER });
     await userEvent.selectOptions(screen.getByLabelText(en.saveAs.project), OTHER);
-    const group = await screen.findByRole("group", { name: /The space/ });
+    // `radiogroup`, not `group`: since T-1254 the shared `RadioGroup` spells the role out, so a
+    // screen reader reads "radio group, 1 of 3" instead of announcing a plain fieldset (UI-15).
+    const group = await screen.findByRole("radiogroup", { name: /The space/ });
     const radios = within(group).getAllByRole("radio");
     expect(radios).toHaveLength(3);
     // One name on all three is what makes the arrow keys walk them and Tab step over the group.

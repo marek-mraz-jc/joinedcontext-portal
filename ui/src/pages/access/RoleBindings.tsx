@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -11,11 +11,12 @@ import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
+import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { dns1123 } from "../../components/endpoints/sharing";
 import {
   Alert,
   Button,
-  Dialog,
+  ConfirmDialog,
   EmptyState,
   Field,
   Input,
@@ -102,6 +103,11 @@ function formOf(manifest: Record<string, unknown> | null, project: string): Gran
   };
 }
 
+/** What a failed request says, in the words the server used when it gave any. */
+function reasonOf(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
+}
+
 function useList(project: string, plural: string) {
   return useQuery({
     queryKey: queryKeys.list(project, plural),
@@ -132,11 +138,18 @@ export function GrantRoleDialog({
   prefill: Record<string, unknown> | null;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const ids = useId();
   const queryClient = useQueryClient();
   const branding = useBranding();
   const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project));
   const [change, setChange] = useState<Change | null>(null);
+  // The fields an empty Propose marked, so the person is told which one is missing instead of
+  // meeting a button that does nothing (UI-04, T-1492).
+  const [missing, setMissing] = useState<{ subject?: boolean; role?: boolean }>({});
+  const [discarding, setDiscarding] = useState(false);
+  const subjectRef = useRef<HTMLInputElement | null>(null);
+  const roleRef = useRef<HTMLSelectElement | null>(null);
   const roles = useList(ORG_NAMESPACE, "roles");
   const spaces = useList(project, "spaces");
 
@@ -150,23 +163,61 @@ export function GrantRoleDialog({
       ),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={project} />);
+          leave();
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
   });
 
+  const empty = formOf(null, project);
+  // Something typed is something to lose: the subject, a chosen role, a place other than the
+  // default or an end date. The proposed change itself is not: it is already saved.
+  const typed =
+    form.subject.trim() !== "" || form.role !== "" || form.place !== empty.place || form.until !== "";
+
+  const leave = () => {
+    setForm(formOf(null, project));
+    setChange(null);
+    setMissing({});
+    setDiscarding(false);
+    propose.reset();
+    onOpenChange(false);
+  };
   const close = (next: boolean) => {
-    if (!next) {
-      setForm(formOf(null, project));
-      setChange(null);
-      propose.reset();
+    if (next) {
+      onOpenChange(true);
+      return;
     }
-    onOpenChange(next);
+    // Escape and the header's close arrive here too, so the question stands in the way of
+    // every way out of the dialog (UI-47).
+    if (change === null && typed) {
+      setDiscarding(true);
+      return;
+    }
+    leave();
   };
   const set = (patch: Partial<GrantForm>) => {
     setForm((current) => ({ ...current, ...patch }));
+    setMissing({});
     propose.reset();
+  };
+
+  /** Propose, or say which field is missing and put the focus there; never both. */
+  const submit = () => {
+    const gaps = { subject: form.subject.trim() === "", role: form.role === "" };
+    if (gaps.subject || gaps.role) {
+      setMissing(gaps);
+      (gaps.subject ? subjectRef.current : roleRef.current)?.focus();
+      return;
+    }
+    setMissing({});
+    propose.mutate();
   };
 
   const roleNames = asManifests(roles.data?.items ?? []).map((role) => role.metadata.name);
@@ -177,10 +228,14 @@ export function GrantRoleDialog({
       : propose.error
         ? t("app.error.generic")
         : null;
-  const ready = form.subject.trim() !== "" && form.role !== "" && !propose.isPending;
+  const rolesFailure = roles.isError ? t("form.listFailed", { reason: reasonOf(roles.error, t("app.error.generic")) }) : null;
+  const spacesFailure = spaces.isError
+    ? t("form.listFailed", { reason: reasonOf(spaces.error, t("app.error.generic")) })
+    : null;
 
   return (
-    <Dialog
+    <>
+    <FormFrame
       open={open}
       onOpenChange={close}
       title={t("access.roles.grantTitle")}
@@ -194,7 +249,7 @@ export function GrantRoleDialog({
             <Button variant="secondary" onClick={() => close(false)}>
               {t("form.cancel")}
             </Button>
-            <Button variant="primary" disabled={!ready} onClick={() => propose.mutate()}>
+            <Button variant="primary" loading={propose.isPending} onClick={submit}>
               {t("access.roles.propose")}
             </Button>
           </>
@@ -228,9 +283,11 @@ export function GrantRoleDialog({
                 : t("access.roles.groupHelp")
             }
             required
+            errors={missing.subject ? [t("form.required")] : undefined}
           >
             <Input
               id={`${ids}-subject`}
+              ref={subjectRef}
               value={form.subject}
               autoComplete="off"
               spellCheck={false}
@@ -243,8 +300,25 @@ export function GrantRoleDialog({
             label={t("access.roles.roleLabel")}
             description={t("access.roles.roleHelp")}
             required
+            // In flight, failed and empty are three different sentences. Before this they were
+            // one silence: a dropdown with only "choose a role" in it and a dead button.
+            help={
+              roles.isPending
+                ? t("app.loading")
+                : !roles.isError && roleNames.length === 0
+                  ? t("access.roles.rolesEmpty")
+                  : undefined
+            }
+            errors={
+              rolesFailure ? [rolesFailure] : missing.role ? [t("form.required")] : undefined
+            }
           >
-            <Select id={`${ids}-role`} value={form.role} onChange={(event) => set({ role: event.target.value })}>
+            <Select
+              id={`${ids}-role`}
+              ref={roleRef}
+              value={form.role}
+              onChange={(event) => set({ role: event.target.value })}
+            >
               <option value="">{t("access.roles.chooseRole")}</option>
               {roleNames.map((name) => (
                 <option key={name} value={name}>
@@ -257,6 +331,9 @@ export function GrantRoleDialog({
             id={`${ids}-place`}
             label={t("access.roles.whereLabel")}
             description={t("access.roles.whereHelp")}
+            // A grant for the project or the organization is still correct without the space
+            // list, so this is said under the control rather than as a refusal of the field.
+            help={spaces.isPending ? t("app.loading") : (spacesFailure ?? undefined)}
           >
             <Select id={`${ids}-place`} value={form.place} onChange={(event) => set({ place: event.target.value })}>
               <option value="project">{t("access.roles.project", { name: project })}</option>
@@ -287,7 +364,18 @@ export function GrantRoleDialog({
           ) : null}
         </div>
       )}
-    </Dialog>
+    </FormFrame>
+    <ConfirmDialog
+      open={discarding}
+      onOpenChange={(next) => {
+        if (!next) setDiscarding(false);
+      }}
+      title={t("access.roles.discardTitle")}
+      description={t("access.roles.discardConfirm")}
+      confirmLabel={t("access.roles.discard")}
+      onConfirm={leave}
+    />
+    </>
   );
 }
 
@@ -305,6 +393,11 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
   const [granting, setGranting] = useState(prefill !== null);
 
   const spaceNames = new Set(asManifests(spaces.data?.items ?? []).map((space) => space.metadata.name));
+  // Every space-scoped grant is filtered against this set, so while the space list is missing
+  // the table under-reports: the rows do not appear and nothing says they are missing. An
+  // access review that quietly shows fewer grants than exist is worse than one that fails, so
+  // the gap is named and the rows that are still trustworthy are shown.
+  const loading = bindings.isPending || spaces.isPending;
   const here = asManifests(bindings.data?.items ?? []).filter((binding) => {
     const scope = (binding.spec as BindingSpec).scope;
     return (
@@ -341,16 +434,20 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
         </PermissionGuard>
       </div>
 
+      {spaces.isError ? (
+        <Alert tone="danger" role="alert">
+          {t("access.roles.spacesFailed", { reason: reasonOf(spaces.error, t("app.error.generic")) })}
+        </Alert>
+      ) : null}
+
       {bindings.isError ? (
         <Alert tone="danger" role="alert">
-          {bindings.error instanceof ApiError
-            ? (bindings.error.problem?.detail ?? bindings.error.message)
-            : t("app.error.generic")}
+          {reasonOf(bindings.error, t("app.error.generic"))}
         </Alert>
       ) : (
         <Table
           caption={t("access.roles.caption", { project })}
-          status={bindings.isPending ? t("app.loading") : undefined}
+          status={loading ? t("app.loading") : undefined}
         >
           <TableHead>
             <TableHeaderCell>{t("access.roles.who")}</TableHeaderCell>
@@ -359,7 +456,7 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
             <TableHeaderCell>{t("access.roles.until")}</TableHeaderCell>
             <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
           </TableHead>
-          {bindings.isPending ? (
+          {loading ? (
             <TableSkeleton columns={5} />
           ) : (
             <TableBody>

@@ -6,7 +6,12 @@ members = ["apps/*"]
 # A `static` app (AP-01) is a bundle and nothing else, so it has no crate for `apps/*` to load;
 # cargo's glob refuses a member directory without a `Cargo.toml` rather than skipping it, so every
 # such app is named here. The app's screens are covered by the `apps/*/ui` lane in CI.
-exclude = ["apps/bbsk-ukazovatele"]
+exclude = [
+  "apps/bbsk-ukazovatele",
+  "apps/banskabystrica-ovzdusie",
+  "apps/banskabystrica-zaznamy",
+  "apps/bbsk-zaznamy",
+]
 
 [package]
 name = "joinedcontext-portal"
@@ -27,12 +32,14 @@ path = "src/main.rs"
 # The manifest contract, by tag, never by path into another agent's clone (T-0249).
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", tag = "jc-core-v0.7.47", version = "0.1.0" }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", tag = "jc-core-v0.7.49", version = "0.1.0" }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", tag = "jc-core-v0.7.47", version = "0.1.0", default-features = false }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", tag = "jc-core-v0.7.49", version = "0.1.0", default-features = false }
+# The operations check an input against the schema they publish (T-1659); already in the tree.
+jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
 schemars = "0.8"
 axum = { version = "0.8", features = ["macros", "multipart"] }
@@ -92,6 +99,8 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 rsa = "0.9"
 tower = { version = "0.5", features = ["util"] }
 wiremock = "0.6"
+# A paused clock, so a timeout test proves the bound without waiting it out.
+tokio = { version = "1", features = ["test-util"] }
 
 # ponytail: line tables only, no full debuginfo — several agents compile on one machine
 [profile.dev]

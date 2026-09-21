@@ -4,21 +4,23 @@
     "that module. gate_controls.test.ts reads the source and fails when a module's controls differ",
     "from this file: a new button is a red build until it is recorded here and a test names its",
     "module. A module with controls and no test is allowed only while gate_modules.allow.json",
-    "lists it. Measured 2026-09-20: 86 modules, 273 controls, 14 of them still untested.",
+    "lists it. Measured 2026-09-20: 87 modules, 292 controls, 1 of them still untested.",
     "Regenerate the changed entry by hand from the failure message; the file is the record, not an",
     "output nobody reads."
   ],
   "modules": {
     "src/assistant/AssistantDock.tsx": {
       "controls": {
-        "button": 11,
-        "Button": 1,
-        "textarea": 1
+        "button": 1,
+        "Button": 11
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
-        "assistant_endpoints.test.tsx"
+        "assistant_endpoints.test.tsx",
+        "assistant_layout.test.tsx",
+        "assistant_turns.test.tsx",
+        "form_assistant_dock.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -36,7 +38,8 @@
         "Switch": 1
       },
       "tests": [
-        "activity_feed.test.tsx"
+        "activity_feed.test.tsx",
+        "form_activity_feed.test.tsx"
       ]
     },
     "src/components/DeleteResourceDialog.tsx": {
@@ -44,6 +47,7 @@
         "Button": 4
       },
       "tests": [
+        "form_delete_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
       ]
     },
@@ -52,6 +56,7 @@
         "Button": 5
       },
       "tests": [
+        "form_edit_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
       ]
     },
@@ -73,13 +78,14 @@
     },
     "src/components/ResourceFormDialog.tsx": {
       "controls": {
-        "Button": 6,
-        "input": 1
+        "Button": 5,
+        "Checkbox": 1
       },
       "tests": [
         "draft_form.test.tsx",
         "form_asks_the_assistant.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
+        "form_resource_form_dialog.test.tsx",
         "resource_form_dialog.test.tsx"
       ]
     },
@@ -95,9 +101,10 @@
     "src/components/SaveAsDialog.tsx": {
       "controls": {
         "Button": 5,
-        "input": 1
+        "RadioGroup": 1
       },
       "tests": [
+        "form_save_as_dialog.test.tsx",
         "save_as.test.tsx"
       ]
     },
@@ -106,6 +113,7 @@
         "Button": 3
       },
       "tests": [
+        "form_work_on_copy_dialog.test.tsx",
         "workspaces_ui.test.tsx"
       ]
     },
@@ -130,14 +138,18 @@
       "controls": {
         "Button": 1
       },
-      "tests": []
+      "tests": [
+        "endpoint_data_view.test.tsx"
+      ]
     },
     "src/components/entities/EntityFilters.tsx": {
       "controls": {
         "Button": 2,
-        "input": 1
+        "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "form_entity_filters.test.tsx"
+      ]
     },
     "src/components/export/ExportButton.tsx": {
       "controls": {
@@ -154,6 +166,14 @@
       },
       "tests": [
         "export_modal.test.tsx"
+      ]
+    },
+    "src/components/forms/FormRoute.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "form_route.test.tsx"
       ]
     },
     "src/components/forms/theme.tsx": {
@@ -177,7 +197,9 @@
       "controls": {
         "Checkbox": 2
       },
-      "tests": []
+      "tests": [
+        "operations_picker.test.tsx"
+      ]
     },
     "src/components/forms/widgets/ResourcePicker.tsx": {
       "controls": {
@@ -191,7 +213,9 @@
       "controls": {
         "Button": 4
       },
-      "tests": []
+      "tests": [
+        "form_new_project.test.tsx"
+      ]
     },
     "src/components/layout/Shell.tsx": {
       "controls": {
@@ -201,7 +225,7 @@
     },
     "src/components/layout/WorkspaceBar.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "part_workspace_bar.test.tsx",
@@ -335,6 +359,7 @@
         "dialog_focus.test.tsx",
         "edge_card_dialog_menu_table.test.tsx",
         "page_header_route.test.tsx",
+        "page_state.test.tsx",
         "part_resource_list.test.tsx",
         "permission_guard.test.tsx",
         "resource_list.test.tsx",
@@ -382,6 +407,7 @@
         "part_resource_list.test.tsx",
         "permission_guard.test.tsx",
         "resource_list.test.tsx",
+        "row_actions.test.tsx",
         "term.test.tsx",
         "ui_components.test.tsx",
         "ui_shared_controls.test.tsx",
@@ -434,27 +460,38 @@
     },
     "src/pages/access/Groups.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 2
       },
-      "tests": []
+      "tests": [
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
+      ]
     },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
         "Button": 4
       },
-      "tests": []
+      "tests": [
+        "form_role_bindings.test.tsx"
+      ]
     },
     "src/pages/access/Roles.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 2
       },
-      "tests": []
+      "tests": [
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
+      ]
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 8
+        "Button": 9
       },
-      "tests": []
+      "tests": [
+        "service_accounts_view.test.tsx",
+        "serviceaccount_form.test.tsx"
+      ]
     },
     "src/pages/apps/ActionStep.tsx": {
       "controls": {
@@ -475,12 +512,12 @@
     },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 1,
-        "input": 3
+        "Button": 3,
+        "Checkbox": 3
       },
       "tests": [
         "app_generator.test.tsx",
+        "form_app_generator.test.tsx",
         "generator_types.test.ts"
       ]
     },
@@ -512,12 +549,14 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 4
       },
       "tests": [
         "action_inspector.test.tsx",
+        "assistant_turns.test.tsx",
         "conversation_panel.test.tsx",
-        "conversation_repeats.test.tsx"
+        "conversation_repeats.test.tsx",
+        "form_conversation_panel.test.tsx"
       ]
     },
     "src/pages/apps/EndpointProposalCard.tsx": {
@@ -540,9 +579,10 @@
     "src/pages/apps/KpiCard.tsx": {
       "controls": {
         "Button": 3,
-        "input": 4
+        "RadioGroup": 1
       },
       "tests": [
+        "form_kpi_card.test.tsx",
         "kpi_card.test.tsx"
       ]
     },
@@ -577,20 +617,26 @@
       "controls": {
         "Button": 3
       },
-      "tests": []
+      "tests": [
+        "assistant_access_view.test.tsx"
+      ]
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
         "Button": 3,
         "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "assistant_page.test.tsx"
+      ]
     },
     "src/pages/ckan/CkanPage.tsx": {
       "controls": {
         "Button": 1
       },
-      "tests": []
+      "tests": [
+        "form_ckan_page.test.tsx"
+      ]
     },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
@@ -622,21 +668,21 @@
     },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 1,
-        "input": 1
+        "Button": 4,
+        "Checkbox": 1
       },
       "tests": [
-        "endpoint_projection_ui.test.tsx"
+        "endpoint_projection_ui.test.tsx",
+        "form_schema_projection.test.tsx"
       ]
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "button": 1,
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "explore_page.test.tsx",
+        "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
       ]
     },
@@ -654,6 +700,18 @@
       },
       "tests": [
         "part_instantiate.test.tsx"
+      ]
+    },
+    "src/pages/gallery/Gallery.tsx": {
+      "controls": {
+        "Button": 18,
+        "Checkbox": 2,
+        "FilePicker": 1,
+        "RadioGroup": 1,
+        "Switch": 1
+      },
+      "tests": [
+        "gallery_axe.test.tsx"
       ]
     },
     "src/pages/import/ImportPage.tsx": {
@@ -817,13 +875,17 @@
       "controls": {
         "Button": 6
       },
-      "tests": []
+      "tests": [
+        "approval_actions.test.tsx"
+      ]
     },
     "src/routes/ApprovalsPage.tsx": {
       "controls": {
         "Checkbox": 1
       },
-      "tests": []
+      "tests": [
+        "approvals_list.test.tsx"
+      ]
     },
     "src/routes/DashboardsPage.tsx": {
       "controls": {
@@ -839,7 +901,8 @@
         "Button": 4
       },
       "tests": [
-        "editor_round_trip.test.ts"
+        "editor_round_trip.test.ts",
+        "endpoint_open_data.test.tsx"
       ]
     },
     "src/routes/LoginPage.tsx": {
@@ -864,7 +927,17 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "policy_form.test.tsx"
+      ]
+    },
+    "src/routes/RegistrationsPage.tsx": {
+      "controls": {
+        "Button": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "contextsourceregistration_form.test.tsx"
       ]
     },
     "src/routes/SpacesPage.tsx": {
@@ -872,7 +945,16 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "space_segment.test.tsx"
+      ]
+    },
+    "src/routes/SubscriptionsPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "subscription_form.test.tsx"
       ]
     },
     "src/routes/WorkspacesPage.tsx": {

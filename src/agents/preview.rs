@@ -130,17 +130,24 @@ pub fn document(
             .replace('>', "&gt;"),
         config = script_json(config),
     );
+    let csp = content_security_policy(&import_map, basemap);
+    Ok(Document { html, csp })
+}
+
+/// The preview's policy. The document is agent-written code served from the Portal's own
+/// origin, so `sandbox` without `allow-same-origin` gives it an opaque origin wherever it is
+/// opened, framed or in a tab of its own: it never reads the Portal's cookies or reaches into
+/// a Portal window (T-2476). The flags match the run page's `<iframe sandbox>`.
+fn content_security_policy(import_map: &str, basemap: Option<&str>) -> String {
     let connect = basemap.unwrap_or("'none'");
-    let csp = format!(
+    format!(
         "default-src 'none'; base-uri 'none'; form-action 'none'; \
          script-src {} {} data:; style-src 'unsafe-inline'; img-src data: blob: {connect}; \
          font-src data:; connect-src {connect}; worker-src blob: data:; child-src blob: data:; \
-         frame-ancestors 'self'",
-        kit::script_hash(&import_map),
+         frame-ancestors 'self'; sandbox allow-scripts allow-forms",
+        kit::script_hash(import_map),
         kit::script_hash(ENTRY),
-        connect = connect,
-    );
-    Ok(Document { html, csp })
+    )
 }
 
 /// A module as a `data:` URL. Only what the URL parser would otherwise change is escaped: `%`
@@ -163,7 +170,7 @@ fn data_url(code: &str) -> String {
 }
 
 /// JSON inside a `<script>` element: `<` written as `\u003c`, so nothing in it can close the element.
-fn script_json(value: &serde_json::Value) -> String {
+pub(crate) fn script_json(value: &serde_json::Value) -> String {
     serde_json::to_string(value)
         .unwrap_or_default()
         .replace('<', "\\u003c")
@@ -178,6 +185,19 @@ mod tests {
             "slug": "bikes", "orgDomain": "hel.fi", "space": "mobility",
             "transport": "bridge", "appName": "bikes", "endpointName": "bikes",
         })
+    }
+
+    #[test]
+    fn the_preview_runs_sandboxed_without_the_portal_origin() {
+        let csp = content_security_policy("{}", None);
+        let sandbox = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with("sandbox"))
+            .expect("a sandbox directive");
+        assert_eq!(sandbox, "sandbox allow-scripts allow-forms");
+        assert!(!csp.contains("allow-same-origin"), "{csp}");
+        assert!(!csp.contains("allow-top-navigation"), "{csp}");
     }
 
     #[test]
@@ -286,7 +306,8 @@ mod tests {
                 "default-src 'none'; base-uri 'none'; form-action 'none'; script-src {} {} data:; \
                  style-src 'unsafe-inline'; img-src data: blob: https://portal.example/api/v1/projects/p/basemap/; \
                  font-src data:; connect-src https://portal.example/api/v1/projects/p/basemap/; \
-                 worker-src blob: data:; child-src blob: data:; frame-ancestors 'self'",
+                 worker-src blob: data:; child-src blob: data:; frame-ancestors 'self'; \
+                 sandbox allow-scripts allow-forms",
                 kit::script_hash(map_json),
                 kit::script_hash(ENTRY)
             )

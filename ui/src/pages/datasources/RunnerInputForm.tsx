@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { SchemaForm } from "../../components/forms/SchemaForm";
+import type { ErrorSchema } from "@rjsf/utils";
 import type { CatalogInput } from "../../schemas/kinds";
 import { runnerInputSchema } from "../../schemas/kinds";
 import { SecretRefContext } from "../../components/forms/widgets/SecretRef";
@@ -39,6 +40,12 @@ export interface RunnerInputFormProps {
   formData?: Record<string, unknown>;
   disabled?: boolean;
   submitLabel?: string;
+  /** The submit shows it is working and takes no second press while the run is starting. */
+  submitting?: boolean;
+  /** Why this person may not start a run, on the button itself rather than in a 403 (UI-44). */
+  submitDisabledReason?: string;
+  /** What the server refused, by field, so the message lands beside the field it belongs to. */
+  extraErrors?: ErrorSchema;
   knownSecretNames?: string[];
   secrets?: SecretRefValue[];
   onSecretRef?: (envVar: string, ref: SecretRefValue) => void;
@@ -52,6 +59,9 @@ export function RunnerInputForm({
   formData,
   disabled,
   submitLabel,
+  submitting,
+  submitDisabledReason,
+  extraErrors,
   knownSecretNames = [],
   secrets = [],
   onSecretRef,
@@ -77,6 +87,9 @@ export function RunnerInputForm({
         formData={formData}
         disabled={disabled}
         submitLabel={submitLabel}
+        submitting={submitting}
+        submitDisabledReason={submitDisabledReason}
+        extraErrors={extraErrors}
         onSubmit={onSubmit}
         onChange={onChange}
       />

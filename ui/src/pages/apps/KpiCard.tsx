@@ -96,15 +96,18 @@ export function keepMessage(
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
   const query = kpi.query;
-  const over = query
+  // The whole sentence is the person's own message in their own language, and these three
+  // fragments were English built in code: a Czech steward pressing "keep it updated" sent the
+  // agent a half-Czech instruction and read it back in their transcript (T-1762, UI-11).
+  const what = query
     ? query.agg === "count"
-      ? `count of ${query.type}`
-      : `${query.agg} of ${query.attribute} over ${query.type}`
+      ? t("agentRun.kpi.overCount", { type: query.type })
+      : t("agentRun.kpi.overAgg", { agg: query.agg, attribute: query.attribute, type: query.type })
     : kpi.formula;
-  const where = query?.q ? ` where ${query.q}` : "";
+  const over = query?.q ? t("agentRun.kpi.overWhere", { over: what, filter: query.q }) : what;
   return t(keep.onChange ? "agentRun.kpi.keepOnChangeMessage" : "agentRun.kpi.keepEveryMessage", {
     name: kpi.name,
-    over: `${over}${where}`,
+    over,
     minutes: keep.minutes,
     space: keep.space,
   });

@@ -218,3 +218,78 @@ describe("the last hour strip", () => {
     ).toBe(1);
   });
 });
+
+/**
+ * The tail is the one place the Portal renders something it did not type: `subscribeActivity`
+ * casts the frame's JSON to `ActivityEvent`. A frame whose `time` is absent or unreadable used
+ * to reach `Intl.DateTimeFormat.format(new Date(undefined))`, which throws `RangeError: Invalid
+ * time value` — and the only error boundary is the one around the whole app, so one bad frame
+ * blanked the Portal (T-2427).
+ */
+describe("a frame the tail cannot read", () => {
+  const BAD: Record<string, unknown>[] = [
+    { ...event(), time: undefined },
+    { ...event(), time: "the day before yesterday" },
+    { ...event(), severity: undefined },
+    { ...event(), summary: 7 },
+    "a bare string",
+    null,
+  ] as unknown as Record<string, unknown>[];
+
+  it("is dropped instead of taking the page down with it", async () => {
+    renderFeed([event({ summary: "What the page loaded." })]);
+    await rows();
+    const source = MockEventSource.instances.at(-1);
+
+    for (const frame of BAD) {
+      source?.emit("message", frame);
+    }
+
+    const shown = await rows();
+    expect(shown, "nothing unreadable was added").toHaveLength(1);
+    expect(shown[0]).toHaveTextContent("What the page loaded.");
+    // And it is not counted as arrived: the reader is told about events they can see.
+    expect(screen.getByTestId("activity-arrived")).toHaveTextContent("0");
+  });
+
+  it("still takes the next readable frame", async () => {
+    renderFeed([event({ summary: "What the page loaded." })]);
+    await rows();
+    const source = MockEventSource.instances.at(-1);
+
+    source?.emit("message", { ...event(), time: "" });
+    source?.emit("pipeline.error", event({
+      time: "2026-09-16T17:00:00Z",
+      kind: "pipeline.error",
+      severity: "error",
+      summary: "A mapping dropped a reading.",
+    }));
+
+    await waitFor(() => {
+      const shown = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      expect(shown[0]).toHaveTextContent("A mapping dropped a reading.");
+    });
+  });
+
+  it("keeps an event whose missing field the row never draws", async () => {
+    renderFeed([event({ summary: "What the page loaded." })]);
+    await rows();
+    const source = MockEventSource.instances.at(-1);
+
+    const { project: _project, ...noProject } = event({ summary: "Drawn all the same." });
+    source?.emit("message", noProject);
+
+    await waitFor(() => {
+      const shown = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      expect(shown[0]).toHaveTextContent("Drawn all the same.");
+    });
+  });
+
+  it("keeps a page the API answered with a broken row readable", () => {
+    const merged = mergeActivity(
+      [{ ...event(), time: "yesterday" } as ActivityEvent, event({ summary: "Readable." })],
+      [],
+    );
+    expect(merged.map((e) => e.summary)).toEqual(["Readable."]);
+  });
+});

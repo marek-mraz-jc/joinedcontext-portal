@@ -293,7 +293,7 @@ use crate::tools::model_tools::{
         (name = "access", description = "ServiceAccounts, their API keys and effective grants"),
         (name = "basemap", description = "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)")
     ),
-    modifiers(&JcCoreSchemas)
+    modifiers(&JcCoreSchemas, &SharedRefusals)
 )]
 pub struct ApiDoc;
 
@@ -316,6 +316,52 @@ impl Modify for JcCoreSchemas {
         components
             .schemas
             .insert("Condition".into(), schemars_schema::<jc_core::Condition>());
+    }
+}
+
+/// The refusal every session write shares (PF-50, T-1656). The CSRF guard stands in front of
+/// every write the API router mounts, and every write needs a verb the caller may lack, so each
+/// one can answer `403` with the problem body whatever its own annotation lists. The
+/// server-to-server doors sit outside the guard and answer for their own signatures, so they
+/// keep what they document. An operation that documents its own `403` keeps its own wording.
+struct SharedRefusals;
+
+impl Modify for SharedRefusals {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::{ContentBuilder, ResponseBuilder};
+
+        let forbidden = ResponseBuilder::new()
+            .description(
+                "Forbidden: the CSRF token is missing or does not match, or the caller lacks the \
+                 verb this write needs",
+            )
+            .content(
+                "application/json",
+                ContentBuilder::new()
+                    .schema(Some(Ref::from_schema_name("ProblemDetails")))
+                    .build(),
+            )
+            .build();
+        for (path, item) in openapi.paths.paths.iter_mut() {
+            if path.starts_with("/api/v1/webhooks/") || path == "/api/v1/auth/backchannel-logout" {
+                continue;
+            }
+            for operation in [
+                item.post.as_mut(),
+                item.put.as_mut(),
+                item.patch.as_mut(),
+                item.delete.as_mut(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                operation
+                    .responses
+                    .responses
+                    .entry("403".to_owned())
+                    .or_insert_with(|| RefOr::T(forbidden.clone()));
+            }
+        }
     }
 }
 

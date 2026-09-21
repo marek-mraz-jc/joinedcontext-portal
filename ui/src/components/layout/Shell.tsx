@@ -27,7 +27,7 @@ import {
   safeHref,
 } from "../ui";
 import type { IconName } from "../ui";
-import { NAV_SECTIONS } from "./navigation";
+import { NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
@@ -41,6 +41,9 @@ function ProjectSelector({ active }: { active: string }) {
   const { t } = useTranslation();
   const known = useProjects().data ?? [];
   const projects = known.includes(active) ? known : [active, ...known];
+  // The page in hand, so the switch keeps it: a person comparing two projects' endpoints stays
+  // in Endpoints instead of walking back from Spaces every time (T-2425, UI-05).
+  const here = useRouterState({ select: (state) => sameSection(state.location.pathname) });
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -67,7 +70,7 @@ function ProjectSelector({ active }: { active: string }) {
           <MenuItem key={project} asChild>
             <Link
               to="/projects/$project/$plural"
-              params={{ project, plural: "spaces" }}
+              params={{ project, plural: here.plural }}
               aria-current={project === active ? "true" : undefined}
             >
               {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
@@ -328,6 +331,9 @@ export function Shell({
           size="sm"
           className="md:hidden"
           aria-label={t("nav.menu")}
+          // An icon-only control says what it is to a pointer as well as to a screen reader
+          // (T-1731): the glyph alone is a guess for everybody.
+          title={t("nav.menu")}
           aria-expanded={navOpen}
           aria-controls="portal-sidebar"
           onClick={() => setNavOpen((open) => !open)}

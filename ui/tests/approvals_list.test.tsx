@@ -1,3 +1,6 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
+// src/routes/ApprovalsPage.tsx through the page they belong to; each was confirmed by
+// making the module throw and watching this file go red.
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { ApprovalsPage } from "../src/routes/ApprovalsPage";
+import { AuthProvider } from "../src/auth/AuthProvider";
+import { expectNoAxeViolations, json, problem, renderPage } from "./page_contract";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -215,5 +221,55 @@ describe("a bundle in the queue (T-0861)", () => {
     expect(within(bundle).getByText("3 files")).toBeInTheDocument();
     const single = screen.getByText("chg-9f8e7d6c").closest("tr") as HTMLElement;
     expect(within(single).queryByText(/file/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The page on its own, without the shell around it (T-2137): the two states a list page owes a
+ * person before it has any rows — nothing proposed yet, and a read the API refused.
+ */
+describe("the approvals page, mounted on its own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  /** The page reads the signed-in person to tell their own proposals from everyone else's. */
+  const page = <AuthProvider><ApprovalsPage project="helsinki" /></AuthProvider>;
+
+  it("offers the assistant when nothing has been proposed yet", async () => {
+    renderPage(page, {
+      answer: (url) =>
+        url.pathname.endsWith("/changes")
+          ? json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ChangeList", items: [] })
+          : undefined,
+      path: "/projects/helsinki/approvals",
+    });
+    expect(await screen.findByText(en.approvals.empty)).toBeInTheDocument();
+    expect(screen.getByText(en.approvals.emptyHint)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.approvals.emptyAction })).toBeInTheDocument();
+    // No filters over an empty list: there is nothing to narrow.
+    expect(screen.queryByLabelText(en.approvals.filterPhase)).not.toBeInTheDocument();
+  });
+
+  it("says in the API's own words why the list could not be read, and offers to ask again", async () => {
+    renderPage(page, {
+      answer: (url) =>
+        url.pathname.endsWith("/changes")
+          ? problem(403, "You may not read the changes of helsinki.")
+          : undefined,
+      path: "/projects/helsinki/approvals",
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("You may not read the changes of helsinki.");
+    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
+  it("has no axe violation with rows in it", async () => {
+    const { container } = renderPage(page, {
+      answer: (url) => (url.pathname.endsWith("/changes") ? json(CHANGES) : undefined),
+      path: "/projects/helsinki/approvals",
+    });
+    await screen.findByText(/air-quality/);
+    await expectNoAxeViolations(container);
   });
 });

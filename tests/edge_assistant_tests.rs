@@ -467,6 +467,80 @@ async fn a_person_who_may_not_propose_an_app_starts_no_conversation() {
     );
 }
 
+/// T-2463: a conversation whose run has not finished never stands in the way of the next one.
+/// On dev a hung run left the owner with "i cannot create a new conversaion"; the server side of
+/// that is this: the same person, the same project, a second and a third conversation, each its
+/// own run, with the first still unfinished and then cancelled.
+#[tokio::test]
+async fn an_unfinished_conversation_does_not_block_starting_another() {
+    let (state, app, _, member, _) = world();
+    let uri = format!("/api/v1/projects/{PROJECT}/assistant/conversations");
+
+    let (status, first) = post(
+        &app,
+        &member,
+        &uri,
+        &json!({ "message": "Which datasets say anything about bikes?" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{first}");
+    let first = first["id"].as_str().expect("a run id").to_owned();
+    let run = state
+        .agents
+        .get_run(&first)
+        .await
+        .expect("the store")
+        .expect("the run");
+    assert!(
+        !matches!(
+            run.status.as_str(),
+            "published" | "failed" | "cancelled" | "expired"
+        ),
+        "the first run is still going when the second is asked for: {}",
+        run.status
+    );
+
+    let (status, second) = post(
+        &app,
+        &member,
+        &uri,
+        &json!({ "message": "Which datasets say anything about bikes?" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{second}");
+    assert_ne!(
+        second["id"],
+        json!(first),
+        "a new conversation is a new run"
+    );
+
+    let (status, body) = post(
+        &app,
+        &member,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{first}/cancel"),
+        &json!({}),
+    )
+    .await;
+    assert!(status.is_success(), "{status}: {body}");
+    let (status, third) = post(
+        &app,
+        &member,
+        &uri,
+        &json!({ "message": "What alerts are there?" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{third}");
+    assert_eq!(
+        state
+            .agents
+            .list_runs(PROJECT, 100)
+            .await
+            .expect("the store")
+            .len(),
+        3
+    );
+}
+
 /// AG-45: a conversation is words, no more than the prompt ceiling, and nothing is started for a
 /// message that is neither.
 #[tokio::test]

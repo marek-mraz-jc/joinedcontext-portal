@@ -9,12 +9,14 @@
 //! Red cases found while writing these and carried by their own tasks, never by `main`:
 //! T-2349 (`edit` panics on a manifest whose `spec` is not an object) and T-2350 (`render`
 //! duplicates Policy and Group manifests, can mint a Policy name longer than a DNS-1123 label,
-//! and bounds `requestsPerMinute` differently from `edit`).
+//! and bounds `requestsPerMinute` differently from `edit`). Both are fixed and their cases are
+//! the last two sections of this file.
 
 use serde_json::{json, Value};
 
 use joinedcontext_portal::agents::share::{
-    edit, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, REPRESENTATIONS,
+    edit, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, MAX_REQUESTS_PER_MINUTE,
+    REPRESENTATIONS,
 };
 use joinedcontext_portal::resource::{is_dns1123, API_VERSION};
 
@@ -300,8 +302,6 @@ fn a_rate_limit_of_zero_is_refused() {
     });
     let refused = render(PROJECT, ORG, &params, &[]).expect_err("zero");
     assert!(refused.contains("requestsPerMinute"), "{refused}");
-    // The upper bound is T-2350: `render` takes `u32::MAX` where `edit` refuses anything above
-    // 100_000, and that case lives in that task with its red test.
 }
 
 /// EP-72, PF-51: the manifest is namespaced to the project of the run. `ProposeEndpoint` carries
@@ -890,5 +890,242 @@ fn the_names_in_a_refusal_are_the_projects_own_labels() {
         .split(", ")
     {
         assert!(is_dns1123(name), "{name:?} is not a label: {refused}");
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// T-2349 `edit`: the mirror holds whatever the project's repository committed.
+//
+// `ResourceEnvelope::spec` is a bare `Value` and `serde_json` panics when a write indexes a
+// value that is neither an object nor absent, so `spec: oops` in a repository anyone on the
+// project may commit to crashed the assistant's request. The shapes `edit` writes into are
+// checked before the first write and named in the refusal.
+// ---------------------------------------------------------------------------------------
+
+/// The `allowedProjects` edit: the shortest call that reaches a write into the spec.
+fn widen(name: &str) -> EditEndpoint {
+    EditEndpoint {
+        allowed_projects: Some(vec!["transport".to_owned()]),
+        ..edit_of(name)
+    }
+}
+
+/// PF-57: a manifest whose spec is not an object is bad data, not a crash.
+#[test]
+fn an_endpoint_whose_spec_is_not_an_object_is_refused_and_does_not_panic() {
+    for bad in [
+        json!("not an object"),
+        json!([1, 2, 3]),
+        json!(7),
+        json!(null),
+    ] {
+        let endpoints = vec![endpoint("bike-share", bad.clone())];
+        let refused =
+            edit(&endpoints, &widen("bike-share")).expect_err("bad data is an error, not a panic");
+        assert!(refused.contains("bike-share"), "{bad}: {refused}");
+        assert!(refused.contains("spec"), "{bad}: {refused}");
+        assert!(refused.contains("repository"), "{bad}: {refused}");
+    }
+}
+
+/// PF-57: a manifest with no spec at all is refused rather than given one. `IndexMut` on an
+/// absent key *creates* an object, so this shape used not to panic; it invented a spec instead.
+#[test]
+fn an_endpoint_with_no_spec_is_refused_rather_than_given_one() {
+    let endpoints = vec![json!({
+        "apiVersion": API_VERSION,
+        "kind": "Endpoint",
+        "metadata": { "name": "bike-share", "namespace": PROJECT },
+    })];
+    let refused =
+        edit(&endpoints, &widen("bike-share")).expect_err("a manifest with no spec is not edited");
+    assert!(refused.contains("no spec"), "{refused}");
+}
+
+/// PF-57: `spec.projection` is written into by an edit that hides an attribute.
+#[test]
+fn an_endpoint_whose_projection_is_not_an_object_is_refused_and_does_not_panic() {
+    let endpoints = vec![endpoint(
+        "bike-share",
+        json!({
+            "audience": "project-list",
+            "allowedProjects": ["transport"],
+            "enabledRepresentations": ["ngsi-ld"],
+            "projection": "hide everything",
+        }),
+    )];
+    let mut params = edit_of("bike-share");
+    params.hidden_attributes = Some(vec!["maintenanceNotes".to_owned()]);
+    let refused = edit(&endpoints, &params).expect_err("bad data is an error, not a panic");
+    assert!(refused.contains("spec.projection"), "{refused}");
+}
+
+/// PF-57: and `spec.rateLimits` by an edit that sets a rate.
+#[test]
+fn an_endpoint_whose_rate_limits_are_not_an_object_is_refused_and_does_not_panic() {
+    let endpoints = vec![endpoint(
+        "bike-share",
+        json!({
+            "audience": "project-list",
+            "allowedProjects": ["transport"],
+            "enabledRepresentations": ["ngsi-ld"],
+            "rateLimits": 60,
+        }),
+    )];
+    let mut params = edit_of("bike-share");
+    params.requests_per_minute = Some(120);
+    let refused = edit(&endpoints, &params).expect_err("bad data is an error, not a panic");
+    assert!(refused.contains("spec.rateLimits"), "{refused}");
+}
+
+/// PF-57: `metadata` needs no guard and has none. `edit` finds its endpoint by
+/// `endpoint["metadata"]["name"]`, and the immutable `Index` answers `Null` rather than
+/// panicking, so a manifest whose metadata is not an object is never the one that is found.
+#[test]
+fn an_endpoint_whose_metadata_is_not_an_object_is_never_found_and_does_not_panic() {
+    let endpoints = vec![json!({
+        "apiVersion": API_VERSION,
+        "kind": "Endpoint",
+        "metadata": "helsinki/bike-share",
+        "spec": { "audience": "project-list", "allowedProjects": ["water"] },
+    })];
+    let refused = edit(&endpoints, &widen("bike-share")).expect_err("no endpoint of that name");
+    assert!(refused.contains("bike-share"), "{refused}");
+}
+
+// ---------------------------------------------------------------------------------------
+// T-2350 `render`: what the person dictates twice is one thing, and a name they cannot fix
+// from the chat is refused before it is drafted.
+// ---------------------------------------------------------------------------------------
+
+/// EP-72: one assignee, one Policy. A project named twice is one project, and a Change carrying
+/// two files of one name is a conflict the person did not ask for.
+#[test]
+fn a_repeated_project_renders_one_policy_and_one_group() {
+    let mut params = share();
+    params.audience = Some("project-list".to_owned());
+    params.allowed_projects = vec!["transport".to_owned(), "transport".to_owned()];
+    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    assert_eq!(rendered.policies.len(), 1, "{:?}", rendered.policies);
+    assert_eq!(rendered.groups.len(), 1, "{:?}", rendered.groups);
+    assert_eq!(
+        rendered.endpoint["spec"]["allowedProjects"],
+        json!(["transport"])
+    );
+    assert_eq!(rendered.prefill["allowedProjects"], json!(["transport"]));
+}
+
+/// EP-72: the order the person wrote survives the dedup, so the draft reads back as dictated.
+#[test]
+fn deduplicating_projects_keeps_the_order_the_person_wrote() {
+    let mut params = share();
+    params.audience = Some("project-list".to_owned());
+    params.allowed_projects = vec![
+        "water".to_owned(),
+        "transport".to_owned(),
+        "water".to_owned(),
+    ];
+    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    assert_eq!(
+        rendered.endpoint["spec"]["allowedProjects"],
+        json!(["water", "transport"])
+    );
+    let names: Vec<&str> = rendered
+        .policies
+        .iter()
+        .filter_map(|p| p["metadata"]["name"].as_str())
+        .collect();
+    assert_eq!(names, ["bike-share-water", "bike-share-transport"]);
+}
+
+/// EP-72: a representation named twice is served once.
+#[test]
+fn a_repeated_representation_is_rendered_once() {
+    let mut params = share();
+    params.representations = vec![
+        "ngsi-ld".to_owned(),
+        "geojson".to_owned(),
+        "ngsi-ld".to_owned(),
+    ];
+    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    assert_eq!(
+        rendered.endpoint["spec"]["enabledRepresentations"],
+        json!(["ngsi-ld", "geojson"])
+    );
+}
+
+/// EP-72: the same normalisation in `edit`, which writes the list it is handed.
+#[test]
+fn an_edit_that_repeats_a_project_widens_to_it_once() {
+    let mut params = edit_of("bike-share");
+    params.allowed_projects = Some(vec![
+        "transport".to_owned(),
+        "water".to_owned(),
+        "transport".to_owned(),
+    ]);
+    let edited = edit(&bikes(), &params).expect("a valid edit");
+    assert_eq!(
+        edited.endpoint["spec"]["allowedProjects"],
+        json!(["transport", "water"])
+    );
+}
+
+/// EP-72: two labels do not make a third. The endpoint name and the project may each be 63
+/// characters and the Policy is named after both, so the refusal names both halves and their
+/// lengths — the person can act on it from the chat, which a validation failure on a name they
+/// never typed is not (T-1042).
+#[test]
+fn a_policy_name_longer_than_a_label_is_refused_with_both_halves() {
+    let name = "b".repeat(63);
+    let project = "t".repeat(63);
+    let mut params = share();
+    params.name = name.clone();
+    params.audience = Some("project-list".to_owned());
+    params.allowed_projects = vec![project.clone()];
+    let refused = render(PROJECT, ORG, &params, &[]).expect_err("127 characters is not a label");
+    assert!(refused.contains(&name), "{refused}");
+    assert!(refused.contains(&project), "{refused}");
+    assert!(refused.contains("63"), "{refused}");
+    assert!(!is_dns1123(&format!("{name}-{project}")));
+}
+
+/// EP-72: the audiences whose Policy is named after a word rather than a project overflow the
+/// same way, and are refused the same way.
+#[test]
+fn a_public_or_organization_policy_name_is_bounded_too() {
+    for audience in ["public", "organization"] {
+        let mut params = share();
+        params.name = "b".repeat(63);
+        params.audience = Some(audience.to_owned());
+        let refused =
+            render(PROJECT, ORG, &params, &[]).expect_err("63 + the suffix is not a label");
+        assert!(refused.contains(audience), "{audience}: {refused}");
+    }
+}
+
+/// EP-72: one field, one bound. `render` used to take `u32::MAX` where `edit` refuses anything
+/// above `MAX_REQUESTS_PER_MINUTE`, and the share is the surface a person reaches first.
+#[test]
+fn a_share_refuses_the_rate_edit_refuses_and_takes_the_bound_itself() {
+    for bad in [0, MAX_REQUESTS_PER_MINUTE + 1, u32::MAX] {
+        let mut params = share();
+        params.rate_limits = Some(RateLimits {
+            requests_per_minute: bad,
+            burst: None,
+        });
+        let refused = render(PROJECT, ORG, &params, &[]).expect_err("outside the bound");
+        assert!(refused.contains("requestsPerMinute"), "{bad}: {refused}");
+    }
+    for good in [1, MAX_REQUESTS_PER_MINUTE] {
+        let mut params = share();
+        params.rate_limits = Some(RateLimits {
+            requests_per_minute: good,
+            burst: None,
+        });
+        let rendered = render(PROJECT, ORG, &params, &[]).expect("inside the bound");
+        assert_eq!(
+            rendered.endpoint["spec"]["rateLimits"]["requestsPerMinute"],
+            json!(good)
+        );
     }
 }

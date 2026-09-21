@@ -40,6 +40,8 @@ impl Driver {
         let mut shown: Option<Shown> = None;
         // Verification passes since the last instruction (SDK-28).
         let mut verified = 0;
+        // Whether the last instruction was handled by the editing agent (see `Check::edited`).
+        let mut edited = false;
         // A frame that reports an error but never an observation (an older page, a crash
         // before the application settles) is still checked, on the errors alone.
         let mut fallback: Option<tokio::time::Instant> = None;
@@ -153,6 +155,7 @@ impl Driver {
                         samples: &samples,
                         conversation: &conversation,
                         instruction: &instruction,
+                        edited,
                     };
                     if let Some(next) = self
                         .verify(
@@ -207,6 +210,7 @@ impl Driver {
                         samples: &samples,
                         conversation: &conversation,
                         instruction: &instruction,
+                        edited,
                     };
                     if let Some(next) = self
                         .verify(
@@ -235,7 +239,8 @@ impl Driver {
                     self.thought("Working on your message…").await?;
                     // A version on screen is edited in place, tool by tool (SDK-20); before one
                     // exists the message is one more whole pass.
-                    if shown.is_some() {
+                    edited = shown.is_some();
+                    if edited {
                         match self
                             .edit_turn(
                                 &mut files,
@@ -339,6 +344,11 @@ impl Driver {
         if let Some(observation) = observation {
             asked.push(verification::rendered(observation));
         }
+        if check.edited {
+            return self
+                .repair_by_edit(check, files, committed, on_screen, &asked)
+                .await;
+        }
         match self
             .code_pass(
                 check.samples,
@@ -359,6 +369,39 @@ impl Driver {
                 Ok(None)
             }
             Ok(CodePass::Failed) => Ok(None),
+            // The version on screen stands; a failed call is said, not a failed run.
+            Err(message) => {
+                self.thought(&format!("The verification pass failed: {message}"))
+                    .await?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// A verification of a version an instruction produced, handed to the editing agent with
+    /// what the check found as its instruction: small targeted calls on the files that exist,
+    /// never the whole project written again (SDK-20, SDK-28). The person's conversation keeps
+    /// their own turns; the repair is on the stream as its thoughts and tool calls.
+    async fn repair_by_edit(
+        &self,
+        check: Check<'_>,
+        files: &mut BTreeMap<String, String>,
+        committed: &mut BTreeMap<String, String>,
+        on_screen: &Shown,
+        found: &[String],
+    ) -> Result<Option<Shown>, String> {
+        let mut conversation = check.conversation.to_vec();
+        match self
+            .edit_turn(
+                files,
+                committed,
+                &mut conversation,
+                &repair_instruction(check.instruction, found),
+                Some(on_screen),
+            )
+            .await
+        {
+            Ok(next) => Ok(next),
             // The version on screen stands; a failed call is said, not a failed run.
             Err(message) => {
                 self.thought(&format!("The verification pass failed: {message}"))
@@ -406,16 +449,21 @@ impl Driver {
         if !errors.is_empty() {
             *files = before;
             let errors: Vec<String> = errors.into_iter().filter(|e| !is_protocol(e)).collect();
+            // Only the patch protocol went wrong: the person reads what happened, not the
+            // protocol (T-0785, T-1662).
+            let reasons = if errors.is_empty() {
+                "the model answered without a change to the files".to_owned()
+            } else {
+                errors.join("\n")
+            };
             let said = if on_screen {
                 format!(
                     "The application still does not build, so the preview keeps the version \
-                     before this request:\n{}",
-                    errors.join("\n")
+                     before this request:\n{reasons}"
                 )
             } else {
                 format!(
-                    "The application could not be built:\n{}\nSend a message to try again.",
-                    errors.join("\n")
+                    "The application could not be built:\n{reasons}\nSend a message to try again."
                 )
             };
             self.thought(&said).await?;
@@ -474,10 +522,7 @@ impl Driver {
             problems.push(unread_problem(unread));
         }
         if blocks.is_empty() && conversation.is_empty() {
-            problems.push(
-                "the answer carried no SEARCH/REPLACE block; write the application as blocks"
-                    .to_owned(),
-            );
+            problems.push(format!("{NO_BLOCKS}; write the application as blocks"));
         }
         if !problems.is_empty() {
             problems.extend(
@@ -735,6 +780,11 @@ impl Driver {
     /// What changed since `committed`, as one commit on the run's branch (SDK-17, AP-24). A
     /// Portal without a forge keeps the run in its store alone; a forge that refuses is said in
     /// the chat and the version stands.
+    ///
+    /// A static application commits to its own repository (AP-75, AP-76): the first commit of a
+    /// run creates the repository when it is not there yet, and makes the run's branch hold
+    /// exactly the run's files and the README, so a branch cut from an earlier version keeps
+    /// nothing the run no longer has.
     pub(super) async fn commit_files(
         &self,
         files: &BTreeMap<String, String>,
@@ -747,7 +797,12 @@ impl Driver {
         if self.branch.is_empty() {
             return Ok(());
         }
-        let uploads: Vec<(String, String)> = files
+        let repo = match &self.repository {
+            Some(name) => gitea.for_repository(name.clone()),
+            None => (*gitea).clone(),
+        };
+        let first = committed.is_empty();
+        let mut uploads: Vec<(String, String)> = files
             .iter()
             .filter(|(path, content)| committed.get(*path) != Some(*content))
             .map(|(path, content)| (format!("{}{path}", self.path_prefix), content.clone()))
@@ -760,29 +815,63 @@ impl Driver {
         if uploads.is_empty() && gone.is_empty() {
             return Ok(());
         }
+        let own = self.repository.is_some();
+        let readme = if own && first && !files.contains_key(repository::README) {
+            let title = match self.state.agents.get_run(&self.run_id).await {
+                Ok(Some(run)) => run.title,
+                _ => None,
+            };
+            Some(repository::readme(
+                &self.project,
+                &self.app_name,
+                title.as_deref(),
+                &repo.clone_url(),
+            ))
+        } else {
+            None
+        };
         let outcome: Result<String, GitError> = async {
-            if gitea.branch_head(&self.branch).await.is_err() {
-                let base = gitea.default_branch().await?;
-                gitea.create_branch(&self.branch, &base).await?;
+            if own {
+                repo.ensure_repository(&format!(
+                    "Application {} of project {}, generated in the joinedcontext Portal",
+                    self.app_name, self.project
+                ))
+                .await?;
+            }
+            if repo.branch_head(&self.branch).await.is_err() {
+                let base = repo.default_branch().await?;
+                repo.create_branch(&self.branch, &base).await?;
             }
             let mut deletes = Vec::new();
-            for path in gone {
-                if let Some(file) = gitea.get_file(&path, &self.branch).await? {
-                    deletes.push((path, file.sha));
+            if own && first {
+                for (path, sha) in repo.list_tree_blobs(&self.branch).await? {
+                    let kept = files.contains_key(&path)
+                        || (readme.is_some() && path == repository::README);
+                    if !kept {
+                        deletes.push((path, sha));
+                    }
+                }
+            } else {
+                for path in gone {
+                    if let Some(file) = repo.get_file(&path, &self.branch).await? {
+                        deletes.push((path, file.sha));
+                    }
                 }
             }
-            gitea
-                .change_files(
-                    &self.branch,
-                    &commit_message(message),
-                    Author {
-                        name: &self.created_by,
-                        email: "agent@joinedcontext.local",
-                    },
-                    &uploads,
-                    &deletes,
-                )
-                .await
+            if let Some(readme) = readme {
+                uploads.push((repository::README.to_owned(), readme));
+            }
+            repo.change_files(
+                &self.branch,
+                &commit_message(message),
+                Author {
+                    name: &self.created_by,
+                    email: "agent@joinedcontext.local",
+                },
+                &uploads,
+                &deletes,
+            )
+            .await
         }
         .await;
         match outcome {
@@ -792,12 +881,50 @@ impl Driver {
                     "commit",
                     json!({ "sha": sha, "message": commit_subject(message) }),
                 )
-                .await
+                .await?;
+                if own {
+                    self.mirror_to_github(&repo).await;
+                }
+                Ok(())
             }
             Err(err) => {
                 self.thought(&format!("The commit did not land in the forge: {err}"))
                     .await
             }
+        }
+    }
+
+    /// Keeps the application's GitHub copy in place, when the installation keeps one (AP-79).
+    ///
+    /// After the commit, so the forge repository exists and the first push carries this pass. A
+    /// copy that cannot be set up is said on the run and costs the pass nothing: the forge holds
+    /// the commit either way, and the next pass tries again.
+    async fn mirror_to_github(&self, repo: &crate::git::GiteaClient) {
+        let Some(mirror) = self.state.github_mirror.as_deref() else {
+            return;
+        };
+        let description = format!(
+            "Application {} of project {}, generated in the joinedcontext Portal",
+            self.app_name, self.project
+        );
+        let said = match mirror.mirror(repo, &description).await {
+            Ok(crate::git::github_mirror::Mirrored::Current) => return,
+            Ok(crate::git::github_mirror::Mirrored::Added) => {
+                "The application's repository is now copied to GitHub on every commit.".to_owned()
+            }
+            Ok(crate::git::github_mirror::Mirrored::Repaired(failed)) => format!(
+                "The copy on GitHub had stopped following the forge ({failed}); it was set up again."
+            ),
+            Err(err) => {
+                tracing::warn!(run = %self.run_id, repository = %repo.repo, error = %err, "GitHub copy not set up");
+                format!(
+                    "The copy on GitHub could not be set up: {err}. The forge holds this version; \
+                     the next change tries again."
+                )
+            }
+        };
+        if let Err(err) = self.thought(&said).await {
+            tracing::warn!(run = %self.run_id, error = %err, "the GitHub copy's sentence was not recorded");
         }
     }
 
@@ -814,5 +941,480 @@ impl Driver {
                 crate::telemetry::record_run_timing("first_version", &r.profile, ms);
             }
         }
+    }
+}
+
+/// The editing agent's instruction for a verification: the person's request and what the check
+/// of its version found.
+fn repair_instruction(request: &str, found: &[String]) -> String {
+    let list = found
+        .iter()
+        .map(|problem| format!("- {problem}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "The last change was: {request}\nChecking the preview after it found these problems. \
+         Fix them in the files that cause them and change nothing else:\n{list}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What the one model call a verification makes looks like, for a version of the first run
+    /// or of an instruction.
+    async fn first_call_of_a_verification(edited: bool) -> Value {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "text", "text": "Fixed." }],
+            })))
+            .mount(&server)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.kind = "application".into();
+        driver.prompt = "A table of the stations".into();
+        driver
+            .state
+            .agents
+            .append_event(
+                &driver.run_id,
+                "preview_error",
+                json!({ "message": "x is undefined" }),
+            )
+            .await
+            .expect("event");
+        let conversation = vec![("A table of the stations".to_owned(), "Ready.".to_owned())];
+        let check = Check {
+            samples: &json!({}),
+            conversation: &conversation,
+            instruction: "add a form for a new station",
+            edited,
+        };
+        let on_screen = Shown {
+            version: 2,
+            seq: 0,
+            observed: true,
+        };
+        let mut files = preview::template_files();
+        driver
+            .verify(
+                check,
+                &mut files,
+                &mut BTreeMap::new(),
+                &on_screen,
+                None,
+                &mut 0,
+            )
+            .await
+            .expect("the verification ends");
+        let requests = server.received_requests().await.expect("recorded");
+        serde_json::from_slice(&requests[0].body).expect("a JSON body")
+    }
+
+    /// T-2466: once an instruction produced the version on screen, what the check finds is fixed
+    /// by the editing agent's small tool calls, never by writing the whole project again.
+    #[tokio::test]
+    async fn a_verification_after_an_instruction_goes_to_the_editing_agent() {
+        let body = first_call_of_a_verification(true).await;
+        assert!(body["tools"].is_array(), "{body}");
+        let system = body["system"].as_str().unwrap_or_default();
+        assert!(
+            system.starts_with("You edit a small web application"),
+            "{system}"
+        );
+        let asked = body["messages"].to_string();
+        assert!(asked.contains("x is undefined"), "{asked}");
+        assert!(asked.contains("add a form for a new station"), "{asked}");
+    }
+
+    /// T-2466: the first run's own version is still repaired by a pass over the project.
+    #[tokio::test]
+    async fn a_verification_of_the_first_run_stays_a_pass_over_the_project() {
+        let body = first_call_of_a_verification(false).await;
+        assert!(body.get("tools").is_none(), "{body}");
+    }
+}
+
+#[cfg(test)]
+mod repository_tests {
+    use std::sync::Arc;
+
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+    use crate::git::GiteaClient;
+
+    const REPO: &str = "/api/v1/repos/joinedcontext/helsinki_city-bikes";
+    const BRANCH: &str = "agent/app-city-bikes/run-1";
+
+    fn driver(server: &MockServer) -> (AppState, Driver) {
+        let gitea = GiteaClient::new(
+            server.uri().parse().expect("a url"),
+            "joinedcontext",
+            "configuration",
+            "t",
+        )
+        .expect("a client");
+        let state =
+            AppState::new(crate::config::Config::for_tests(), None).with_gitea(Arc::new(gitea));
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.repository = Some("helsinki_city-bikes".into());
+        driver.app_name = "city-bikes".into();
+        driver.path_prefix = String::new();
+        driver.branch = BRANCH.into();
+        (state, driver)
+    }
+
+    fn files() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("package.json".to_owned(), "{}".to_owned()),
+            ("src/App.tsx".to_owned(), "export default 1".to_owned()),
+        ])
+    }
+
+    /// The one `POST /contents` commit the forge received: `(operation, path, sha)` per file.
+    async fn commit_of(server: &MockServer) -> Vec<(String, String, Option<String>)> {
+        let commits: Vec<Value> = server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|request| {
+                request.method.as_str() == "POST"
+                    && request.url.path() == format!("{REPO}/contents")
+            })
+            .map(|request| serde_json::from_slice(&request.body).expect("json"))
+            .collect();
+        assert_eq!(commits.len(), 1, "one commit per pass");
+        let mut files: Vec<_> = commits[0]["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .map(|file| {
+                (
+                    file["operation"].as_str().unwrap_or_default().to_owned(),
+                    file["path"].as_str().unwrap_or_default().to_owned(),
+                    file["sha"].as_str().map(str::to_owned),
+                )
+            })
+            .collect();
+        files.sort();
+        files
+    }
+
+    /// AP-75, AP-76: the first commit of a run creates the application's repository, cuts the
+    /// run's branch from `main`, and leaves the branch holding exactly the run's files and the
+    /// README: a file of an earlier version is deleted, nothing lands in the configuration
+    /// repository.
+    #[tokio::test]
+    async fn the_first_commit_creates_the_repository_and_the_branch_holds_the_whole_application() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/orgs/joinedcontext/repos"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head1" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/branches")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/head1")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "truncated": false,
+                "tree": [
+                    { "path": "README.md", "type": "blob", "sha": "r1" },
+                    { "path": "src/App.tsx", "type": "blob", "sha": "a1" },
+                    { "path": "src/Old.tsx", "type": "blob", "sha": "o1" },
+                    { "path": "src", "type": "tree", "sha": "t1" }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+            )
+            .mount(&server)
+            .await;
+
+        let (state, driver) = driver(&server);
+        let mut committed = BTreeMap::new();
+        driver
+            .commit_files(&files(), &mut committed, "First version")
+            .await
+            .expect("committed");
+
+        assert_eq!(
+            commit_of(&server).await,
+            vec![
+                ("delete".into(), "src/Old.tsx".into(), Some("o1".into())),
+                ("upload".into(), "README.md".into(), None),
+                ("upload".into(), "package.json".into(), None),
+                ("upload".into(), "src/App.tsx".into(), None),
+            ]
+        );
+        assert_eq!(
+            committed,
+            files(),
+            "the next pass commits what changed since this one"
+        );
+        let requests = server.received_requests().await.unwrap_or_default();
+        assert!(
+            requests
+                .iter()
+                .all(|request| !request.url.path().contains("/configuration")),
+            "the configuration repository was written to"
+        );
+        let events = state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events");
+        assert!(
+            events
+                .iter()
+                .any(|event| event.kind == "commit" && event.payload["sha"] == "c1"),
+            "the run links its commit: {events:?}"
+        );
+    }
+
+    /// AP-75, AP-76: a later pass in a repository that exists creates nothing and changes only
+    /// what changed; a model that wrote its own README keeps it.
+    #[tokio::test]
+    async fn a_later_pass_commits_only_what_changed_and_never_recreates_the_repository() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/orgs/joinedcontext/repos"))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head2" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/src/Gone.tsx")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "sha": "g1", "content": "" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c2" } })),
+            )
+            .mount(&server)
+            .await;
+
+        let (_, driver) = driver(&server);
+        let mut committed = files();
+        committed.insert("src/Gone.tsx".into(), "x".into());
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        next.insert("README.md".into(), "# mine".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("committed");
+
+        assert_eq!(
+            commit_of(&server).await,
+            vec![
+                ("delete".into(), "src/Gone.tsx".into(), Some("g1".into())),
+                ("upload".into(), "README.md".into(), None),
+                ("upload".into(), "src/App.tsx".into(), None),
+            ]
+        );
+        let requests = server.received_requests().await.unwrap_or_default();
+        assert!(
+            requests
+                .iter()
+                .all(|request| !request.url.path().contains("/git/trees")),
+            "a later pass read the whole tree"
+        );
+    }
+
+    /// The forge half of a later pass, for the cases that only differ in what GitHub answers.
+    async fn a_forge_for_a_later_pass() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head2" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c2" } })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    async fn thoughts(state: &AppState) -> Vec<String> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .map(|event| {
+                event.payload["text"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    /// AP-79: after the commit, the application's repository gets its GitHub copy, pushed at once,
+    /// and the run says so.
+    #[tokio::test]
+    async fn a_pass_sets_up_the_github_copy_after_its_commit_and_says_so() {
+        let forge = a_forge_for_a_later_pass().await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/push_mirrors")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&forge)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/push_mirrors")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&forge)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/push_mirrors-sync")))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&forge)
+            .await;
+        let github = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/repos/hel-apps/helsinki_city-bikes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&github)
+            .await;
+
+        let (state, mut driver) = driver(&forge);
+        let state = state.with_github_mirror(Arc::new(
+            crate::git::github_mirror::GithubMirror::at(&github.uri(), "hel-apps", "ghp_secret"),
+        ));
+        driver.state = state.clone();
+        let mut committed = files();
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("committed");
+
+        let said = thoughts(&state).await;
+        assert!(
+            said.iter().any(|text| text.contains("copied to GitHub")),
+            "{said:?}"
+        );
+    }
+
+    /// AP-79: GitHub refusing costs the pass nothing. The commit stands, the run says why in words
+    /// a person can act on, and the token appears nowhere in what it says.
+    #[tokio::test]
+    async fn a_github_refusal_is_said_on_the_run_and_the_commit_stands() {
+        let forge = a_forge_for_a_later_pass().await;
+        let github = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/repos/hel-apps/helsinki_city-bikes"))
+            .respond_with(
+                ResponseTemplate::new(401).set_body_json(json!({ "message": "Bad credentials" })),
+            )
+            .mount(&github)
+            .await;
+
+        let (state, mut driver) = driver(&forge);
+        let state = state.with_github_mirror(Arc::new(
+            crate::git::github_mirror::GithubMirror::at(&github.uri(), "hel-apps", "ghp_secret"),
+        ));
+        driver.state = state.clone();
+        let mut committed = files();
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("the pass does not fail on GitHub");
+
+        assert_eq!(committed, next, "the commit stands");
+        let said = thoughts(&state).await;
+        let refusal = said
+            .iter()
+            .find(|text| text.contains("could not be set up"))
+            .unwrap_or_else(|| panic!("the run says nothing about GitHub: {said:?}"));
+        assert!(refusal.contains("Bad credentials"), "{refusal}");
+        assert!(
+            said.iter().all(|text| !text.contains("ghp_secret")),
+            "{said:?}"
+        );
     }
 }

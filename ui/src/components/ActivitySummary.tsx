@@ -71,7 +71,7 @@ export function ActivitySummary({ project }: { project: string }): JSX.Element |
         {BUCKETS.map((bucket) => (
           <div key={bucket.key} className="flex flex-col gap-0.5">
             <dt className="text-caption text-fg-muted">{t(`activity.bucket.${bucket.key}`)}</dt>
-            <dd className="text-h3 font-semibold tabular-nums text-fg">
+            <dd className="text-title font-semibold tabular-nums text-fg">
               {page.isPending ? "—" : totals[bucket.key].toLocaleString()}
             </dd>
           </div>

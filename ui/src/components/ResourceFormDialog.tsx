@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import validator from "./forms/validator";
@@ -12,8 +12,10 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { Alert, Badge, Button, Dialog, DialogClose, ExternalLink } from "./ui";
-import type { DialogSize } from "./ui";
+import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps } from "./ui";
+import { FormFrame } from "./forms/FormRoute";
+import type { BadgeTone, DialogSize } from "./ui";
+import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { askAbout, standingIn } from "../assistant/state";
@@ -95,6 +97,14 @@ type View = "form" | "yaml";
 
 const VIEWS: View[] = ["form", "yaml"];
 
+/** The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30). */
+const VERDICT_TONE: Record<"none" | "green" | "red" | "stale", BadgeTone> = {
+  none: "neutral",
+  green: "success",
+  red: "danger",
+  stale: "warning",
+};
+
 function extractName(form: unknown): string | undefined {
   if (!form || typeof form !== "object") return undefined;
   const f = form as Record<string, unknown>;
@@ -122,19 +132,7 @@ function atPath(root: ErrorSchema, path: string[]): string[] {
   return list;
 }
 
-function formatAge(isoString?: string): string {
-  if (!isoString) return "";
-  const ms = Date.now() - new Date(isoString).getTime();
-  if (Number.isNaN(ms) || ms < 0) return "just now";
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ago`;
-}
-
-/** One modal for every manifest form: the schema decides the fields, the caller the kind. */
+/** One frame for every manifest form: the schema decides the fields, the caller the kind. */
 export function ResourceFormDialog<T>({
   open,
   onOpenChange,
@@ -166,6 +164,7 @@ export function ResourceFormDialog<T>({
 }: ResourceFormDialogProps<T>): JSX.Element {
   const { t, i18n } = useTranslation();
   const branding = useBranding();
+  const viewsId = useId();
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
   const disabled = closed || submitting === true;
@@ -483,6 +482,18 @@ export function ResourceFormDialog<T>({
     });
   }, [open, draftKind, project, activeName, hasDraft]);
 
+  // The clock the verdict's age is read against, moving while a verdict is on screen, so "Checked
+  // 0 s ago" does not stay that for as long as the dialog is open.
+  const [now, setNow] = useState(() => Date.now());
+  const hasVerdict = internalVerdict !== null;
+  useEffect(() => {
+    if (!open || !hasVerdict) {
+      return undefined;
+    }
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [open, hasVerdict]);
+
   const verdictState = useMemo<"none" | "green" | "red" | "stale">(() => {
     if (!internalVerdict) return "none";
     if (internalVerdict.inputDigest !== currentDigest) return "stale";
@@ -586,6 +597,14 @@ export function ResourceFormDialog<T>({
     return { kind: draftKind, name: active };
   }
 
+  /**
+   * The draft is saved before the proposal names it, and that save is a request of its own: until
+   * it answers the page's `submitting` has not started, so a second click proposed twice
+   * (UI-48, T-1753). The ref refuses the second click; the state shows the button busy.
+   */
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+
   function handleSubmit(form: T) {
     // The YAML view edits `metadata.name` freely, so the refusal is here and not only in the
     // read-only field above it (T-0796).
@@ -593,10 +612,24 @@ export function ResourceFormDialog<T>({
       setConflict(t("resourceEdit.renamed", { name: lockedName }));
       return;
     }
-    draftRefFor(form).then(
-      (draftRef) => onSubmit(form, draftRef),
-      () => setConflict(t("drafts.conflict")),
-    );
+    if (savingRef.current || submitting) {
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    draftRefFor(form)
+      .then(
+        (draftRef) => onSubmit(form, draftRef),
+        () => setConflict(t("drafts.conflict")),
+      )
+      .finally(() => {
+        // One task later, not now: the page's mutation tells its observers on the next task, and
+        // until then `submitting` still reads false and would let a second click through.
+        setTimeout(() => {
+          savingRef.current = false;
+          setSaving(false);
+        }, 0);
+      });
   }
 
   /**
@@ -731,7 +764,7 @@ export function ResourceFormDialog<T>({
     }
     // The effect is the "one render later": it consumes the queue and reports the schema's
     // answer, so the state it sets is the point of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the effect is the render after onChange: it consumes the queue so the parent's widened schema judges the YAML (T-0890)
     setQueued(null);
     const { errors } = validator.validateFormData(queued, schema);
     if (errors.length > 0) {
@@ -746,28 +779,16 @@ export function ResourceFormDialog<T>({
     handleSubmit(queued);
   }, [queued, schema, handleSubmit, t]);
 
+  // The age in the person's language: the verdict sentence is translated, and an English
+  // "12s ago" inside a German one was half a translation (T-1753).
+  const verdictAge = internalVerdict?.checkedAt ? ago(internalVerdict.checkedAt, now, t) : "";
   const verdictChip = (
-    <span
-      data-testid="draft-verdict"
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption font-medium ${
-        verdictState === "green"
-          ? "bg-success/15 text-success"
-          : verdictState === "red"
-            ? "bg-danger/15 text-danger"
-            : verdictState === "stale"
-              ? "bg-warning/15 text-warning"
-              : "bg-surface-muted text-fg-muted"
-      }`}
-    >
+    <Badge data-testid="draft-verdict" tone={VERDICT_TONE[verdictState]}>
       {verdictState === "none" && t("drafts.verdict.none")}
-      {verdictState === "green" &&
-        t("drafts.verdict.green", {
-          age: formatAge(internalVerdict?.checkedAt),
-        })}
-      {verdictState === "red" &&
-        t("drafts.verdict.red", { age: formatAge(internalVerdict?.checkedAt) })}
+      {verdictState === "green" && t("drafts.verdict.green", { age: verdictAge })}
+      {verdictState === "red" && t("drafts.verdict.red", { age: verdictAge })}
       {verdictState === "stale" && t("drafts.verdict.stale")}
-    </span>
+    </Badge>
   );
 
   // What the footer's buttons answered, beside them, where the person is looking (T-1424): the
@@ -796,13 +817,16 @@ export function ResourceFormDialog<T>({
   ) : null;
 
   return (
-    <Dialog
+    // A page at its own address where a route hosts it, the dialog elsewhere (T-2474).
+    <FormFrame
       open={open}
       onOpenChange={handleOpenChange}
       title={title}
       description={description}
       size={size}
-      closeLabel={t("form.cancel")}
+      // Not "Cancel": the footer has a Cancel of its own, and two buttons of one name are two
+      // things a screen reader cannot tell apart (UI-15, T-1753).
+      closeLabel={t("resourceDelete.close")}
     >
       <div className="flex flex-col gap-4">
         {/*
@@ -886,9 +910,7 @@ export function ResourceFormDialog<T>({
             data-testid="draft-findings"
             className="flex flex-col gap-1 rounded border border-border bg-surface-subtle p-2 text-caption"
           >
-            <span className="font-semibold text-fg">
-              {t("drafts.findings")}:
-            </span>
+            <span className="font-semibold text-fg">{t("drafts.findings")}</span>
             <ul className="list-disc pl-4 space-y-0.5">
               {internalVerdict.findings.map((f, idx) => (
                 <li
@@ -918,28 +940,18 @@ export function ResourceFormDialog<T>({
         ) : null}
 
         {source ? (
-          <div
-            role="tablist"
-            aria-label={title}
-            className="flex flex-wrap gap-1"
-          >
-            {VIEWS.map((name) => (
-              <Button
-                key={name}
-                role="tab"
-                size="sm"
-                aria-selected={view === name}
-                variant={view === name ? "secondary" : "ghost"}
-                onClick={() => show(name)}
-              >
-                {t(`form.view.${name}`)}
-              </Button>
-            ))}
-          </div>
+          <Tabs
+            id={viewsId}
+            label={title}
+            variant="pill"
+            tabs={VIEWS.map((name) => ({ value: name, label: t(`form.view.${name}`) }))}
+            value={view}
+            onChange={show}
+          />
         ) : null}
 
         {view === "form" ? (
-          <div role="tabpanel" className="flex flex-col gap-4">
+          <div {...(source ? tabPanelProps(viewsId, "form") : {})} className="flex flex-col gap-4">
             {children ? (
               <div className="flex flex-col gap-3">{children}</div>
             ) : null}
@@ -962,7 +974,7 @@ export function ResourceFormDialog<T>({
               disabled={disabled}
               submitLabel={submitLabel}
               submitDisabledReason={effectiveSubmitDisabledReason}
-              submitting={submitting}
+              submitting={submitting || saving}
               extraErrors={schemaErrors ?? findingErrors}
               onSubmit={handleSubmit}
               onChange={(next) => {
@@ -974,9 +986,9 @@ export function ResourceFormDialog<T>({
               afterFields={afterFields}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
-                  <DialogClose asChild>
-                    <Button variant="ghost">{t("form.cancel")}</Button>
-                  </DialogClose>
+                  <Button variant="ghost" onClick={() => handleOpenChange(false)}>
+                    {t("form.cancel")}
+                  </Button>
                   {checkButton}
                   {draftKind && activeName ? (
                     <>
@@ -986,25 +998,22 @@ export function ResourceFormDialog<T>({
                   ) : null}
                   {footerErrorElement}
                   {arranged?.advancedFields ? (
-                    <label className="flex items-center gap-2 text-caption text-fg-muted">
-                      <input
-                        type="checkbox"
-                        checked={advanced}
-                        onChange={(event) => {
-                          const next = event.target.checked;
-                          setAdvancedChoice(next);
-                          saveAdvanced.mutate(next);
-                        }}
-                      />
-                      {t("form.advancedMode")}
-                    </label>
+                    <Checkbox
+                      label={t("form.advancedMode")}
+                      checked={advanced}
+                      onChange={(event) => {
+                        const next = event.target.checked;
+                        setAdvancedChoice(next);
+                        saveAdvanced.mutate(next);
+                      }}
+                    />
                   ) : null}
                 </div>
               }
             />
           </div>
         ) : (
-          <div role="tabpanel" className="flex flex-col gap-3">
+          <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">
             <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
             <div className="overflow-hidden rounded-md border border-border">
               <Suspense
@@ -1042,9 +1051,9 @@ export function ResourceFormDialog<T>({
               </Alert>
             ) : null}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <DialogClose asChild>
-                <Button variant="ghost">{t("form.cancel")}</Button>
-              </DialogClose>
+              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
+                {t("form.cancel")}
+              </Button>
               {checkButton}
               {draftKind && activeName ? (
                 <>
@@ -1058,11 +1067,14 @@ export function ResourceFormDialog<T>({
                   {effectiveSubmitDisabledReason}
                 </span>
               ) : null}
+              {/* `disabledReason`, as the form view's submit has it (theme.tsx): a hard-disabled
+                  button leaves the tab order, and the reason written for it was then never read by
+                  the person tabbing the footer (UI-44, T-1753). */}
               <Button
                 variant="primary"
                 disabled={disabled || Boolean(effectiveSubmitDisabledReason)}
-                title={effectiveSubmitDisabledReason}
-                aria-describedby={proposeReason ? "propose-reason" : undefined}
+                disabledReason={effectiveSubmitDisabledReason}
+                loading={submitting || saving}
                 onClick={submitYaml}
               >
                 {submitLabel}
@@ -1071,6 +1083,6 @@ export function ResourceFormDialog<T>({
           </div>
         )}
       </div>
-    </Dialog>
+    </FormFrame>
   );
 }

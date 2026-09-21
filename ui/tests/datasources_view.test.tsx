@@ -11,6 +11,7 @@ import { endpointOf, knownSecretNames, toEnvelope } from "../src/pages/datasourc
 import { rememberPrefill } from "../src/assistant/state";
 import type { Manifest } from "../src/api/manifest";
 import { digestOf } from "../src/api/digest";
+import { findFormPage } from "./formPage";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -174,7 +175,7 @@ describe("data sources view", () => {
     renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(within(dialog).getByLabelText(/Broker URLs/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/User name/)).toBeInTheDocument();
@@ -190,7 +191,7 @@ describe("data sources view", () => {
       "http",
     );
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Timeout/)).toBeInTheDocument();
@@ -202,7 +203,7 @@ describe("data sources view", () => {
     renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(within(dialog).getByText(en.datasources.field.password)).toBeInTheDocument();
     expect(within(dialog).getByText(en.datasources.secretHint)).toBeInTheDocument();
@@ -221,7 +222,7 @@ describe("data sources view", () => {
     const fetchMock = renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "MQTT Mesta");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.propose }));
 
@@ -239,7 +240,7 @@ describe("data sources view", () => {
       "websocket",
     );
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "aq-stream");
     await userEvent.type(
       within(dialog).getByLabelText(/URL/),
@@ -270,7 +271,7 @@ describe("data sources view", () => {
 
     await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "http");
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "free-bikes");
     await userEvent.type(within(dialog).getByLabelText(/URL/), "https://gbfs.example.org/free_bike_status.json");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
@@ -286,7 +287,7 @@ describe("data sources view", () => {
     renderDataSources();
     await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "http");
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "free-bikes");
     await userEvent.type(within(dialog).getByLabelText(/URL/), "https://gbfs.example.org/free_bike_status.json");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
@@ -305,7 +306,7 @@ describe("data sources view", () => {
       http: { url: "https://gbfs.example.org/free_bike_status.json", timeout: "15s" },
     });
     renderDataSources();
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByLabelText(/Name/)).toHaveValue("hsl-citybikes-free");
     expect(within(dialog).getByLabelText(/URL/)).toHaveValue("https://gbfs.example.org/free_bike_status.json");
     expect(screen.getByLabelText(en.datasources.field.type)).toHaveValue("http");
@@ -315,7 +316,7 @@ describe("data sources view", () => {
     const fetchMock = renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mqtt-novy");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
 
@@ -332,7 +333,7 @@ describe("data sources view", () => {
     // Edit lives in the row's menu now (T-2287).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(within(dialog).getByLabelText(/Name/)).toHaveValue("mqtt-mesto");
     expect(within(dialog).getByLabelText(/User name/)).toHaveValue("bb-collector");
@@ -374,7 +375,7 @@ describe("data sources view", () => {
       },
     });
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(await within(dialog).findByLabelText(/^URL/)).toHaveValue("https://opendata.banskabystrica.sk/aq.json");
     expect(within(dialog).queryByLabelText(/Broker URLs/)).not.toBeInTheDocument();
   });
@@ -386,7 +387,7 @@ describe("data sources view", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/datasources?edit=mqtt-mesto&draft=mqtt-mesto");
     const fetchMock = renderDataSources();
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(within(dialog).getByLabelText(/Name/)).toHaveValue("mqtt-mesto");
     expect(within(dialog).getByLabelText(/User name/)).toHaveValue("bb-reader");
     expect(proposals(fetchMock)).toHaveLength(0);
@@ -403,6 +404,12 @@ describe("data sources view", () => {
 });
 
 describe("the manifest a data source form describes", () => {
+  // A form is an address of its own (T-2474): each case starts on the list, not on the form the
+  // case before it left open.
+  beforeEach(() => {
+    window.history.pushState({}, "", "/projects/banskabystrica/datasources");
+  });
+
   it("puts the metadata in metadata and everything else under the declared type", () => {
     const envelope = toEnvelope("banskabystrica", "http", {
       name: "aq-opendata",
@@ -470,7 +477,7 @@ describe("the manifest a data source form describes", () => {
 
     await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "nats");
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect((await within(dialog).findAllByPlaceholderText(/Secret name/)).length).toBeGreaterThan(0);
   });
@@ -480,7 +487,7 @@ describe("the manifest a data source form describes", () => {
 
     await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "csv");
     await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     expect(await within(dialog).findAllByText(/^A list of file paths to read from/)).toHaveLength(1);
   });
@@ -504,7 +511,7 @@ describe("the manifest a data source form describes", () => {
     const fetchMock = renderDataSources();
 
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
-    await screen.findByRole("dialog");
+    await findFormPage();
 
     // Select a runner input with a YAML-parsed field by simulating a YAML error in form data
     const invalidForm = {

@@ -7,6 +7,7 @@
  * approval, excluding the wait for the platform to merge and reconcile.
  */
 import { expect, test, type Page } from "@playwright/test";
+import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, listedNames, proposeDelete, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -39,9 +40,10 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/endpoints?lang=en`);
   let personSeconds = 0;
 
+  const clock = journeyClock("Share");
   let start = Date.now();
   await page.getByRole("button", { name: "New endpoint" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByTestId("form-page");
   await dialog.locator("#root_name").fill(ENDPOINT);
   await dialog.locator("#root_title").fill("City bikes for the regional transport team");
   await dialog.locator("#root_contextSpaceRef").selectOption(PROJECT);
@@ -60,15 +62,17 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   start = Date.now();
   await approve(approver.page, PROJECT, change, ENDPOINT);
   personSeconds += (Date.now() - start) / 1000;
+  clock.person(personSeconds * 1000);
   console.log(`person-seconds: ${personSeconds.toFixed(1)}`);
   expect(personSeconds).toBeLessThan(60);
 
   // The endpoint is Live once the reconciler has read the merged manifest (one sync interval).
   const row = page.getByRole("row").filter({ hasText: ENDPOINT });
   await expect(async () => {
-    await page.goto(`/projects/${PROJECT}/endpoints?lang=en`, { waitUntil: "networkidle" });
+    await page.goto(`/projects/${PROJECT}/endpoints?lang=en`, { waitUntil: "load" });
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
+  clock.live();
   const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");
   expect(href).toContain("/api/endpoint/");
   const link = href ?? "";

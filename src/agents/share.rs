@@ -6,6 +6,7 @@
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use crate::change::{self, Lane, Operation};
@@ -24,6 +25,8 @@ pub const REPRESENTATIONS: [&str; 9] = [
     "sta",
 ];
 const AUDIENCES: [&str; 3] = ["project-list", "organization", "public"];
+/// Requests a minute a caller may set, for a share and for an edit alike: one field, one bound.
+pub const MAX_REQUESTS_PER_MINUTE: u32 = 100_000;
 const SLUG_ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
 
 /// What the tool takes: the model's or a caller's reading of the request. Unknown fields are
@@ -95,6 +98,60 @@ fn is_identifier(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ':')
 }
 
+/// The list without its repeats, in the order the person wrote it. A project or a
+/// representation dictated twice is one assignee and one representation, not two manifests
+/// with one name (EP-72).
+fn without_repeats(items: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut kept = items;
+    kept.retain(|item| seen.insert(item.clone()));
+    kept
+}
+
+/// What a value is, for a sentence about a manifest the repository holds.
+fn json_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "empty",
+        Value::Bool(_) => "true or false",
+        Value::Number(_) => "a number",
+        Value::String(_) => "text",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "an object",
+    }
+}
+
+/// The shapes `edit` writes into, checked once before the first write.
+///
+/// The mirror holds whatever YAML the project's repository committed and `ResourceEnvelope::spec`
+/// is a bare `Value`, so `spec: oops` reaches this module intact; `serde_json` panics when a
+/// write indexes a value that is neither an object nor absent. Anyone who may commit to the
+/// repository could otherwise crash the assistant's request (PF-57).
+fn readable_for_edit(endpoint: &Value, name: &str) -> Result<(), String> {
+    let fix = "fix the manifest in the project's repository, then edit it from the chat again";
+    let Some(spec) = endpoint.get("spec") else {
+        return Err(format!(
+            "the manifest of endpoint '{name}' has no spec: {fix}"
+        ));
+    };
+    let Some(spec) = spec.as_object() else {
+        return Err(format!(
+            "the spec of endpoint '{name}' is {}, not an object: {fix}",
+            json_kind(spec)
+        ));
+    };
+    for field in ["projection", "rateLimits"] {
+        if let Some(value) = spec.get(field) {
+            if !value.is_object() {
+                return Err(format!(
+                    "spec.{field} of endpoint '{name}' is {}, not an object: {fix}",
+                    json_kind(value)
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The manifests for `params` in `project`, or the first reason they cannot be rendered.
 pub fn render(
     project: &str,
@@ -121,12 +178,14 @@ pub fn render(
             AUDIENCES.join(", ")
         ));
     }
-    let projects: Vec<String> = params
-        .allowed_projects
-        .iter()
-        .map(|p| p.trim().to_owned())
-        .filter(|p| !p.is_empty())
-        .collect();
+    let projects = without_repeats(
+        params
+            .allowed_projects
+            .iter()
+            .map(|p| p.trim().to_owned())
+            .filter(|p| !p.is_empty())
+            .collect(),
+    );
     if let Some(bad) = projects.iter().find(|p| !is_dns1123(p)) {
         return Err(format!(
             "allowedProjects entry '{bad}' is not a DNS-1123 label"
@@ -140,11 +199,13 @@ pub fn render(
     let representations: Vec<String> = if params.representations.is_empty() {
         vec!["ngsi-ld".to_owned(), "geojson".to_owned()]
     } else {
-        params
-            .representations
-            .iter()
-            .map(|r| r.trim().to_owned())
-            .collect()
+        without_repeats(
+            params
+                .representations
+                .iter()
+                .map(|r| r.trim().to_owned())
+                .collect(),
+        )
     };
     if let Some(bad) = representations
         .iter()
@@ -164,8 +225,11 @@ pub fn render(
         return Err(format!("entityTypes entry '{bad}' is not a type name"));
     }
     if let Some(limits) = &params.rate_limits {
-        if limits.requests_per_minute == 0 {
-            return Err("rateLimits.requestsPerMinute must be greater than 0".to_owned());
+        let per_minute = limits.requests_per_minute;
+        if per_minute == 0 || per_minute > MAX_REQUESTS_PER_MINUTE {
+            return Err(format!(
+                "rateLimits.requestsPerMinute {per_minute} is outside 1..={MAX_REQUESTS_PER_MINUTE}"
+            ));
         }
     }
 
@@ -221,6 +285,22 @@ pub fn render(
             .map(|p| (p.clone(), json!({ "kind": "group", "id": p })))
             .collect(),
     };
+    // Two labels do not make a third: `name` and a project may each be 63 characters, and the
+    // Policy is named after both. Refused here with both halves and their lengths, rather than
+    // by manifest validation with a name the person never typed (T-1042, EP-72).
+    if let Some((suffix, _)) = assignees
+        .iter()
+        .find(|(suffix, _)| !is_dns1123(&format!("{name}-{suffix}")))
+    {
+        return Err(format!(
+            "the Policy for '{suffix}' would be named '{name}-{suffix}', {total} characters, and \
+             a name is at most 63. The endpoint name is {own} characters and '{suffix}' is \
+             {theirs}: shorten the endpoint name and share again.",
+            total = name.len() + 1 + suffix.len(),
+            own = name.len(),
+            theirs = suffix.len(),
+        ));
+    }
     let entities: Vec<Value> = params
         .entity_types
         .iter()
@@ -368,9 +448,6 @@ pub struct Edit {
     pub changes: Vec<FieldChange>,
 }
 
-/// Limits a request may set per minute; the rate classes of the form sit inside it.
-const MAX_REQUESTS_PER_MINUTE: u32 = 100_000;
-
 /// `params` applied to the endpoint of that name among `endpoints` (the project's manifests), or
 /// the first reason it cannot be. Only the fields the call names change: the slug, the space,
 /// the name and the labels stay what they were, so the Change is an edit of that endpoint.
@@ -394,6 +471,7 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
             )
         });
     };
+    readable_for_edit(found, name)?;
     let mut endpoint = found.clone();
     if let Some(object) = endpoint.as_object_mut() {
         object.remove("status");
@@ -455,10 +533,10 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
             ));
         }
     }
-    let projects: Vec<String> = match &params.allowed_projects {
+    let projects = without_repeats(match &params.allowed_projects {
         Some(projects) => projects.iter().map(|p| p.trim().to_owned()).collect(),
         None => serde_json::from_value(current_projects.clone()).unwrap_or_default(),
-    };
+    });
     if audience == "project-list" {
         if projects.is_empty() {
             return Err(

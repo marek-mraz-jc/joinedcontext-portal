@@ -322,10 +322,10 @@ describe("the LinkML editor against the UI contract", () => {
     expect(document.activeElement).toBe(source);
     expect(source).toHaveAttribute("aria-selected", "true");
 
-    // Every tab stays reachable by Tab as well, so the arrow keys are an addition and not the
-    // only way in.
+    // The tab list is one Tab stop, held by the selected tab; the others are reached with the
+    // arrow keys (the roving tabindex of the shared Tabs, WAI-ARIA tabs pattern, T-1753).
     const stops = focusables(container).filter((element) => element.getAttribute("role") === "tab");
-    expect(stops.length).toBeGreaterThan(1);
+    expect(stops).toEqual([source]);
   });
 
   it.each(SUPPORTED_LOCALES)("names every view in %s", async (locale) => {

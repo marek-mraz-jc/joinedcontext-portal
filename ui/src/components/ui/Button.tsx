@@ -50,10 +50,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Shows a spinner and disables the button; the label stays so the width does not jump. */
   loading?: boolean;
   /**
-   * Why this button cannot be used, in words (UI-44).
+   * Why this button cannot be used, in words (UI-44). Passed *beside* `disabled`, never instead
+   * of it: `disabled` is what refuses, the reason is what the refusal says. A reason on its own
+   * changes nothing — it is not shown and the button stays live — because a call site may hand
+   * down one constant reason for a `disabled` it computes per row (T-2428).
    *
-   * A button with a reason is `aria-disabled` rather than `disabled`: it keeps its place in the
-   * tab order, so somebody who cannot see that it is greyed out can reach it and be told why.
+   * A disabled button with a reason is `aria-disabled` rather than `disabled`: it keeps its
+   * place in the tab order, so somebody who cannot see that it is greyed out can reach it and be
+   * told why.
    * `disabled` would remove it from the tab order and, with `disabled:pointer-events-none`,
    * suppress the tooltip too — two call sites wrote a reason that the browser then threw away.
    * The click is refused either way.
@@ -79,7 +83,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const id = useId();
-  // A reason keeps the button reachable and explains itself; without one, nothing changes.
+  // `disabled` decides, the reason explains: a reason on its own changes nothing, because call
+  // sites pass a constant reason beside a conditional `disabled` (T-2428).
   const explained = Boolean(disabled && disabledReason);
   const button = (
     <button

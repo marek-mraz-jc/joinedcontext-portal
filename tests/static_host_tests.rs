@@ -414,3 +414,216 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
         "nothing is missing once the build is there"
     );
 }
+
+fn envelope(kind: &str, project: &str, name: &str, spec: serde_json::Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: kind.into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some(project.into()),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    }
+}
+
+/// The `#jc-config` element of a served index, parsed.
+fn served_config(body: &[u8]) -> serde_json::Value {
+    let html = String::from_utf8(body.to_vec()).expect("an html index");
+    let open = "<script id=\"jc-config\" type=\"application/json\">";
+    let start = html.find(open).expect("the index carries #jc-config") + open.len();
+    let end = start + html[start..].find("</script>").expect("the element closes");
+    assert_eq!(
+        html.matches("id=\"jc-config\"").count(),
+        1,
+        "exactly one configuration: {html}"
+    );
+    serde_json::from_str(&html[start..end]).expect("the configuration is JSON")
+}
+
+/// T-2457: the region's application reads its own indicators and the city's through the shared
+/// reference, so the index it is served names both endpoints, by space, and never a token.
+#[tokio::test]
+async fn the_served_index_names_the_apps_endpoint_and_the_shared_one() {
+    let index: &[u8] = b"<!doctype html><html><head><title>kpi</title></head><body></body></html>";
+    let dir = app_root("config", &[("index.html", index)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "bbsk-kpi" },
+        "types": ["KeyPerformanceIndicator"],
+        "operations": ["queryEntity"]
+    }]);
+
+    let mirror = mirror_with_app(spec);
+    let endpoint =
+        |space: &str, slug: &str| serde_json::json!({ "contextSpaceRef": space, "slug": slug });
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "bbsk-kpi",
+        endpoint("bbsk-kpi", "regionslug"),
+    ));
+    // Another space of the same project: not a need of the app, so not in its configuration.
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "bbsk-kraj",
+        endpoint("bbsk-kraj", "rawslug"),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        "banskabystrica",
+        "banskabystrica-kpi",
+        endpoint("banskabystrica-kpi", "cityslug"),
+    ));
+    mirror.upsert(envelope(
+        "SharedSpaceReference",
+        "ovzdusie",
+        "mesto-kpi",
+        serde_json::json!({
+            "alias": "mesto-kpi",
+            "endpointRef": { "project": "banskabystrica", "name": "banskabystrica-kpi" }
+        }),
+    ));
+    // A reference to an endpoint that is not there adds nothing and breaks nothing.
+    mirror.upsert(envelope(
+        "SharedSpaceReference",
+        "ovzdusie",
+        "gone",
+        serde_json::json!({ "alias": "gone", "endpointRef": { "project": "nowhere", "name": "x" } }),
+    ));
+
+    let (status, body) = get_with(dir.path(), mirror, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    let config = served_config(&body);
+    assert_eq!(config["transport"], "origin");
+    assert_eq!(config["appName"], "air-quality");
+    assert_eq!(
+        config["slug"], "regionslug",
+        "the app's own endpoint is the primary"
+    );
+    assert_eq!(config["space"], "bbsk-kpi");
+    assert_eq!(config["endpointName"], "bbsk-kpi");
+    let endpoints: Vec<(String, String)> = config["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .map(|e| {
+            (
+                e["slug"].as_str().unwrap().into(),
+                e["space"].as_str().unwrap().into(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        endpoints,
+        vec![
+            ("regionslug".to_owned(), "bbsk-kpi".to_owned()),
+            ("cityslug".to_owned(), "banskabystrica-kpi".to_owned()),
+        ]
+    );
+    assert_eq!(
+        config["endpoints"][0]["types"],
+        serde_json::json!(["KeyPerformanceIndicator"])
+    );
+    let text = config.to_string().to_lowercase();
+    assert!(
+        !text.contains("token") && !text.contains("bearer"),
+        "{config}"
+    );
+}
+
+/// An index that reads nothing is served byte for byte as it was built and signed.
+#[tokio::test]
+async fn an_app_without_data_needs_is_served_as_built() {
+    let dir = app_root("asbuilt", &[("index.html", INDEX)]);
+    let (status, _, body) = get_from(dir.path(), app_spec("published"), "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, INDEX);
+}
+
+/// One request for an app with the `Host` a browser sends, on a Portal whose apps live on
+/// `https://example.org` and whose own UI lives on `https://portal.example.org`.
+async fn get_on_host(root: &std::path::Path, host: &str, uri: &str) -> axum::response::Response {
+    let config = Config {
+        apps_dir: Some(root.to_string_lossy().into_owned()),
+        public_base_url: "https://portal.example.org".parse().unwrap(),
+        apps_url: Some("https://example.org".parse().unwrap()),
+        ..Config::for_tests()
+    };
+    let app = server::app(
+        AppState::new(config, None).with_mirror(mirror_with_app(app_spec("published"))),
+    );
+    app.oneshot(
+        Request::builder()
+            .uri(uri)
+            .header(header::HOST, host)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+}
+
+/// T-2476: an app served on the Portal's own origin would reach the Portal API with the
+/// viewer's session cookie and read the CSRF cookie. The Portal host never serves one; it
+/// sends the browser to the same path on the apps origin.
+#[tokio::test]
+async fn an_app_asked_for_on_the_portal_host_is_sent_to_the_apps_origin() {
+    let dir = app_root(
+        "portal-host",
+        &[("index.html", INDEX), ("bundle.js", BUNDLE_JS)],
+    );
+
+    for (uri, location) in [
+        (
+            "/apps/air-quality/",
+            "https://example.org/apps/air-quality/",
+        ),
+        (
+            "/apps/air-quality/bundle.js?v=2",
+            "https://example.org/apps/air-quality/bundle.js?v=2",
+        ),
+    ] {
+        let response = get_on_host(dir.path(), "portal.example.org", uri).await;
+        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(response.headers()[header::LOCATION], location, "{uri}");
+        assert!(response
+            .headers()
+            .get(header::CONTENT_SECURITY_POLICY)
+            .is_none());
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(
+            body.is_empty(),
+            "no byte of the bundle on the Portal origin"
+        );
+    }
+
+    // Any host but the apps origin is the same refusal: a Host header is the caller's to set.
+    let response = get_on_host(dir.path(), "evil.example.net", "/apps/air-quality/").await;
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        "https://example.org/apps/air-quality/"
+    );
+}
+
+#[tokio::test]
+async fn an_app_is_served_on_the_apps_origin() {
+    let dir = app_root("apps-host", &[("index.html", INDEX)]);
+
+    for host in ["example.org", "EXAMPLE.org:443"] {
+        let response = get_on_host(dir.path(), host, "/apps/air-quality/").await;
+        assert_eq!(response.status(), StatusCode::OK, "{host}");
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(body, INDEX);
+    }
+    let response = get_on_host(dir.path(), "example.org:8443", "/apps/air-quality/").await;
+    assert_eq!(
+        response.status(),
+        StatusCode::PERMANENT_REDIRECT,
+        "another port is another origin"
+    );
+}

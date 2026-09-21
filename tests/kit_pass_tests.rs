@@ -6,6 +6,10 @@
 //! that answers what the driver asks; the cases are the first pass, a repair, a block for a
 //! path the run may not write, a chat message as a second pass, the preview route's gates and
 //! a proxy that does not answer.
+//!
+//! The application cases drive `src/agents/oneshot/code_pass.rs` end to end (T-1662): the first
+//! version, a refused path, a repair, a second failure, an answer without blocks, an answer cut at
+//! the budget, the verification passes and their limit, and the tool loop after the first version.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -880,6 +884,32 @@ async fn an_empty_answer_is_asked_again_once() {
     let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
     assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
     assert_eq!(model_requests(&proxy).await.len(), 2);
+}
+
+/// T-1662: two answers without a change end the pass with a plain sentence; the person never
+/// reads the patch protocol the model was told about (T-0785).
+#[tokio::test]
+async fn two_dashboard_answers_without_a_block_are_said_plainly() {
+    let (app, cookie, proxy) = portal(
+        "anthropic",
+        &[
+            "Here is the dashboard.".to_owned(),
+            "Nothing to add.".to_owned(),
+        ],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
+    assert_eq!(model_requests(&proxy).await.len(), 2);
+    for protocol in ["SEARCH", "REPLACE", "block"] {
+        assert!(
+            !said.contains(protocol),
+            "the person read the patch protocol: {said}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -1903,10 +1933,54 @@ fn template_file(path: &str) -> String {
 }
 
 /// A forge that takes one commit of many files (SDK-17).
+/// The application's own repository (AP-75), already created: the run's branch is cut from
+/// `main` on the first pass, which then reads its tree once.
+const APP_REPO: &str = "/api/v1/repos/org/helsinki_city-bikes-overview";
+
 async fn code_forge() -> MockServer {
     let forge = forge().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/repos/org/manifests/contents"))
+        .respond_with(
+            ResponseTemplate::new(201)
+                .set_body_json(json!({ "files": [], "commit": { "sha": "c0de" } })),
+        )
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(APP_REPO))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{APP_REPO}/branches/")))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{APP_REPO}/branches/")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head" } })),
+        )
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{APP_REPO}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{APP_REPO}/git/trees/head")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "truncated": false,
+            "tree": [{ "path": "README.md", "type": "blob", "sha": "r" }]
+        })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{APP_REPO}/contents")))
         .respond_with(
             ResponseTemplate::new(201)
                 .set_body_json(json!({ "files": [], "commit": { "sha": "c0de" } })),
@@ -2355,15 +2429,14 @@ async fn an_application_is_written_in_one_call_and_the_template_never_reaches_th
         "{tool:?}"
     );
 
-    // One commit on the run branch with the whole project under the application's folder.
+    // One commit on the run branch with the whole project at the root of the application's
+    // own repository, and its README (AP-75, AP-76).
     let commits: Vec<Value> = forge
         .received_requests()
         .await
         .unwrap_or_default()
         .into_iter()
-        .filter(|r| {
-            r.method.as_str() == "POST" && r.url.path() == "/api/v1/repos/org/manifests/contents"
-        })
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == format!("{APP_REPO}/contents"))
         .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
         .collect();
     assert_eq!(commits.len(), 1, "{commits:?}");
@@ -2374,9 +2447,10 @@ async fn an_application_is_written_in_one_call_and_the_template_never_reaches_th
         .filter_map(|f| f["path"].as_str())
         .collect();
     for path in [
-        "projects/helsinki/apps/city-bikes-overview/src/pages/Stations.tsx",
-        "projects/helsinki/apps/city-bikes-overview/src/jc-types.ts",
-        "projects/helsinki/apps/city-bikes-overview/package.json",
+        "src/pages/Stations.tsx",
+        "src/jc-types.ts",
+        "package.json",
+        "README.md",
     ] {
         assert!(paths.contains(&path), "{path} not in {paths:?}");
     }
@@ -2520,6 +2594,73 @@ async fn a_second_failure_ends_the_first_run_with_no_preview_and_the_errors_said
                 && t.contains("axios")
                 && t.ends_with("Send a message to try again."))));
     assert!(!log.iter().any(|(kind, _)| kind == "preview"), "{log:?}");
+}
+
+/// T-1662 (`src/agents/oneshot/code_pass.rs`): an answer that carries no block is sent back once,
+/// with the reason, to the model; a second one ends the first run with no preview. The person
+/// reads a plain sentence and never the patch protocol (T-0785).
+#[tokio::test]
+async fn an_application_answer_without_blocks_is_asked_again_once_and_the_protocol_stays_hidden() {
+    let (_, app, cookie, proxy) = portal_state_with(
+        "openai-compatible",
+        &[
+            "Here is your application.".to_owned(),
+            "It is ready.".to_owned(),
+        ],
+        None,
+    )
+    .await;
+    mount_types(&proxy).await;
+    let id = create_application(&app, &cookie).await;
+    let run = wait_for(&app, &cookie, &id, &["previewing", "failed"]).await;
+    assert!(run["previewUrl"].is_null(), "{run}");
+
+    let requests = model_requests(&proxy).await;
+    assert_eq!(requests.len(), 2, "one repair and no more");
+    assert!(
+        requests[1]
+            .to_string()
+            .contains("carried no SEARCH/REPLACE block"),
+        "the model is told why it is asked again"
+    );
+    let said = wait_for_thought(&app, &cookie, &id, "The application could not be built").await;
+    for protocol in ["SEARCH", "REPLACE", "block"] {
+        assert!(
+            !said.contains(protocol),
+            "the person read the patch protocol: {said}"
+        );
+    }
+}
+
+/// T-1662: the largest answer the code pass takes is its output budget. An answer cut there is
+/// refused whole: nothing of it lands, and the run says why, so a half-written file never
+/// reaches the frame.
+#[tokio::test]
+async fn an_application_answer_cut_at_the_budget_lands_nothing_and_says_why() {
+    let (state, app, cookie, proxy) = portal_state_with("openai-compatible", &[], None).await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_cut(
+            "Stations.\n\n```text\nsrc/pages/Stations.tsx\n<<<<<<< SEARCH\n=======\nexport function Stations() {",
+        )))
+        .mount(&proxy)
+        .await;
+    mount_types(&proxy).await;
+    let id = create_application(&app, &cookie).await;
+    let run = wait_for(&app, &cookie, &id, &["previewing", "failed"]).await;
+
+    assert_eq!(run["status"], json!("failed"), "{run}");
+    let error = run["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("cut at the output budget") && error.contains("nothing was applied"),
+        "{error}"
+    );
+    assert!(run["previewUrl"].is_null(), "{run}");
+    let files = files_of(&state, &id).await;
+    assert!(
+        files.get("src/pages/Stations.tsx").is_none(),
+        "a half-written file landed"
+    );
 }
 
 /// Posts what the frame saw of version `v`, as the host page relays it (SDK-27).
@@ -2837,11 +2978,21 @@ async fn a_message_after_the_first_version_is_a_tool_loop(provider: &str) {
         ],
         "{tools:?}"
     );
+    // The opening message of the edit carries every file whole, so a read of one unchanged
+    // since answers where it is instead of sending it a second time (SDK-20, T-2466); the
+    // model still has the file, in its first request of the loop.
     assert_eq!(tools[0].1, "ok");
     assert!(
-        tools[0].2.contains("useEntities"),
-        "the read shows the file: {}",
+        tools[0]
+            .2
+            .starts_with("src/pages/Stations.tsx: shown whole in the request"),
+        "the read points at the file in the request: {}",
         tools[0].2
+    );
+    let opening = model_requests(&proxy).await[2].to_string();
+    assert!(
+        opening.contains("\"tools\"") && opening.contains("useEntities"),
+        "the edit's opening request carries the file the read points at: {opening}"
     );
     assert_eq!(tools[2].1, "failed");
     assert!(
@@ -2984,8 +3135,16 @@ async fn the_step_limit_ends_the_turn_with_a_message() {
         .mount(&proxy)
         .await;
     send_message(&app, &cookie, &id, "Look around").await;
-    let said = wait_for_thought(&app, &cookie, &id, "The step limit").await;
-    assert!(said.contains("3 tool calls"), "{said}");
+    // The stop names the limit reached and what was spent, one message (T-2467).
+    let said = wait_for_thought(&app, &cookie, &id, "I stopped before finishing").await;
+    assert!(
+        said.contains("the step limit of this run (3 tool calls a message)"),
+        "{said}"
+    );
+    assert!(
+        said.contains("smaller step"),
+        "the person is told what to do: {said}"
+    );
     tokio::time::sleep(Duration::from_millis(200)).await;
     let tools = tool_events(&events(&app, &cookie, &id).await);
     assert_eq!(tools.len(), 3, "{tools:?}");

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { queryKeys } from "../src/api/client";
 import { ExplorePage } from "../src/pages/explore/ExplorePage";
+import { expectDenied } from "./checks";
 import en from "../src/locales/en.json";
 
 function list(items: unknown[]) {
@@ -299,9 +300,16 @@ it("disables the delete button, with a reason, when the grant allows only reads"
     },
   );
 
+  // The pane the entity arrives in is a live region: opening one announced nothing and its
+  // arrival announced nothing either (T-1768).
+  const pane = screen.getByTestId("explore-entity");
+  expect(pane).toHaveAttribute("aria-live", "polite");
+
   const remove = await screen.findByTestId("explore-delete");
-  await waitFor(() => expect(remove).toBeDisabled());
-  expect(remove).toHaveAttribute("title", expect.stringContaining("delete"));
+  // Refused with its reason, not hard-disabled: a `title` on a disabled button is unreachable
+  // by keyboard and swallowed by `pointer-events-none`, so the refusal could never be read
+  // (UI-44, T-1768).
+  await waitFor(() => expectDenied(remove, /delete/));
 });
 
 /**

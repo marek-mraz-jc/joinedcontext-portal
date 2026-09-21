@@ -384,3 +384,40 @@ pub fn internal_router() -> Router<AppState> {
         );
     }
 }
+
+/// PF-50 (T-1656): every write can be refused for a missing verb, and the CSRF guard in front
+/// of every session write refuses without a token, so every write the guard covers documents a
+/// `403` with the problem body. The server-to-server doors (webhooks, back-channel logout) sit
+/// outside the guard and answer for their own signatures; the MCP door answers in its own
+/// protocol's shape and documents that.
+#[test]
+fn every_write_documents_its_refusals() {
+    let spec: serde_json::Value =
+        serde_json::to_value(ApiDoc::openapi()).expect("the document serializes");
+    let mut missing = Vec::new();
+    for (path, item) in spec["paths"].as_object().expect("paths") {
+        if path.starts_with("/api/v1/webhooks/")
+            || path == "/api/v1/auth/backchannel-logout"
+            || path == "/api/v1/mcp"
+        {
+            continue;
+        }
+        for method in ["post", "put", "patch", "delete"] {
+            let Some(operation) = item.get(method) else {
+                continue;
+            };
+            let refusal = &operation["responses"]["403"];
+            let body = refusal["content"]["application/problem+json"]["schema"]["$ref"]
+                .as_str()
+                .or_else(|| refusal["content"]["application/json"]["schema"]["$ref"].as_str());
+            if body != Some("#/components/schemas/ProblemDetails") {
+                missing.push(format!("{} {path}", method.to_uppercase()));
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "writes that do not document their 403 with the problem body:\n{}",
+        missing.join("\n")
+    );
+}

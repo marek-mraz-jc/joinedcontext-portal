@@ -50,8 +50,66 @@ function unwrap(value: unknown): unknown {
   return value;
 }
 
+const GEOMETRIES = new Set([
+  "Point",
+  "MultiPoint",
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
+  "GeometryCollection",
+]);
+
+/** Every `[x, y]` position under a GeoJSON value, in any nesting. */
+function positionsOf(value: unknown, into: [number, number][] = []): [number, number][] {
+  if (Array.isArray(value)) {
+    if (typeof value[0] === "number" && typeof value[1] === "number") {
+      into.push([value[0], value[1]]);
+    } else {
+      value.forEach((item) => positionsOf(item, into));
+    }
+  } else if (isRecord(value)) {
+    positionsOf(value.coordinates, into);
+    positionsOf(value.geometries, into);
+  }
+  return into;
+}
+
+const coordinate = (n: number): string => String(Math.round(n * 10_000) / 10_000);
+
+/**
+ * A GeoJSON geometry as the one line a person reads: its type and where it is, a point by its
+ * position and anything wider by its bounding box. A road-work `MultiLineString` is hundreds of
+ * coordinates; drawn as JSON it was thousands of digits in one cell (T-2460). The Portal may
+ * already have folded it to `{ type, bbox, positions }`, which reads the same way.
+ */
+function geometryText(value: Record<string, unknown>): string | null {
+  const kind = value.type;
+  if (typeof kind !== "string" || !GEOMETRIES.has(kind)) {
+    return null;
+  }
+  const given = Array.isArray(value.bbox) && value.bbox.length === 4 ? (value.bbox as unknown[]) : null;
+  let box: number[] | null = given?.every((n) => typeof n === "number") ? (given as number[]) : null;
+  if (box === null) {
+    const positions = positionsOf(value);
+    if (positions.length === 0) {
+      return value.coordinates === undefined && value.geometries === undefined ? null : kind;
+    }
+    box = positions.reduce(
+      ([w, s, e, n], [x, y]) => [Math.min(w, x), Math.min(s, y), Math.max(e, x), Math.max(n, y)],
+      [Infinity, Infinity, -Infinity, -Infinity],
+    );
+  }
+  const [w, s, e, n] = box.map(coordinate);
+  return w === e && s === n ? `${kind} [${w}, ${s}]` : `${kind} [${w}, ${s} … ${e}, ${n}]`;
+}
+
 export function textOf(value: unknown): string {
   const plain = unwrap(value);
+  const geometry = isRecord(plain) ? geometryText(plain) : null;
+  if (geometry !== null) {
+    return geometry;
+  }
   if (plain === null || plain === undefined) {
     return "";
   }
@@ -127,7 +185,11 @@ export function viewOf(output: unknown): QueryView {
         id: localId(entity.id as string),
         cells: columns.map((column) => textOf(entity[column])),
       })),
-      total: entities.length,
+      // A page of a longer set says the set's size, not the page's, when the answer carries it.
+      total:
+        isRecord(answer) && typeof answer.total === "number" && answer.total > entities.length
+          ? answer.total
+          : entities.length,
     };
   }
   if (isRecord(answer)) {
@@ -210,12 +272,11 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
             <TableRow key={`${row.id}-${index}`}>
               <TableCell className="px-2 py-1 font-mono">{row.id}</TableCell>
               {row.cells.map((cell, cellIndex) => (
-                <TableCell
-                  key={view.columns[cellIndex]}
-                  className="max-w-48 truncate px-2 py-1"
-                  title={cell}
-                >
-                  {cell}
+                <TableCell key={view.columns[cellIndex]} className="px-2 py-1" title={cell}>
+                  {/* A table cell takes no max-width, so the fold is on a block inside it: a
+                      4 000-character value used to widen its column to 4 000 characters and
+                      push every other column off the card (T-2460). */}
+                  <span className="block max-w-48 truncate">{cell}</span>
                 </TableCell>
               ))}
             </TableRow>

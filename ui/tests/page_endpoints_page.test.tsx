@@ -22,6 +22,7 @@ import {
   problem,
   renderRoute,
 } from "./pageHarness";
+import { findFormPage, queryFormPage } from "./formPage";
 
 const PATH = "/projects/helsinki/endpoints";
 
@@ -145,7 +146,7 @@ describe("the endpoints page", () => {
       path: `${PATH}?edit=public-air`,
       answer: answering([endpoint("public-air")]),
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
     expect(dialog).toHaveTextContent("public-air");
   });
 
@@ -156,7 +157,7 @@ describe("the endpoints page", () => {
       answer: answering([endpoint("public-air")]),
     });
     await screen.findAllByRole("table");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(queryFormPage()).toBeNull();
   });
 
   it("says_everything_it_says_in_all_four_languages", async () => {

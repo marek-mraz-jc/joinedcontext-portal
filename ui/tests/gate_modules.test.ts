@@ -23,7 +23,7 @@ const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXCEPTED = ["src/main.tsx", "src/api/schema.d.ts"];
 
 /** What was missing when this gate was written. The list may shrink; it may never grow. */
-const ALLOWED_ON_2026_09_20 = 25;
+const ALLOWED_ON_2026_09_20 = 1;
 
 function walk(directory: string): string[] {
   return readdirSync(join(ui, directory), { withFileTypes: true }).flatMap((entry) => {

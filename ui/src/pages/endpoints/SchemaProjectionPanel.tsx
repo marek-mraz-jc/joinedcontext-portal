@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,8 +7,10 @@ import type { ProblemDetails } from "../../api/client";
 import { SCHEMA_FORMALISMS } from "../../schemas/kinds";
 import type { SchemaFormalism } from "../../schemas/kinds";
 import {
+  Alert,
   Button,
   Checkbox,
+  EmptyState,
   Field,
   Input,
   Select,
@@ -20,6 +22,7 @@ import {
   TableRow,
   TableRowHeaderCell,
 } from "../../components/ui";
+import { FormHeading } from "../../components/forms/FormRoute";
 
 /**
  * What an Endpoint publishes of its model, and which attributes it holds back (EP-46, EP-61).
@@ -90,16 +93,43 @@ export interface SchemaProjectionPanelProps {
   /** Attribute names this endpoint hides, `spec.projection.hiddenAttributes`. */
   hidden: string[];
   onHiddenChange: (hidden: string[]) => void;
+  /**
+   * Why this person may not change the projection, when they may not (UI-44).
+   *
+   * Without it a viewer ticked every box, typed new names and learned that none of it could be
+   * proposed only when the Propose button refused them — the sequence UI-44 exists to prevent.
+   */
+  disabledReason?: string;
+}
+
+/**
+ * What is wrong with a typed attribute name, or nothing.
+ *
+ * A name the published schema does not carry is NOT wrong: an attribute can be hidden before the
+ * model that introduces it is compiled, and `endpoint_projection_ui.test.tsx` holds that case.
+ * What such a name is, is easy to mistake for a hidden attribute when it is a typo, so it is
+ * accepted and then said aloud under the field rather than refused here (T-1767).
+ */
+function faultOf(name: string, hidden: string[]): string | null {
+  if (name === "") return "endpoints.projection.addEmpty";
+  if (hidden.includes(name)) return "endpoints.projection.addAlready";
+  // A name with a space in it is not an attribute name under any model, published or not.
+  if (!/^[A-Za-z_][A-Za-z0-9_:.-]*$/.test(name)) return "endpoints.projection.addShape";
+  return null;
 }
 
 export function SchemaProjectionPanel({
   slug,
   hidden,
   onHiddenChange,
+  disabledReason,
 }: SchemaProjectionPanelProps): JSX.Element {
   const { t } = useTranslation();
   const [formalism, setFormalism] = useState<SchemaFormalism>("json-schema");
   const [typed, setTyped] = useState("");
+  const [fault, setFault] = useState<string | null>(null);
+  const typedRef = useRef<HTMLInputElement | null>(null);
+  const refused = Boolean(disabledReason);
   const base = `${window.location.origin}/api/endpoint/${slug}/schema`;
 
   const index = useQuery({
@@ -127,6 +157,16 @@ export function SchemaProjectionPanel({
     [formalism, schema.data],
   );
 
+  /** Every attribute name this endpoint publishes, when the schema says. */
+  const published = useMemo(() => types.flatMap((type) => type.attributes), [types]);
+  // Hidden names that match nothing published today. Legitimate before a model is compiled, and
+  // a typo the rest of the time; either way the person is told rather than left with a chip that
+  // looks like a withheld attribute.
+  const hidesNothing = useMemo(
+    () => (published.length === 0 ? [] : hidden.filter((name) => !published.includes(name))),
+    [hidden, published],
+  );
+
   const toggle = (attribute: string) => {
     onHiddenChange(
       hidden.includes(attribute)
@@ -137,10 +177,10 @@ export function SchemaProjectionPanel({
 
   return (
     <section aria-labelledby="projection-heading" className="space-y-3">
-      <h3 id="projection-heading" className="text-base font-semibold">
+      <FormHeading id="projection-heading" className="text-base font-semibold">
         {t("endpoints.projection.title")}
-      </h3>
-      <p className="text-sm text-surface-fg/70">{t("endpoints.projection.hint")}</p>
+      </FormHeading>
+      <p className="text-sm text-fg-muted">{t("endpoints.projection.hint")}</p>
 
       <Field id="projection-formalism" label={t("endpoints.projection.formalism")}>
         <Select
@@ -157,16 +197,47 @@ export function SchemaProjectionPanel({
       </Field>
       <p className="break-all font-mono text-caption text-fg-muted">{artifactUrl}</p>
 
-      {index.isPending || schema.isPending ? (
+      {/* The artifact query is `enabled: index.isSuccess`, and a disabled query stays
+          `status: "pending"` for ever: reading `schema.isPending` on its own showed "reading the
+          schema" beside "no schema yet" until the panel was closed (T-1767). */}
+      {index.isPending || (index.isSuccess && schema.isPending) ? (
         <p role="status">{t("endpoints.projection.loading")}</p>
       ) : null}
 
       {index.isError ? (
-        <p className="text-sm text-surface-fg/70">{t("endpoints.projection.unavailable")}</p>
+        <Alert
+          tone="danger"
+          actions={
+            <Button variant="secondary" size="xs" onClick={() => void index.refetch()}>
+              {t("form.listRetry")}
+            </Button>
+          }
+        >
+          {t("endpoints.projection.unavailable")}
+        </Alert>
       ) : null}
 
       {index.isSuccess && schema.isError ? (
-        <p className="text-sm text-surface-fg/70">{t("endpoints.projection.notCompiled")}</p>
+        <Alert
+          tone="warning"
+          actions={
+            <Button variant="secondary" size="xs" onClick={() => void schema.refetch()}>
+              {t("form.listRetry")}
+            </Button>
+          }
+        >
+          {t("endpoints.projection.notCompiled")}
+        </Alert>
+      ) : null}
+
+      {/* The artifact was read and names nothing: not a failure, and not silence either. */}
+      {formalism === "json-schema" && schema.isSuccess && types.length === 0 ? (
+        <EmptyState
+          bare
+          title={t("endpoints.projection.noTypes")}
+          description={t("endpoints.projection.noTypesHint")}
+          icon="models"
+        />
       ) : null}
 
       {formalism !== "json-schema" && schema.isSuccess ? (
@@ -183,9 +254,9 @@ export function SchemaProjectionPanel({
           // The class name is a heading a person reads, and the table's own name for a screen
           // reader: the shared Table hides its caption, so it is written once above and passed in.
           <section key={type.name} aria-labelledby={`projection-${type.name}`} className="space-y-1">
-            <h3 id={`projection-${type.name}`} className="font-medium text-fg">
+            <FormHeading id={`projection-${type.name}`} className="font-medium text-fg">
               {type.name}
-            </h3>
+            </FormHeading>
             <Table caption={type.name}>
               <TableHead>
                 <TableHeaderCell>{t("endpoints.projection.attribute")}</TableHeaderCell>
@@ -205,6 +276,8 @@ export function SchemaProjectionPanel({
                           <span className="sr-only">{`${t("endpoints.projection.hide")} ${attribute}`}</span>
                         }
                         checked={hidden.includes(attribute)}
+                        disabled={refused}
+                        disabledReason={disabledReason}
                         onChange={() => toggle(attribute)}
                       />
                     </TableCell>
@@ -226,24 +299,52 @@ export function SchemaProjectionPanel({
         );
       })}
 
-      <div className="flex items-end gap-2">
-        <Field id="projection-typed" label={t("endpoints.projection.addHidden")} className="flex-1">
+      {/* A text field and the button that takes it: a form, so Enter works and the button is
+          the form's submit rather than a click handler beside an input. */}
+      <form
+        className="flex items-end gap-2"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (refused) return;
+          const name = typed.trim();
+          const wrong = faultOf(name, hidden);
+          if (wrong) {
+            setFault(wrong);
+            typedRef.current?.focus();
+            return;
+          }
+          onHiddenChange([...hidden, name]);
+          setTyped("");
+        }}
+      >
+        <Field
+          id="projection-typed"
+          label={t("endpoints.projection.addHidden")}
+          className="flex-1"
+          help={
+            hidesNothing.length > 0
+              ? t("endpoints.projection.addUnknown", { names: hidesNothing.join(", ") })
+              : published.length > 0
+                ? t("endpoints.projection.addHint")
+                : undefined
+          }
+          errors={fault ? [t(fault)] : undefined}
+        >
           <Input
             id="projection-typed"
+            ref={typedRef}
             value={typed}
-            onChange={(event) => setTyped(event.target.value)}
+            onChange={(event) => {
+              setTyped(event.target.value);
+              setFault(null);
+            }}
           />
         </Field>
-        <Button
-          disabled={typed.trim() === "" || hidden.includes(typed.trim())}
-          onClick={() => {
-            onHiddenChange([...hidden, typed.trim()]);
-            setTyped("");
-          }}
-        >
+        <Button type="submit" disabled={refused} disabledReason={disabledReason}>
           {t("endpoints.projection.add")}
         </Button>
-      </div>
+      </form>
 
       {hidden.length > 0 ? (
         <ul className="flex flex-wrap gap-1">

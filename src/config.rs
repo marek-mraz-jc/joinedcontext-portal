@@ -103,6 +103,12 @@ pub struct Config {
     /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
     pub apps_dir: Option<String>,
+    /// The origin apps are served from (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`; AP-26,
+    /// ADR-N-019). When set, `/apps/*` is served only on that origin and answered with a `308`
+    /// to it on any other host, above all the Portal's own: an app on the Portal origin would
+    /// call the Portal API with the viewer's session (T-2476). `None` serves on every host, as
+    /// a Portal without an edge in front of it does.
+    pub apps_url: Option<Url>,
     /// The file the deployment renders `global.branding` into (`JC_BRANDING_FILE`; UI-30,
     /// OPS-46). `None` serves
     /// neutral joinedcontext defaults, which is what an installation without branding looks
@@ -178,6 +184,7 @@ impl std::fmt::Debug for Config {
             .field("model_tools_url", &self.model_tools_url)
             .field("functions_url", &self.functions_url)
             .field("apps_dir", &self.apps_dir)
+            .field("apps_url", &self.apps_url.as_ref().map(Url::as_str))
             .field("artifact_store", &self.artifact_store)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
@@ -263,6 +270,29 @@ fn pipeline_secret_backend(
             .unwrap_or_else(|| "/var/run/secrets/kubernetes.io/serviceaccount/token".to_owned())
             .into(),
     })
+}
+
+/// `JC_PORTAL_APPS_URL`: an absolute `http(s)` origin with nothing after it. A path would be
+/// dropped by the redirect anyway, so it is refused here rather than silently ignored.
+fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, ConfigError> {
+    let Some(raw) = lookup("JC_PORTAL_APPS_URL").filter(|v| !v.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let invalid = |reason: &str| ConfigError::Invalid {
+        var: "JC_PORTAL_APPS_URL",
+        reason: reason.to_owned(),
+    };
+    let url: Url = raw
+        .trim()
+        .parse()
+        .map_err(|e: url::ParseError| invalid(&e.to_string()))?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err(invalid("an http(s) origin such as https://example.org"));
+    }
+    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
+        return Err(invalid("an origin only, without a path, query or fragment"));
+    }
+    Ok(Some(url))
 }
 
 /// Where an App's objects are applied: `JC_PORTAL_APPS_NAMESPACE` and `JC_PORTAL_ORG_DOMAIN`,
@@ -840,6 +870,7 @@ impl Config {
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
+        let apps_url = apps_url(&lookup)?;
         let app_settings = app_settings(&lookup, &public_base_url);
         let agent_settings = agent_settings(&lookup)?;
         let basemap = basemap_config(&lookup)?;
@@ -893,6 +924,7 @@ impl Config {
             model_tools_url,
             functions_url,
             apps_dir,
+            apps_url,
             branding_file,
             database_url,
             bootstrap_admins,
@@ -933,6 +965,7 @@ impl Config {
             agent_settings: None,
             basemap: None,
             apps_dir: None,
+            apps_url: None,
             branding_file: None,
             database_url: None,
             // The dev realm's approver role: a test session that carries it may do everything,
@@ -960,6 +993,40 @@ mod config_documentation_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_apps_origin_is_an_origin_and_nothing_else() {
+        let with = |value: &'static str| {
+            Config::from_vars(move |name| (name == "JC_PORTAL_APPS_URL").then(|| value.to_owned()))
+        };
+        assert_eq!(Config::from_vars(|_| None).unwrap().apps_url, None);
+        assert_eq!(with("  ").unwrap().apps_url, None);
+        assert_eq!(
+            with("https://example.org")
+                .unwrap()
+                .apps_url
+                .unwrap()
+                .as_str(),
+            "https://example.org/"
+        );
+        for refused in [
+            "example.org",
+            "ftp://example.org",
+            "https://example.org/apps",
+            "https://example.org/?x=1",
+        ] {
+            assert!(
+                matches!(
+                    with(refused),
+                    Err(ConfigError::Invalid {
+                        var: "JC_PORTAL_APPS_URL",
+                        ..
+                    })
+                ),
+                "{refused}"
+            );
+        }
+    }
 
     #[test]
     fn default_values() {

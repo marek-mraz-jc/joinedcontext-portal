@@ -1,3 +1,4 @@
+import { useFormRoute, useOpenFromAddress } from "../components/forms/FormRoute";
 import { useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -306,6 +307,13 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   );
 
   const pipelines = asManifests(list.data?.items ?? []);
+  // On a routed list the editor is a page at `/pipelines/new` and `/pipelines/{name}/edit`
+  // (T-2474): the controls go to the address, and the address opens the editor.
+  const formRoute = useFormRoute();
+  useOpenFromAddress(list.data ? pipelines : undefined, (pipeline) => pipeline.metadata.name, {
+    create: () => openEditor(null),
+    edit: openEditor,
+  });
   // The reason before the person types: a project at its resident-pipeline quota refuses the next
   // one, and until T-1594 it said so only after the form was filled and submitted. The numbers are
   // the API's own (PF-73, PF-75); the page only reads them. The control stays enabled, because a
@@ -324,7 +332,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
             <Button
               variant="primary"
               icon={<Icon name="plus" className="size-4" />}
-              onClick={() => openEditor(null)}
+              onClick={() => (formRoute ? formRoute.openNew() : openEditor(null))}
             >
               {t("pipelines.add")}
             </Button>
@@ -364,7 +372,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
             description={t("pipelines.emptyHint")}
             action={
               <PermissionGuard project={project} kind="Pipeline" verb="propose">
-                <Button variant="primary" onClick={() => openEditor(null)}>
+                <Button variant="primary" onClick={() => (formRoute ? formRoute.openNew() : openEditor(null))}>
                   {t("pipelines.add")}
                 </Button>
               </PermissionGuard>
@@ -428,7 +436,9 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                       plural: "pipelines",
                       name: pipeline.metadata.name,
                     }}
-                    onEdit={() => openEditor(pipeline)}
+                    onEdit={() =>
+                      formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
+                    }
                     primary={
                       <Button
                         size="sm"

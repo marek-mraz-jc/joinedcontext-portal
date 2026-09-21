@@ -17,6 +17,7 @@ import {
 } from "../src/components/endpoints/sharing";
 import type { Manifest } from "../src/api/manifest";
 import { greenVerdict, isCheck } from "./verdict";
+import { findFormPage } from "./formPage";
 
 /**
  * T-0498: sharing across the projects of one organization (EP-14, EP-15, PF-05, UI-01):
@@ -168,7 +169,7 @@ describe("endpoint sharing", () => {
     // The row's actions are behind its one menu now (T-2287).
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findFormPage();
 
     // A checkbox per other project, the one the manifest lists already ticked; no free text.
     const espoo = await within(dialog).findByRole("checkbox", { name: "espoo" });

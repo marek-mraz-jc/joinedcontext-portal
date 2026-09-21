@@ -23,6 +23,7 @@ const PATHS = {
   close: "M6 6l12 12M18 6 6 18",
   chevronDown: "m6 9 6 6 6-6",
   chevronRight: "m9 6 6 6-6 6",
+  chevronLeft: "m15 6-6 6 6 6",
   user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
   plus: "M12 5v14M5 12h14",
   external: "M14 4h6v6M20 4l-9 9M18 13v6H5V6h6",

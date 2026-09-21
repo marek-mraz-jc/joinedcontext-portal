@@ -14,7 +14,8 @@ import { ChangeNotice } from "./ChangeNotice";
 import { SchemaForm } from "./forms/SchemaForm";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
-import { Alert, Button, Dialog, PageFailed, PageLoading } from "./ui";
+import { Alert, Button, PageFailed, PageLoading } from "./ui";
+import { FormFrame, useFormRoute } from "./forms/FormRoute";
 
 const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
 
@@ -38,8 +39,12 @@ export interface EditableForm {
   uiSchema?: UiSchema;
   /** The stored manifest as the form's own model. */
   fromManifest: (manifest: unknown) => Record<string, unknown>;
-  /** The form's model back as the manifest to propose. */
-  toManifest: (form: Record<string, unknown>) => unknown;
+  /**
+   * The form's model back as the manifest to propose. `stored` is the manifest the edit started
+   * from: whatever the form has no field for (a title, a description, a label) is taken from it,
+   * or the edit would propose deleting it (T-2470).
+   */
+  toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
 }
 
 /**
@@ -63,6 +68,7 @@ export function EditResourceDialog({
   form?: EditableForm;
 }): JSX.Element {
   const { t } = useTranslation();
+  const formRoute = useFormRoute();
   const queryClient = useQueryClient();
   const { project, plural, name } = target;
   const home = target.home ?? project;
@@ -88,7 +94,13 @@ export function EditResourceDialog({
       proposeChecked(home, plural, body as { metadata: { name: string } }, false),
     onSuccess: (result) => {
       if (isChange(result)) {
-        setChange(result);
+        // Routed, the save goes back to the list and the change is shown there (T-2474).
+        if (formRoute) {
+          formRoute.leave(<ChangeNotice change={result} project={project} />);
+          close(false);
+        } else {
+          setChange(result);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
@@ -140,7 +152,7 @@ export function EditResourceDialog({
         : null);
 
   return (
-    <Dialog
+    <FormFrame
       open={open}
       onOpenChange={close}
       size="lg"
@@ -217,7 +229,7 @@ export function EditResourceDialog({
                   setEdited((next ?? {}) as Record<string, unknown>);
                   setInvalid(null);
                 }}
-                onSubmit={(next) => proposeManifest(form.toManifest(next))}
+                onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
               />
             ) : null
           ) : (
@@ -237,7 +249,7 @@ export function EditResourceDialog({
           )}
         </div>
       )}
-    </Dialog>
+    </FormFrame>
   );
 }
 
