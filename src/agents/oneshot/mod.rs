@@ -656,8 +656,12 @@ fn with_unread(refused: &[patch::Refused], unread: usize) -> Vec<patch::Refused>
 /// Whether a build problem is patch-protocol talk for the model rather than a build error a
 /// person reads (T-0785).
 fn is_protocol(problem: &str) -> bool {
-    problem.contains("<<<<<<< SEARCH")
+    problem.contains("<<<<<<< SEARCH") || problem.starts_with(NO_BLOCKS)
 }
+
+/// What a repair call is told when the answer changed nothing: the model's business, never the
+/// person's (T-0785).
+const NO_BLOCKS: &str = "the answer carried no SEARCH/REPLACE block";
 
 /// What a repair call is told about blocks it could not read.
 fn unread_problem(unread: usize) -> String {

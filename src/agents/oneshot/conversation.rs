@@ -879,9 +879,20 @@ a removal of its binding with change_resource.
             (prose, errors) = self.apply(files, &answer).await?;
         }
         if !errors.is_empty() {
+            // The person reads what went wrong with the dashboard, never the patch protocol
+            // (T-0785, T-1662).
+            let reasons: Vec<&str> = errors
+                .iter()
+                .map(String::as_str)
+                .filter(|e| !is_protocol(e))
+                .collect();
+            let reasons = if reasons.is_empty() {
+                "the model answered without a change to the specification".to_owned()
+            } else {
+                reasons.join("\n")
+            };
             self.thought(&format!(
-                "Still not a specification the kit can render:\n{}",
-                errors.join("\n")
+                "Still not a specification the kit can render:\n{reasons}"
             ))
             .await?;
             *files = before;
@@ -970,9 +981,9 @@ a removal of its binding with change_resource.
         // itself is missing or wrong, so a stray extra file never costs a second call (AP-58).
         let mut errors: Vec<String> = Vec::new();
         match files.get(kit::SPEC_FILE) {
-            None if blocks.is_empty() => errors.push(
-                "the answer carried no SEARCH/REPLACE block; write spec.json as one block with an empty SEARCH".to_owned(),
-            ),
+            None if blocks.is_empty() => errors.push(format!(
+                "{NO_BLOCKS}; write spec.json as one block with an empty SEARCH"
+            )),
             None => errors.push("spec.json was not written".to_owned()),
             Some(text) => match kit::parse(text) {
                 Err(problems) => errors.extend(problems),
