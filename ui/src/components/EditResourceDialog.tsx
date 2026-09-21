@@ -39,8 +39,9 @@ export interface EditableForm {
   /** The stored manifest as the form's own model. */
   fromManifest: (manifest: unknown) => Record<string, unknown>;
   /**
-   * The form's model back as the manifest to propose. `stored` is the manifest this dialog read, so
-   * a form that shows only part of a kind can write onto it and keep the rest (T-2354).
+   * The form's model back as the manifest to propose. `stored` is the manifest the edit started
+   * from: whatever the form has no field for (a title, a description, a label) is taken from it,
+   * or the edit would propose deleting it (T-2470).
    */
   toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
 }

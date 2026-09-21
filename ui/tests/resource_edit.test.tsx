@@ -21,11 +21,13 @@ const { App } = await import("../src/App");
 const PROJECT = "banskabystrica";
 const NAME = "zvolen-ovzdusie";
 
-const REGISTRATION = {
+// A kind with no form of its own, so its Edit opens the manifest as YAML: that path is what this file
+// holds. It read a ContextSourceRegistration until that kind got its form (T-2345).
+const OFFER = {
   apiVersion: "joinedcontext.com/v1alpha1",
-  kind: "ContextSourceRegistration",
+  kind: "DataOffer",
   metadata: { name: NAME, namespace: PROJECT, title: { en: "Zvolen air quality" } },
-  spec: { contextSpaceRef: "hub", endpoint: "https://zvolen.example/ngsi-ld" },
+  spec: { contextSpaceRef: "hub", purpose: "https://w3id.org/dpv#ResearchAndDevelopment" },
   status: { phase: "Live" },
 };
 
@@ -46,7 +48,7 @@ function renderList(options: { verbs: string[]; answer?: "change" | "invalid" })
       return json({ subject: "s1", username: "jana.kovacova", roles: [] });
     }
     if (path.endsWith("/permissions/me")) {
-      return json({ grants: [{ rule: { kinds: ["ContextSourceRegistration"], verbs: options.verbs } }] });
+      return json({ grants: [{ rule: { kinds: ["DataOffer"], verbs: options.verbs } }] });
     }
     if (request.method === "PUT") {
       return options.answer === "invalid"
@@ -55,18 +57,18 @@ function renderList(options: { verbs: string[]; answer?: "change" | "invalid" })
               type: "https://joinedcontext.com/errors/bad-request",
               title: "Bad Request",
               status: 400,
-              detail: "spec.endpoint must be an https URL",
+              detail: "spec.purpose must be a DPV purpose IRI",
             },
             400,
             "application/problem+json",
           )
         : json(CHANGE, 202);
     }
-    if (path.endsWith(`/csrs/${NAME}`)) {
-      return json(REGISTRATION);
+    if (path.endsWith(`/dataoffers/${NAME}`)) {
+      return json(OFFER);
     }
-    if (path.endsWith("/csrs")) {
-      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [REGISTRATION] });
+    if (path.endsWith("/dataoffers")) {
+      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [OFFER] });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -103,7 +105,7 @@ describe("editing a resource from its list", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     document.cookie = "jc_csrf=csrf-token-value";
-    window.history.pushState({}, "", `/projects/${PROJECT}/csrs`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers`);
   });
 
   afterEach(() => {
@@ -124,27 +126,27 @@ describe("editing a resource from its list", () => {
     const { dialog, yaml } = await openEditor();
     const shown = parseYaml(yaml.value) as Record<string, unknown>;
     expect(shown.status).toBeUndefined();
-    expect(shown.spec).toEqual(REGISTRATION.spec);
+    expect(shown.spec).toEqual(OFFER.spec);
 
     await userEvent.clear(yaml);
-    await userEvent.type(yaml, `kind: ContextSourceRegistration\nmetadata:\n  name: ${NAME}\nspec:\n  contextSpaceRef: air\n`);
+    await userEvent.type(yaml, `kind: DataOffer\nmetadata:\n  name: ${NAME}\nspec:\n  contextSpaceRef: air\n`);
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
 
     expect(await within(dialog).findByText(CHANGE.metadata.name)).toBeInTheDocument();
     const sent = puts(fetchMock);
     expect(sent).toHaveLength(1);
-    expect(new URL(sent[0].url).pathname).toBe(`/api/v1/projects/${PROJECT}/csrs/${NAME}`);
+    expect(new URL(sent[0].url).pathname).toBe(`/api/v1/projects/${PROJECT}/dataoffers/${NAME}`);
     expect(sent[0].headers.get("x-csrf-token")).toBe("csrf-token-value");
     expect((await sent[0].json()).spec).toEqual({ contextSpaceRef: "air" });
     // Checked before it was proposed (PF-57, T-0956).
-    expect(checksSoFar().some((check) => check.includes("/csrs/"))).toBe(true);
+    expect(checksSoFar().some((check) => check.includes("/dataoffers/"))).toBe(true);
   });
 
   it("refuses a renamed manifest before anything is sent", async () => {
     const fetchMock = renderList({ verbs: ["propose"] });
     const { dialog, yaml } = await openEditor();
     await userEvent.clear(yaml);
-    await userEvent.type(yaml, "kind: ContextSourceRegistration\nmetadata:\n  name: banska-ovzdusie\n");
+    await userEvent.type(yaml, "kind: DataOffer\nmetadata:\n  name: banska-ovzdusie\n");
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(`Keep the name ${NAME}`);
@@ -155,20 +157,20 @@ describe("editing a resource from its list", () => {
     renderList({ verbs: ["propose"], answer: "invalid" });
     const { dialog } = await openEditor();
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("spec.endpoint must be an https URL");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("spec.purpose must be a DPV purpose IRI");
   });
 
   it("opens the editor on the change the assistant made, and sends nothing until proposed (AG-77)", async () => {
-    rememberPrefill(`/projects/${PROJECT}/csrs?edit=${NAME}`, {
-      ...REGISTRATION,
+    rememberPrefill(`/projects/${PROJECT}/dataoffers?edit=${NAME}`, {
+      ...OFFER,
       status: undefined,
-      spec: { ...REGISTRATION.spec, contextSpaceRef: "air" },
+      spec: { ...OFFER.spec, contextSpaceRef: "air" },
     });
-    window.history.pushState({}, "", `/projects/${PROJECT}/csrs?edit=${NAME}&draft=${NAME}`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}&draft=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
     const dialog = await screen.findByRole("dialog");
     const yaml = (await within(dialog).findByRole("textbox", { name: "YAML" })) as HTMLTextAreaElement;
-    expect((parseYaml(yaml.value) as { spec: unknown }).spec).toEqual({ ...REGISTRATION.spec, contextSpaceRef: "air" });
+    expect((parseYaml(yaml.value) as { spec: unknown }).spec).toEqual({ ...OFFER.spec, contextSpaceRef: "air" });
     expect(puts(fetchMock)).toHaveLength(0);
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
@@ -177,7 +179,7 @@ describe("editing a resource from its list", () => {
   });
 
   it("opens the editor at once for a page opened to edit one resource", async () => {
-    window.history.pushState({}, "", `/projects/${PROJECT}/csrs?edit=${NAME}`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Edit Zvolen air quality");

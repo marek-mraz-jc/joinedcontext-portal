@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized } from "../api/manifest";
+import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
 import type { Change, Manifest } from "../api/manifest";
 import { useOrgDomain } from "../api/projects";
 import { ChangeNotice } from "../components/ChangeNotice";
@@ -70,15 +70,27 @@ function present<T extends Record<string, unknown>>(members: T): Partial<T> {
  * `assigner` is the data owner and not a box a person fills: an existing policy keeps the one it
  * was written with, and a new one names the organization this project belongs to (R5).
  */
-export function toPolicyEnvelope(project: string, orgDomain: string, form: PolicyForm): unknown {
+export function toPolicyEnvelope(
+  project: string,
+  orgDomain: string,
+  form: PolicyForm,
+  stored?: unknown,
+): unknown {
   const { name, assigner, validity, information, ...rest } = form;
+  // What the form has no field for travels on from the manifest the edit started from (T-2470).
+  const kept = storedMetadata(stored);
+  const labels = {
+    ...((kept.labels as Record<string, string> | undefined) ?? {}),
+    ...(form.contextSpaceRef ? { [SPACE_LABEL]: form.contextSpaceRef } : {}),
+  };
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Policy",
     metadata: {
+      ...kept,
       name,
       namespace: project,
-      ...(form.contextSpaceRef ? { labels: { [SPACE_LABEL]: form.contextSpaceRef } } : {}),
+      ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
       ...present({ ...rest }),
@@ -285,8 +297,8 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                     uiSchema: policyUiSchema,
                     fromManifest: (manifest) =>
                       fromPolicyEnvelope(manifest) as unknown as Record<string, unknown>,
-                    toManifest: (edited) =>
-                      toPolicyEnvelope(project, orgDomain, edited as unknown as PolicyForm),
+                    toManifest: (edited, stored) =>
+                      toPolicyEnvelope(project, orgDomain, edited as unknown as PolicyForm, stored),
                   }}
                 />
               </TableCell>
