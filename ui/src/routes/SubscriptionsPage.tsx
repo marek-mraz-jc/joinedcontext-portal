@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized } from "../api/manifest";
+import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
 import type { Change, Manifest } from "../api/manifest";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
@@ -88,16 +88,30 @@ export function watchesSomething(form: SubscriptionForm): boolean {
   return selectors(form.entities).length > 0 || (form.watchedAttributes ?? []).some((a) => a.trim() !== "");
 }
 
-/** The form as the manifest the API stores. */
-export function toSubscriptionEnvelope(project: string, form: SubscriptionForm): unknown {
+/**
+ * The form as the manifest the API stores. `stored` is the manifest an edit started from: its
+ * title, description and labels travel on, because the form has no field for them and an edit
+ * that dropped them would propose their deletion nobody asked for.
+ */
+export function toSubscriptionEnvelope(
+  project: string,
+  form: SubscriptionForm,
+  stored?: unknown,
+): unknown {
   const { name, contextSpaceRef, entities, isActive, ...rest } = form;
+  const kept = storedMetadata(stored);
+  const labels = {
+    ...((kept.labels as Record<string, string> | undefined) ?? {}),
+    ...(contextSpaceRef ? { [SPACE_LABEL]: contextSpaceRef } : {}),
+  };
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Subscription",
     metadata: {
+      ...kept,
       name,
       namespace: project,
-      ...(contextSpaceRef ? { labels: { [SPACE_LABEL]: contextSpaceRef } } : {}),
+      ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
       ...present(rest as Record<string, unknown>),
@@ -319,7 +333,11 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
                     fromManifest: (manifest) =>
                       fromSubscriptionEnvelope(manifest) as unknown as Record<string, unknown>,
                     toManifest: (edited) =>
-                      toSubscriptionEnvelope(project, edited as unknown as SubscriptionForm),
+                      toSubscriptionEnvelope(
+                        project,
+                        edited as unknown as SubscriptionForm,
+                        subscription,
+                      ),
                   }}
                 />
               </TableCell>

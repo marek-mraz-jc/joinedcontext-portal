@@ -240,6 +240,30 @@ describe("the Subscription manifest the form writes", () => {
     expect(manifest.spec.isActive).toBe(false);
   });
 
+  it("keeps the stored title, description and labels through an edit", () => {
+    const stored = {
+      metadata: {
+        name: "ovzdusie-prekrocenia",
+        namespace: PROJECT,
+        title: "Prekročenia PM10",
+        description: "Pre dispečing.",
+        labels: { "joinedcontext.com/tier": "demo", "joinedcontext.com/space": "stare" },
+      },
+      spec: (toSubscriptionEnvelope(PROJECT, FILLED) as { spec: object }).spec,
+    };
+    const edited = toSubscriptionEnvelope(PROJECT, fromSubscriptionEnvelope(stored), stored) as {
+      metadata: Record<string, unknown>;
+    };
+    expect(edited.metadata.title).toBe("Prekročenia PM10");
+    expect(edited.metadata.description).toBe("Pre dispečing.");
+    // The space label follows the space the form holds; every other label stays.
+    expect(edited.metadata.labels).toEqual({
+      "joinedcontext.com/tier": "demo",
+      "joinedcontext.com/space": "ovzdusie",
+    });
+    expect(edited.metadata.name).toBe("ovzdusie-prekrocenia");
+  });
+
   it("opens a manifest written by hand, with the space as a bare name", () => {
     const back = fromSubscriptionEnvelope({
       metadata: { name: "rucne" },

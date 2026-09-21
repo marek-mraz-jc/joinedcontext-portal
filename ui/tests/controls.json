@@ -476,10 +476,11 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 8
+        "Button": 9
       },
       "tests": [
-        "service_accounts_view.test.tsx"
+        "service_accounts_view.test.tsx",
+        "serviceaccount_form.test.tsx"
       ]
     },
     "src/pages/apps/ActionStep.tsx": {

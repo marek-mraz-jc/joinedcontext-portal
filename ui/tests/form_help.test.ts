@@ -68,6 +68,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
   Group: [kinds.groupSchema(t)],
   Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
+  ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */

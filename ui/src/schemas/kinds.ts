@@ -1744,3 +1744,184 @@ export const subscriptionUiSchema: UiSchema = {
   q: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },
 };
+
+/** What a service account's grant covers, in the order a person narrows it (PF-35). */
+export const ROLE_SCOPE_LEVELS = ["project", "contextSpace", "organization"] as const;
+
+/** How a workload proves itself: a Keycloak client first, a hashed key only for a legacy caller (PF-37). */
+export const CREDENTIAL_KINDS = ["oauth-client", "api-key"] as const;
+
+/** An IPv4 or IPv6 block with its prefix length, as jc-core's `validate_cidr` reads one. */
+export const CIDR_PATTERN = "^[0-9A-Fa-f:.]+/[0-9]{1,3}$";
+
+/**
+ * The `ServiceAccount` a person authors: who answers for it, why it exists, what it may do and
+ * how it signs in (PF-34, PF-35, PF-36, PF-47).
+ *
+ * A credential is declared, never held: `kind` and `name` say which client or key exists, and
+ * the value lives in Keycloak or as an Argon2id hash in the Portal's database, so the form has no
+ * field a secret could be typed into (PF-36). A grant's scope is one of three levels in the
+ * manifest and one choice and one name here: jc-core refuses a scope naming two, and a form with
+ * three optional boxes invites exactly that (`spec.roles.scope`).
+ */
+export function serviceAccountSchema(
+  t: (key: string) => string,
+  spaces: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    required: ["name", "purpose", "owner", "roles", "credentials"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("access.accounts.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      purpose: {
+        type: "string",
+        title: t("access.accounts.field.purpose"),
+        minLength: 1,
+        maxLength: 1024,
+      },
+      owner: {
+        type: "object",
+        title: t("access.accounts.field.owner"),
+        required: ["user"],
+        properties: {
+          user: {
+            type: "string",
+            title: t("access.accounts.field.ownerUser"),
+            minLength: 1,
+            maxLength: 253,
+          },
+        },
+      },
+      roles: {
+        type: "array",
+        title: t("access.accounts.field.roles"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["role", "scope"],
+          properties: {
+            role: {
+              type: "string",
+              title: t("access.accounts.field.role"),
+              pattern: DNS1123,
+              maxLength: 63,
+            },
+            scope: {
+              type: "object",
+              title: t("access.accounts.field.scope"),
+              required: ["level", "name"],
+              properties: {
+                level: {
+                  type: "string",
+                  title: t("access.accounts.field.scopeLevel"),
+                  enum: [...ROLE_SCOPE_LEVELS],
+                  default: "project",
+                },
+                name: {
+                  type: "string",
+                  title: t("access.accounts.field.scopeName"),
+                  pattern: DNS1123,
+                  ...(spaces.length > 0 ? { examples: spaces } : {}),
+                },
+              },
+            },
+            operations: {
+              type: "array",
+              title: t("access.accounts.field.operations"),
+              items: {
+                type: "string",
+                enum: [...new Set([...OPERATION_CHOICES, ...granted])],
+              },
+              uniqueItems: true,
+            },
+            types: {
+              type: "array",
+              title: t("access.accounts.field.types"),
+              items: { type: "string", pattern: ENTITY_TYPE_PATTERN },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      credentials: {
+        type: "array",
+        title: t("access.accounts.field.credentials"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["kind", "name"],
+          properties: {
+            kind: {
+              type: "string",
+              title: t("access.accounts.field.credentialKind"),
+              enum: [...CREDENTIAL_KINDS],
+              default: "oauth-client",
+            },
+            name: {
+              type: "string",
+              title: t("access.accounts.field.credentialName"),
+              pattern: DNS1123,
+              maxLength: 63,
+            },
+            expiresAt: {
+              type: "string",
+              title: t("access.accounts.field.expiresAt"),
+              pattern: RFC3339_PATTERN,
+            },
+            ipAllowList: {
+              type: "array",
+              title: t("access.accounts.field.ipAllowList"),
+              items: { type: "string", pattern: CIDR_PATTERN },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      limits: {
+        type: "object",
+        title: t("access.accounts.field.limits"),
+        properties: {
+          requestsPerMinute: {
+            type: "integer",
+            title: t("access.accounts.field.requestsPerMinute"),
+            minimum: 1,
+          },
+        },
+      },
+      workload: {
+        type: "object",
+        title: t("access.accounts.field.workload"),
+        properties: {
+          kubernetes: {
+            type: "object",
+            title: t("access.accounts.field.kubernetes"),
+            required: ["namespace", "serviceAccount"],
+            properties: {
+              namespace: {
+                type: "string",
+                title: t("access.accounts.field.k8sNamespace"),
+                pattern: DNS1123,
+              },
+              serviceAccount: {
+                type: "string",
+                title: t("access.accounts.field.k8sServiceAccount"),
+                pattern: DNS1123,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+/** The operations picker for each grant, as the Policy form has it (T-2282). */
+export const serviceAccountUiSchema: UiSchema = {
+  roles: { items: { operations: { "ui:widget": "operations" } } },
+};
