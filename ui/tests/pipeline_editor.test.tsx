@@ -258,7 +258,7 @@ const yamlTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name:
 const formTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name: en.form.view.form });
 // Awaited: the editor is loaded lazily, so it is behind a Suspense boundary for a moment.
 const editor = (dialog: HTMLElement) =>
-  within(dialog).findByLabelText("YAML") as Promise<HTMLTextAreaElement>;
+  within(dialog).findByRole("textbox", { name: "YAML" }) as Promise<HTMLTextAreaElement>;
 
 async function replaceYaml(dialog: HTMLElement, text: string) {
   const area = await editor(dialog);
@@ -773,7 +773,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     const pasted = { ...running, status: undefined, spec: { ...running.spec, enabled: false } };
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).

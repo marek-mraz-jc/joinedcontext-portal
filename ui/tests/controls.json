@@ -78,13 +78,14 @@
     },
     "src/components/ResourceFormDialog.tsx": {
       "controls": {
-        "Button": 6,
-        "input": 1
+        "Button": 5,
+        "Checkbox": 1
       },
       "tests": [
         "draft_form.test.tsx",
         "form_asks_the_assistant.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
+        "form_resource_form_dialog.test.tsx",
         "resource_form_dialog.test.tsx"
       ]
     },

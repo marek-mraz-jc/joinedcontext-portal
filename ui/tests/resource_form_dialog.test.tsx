@@ -361,7 +361,7 @@ describe("the dialog's check", () => {
     const onCheck = vi.fn();
     renderWithCheck(onCheck);
     await userEvent.click(screen.getByRole("tab", { name: "YAML" }));
-    const editor = await screen.findByLabelText("YAML");
+    const editor = await screen.findByRole("textbox", { name: "YAML" });
     fireEvent.change(editor, {
       target: {
         value: "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: air\nspec:\n  slug: typed\n  audience: public\n",
@@ -375,7 +375,7 @@ describe("the dialog's check", () => {
     const onCheck = vi.fn();
     renderWithCheck(onCheck);
     await userEvent.click(screen.getByRole("tab", { name: "YAML" }));
-    fireEvent.change(await screen.findByLabelText("YAML"), { target: { value: "metadata: [" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "YAML" }), { target: { value: "metadata: [" } });
     await userEvent.click(screen.getByRole("button", { name: "Check" }));
     expect(onCheck).not.toHaveBeenCalled();
     expect(screen.getByText(/does not parse/)).toBeInTheDocument();
@@ -384,7 +384,7 @@ describe("the dialog's check", () => {
   it("puts what the YAML answered after the editor and just before the buttons (T-1395)", async () => {
     renderWithCheck(vi.fn());
     await userEvent.click(screen.getByRole("tab", { name: "YAML" }));
-    const editor = await screen.findByLabelText("YAML");
+    const editor = await screen.findByRole("textbox", { name: "YAML" });
     fireEvent.change(editor, { target: { value: "metadata: [" } });
     await userEvent.click(screen.getByRole("button", { name: "Check" }));
     const alert = screen.getByText(/does not parse/).closest('[role="alert"]') as HTMLElement;

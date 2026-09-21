@@ -508,7 +508,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     // 300 is no class: the form's select offers 60, 600 and 6000, plus what is stored.
     const pasted = { ...limited, status: undefined, spec: { ...limited.spec, rateLimits: { requestsPerMinute: 300, burst: 50 } } };
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
@@ -539,7 +539,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: en.endpoints.edit }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
-    const editor = await within(dialog).findByLabelText("YAML");
+    const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     const pasted = {
       ...stored,
       status: undefined,

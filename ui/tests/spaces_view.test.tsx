@@ -512,7 +512,7 @@ describe("a viewer on the spaces list", () => {
     expect(name).toHaveAttribute("readonly");
     expect(within(dialog).getByLabelText(new RegExp(`^${en.spaces.field.locale}`))).toBeInTheDocument();
     // Not the manifest as text: that is what a person was handed before.
-    expect(within(dialog).queryByLabelText("YAML")).toBeNull();
+    expect(within(dialog).queryByRole("textbox", { name: "YAML" })).toBeNull();
 
     // And the edit is proposed as a change, from the form's own submit.
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
