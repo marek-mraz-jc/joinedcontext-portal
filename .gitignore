@@ -1,5 +1,7 @@
 target/
 ui/node_modules/
+# A test runner started from the repo root writes its cache here; it is never source.
+/node_modules/
 ui/dist/
 # The reference apps of AP-34 carry the same three build outputs.
 apps/*/ui/node_modules/
