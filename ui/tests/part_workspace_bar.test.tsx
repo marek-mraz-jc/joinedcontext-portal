@@ -7,7 +7,7 @@
  * else's, and a read that was refused. Each is one line and a way out, in the reader's own
  * language and with its date written the way that language writes a date.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -66,6 +66,9 @@ async function bar(overrides: Partial<typeof WORKSPACE> = {}, response?: Respons
       </I18nextProvider>
     </QueryClientProvider>,
   );
+  // The bar is drawn busy from the first frame (T-1489), so the state under test is the one it
+  // settles on once the copy's record has answered.
+  await waitFor(() => expect(screen.queryByTestId("workspace-bar-loading")).toBeNull());
   // The steady bar is a landmark and each notice is a `status`, so both are found by the label
   // they share rather than by one role (T-1254).
   const region = await screen.findByLabelText(i18n.t("workspaces.bar.label"));
