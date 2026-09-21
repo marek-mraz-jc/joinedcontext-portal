@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized } from "../api/manifest";
+import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
 import type { Change, Manifest } from "../api/manifest";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
@@ -71,7 +71,11 @@ export function targetOf(form: Partial<RegistrationForm> | undefined): Registrat
  * A `caller` identity carries no account: the caller's own token is forwarded, and an account
  * beside it would be one that is never used, which jc-core refuses as well.
  */
-export function toRegistrationEnvelope(project: string, form: RegistrationForm): unknown {
+export function toRegistrationEnvelope(
+  project: string,
+  form: RegistrationForm,
+  stored?: unknown,
+): unknown {
   const endpoint = filled(form.endpoint);
   const endpointRef = endpoint ? undefined : filled(form.endpointRef);
   const identity = form.federation?.identity;
@@ -91,13 +95,20 @@ export function toRegistrationEnvelope(project: string, form: RegistrationForm):
       ? { relationshipNames: entry.relationshipNames }
       : {}),
   }));
+  // What the form has no field for travels on from the manifest the edit started from (T-2470).
+  const kept = storedMetadata(stored);
+  const labels = {
+    ...((kept.labels as Record<string, string> | undefined) ?? {}),
+    ...(form.contextSpaceRef ? { [SPACE_LABEL]: form.contextSpaceRef } : {}),
+  };
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: KIND,
     metadata: {
+      ...kept,
       name: form.name,
       namespace: project,
-      ...(form.contextSpaceRef ? { labels: { [SPACE_LABEL]: form.contextSpaceRef } } : {}),
+      ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
       contextSpaceRef: { kind: "ContextSpace", name: form.contextSpaceRef },
@@ -319,8 +330,8 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
                     uiSchema,
                     fromManifest: (manifest) =>
                       fromRegistrationEnvelope(manifest) as unknown as Record<string, unknown>,
-                    toManifest: (edited) =>
-                      toRegistrationEnvelope(project, edited as unknown as RegistrationForm),
+                    toManifest: (edited, stored) =>
+                      toRegistrationEnvelope(project, edited as unknown as RegistrationForm, stored),
                   }}
                 />
               </TableCell>
