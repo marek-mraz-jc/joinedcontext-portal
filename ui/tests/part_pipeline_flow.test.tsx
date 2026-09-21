@@ -90,10 +90,12 @@ describe("the pipeline canvas against the UI contract", () => {
     ).toContain("stroke-border");
   });
 
-  it("marks the selected node with the brand's own colour", () => {
+  it("marks the selected node in a tone of the brand a person can make out", () => {
+    // Not the brand raw: an outline is a graphic, WCAG asks 3:1 of it, and a pale civic brand
+    // left it at 1.67:1 on the page (T-2323, UI-30).
     const { container } = show({ selected: "output" });
     expect(container.querySelector('[data-testid="flow-node-output"] rect')?.getAttribute("class")).toContain(
-      "stroke-primary",
+      "stroke-primary-soft-fg",
     );
   });
 

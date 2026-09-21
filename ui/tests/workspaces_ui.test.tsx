@@ -322,6 +322,17 @@ describe("compare", () => {
     show(<ComparePage project="helsinki" name="air-v2" />);
     expect(await screen.findByText("The copy changes nothing yet.")).toBeInTheDocument();
   });
+
+  // UI-62, T-1503: a comparison the API refuses says the API's own sentence, never an empty copy.
+  it("says the API's reason when the comparison fails, and not that the copy changes nothing", async () => {
+    handler = (_req, url) =>
+      url.pathname.endsWith("/compare")
+        ? json({ title: "Service Unavailable", status: 503, detail: "git forge is not configured" }, 503)
+        : undefined;
+    show(<ComparePage project="helsinki" name="air-v2" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("git forge is not configured");
+    expect(screen.queryByText("The copy changes nothing yet.")).toBeNull();
+  });
 });
 
 describe("bring back", () => {
@@ -383,6 +394,20 @@ describe("bring back", () => {
     await userEvent.click(propose);
     const link = await screen.findByText("chg-00000009");
     expect(link.closest("a")?.getAttribute("href")).toBe("/projects/helsinki/approvals/chg-00000009");
+  });
+
+  // UI-62, T-1503: a bring back whose comparison fails offers no proposal built on nothing.
+  it("says the API's reason when the comparison fails, and offers nothing to propose", async () => {
+    handler = (req, url) => {
+      if (url.pathname.endsWith("/compare"))
+        return json({ title: "Forbidden", status: 403, detail: "no role grants propose on Pipeline in project helsinki (PF-50)" }, 403);
+      if (url.pathname.endsWith("/workspaces/air-v2") && req.method === "GET") return json(WORKSPACE);
+      return undefined;
+    };
+    show(<BringBackPage project="helsinki" name="air-v2" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("no role grants propose on Pipeline");
+    expect(screen.queryByRole("button", { name: "Propose as one change" })).toBeNull();
+    expect(requests.some((r) => r.method === "POST")).toBe(false);
   });
 
   it("gives someone else's copy no buttons", async () => {

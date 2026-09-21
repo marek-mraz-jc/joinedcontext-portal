@@ -133,7 +133,7 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
                 <Link
                   to="/projects/$project/approvals/$id"
                   params={{ project, id: proposal.metadata.name }}
-                  className="focus-ring rounded-sm text-primary hover:underline"
+                  className="focus-ring rounded-sm text-primary-soft-fg hover:underline"
                 >
                   {summaryText}
                 </Link>

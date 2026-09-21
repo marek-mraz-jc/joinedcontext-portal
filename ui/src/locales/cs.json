@@ -505,7 +505,13 @@
       "alias": "alias",
       "gone": "Endpoint už není sdílený",
       "goneSource": "Zdroj nedostupný",
-      "emptyHint": "Jiný projekt může tomuto dovolit čist svůj endpoint bez kopírování dat. S tímto projektem zatím nikdo nic nesdílí."
+      "emptyHint": "Jiný projekt může tomuto dovolit čist svůj endpoint bez kopírování dat. S tímto projektem zatím nikdo nic nesdílí.",
+      "edit": {
+        "alias": "Alias",
+        "aliasHelp": "Název, pod kterým tento projekt čte sdílený prostor; používají jej zdejší dotazy a pipeliny.",
+        "interval": "Interval zrcadlení",
+        "intervalHelp": "Jak často se sem zrcadlí schéma zdroje, například 6h nebo 1d; prázdné znamená jednou denně."
+      }
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
