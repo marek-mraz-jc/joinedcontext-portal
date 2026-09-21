@@ -127,7 +127,7 @@ pub async fn list(
     };
 
     let page = match query.workspace.as_deref() {
-        Some(name) => crate::ops::workspaces::mirror_of(&state, name, &project)
+        Some(name) => crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
             .await?
             .list(&project, kind_info.kind, &opts),
         None => state.mirror.list(&project, kind_info.kind, &opts),
@@ -185,9 +185,11 @@ pub async fn get_resource(
         return Err(not_found());
     }
     let envelope = match query.workspace.as_deref() {
-        Some(workspace) => crate::ops::workspaces::mirror_of(&state, workspace, &project)
-            .await?
-            .get(&project, kind_info.kind, &name),
+        Some(workspace) => {
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, workspace, &project)
+                .await?
+                .get(&project, kind_info.kind, &name)
+        }
         None => state.mirror.get(&project, kind_info.kind, &name),
     }
     .ok_or_else(not_found)?;

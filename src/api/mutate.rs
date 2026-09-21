@@ -1336,7 +1336,8 @@ pub async fn patch(
 
     let mirror = match dry_run_q.workspace.as_deref() {
         Some(workspace) => std::sync::Arc::new(
-            crate::ops::workspaces::mirror_of(&state, workspace, &project).await?,
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, workspace, &project)
+                .await?,
         ),
         None => state.mirror.clone(),
     };

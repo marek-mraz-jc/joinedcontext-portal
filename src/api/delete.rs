@@ -217,9 +217,9 @@ pub async fn delete_with_identity(
     let kind_info = resource::by_plural(plural).ok_or_else(not_found)?;
     // Inside a workspace the resource and what references it are read on its branch (CC-76).
     let mirror = match workspace {
-        Some(workspace) => {
-            std::sync::Arc::new(crate::ops::workspaces::mirror_of(state, workspace, project).await?)
-        }
+        Some(workspace) => std::sync::Arc::new(
+            crate::ops::workspaces::mirror_of(state, identity, workspace, project).await?,
+        ),
         None => state.mirror.clone(),
     };
     let envelope = mirror

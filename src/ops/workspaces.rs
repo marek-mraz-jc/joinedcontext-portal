@@ -451,27 +451,18 @@ impl WorkspaceStore {
 /// Two trees are compared by blob id, so only the files the workspace touched are read. A
 /// workspace whose branch has no commit yet reads as `main`. Not persisted: it is computed for
 /// the request that asks.
+///
+/// The workspace is resolved through [`visible`], so a copy `identity` may not see answers with
+/// the one sentence of a name nobody holds, through every route that takes `?workspace=`, and
+/// none of its branch is read (T-2562, PF-59, R20).
 pub async fn mirror_of(
     state: &crate::state::AppState,
+    identity: &Identity,
     name: &str,
     project: &str,
 ) -> Result<crate::store::Mirror, crate::error::ApiError> {
     use crate::error::ApiError;
-    // The same one sentence for every miss as [`visible`], for the same reason: this is the
-    // workspace-scoped read of the resource API, so a name held in another project must not be
-    // distinguishable here from a name nobody has (T-2296, PF-59, R20).
-    let missing = || {
-        ApiError::NotFound(format!(
-            "no workspace named '{name}' in project '{project}'"
-        ))
-    };
-    let workspace = state.workspaces.live(name).await.map_err(|err| match err {
-        WorkspaceError::NotFound(_) => missing(),
-        other => ApiError::from(other),
-    })?;
-    if workspace.project != project {
-        return Err(missing());
-    }
+    let workspace = visible(state, identity, project, name).await?;
     let gitea = state
         .gitea
         .as_deref()

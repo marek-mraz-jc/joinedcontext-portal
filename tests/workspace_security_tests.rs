@@ -195,3 +195,55 @@ async fn a_space_reader_sees_a_workspace_of_resources_in_their_space() {
     let (_, names) = listed(&state, grouped("bo", "bikes-readers")).await;
     assert_eq!(names, ["endpoints"], "its one Endpoint lives in bikes");
 }
+
+/// T-2562, PF-59, R20: a copy hidden from the caller is not there on the resource routes
+/// either: the same 404 as a name nobody holds, nothing read.
+#[tokio::test]
+async fn a_hidden_copy_is_not_read_through_the_workspace_query() {
+    let state = world().await;
+    let bikes = grouped("bo", "bikes-readers");
+    for plural in ["spaces", "pipelines", "endpoints"] {
+        let hidden = send(
+            &state,
+            bikes.clone(),
+            "GET",
+            &format!("/api/v1/projects/helsinki/{plural}?workspace=whole"),
+            None,
+        )
+        .await;
+        let nobody = send(
+            &state,
+            bikes.clone(),
+            "GET",
+            &format!("/api/v1/projects/helsinki/{plural}?workspace=nobody-has-this"),
+            None,
+        )
+        .await;
+        assert_eq!(
+            hidden.status,
+            StatusCode::NOT_FOUND,
+            "{plural}: {}",
+            hidden.text
+        );
+        assert_eq!(
+            hidden.text.replace("whole", "…"),
+            nobody.text.replace("nobody-has-this", "…"),
+            "{plural}"
+        );
+    }
+    // The owner and a project reader still read it.
+    for who in [
+        grouped("jana", "pipeline-readers"),
+        grouped("pete", "project-readers"),
+    ] {
+        let answer = send(
+            &state,
+            who,
+            "GET",
+            "/api/v1/projects/helsinki/pipelines?workspace=whole",
+            None,
+        )
+        .await;
+        assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    }
+}

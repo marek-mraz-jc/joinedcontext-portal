@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
+use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::git::GiteaClient;
 use joinedcontext_portal::ops::workspaces::{mirror_of, Opening, Scope};
@@ -144,6 +145,19 @@ async fn world(open: bool, branch_exists: bool) -> (MockServer, AppState) {
     (server, state)
 }
 
+/// The owner of the copy the world opens, with the bootstrap role so the project reads (T-2562:
+/// `mirror_of` resolves the copy as this caller sees it).
+fn jana(state: &AppState) -> Identity {
+    Identity {
+        subject: "jana".into(),
+        username: "jana".into(),
+        email: Some("jana@hel.fi".into()),
+        name: None,
+        roles: vec![state.config.bootstrap_admins.clone()],
+        groups: vec![],
+    }
+}
+
 fn period(view: &joinedcontext_portal::store::Mirror, name: &str) -> Option<String> {
     view.get("helsinki", "Pipeline", name)
         .map(|e| e.spec["period"].as_str().unwrap().to_owned())
@@ -152,7 +166,7 @@ fn period(view: &joinedcontext_portal::store::Mirror, name: &str) -> Option<Stri
 #[tokio::test]
 async fn workspace_mirror_shows_workspace_manifest_and_wins_on_conflict() {
     let (_server, state) = world(true, true).await;
-    let view = mirror_of(&state, "bikes-v2", "helsinki")
+    let view = mirror_of(&state, &jana(&state), "bikes-v2", "helsinki")
         .await
         .expect("the view");
     assert_eq!(
@@ -175,7 +189,9 @@ async fn workspace_mirror_shows_workspace_manifest_and_wins_on_conflict() {
 #[tokio::test]
 async fn workspace_mirror_falls_back_to_main_and_drops_what_it_removed() {
     let (_server, state) = world(true, true).await;
-    let view = mirror_of(&state, "bikes-v2", "helsinki").await.unwrap();
+    let view = mirror_of(&state, &jana(&state), "bikes-v2", "helsinki")
+        .await
+        .unwrap();
     assert_eq!(
         period(&view, "b").as_deref(),
         Some("60s"),
@@ -188,7 +204,9 @@ async fn workspace_mirror_falls_back_to_main_and_drops_what_it_removed() {
 #[tokio::test]
 async fn a_workspace_with_no_commit_yet_reads_as_main() {
     let (_server, state) = world(true, false).await;
-    let view = mirror_of(&state, "bikes-v2", "helsinki").await.unwrap();
+    let view = mirror_of(&state, &jana(&state), "bikes-v2", "helsinki")
+        .await
+        .unwrap();
     assert_eq!(period(&view, "a").as_deref(), Some("60s"));
     assert_eq!(period(&view, "c"), None);
 }
@@ -196,12 +214,12 @@ async fn a_workspace_with_no_commit_yet_reads_as_main() {
 #[tokio::test]
 async fn an_unknown_workspace_or_another_projects_is_not_found() {
     let (_server, state) = world(false, true).await;
-    let Err(err) = mirror_of(&state, "bikes-v2", "helsinki").await else {
+    let Err(err) = mirror_of(&state, &jana(&state), "bikes-v2", "helsinki").await else {
         panic!("no workspace was opened")
     };
     assert!(err.to_string().contains("bikes-v2"), "{err}");
     let (_server, state) = world(true, true).await;
-    let Err(err) = mirror_of(&state, "bikes-v2", "espoo").await else {
+    let Err(err) = mirror_of(&state, &jana(&state), "bikes-v2", "espoo").await else {
         panic!("the workspace is helsinki's")
     };
     assert!(err.to_string().contains("espoo"), "{err}");
@@ -211,7 +229,9 @@ async fn an_unknown_workspace_or_another_projects_is_not_found() {
 async fn what_main_changed_after_the_workspace_opened_reads_as_main() {
     let (_server, state) = world(true, true).await;
     state.mirror.upsert(envelope("b", "90s"));
-    let view = mirror_of(&state, "bikes-v2", "helsinki").await.unwrap();
+    let view = mirror_of(&state, &jana(&state), "bikes-v2", "helsinki")
+        .await
+        .unwrap();
     assert_eq!(
         period(&view, "b").as_deref(),
         Some("90s"),
