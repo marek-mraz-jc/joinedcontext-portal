@@ -3,6 +3,8 @@
 //! The token contributes identity only (`sub`, e-mail, username, groups); no permission is
 //! read from it. A caller without a binding reads and proposes nothing.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use jc_core::kinds::{
     Constraint, RoleBindingSpec, RoleScope, RoleSpec, Rule, ServiceAccountSpec, Verb,
@@ -407,6 +409,123 @@ fn subjects_name_a_group(mirror: &Mirror, manifest: &Value) -> Result<(), ApiErr
     Ok(())
 }
 
+/// A change to the organization's access, as the PF-03 guard reads it: a manifest written, or
+/// one removed.
+pub enum AccessChange<'a> {
+    Write(&'a Value),
+    Remove {
+        kind: &'a str,
+        namespace: &'a str,
+        name: &'a str,
+    },
+}
+
+/// PF-03: the organization keeps at least one administrator. A change that would take the last
+/// one away is refused before anything is written or merged, on every door that writes or removes
+/// a `Role` or `RoleBinding`.
+///
+/// An administrator is who can hand access out and take it back: a binding at organization scope,
+/// in force and naming somebody, whose organization role grants `approve` and `delete` on
+/// `RoleBinding` with no constraint. The role is read by what it grants rather than by the name
+/// `org-admin`, because the taxonomy is a seed an organization extends (PF-56). An organization
+/// that has none yet (it runs on the bootstrap group) is not held to it: the guard stops the last
+/// one from going, it does not demand a first.
+pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Result<(), ApiError> {
+    let (kind, namespace, name, written) = match change {
+        AccessChange::Write(manifest) => (
+            manifest
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            manifest
+                .pointer("/metadata/namespace")
+                .and_then(Value::as_str)
+                .unwrap_or(ORG_NAMESPACE),
+            manifest
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            manifest.get("spec").cloned(),
+        ),
+        AccessChange::Remove {
+            kind,
+            namespace,
+            name,
+        } => (kind, namespace, name, None),
+    };
+    if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
+        return Ok(());
+    }
+    let mut roles: BTreeMap<String, Value> = mirror
+        .list(ORG_NAMESPACE, "Role", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| (env.metadata.name, env.spec))
+        .collect();
+    let mut bindings: BTreeMap<String, Value> = mirror
+        .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| (env.metadata.name, env.spec))
+        .collect();
+    let now = Utc::now();
+    let before = administrators(&roles, &bindings, now);
+    if before.is_empty() {
+        return Ok(());
+    }
+    let table = if kind == "Role" {
+        &mut roles
+    } else {
+        &mut bindings
+    };
+    match written {
+        Some(spec) => table.insert(name.to_owned(), spec),
+        None => table.remove(name),
+    };
+    if administrators(&roles, &bindings, now).is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "this change would leave the organization without an administrator: after it, no \
+             binding at organization scope grants approve and delete on RoleBinding (today: {}). \
+             Bind another person to such a role first, then make this change (PF-03)",
+            before.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// The organization bindings that make somebody an administrator, by name (PF-03).
+fn administrators(
+    roles: &BTreeMap<String, Value>,
+    bindings: &BTreeMap<String, Value>,
+    now: DateTime<Utc>,
+) -> Vec<String> {
+    let administers = |role: &str| {
+        roles
+            .get(role)
+            .and_then(|spec| serde_json::from_value::<RoleSpec>(spec.clone()).ok())
+            .is_some_and(|spec| {
+                spec.rules.iter().any(|rule| {
+                    rule.constraints.is_empty()
+                        && rule.kinds.iter().any(|kind| kind == "RoleBinding")
+                        && rule.verbs.contains(&Verb::Approve)
+                        && rule.verbs.contains(&Verb::Delete)
+                })
+            })
+    };
+    bindings
+        .iter()
+        .filter_map(|(name, spec)| {
+            let binding: RoleBindingSpec = serde_json::from_value(spec.clone()).ok()?;
+            let in_force = binding.validity.as_ref().is_none_or(|v| v.contains(now));
+            (binding.scope.organization.is_some()
+                && !binding.subjects.is_empty()
+                && in_force
+                && administers(&binding.role))
+            .then(|| name.clone())
+        })
+        .collect()
+}
+
 /// Nobody grants above their own rights (PF-52, AG-77): every verb on every kind a proposed
 /// `Role` (on the organization), `RoleBinding` (on its scope) or `ServiceAccount` (through each of
 /// its roles the organization defines, on that role's scope) would grant must be one `identity`
@@ -423,6 +542,7 @@ pub fn within_own_rights(
     // is the gate every door to a `users/` manifest passes through — the resource route, an
     // import, a blueprint and an approval.
     subjects_name_a_group(mirror, manifest)?;
+    keeps_an_administrator(mirror, AccessChange::Write(manifest))?;
     let spec = manifest.get("spec").cloned().unwrap_or(Value::Null);
     let unreadable = |e: serde_json::Error| ApiError::BadRequest(format!("spec: {e}"));
     let no_scope = || {

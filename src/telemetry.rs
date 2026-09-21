@@ -1,4 +1,5 @@
-//! The Portal's own Prometheus surface (OPS-16, TS-22).
+//! The Portal's own Prometheus surface (OPS-16, TS-22), and the one log format it writes
+//! (OPS-15, [`log_subscriber`]).
 //!
 //! `components/monitoring` scrapes `/metrics` on the Portal's `http` port every fifteen
 //! seconds. That is the same port APISIX publishes the Portal on, so the edge refuses this
@@ -20,12 +21,35 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::EnvFilter;
 
 use crate::change::Lane;
 use crate::state::AppState;
 
 /// The Prometheus text format, the version every scraper since 2014 reads.
 pub const TEXT_FORMAT: &str = "text/plain; version=0.0.4";
+
+/// OPS-15: one JSON object per line, the event's fields at the top level beside `level`,
+/// `target` and `timestamp`, written to `writer` (stdout in the binary) and never to a file.
+pub fn log_subscriber<W>(writer: W, filter: EnvFilter) -> impl tracing::Subscriber + Send + Sync
+where
+    W: for<'w> MakeWriter<'w> + Send + Sync + 'static,
+{
+    tracing_subscriber::fmt()
+        .json()
+        .flatten_event(true)
+        .with_env_filter(filter)
+        .with_writer(writer)
+        .finish()
+}
+
+/// `RUST_LOG`, or `info` and above when it is unset, empty or unreadable.
+pub fn log_filter() -> EnvFilter {
+    EnvFilter::builder()
+        .with_default_directive(tracing::level_filters::LevelFilter::INFO.into())
+        .from_env_lossy()
+}
 
 /// Requests the Portal answered, by route and status.
 const REQUESTS: &str = "jc_portal_requests_total";
@@ -158,4 +182,55 @@ pub async fn record(request: Request, next: Next) -> Response {
 /// request of anyone's and is refused at the edge.
 pub fn router() -> Router<AppState> {
     Router::new().route("/metrics", get(metrics))
+}
+
+#[cfg(test)]
+mod log_tests {
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+
+    use serde_json::Value;
+
+    use tracing_subscriber::EnvFilter;
+
+    use super::log_subscriber;
+
+    #[derive(Clone, Default)]
+    struct Buffer(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Buffer {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("buffer").extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// OPS-15: every line the Portal logs is one JSON object a collector parses without a
+    /// pattern, and what is below the level is not written at all.
+    #[test]
+    fn every_log_line_is_one_json_object_and_debug_stays_out() {
+        let buffer = Buffer::default();
+        let writer = buffer.clone();
+        tracing::subscriber::with_default(
+            log_subscriber(move || writer.clone(), EnvFilter::new("info")),
+            || {
+                tracing::info!(project = "ovzdusie", status = 409, "change refused");
+                tracing::debug!("not written at info");
+            },
+        );
+        let written = String::from_utf8(buffer.0.lock().expect("buffer").clone()).expect("utf-8");
+        let lines: Vec<Value> = written
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap_or_else(|e| panic!("{e}: {line}")))
+            .collect();
+        assert_eq!(lines.len(), 1, "{written}");
+        assert_eq!(lines[0]["level"], "INFO");
+        assert_eq!(lines[0]["message"], "change refused");
+        assert_eq!(lines[0]["project"], "ovzdusie");
+        assert_eq!(lines[0]["status"], 409);
+        assert!(lines[0]["timestamp"].is_string(), "{written}");
+    }
 }
