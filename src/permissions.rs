@@ -139,6 +139,17 @@ impl Effective {
             })
     }
 
+    /// Whether some grant here lets the caller `verb` on `kind` at all, whatever the content:
+    /// the question asked before a manifest is read, so a caller without the right learns
+    /// nothing of the kind's schema (T-2576, PF-50). The content is judged by [`Self::check`].
+    pub fn may(&self, kind: &str, verb: Verb) -> bool {
+        self.bootstrap
+            || self
+                .grants
+                .iter()
+                .any(|grant| grant.rule.grants(kind, verb))
+    }
+
     /// Whether the caller may read `kind` here (PF-59). `propose` on a kind implies `read` on
     /// it, which is what keeps a role written before the verb working (jc-core `Rule::grants`).
     pub fn may_read(&self, kind: &str) -> bool {
