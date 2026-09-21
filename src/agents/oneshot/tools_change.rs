@@ -345,6 +345,63 @@ impl Driver {
         .await
     }
 
+    /// Every manifest `new_dashboard` drafted through the platform's dry run, in order; the first
+    /// refusal comes back with the manifest it refused.
+    ///
+    /// The dashboard is dry-run against a copy of the mirror that already holds the layers
+    /// drafted beside it, since they land in its one proposal (T-2553): every check, UI-19's
+    /// included, sees the dashboard as it will be, so a new layer on a non-public endpoint is
+    /// refused exactly like an existing one. The mirror itself is not touched.
+    pub(super) async fn dry_run_drafted(&self, drafted: &[Value]) -> Result<(), (String, Value)> {
+        let refuse = |manifest: &Value, findings: String| {
+            (
+                format!(
+                    "the platform's check refuses {} '{}': {findings}",
+                    manifest["kind"].as_str().unwrap_or_default(),
+                    manifest["metadata"]["name"].as_str().unwrap_or_default()
+                ),
+                manifest.clone(),
+            )
+        };
+        let mut beside = self.state.clone();
+        let view = self.state.mirror.snapshot();
+        for layer in drafted
+            .iter()
+            .filter(|manifest| manifest["kind"] == "Layer")
+        {
+            let envelope =
+                serde_json::from_value::<crate::resource::ResourceEnvelope>(layer.clone())
+                    .map_err(|err| refuse(layer, err.to_string()))?;
+            view.upsert(envelope);
+        }
+        beside.mirror = std::sync::Arc::new(view);
+        for manifest in drafted {
+            let state = if manifest["kind"] == "Dashboard" {
+                &beside
+            } else {
+                &self.state
+            };
+            match crate::api::dry_run::execute_dry_run(
+                &self.identity,
+                state,
+                &self.project,
+                manifest.clone(),
+            )
+            .await
+            {
+                Ok(result) if result.valid => {}
+                Ok(result) => {
+                    return Err(refuse(
+                        manifest,
+                        serde_json::to_string(&result.plan).unwrap_or_default(),
+                    ))
+                }
+                Err(err) => return Err(refuse(manifest, err.to_string())),
+            }
+        }
+        Ok(())
+    }
+
     /// A new dashboard with the new layers its pages draw (AG-77, UI-17, UI-18). Every manifest
     /// passes the dry run and is kept as the person's draft, and the dashboard editor opens on
     /// the dashboard; its one proposal carries the layers with it. What the model got wrong goes
@@ -383,35 +440,16 @@ impl Driver {
                     .await;
             }
         };
-        for manifest in &drafted {
-            let refused = match crate::api::dry_run::execute_dry_run(
-                &self.identity,
-                &self.state,
-                &self.project,
-                manifest.clone(),
-            )
-            .await
-            {
-                Ok(result) if result.valid => None,
-                Ok(result) => Some(serde_json::to_string(&result.plan).unwrap_or_default()),
-                Err(err) => Some(err.to_string()),
-            };
-            if let Some(findings) = refused {
-                let reason = format!(
-                    "the platform's check refuses {} '{}': {findings}",
-                    manifest["kind"].as_str().unwrap_or_default(),
-                    manifest["metadata"]["name"].as_str().unwrap_or_default()
-                );
-                self.event("tool", failed_step(TOOL, started, &input, &reason))
-                    .await?;
-                return self
-                    .again(
-                        last,
-                        format!("error: {reason}; the manifest was {manifest}"),
-                        format!("The dashboard does not pass the platform's check: {reason}"),
-                    )
-                    .await;
-            }
+        if let Err((reason, manifest)) = self.dry_run_drafted(&drafted).await {
+            self.event("tool", failed_step(TOOL, started, &input, &reason))
+                .await?;
+            return self
+                .again(
+                    last,
+                    format!("error: {reason}; the manifest was {manifest}"),
+                    format!("The dashboard does not pass the platform's check: {reason}"),
+                )
+                .await;
         }
         for manifest in &drafted {
             let kind = manifest["kind"].as_str().unwrap_or_default();
@@ -1611,20 +1649,7 @@ mod new_dashboard_tests {
             .new_dashboard("Dashboard", &params.name, params)
             .await
             .expect("drafted");
-        for manifest in manifests {
-            match crate::api::dry_run::execute_dry_run(
-                &driver.identity,
-                &driver.state,
-                "helsinki",
-                manifest,
-            )
-            .await
-            {
-                Ok(result) if result.valid => {}
-                _ => return true,
-            }
-        }
-        false
+        driver.dry_run_drafted(&manifests).await.is_err()
     }
 
     fn layer(name: &str, endpoint: &str, extra: Value) -> NewLayer {
@@ -1669,6 +1694,23 @@ mod new_dashboard_tests {
                     })
                     .collect()
             })
+    }
+
+    /// T-2553, UI-18, UI-19: a public dashboard over new public layers passes the platform's check.
+    #[tokio::test]
+    async fn a_public_dashboard_over_new_public_layers_is_drafted() {
+        let (driver, _forge) = world().await;
+        let params = create(
+            "public",
+            &["new"],
+            vec![layer("new", "bikes-open", json!({}))],
+        );
+        let manifests = driver
+            .new_dashboard("Dashboard", &params.name, &params)
+            .await
+            .expect("drafted");
+        let checked = driver.dry_run_drafted(&manifests).await;
+        assert!(checked.is_ok(), "{checked:?}");
     }
 
     /// T-2514, UI-19: a public dashboard reads only public endpoints, whether its layer is new
