@@ -7,7 +7,8 @@
     },
     "src/components/ResourceFormDialog.tsx": {
       "lines": 2,
-      "group": "ui-forms"
+      "group": "ui-forms",
+      "reason": "two react-hooks suppressions, each with its reason on the line: the draft write keys on currentDigest, the manifest a page builds around the form, which the rule cannot see; and the YAML submit's queue is consumed in the render after onChange so the parent's widened schema judges what was typed (T-0890)"
     },
     "src/components/dashboards/MapLibreView.tsx": {
       "lines": 1,
@@ -47,13 +48,9 @@
     "_max": 1
   },
   "hand_made_control": {
-    "_max": 24,
+    "_max": 23,
     "src/assistant/AssistantDock.tsx": {
       "lines": 10,
-      "group": "ui-forms"
-    },
-    "src/components/ResourceFormDialog.tsx": {
-      "lines": 1,
       "group": "ui-forms"
     },
     "src/components/forms/widgets/ListFailed.tsx": {

@@ -143,6 +143,9 @@ function Input(
           : clsx(CONTROL, "h-9 px-3", numeric && "tabular-nums")
       }
       aria-invalid={hasErrors ? "true" : undefined}
+      // Said to assistive technology in so many words, as `Field` says it for every hand-built
+      // control: the star in the label is drawn, not read (UI-15, T-1753).
+      aria-required={props.required || undefined}
     />
   );
 }
@@ -558,6 +561,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
       multiple={multiple}
       value={selected as string | string[]}
       required={required}
+      aria-required={required || undefined}
       disabled={disabled || readonly}
       aria-invalid={hasErrors ? "true" : undefined}
       aria-describedby={ariaDescribedByIds(id)}
@@ -592,6 +596,7 @@ export function TextareaWidget(props: WidgetProps): React.JSX.Element {
       value={typeof value === "string" ? value : (value ?? "")}
       placeholder={placeholder}
       required={required}
+      aria-required={required || undefined}
       disabled={disabled}
       readOnly={readonly}
       rows={typeof options.rows === "number" ? options.rows : undefined}

@@ -112,7 +112,7 @@ describe("renaming a resource that exists", () => {
     expect(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.name}`))).toHaveAttribute("readonly");
 
     await userEvent.click(within(dialog).getByRole("tab", { name: en.form.view.yaml }));
-    const yaml = await within(dialog).findByLabelText("YAML");
+    const yaml = await within(dialog).findByRole("textbox", { name: "YAML" });
     await userEvent.clear(yaml);
     await userEvent.click(yaml);
     // `paste`, not `type`: userEvent reads `{` and `[` in the text as key descriptors.

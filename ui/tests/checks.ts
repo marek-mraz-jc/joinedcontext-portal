@@ -120,8 +120,13 @@ const FOCUSABLE = [
 export function focusables(container: HTMLElement): HTMLElement[] {
   // jsdom has no layout, so `offsetParent` is null for everything here; what is hidden from the
   // keyboard is hidden in the markup instead — `hidden`, `aria-hidden`, or a closed `<details>`.
+  // A tab list is one stop: the selected tab holds it and the others are `tabindex="-1"`, reached
+  // by the arrow keys (the roving tabindex of `Tabs`). Only an unselected tab is exempt, so a
+  // button someone took out of the tab order by mistake still fails.
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (element) => element.closest("[hidden],[aria-hidden=true]") === null,
+    (element) =>
+      element.closest("[hidden],[aria-hidden=true]") === null &&
+      !(element.getAttribute("role") === "tab" && element.getAttribute("tabindex") === "-1"),
   );
 }
 
