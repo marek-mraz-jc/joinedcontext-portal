@@ -10,9 +10,7 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
-use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, State};
-use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
 use axum::{Json, Router};
 use jc_core::kinds::{PipelineSpec, Verb};
@@ -37,7 +35,7 @@ const DEADLINE: Duration = Duration::from_secs(3);
 /// Silence after the last captured message that ends the wait early.
 const QUIET: Duration = Duration::from_millis(300);
 /// The request body: the sample's five mebibytes plus the manifest and the JSON around them.
-const BODY_LIMIT: usize = MAX_SAMPLE_BYTES + 1024 * 1024;
+pub(crate) const BODY_LIMIT: usize = MAX_SAMPLE_BYTES + 1024 * 1024;
 
 /// The request of API/01 §7a.
 #[derive(Debug, Deserialize)]
@@ -48,13 +46,14 @@ pub struct TestRequest {
 }
 
 /// A test in flight: which project it belongs to and where its captured messages go.
-struct Running {
+pub(crate) struct Running {
     project: String,
-    sender: mpsc::UnboundedSender<Captured>,
+    pub(crate) sender: mpsc::UnboundedSender<Captured>,
 }
 
 /// One test per project at a time, keyed by the test id the capture route is called with.
-static RUNNING: LazyLock<Mutex<HashMap<String, Running>>> = LazyLock::new(Mutex::default);
+pub(crate) static RUNNING: LazyLock<Mutex<HashMap<String, Running>>> =
+    LazyLock::new(Mutex::default);
 
 /// Holds the project's slot while the test runs and frees it however the test ends.
 struct Slot(String);
@@ -387,61 +386,18 @@ fn outcome_of(error: &str) -> String {
     }
 }
 
-/// `POST /internal/pipeline-tests/{id}`: what the harness produced, one message per call.
-///
-/// The id is 130 random bits minted for this test and known to the harness alone, so it is a
-/// capability of its own; a message for a test that is not running is dropped with a 404. Since
-/// T-2271 the caller is named as well: the project's pipeline runner presents its own ServiceAccount
-/// token, audience-bound to this listener, and a call with no identity gets the 401 it deserves
-/// rather than a 404 that only says "no such test" (AG-52).
-pub async fn capture(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> StatusCode {
-    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
-        .await
-        .is_err()
-    {
-        return StatusCode::UNAUTHORIZED;
-    }
-    captured(&id, &body)
-}
-
-/// What the capture does once the caller is known: the message, or why it went nowhere.
-fn captured(id: &str, body: &Bytes) -> StatusCode {
-    let Ok(message) = serde_json::from_slice::<Captured>(body) else {
-        return StatusCode::BAD_REQUEST;
-    };
-    let sent = RUNNING
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(id)
-        .map(|running| running.sender.send(message).is_ok());
-    match sent {
-        Some(true) => StatusCode::NO_CONTENT,
-        _ => StatusCode::NOT_FOUND,
-    }
-}
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/projects/{project}/pipelines/test", post(test_pipeline))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }
 
-pub fn internal_router() -> Router<AppState> {
-    // The harness posts a whole fetched feed back as one message, so the capture route takes
-    // what the test route takes; axum's default two mebibytes turned a 1.2 MB feed into 413.
-    Router::new()
-        .route("/internal/pipeline-tests/{id}", post(capture))
-        .layer(DefaultBodyLimit::max(BODY_LIMIT))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::internal::pipeline_tests::captured;
+    use axum::body::Bytes;
+    use axum::http::StatusCode;
     use serde_json::json;
 
     fn harness_for(sample: Sample) -> Value {
