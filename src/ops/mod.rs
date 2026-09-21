@@ -431,24 +431,28 @@ async fn draft_workspace_visible(
     Ok(())
 }
 
-fn draft_error(err: DraftError) -> OpError {
-    match err {
-        DraftError::Conflict { current } => OpError::Conflict(json!({
-            "type": "https://joinedcontext.com/problems/draft-conflict",
-            "error": "draft_conflict",
-            "current": current,
-        })),
-        DraftError::Secret(path) => OpError::Api(ApiError::BadRequest(format!(
-            "literal secret in field '{path}' is forbidden; use secretRef instead (MF-24)"
-        ))),
-        DraftError::NotFound {
-            project,
-            kind,
-            name,
-        } => OpError::Api(ApiError::NotFound(format!(
-            "draft '{kind}/{name}' not found in project '{project}'"
-        ))),
-        DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
+/// A draft store refusal as the operation's answer: the same conflict body, secret refusal and
+/// not-found every draft-writing operation gives (T-1496).
+impl From<DraftError> for OpError {
+    fn from(err: DraftError) -> Self {
+        match err {
+            DraftError::Conflict { current } => OpError::Conflict(json!({
+                "type": "https://joinedcontext.com/problems/draft-conflict",
+                "error": "draft_conflict",
+                "current": current,
+            })),
+            DraftError::Secret(path) => OpError::Api(ApiError::BadRequest(format!(
+                "literal secret in field '{path}' is forbidden; use secretRef instead (MF-24)"
+            ))),
+            DraftError::NotFound {
+                project,
+                kind,
+                name,
+            } => OpError::Api(ApiError::NotFound(format!(
+                "draft '{kind}/{name}' not found in project '{project}'"
+            ))),
+            DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
+        }
     }
 }
 
@@ -2265,7 +2269,7 @@ fn core_operations() -> Vec<Operation> {
                             caller.via.touched_kind(),
                         )
                         .await
-                        .map_err(draft_error)?;
+                        ?;
                     Ok(serde_json::to_value(draft)?)
                 })
             },
@@ -2293,7 +2297,7 @@ fn core_operations() -> Vec<Operation> {
                     let draft = draft_store(state)
                         .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
-                        .map_err(draft_error)?
+                        ?
                         // Not readable is not there (PF-59, R20, T-1455).
                         .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
                         .ok_or_else(|| {
@@ -2332,7 +2336,7 @@ fn core_operations() -> Vec<Operation> {
                     let items: Vec<crate::ops::drafts::DraftLine> = draft_store(state)
                         .list_in(asked.workspace.as_deref(), project)
                         .await
-                        .map_err(draft_error)?
+                        ?
                         .iter()
                         .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
                         .map(crate::ops::drafts::DraftLine::from)
@@ -2365,7 +2369,7 @@ fn core_operations() -> Vec<Operation> {
                     let dropped = draft_store(state)
                         .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
-                        .map_err(draft_error)?;
+                        ?;
                     Ok(json!({ "dropped": dropped }))
                 })
             },

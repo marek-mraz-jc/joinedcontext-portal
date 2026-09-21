@@ -910,13 +910,11 @@ pub async fn run(
                 &caller.identity.username,
                 caller.via.touched_kind(),
             )
-            .await
-            .map_err(draft_error)?;
+            .await?;
         let verdict = if let Some(v) = model_verdict {
             store
                 .set_verdict(project, "DataModel", name, v)
-                .await
-                .map_err(draft_error)?
+                .await?
                 .verdict
         } else {
             stored.verdict
@@ -951,8 +949,7 @@ pub async fn run(
                 &caller.identity.username,
                 caller.via.touched_kind(),
             )
-            .await
-            .map_err(draft_error)?;
+            .await?;
 
         let check_res = if input.url.is_some() {
             ops::call(
@@ -994,8 +991,7 @@ pub async fn run(
         let final_v = if let Some(verdict) = v {
             store
                 .set_verdict(project, "DataSource", name, verdict)
-                .await
-                .map_err(draft_error)?
+                .await?
                 .verdict
         } else {
             stored.verdict
@@ -1057,8 +1053,7 @@ pub async fn run(
                 &caller.identity.username,
                 caller.via.touched_kind(),
             )
-            .await
-            .map_err(draft_error)?;
+            .await?;
 
         let p_verdict = if let Some((sample_filename, sample_bytes_vec)) = &sample_bytes {
             let sample_text = String::from_utf8_lossy(sample_bytes_vec).to_string();
@@ -1147,8 +1142,7 @@ pub async fn run(
         let final_v = if let Some(verdict) = p_verdict {
             store
                 .set_verdict(project, "Pipeline", name, verdict)
-                .await
-                .map_err(draft_error)?
+                .await?
                 .verdict
         } else {
             stored.verdict
@@ -1456,8 +1450,7 @@ async fn checked_draft(
             &caller.identity.username,
             caller.via.touched_kind(),
         )
-        .await
-        .map_err(draft_error)?;
+        .await?;
     let verdict = match ops::call(
         ops::find("jc_manifest_dry_run").expect("jc_manifest_dry_run is registered"),
         caller,
@@ -1485,8 +1478,7 @@ async fn checked_draft(
         Some(verdict) => {
             store
                 .set_verdict(project, &kind, &name, verdict)
-                .await
-                .map_err(draft_error)?
+                .await?
                 .verdict
         }
         None => stored.verdict,
@@ -1533,27 +1525,6 @@ fn riskiest_lane(drafts: &[CompletedDraft]) -> Lane {
         };
     }
     lane
-}
-
-fn draft_error(err: ops::drafts::DraftError) -> OpError {
-    match err {
-        ops::drafts::DraftError::Conflict { current } => OpError::Conflict(json!({
-            "type": "https://joinedcontext.com/problems/draft-conflict",
-            "error": "draft_conflict",
-            "current": current,
-        })),
-        ops::drafts::DraftError::Secret(path) => OpError::Api(ApiError::BadRequest(format!(
-            "literal secret in field '{path}' is forbidden; use secretRef instead (MF-24)"
-        ))),
-        ops::drafts::DraftError::NotFound {
-            project,
-            kind,
-            name,
-        } => OpError::Api(ApiError::NotFound(format!(
-            "draft '{kind}/{name}' not found in project '{project}'"
-        ))),
-        ops::drafts::DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
-    }
 }
 
 #[cfg(test)]
