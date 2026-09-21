@@ -18,6 +18,7 @@ import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { ResourceList } from "../components/ResourceList";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
+import { EditResourceAction } from "../components/EditResourceDialog";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { RowActions } from "../components/ui/RowActions";
 import type { RowAction } from "../components/ui/RowActions";
@@ -36,6 +37,7 @@ import {
   admits,
   referenceManifest,
   referenceTo,
+  sharedReferenceForm,
   SharedWithBadge,
   SPACE_LABEL,
   spaceOf,
@@ -1247,15 +1249,27 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                             {t("endpoints.shared.alias")}:{" "}
                             {String((declared.spec as { alias?: string }).alias ?? "")}
                           </span>
-                          <DeleteResourceAction
-                            target={{
-                              project,
-                              kind: "SharedSpaceReference",
-                              plural: "shared",
-                              name: declared.metadata.name,
-                              label: `${source}/${endpoint.metadata.name}`,
-                            }}
-                          />
+                          <span className="flex gap-1">
+                            <EditResourceAction
+                              target={{
+                                project,
+                                kind: "SharedSpaceReference",
+                                plural: "shared",
+                                name: declared.metadata.name,
+                                label: `${source}/${endpoint.metadata.name}`,
+                              }}
+                              form={sharedReferenceForm(t)}
+                            />
+                            <DeleteResourceAction
+                              target={{
+                                project,
+                                kind: "SharedSpaceReference",
+                                plural: "shared",
+                                name: declared.metadata.name,
+                                label: `${source}/${endpoint.metadata.name}`,
+                              }}
+                            />
+                          </span>
                         </div>
                       ) : (
                         <Button
@@ -1293,15 +1307,27 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     </span>
                   </TableCell>
                   <TableCell align="right">
-                    <DeleteResourceAction
-                      target={{
-                        project,
-                        kind: "SharedSpaceReference",
-                        plural: "shared",
-                        name: reference.metadata.name,
-                        label: alias || reference.metadata.name,
-                      }}
-                    />
+                    <span className="inline-flex gap-1">
+                      <EditResourceAction
+                        target={{
+                          project,
+                          kind: "SharedSpaceReference",
+                          plural: "shared",
+                          name: reference.metadata.name,
+                          label: alias || reference.metadata.name,
+                        }}
+                        form={sharedReferenceForm(t)}
+                      />
+                      <DeleteResourceAction
+                        target={{
+                          project,
+                          kind: "SharedSpaceReference",
+                          plural: "shared",
+                          name: reference.metadata.name,
+                          label: alias || reference.metadata.name,
+                        }}
+                      />
+                    </span>
                   </TableCell>
                 </TableRow>
               );
