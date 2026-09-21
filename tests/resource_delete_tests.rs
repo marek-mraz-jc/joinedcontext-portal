@@ -993,3 +993,491 @@ async fn a_source_another_manifest_still_names_survives_the_delete() {
         "the manifest alone: another model reads that source"
     );
 }
+
+// ---- T-2517: `delete_with_identity`, a removal under the caller's own rights (MF-07, PF-50,
+// CC-19, CC-76, R20) ----------------------------------------------------------------------------
+
+mod under_identity {
+    use super::*;
+    use joinedcontext_portal::api::delete::{delete_with_identity, DeleteOutcome, Reference};
+    use joinedcontext_portal::ops::workspaces::{Opening, Scope};
+    use joinedcontext_portal::permissions::ORG_NAMESPACE;
+    use serde_json::Value;
+
+    const HERE: &str = "ovzdusie";
+    const THERE: &str = "doprava";
+
+    fn manifest(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta::new(name, namespace),
+            spec,
+            status: None,
+        }
+    }
+
+    fn who(name: &str, groups: &[&str]) -> Identity {
+        Identity {
+            subject: format!("sub-{name}"),
+            username: name.into(),
+            email: Some(format!("{name}@hel.fi")),
+            name: None,
+            roles: Vec::new(),
+            groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+        }
+    }
+
+    /// Removes anything in the project: the bootstrap group of `Config::for_tests`.
+    fn steward() -> Identity {
+        who("jana", &["portal-approver"])
+    }
+
+    /// Reads every kind in the project and deletes Pipelines only.
+    fn reader() -> Identity {
+        who("vera", &["readers"])
+    }
+
+    fn space_ref(namespace: Option<&str>) -> Value {
+        let mut reference = json!({ "kind": "ContextSpace", "name": "mobility" });
+        if let Some(namespace) = namespace {
+            reference["namespace"] = json!(namespace);
+        }
+        json!({ "contextSpaceRef": reference })
+    }
+
+    /// The space `mobility` of `ovzdusie` and whatever `extra` holds, with the reader's binding.
+    fn state_with(gitea: Option<&MockServer>, extra: Vec<ResourceEnvelope>) -> AppState {
+        let mut state = AppState::new(Config::for_tests(), None);
+        if let Some(server) = gitea {
+            let client = GiteaClient::new(
+                server.uri().parse().expect("url"),
+                "test-owner",
+                "test-repo",
+                "t",
+            )
+            .expect("a forge client");
+            state = state.with_gitea(Arc::new(client));
+        }
+        state.mirror.upsert(manifest(
+            "ContextSpace",
+            "mobility",
+            HERE,
+            json!({ "isSandbox": true }),
+        ));
+        state.mirror.upsert(manifest(
+            "Role",
+            "reads-all",
+            ORG_NAMESPACE,
+            json!({ "rules": [
+                { "kinds": ["ContextSpace", "Endpoint", "Pipeline"], "verbs": ["read"] },
+                { "kinds": ["Pipeline"], "verbs": ["delete"] },
+            ] }),
+        ));
+        state.mirror.upsert(manifest(
+            "RoleBinding",
+            "readers",
+            ORG_NAMESPACE,
+            json!({ "role": "reads-all", "subjects": [{ "group": "readers" }], "scope": { "project": HERE } }),
+        ));
+        for envelope in extra {
+            state.mirror.upsert(envelope);
+        }
+        state
+    }
+
+    async fn remove(
+        state: &AppState,
+        identity: &Identity,
+        plural: &str,
+        name: &str,
+        dry_run: bool,
+        workspace: Option<&str>,
+    ) -> Result<DeleteOutcome, joinedcontext_portal::error::ApiError> {
+        delete_with_identity(identity, state, HERE, plural, name, dry_run, workspace).await
+    }
+
+    /// The status a refusal answers with, and its sentence.
+    fn answer(err: joinedcontext_portal::error::ApiError) -> (StatusCode, String) {
+        use axum::response::IntoResponse;
+        let said = err.to_string();
+        (err.into_response().status(), said)
+    }
+
+    fn referenced(outcome: DeleteOutcome) -> (Vec<Reference>, usize) {
+        match outcome {
+            DeleteOutcome::Referenced { here, elsewhere } => (here, elsewhere),
+            other => panic!("not refused by its references: {other:?}"),
+        }
+    }
+
+    fn refs(list: &[(&str, &str)]) -> Vec<Reference> {
+        list.iter()
+            .map(|(kind, name)| Reference {
+                kind: (*kind).into(),
+                name: (*name).into(),
+            })
+            .collect()
+    }
+
+    /// T-2517, MF-07, R20: another project's reference blocks the removal and is counted; its
+    /// kind, name and project never reach the caller.
+    #[tokio::test]
+    async fn a_foreign_project_reference_is_counted_never_named() {
+        let state = state_with(
+            None,
+            vec![
+                manifest("Endpoint", "their-feed", THERE, space_ref(Some(HERE))),
+                manifest(
+                    "Pipeline",
+                    "their-sync",
+                    THERE,
+                    json!({ "steps": [space_ref(Some(HERE))] }),
+                ),
+                // Another project's own `mobility` is not this one.
+                manifest("Endpoint", "own-space", THERE, space_ref(None)),
+                manifest("Endpoint", "air", HERE, space_ref(None)),
+            ],
+        );
+        for dry_run in [true, false] {
+            let (here, elsewhere) = referenced(
+                remove(&state, &steward(), "spaces", "mobility", dry_run, None)
+                    .await
+                    .expect("an outcome"),
+            );
+            assert_eq!(here, refs(&[("Endpoint", "air")]), "dry run: {dry_run}");
+            assert_eq!(elsewhere, 2, "dry run: {dry_run}");
+            let said = DeleteOutcome::conflict_message(&here, elsewhere);
+            for secret in ["their-feed", "their-sync", THERE] {
+                assert!(!said.contains(secret), "{said}");
+            }
+        }
+    }
+
+    /// T-2517, PF-50: reading a kind is not deleting it, and deleting one kind is not another.
+    #[tokio::test]
+    async fn a_caller_without_delete_on_the_kind_is_refused_even_with_read() {
+        let state = state_with(None, vec![manifest("Pipeline", "sync", HERE, json!({}))]);
+        for dry_run in [true, false] {
+            let refused = remove(&state, &reader(), "spaces", "mobility", dry_run, None)
+                .await
+                .expect_err("no delete on ContextSpace");
+            let (status, said) = answer(refused);
+            assert_eq!(status, StatusCode::FORBIDDEN, "{said}");
+        }
+        // The same caller removes the kind it holds `delete` on, as far as a dry run goes.
+        assert!(matches!(
+            remove(&state, &reader(), "pipelines", "sync", true, None).await,
+            Ok(DeleteOutcome::DryRun(_))
+        ));
+    }
+
+    /// T-2517, R20: an unknown plural and an unknown name answer the same 404, before any
+    /// permission is looked at, so a caller with no binding learns nothing more than one with.
+    #[tokio::test]
+    async fn an_unknown_plural_is_404_before_any_permission_check() {
+        let state = state_with(None, Vec::new());
+        let stranger = who("nobody", &[]);
+        for identity in [&stranger, &steward()] {
+            for (plural, name) in [
+                ("widgets", "mobility"),
+                ("spaces", "no-such-space"),
+                ("", "mobility"),
+            ] {
+                let missing = remove(&state, identity, plural, name, true, None)
+                    .await
+                    .expect_err("missing");
+                let (status, said) = answer(missing);
+                assert_eq!(status, StatusCode::NOT_FOUND, "{plural}/{name}");
+                assert_eq!(
+                    said,
+                    format!("not found: resource '{name}' not found in project '{HERE}'"),
+                    "{plural}/{name}"
+                );
+            }
+        }
+    }
+
+    /// T-2517: a resource that names itself (a space pointing at its own name) is not its own
+    /// dependent; a same-named resource of another kind still is.
+    #[tokio::test]
+    async fn a_resource_referencing_itself_is_not_counted_as_a_dependent() {
+        let state = state_with(
+            None,
+            vec![manifest(
+                "ContextSpace",
+                "mobility",
+                HERE,
+                json!({ "isSandbox": true, "parent": { "kind": "ContextSpace", "name": "mobility" } }),
+            )],
+        );
+        assert!(matches!(
+            remove(&state, &steward(), "spaces", "mobility", true, None).await,
+            Ok(DeleteOutcome::DryRun(_))
+        ));
+        state
+            .mirror
+            .upsert(manifest("Endpoint", "mobility", HERE, space_ref(None)));
+        let (here, elsewhere) = referenced(
+            remove(&state, &steward(), "spaces", "mobility", true, None)
+                .await
+                .expect("an outcome"),
+        );
+        assert_eq!((here, elsewhere), (refs(&[("Endpoint", "mobility")]), 0));
+    }
+
+    /// T-2517, MF-07: every dependent of this project is named with its kind, sorted by kind and
+    /// then name, whatever order the mirror holds them in.
+    #[tokio::test]
+    async fn two_dependents_of_different_kinds_are_both_named_and_sorted() {
+        let state = state_with(
+            None,
+            vec![
+                manifest(
+                    "Pipeline",
+                    "zeta",
+                    HERE,
+                    json!({ "target": space_ref(None) }),
+                ),
+                manifest("Endpoint", "beta", HERE, space_ref(None)),
+                manifest(
+                    "Pipeline",
+                    "alpha",
+                    HERE,
+                    json!({ "sources": [space_ref(None)] }),
+                ),
+                manifest("Endpoint", "alpha", HERE, space_ref(None)),
+            ],
+        );
+        let (here, elsewhere) = referenced(
+            remove(&state, &steward(), "spaces", "mobility", true, None)
+                .await
+                .expect("an outcome"),
+        );
+        assert_eq!(
+            here,
+            refs(&[
+                ("Endpoint", "alpha"),
+                ("Endpoint", "beta"),
+                ("Pipeline", "alpha"),
+                ("Pipeline", "zeta")
+            ])
+        );
+        assert_eq!(elsewhere, 0);
+    }
+
+    #[tokio::test]
+    async fn a_dependent_in_the_same_project_but_different_kind_is_named_with_its_kind() {
+        let state = state_with(
+            None,
+            vec![manifest("Pipeline", "mobility-sync", HERE, space_ref(None))],
+        );
+        let (here, _) = referenced(
+            remove(&state, &steward(), "spaces", "mobility", true, None)
+                .await
+                .expect("an outcome"),
+        );
+        assert_eq!(here, refs(&[("Pipeline", "mobility-sync")]));
+        let said = DeleteOutcome::conflict_message(&here, 0);
+        assert!(
+            said.contains("Pipeline") && said.contains("mobility-sync"),
+            "{said}"
+        );
+    }
+
+    /// T-2517, CC-19: nothing references it, so the removal plans in the red lane, deleting the
+    /// one resource.
+    #[tokio::test]
+    async fn zero_dependents_proceeds_to_the_red_lane_change() {
+        let state = state_with(None, Vec::new());
+        match remove(&state, &steward(), "spaces", "mobility", true, None).await {
+            Ok(DeleteOutcome::DryRun(result)) => {
+                assert!(result.valid);
+                assert_eq!(result.lane, Lane::Red);
+                assert_eq!(
+                    serde_json::to_value(&result.plan).expect("a plan")["summary"]["delete"],
+                    1
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// T-2517: a dry run reaches the same verdict as the real removal and writes nothing: the
+    /// references block both, and the forge is never asked.
+    #[tokio::test]
+    async fn dry_run_true_reports_the_same_referenced_outcome_without_proposing() {
+        let forge = MockServer::start().await;
+        let state = state_with(
+            Some(&forge),
+            vec![manifest("Endpoint", "air", HERE, space_ref(None))],
+        );
+        let dry = referenced(
+            remove(&state, &steward(), "spaces", "mobility", true, None)
+                .await
+                .expect("dry"),
+        );
+        let real = referenced(
+            remove(&state, &steward(), "spaces", "mobility", false, None)
+                .await
+                .expect("real"),
+        );
+        assert_eq!(dry, real);
+        assert!(forge
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+        // Without references, the dry run is a plan and still no forge call.
+        let free = state_with(Some(&forge), Vec::new());
+        assert!(matches!(
+            remove(&free, &steward(), "spaces", "mobility", true, None).await,
+            Ok(DeleteOutcome::DryRun(_))
+        ));
+        assert!(forge
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    /// T-2517, CC-76, R20: a workspace nobody holds, or one of another project, is refused with
+    /// one sentence before the forge is asked for any tree.
+    #[tokio::test]
+    async fn a_workspace_name_that_does_not_exist_is_refused_before_the_mirror_is_read() {
+        let forge = MockServer::start().await;
+        let state = state_with(Some(&forge), Vec::new());
+        state
+            .workspaces
+            .create(Opening {
+                name: "elsewhere",
+                title: None,
+                project: THERE,
+                owner: "jana@hel.fi",
+                base_revision: "base1",
+                scope: Scope::Project {},
+                ttl_hours: 2,
+            })
+            .await
+            .expect("opened");
+        for workspace in ["no-such-copy", "elsewhere"] {
+            let refused = remove(
+                &state,
+                &steward(),
+                "spaces",
+                "mobility",
+                true,
+                Some(workspace),
+            )
+            .await
+            .expect_err(workspace);
+            let (status, said) = answer(refused);
+            assert_eq!(status, StatusCode::NOT_FOUND, "{workspace}");
+            assert_eq!(
+                said,
+                format!("not found: no workspace named '{workspace}' in project '{HERE}'")
+            );
+        }
+        assert!(forge
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    /// T-2517, CC-76: inside a copy, what references the target is read on the copy's branch: a
+    /// dependent the copy removed no longer blocks, and one the copy added does.
+    #[tokio::test]
+    async fn a_workspace_branch_delete_reads_dependents_on_that_branch_not_main() {
+        const REPO: &str = "/api/v1/repos/test-owner/test-repo";
+        let air = "projects/ovzdusie/endpoints/air.yaml";
+        let new = "projects/ovzdusie/pipelines/new-sync.yaml";
+        let space = "projects/ovzdusie/spaces/mobility/space.yaml";
+        let forge = MockServer::start().await;
+        let tree = |entries: Vec<(&str, &str)>| {
+            let tree: Vec<Value> = entries
+                .iter()
+                .map(|(p, sha)| json!({ "path": p, "type": "blob", "sha": sha }))
+                .collect();
+            ResponseTemplate::new(200).set_body_json(json!({ "tree": tree, "truncated": false }))
+        };
+        let file = |content: String| {
+            use base64::Engine;
+            ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "x", "encoding": "base64",
+                "content": base64::engine::general_purpose::STANDARD.encode(content),
+            }))
+        };
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/workspace/mobility-v2")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "ws1" } })),
+            )
+            .mount(&forge)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/base1")))
+            .respond_with(tree(vec![(space, "s1"), (air, "a1")]))
+            .mount(&forge)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/ws1")))
+            .respond_with(tree(vec![(space, "s1"), (new, "n1")]))
+            .mount(&forge)
+            .await;
+        let yaml = |kind: &str, name: &str| {
+            format!("apiVersion: joinedcontext.com/v1alpha1\nkind: {kind}\nmetadata:\n  name: {name}\n  namespace: ovzdusie\nspec:\n  contextSpaceRef:\n    kind: ContextSpace\n    name: mobility\n")
+        };
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/{air}")))
+            .and(query_param("ref", "base1"))
+            .respond_with(file(yaml("Endpoint", "air")))
+            .mount(&forge)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/{new}")))
+            .and(query_param("ref", "workspace/mobility-v2"))
+            .respond_with(file(yaml("Pipeline", "new-sync")))
+            .mount(&forge)
+            .await;
+        let state = state_with(
+            Some(&forge),
+            vec![manifest("Endpoint", "air", HERE, space_ref(None))],
+        );
+        state
+            .workspaces
+            .create(Opening {
+                name: "mobility-v2",
+                title: None,
+                project: HERE,
+                owner: "jana@hel.fi",
+                base_revision: "base1",
+                scope: Scope::Project {},
+                ttl_hours: 2,
+            })
+            .await
+            .expect("opened");
+
+        // On main, the Endpoint blocks it.
+        let (main, _) = referenced(
+            remove(&state, &steward(), "spaces", "mobility", true, None)
+                .await
+                .expect("main"),
+        );
+        assert_eq!(main, refs(&[("Endpoint", "air")]));
+        // In the copy, the Endpoint is gone and the Pipeline the copy added blocks it instead.
+        let (copy, elsewhere) = referenced(
+            remove(
+                &state,
+                &steward(),
+                "spaces",
+                "mobility",
+                true,
+                Some("mobility-v2"),
+            )
+            .await
+            .expect("copy"),
+        );
+        assert_eq!((copy, elsewhere), (refs(&[("Pipeline", "new-sync")]), 0));
+    }
+}
