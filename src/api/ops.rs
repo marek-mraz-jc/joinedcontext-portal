@@ -109,15 +109,22 @@ pub async fn run_op(
         access: None,
     };
 
-    respond(ops::call(op, &caller, &state, &project, body_val).await)
+    respond(op, ops::call(op, &caller, &state, &project, body_val).await)
 }
 
-/// The HTTP answer of a registered operation: 202 for a change, 200 otherwise, and a 409 with
-/// the operation's own body for a conflict (the strict gate names its check there, PF-57).
-pub(crate) fn respond(result: Result<Value, ops::OpError>) -> Result<Response, ApiError> {
+/// The HTTP answer of a registered operation: 202 for a change it proposed, 200 otherwise, and a
+/// 409 with the operation's own body for a conflict (the strict gate names its check there,
+/// PF-57). A read-only operation proposes nothing, so reading a Change answers 200 as its REST
+/// route does (AG-64).
+pub(crate) fn respond(
+    op: &ops::Operation,
+    result: Result<Value, ops::OpError>,
+) -> Result<Response, ApiError> {
     match result {
         Ok(output) => {
-            if output.get("changeId").is_some()
+            if op.annotations.read_only_hint {
+                Ok((StatusCode::OK, Json(output)).into_response())
+            } else if output.get("changeId").is_some()
                 || output.get("change_id").is_some()
                 || output.get("kind").and_then(Value::as_str) == Some("Change")
             {
