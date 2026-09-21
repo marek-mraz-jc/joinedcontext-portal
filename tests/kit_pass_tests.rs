@@ -6,6 +6,10 @@
 //! that answers what the driver asks; the cases are the first pass, a repair, a block for a
 //! path the run may not write, a chat message as a second pass, the preview route's gates and
 //! a proxy that does not answer.
+//!
+//! The application cases drive `src/agents/oneshot/code_pass.rs` end to end (T-1662): the first
+//! version, a refused path, a repair, a second failure, an answer without blocks, an answer cut at
+//! the budget, the verification passes and their limit, and the tool loop after the first version.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -880,6 +884,32 @@ async fn an_empty_answer_is_asked_again_once() {
     let run = wait_for(&app, &cookie, &id, &["awaiting_approval", "failed"]).await;
     assert_eq!(run["status"], json!("awaiting_approval"), "{run}");
     assert_eq!(model_requests(&proxy).await.len(), 2);
+}
+
+/// T-1662: two answers without a change end the pass with a plain sentence; the person never
+/// reads the patch protocol the model was told about (T-0785).
+#[tokio::test]
+async fn two_dashboard_answers_without_a_block_are_said_plainly() {
+    let (app, cookie, proxy) = portal(
+        "anthropic",
+        &[
+            "Here is the dashboard.".to_owned(),
+            "Nothing to add.".to_owned(),
+        ],
+    )
+    .await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let said = wait_for_thought(&app, &cookie, &id, "Still not a specification").await;
+    assert_eq!(model_requests(&proxy).await.len(), 2);
+    for protocol in ["SEARCH", "REPLACE", "block"] {
+        assert!(
+            !said.contains(protocol),
+            "the person read the patch protocol: {said}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -2564,6 +2594,73 @@ async fn a_second_failure_ends_the_first_run_with_no_preview_and_the_errors_said
                 && t.contains("axios")
                 && t.ends_with("Send a message to try again."))));
     assert!(!log.iter().any(|(kind, _)| kind == "preview"), "{log:?}");
+}
+
+/// T-1662 (`src/agents/oneshot/code_pass.rs`): an answer that carries no block is sent back once,
+/// with the reason, to the model; a second one ends the first run with no preview. The person
+/// reads a plain sentence and never the patch protocol (T-0785).
+#[tokio::test]
+async fn an_application_answer_without_blocks_is_asked_again_once_and_the_protocol_stays_hidden() {
+    let (_, app, cookie, proxy) = portal_state_with(
+        "openai-compatible",
+        &[
+            "Here is your application.".to_owned(),
+            "It is ready.".to_owned(),
+        ],
+        None,
+    )
+    .await;
+    mount_types(&proxy).await;
+    let id = create_application(&app, &cookie).await;
+    let run = wait_for(&app, &cookie, &id, &["previewing", "failed"]).await;
+    assert!(run["previewUrl"].is_null(), "{run}");
+
+    let requests = model_requests(&proxy).await;
+    assert_eq!(requests.len(), 2, "one repair and no more");
+    assert!(
+        requests[1]
+            .to_string()
+            .contains("carried no SEARCH/REPLACE block"),
+        "the model is told why it is asked again"
+    );
+    let said = wait_for_thought(&app, &cookie, &id, "The application could not be built").await;
+    for protocol in ["SEARCH", "REPLACE", "block"] {
+        assert!(
+            !said.contains(protocol),
+            "the person read the patch protocol: {said}"
+        );
+    }
+}
+
+/// T-1662: the largest answer the code pass takes is its output budget. An answer cut there is
+/// refused whole: nothing of it lands, and the run says why, so a half-written file never
+/// reaches the frame.
+#[tokio::test]
+async fn an_application_answer_cut_at_the_budget_lands_nothing_and_says_why() {
+    let (state, app, cookie, proxy) = portal_state_with("openai-compatible", &[], None).await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_cut(
+            "Stations.\n\n```text\nsrc/pages/Stations.tsx\n<<<<<<< SEARCH\n=======\nexport function Stations() {",
+        )))
+        .mount(&proxy)
+        .await;
+    mount_types(&proxy).await;
+    let id = create_application(&app, &cookie).await;
+    let run = wait_for(&app, &cookie, &id, &["previewing", "failed"]).await;
+
+    assert_eq!(run["status"], json!("failed"), "{run}");
+    let error = run["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("cut at the output budget") && error.contains("nothing was applied"),
+        "{error}"
+    );
+    assert!(run["previewUrl"].is_null(), "{run}");
+    let files = files_of(&state, &id).await;
+    assert!(
+        files.get("src/pages/Stations.tsx").is_none(),
+        "a half-written file landed"
+    );
 }
 
 /// Posts what the frame saw of version `v`, as the host page relays it (SDK-27).
