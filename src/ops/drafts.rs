@@ -136,23 +136,85 @@ pub enum DraftError {
     },
 }
 
-#[derive(Clone, Default)]
+/// The PostgreSQL channel every replica's draft events cross (OPS-51, Architecture/09 §10).
+pub const DRAFT_EVENTS_CHANNEL: &str = "jc_draft_events";
+
+/// Who is typing in which draft, fanned out per project: to this process's streams, and, when the
+/// drafts live in PostgreSQL, to every other replica through [`DRAFT_EVENTS_CHANNEL`].
+#[derive(Clone)]
 pub struct DraftHub {
     channels: Arc<RwLock<HashMap<String, broadcast::Sender<DraftEvent>>>>,
+    /// This replica's name on the channel, so its own notifications are not delivered twice.
+    origin: Arc<str>,
+    /// Set once by [`DraftHub::connect`]; shared by every clone of the hub.
+    database: Arc<std::sync::OnceLock<sqlx::PgPool>>,
+}
+
+/// One event on the channel: the event's key and metadata with the space the streams filter on,
+/// and the replica that sent it. Never the manifest.
+#[derive(Serialize, Deserialize)]
+struct Notice {
+    origin: String,
+    event: DraftEvent,
+    space: Option<String>,
+}
+
+impl Default for DraftHub {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DraftHub {
     pub fn new() -> Self {
-        Self::default()
+        use argon2::password_hash::rand_core::{OsRng, RngCore};
+        let mut bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut bytes);
+        let origin: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        Self {
+            channels: Arc::default(),
+            origin: Arc::from(origin),
+            database: Arc::default(),
+        }
+    }
+
+    /// Joins the replicas sharing this database: every event is also a `NOTIFY`, and a listener
+    /// forwards the other replicas' events to this process's streams. A second call is a no-op.
+    pub fn connect(&self, pool: sqlx::PgPool) {
+        if self.database.set(pool.clone()).is_err() {
+            return;
+        }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            tracing::warn!("no async runtime: draft events stay inside this process");
+            return;
+        };
+        let hub = self.clone();
+        runtime.spawn(async move { hub.listen(pool).await });
     }
 
     pub async fn broadcast(&self, event: &DraftEvent) {
-        let mut map = self.channels.write().await;
-        let sender = map.entry(event.project.clone()).or_insert_with(|| {
-            let (tx, _) = broadcast::channel(128);
-            tx
-        });
-        let _ = sender.send(event.clone());
+        self.deliver(event.clone()).await;
+        let Some(pool) = self.database.get() else {
+            return;
+        };
+        let notice = Notice {
+            origin: self.origin.to_string(),
+            event: event.clone(),
+            space: event.space.clone(),
+        };
+        let Ok(payload) = serde_json::to_string(&notice) else {
+            return;
+        };
+        // This process's streams have it already; a failed NOTIFY only costs the other replicas
+        // this one event, and the reader refetches the draft on its next open anyway.
+        if let Err(error) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind(DRAFT_EVENTS_CHANNEL)
+            .bind(payload)
+            .execute(pool)
+            .await
+        {
+            tracing::warn!(%error, project = %event.project, "a draft event did not reach the other replicas");
+        }
     }
 
     pub async fn subscribe(&self, project: &str) -> broadcast::Receiver<DraftEvent> {
@@ -162,6 +224,54 @@ impl DraftHub {
             tx
         });
         sender.subscribe()
+    }
+
+    async fn deliver(&self, event: DraftEvent) {
+        let mut map = self.channels.write().await;
+        let sender = map.entry(event.project.clone()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(128);
+            tx
+        });
+        let _ = sender.send(event);
+    }
+
+    /// Another replica's notice, as this process's event; `None` for this replica's own and for
+    /// anything that is not a notice.
+    fn received(&self, payload: &str) -> Option<DraftEvent> {
+        let notice: Notice = serde_json::from_str(payload).ok()?;
+        if *notice.origin == *self.origin {
+            return None;
+        }
+        let mut event = notice.event;
+        event.space = notice.space;
+        Some(event)
+    }
+
+    /// Listens for as long as the process runs, reconnecting after a lost connection. Events sent
+    /// while it reconnects are missed, as they would be by a stream that reconnects.
+    async fn listen(self, pool: sqlx::PgPool) {
+        loop {
+            match sqlx::postgres::PgListener::connect_with(&pool).await {
+                Ok(mut listener) => match listener.listen(DRAFT_EVENTS_CHANNEL).await {
+                    Ok(()) => loop {
+                        match listener.recv().await {
+                            Ok(notification) => {
+                                if let Some(event) = self.received(notification.payload()) {
+                                    self.deliver(event).await;
+                                }
+                            }
+                            Err(error) => {
+                                tracing::warn!(%error, "the draft event listener lost its connection");
+                                break;
+                            }
+                        }
+                    },
+                    Err(error) => tracing::warn!(%error, "could not listen for draft events"),
+                },
+                Err(error) => tracing::warn!(%error, "could not connect the draft event listener"),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
     }
 }
 
@@ -1164,5 +1274,50 @@ mod tests {
         assert_eq!(ev.name, "ep-1");
         assert_eq!(ev.event, "put");
         assert_eq!(ev.version, 1);
+    }
+
+    /// OPS-51: another replica's notice becomes this process's event, space included, so the
+    /// stream still filters it by the reader's binding; this replica's own notice and anything
+    /// that is not a notice are dropped.
+    #[test]
+    fn a_notice_from_another_replica_is_delivered_and_its_own_is_not() {
+        let here = DraftHub::new();
+        let there = DraftHub::new();
+        assert_ne!(here.origin, there.origin, "two replicas never share a name");
+
+        let event = DraftEvent {
+            project: "helsinki".into(),
+            kind: "Endpoint".into(),
+            name: "ep-1".into(),
+            version: 3,
+            touched_by: "steward".into(),
+            touched_kind: "person".into(),
+            event: "put".into(),
+            updated_at: chrono::Utc::now(),
+            space: Some("mobility".into()),
+        };
+        let notice = |origin: &str| {
+            serde_json::to_string(&Notice {
+                origin: origin.to_owned(),
+                event: event.clone(),
+                space: event.space.clone(),
+            })
+            .expect("a notice")
+        };
+
+        let received = here
+            .received(&notice(&there.origin))
+            .expect("another replica's event");
+        assert_eq!(received.name, "ep-1");
+        assert_eq!(received.version, 3);
+        assert_eq!(received.space.as_deref(), Some("mobility"));
+        assert!(
+            here.received(&notice(&here.origin)).is_none(),
+            "its own is already delivered"
+        );
+        assert!(here.received("not json").is_none());
+        assert!(here.received(r#"{"origin":"x"}"#).is_none());
+        // The manifest never rides on the channel.
+        assert!(!notice(&there.origin).contains("manifest"));
     }
 }
