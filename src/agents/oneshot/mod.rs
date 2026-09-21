@@ -24,6 +24,7 @@ use crate::agents::kit;
 use crate::agents::patch;
 use crate::agents::preview;
 use crate::agents::profile::Profile;
+use crate::agents::repository;
 use crate::agents::run::{AgentRun, AgentRunEvent, AgentRunStatus};
 use crate::agents::store::now_rfc3339;
 use crate::agents::{
@@ -262,6 +263,10 @@ struct Driver {
     /// application's folder.
     branch: String,
     path_prefix: String,
+    /// The application's own repository in the forge's organization, when the run commits
+    /// there rather than into the configuration repository (AP-75), and the application it holds.
+    repository: Option<String>,
+    app_name: String,
     created_by: String,
     /// The person who started the run: every tool call runs as them, never wider (AG-70).
     identity: Identity,
@@ -341,6 +346,10 @@ pub fn spawn(
         joined: OnceLock::new(),
         branch: run.branch.clone(),
         path_prefix: run.path_prefix.clone(),
+        repository: run
+            .in_own_repository()
+            .then(|| crate::agents::repository::name(&run.project, &run.app_name)),
+        app_name: run.app_name.clone(),
         created_by: run.created_by.clone(),
         identity: identity.clone(),
         access: profile.access.clone(),
@@ -385,6 +394,8 @@ impl Driver {
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user@hel.fi".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),
@@ -1228,6 +1239,8 @@ mod tests {
             joined: OnceLock::new(),
             branch: "agent/test".into(),
             path_prefix: "apps/test/".into(),
+            repository: None,
+            app_name: "test".into(),
             created_by: "test-user".into(),
             identity: Identity {
                 subject: "sub-test-user".into(),
