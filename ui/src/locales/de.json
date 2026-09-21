@@ -275,7 +275,10 @@
     "name": "Name",
     "phase": "Zustand",
     "empty": "Hier ist noch nichts.",
-    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Legen Sie das erste an, oder bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "emptyHint": "Von dieser Art ist noch nichts im Projekt. Diese Seite listet und liest es; bitten Sie die Assistentin darum und entscheiden Sie über ihren Vorschlag.",
+    "emptyHintFor": {
+      "uischemas": "Nichts in diesem Projekt ändert ein Formular. Jedes Formular bringt seine Anordnung mit; die Organisation ändert sie in portal/forms/ ihres Konfigurations-Repositorys, nicht hier."
+    },
     "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
   },
   "spaces": {
@@ -2413,6 +2416,7 @@
     "bar": {
       "label": "Kopie",
       "message": "Sie arbeiten an der Kopie {title}, gestartet am {date}. Nichts hier ist live.",
+      "loading": "Sie arbeiten an der Kopie {name}. Nichts hier ist live.",
       "changes": "{count, plural, =0 {Noch keine Änderungen} one {# Änderung} other {# Änderungen}}",
       "gone": "Diese Kopie ist abgelaufen oder wurde verworfen.",
       "leave": "Verlassen",

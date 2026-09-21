@@ -163,9 +163,14 @@ fn admit(
         .and_then(|owner| owner.get("user"))
         .and_then(|user| user.as_str())
         .unwrap_or_default();
+    let grants = crate::permissions::for_request(state, identity, project);
+    // Being named as the owner is not enough on its own: an owner whose last binding in the
+    // project is gone (they left the department) holds nothing here, so they mint nothing and
+    // are answered like a stranger (PF-50, PF-59).
     let is_owner = !owner.is_empty()
-        && (owner == identity.username || Some(owner) == identity.email.as_deref());
-    let is_approver = crate::permissions::for_request(state, identity, project)
+        && (owner == identity.username || Some(owner) == identity.email.as_deref())
+        && grants.may_read_project();
+    let is_approver = grants
         .check("ServiceAccount", jc_core::kinds::Verb::Propose, None)
         .is_ok();
     if !is_owner && !is_approver {

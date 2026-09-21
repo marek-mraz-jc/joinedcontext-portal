@@ -1,3 +1,5 @@
+// UI-06, UI-07: every call to the Portal API goes through this client, typed by the paths
+// openapi-typescript generated from ui/openapi.json (tests/api_contract.test.ts holds both).
 import createClient from "openapi-fetch";
 import { workspaceMiddleware } from "../components/layout/WorkspaceContext";
 import type { Middleware } from "openapi-fetch";

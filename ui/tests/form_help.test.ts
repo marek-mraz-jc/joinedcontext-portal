@@ -342,3 +342,16 @@ describe("the help and the example beside every form field", () => {
     }
   });
 });
+
+/**
+ * UI-02: a person who needs more than the one sentence beside a field has the User Guide page that
+ * walks through the whole form one click away. The registration, role and group forms shipped
+ * without one, so their dialogs offered no guide at all (T-1631).
+ */
+describe("the User Guide page beside every form", () => {
+  for (const kind of Object.keys(FORMS)) {
+    it(`${kind} links the page that walks through its form`, () => {
+      expect(manifestFor(kind).spec.guide).toMatch(/^User-Guide\/\d{2}-[a-z0-9-]+$/);
+    });
+  }
+});

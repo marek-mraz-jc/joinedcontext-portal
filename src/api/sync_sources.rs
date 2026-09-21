@@ -225,13 +225,34 @@ pub async fn detach(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
-    may_drive(&state, &user, &project, Verb::Delete)?;
-    let driver = driver(&state)?;
+    let (pull, status) = detach_for(&state, &user, &project, &name).await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({
+            "mergeRequest": pull.url,
+            "number": pull.number,
+            "status": status,
+        })),
+    )
+        .into_response())
+}
+
+/// The detach itself, for the route and for `jc_syncsource_detach`: the merge request that removes
+/// the source, and where the source stands once its loop is paused. The operation answers that
+/// merge request as a red-lane Change, the shape every other proposal of the registry answers.
+pub(crate) async fn detach_for(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+) -> Result<(crate::git::PullRequest, SyncSourceStatus), ApiError> {
+    may_drive(state, user, project, Verb::Delete)?;
+    let driver = driver(state)?;
     let gitea = state
         .gitea
         .as_deref()
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
-    let (project, name) = named(&state, &project, &name)?;
+    let (project, name) = named(state, project, name)?;
 
     let info = resource::by_kind(KIND)
         .ok_or_else(|| ApiError::Internal("the SyncSource kind is not in the catalogue".into()))?;
@@ -262,20 +283,13 @@ pub async fn detach(
     )
     .await?;
 
-    Ok((
-        StatusCode::ACCEPTED,
-        Json(serde_json::json!({
-            "mergeRequest": pull.url,
-            "number": pull.number,
-            "status": SyncSourceStatus::of(
-                &project,
-                &name,
-                &driver.status(&project, &name).await,
-                driver.is_durable(),
-            ),
-        })),
-    )
-        .into_response())
+    let status = SyncSourceStatus::of(
+        &project,
+        &name,
+        &driver.status(&project, &name).await,
+        driver.is_durable(),
+    );
+    Ok((pull, status))
 }
 
 #[utoipa::path(
