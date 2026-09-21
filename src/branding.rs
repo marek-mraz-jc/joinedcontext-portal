@@ -56,6 +56,14 @@ pub struct Branding {
     /// taken from the file: the block names a primary colour but no foreground, and white on
     /// a light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.
     pub primary_foreground: String,
+    /// The primary colour as a dark page paints it: the brand lightened towards white, because
+    /// a navy button on a navy page is not a button. Computed, never authored.
+    pub primary_dark: String,
+    /// Readable text on top of `primary_dark` — on the lightened colour, not on the configured
+    /// one. The dark theme used to rule that this is always the branded text pushed to black,
+    /// which left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,
+    /// UI-30). Computed here because the choice needs the ratio of the lightened colour.
+    pub primary_foreground_dark: String,
     /// Proposal validation strictness (PF-57). In strict mode, proposals require a fresh
     /// green verdict; in lax mode, Green-lane proposals proceed with a warning.
     #[serde(default)]
@@ -125,6 +133,8 @@ impl Default for Branding {
             fonts: Fonts::default(),
             languages: Languages::default(),
             primary_foreground: "#ffffff".into(),
+            primary_dark: "#5985e7".into(),
+            primary_foreground_dark: "#0f172a".into(),
             validation: Validation::default(),
             // An installation that says nothing serves no guide, so no form offers a link.
             documentation_base_url: String::new(),
@@ -196,6 +206,8 @@ impl Branding {
         self.languages = self.languages.sanitised(&fallback.languages);
         self.documentation_base_url = absolute_web_url(&self.documentation_base_url);
         self.primary_foreground = self.primary_foreground().to_owned();
+        self.primary_dark = self.primary_dark();
+        self.primary_foreground_dark = self.primary_foreground_dark().to_owned();
         if self.instance_name.trim().is_empty() {
             self.instance_name = fallback.instance_name.clone();
         }
@@ -217,6 +229,39 @@ impl Branding {
     /// Some brand colours cannot reach 4.5:1 with either (`#ff0000` reaches 4.46:1 at best).
     /// The better of the two is still served — an unreadable Portal helps nobody — and the
     /// installation is told in the log which colour it was and what it reached.
+    /// The primary colour as a dark page paints it: the brand mixed 72 % with white in oklab,
+    /// which is what the dark theme's `--portal-brand` used to compute for itself. It is here so
+    /// that one place knows both the colour and the text that can be read on it; a brand that is
+    /// not a colour at all keeps the neutral default's.
+    pub fn primary_dark(&self) -> String {
+        mix_with_white(&self.colours.primary, DARK_BRAND_SHARE)
+            .unwrap_or_else(|| Self::default().primary_dark)
+    }
+
+    /// The readable text colour on top of [`Branding::primary_dark`], by the same rule and the
+    /// same two candidates as [`Branding::primary_foreground`].
+    pub fn primary_foreground_dark(&self) -> &'static str {
+        let dark = self.primary_dark();
+        let Some(background) = luminance(&dark) else {
+            return FOREGROUND_ON_LIGHT;
+        };
+        let on_dark = contrast(background, luminance(FOREGROUND_ON_DARK).unwrap_or(1.0));
+        let on_light = contrast(background, luminance(FOREGROUND_ON_LIGHT).unwrap_or(0.0));
+        if on_dark.max(on_light) < MIN_CONTRAST {
+            tracing::warn!(
+                primary = %self.colours.primary,
+                dark = %dark,
+                contrast = on_dark.max(on_light),
+                "no text colour reaches {MIN_CONTRAST}:1 on this primary colour in the dark theme; using the better one"
+            );
+        }
+        if on_dark >= on_light {
+            FOREGROUND_ON_DARK
+        } else {
+            FOREGROUND_ON_LIGHT
+        }
+    }
+
     pub fn primary_foreground(&self) -> &'static str {
         let Some(primary) = luminance(&self.colours.primary) else {
             return FOREGROUND_ON_DARK;
@@ -355,27 +400,98 @@ const FOREGROUND_ON_LIGHT: &str = "#0f172a";
 /// What WCAG 1.4.3 asks of text against its background.
 const MIN_CONTRAST: f32 = 4.5;
 
+/// How much of the brand is left in the dark theme's version of it. The rest is white, mixed in
+/// oklab, which is what `tokens.css` did in CSS until the foreground had to be chosen against
+/// the result (T-2324).
+const DARK_BRAND_SHARE: f64 = 0.72;
+
+/// `color-mix(in oklab, colour <share>%, white)`, the browser's own arithmetic, so the colour the
+/// UI paints and the colour this choice was made against are the same one.
+fn mix_with_white(colour: &str, share: f64) -> Option<String> {
+    let [r, g, b] = rgb_of(colour)?;
+    let mixed = from_oklab(
+        to_oklab([r, g, b])
+            .iter()
+            .zip(to_oklab([255, 255, 255]))
+            .map(|(brand, white)| brand * share + white * (1.0 - share))
+            .collect::<Vec<_>>()
+            .try_into()
+            .ok()?,
+    );
+    Some(format!("#{:02x}{:02x}{:02x}", mixed[0], mixed[1], mixed[2]))
+}
+
+/// sRGB to Oklab (Björn Ottosson's matrices), the space `color-mix(in oklab, …)` interpolates in.
+///
+/// In `f64`, unlike the luminance above: the matrices are published to ten decimals, and a mix
+/// that rounds to a byte at the end has no reason to lose them on the way.
+fn to_oklab(rgb: [u8; 3]) -> [f64; 3] {
+    let linear = |c: u8| {
+        let c = f64::from(c) / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let [r, g, b] = [linear(rgb[0]), linear(rgb[1]), linear(rgb[2])];
+    let l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b).cbrt();
+    let m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b).cbrt();
+    let s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b).cbrt();
+    [
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+    ]
+}
+
+/// Oklab back to sRGB, clamped: a mix of two displayable colours can land a hair outside the cube.
+fn from_oklab(lab: [f64; 3]) -> [u8; 3] {
+    let [big_l, a, b] = lab;
+    let l = (big_l + 0.3963377774 * a + 0.2158037573 * b).powi(3);
+    let m = (big_l - 0.1055613458 * a - 0.0638541728 * b).powi(3);
+    let s = (big_l - 0.0894841775 * a - 1.2914855480 * b).powi(3);
+    let encode = |c: f64| {
+        let c = if c <= 0.0031308 {
+            c * 12.92
+        } else {
+            1.055 * c.powf(1.0 / 2.4) - 0.055
+        };
+        (c * 255.0).round().clamp(0.0, 255.0) as u8
+    };
+    [
+        encode(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+        encode(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+        encode(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+    ]
+}
+
 /// The contrast ratio between two relative luminances (WCAG 1.4.3), lighter over darker.
 fn contrast(a: f32, b: f32) -> f32 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
-/// Relative luminance of a hex colour (WCAG 2.1), for the contrast decision the UI cannot make.
-fn luminance(colour: &str) -> Option<f32> {
+/// The three channels of a hex triplet or sextet, or nothing when it is neither.
+fn rgb_of(colour: &str) -> Option<[u8; 3]> {
     let digits = colour.strip_prefix('#')?;
     let expand = |c: u8| u8::from_str_radix(&format!("{}{}", c as char, c as char), 16).ok();
-    let (r, g, b) = match digits.len() {
+    match digits.len() {
         3 => {
             let d = digits.as_bytes();
-            (expand(d[0])?, expand(d[1])?, expand(d[2])?)
+            Some([expand(d[0])?, expand(d[1])?, expand(d[2])?])
         }
-        6 => (
+        6 => Some([
             u8::from_str_radix(&digits[0..2], 16).ok()?,
             u8::from_str_radix(&digits[2..4], 16).ok()?,
             u8::from_str_radix(&digits[4..6], 16).ok()?,
-        ),
-        _ => return None,
-    };
+        ]),
+        _ => None,
+    }
+}
+
+/// Relative luminance of a hex colour (WCAG 2.1), for the contrast decision the UI cannot make.
+fn luminance(colour: &str) -> Option<f32> {
+    let [r, g, b] = rgb_of(colour)?;
     // Each channel is linearised before it is weighted: sRGB is gamma-encoded, and weighting the
     // encoded bytes gives a number that is not a luminance and cannot be compared to a ratio.
     let channel = |c: u8| {
@@ -612,6 +728,65 @@ languages:
         assert_eq!(chosen, FOREGROUND_ON_LIGHT);
         assert!(contrast(background, luminance(chosen).unwrap()) > 4.4);
         assert!(contrast(background, luminance(FOREGROUND_ON_DARK).unwrap()) < 4.1);
+    }
+
+    /// The dark theme's pair is the same choice, made against the colour the dark theme paints.
+    #[test]
+    fn the_dark_themes_text_reads_on_the_dark_themes_button() {
+        // Every brand an installation is likely to set, including the two that were unreadable
+        // when the dark theme ruled that the label is always the branded text pushed to black:
+        // `#111827` at 2.31:1 and Banská Bystrica's `#0000bf` at 3.43:1 (T-2324).
+        for primary in [
+            "#1d4ed8", "#0000bf", "#111827", "#7dd3fc", "#dc2626", "#ffe977", "#000000", "#ffffff",
+        ] {
+            let branding = with_primary(primary);
+            let dark = branding.primary_dark();
+            let chosen = branding.primary_foreground_dark();
+            let background = luminance(&dark).expect("a mix of two hex colours is one");
+            let got = contrast(background, luminance(chosen).expect("a hex colour"));
+            assert!(
+                got >= MIN_CONTRAST,
+                "{primary}: {chosen} on {dark} is only {got:.2}:1"
+            );
+        }
+    }
+
+    /// The mix is the browser's, or the colour chosen against is not the colour painted.
+    #[test]
+    fn the_dark_primary_is_the_oklab_mix_the_stylesheet_used_to_compute() {
+        // Measured with `ui/tests/tokenContrast.ts`, which resolves `color-mix(in oklab, …)` the
+        // way a browser does: these are the colours the dark theme already paints today, so
+        // nothing an installation looks at moves except the label on a dark brand.
+        assert_eq!(with_primary("#1d4ed8").primary_dark(), "#5985e7");
+        assert_eq!(with_primary("#7dd3fc").primary_dark(), "#a5e0fd");
+        assert_eq!(with_primary("#111827").primary_dark(), "#4a505d");
+        assert_eq!(with_primary("#dc2626").primary_dark(), "#ee7266");
+        assert_eq!(with_primary("#0000bf").primary_dark(), "#3666d7");
+        // White stays white, and the short form is the long one.
+        assert_eq!(with_primary("#ffffff").primary_dark(), "#ffffff");
+        assert_eq!(with_primary("#fff").primary_dark(), "#ffffff");
+        // A brand that is not a colour never reaches the mix, but if one did the page still gets
+        // a colour rather than a broken custom property.
+        assert_eq!(
+            with_primary("url(evil)").primary_dark(),
+            Branding::default().primary_dark
+        );
+    }
+
+    /// Both are computed, so a block that names them cannot put unreadable text on a button.
+    #[test]
+    fn the_dark_pair_in_the_file_is_overwritten() {
+        let branding = Branding {
+            primary_dark: "#000000".into(),
+            primary_foreground_dark: "#010101".into(),
+            ..with_primary("#111827")
+        }
+        .sanitised();
+
+        assert_eq!(branding.primary_dark, "#4a505d");
+        assert_eq!(branding.primary_foreground_dark, "#ffffff");
+        // And the light pair is still chosen for the configured colour, not the lightened one.
+        assert_eq!(branding.primary_foreground, "#ffffff");
     }
 
     /// The luminance is WCAG's, so it can be compared against a ratio at all.

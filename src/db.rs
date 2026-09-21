@@ -355,7 +355,10 @@ pub async fn list_agent_runs_filtered(
         sql.push_str(&format!(" AND created_by = ${param_idx}"));
         param_idx += 1;
     }
-    sql.push_str(&format!(" ORDER BY created_at DESC LIMIT ${param_idx}"));
+    // Ties by id, as the memory store sorts them, so a page is the same between two calls.
+    sql.push_str(&format!(
+        " ORDER BY created_at DESC, id ASC LIMIT ${param_idx}"
+    ));
 
     let mut query = sqlx::query_as::<_, AgentRun>(AssertSqlSafe(sql)).bind(project);
     if let Some(app) = &filter.app {

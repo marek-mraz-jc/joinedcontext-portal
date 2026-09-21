@@ -573,7 +573,7 @@ export function PipelineFlow({
                   : nodePaint.state === "ok"
                     ? "stroke-success"
                     : isSelected
-                      ? "stroke-primary"
+                      ? "stroke-primary-soft-fg"
                       : "stroke-border";
 
             const summary =

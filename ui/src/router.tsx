@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
 import { buttonClass, EmptyState, PageFailed } from "./components/ui";
+import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
@@ -618,6 +619,12 @@ export function createPortalRouter() {
     context: { auth: undefined as unknown as AuthState },
     defaultPreload: false,
     defaultNotFoundComponent: NotFound,
+    // What throws before a page is drawn — a loader, a `beforeLoad` — cannot be caught inside
+    // the shell, because there is no shell yet. It gets the same words as the boundary at the
+    // root rather than the router's own "Something went wrong!" (T-2426, UI-44).
+    defaultErrorComponent: function RouteFailed() {
+      return <ErrorPage reference={errorReference()} />;
+    },
   });
 }
 

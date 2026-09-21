@@ -273,6 +273,20 @@ impl KubeClient {
                 .trim()
                 .to_owned(),
         };
+        // A mount the kubelet has not filled yet, or a truncated write, would send a bare
+        // `Bearer`, which the API server reads as `system:anonymous` (T-2566, CC-06).
+        if token.trim().is_empty() {
+            return Err(match &self.token {
+                TokenSource::File(path) => KubeError::ServiceAccount {
+                    path: path.clone(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "the ServiceAccount token is empty",
+                    ),
+                },
+                TokenSource::Fixed(_) => KubeError::Client("the bearer token is empty".into()),
+            });
+        }
         let mut headers = HeaderMap::new();
         let mut bearer = HeaderValue::from_str(&format!("Bearer {token}"))
             .map_err(|err| KubeError::Client(err.to_string()))?;

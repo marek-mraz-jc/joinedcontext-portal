@@ -488,7 +488,7 @@ export function PipelineEditorDialog({
                 href={safeHref(bentoUrl)}
                 target="_blank"
                 rel="noreferrer"
-                className={buttonClass("ghost", "sm", "text-primary")}
+                className={buttonClass("ghost", "sm", "text-primary-soft-fg")}
               >
                 {t("pipelines.bloblangFile")}
                 <Icon name="external" className="size-3.5" />

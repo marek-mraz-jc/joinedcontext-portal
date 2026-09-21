@@ -550,9 +550,62 @@ async fn the_namespace_the_typed_references_and_the_urns_all_move() {
         policy.contains(&format!("namespace: {PROJECT}")),
         "{policy}"
     );
-    // The policy's `assigner` still names the source organisation's DID after the move; that is
-    // today's behaviour, and T-2256 asks whether an imported grant may keep it.
-    assert!(policy.contains("did:web:hel.fi"), "{policy}");
+    // CC-82, R6, T-2256: the grant is this organisation's now, so its assigner is the placeholder
+    // the loader renders for whoever owns the file, and the source's DID is gone.
+    assert!(policy.contains("assigner: did:web:{orgDomain}"), "{policy}");
+    assert!(!policy.contains("did:web:hel.fi"), "{policy}");
+}
+
+/// R6, CC-82, T-2256: an assigner the bundle carried from another organisation is rewritten to
+/// `did:web:{orgDomain}`, and the plan a person approves lists each one it rewrote with the DID it
+/// carried; a Policy already naming the placeholder is not listed, and the Change body says it too.
+#[tokio::test]
+async fn an_imported_policy_is_signed_by_this_organisation_and_the_plan_says_so() {
+    let own = POLICY
+        .replace("name: public-air", "name: own-air")
+        .replace("assigner: did:web:hel.fi", "assigner: did:web:{orgDomain}");
+    let files = [
+        ("projects/helsinki/spaces/ovzdusie/space.yaml", SPACE),
+        ("projects/helsinki/endpoints/public-air.yaml", ENDPOINT),
+        (
+            "projects/helsinki/spaces/ovzdusie/policies/public-air.yaml",
+            POLICY,
+        ),
+        (
+            "projects/helsinki/spaces/ovzdusie/policies/own-air.yaml",
+            own.as_str(),
+        ),
+    ];
+
+    let server = forge().await;
+    let (checked, cookie) = state(&server, vec![]);
+    let (content_type, body) = multipart(&archive(&files), &[("dryRun", "true")]);
+    let (status, report) = post(checked, &cookie, &content_type, body).await;
+    assert_eq!(status, StatusCode::OK, "{report}");
+    assert_eq!(
+        report["reassigned"],
+        json!({ "Policy/public-air": "did:web:hel.fi" }),
+        "{report}"
+    );
+
+    let server = forge().await;
+    let (imported, cookie) = state(&server, vec![]);
+    let (content_type, body) = multipart(&archive(&files), &[]);
+    let (status, answer) = post(imported, &cookie, &content_type, body).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    let pull = server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .find(|request| request.method.as_str() == "POST" && request.url.path().ends_with("/pulls"))
+        .expect("a merge request");
+    let pull: Value = serde_json::from_slice(&pull.body).expect("json");
+    let body = pull["body"].as_str().unwrap_or_default();
+    assert!(
+        body.contains("Policy/public-air: assigner did:web:hel.fi is now did:web:{orgDomain}"),
+        "{body}"
+    );
 }
 
 #[tokio::test]

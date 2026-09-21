@@ -593,6 +593,72 @@ async fn a_data_source_check_with_no_runner_still_names_a_probe() {
     );
 }
 
+/// How many requests of one method the runner saw.
+async fn requests_of(runner: &MockServer, verb: &str) -> usize {
+    runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == verb)
+        .count()
+}
+
+/// A runner that answers the create with `create` and the delete with `delete`.
+async fn runner_answering(create: ResponseTemplate, delete: ResponseTemplate) -> MockServer {
+    let runner = MockServer::start().await;
+    for (verb, answer) in [("POST", create), ("DELETE", delete)] {
+        Mock::given(method(verb))
+            .and(path_regex(
+                r"^/[a-z0-9-]+/streams/pipeline-test-[a-z2-7]{26}$",
+            ))
+            .respond_with(answer)
+            .mount(&runner)
+            .await;
+    }
+    runner
+}
+
+/// T-2565, PL-43: a runner that answered the create with 5xx, or too late, may still hold the
+/// stream, so it is deleted all the same; the caller still gets 503.
+#[tokio::test]
+async fn the_stream_is_deleted_whatever_the_create_answered() {
+    for (project, create) in [
+        ("t2565-a", ResponseTemplate::new(502)),
+        (
+            "t2565-b",
+            ResponseTemplate::new(200).set_delay(Duration::from_secs(5)),
+        ),
+    ] {
+        let runner = runner_answering(create, ResponseTemplate::new(200)).await;
+        let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+        let (status, body) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{project}: {body}");
+        assert_eq!(requests_of(&runner, "DELETE").await, 1, "{project}");
+    }
+}
+
+/// T-2565, PL-43: a delete the runner refuses leaves the stream behind, and the trace says so
+/// as a runner error; a delete of a stream already gone (404) is not a failure.
+#[tokio::test]
+async fn a_refused_delete_is_said_as_a_runner_error() {
+    for (project, delete, said) in [
+        ("t2565-c", ResponseTemplate::new(500), true),
+        ("t2565-d", ResponseTemplate::new(404), false),
+    ] {
+        let create = ResponseTemplate::new(400).set_body_string("line 3 char 1: bad mapping");
+        let runner = runner_answering(create, delete).await;
+        let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+        let (status, body) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+        assert_eq!(status, StatusCode::OK, "{project}: {body}");
+        let runner_errors = body["errors"]
+            .as_array()
+            .map(|errors| errors.iter().filter(|e| e["stage"] == "runner").count())
+            .unwrap_or_default();
+        assert_eq!(runner_errors, usize::from(said), "{project}: {body}");
+    }
+}
+
 // ---- T-2520: `run_harness`, one test stream per project, always removed (PL-43) -------------
 // The running tests are one table per process, so every case below has a project of its own.
 

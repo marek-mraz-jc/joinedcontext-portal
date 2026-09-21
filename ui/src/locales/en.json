@@ -505,7 +505,13 @@
       "alias": "alias",
       "gone": "Endpoint no longer shared",
       "goneSource": "Source unavailable",
-      "emptyHint": "Another project can let this one read its endpoint without copying the data. Nothing is shared with this project yet."
+      "emptyHint": "Another project can let this one read its endpoint without copying the data. Nothing is shared with this project yet.",
+      "edit": {
+        "alias": "Alias",
+        "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
+        "interval": "Mirror interval",
+        "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
+      }
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",

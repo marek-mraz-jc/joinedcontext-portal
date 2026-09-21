@@ -3510,3 +3510,680 @@ async fn approving_the_change_merges_the_applications_repository_at_the_publishe
         .expect("run");
     assert_eq!(stored.status, "awaiting_approval");
 }
+
+// ---- T-2516: `end_run` under failure (AG-46) ----------------------------------------------
+
+/// What the kube API saw at each workspace delete: the run's ticket hash and whether its
+/// ending status event was already published, read from the store at that moment.
+#[derive(Clone, Default)]
+struct Deletes(Arc<std::sync::Mutex<Vec<(String, bool, String)>>>);
+
+/// A Portal whose runs schedule a workspace on a kube API mock that answers every delete with
+/// `delete_status`, recording the run's state at that moment.
+async fn ending_world(
+    delete_status: u16,
+    db: Option<sqlx::PgPool>,
+) -> (
+    AppState,
+    axum::Router,
+    String,
+    wiremock::MockServer,
+    Deletes,
+) {
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let api = MockServer::start().await;
+    let config = config();
+    let (mut state, _, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    if let Some(pool) = db {
+        state = state.with_db(pool);
+    }
+    state.kube = Some(Arc::new(
+        joinedcontext_portal::apps::kube::KubeClient::with_token(&api.uri(), "kube-token")
+            .expect("a kube client"),
+    ));
+    let deletes = Deletes::default();
+    let (seen, reader) = (deletes.clone(), state.clone());
+    Mock::given(method("DELETE"))
+        .and(path_regex("/jobs/agent-run-"))
+        .respond_with(move |request: &wiremock::Request| {
+            let id = request
+                .url
+                .path()
+                .rsplit("agent-run-")
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            let store = reader.clone();
+            let run_id = id.clone();
+            // The store is read from a runtime of its own: the responder runs on the mock's.
+            let (hash, ended) = std::thread::spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("a runtime");
+                runtime.block_on(async {
+                    let hash = store
+                        .agents
+                        .get_run(&run_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|run| run.ticket_hash)
+                        .unwrap_or_default();
+                    let ended = store
+                        .agents
+                        .events_since(&run_id, 0)
+                        .await
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|e| e.kind == "status" && e.payload.to_string().contains("cancelled"));
+                    (hash, ended)
+                })
+            })
+            .join()
+            .expect("the store read");
+            if let Ok(mut log) = seen.0.lock() {
+                log.push((
+                    hash,
+                    ended,
+                    String::from_utf8_lossy(&request.body).into_owned(),
+                ));
+            }
+            ResponseTemplate::new(delete_status).set_body_json(json!({ "kind": "Status" }))
+        })
+        .mount(&api)
+        .await;
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(delete_status).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    Mock::given(wiremock::matchers::any())
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(&api)
+        .await;
+    let app = server::app(state.clone());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    (state, app, cookie, api, deletes)
+}
+
+async fn cancel(app: &axum::Router, cookie: &str, id: &str) -> (StatusCode, Value) {
+    call(
+        app,
+        cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/cancel"),
+        None,
+    )
+    .await
+}
+
+async fn ticket_of(state: &AppState, id: &str) -> String {
+    state
+        .agents
+        .get_run(id)
+        .await
+        .expect("the store")
+        .expect("the run")
+        .ticket_hash
+}
+
+async fn job_deletes(api: &wiremock::MockServer) -> usize {
+    api.received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().contains("/jobs/"))
+        .count()
+}
+
+/// T-2516, AG-46: when the pod's delete reaches the kube API, the run's ticket is already
+/// dead, so the workspace is refused by the proxy for every moment it still runs.
+#[tokio::test]
+async fn the_ticket_is_invalidated_before_the_pod_delete_call_is_made() {
+    let (state, app, cookie, _api, deletes) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let seen = deletes.0.lock().expect("the log").clone();
+    assert_eq!(seen.len(), 1, "one Job delete");
+    assert_eq!(
+        seen[0].0, "",
+        "the ticket was alive when the pod delete was sent"
+    );
+}
+
+/// T-2516, AG-46: the ending `status` event is published after the pod's delete, never before.
+#[tokio::test]
+async fn the_status_event_is_published_after_the_pod_is_gone() {
+    let (state, app, cookie, _api, deletes) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    cancel(&app, &cookie, &id).await;
+    let seen = deletes.0.lock().expect("the log").clone();
+    assert!(
+        !seen[0].1,
+        "the status event went out before the pod delete"
+    );
+    let events = state.agents.events_since(&id, 0).await.expect("events");
+    assert!(events
+        .iter()
+        .any(|e| e.kind == "status" && e.payload.to_string().contains("cancelled")));
+}
+
+/// T-2516, AG-46: a pod that is already gone (404) or a kube API that fails (500) still ends
+/// the run with its reason, and the ticket stays dead.
+#[tokio::test]
+async fn a_pod_delete_that_answers_404_still_ends_the_run() {
+    for delete in [404, 500] {
+        let (state, app, cookie, api, _) = ending_world(delete, None).await;
+        let id = create_run(&app, &cookie).await["id"]
+            .as_str()
+            .expect("an id")
+            .to_owned();
+        let (status, run) = cancel(&app, &cookie, &id).await;
+        assert_eq!(status, StatusCode::OK, "{delete}: {run}");
+        assert_eq!(run["status"], json!("cancelled"), "{delete}");
+        assert_eq!(
+            run["error"],
+            json!(format!("cancelled by {STEWARD}")),
+            "{delete}: {run}"
+        );
+        assert_eq!(ticket_of(&state, &id).await, "", "{delete}");
+        assert_eq!(job_deletes(&api).await, 1, "{delete}");
+    }
+}
+
+#[tokio::test]
+async fn a_pod_delete_that_answers_500_leaves_the_ticket_dead_and_reports_the_run_ended_with_the_reason(
+) {
+    let (state, app, cookie, _api, _) = ending_world(500, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let (status, run) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{run}");
+    assert_eq!(run["error"], json!(format!("cancelled by {STEWARD}")));
+    assert!(run["finishedAt"].as_str().is_some(), "{run}");
+    assert_eq!(ticket_of(&state, &id).await, "");
+    let read = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(read.status, "cancelled");
+}
+
+/// T-2516, AG-46: a Portal that never scheduled the run's pod (no kube API, or no agent
+/// settings at all) still kills the ticket when the run ends.
+#[tokio::test]
+async fn cancelling_a_run_with_no_scheduled_pod_still_invalidates_the_ticket() {
+    let config = config();
+    let (state, app, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    assert!(state.kube.is_none());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ticket_of(&state, &id).await, "");
+}
+
+#[tokio::test]
+async fn no_agent_settings_configured_still_invalidates_the_ticket() {
+    // The run is recorded while the runner block is configured; the Portal that ends it has none
+    // (its settings were removed and it restarted), and the reaper ends what expired.
+    let config = config();
+    let (state, app, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let mut run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    run.expires_at = "2000-01-01T00:00:00Z".to_owned();
+
+    let bare =
+        AppState::new(Config::for_tests(), None).with_mirror(mirror(Some(builder_profile_spec())));
+    assert!(bare.config.agent_settings.is_none());
+    bare.agents.create_run(&run).await.expect("recorded");
+    assert!(ticket_of(&bare, &id).await.starts_with("$argon2id$"));
+    let reaped = reaper::reap_expired(&bare).await;
+    assert_eq!(reaped, 1);
+    assert_eq!(ticket_of(&bare, &id).await, "");
+    let read = bare.agents.get_run(&id).await.expect("store").expect("run");
+    assert_eq!(read.status, "expired");
+}
+
+/// T-2516, AG-46: a second end of an ended run is a conflict that changes nothing: the hash
+/// stays empty and nothing more is deleted or published.
+#[tokio::test]
+async fn ending_an_already_ended_run_is_idempotent_on_the_ticket_hash() {
+    let (state, app, cookie, api, _) = ending_world(200, None).await;
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::OK);
+    let events = state
+        .agents
+        .events_since(&id, 0)
+        .await
+        .expect("events")
+        .len();
+    for _ in 0..2 {
+        assert_eq!(cancel(&app, &cookie, &id).await.0, StatusCode::CONFLICT);
+    }
+    assert_eq!(ticket_of(&state, &id).await, "");
+    assert_eq!(job_deletes(&api).await, 1);
+    assert_eq!(
+        state
+            .agents
+            .events_since(&id, 0)
+            .await
+            .expect("events")
+            .len(),
+        events
+    );
+}
+
+/// T-2516: the reason is the run's `error` and nothing else: no delete to the kube API
+/// carries it, and none carries the run's ticket either.
+#[tokio::test]
+async fn the_reason_string_never_reaches_the_pod_spec_or_a_log_with_a_credential() {
+    let (state, app, cookie, api, _) = ending_world(200, None).await;
+    let created = create_run(&app, &cookie).await;
+    let id = created["id"].as_str().expect("an id").to_owned();
+    let hash = ticket_of(&state, &id).await;
+    cancel(&app, &cookie, &id).await;
+    let reason = format!("cancelled by {STEWARD}");
+    for request in api.received_requests().await.unwrap_or_default() {
+        let body = String::from_utf8_lossy(&request.body);
+        if request.method.as_str() == "DELETE" {
+            assert!(!body.contains(&reason), "{} {body}", request.url);
+        }
+        assert!(
+            !body.contains(&hash),
+            "the ticket hash reached the kube API: {}",
+            request.url
+        );
+    }
+}
+
+fn database_url() -> Option<String> {
+    std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+}
+
+/// A trigger of this test alone that makes one kind of update of one run fail. The names are
+/// built from a run id the Portal minted (hex and dashes), never from input.
+async fn refuse_update(pool: &sqlx::PgPool, name: &str, id: &str, when: &str) {
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE OR REPLACE FUNCTION {name}() RETURNS trigger AS $$ BEGIN \
+         IF NEW.id = '{id}' AND {when} THEN RAISE EXCEPTION 'refused by the test'; END IF; \
+         RETURN NEW; END $$ LANGUAGE plpgsql"
+    )))
+    .execute(pool)
+    .await
+    .expect("the function");
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TRIGGER {name} BEFORE UPDATE ON agent_runs FOR EACH ROW EXECUTE FUNCTION {name}()"
+    )))
+    .execute(pool)
+    .await
+    .expect("the trigger");
+}
+
+async fn drop_refusal(pool: &sqlx::PgPool, name: &str) {
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP TRIGGER IF EXISTS {name} ON agent_runs"
+    )))
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP FUNCTION IF EXISTS {name}()"
+    )))
+    .execute(pool)
+    .await;
+}
+
+/// A run of an application of its own, so tests sharing one database never meet a live run of
+/// the same application from another test.
+async fn create_run_of_own_app(app: &axum::Router, cookie: &str) -> String {
+    let mut body = create_body();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or_default();
+    body["appName"] = json!(format!("ending-{nanos}"));
+    let (status, run) = call(
+        app,
+        cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{run}");
+    run["id"].as_str().expect("an id").to_owned()
+}
+
+/// T-2516, AG-46: a store that cannot clear the ticket fails the end before the pod is touched,
+/// so a pod never outlives a ticket that still verifies without somebody being told.
+#[tokio::test]
+async fn a_failing_ticket_invalidation_stops_before_the_pod_is_deleted() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2516_ticket_{}", id.replace('-', "_"));
+    refuse_update(
+        &pool,
+        &name,
+        &id,
+        "NEW.ticket_hash = '' AND OLD.ticket_hash <> ''",
+    )
+    .await;
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(status.is_server_error(), "{status}: {body}");
+    assert_eq!(job_deletes(&api).await, 0);
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+}
+
+/// T-2516: a status that cannot be written ends nothing: the ticket and the pod are left for
+/// the next attempt (the person's retry or the reaper), and the caller is told.
+#[tokio::test]
+async fn a_failing_set_status_never_invalidates_the_ticket_or_deletes_the_pod() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (state, app, cookie, api, _) = ending_world(200, Some(pool.clone())).await;
+    let id = create_run_of_own_app(&app, &cookie).await;
+    let name = format!("t2516_status_{}", id.replace('-', "_"));
+    refuse_update(&pool, &name, &id, "NEW.status = 'cancelled'").await;
+
+    let (status, body) = cancel(&app, &cookie, &id).await;
+    drop_refusal(&pool, &name).await;
+    assert!(status.is_server_error(), "{status}: {body}");
+    assert_eq!(job_deletes(&api).await, 0);
+    assert!(ticket_of(&state, &id).await.starts_with("$argon2id$"));
+    // The retry the caller was told to make ends it.
+    let retry = cancel(&app, &cookie, &id).await;
+    assert_eq!(retry.0, StatusCode::OK, "{}", retry.1);
+    assert_eq!(ticket_of(&state, &id).await, "");
+}
+
+/// Edge cases of the filtered run list against PostgreSQL (T-2502, MF-12, PF-59). They run when
+/// `JC_PORTAL_TEST_DATABASE_URL` names a database the test may write to, and skip otherwise, like
+/// the other database tests. Each test writes into projects of its own.
+mod filtered_list_edges {
+    use joinedcontext_portal::agents::run::AgentRun;
+    use joinedcontext_portal::agents::store::RunFilter;
+    use joinedcontext_portal::db;
+    use serde_json::json;
+    use sqlx::PgPool;
+
+    async fn pool() -> Option<PgPool> {
+        let url = std::env::var("JC_PORTAL_TEST_DATABASE_URL").ok()?;
+        if url.trim().is_empty() {
+            return None;
+        }
+        Some(db::connect(&url).await.expect("connect and migrate"))
+    }
+
+    /// A project name no other run of any test has used.
+    fn fresh(tag: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        format!("t2502-{tag}-{nanos}")
+    }
+
+    /// `(id, app, kind, status, created_by, created_at)`
+    type Row<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str, &'a str);
+
+    async fn insert(pool: &PgPool, project: &str, rows: &[Row<'_>]) {
+        for (id, app, kind, status, created_by, created_at) in rows {
+            let run: AgentRun = serde_json::from_value(json!({
+                "id": format!("{project}-{id}"), "project": project, "appName": app,
+                "endpointName": "air", "endpointSlug": "air", "profile": "builder",
+                "kind": kind, "unattended": false, "appClass": "dashboard",
+                "visibility": "internal", "prompt": "p", "promptDigest": "d",
+                "dataNeeds": [], "allowsWrite": false, "branch": "b", "pathPrefix": "apps/x",
+                "status": status, "ticketHash": "h", "steps": 0, "tokensUsed": 0,
+                "createdBy": created_by, "createdAt": created_at,
+                "expiresAt": "2099-01-01T00:00:00Z",
+            }))
+            .expect("a run");
+            db::insert_agent_run(pool, &run).await.expect("insert");
+        }
+    }
+
+    async fn ids(pool: &PgPool, project: &str, filter: RunFilter, limit: i64) -> Vec<String> {
+        db::list_agent_runs_filtered(pool, project, &filter, limit)
+            .await
+            .expect("the list")
+            .into_iter()
+            .map(|run| run.id.trim_start_matches(&format!("{project}-")).to_owned())
+            .collect()
+    }
+
+    fn filter(
+        app: Option<&str>,
+        kind: Option<&str>,
+        status: Option<&str>,
+        by: Option<&str>,
+    ) -> RunFilter {
+        RunFilter {
+            app: app.map(str::to_owned),
+            kind: kind.map(str::to_owned),
+            status: status.map(str::to_owned),
+            created_by: by.map(str::to_owned),
+        }
+    }
+
+    /// Four runs that differ in one field each from `a`, oldest first.
+    const ROWS: [Row<'static>; 5] = [
+        ("a", "kpi", "app", "running", "anna", "2026-09-21T10:00:00Z"),
+        ("b", "map", "app", "running", "anna", "2026-09-21T10:01:00Z"),
+        (
+            "c",
+            "kpi",
+            "edit",
+            "running",
+            "anna",
+            "2026-09-21T10:02:00Z",
+        ),
+        ("d", "kpi", "app", "failed", "anna", "2026-09-21T10:03:00Z"),
+        (
+            "e",
+            "kpi",
+            "app",
+            "running",
+            "boris",
+            "2026-09-21T10:04:00Z",
+        ),
+    ];
+
+    /// Cases 2 to 5 and 11, table-driven: every combination of the four filters binds each value
+    /// to its own column, and no filter at all lists every run once, newest first.
+    #[tokio::test]
+    async fn every_filter_alone_and_together_binds_its_own_column() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("filters");
+        insert(&pool, &project, &ROWS).await;
+        let cases: [(RunFilter, &[&str]); 7] = [
+            (filter(None, None, None, None), &["e", "d", "c", "b", "a"]),
+            (filter(Some("map"), None, None, None), &["b"]),
+            (filter(None, Some("edit"), None, None), &["c"]),
+            (filter(None, None, Some("failed"), None), &["d"]),
+            (filter(None, None, None, Some("boris")), &["e"]),
+            (
+                filter(Some("kpi"), Some("app"), Some("running"), Some("anna")),
+                &["a"],
+            ),
+            // A value in the wrong column matches nothing: `kpi` is an app, not a kind.
+            (filter(None, Some("kpi"), None, None), &[]),
+        ];
+        for (filter, expected) in cases {
+            let said = format!("{filter:?}");
+            assert_eq!(ids(&pool, &project, filter, 50).await, expected, "{said}");
+        }
+    }
+
+    /// Case 3: two filters before it do not move the `LIMIT` placeholder onto a filter value.
+    #[tokio::test]
+    async fn app_and_status_together_do_not_shift_the_limit_placeholder() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("limit");
+        insert(&pool, &project, &ROWS).await;
+        let page = ids(
+            &pool,
+            &project,
+            filter(Some("kpi"), None, Some("running"), None),
+            2,
+        )
+        .await;
+        assert_eq!(page, ["e", "c"]);
+    }
+
+    /// Case 1 and 8: a run of another project never reaches this one's page, whatever the
+    /// filters, and a project with no runs is an empty page, not an error.
+    #[tokio::test]
+    async fn two_projects_never_leak_into_each_others_filtered_page() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let (mine, theirs) = (fresh("mine"), fresh("theirs"));
+        insert(&pool, &mine, &ROWS[..1]).await;
+        insert(&pool, &theirs, &ROWS).await;
+        for filter in [
+            filter(None, None, None, None),
+            filter(Some("map"), None, None, None),
+            filter(None, None, None, Some("boris")),
+        ] {
+            let page = db::list_agent_runs_filtered(&pool, &mine, &filter, 50)
+                .await
+                .expect("the list");
+            assert!(page.iter().all(|run| run.project == mine), "{filter:?}");
+        }
+        let nobody = fresh("nobody");
+        let all = filter(Some("kpi"), Some("app"), Some("running"), Some("anna"));
+        assert!(ids(&pool, &nobody, all, 50).await.is_empty());
+    }
+
+    /// Cases 6 and 7: a value is bound, never spliced into the SQL, so `%`, `_` and a quote are
+    /// the characters they are.
+    #[tokio::test]
+    async fn a_filter_value_is_bound_so_wildcards_and_quotes_are_literal() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("literal");
+        insert(&pool, &project, &ROWS).await;
+        for value in [
+            "%",
+            "kp_",
+            "k%",
+            "kpi' OR '1'='1",
+            "kpi\"; DROP TABLE agent_runs; --",
+        ] {
+            for filter in [
+                filter(Some(value), None, None, None),
+                filter(None, None, None, Some(value)),
+            ] {
+                let said = format!("{filter:?}");
+                assert!(ids(&pool, &project, filter, 50).await.is_empty(), "{said}");
+            }
+        }
+        assert_eq!(
+            ids(&pool, &project, filter(None, None, None, None), 50)
+                .await
+                .len(),
+            5
+        );
+    }
+
+    /// Cases 9 and 10: `LIMIT 0` is an empty page, and a limit above the rows is every row once.
+    /// The route refuses a limit below one before it reaches here.
+    #[tokio::test]
+    async fn the_limit_bounds_the_page_at_both_ends() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("bounds");
+        insert(&pool, &project, &ROWS).await;
+        let none = filter(None, None, None, None);
+        assert!(ids(&pool, &project, none.clone(), 0).await.is_empty());
+        assert_eq!(ids(&pool, &project, none.clone(), 5).await.len(), 5);
+        assert_eq!(ids(&pool, &project, none.clone(), 6).await.len(), 5);
+        assert_eq!(ids(&pool, &project, none, 4).await, ["e", "d", "c", "b"]);
+    }
+
+    /// Runs created in the same instant come in the order the memory store gives them (by id),
+    /// so a page is the same between two calls whichever store serves it.
+    #[tokio::test]
+    async fn runs_created_at_one_instant_come_in_id_order() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let project = fresh("ties");
+        let at = "2026-09-21T10:00:00Z";
+        insert(
+            &pool,
+            &project,
+            &[
+                ("c", "kpi", "app", "running", "anna", at),
+                ("a", "kpi", "app", "running", "anna", at),
+                ("b", "kpi", "app", "running", "anna", at),
+            ],
+        )
+        .await;
+        let none = filter(None, None, None, None);
+        assert_eq!(
+            ids(&pool, &project, none.clone(), 50).await,
+            ["a", "b", "c"]
+        );
+        assert_eq!(ids(&pool, &project, none, 2).await, ["a", "b"]);
+    }
+}
