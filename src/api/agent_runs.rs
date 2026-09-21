@@ -479,6 +479,7 @@ pub async fn create_run(
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
@@ -681,6 +682,11 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
             } else {
                 gitea.browse_url(&run.path_prefix, &run.branch)
             });
+            if run.in_own_repository() {
+                run.mirror_url = state.github_mirror.as_deref().map(|mirror| {
+                    mirror.web_url(&repository::name(&run.project, &run.app_name), &run.branch)
+                });
+            }
         }
     }
     run

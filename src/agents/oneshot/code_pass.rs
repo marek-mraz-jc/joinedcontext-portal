@@ -879,12 +879,50 @@ impl Driver {
                     "commit",
                     json!({ "sha": sha, "message": commit_subject(message) }),
                 )
-                .await
+                .await?;
+                if own {
+                    self.mirror_to_github(&repo).await;
+                }
+                Ok(())
             }
             Err(err) => {
                 self.thought(&format!("The commit did not land in the forge: {err}"))
                     .await
             }
+        }
+    }
+
+    /// Keeps the application's GitHub copy in place, when the installation keeps one (AP-79).
+    ///
+    /// After the commit, so the forge repository exists and the first push carries this pass. A
+    /// copy that cannot be set up is said on the run and costs the pass nothing: the forge holds
+    /// the commit either way, and the next pass tries again.
+    async fn mirror_to_github(&self, repo: &crate::git::GiteaClient) {
+        let Some(mirror) = self.state.github_mirror.as_deref() else {
+            return;
+        };
+        let description = format!(
+            "Application {} of project {}, generated in the joinedcontext Portal",
+            self.app_name, self.project
+        );
+        let said = match mirror.mirror(repo, &description).await {
+            Ok(crate::git::github_mirror::Mirrored::Current) => return,
+            Ok(crate::git::github_mirror::Mirrored::Added) => {
+                "The application's repository is now copied to GitHub on every commit.".to_owned()
+            }
+            Ok(crate::git::github_mirror::Mirrored::Repaired(failed)) => format!(
+                "The copy on GitHub had stopped following the forge ({failed}); it was set up again."
+            ),
+            Err(err) => {
+                tracing::warn!(run = %self.run_id, repository = %repo.repo, error = %err, "GitHub copy not set up");
+                format!(
+                    "The copy on GitHub could not be set up: {err}. The forge holds this version; \
+                     the next change tries again."
+                )
+            }
+        };
+        if let Err(err) = self.thought(&said).await {
+            tracing::warn!(run = %self.run_id, error = %err, "the GitHub copy's sentence was not recorded");
         }
     }
 
@@ -1242,6 +1280,139 @@ mod repository_tests {
                 .iter()
                 .all(|request| !request.url.path().contains("/git/trees")),
             "a later pass read the whole tree"
+        );
+    }
+
+    /// The forge half of a later pass, for the cases that only differ in what GitHub answers.
+    async fn a_forge_for_a_later_pass() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(REPO))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/branches/{BRANCH}")))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head2" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c2" } })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    async fn thoughts(state: &AppState) -> Vec<String> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .map(|event| {
+                event.payload["text"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    /// AP-79: after the commit, the application's repository gets its GitHub copy, pushed at once,
+    /// and the run says so.
+    #[tokio::test]
+    async fn a_pass_sets_up_the_github_copy_after_its_commit_and_says_so() {
+        let forge = a_forge_for_a_later_pass().await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/push_mirrors")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&forge)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/push_mirrors")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .expect(1)
+            .mount(&forge)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/push_mirrors-sync")))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&forge)
+            .await;
+        let github = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/repos/hel-apps/helsinki_city-bikes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&github)
+            .await;
+
+        let (state, mut driver) = driver(&forge);
+        let state = state.with_github_mirror(Arc::new(
+            crate::git::github_mirror::GithubMirror::at(&github.uri(), "hel-apps", "ghp_secret"),
+        ));
+        driver.state = state.clone();
+        let mut committed = files();
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("committed");
+
+        let said = thoughts(&state).await;
+        assert!(
+            said.iter().any(|text| text.contains("copied to GitHub")),
+            "{said:?}"
+        );
+    }
+
+    /// AP-79: GitHub refusing costs the pass nothing. The commit stands, the run says why in words
+    /// a person can act on, and the token appears nowhere in what it says.
+    #[tokio::test]
+    async fn a_github_refusal_is_said_on_the_run_and_the_commit_stands() {
+        let forge = a_forge_for_a_later_pass().await;
+        let github = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/repos/hel-apps/helsinki_city-bikes"))
+            .respond_with(
+                ResponseTemplate::new(401).set_body_json(json!({ "message": "Bad credentials" })),
+            )
+            .mount(&github)
+            .await;
+
+        let (state, mut driver) = driver(&forge);
+        let state = state.with_github_mirror(Arc::new(
+            crate::git::github_mirror::GithubMirror::at(&github.uri(), "hel-apps", "ghp_secret"),
+        ));
+        driver.state = state.clone();
+        let mut committed = files();
+        let mut next = files();
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("the pass does not fail on GitHub");
+
+        assert_eq!(committed, next, "the commit stands");
+        let said = thoughts(&state).await;
+        let refusal = said
+            .iter()
+            .find(|text| text.contains("could not be set up"))
+            .unwrap_or_else(|| panic!("the run says nothing about GitHub: {said:?}"));
+        assert!(refusal.contains("Bad credentials"), "{refusal}");
+        assert!(
+            said.iter().all(|text| !text.contains("ghp_secret")),
+            "{said:?}"
         );
     }
 }

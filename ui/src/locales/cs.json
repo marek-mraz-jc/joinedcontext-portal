@@ -2018,7 +2018,8 @@
     "publication": {
       "title": "Zveřejnění",
       "source": "Zdrojový kód v Gitu",
-      "approve": "Schválit a zveřejnit"
+      "approve": "Schválit a zveřejnit",
+      "mirror": "Kopie na GitHubu"
     },
     "question": {
       "suggested": "navrhováno",

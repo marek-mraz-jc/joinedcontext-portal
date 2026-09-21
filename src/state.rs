@@ -32,6 +32,9 @@ pub struct AppState {
     /// `None` when no forge is configured: every write answers 503. A Portal that cannot
     /// open a merge request must not fall back to a local write (CC-03).
     pub gitea: Option<Arc<GiteaClient>>,
+    /// Where application repositories are copied to on GitHub (AP-79). `None` when the
+    /// installation keeps them on its forge alone.
+    pub github_mirror: Option<Arc<crate::git::github_mirror::GithubMirror>>,
     pub syncer: Option<Arc<Syncer>>,
     /// The `SyncSource` loop (MF-27…MF-32). `None` without a forge, or when the outbound HTTP
     /// client could not be built: the sync routes answer 503 and nothing syncs, rather than a
@@ -108,6 +111,7 @@ impl AppState {
             oidc: oidc.map(Arc::new),
             mirror: Arc::new(Mirror::new()),
             gitea: None,
+            github_mirror: None,
             syncer: None,
             sync: None,
             db: None,
@@ -137,6 +141,14 @@ impl AppState {
 
     pub fn with_gitea(mut self, gitea: Arc<GiteaClient>) -> Self {
         self.gitea = Some(gitea);
+        self
+    }
+
+    pub fn with_github_mirror(
+        mut self,
+        mirror: Arc<crate::git::github_mirror::GithubMirror>,
+    ) -> Self {
+        self.github_mirror = Some(mirror);
         self
     }
 
@@ -170,6 +182,10 @@ impl AppState {
         // A half-configured forge is a configuration error, not a reason to run without one:
         // `from_env` answers `Ok(None)` only when all four variables are absent.
         let gitea = GiteaClient::from_env(|key| std::env::var(key).ok())?;
+        // The same rule for the GitHub copy of application repositories (AP-79): off when both
+        // of its variables are absent, a startup error when only one is.
+        let github_mirror =
+            crate::git::github_mirror::GithubMirror::from_env(|key| std::env::var(key).ok())?;
         // A configured database that cannot be reached or migrated is fatal, like a half-configured
         // forge: better one clear startup error than a Portal that silently forgets preferences.
         let db = match config.database_url.as_deref() {
@@ -424,6 +440,15 @@ impl AppState {
             }
             state.gitea = Some(client);
             state.syncer = Some(Arc::new(syncer));
+        }
+        // A copy has nothing to copy without the forge it mirrors.
+        match (github_mirror, state.gitea.is_some()) {
+            (Some(mirror), true) => state.github_mirror = Some(Arc::new(mirror)),
+            (Some(_), false) => tracing::warn!(
+                "JC_APP_MIRROR_GITHUB_OWNER is set but no forge is configured: application \
+                 repositories are not copied to GitHub"
+            ),
+            (None, _) => {}
         }
         Ok(state)
     }

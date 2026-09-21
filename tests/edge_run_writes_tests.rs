@@ -190,6 +190,7 @@ fn a_run(id: &str, project: &str, who: &str, status: AgentRunStatus, kind: &str)
         merge_request: None,
         change_id: None,
         source_url: None,
+        mirror_url: None,
         preview_url: None,
         first_frame_ms: None,
         first_version_ms: None,
