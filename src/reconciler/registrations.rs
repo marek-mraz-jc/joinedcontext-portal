@@ -81,7 +81,13 @@ impl RegistrationSync {
         let mut outcomes = Vec::new();
         let mut declared_ids: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
-        for (project, name, space, manifest) in declared(mirror) {
+        let (found, refused) = declared(mirror);
+        // A manifest that could not be read is said to be not written, so its status does not
+        // keep the `Live` the load gave it (T-2543).
+        for (project, name, reason) in refused {
+            outcomes.push((project, name, RegistrationOutcome::Error(reason)));
+        }
+        for (project, name, space, manifest) in found {
             let id = registration_id(&name);
             declared_ids
                 .entry(space.clone())
@@ -105,7 +111,7 @@ impl RegistrationSync {
         // A manifest that is gone takes its registration with it, and with it the exposure it
         // was: a member that stays registered after its manifest is deleted keeps answering
         // the hub's audience.
-        for (_, name, space, _) in declared(previous) {
+        for (_, name, space, _) in declared(previous).0 {
             let id = registration_id(&name);
             if declared_ids
                 .get(&space)
@@ -230,13 +236,15 @@ async fn refusal(what: &str, response: reqwest::Response) -> String {
     }
 }
 
-/// Every declared registration of the mirror: `(project, name, hub space, manifest)`.
+/// Every declared registration of the mirror: `(project, name, hub space, manifest)`, and the
+/// ones that cannot be written: `(project, name, reason)`.
 ///
 /// The manifest is rebuilt in the shape `jcctl::csr` reads, because the body it builds is the
 /// one the specification defines and writing a second one here would be a second place for a
 /// registration to stop matching.
-fn declared(mirror: &Mirror) -> Vec<(String, String, String, RawManifest)> {
+fn declared(mirror: &Mirror) -> (Vec<Declared>, Vec<Refused>) {
     let mut found = Vec::new();
+    let mut refused = Vec::new();
     for namespace in mirror.namespaces() {
         let page = mirror.list(
             &namespace,
@@ -255,6 +263,11 @@ fn declared(mirror: &Mirror) -> Vec<(String, String, String, RawManifest)> {
                             error = %err,
                             "a ContextSourceRegistration manifest does not parse and is not written"
                         );
+                        refused.push((
+                            namespace.clone(),
+                            name,
+                            format!("the manifest does not parse, so it is not registered: {err}"),
+                        ));
                         continue;
                     }
                 };
@@ -268,6 +281,7 @@ fn declared(mirror: &Mirror) -> Vec<(String, String, String, RawManifest)> {
                     error = %err,
                     "a ContextSourceRegistration reaches outside its project and is not written"
                 );
+                refused.push((namespace.clone(), name, format!("the manifest reaches outside its project, so it is not registered (PF-48): {err}")));
                 continue;
             }
             let metadata = match serde_json::to_value(&envelope.metadata)
@@ -281,6 +295,7 @@ fn declared(mirror: &Mirror) -> Vec<(String, String, String, RawManifest)> {
                         error = %err,
                         "a ContextSourceRegistration's metadata does not parse"
                     );
+                    refused.push((namespace.clone(), name, format!("the manifest's metadata does not parse, so it is not registered: {err}")));
                     continue;
                 }
             };
@@ -300,8 +315,14 @@ fn declared(mirror: &Mirror) -> Vec<(String, String, String, RawManifest)> {
             ));
         }
     }
-    found
+    (found, refused)
 }
+
+/// A declared registration: `(project, name, hub space, manifest)`.
+type Declared = (String, String, String, RawManifest);
+
+/// A declared registration that cannot be written: `(project, name, reason)`.
+type Refused = (String, String, String);
 
 #[cfg(test)]
 mod tests {
@@ -364,7 +385,7 @@ mod tests {
             envelope("ContextSpace", "hub", json!({ "urnSegment": "hub" })),
         ]);
 
-        let declared = declared(&mirror);
+        let (declared, _) = declared(&mirror);
         assert_eq!(declared.len(), 1);
         let (project, name, space, manifest) = &declared[0];
         assert_eq!(
@@ -397,7 +418,7 @@ mod tests {
             json!({ "kind": "Endpoint", "name": "somewhere-else" }),
         )]);
 
-        let declared = declared(&mirror);
+        let (declared, _) = declared(&mirror);
         let refused = registration(&declared[0].3, &sync.members_of(&mirror, "helsinki"))
             .expect_err("no such Endpoint in this project");
         assert!(refused.to_string().contains("somewhere-else"), "{refused}");
@@ -410,7 +431,9 @@ mod tests {
             "transport",
             json!({ "kind": "Endpoint", "name": "transport-read", "namespace": "espoo" }),
         )]);
-        assert!(declared(&mirror).is_empty());
+        let (found, refused) = declared(&mirror);
+        assert!(found.is_empty());
+        assert!(refused[0].2.contains("outside its project"), "{refused:?}");
     }
 
     #[test]
@@ -420,7 +443,9 @@ mod tests {
             "broken",
             json!({ "contextSpaceRef": "hub" }),
         )]);
-        assert!(declared(&mirror).is_empty());
+        let (found, refused) = declared(&mirror);
+        assert!(found.is_empty());
+        assert_eq!(refused[0].1, "broken");
     }
 
     #[test]
