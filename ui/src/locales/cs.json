@@ -1780,6 +1780,8 @@
       "dropped": "Živé spojení se přerušilo. To, co je napsáno výše, může být nedokončené; otevřete běh znovu, abyste ho dál sledovali.",
       "stalled": "Žádná odpověď už {seconds} sekund. Běh možná ještě pracuje, nebo se zastavil.",
       "stop": "Zastavit běh",
+      "retry": "Zeptat se znovu",
+      "newConversation": "Nová konverzace",
       "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady."
     },
     "line": {
@@ -1972,6 +1974,7 @@
     }
   },
   "assistant": {
+    "newConversation": "Začít novou konverzaci",
     "navigated": "Otevřeno: {page}",
     "pageNamed": "{page}: {name}",
     "anotherPage": "jiná stránka",

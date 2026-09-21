@@ -1780,6 +1780,8 @@
       "dropped": "The live connection dropped. What is written above may be unfinished; reopen the run to follow it again.",
       "stalled": "No answer for {seconds} seconds. The run may still be working, or it may have stopped.",
       "stop": "Stop the run",
+      "retry": "Ask again",
+      "newConversation": "New conversation",
       "sendFailed": "The message was not sent: {reason}. What you typed is still here."
     },
     "line": {
@@ -1972,6 +1974,7 @@
     }
   },
   "assistant": {
+    "newConversation": "Start a new conversation",
     "navigated": "Opened {page}",
     "pageNamed": "{page}: {name}",
     "anotherPage": "another page",

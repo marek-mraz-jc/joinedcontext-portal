@@ -1780,6 +1780,8 @@
       "dropped": "Die Live-Verbindung ist abgebrochen. Was oben steht, kann unfertig sein; öffnen Sie den Lauf erneut, um ihm weiter zu folgen.",
       "stalled": "Seit {seconds} Sekunden keine Antwort. Der Lauf arbeitet vielleicht noch, vielleicht steht er still.",
       "stop": "Lauf stoppen",
+      "retry": "Erneut fragen",
+      "newConversation": "Neues Gespräch",
       "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier."
     },
     "line": {
@@ -1972,6 +1974,7 @@
     }
   },
   "assistant": {
+    "newConversation": "Ein neues Gespräch beginnen",
     "navigated": "Geöffnet: {page}",
     "pageNamed": "{page}: {name}",
     "anotherPage": "eine andere Seite",

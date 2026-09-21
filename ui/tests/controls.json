@@ -11,7 +11,7 @@
   "modules": {
     "src/assistant/AssistantDock.tsx": {
       "controls": {
-        "button": 9,
+        "button": 10,
         "Button": 2,
         "textarea": 1
       },
@@ -19,7 +19,8 @@
         "agent_run.test.tsx",
         "app_route.test.tsx",
         "assistant_endpoints.test.tsx",
-        "assistant_layout.test.tsx"
+        "assistant_layout.test.tsx",
+        "assistant_turns.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -536,10 +537,11 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 4
       },
       "tests": [
         "action_inspector.test.tsx",
+        "assistant_turns.test.tsx",
         "conversation_panel.test.tsx",
         "conversation_repeats.test.tsx",
         "form_conversation_panel.test.tsx"
