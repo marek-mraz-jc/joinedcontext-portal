@@ -60,6 +60,11 @@ export default tseslint.config(
           message: "Do not take focus on arrival: it moves a screen reader mid-sentence (UI-01).",
         },
         {
+          selector: "TSAsExpression > TSNeverKeyword",
+          message:
+            "Type it from the API's schema or the route's search, not `as never` (T-1488; tests/ui_rules.test.ts fails on it).",
+        },
+        {
           selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
           message: "Markup is never built from a string (PF-50).",
         },

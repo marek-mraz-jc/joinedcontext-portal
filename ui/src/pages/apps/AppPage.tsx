@@ -30,7 +30,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/agent-runs", {
-          params: { path: { project }, query: { app: name } as never },
+          params: { path: { project }, query: { app: name } },
         }),
       ),
   });

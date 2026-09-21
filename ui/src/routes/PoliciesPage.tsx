@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
-import type { Change, Manifest } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { useOrgDomain } from "../api/projects";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
@@ -176,7 +176,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
       return proposeChecked(
         project,
         "policies",
-        toPolicyEnvelope(project, orgDomain, form) as { metadata: { name: string } },
+        toPolicyEnvelope(project, orgDomain, form) as ResourceProposal,
         true,
       );
     },

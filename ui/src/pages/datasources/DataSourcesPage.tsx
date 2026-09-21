@@ -65,7 +65,7 @@ interface Probe {
 export interface DataSourceEnvelope {
   apiVersion: string;
   kind: "DataSource";
-  metadata: { name: string; namespace: string; title?: unknown };
+  metadata: { name: string; namespace: string; title?: string };
   spec: Record<string, unknown>;
 }
 
@@ -335,7 +335,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   /** One request for both buttons: a dry run differs from a proposal only in the query. */
   const write = async (form: DataSourceForm, dry: boolean, draftRef?: { kind: string; name: string }) => {
     const envelope = toEnvelope(project, type, form, runnerCatalogInput);
-    const body = (draftRef ? { ...envelope, draft: draftRef } : envelope) as never;
+    const body = (draftRef ? { ...envelope, draft: draftRef } : envelope);
     const query = dry ? { dryRun: "All" } : undefined;
     const name = editing?.metadata.name;
     return unwrap(

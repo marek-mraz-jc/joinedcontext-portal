@@ -1951,6 +1951,10 @@ export interface components {
         DraftList: {
             items: components["schemas"]["Draft"][];
         };
+        DraftRef: {
+            kind: string;
+            name: string;
+        };
         /** @description Confirmation payload after dropping a draft. */
         DropDraftResponse: {
             dropped: boolean;
@@ -2149,6 +2153,27 @@ export interface components {
             /** @description Keycloak `sub`: stable, opaque, the only durable user key. */
             subject: string;
             username: string;
+        };
+        /** @description The options an import wizard sends beside the file (Architecture/06 §6). */
+        ImportOptions: {
+            conflictPolicy?: components["schemas"]["ConflictPolicy"];
+            dryRun?: boolean;
+            /** @description The manifests themselves, for a caller that posts JSON rather than a file. */
+            manifests?: unknown;
+            /**
+             * @description The organisation domain every imported id is rewritten to; this instance's own
+             *     organisation when absent (PF-10, PF-43).
+             */
+            orgDomain?: string | null;
+            /**
+             * @description Spaces the bundle names that are not copied: each reference to `from` lands on the
+             *     target project's space `to`, ids included (T-1441, MF-26).
+             */
+            spaceMapping?: components["schemas"]["SpaceMapping"][];
+            /** @description The namespace every imported manifest is rewritten into; the project when absent (MF-22). */
+            targetNamespace?: string | null;
+            /** @description A bundle to fetch rather than upload. Refused for now, see [`import`]. */
+            url?: string | null;
         };
         /** @description What one import would do, answered on a dry run and echoed in the merge request body. */
         ImportReport: {
@@ -2664,7 +2689,13 @@ export interface components {
             apiVersion: string;
             kind: string;
             metadata: components["schemas"]["ObjectMeta"];
-            spec?: Record<string, never>;
+            /**
+             * @description Free-form JSON whose shape the kind decides: an open map in the OpenAPI document, so a
+             *     generated client can send a real spec without a cast (T-1488).
+             */
+            spec?: {
+                [key: string]: unknown;
+            };
             status?: null | components["schemas"]["Status"];
         };
         /** @description One CKAN resource of a dataset. */
@@ -2681,6 +2712,22 @@ export interface components {
             items: components["schemas"]["ResourceEnvelope"][];
             kind: string;
             metadata: components["schemas"]["ListMeta"];
+        };
+        /**
+         * @description What a proposal of one resource sends: the manifest, and beside it the draft the form holds
+         *     (AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the
+         *     body before it is read as an envelope; the type is what the OpenAPI document says, so the
+         *     generated client sends them without a cast (T-1488).
+         */
+        ResourceProposal: components["schemas"]["ResourceEnvelope"] & {
+            draft?: null | components["schemas"]["DraftRef"];
+            /**
+             * @description Files beside the manifest, by path relative to its folder, each a text: at most 16 and
+             *     256 KiB together.
+             */
+            files?: {
+                [key: string]: string;
+            } | null;
         };
         Revision: {
             author: string;
@@ -2774,6 +2821,11 @@ export interface components {
             changes: components["schemas"]["ModelChange"][];
             severity: string;
             version: string;
+        };
+        /** @description One space of the origin mapped onto a space of the target project (T-1441). */
+        SpaceMapping: {
+            from: string;
+            to: string;
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
@@ -6011,7 +6063,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        /** @description The manifests as JSON, or a bundle file beside these options as a form */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportOptions"];
+                "multipart/form-data": components["schemas"]["ImportOptions"];
+            };
+        };
         responses: {
             /** @description Dry run: what the import would do */
             200: {
@@ -7441,7 +7499,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ResourceEnvelope"];
+                "application/json": components["schemas"]["ResourceProposal"];
             };
         };
         responses: {
@@ -7586,7 +7644,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ResourceEnvelope"];
+                "application/json": components["schemas"]["ResourceProposal"];
             };
         };
         responses: {

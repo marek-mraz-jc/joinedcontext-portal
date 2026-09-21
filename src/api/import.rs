@@ -1063,6 +1063,13 @@ async fn read_request(
         ("project" = String, Path, description = "Project the bundle is imported into"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' to validate and plan without proposing"),
     ),
+    request_body(
+        content(
+            (ImportOptions = "application/json"),
+            (ImportOptions = "multipart/form-data"),
+        ),
+        description = "The manifests as JSON, or a bundle file beside these options as a form",
+    ),
     responses(
         (status = 202, description = "One merge request for the whole bundle", body = Change),
         (status = 200, description = "Dry run: what the import would do", body = ImportReport),

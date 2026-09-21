@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
-import type { Change, Manifest } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { takePrefill } from "../../assistant/state";
 import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -158,7 +158,7 @@ export function GrantRoleDialog({
       proposeChecked(
         ORG_NAMESPACE,
         "rolebindings",
-        bindingOf(form, project, branding.orgDomain) as { metadata: { name: string } },
+        bindingOf(form, project, branding.orgDomain) as ResourceProposal,
         true,
       ),
     onSuccess: (result) => {

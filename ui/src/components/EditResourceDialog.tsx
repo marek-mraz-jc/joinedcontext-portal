@@ -7,7 +7,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { isChange } from "../api/manifest";
-import type { Change } from "../api/manifest";
+import type { Change, ResourceProposal } from "../api/manifest";
 import { usePermissions } from "../api/permissions";
 import { takeEditRequest } from "../assistant/state";
 import { ChangeNotice } from "./ChangeNotice";
@@ -91,7 +91,7 @@ export function EditResourceDialog({
 
   const propose = useMutation({
     mutationFn: async (body: unknown) =>
-      proposeChecked(home, plural, body as { metadata: { name: string } }, false),
+      proposeChecked(home, plural, body as ResourceProposal, false),
     onSuccess: (result) => {
       if (isChange(result)) {
         // Routed, the save goes back to the list and the change is shown there (T-2474).

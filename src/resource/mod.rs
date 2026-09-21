@@ -16,8 +16,10 @@ pub struct ResourceEnvelope {
     pub kind: String,
     #[schema(schema_with = crate::openapi::object_meta_ref)]
     pub metadata: ObjectMeta,
+    /// Free-form JSON whose shape the kind decides: an open map in the OpenAPI document, so a
+    /// generated client can send a real spec without a cast (T-1488).
     #[serde(default)]
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::BTreeMap<String, serde_json::Value>)]
     pub spec: serde_json::Value,
     /// Never read from Git, always computed by the Portal API (MF-04).
     #[serde(default, skip_serializing_if = "Option::is_none")]

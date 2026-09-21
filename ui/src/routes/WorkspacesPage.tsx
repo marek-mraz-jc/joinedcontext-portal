@@ -36,7 +36,7 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
     void navigate({
       to: "/projects/$project/$plural",
       params: { project, plural: "spaces" },
-      search: { workspace: name } as never,
+      search: { workspace: name },
     });
   const queryClient = useQueryClient();
   // The copy a person asked to discard, while the dialog names it and asks (UI-16).

@@ -278,7 +278,7 @@ export function AppGenerator({
             // The confirmed list, derived from the endpoint: the run is refused if it names
             // anything the endpoint does not publish, so the two cannot drift (AP-44).
             dataNeeds: needs,
-          } as never,
+          },
         }),
       );
     },

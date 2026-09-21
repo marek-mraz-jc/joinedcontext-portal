@@ -45,7 +45,12 @@ export interface LayerForm {
   popupProperties?: string[];
 }
 
-function envelope(project: string, kind: string, name: string, spec: unknown) {
+function envelope(
+  project: string,
+  kind: string,
+  name: string,
+  spec: Record<string, unknown>,
+) {
   return { apiVersion: API_VERSION, kind, metadata: { name, namespace: project }, spec: prune(spec) };
 }
 

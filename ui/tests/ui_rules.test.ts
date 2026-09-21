@@ -244,6 +244,13 @@ describe("what nothing in the UI may do", () => {
     );
   });
 
+  it("no_value_is_cast_to_never", () => {
+    // T-1488: `as never` fits any value into any slot, so a body the API renamed or a search the
+    // route never declared type-checks until dev. A mismatch is fixed where it is (the route's
+    // annotation, the route's search schema), and the generated types carry it here.
+    expect(everywhere(/[\w)\]}]\s+as\s+never\b/)).toEqual([]);
+  });
+
   it("no_code_is_built_from_a_string", () => {
     expect(everywhere(/\beval\(|new Function\(/)).toEqual([]);
   });

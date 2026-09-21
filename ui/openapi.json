@@ -4154,6 +4154,22 @@
             }
           }
         ],
+        "requestBody": {
+          "description": "The manifests as JSON, or a bundle file beside these options as a form",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportOptions"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportOptions"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Dry run: what the import would do",
@@ -6088,7 +6104,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResourceEnvelope"
+                "$ref": "#/components/schemas/ResourceProposal"
               }
             }
           },
@@ -6302,7 +6318,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResourceEnvelope"
+                "$ref": "#/components/schemas/ResourceProposal"
               }
             }
           },
@@ -8460,6 +8476,22 @@
           }
         }
       },
+      "DraftRef": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "DropDraftResponse": {
         "type": "object",
         "description": "Confirmation payload after dropping a draft.",
@@ -8960,6 +8992,49 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "ImportOptions": {
+        "type": "object",
+        "description": "The options an import wizard sends beside the file (Architecture/06 §6).",
+        "properties": {
+          "conflictPolicy": {
+            "$ref": "#/components/schemas/ConflictPolicy"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "manifests": {
+            "description": "The manifests themselves, for a caller that posts JSON rather than a file."
+          },
+          "orgDomain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The organisation domain every imported id is rewritten to; this instance's own\norganisation when absent (PF-10, PF-43)."
+          },
+          "spaceMapping": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceMapping"
+            },
+            "description": "Spaces the bundle names that are not copied: each reference to `from` lands on the\ntarget project's space `to`, ids included (T-1441, MF-26)."
+          },
+          "targetNamespace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The namespace every imported manifest is rewritten into; the project when absent (MF-22)."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A bundle to fetch rather than upload. Refused for now, see [`import`]."
           }
         }
       },
@@ -10446,7 +10521,12 @@
             "$ref": "#/components/schemas/ObjectMeta"
           },
           "spec": {
-            "type": "object"
+            "type": "object",
+            "description": "Free-form JSON whose shape the kind decides: an open map in the OpenAPI document, so a\ngenerated client can send a real spec without a cast (T-1488).",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
           },
           "status": {
             "oneOf": [
@@ -10510,6 +10590,43 @@
             "$ref": "#/components/schemas/ListMeta"
           }
         }
+      },
+      "ResourceProposal": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResourceEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "draft": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DraftRef",
+                    "description": "The draft this proposal is made from; the proposal then takes the draft's own manifest."
+                  }
+                ]
+              },
+              "files": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Files beside the manifest, by path relative to its folder, each a text: at most 16 and\n256 KiB together.",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "description": "What a proposal of one resource sends: the manifest, and beside it the draft the form holds\n(AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the\nbody before it is read as an envelope; the type is what the OpenAPI document says, so the\ngenerated client sends them without a cast (T-1488)."
       },
       "Revision": {
         "type": "object",
@@ -10778,6 +10895,23 @@
             "type": "string"
           }
         }
+      },
+      "SpaceMapping": {
+        "type": "object",
+        "description": "One space of the origin mapped onto a space of the target project (T-1441).",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "StartConversation": {
         "type": "object",

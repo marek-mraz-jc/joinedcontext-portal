@@ -1098,6 +1098,23 @@ fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, St
     Ok(written)
 }
 
+/// What a proposal of one resource sends: the manifest, and beside it the draft the form holds
+/// (AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the
+/// body before it is read as an envelope; the type is what the OpenAPI document says, so the
+/// generated client sends them without a cast (T-1488).
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct ResourceProposal {
+    #[serde(flatten)]
+    pub manifest: ResourceEnvelope,
+    /// The draft this proposal is made from; the proposal then takes the draft's own manifest.
+    #[serde(default)]
+    pub draft: Option<crate::ops::DraftRef>,
+    /// Files beside the manifest, by path relative to its folder, each a text: at most 16 and
+    /// 256 KiB together.
+    #[serde(default)]
+    pub files: Option<std::collections::BTreeMap<String, String>>,
+}
+
 /// The `draft` member a form sends beside its manifest (AG-61), taken out of the body.
 fn take_draft(body: &mut Value) -> Option<Value> {
     body.as_object_mut().and_then(|map| map.remove("draft"))
@@ -1168,7 +1185,7 @@ async fn propose_draft(
         ("plural" = String, Path, description = "Resource kind plural"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body = ResourceProposal,
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1227,7 +1244,7 @@ pub async fn create(
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
     ),
-    request_body = ResourceEnvelope,
+    request_body = ResourceProposal,
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),

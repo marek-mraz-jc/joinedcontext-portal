@@ -1,3 +1,4 @@
+import type { ResourceProposal } from "../../api/manifest";
 import { useState } from "react";
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
@@ -107,7 +108,7 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
         await proposeChecked(
           project,
           draft.plural,
-          draft.manifest as { metadata: { name: string } },
+          draft.manifest as ResourceProposal,
           true,
         );
         count += 1;

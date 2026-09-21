@@ -96,6 +96,7 @@ export const RULE_OF: Record<string, RegExp> = {
 export const UNLISTABLE = new Set([
   "no_markup_is_built_from_a_string",
   "no_code_is_built_from_a_string",
+  "no_value_is_cast_to_never",
   "a_new_tab_link_has_rel_noopener",
   "browser_storage_holds_preferences_only",
   "no_file_reaches_for_a_colour_family_the_theme_never_defined",

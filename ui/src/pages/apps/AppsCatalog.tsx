@@ -187,7 +187,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         kind: app.kind,
         metadata: app.metadata,
         spec: { ...appSpec(app), lifecycle: "published" },
-      } as never;
+      };
       // Checked first, then written: the verdict gate refuses a manifest nothing checked, so a
       // click that only wrote was refused with the gate's own sentence (PF-57, T-2264).
       return proposeChecked(project, "apps", body, false);

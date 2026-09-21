@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
-import type { Change, Manifest } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -121,7 +121,7 @@ export function NewRoleDialog({
       proposeChecked(
         project,
         "roles",
-        toRoleEnvelope(project, role) as { metadata: { name: string } },
+        toRoleEnvelope(project, role) as ResourceProposal,
         true,
       ),
     onSuccess: (result) => {

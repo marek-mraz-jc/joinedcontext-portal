@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { isChange } from "../../api/manifest";
-import type { Change } from "../../api/manifest";
+import type { Change, ResourceProposal } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
@@ -74,7 +74,7 @@ export function CkanPage({ project }: { project: string }): JSX.Element {
           apiTokenRef: { name: instance.secretName, key: instance.secretKey || "apiToken" },
         },
       };
-      return proposeChecked(project, "ckaninstances", body as { metadata: { name: string } }, true);
+      return proposeChecked(project, "ckaninstances", body as ResourceProposal, true);
     },
     onSuccess: (result) => {
       if (isChange(result)) {

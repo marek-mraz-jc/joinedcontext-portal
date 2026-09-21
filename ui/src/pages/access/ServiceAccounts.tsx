@@ -35,7 +35,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import type { Identity } from "../../auth/AuthProvider";
-import type { Change, Manifest } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import type { components } from "../../api/schema";
 
 type KeyInfo = components["schemas"]["KeyInfo"];
@@ -481,7 +481,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       return proposeChecked(
         project,
         "serviceaccounts",
-        toServiceAccountEnvelope(project, next) as { metadata: { name: string } },
+        toServiceAccountEnvelope(project, next) as ResourceProposal,
         true,
       );
     },

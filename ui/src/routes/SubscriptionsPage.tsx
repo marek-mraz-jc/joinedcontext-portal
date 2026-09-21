@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
-import type { Change, Manifest } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
@@ -213,7 +213,7 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
       return proposeChecked(
         project,
         "subscriptions",
-        toSubscriptionEnvelope(project, form) as { metadata: { name: string } },
+        toSubscriptionEnvelope(project, form) as ResourceProposal,
         true,
       );
     },

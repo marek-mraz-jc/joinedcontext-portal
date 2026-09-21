@@ -438,11 +438,10 @@ describe("the grid widget of a dashboard", () => {
         },
       ],
     };
-    const manifest = dashboardToManifest("helsinki", form) as {
-      spec: { pages: { widgets: { grid: unknown; entityType: string }[] }[] };
-    };
-    expect(manifest.spec.pages[0].widgets[0].entityType).toBe("AirQualityObserved");
-    expect(manifest.spec.pages[0].widgets[0].grid).toEqual(grid);
+    const manifest = dashboardToManifest("helsinki", form);
+    const spec = manifest.spec as { pages: { widgets: { grid: unknown; entityType: string }[] }[] };
+    expect(spec.pages[0].widgets[0].entityType).toBe("AirQualityObserved");
+    expect(spec.pages[0].widgets[0].grid).toEqual(grid);
     expect(dashboardFromManifest(manifest).pages).toEqual(form.pages);
   });
 });

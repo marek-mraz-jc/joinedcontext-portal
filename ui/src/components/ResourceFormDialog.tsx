@@ -12,6 +12,7 @@ import { arrange, index, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
+import type { ResourceProposal } from "../api/manifest";
 import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
@@ -640,17 +641,17 @@ export function ResourceFormDialog<T>({
     mutationFn: async (form: T) => {
       const manifest = source ? source.toManifest(form) : form;
       const name = draftName || extractName(form);
-      const body =
-        draftKind && name
-          ? { ...(manifest as object), draft: { kind: draftKind, name } }
-          : (manifest as object);
+      // What a page's `toManifest` builds is a manifest the API checks; its type is the API's.
+      const proposed = manifest as ResourceProposal;
+      const body: ResourceProposal =
+        draftKind && name ? { ...proposed, draft: { kind: draftKind, name } } : proposed;
       return unwrap(
         await api.POST("/api/v1/projects/{project}/{plural}", {
           params: {
             path: { project: project ?? "", plural: plural ?? "" },
             query: { dryRun: "All" },
           },
-          body: body as never,
+          body: body,
         }),
       );
     },
