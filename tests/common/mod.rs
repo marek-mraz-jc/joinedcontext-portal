@@ -25,6 +25,8 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
+pub mod doors;
+
 pub const CSRF: &str = "test-csrf-token-permissions";
 
 /// The mock forge's repository path.

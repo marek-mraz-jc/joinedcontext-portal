@@ -370,6 +370,36 @@ pub struct DraftRef {
     pub name: String,
 }
 
+/// A draft of a workspace is written and dropped by the workspace's owner alone, as every other
+/// write into it is (API/01 §22, CC-76, T-2482): the workspace name is not a key anybody may
+/// pick. `None` is the project's own draft, which the kind's `propose` already decides.
+async fn draft_workspace_owned(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+    action: &str,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::owned(state, &caller.identity, project, name, action).await?;
+    }
+    Ok(())
+}
+
+/// A draft of a workspace is read where the workspace is (PF-59, T-2482): a copy the caller may
+/// not see, or a name that is no live workspace, answers the workspace's own 404.
+async fn draft_workspace_visible(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::visible(state, &caller.identity, project, name).await?;
+    }
+    Ok(())
+}
+
 fn draft_error(err: DraftError) -> OpError {
     match err {
         DraftError::Conflict { current } => OpError::Conflict(json!({
@@ -2078,6 +2108,7 @@ fn core_operations() -> Vec<Operation> {
                     let input: DraftPutInput = parse_input(val)?;
                     crate::permissions::for_request(state, &caller.identity, project)
                         .check(&input.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
                     let draft = draft_store(state)
                         .put_in(
                             input.workspace.as_deref(),
@@ -2113,6 +2144,7 @@ fn core_operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let d: DraftGetInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, d.workspace.as_deref()).await?;
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
                     let draft = draft_store(state)
                         .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
@@ -2148,6 +2180,7 @@ fn core_operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let asked: DraftListInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, asked.workspace.as_deref()).await?;
                     // A draft is readable exactly where its manifest would be (PF-59, T-1455).
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
                     // A line per draft, never the manifest and never the verdict's trace
@@ -2184,6 +2217,7 @@ fn core_operations() -> Vec<Operation> {
                     let d: DraftDropInput = parse_input(val)?;
                     crate::permissions::for_request(state, &caller.identity, project)
                         .check(&d.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
                     let dropped = draft_store(state)
                         .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
