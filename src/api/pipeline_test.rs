@@ -11,6 +11,7 @@ use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use axum::extract::{DefaultBodyLimit, Path, State};
+use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Json, Router};
 use jc_core::kinds::{PipelineSpec, Verb};
