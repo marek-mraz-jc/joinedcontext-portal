@@ -615,11 +615,11 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                           uiSchema: serviceAccountUiSchema,
                           fromManifest: (manifest) =>
                             fromServiceAccountEnvelope(manifest) as unknown as Record<string, unknown>,
-                          toManifest: (edited) =>
+                          toManifest: (edited, stored) =>
                             toServiceAccountEnvelope(
                               project,
                               edited as unknown as ServiceAccountForm,
-                              account,
+                              stored,
                             ),
                         }}
                       />

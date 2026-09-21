@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, refName } from "../api/manifest";
+import { asManifests, isChange, localized, refName, storedMetadata } from "../api/manifest";
 import type { Change, Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
@@ -31,7 +31,7 @@ import {
   SourceLink,
 } from "../components/ui";
 
-interface SpaceForm {
+export interface SpaceForm {
   name: string;
   title?: string;
   dataModelRef?: string;
@@ -47,22 +47,33 @@ export function spaceSegment(project: string, name: string, pin?: string): strin
   return pin ?? `${project}-${name}`;
 }
 
-function toEnvelope(project: string, form: SpaceForm) {
+/**
+ * The form as the manifest. On an edit, `stored` is the manifest it started from: its description
+ * and labels travel on, and a title box left as it was keeps the stored title in every language
+ * (T-2470); a title the person changed or cleared is what they wrote.
+ */
+export function toEnvelope(project: string, form: SpaceForm, stored?: unknown, locale = "en") {
   const { name, title, ...spec } = form;
+  const { title: storedTitle, ...kept } = storedMetadata(stored);
+  const unchanged =
+    storedTitle !== undefined &&
+    (title ?? "") === localized(storedTitle as string | Record<string, string>, locale, "");
+  const written = unchanged ? storedTitle : title?.trim() ? title : undefined;
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "ContextSpace",
     metadata: {
+      ...kept,
       name,
       namespace: project,
-      ...(title?.trim() ? { title } : {}),
+      ...(written !== undefined ? { title: written } : {}),
     },
     spec,
   };
 }
 
 /** A draft or the YAML view read back into the form: the envelope's name, title and spec. */
-function fromEnvelope(manifest: unknown, locale = "en"): SpaceForm {
+export function fromEnvelope(manifest: unknown, locale = "en"): SpaceForm {
   const envelope = (manifest ?? {}) as { metadata?: { name?: string; title?: unknown }; spec?: object };
   // A manifest's title is a locale map (MF-01), and the form has one box: the box reads the box's
   // language. ponytail: a title in several languages collapses to the one shown if the person
@@ -112,7 +123,8 @@ function SpaceRowActions({
       form={{
         schema: contextSpaceSchema(t),
         fromManifest: (manifest) => fromEnvelope(manifest, locale) as unknown as Record<string, unknown>,
-        toManifest: (edited) => toEnvelope(project, edited as unknown as SpaceForm),
+        toManifest: (edited, stored) =>
+          toEnvelope(project, edited as unknown as SpaceForm, stored, locale),
       }}
       primary={
         <Link

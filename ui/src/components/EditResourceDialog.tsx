@@ -38,8 +38,12 @@ export interface EditableForm {
   uiSchema?: UiSchema;
   /** The stored manifest as the form's own model. */
   fromManifest: (manifest: unknown) => Record<string, unknown>;
-  /** The form's model back as the manifest to propose. */
-  toManifest: (form: Record<string, unknown>) => unknown;
+  /**
+   * The form's model back as the manifest to propose. `stored` is the manifest the edit started
+   * from: whatever the form has no field for (a title, a description, a label) is taken from it,
+   * or the edit would propose deleting it (T-2470).
+   */
+  toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
 }
 
 /**
@@ -217,7 +221,7 @@ export function EditResourceDialog({
                   setEdited((next ?? {}) as Record<string, unknown>);
                   setInvalid(null);
                 }}
-                onSubmit={(next) => proposeManifest(form.toManifest(next))}
+                onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
               />
             ) : null
           ) : (
