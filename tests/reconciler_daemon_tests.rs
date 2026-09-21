@@ -457,3 +457,445 @@ async fn the_run_hands_the_reader_credential_to_the_namespace_that_serves() {
     assert!(!serialised.contains(&writer.secret_key), "the writer's key");
     assert!(!serialised.contains(ROOT), "the root secret");
 }
+
+/// Edge cases of one pass: the leader order, the pipelines' secrets and what reaches the mirror
+/// (T-2504, PL-15, MF-04, MF-44, CC-03).
+mod pass_edges {
+    use super::*;
+    use joinedcontext_portal::apps::kube::KubeClient;
+    use joinedcontext_portal::pipeline_secrets::{Backend, Resolver};
+    use joinedcontext_portal::reconciler::streams::StreamDeployer;
+    use joinedcontext_portal::sync::webhook_secrets::Accepted;
+    use serde_json::Value;
+
+    const PASSWORD: &str = "the-mqtt-password-nobody-else-has";
+    const ORGANIZATION: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Organization\nmetadata:\n  name: hel\n  namespace: org\nspec:\n  domain: hel.fi\n  locales: [en]\n  defaultLocale: en\n";
+
+    fn space_of(project: &str) -> String {
+        format!("apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: {project}\nspec:\n  isSandbox: true\n")
+    }
+
+    /// A DataSource that names `secret` for its password, or no secret at all.
+    fn data_source(project: &str, name: &str, secret: Option<&str>) -> String {
+        let secrets = match secret {
+            Some(secret) => format!(
+                "  secrets:\n    - {{ name: {secret}, key: password, envVar: {} }}\n",
+                name.to_uppercase().replace('-', "_")
+            ),
+            None => String::new(),
+        };
+        format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: DataSource\nmetadata:\n  name: {name}\n  namespace: {project}\nspec:\n  type: mqtt\n  input:\n    urls: [\"tcp://broker.example.fi:1883\"]\n    topics: [\"vehicles/#\"]\n{secrets}"
+        )
+    }
+
+    fn pipeline(project: &str, name: &str, source: &str) -> String {
+        format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Pipeline\nmetadata:\n  name: {name}\n  namespace: {project}\nspec:\n  class: resident\n  enabled: true\n  targetEndpoint: \"urn:ngsi-ld:Endpoint:hel.fi:mobility:vehicles-in\"\n  quotas: {{ maxMemoryMb: 128, cpuMillicores: 250 }}\n  source:\n    dataSourceRef: {{ kind: DataSource, name: {source} }}\n  compute:\n    kind: bloblang\n    bloblang: \"root = this\"\n"
+        )
+    }
+
+    /// One project's space, and a pipeline per `(pipeline, secret)` reading a DataSource of its
+    /// own that names that secret.
+    fn project(name: &str, pipelines: &[(&str, Option<&str>)]) -> Vec<(String, String)> {
+        let mut files = vec![(
+            format!("projects/{name}/spaces/mobility/space.yaml"),
+            space_of(name),
+        )];
+        for (pipe, secret) in pipelines {
+            let source = format!("{pipe}-source");
+            files.push((
+                format!("projects/{name}/datasources/{source}.yaml"),
+                data_source(name, &source, *secret),
+            ));
+            files.push((
+                format!("projects/{name}/pipelines/{pipe}/pipeline.yaml"),
+                pipeline(name, pipe, &source),
+            ));
+        }
+        files
+    }
+
+    async fn serve(projects: &[Vec<(String, String)>]) -> MockServer {
+        let mut files = vec![("org.yaml".to_owned(), ORGANIZATION.to_owned())];
+        files.extend(projects.iter().flatten().cloned());
+        let borrowed: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(p, c)| (p.as_str(), c.as_str()))
+            .collect();
+        forge(&borrowed).await
+    }
+
+    /// An OpenBao that logs in and holds `mqtt-mesto` and `sync-hook`; any other name is absent.
+    async fn openbao() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/kubernetes/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "auth": { "client_token": "a-session", "lease_duration": 3600, "renewable": true }
+            })))
+            .mount(&server)
+            .await;
+        for (name, key, value) in [
+            ("mqtt-mesto", "password", PASSWORD),
+            ("sync-hook", "secret", "the-hook-secret"),
+        ] {
+            Mock::given(method("GET"))
+                .and(path(format!("/v1/secret/data/{name}")))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "data": { "data": { key: value }, "metadata": { "version": 1 } }
+                })))
+                .mount(&server)
+                .await;
+        }
+        server
+    }
+
+    fn resolver(bao: &MockServer) -> Resolver {
+        let jwt = std::env::temp_dir().join("jc-portal-t2504-token");
+        std::fs::write(&jwt, "a.service.account.token").expect("write the token");
+        Resolver::new(Backend::OpenBao {
+            address: bao.uri(),
+            role: "portal".to_owned(),
+            jwt_path: jwt,
+        })
+    }
+
+    /// An API server answering every apply with `status`.
+    async fn cluster(status: u16) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .respond_with(ResponseTemplate::new(status).set_body_json(json!({"kind": "Status"})))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// A runner that accepts every stream.
+    async fn runner() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&server)
+            .await;
+        for verb in ["PUT", "POST", "DELETE"] {
+            Mock::given(method(verb))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+                .mount(&server)
+                .await;
+        }
+        server
+    }
+
+    fn kube(cluster: &MockServer) -> Arc<KubeClient> {
+        Arc::new(KubeClient::with_token(&cluster.uri(), "token").expect("a kube client"))
+    }
+
+    fn deployer(runner: &MockServer) -> Arc<StreamDeployer> {
+        Arc::new(StreamDeployer::new(format!("{}/{{project}}", runner.uri())))
+    }
+
+    async fn calls(server: &MockServer, verb: &str, ends_with: &str) -> usize {
+        server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.method.as_str() == verb && r.url.path().ends_with(ends_with))
+            .count()
+    }
+
+    /// The `StreamDeployed` condition of a pipeline: `(reason, message)`.
+    fn condition(mirror: &Mirror, project: &str, name: &str) -> (String, String) {
+        let pipeline = mirror
+            .get(project, "Pipeline", name)
+            .expect("the pipeline is in the mirror");
+        let status = serde_json::to_value(pipeline.status).expect("a status");
+        let condition = status["conditions"]
+            .as_array()
+            .and_then(|all| all.first())
+            .cloned()
+            .unwrap_or(Value::Null);
+        (
+            condition["reason"].as_str().unwrap_or_default().to_owned(),
+            condition["message"].as_str().unwrap_or_default().to_owned(),
+        )
+    }
+
+    /// Case 3: a reference the store does not hold refuses its pipeline by name, and the runner
+    /// is never asked to start it.
+    #[tokio::test]
+    async fn a_pipeline_with_an_unresolvable_reference_is_refused_and_named_not_deployed() {
+        let forge = serve(&[project("helsinki", &[("vehicles", Some("no-such"))])]).await;
+        let (bao, cluster, runner) = (openbao().await, cluster(200).await, runner().await);
+        let mirror = Arc::new(Mirror::new());
+        Syncer::new(client(&forge), Arc::clone(&mirror))
+            .with_pipeline_secrets(resolver(&bao))
+            .with_credential_secrets(kube(&cluster), "dev")
+            .with_streams(deployer(&runner))
+            .sync_once()
+            .await
+            .expect("the run loads");
+
+        let (reason, message) = condition(&mirror, "helsinki", "vehicles");
+        assert_eq!(reason, "SecretUnresolved", "{message}");
+        assert!(message.contains("no-such"), "{message}");
+        assert_eq!(calls(&runner, "PUT", "/streams/vehicles").await, 0);
+        assert_eq!(calls(&runner, "POST", "/streams/vehicles").await, 0);
+        assert_eq!(
+            calls(&cluster, "PATCH", "/secrets/pipeline-secrets").await,
+            0,
+            "nothing resolved, so no Secret is written"
+        );
+    }
+
+    /// Case 4: two projects with a pipeline of the same name; one reference fails, and only that
+    /// project's pipeline carries the refusal.
+    #[tokio::test]
+    async fn two_pipelines_of_different_namespaces_never_share_a_refused_reason() {
+        let forge = serve(&[
+            project("helsinki", &[("vehicles", Some("mqtt-mesto"))]),
+            project("espoo", &[("vehicles", Some("no-such"))]),
+        ])
+        .await;
+        let (bao, cluster) = (openbao().await, cluster(200).await);
+        let mirror = Arc::new(Mirror::new());
+        Syncer::new(client(&forge), Arc::clone(&mirror))
+            .with_pipeline_secrets(resolver(&bao))
+            .with_credential_secrets(kube(&cluster), "dev")
+            .sync_once()
+            .await
+            .expect("the run loads");
+
+        let (espoo, said) = condition(&mirror, "espoo", "vehicles");
+        assert_eq!(espoo, "SecretUnresolved");
+        assert!(said.contains("no-such"), "{said}");
+        let (helsinki, said) = condition(&mirror, "helsinki", "vehicles");
+        assert_ne!(helsinki, "SecretUnresolved", "{said}");
+        assert!(!said.contains("no-such"), "{said}");
+    }
+
+    /// Case 5: two pipelines' credentials go into one Secret, written once per pass.
+    #[tokio::test]
+    async fn resolve_pipeline_secrets_writes_the_runner_secret_only_once_per_pass() {
+        let forge = serve(&[project(
+            "helsinki",
+            &[
+                ("vehicles", Some("mqtt-mesto")),
+                ("buses", Some("mqtt-mesto")),
+            ],
+        )])
+        .await;
+        let (bao, cluster) = (openbao().await, cluster(200).await);
+        Syncer::new(client(&forge), Arc::new(Mirror::new()))
+            .with_pipeline_secrets(resolver(&bao))
+            .with_credential_secrets(kube(&cluster), "dev")
+            .sync_once()
+            .await
+            .expect("the run loads");
+
+        assert_eq!(
+            calls(&cluster, "PATCH", "/secrets/pipeline-secrets").await,
+            1
+        );
+        let secret: Value = cluster
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .find(|r| r.url.path().ends_with("/secrets/pipeline-secrets"))
+            .map(|r| serde_json::from_slice(&r.body).expect("a json body"))
+            .expect("the Secret");
+        assert_eq!(secret["stringData"]["VEHICLES_SOURCE"], PASSWORD);
+        assert_eq!(secret["stringData"]["BUSES_SOURCE"], PASSWORD);
+    }
+
+    /// Case 6: with no backend, only the pipeline that declares a reference is refused.
+    #[tokio::test]
+    async fn no_pipeline_secrets_backend_configured_refuses_only_pipelines_that_declare_a_reference(
+    ) {
+        let forge = serve(&[project(
+            "helsinki",
+            &[("vehicles", Some("mqtt-mesto")), ("counts", None)],
+        )])
+        .await;
+        let mirror = Arc::new(Mirror::new());
+        Syncer::new(client(&forge), Arc::clone(&mirror))
+            .sync_once()
+            .await
+            .expect("the run loads");
+
+        let (reason, message) = condition(&mirror, "helsinki", "vehicles");
+        assert_eq!(reason, "SecretUnresolved");
+        assert!(message.contains("no secret backend"), "{message}");
+        let (reason, message) = condition(&mirror, "helsinki", "counts");
+        assert_ne!(reason, "SecretUnresolved", "{message}");
+    }
+
+    /// Case 7 (T-2522): a credential that resolved but never reached the runner's Secret, because
+    /// the Portal has no cluster or the API server refused the write, refuses the pipeline. A
+    /// stream started without it fails in the runner's log, where nobody looks.
+    #[tokio::test]
+    async fn a_credential_that_never_reached_the_runner_refuses_its_pipeline() {
+        for refused_write in [None, Some(422u16)] {
+            let mut files = project("helsinki", &[("vehicles", Some("mqtt-mesto"))]);
+            files.push((
+                "projects/helsinki/endpoints/vehicles-in.yaml".to_owned(),
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: vehicles-in\n  namespace: helsinki\nspec:\n  contextSpaceRef: mobility\n  slug: mluyob4nz52lok3ssk7pgn5vwt\n  audience: internal\n  enabledRepresentations:\n    - ngsi-ld\n".to_owned(),
+            ));
+            let forge = serve(&[files]).await;
+            let (bao, runner) = (openbao().await, runner().await);
+            let mirror = Arc::new(Mirror::new());
+            let mut syncer = Syncer::new(client(&forge), Arc::clone(&mirror))
+                .with_pipeline_secrets(resolver(&bao))
+                .with_streams(deployer(&runner));
+            let cluster = match refused_write {
+                Some(status) => Some(cluster(status).await),
+                None => None,
+            };
+            if let Some(cluster) = cluster.as_ref() {
+                syncer = syncer.with_credential_secrets(kube(cluster), "dev");
+            }
+            syncer
+                .sync_once()
+                .await
+                .expect("the run loads, and is not an error");
+
+            let (reason, message) = condition(&mirror, "helsinki", "vehicles");
+            assert_eq!(reason, "SecretUnresolved", "{refused_write:?}: {message}");
+            assert!(!message.contains(PASSWORD), "{message}");
+            assert_eq!(calls(&runner, "PUT", "/streams/vehicles").await, 0);
+            assert_eq!(calls(&runner, "POST", "/streams/vehicles").await, 0);
+        }
+    }
+
+    /// Cases 8 and 9: a manifest the Portal has no view for does not cost the rest, and one
+    /// without a namespace takes its project from its path.
+    #[tokio::test]
+    async fn an_unknown_kind_costs_nothing_and_a_manifest_without_a_namespace_takes_its_path() {
+        let unnamespaced = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: parking\nspec:\n  isSandbox: true\n";
+        let forge = serve(&[vec![
+            (
+                "projects/helsinki/spaces/mobility/space.yaml".to_owned(),
+                space_of("helsinki"),
+            ),
+            (
+                "projects/helsinki/spaces/parking/space.yaml".to_owned(),
+                unnamespaced.to_owned(),
+            ),
+            (
+                "projects/helsinki/gizmos/one.yaml".to_owned(),
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: Gizmo\nmetadata:\n  name: one\n  namespace: helsinki\nspec: {}\n".to_owned(),
+            ),
+        ]])
+        .await;
+        let mirror = Arc::new(Mirror::new());
+        Syncer::new(client(&forge), Arc::clone(&mirror))
+            .sync_once()
+            .await
+            .expect("the run loads");
+        assert!(mirror.get("helsinki", "ContextSpace", "parking").is_some());
+        assert!(mirror.get("helsinki", "ContextSpace", "mobility").is_some());
+    }
+
+    /// Case 10: a repository with nothing of a known kind is a named error, and the mirror a
+    /// reader sees stays what it was.
+    #[tokio::test]
+    async fn loaded_zero_resources_is_a_named_error_not_an_empty_success() {
+        let forge = forge(&[("README.md", "# nothing here yet\n")]).await;
+        let mirror = Arc::new(Mirror::new());
+        let err = Syncer::new(client(&forge), Arc::clone(&mirror))
+            .sync_once()
+            .await
+            .expect_err("an empty repository is not a success");
+        assert!(matches!(err, SyncError::Empty(_)), "{err}");
+        assert!(mirror.is_empty());
+    }
+
+    /// Case 11: every resource of a pass carries the commit the pass staged.
+    #[tokio::test]
+    async fn the_observed_revision_on_every_resource_matches_the_staged_commit() {
+        let forge = serve(&[
+            project("helsinki", &[("counts", None)]),
+            project("espoo", &[]),
+        ])
+        .await;
+        let mirror = Arc::new(Mirror::new());
+        Syncer::new(client(&forge), Arc::clone(&mirror))
+            .sync_once()
+            .await
+            .expect("the run loads");
+        let all = mirror.matching(|_| true);
+        assert!(all.len() >= 5, "{}", all.len());
+        for resource in all {
+            let revision = resource
+                .status
+                .as_ref()
+                .and_then(|s| s.observed_revision.clone());
+            assert_eq!(
+                revision.as_deref(),
+                Some(REVISION),
+                "{}",
+                resource.metadata.name
+            );
+        }
+    }
+
+    /// Cases 1 and 2: a follower resolves the webhook secrets any replica may be asked to check,
+    /// and never a pipeline's: no read of a pipeline credential, no Secret written.
+    #[tokio::test]
+    async fn a_follower_resolves_webhook_secrets_and_never_a_pipelines() {
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = joinedcontext_portal::db::connect(&url)
+            .await
+            .expect("connect and migrate");
+        let key = private_key(3);
+        let holder = Leadership::new(pool.clone(), key);
+        assert!(holder.acquire().await.expect("another replica leads"));
+
+        let driven = "apiVersion: joinedcontext.com/v1alpha1\nkind: SyncSource\nmetadata:\n  name: regional\n  namespace: helsinki\nspec:\n  source:\n    git: { url: https://git.region.sk/udp/models.git, ref: main }\n  schedule: { webhook: true }\n  webhook:\n    secretRef: { name: sync-hook, key: secret }\n  mode: mirror\n  conflictPolicy: replace\n";
+        let mut files = project("helsinki", &[("vehicles", Some("mqtt-mesto"))]);
+        files.push((
+            "projects/helsinki/syncsources/regional.yaml".to_owned(),
+            driven.to_owned(),
+        ));
+        let forge = serve(&[files]).await;
+        let (bao, cluster) = (openbao().await, cluster(200).await);
+        let accepted = Arc::new(Accepted::new());
+        let follower_lock = Arc::new(Leadership::new(pool.clone(), key));
+        let loaded = Syncer::new(client(&forge), Arc::new(Mirror::new()))
+            .with_pipeline_secrets(resolver(&bao))
+            .with_credential_secrets(kube(&cluster), "dev")
+            .with_webhook_secrets(Arc::clone(&accepted))
+            .with_leadership(Arc::clone(&follower_lock))
+            .sync_once()
+            .await
+            .expect("a follower is not an error");
+        assert!(loaded > 0);
+        assert!(!follower_lock.is_leader());
+
+        assert_eq!(
+            accepted.len(),
+            1,
+            "the follower holds the source's hook secret"
+        );
+        assert_eq!(calls(&bao, "GET", "/sync-hook").await, 1);
+        assert_eq!(
+            calls(&bao, "GET", "/mqtt-mesto").await,
+            0,
+            "a follower read a pipeline's credential"
+        );
+        assert!(
+            cluster
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .is_empty(),
+            "a follower wrote to the cluster"
+        );
+        holder.resign().await;
+    }
+}

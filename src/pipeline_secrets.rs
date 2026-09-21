@@ -18,7 +18,7 @@
 //!   Pipeline. A stream that starts without the one credential it needs fails in the runner's
 //!   log, where nobody is looking.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use jc_core::envelope::SecretRef;
@@ -268,6 +268,8 @@ pub struct RunnerEnvironment {
     claimed_by: BTreeMap<String, String>,
     /// The pipelines that could not be resolved, by `(project, name)`, with the reason.
     refused: BTreeMap<(String, String), String>,
+    /// The pipelines whose values are in the Secret, by `(project, name)`.
+    accepted: BTreeSet<(String, String)>,
 }
 
 impl RunnerEnvironment {
@@ -308,6 +310,17 @@ impl RunnerEnvironment {
         for (variable, value) in environment {
             self.claimed_by.insert(variable.clone(), owner.clone());
             self.values.insert(variable, value);
+        }
+        self.accepted
+            .insert((project.to_owned(), pipeline.to_owned()));
+    }
+
+    /// Refuses every pipeline whose values the Secret would have carried, because the Secret
+    /// was not written: a stream started without its credential fails where nobody looks
+    /// (T-2522). `reason` goes onto each Pipeline's status, so it names no value.
+    pub fn refuse_resolved(&mut self, reason: &str) {
+        for key in std::mem::take(&mut self.accepted) {
+            self.refused.insert(key, reason.to_owned());
         }
     }
 

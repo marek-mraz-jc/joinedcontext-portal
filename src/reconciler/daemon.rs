@@ -1039,11 +1039,20 @@ impl Syncer {
         }
 
         if !runner.is_empty() {
-            match self.credentials.as_ref() {
+            let written = match self.credentials.as_ref() {
                 Some((kube, namespace)) => self.write_runner_secret(kube, namespace, &runner).await,
-                None => tracing::info!(
-                    "no cluster: a pipeline's credentials resolve and reach no runner"
-                ),
+                None => {
+                    tracing::info!(
+                        "no cluster: a pipeline's credentials resolve and reach no runner"
+                    );
+                    false
+                }
+            };
+            if !written {
+                runner.refuse_resolved(
+                    "the credential resolved, but the pipeline runner's Secret could not be \
+                     written, so the stream would start without it; the Portal's log says why",
+                );
             }
         }
 
@@ -1120,15 +1129,18 @@ impl Syncer {
     /// An environment variable is read once, when the pod starts, so a rotated credential
     /// reaches a running pipeline only with a restart. The annotation carries the fingerprint of
     /// the values, so an unchanged environment patches the same bytes and rolls nothing.
+    ///
+    /// Whether the Secret was written. A roll that fails only delays a rotation, so it is logged
+    /// and still counts as written.
     async fn write_runner_secret(
         &self,
         kube: &crate::apps::kube::KubeClient,
         namespace: &str,
         runner: &crate::pipeline_secrets::RunnerEnvironment,
-    ) {
+    ) -> bool {
         if let Err(err) = kube.apply(&runner.secret(namespace)).await {
             tracing::warn!(error = %err, "the pipeline runner's secrets were not written");
-            return;
+            return false;
         }
         tracing::info!(
             variables = runner.variables().count(),
@@ -1145,6 +1157,7 @@ impl Syncer {
         if let Err(err) = kube.apply(&rollout).await {
             tracing::warn!(error = %err, "the pipeline runner was not rolled, so a rotated credential is not in its environment yet");
         }
+        true
     }
 
     /// Writes one organization's reader credential into the namespace its serving workloads
