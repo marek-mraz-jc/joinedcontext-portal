@@ -2421,5 +2421,50 @@
       "validTo": "Valid to",
       "grants": "Grants"
     }
+  },
+  "registrations": {
+    "title": "Context source registrations",
+    "lead": "Sources whose data a space's broker answers with as if it held it: an endpoint of this platform, or an NGSI-LD API elsewhere.",
+    "empty": "This project registers no context source yet.",
+    "add": "New registration",
+    "addHint": "Saving proposes a change; the broker learns of the source once the change is approved.",
+    "propose": "Propose change",
+    "target": "Where the data is",
+    "targetKind": {
+      "endpointRef": "An endpoint of this platform",
+      "endpoint": "An NGSI-LD API elsewhere"
+    },
+    "targetHint": {
+      "endpointRef": "Another space of this project, reached through its Endpoint and that Endpoint's policies.",
+      "endpoint": "A broker outside this platform, by the base URL of its NGSI-LD API."
+    },
+    "column": {
+      "source": "Source",
+      "covers": "Entity types"
+    },
+    "operations": {
+      "none": "Left empty, the source is registered for the operations CIM 009 gives a registration by default.",
+      "moreHint": "The operations the five groups are made of; a registration normally names a group instead."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context Space",
+      "endpointRef": "Endpoint",
+      "endpoint": "NGSI-LD base URL",
+      "information": "What the source holds",
+      "entities": "Entity selectors",
+      "entityType": "Entity type",
+      "entityId": "Entity identifier",
+      "idPattern": "Identifier pattern",
+      "propertyNames": "Properties",
+      "relationshipNames": "Relationships",
+      "operations": "Operations",
+      "mode": "Mode",
+      "federation": "Forwarding identity",
+      "identity": "Forward as",
+      "serviceAccount": "Service account",
+      "interval": "Schema mirror interval",
+      "expiresAt": "Expires at"
+    }
   }
 }

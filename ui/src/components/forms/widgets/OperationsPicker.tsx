@@ -11,7 +11,7 @@ import {
 import { Badge, Checkbox } from "../../ui";
 
 /**
- * What a `Policy` grants, picked by the five CIM 009 names first (R8, GW34, UI-01, T-2326).
+ * What a `Policy` grants or a `ContextSourceRegistration` is registered for, picked by the five CIM 009 names first (R8, GW34, UI-01, T-2326).
  *
  * A grant is written in Table 4.20-2's group names, so the five groups are the whole of what a
  * person normally chooses between — and each one says, in the same breath, which operations it
@@ -24,8 +24,13 @@ import { Badge, Checkbox } from "../../ui";
  * heavier shade of "read" (AP-09).
  */
 export function OperationsPicker(props: WidgetProps): JSX.Element {
-  const { id, value, disabled, readonly, onChange, rawErrors } = props;
+  const { id, value, disabled, readonly, onChange, rawErrors, options } = props;
   const { t } = useTranslation();
+  // What an empty choice means is the kind's to say: nothing on a policy, the specification's
+  // default operations on a registration (T-2345).
+  const none = typeof options.none === "string" ? options.none : t("policies.operations.none");
+  const moreHint =
+    typeof options.moreHint === "string" ? options.moreHint : t("policies.operations.moreHint");
 
   const chosen: string[] = Array.isArray(value) ? (value as string[]).map(String) : [];
   const described = ariaDescribedByIds(id);
@@ -94,7 +99,7 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
         <summary className="cursor-pointer text-body">
           {t("policies.operations.more")}
         </summary>
-        <p className="mt-1 text-caption text-fg-muted">{t("policies.operations.moreHint")}</p>
+        <p className="mt-1 text-caption text-fg-muted">{moreHint}</p>
         <div className="mt-2 grid gap-1 sm:grid-cols-2">
           {single.map((name) => (
             <Checkbox
@@ -112,7 +117,7 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
 
       <p className="text-caption text-fg-muted" data-testid="operations-summary">
         {chosen.length === 0
-          ? t("policies.operations.none")
+          ? none
           : t("policies.operations.total", { count: covered.length })}
       </p>
       {rawErrors && rawErrors.length > 0 ? (

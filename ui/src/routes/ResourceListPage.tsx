@@ -20,6 +20,7 @@ import { EndpointsPage } from "./EndpointsPage";
 import { DashboardsPage } from "./DashboardsPage";
 import { PipelinesPage } from "./PipelinesPage";
 import { PoliciesPage } from "./PoliciesPage";
+import { RegistrationsPage } from "./RegistrationsPage";
 import { DataSourcesPage } from "../pages/datasources/DataSourcesPage";
 import { AccessPage } from "../pages/access/AccessPage";
 import { FlowGallery } from "../pages/flows/Gallery";
@@ -32,6 +33,8 @@ const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.E
   pipelines: PipelinesPage,
   // A Policy is authored through a form like every other kind, not as YAML (T-2326).
   policies: PoliciesPage,
+  // A ContextSourceRegistration too: which space's broker answers with whose data (T-2345, MF-36).
+  csrs: RegistrationsPage,
   datasources: DataSourcesPage,
   dashboards: DashboardsPage,
   // "flows" is a section too: the gallery reads organization-level Blueprints, not a project
