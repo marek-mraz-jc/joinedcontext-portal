@@ -72,40 +72,34 @@ const EXAMPLES = [
 /**
  * The example prompts, and the entry to the app builder beside them.
  *
- * The same list before a conversation and inside one (T-2423): a person in a conversation could see
- * no example of what else the assistant does, and could not reach the builder without leaving. A
- * prompt a role cannot carry out stays and is disabled with its reason, which is `PermissionGuard`'s
- * job through the shared Button (T-1390, UI-44).
+ * An empty-state affordance and nothing more: they stand while no conversation is open and are
+ * gone the moment the first question is sent (T-2464, the owner reversing T-2423). Inside a
+ * conversation the builder and the prompts are one click away under "New conversation". A prompt
+ * a role cannot carry out stays and is disabled with its reason, which is `PermissionGuard`'s job
+ * through the shared Button (T-1390, UI-44).
  */
 function Examples({
   project,
   disabled,
-  compact,
   onPick,
   onGenerate,
 }: {
   project: string;
   disabled: boolean;
-  /** Inside a conversation: one wrapping row of small chips, not a column of full-width buttons. */
-  compact: boolean;
   onPick: (text: string) => void;
   onGenerate: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
     <div
-      data-testid={compact ? "assistant-suggestions" : "assistant-examples"}
-      className={compact ? "flex flex-wrap items-center gap-1.5" : "flex flex-col gap-2"}
+      data-testid="assistant-examples"
+      className="flex flex-col gap-2"
     >
       <Button
         size="sm"
         disabled={disabled}
         onClick={onGenerate}
-        className={
-          compact
-            ? "h-auto gap-1 rounded-md bg-surface-subtle px-2 py-1 text-caption"
-            : "h-auto justify-start gap-2 rounded-md bg-primary-soft p-2 text-left text-body font-medium text-primary-soft-fg"
-        }
+        className="h-auto justify-start gap-2 rounded-md bg-primary-soft p-2 text-left text-body font-medium text-primary-soft-fg"
       >
         <Icon name="apps" className="size-4" />
         {t("apps.generate.title")}
@@ -122,11 +116,7 @@ function Examples({
             onClick={() => {
               onPick(exampleText);
             }}
-            className={
-              compact
-                ? "h-auto rounded-md bg-surface-subtle px-2 py-1 text-left text-caption"
-                : "h-auto justify-start whitespace-normal rounded-md bg-surface-subtle p-2 text-left text-caption"
-            }
+            className="h-auto justify-start whitespace-normal rounded-md bg-surface-subtle p-2 text-left text-caption"
           >
             {exampleText}
           </Button>
@@ -569,7 +559,6 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             <Examples
               project={activeProject}
               disabled={isStarting}
-              compact={false}
               onPick={(text) => {
                 void startConversation(text);
               }}
@@ -666,22 +655,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             onRetry={retry}
             onNewConversation={newConversation}
             attach={attach}
-            above={
-              <>
-                <Examples
-                  project={run.project}
-                  disabled={send.isPending || over}
-                  compact
-                  onPick={(text) => {
-                    send.mutate(text);
-                  }}
-                  onGenerate={() => {
-                    setBuilding(true);
-                  }}
-                />
-                {liveBar}
-              </>
-            }
+            above={liveBar}
             onUseEndpoint={addEndpoint}
             usedEndpoints={liveEndpoints}
           />

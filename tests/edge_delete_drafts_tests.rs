@@ -207,9 +207,10 @@ async fn a_caller_who_may_propose_a_kind_still_may_not_delete_it() {
         );
     }
 
-    // A caller no binding covers at all, and a project this space does not live in.
+    // A caller no binding covers at all may not read the space, so it is not there to them (R20,
+    // T-2563); and a project this space does not live in.
     let (status, _) = send(&state, STRANGER, &[], Method::DELETE, &uri, None).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = send(
         &state,
         DELETER,

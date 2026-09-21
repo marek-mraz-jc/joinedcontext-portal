@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { App } from "../src/App";
 import { expectNoRawKeys, expectNoViolations } from "./checks";
+import { NAV_SECTIONS } from "../src/components/layout/navigation";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -168,6 +169,60 @@ describe("the shell against the UI contract", () => {
     account.focus();
     await user.keyboard("{Enter}");
     expect(await screen.findByRole("menu")).toBeInTheDocument();
+  });
+
+  it("keeps the chrome up when the page inside it throws, and says what to do", async () => {
+    // The router renders the shell and the page as one component, so before T-2426 an error in
+    // any page replaced the whole application with the router's own "Something went wrong!" —
+    // no sidebar, no project switcher, nothing but the browser's Back button.
+    const { user } = await shell("/projects/banskabystrica/spaces/air-quality");
+
+    // The page below the chrome is a detail page with no resource behind it, which is what
+    // throws: the shell's stub answers a list where an object was expected.
+    const panel = await screen.findByRole("alert");
+    expect(within(panel).getByText(i18n.t("app.error.crashTitle"))).toBeInTheDocument();
+    expect(within(panel).getByTestId("error-reference").textContent).toMatch(/^[0-9a-z-]{4,}$/);
+    // Nothing of what threw reaches the page: no stack, no path, no message of the error.
+    expect(panel.textContent).not.toMatch(/dataModelRef|TypeError|http|\.tsx/);
+
+    // The chrome is still there and still works.
+    expect(screen.getByRole("navigation", { name: i18n.t("nav.main") })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: i18n.t("nav.projects") }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "helsinki" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/projects/helsinki/"),
+    );
+    await user.keyboard("{Escape}");
+
+    // And the two controls the panel offers: the way to a page that works, and drawing this one
+    // again without reloading the application.
+    const again = within(panel).getByRole("button", { name: i18n.t("app.error.retry") });
+    const start = within(panel).getByRole("link", { name: i18n.t("app.error.crashHome") });
+    expect(start).toHaveAttribute("href", `/projects/banskabystrica/${NAV_SECTIONS[0].plural}`);
+    await user.click(again);
+    // It threw for the same reason, so the panel is back rather than a white page — a new
+    // element, because the retry drew the page again and it failed again.
+    const drawnAgain = await screen.findByRole("alert");
+    expect(drawnAgain).toBeInTheDocument();
+
+    // It is words a person reads, and axe sees nothing wrong with it.
+    expectNoRawKeys(drawnAgain);
+    await expectNoViolations(drawnAgain);
+  });
+
+  it("says the same thing in Slovak, where the page that failed is read in Slovak", async () => {
+    window.localStorage.setItem("jc-lang", "sk");
+    await i18n.changeLanguage("sk");
+    const { user } = await shell("/projects/banskabystrica/spaces/air-quality");
+
+    const panel = await screen.findByRole("alert");
+    expect(within(panel).getByText(i18n.t("app.error.crashTitle"))).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: i18n.t("app.error.retry") })).toBeInTheDocument();
+    expectNoRawKeys(panel);
+    // The chrome is Slovak too, and still there.
+    expect(screen.getByRole("button", { name: i18n.t("nav.projects") })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
   });
 
   /** The other project's entry of the open switcher, and the active one beside it. */

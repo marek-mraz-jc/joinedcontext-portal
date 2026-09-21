@@ -62,7 +62,7 @@ function bundle(text = BUNDLE, name = "export.yaml"): File {
   return new File([text], name, { type: "application/yaml" });
 }
 
-function renderPage(options: { refusal?: string } = {}) {
+function renderPage(options: { refusal?: string; status?: number } = {}) {
   const posts: { url: string; body: FormData }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
@@ -70,9 +70,10 @@ function renderPage(options: { refusal?: string } = {}) {
     if (url.includes("/import") && method === "POST") {
       posts.push({ url, body: init?.body as FormData });
       if (options.refusal) {
+        const status = options.status ?? 400;
         return new Response(
-          JSON.stringify({ status: 400, title: "Bad Request", detail: options.refusal }),
-          { status: 400, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({ status, title: status === 400 ? "Bad Request" : "Service Unavailable", detail: options.refusal }),
+          { status, headers: { "Content-Type": "application/problem+json" } },
         );
       }
       const dry = url.includes("dryRun=All");
@@ -206,6 +207,22 @@ describe("the import wizard", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("public-air: literal secret in field 'apiKey'");
     expect(screen.queryByRole("heading", { name: en.import.report.title })).toBeNull();
+  });
+
+  // MF-20, T-1503: a server that fails the check is an answer on the page, not a report and not a
+  // way on to propose.
+  it("says why the check failed when the server does, and offers nothing to propose", async () => {
+    const { user } = renderPage({ refusal: "git forge is not configured", status: 503 });
+
+    await user.upload(await screen.findByLabelText(en.import.file), bundle());
+    await user.click(screen.getByRole("button", { name: en.import.check }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("git forge is not configured");
+    expect(screen.queryByRole("heading", { name: en.import.report.title })).toBeNull();
+    expect(screen.getByRole("button", { name: en.import.propose })).toBeDisabled();
+    // The check can be asked again once the server is back.
+    expect(screen.getByRole("button", { name: en.import.check })).toBeEnabled();
   });
 
   it("says a bundle is uploaded rather than fetched, and offers no URL to fetch", async () => {

@@ -18,7 +18,7 @@
 //!   Pipeline. A stream that starts without the one credential it needs fails in the runner's
 //!   log, where nobody is looking.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use jc_core::envelope::SecretRef;
@@ -221,9 +221,23 @@ impl Resolver {
         jwt_path: &Path,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
-        let unresolved = |name: &str, err: openbao::BaoError| SecretError::Unresolved {
-            name: name.to_owned(),
-            reason: err.to_string(),
+        // A refusal about one secret names that secret; the login, the transport and the token
+        // file belong to no reference, so those carry the first one (T-2508).
+        let unresolved = |first: &str, err: openbao::BaoError| {
+            let name = match &err {
+                openbao::BaoError::SecretNotFound { name, .. }
+                | openbao::BaoError::SecretDeleted { name, .. }
+                | openbao::BaoError::KeyNotFound { name, .. }
+                | openbao::BaoError::KeyRequired { name }
+                | openbao::BaoError::NotAString { name, .. }
+                | openbao::BaoError::InvalidName { name }
+                | openbao::BaoError::NoEnvVar { name } => name.clone(),
+                _ => first.to_owned(),
+            };
+            SecretError::Unresolved {
+                name,
+                reason: err.to_string(),
+            }
         };
         let settings = openbao::Settings::new(role);
         let jwt = openbao::service_account_jwt(jwt_path)
@@ -254,6 +268,8 @@ pub struct RunnerEnvironment {
     claimed_by: BTreeMap<String, String>,
     /// The pipelines that could not be resolved, by `(project, name)`, with the reason.
     refused: BTreeMap<(String, String), String>,
+    /// The pipelines whose values are in the Secret, by `(project, name)`.
+    accepted: BTreeSet<(String, String)>,
 }
 
 impl RunnerEnvironment {
@@ -294,6 +310,17 @@ impl RunnerEnvironment {
         for (variable, value) in environment {
             self.claimed_by.insert(variable.clone(), owner.clone());
             self.values.insert(variable, value);
+        }
+        self.accepted
+            .insert((project.to_owned(), pipeline.to_owned()));
+    }
+
+    /// Refuses every pipeline whose values the Secret would have carried, because the Secret
+    /// was not written: a stream started without its credential fails where nobody looks
+    /// (T-2522). `reason` goes onto each Pipeline's status, so it names no value.
+    pub fn refuse_resolved(&mut self, reason: &str) {
+        for key in std::mem::take(&mut self.accepted) {
+            self.refused.insert(key, reason.to_owned());
         }
     }
 

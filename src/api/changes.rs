@@ -876,8 +876,10 @@ pub async fn change_for(
     ),
     request_body(
         content = Option<ApproveBody>,
-        description = "Optional approval confirmation for red-lane changes",
-        content_type = "application/json"
+        description = "Optional approval confirmation for red-lane changes: `confirm` repeats \
+                       the resource's name",
+        content_type = "application/json",
+        example = json!({ "confirm": "helsinki-air" })
     ),
     responses(
         (status = 202, description = "Change proposal approved and deploying", body = Change),
@@ -1308,7 +1310,8 @@ pub async fn approve_change_for(
     request_body(
         content = Option<ApproveBody>,
         description = "Optional reject payload",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({ "reason": "The endpoint would publish the stations' maintenance notes" })
     ),
     responses(
         (status = 202, description = "Change proposal rejected", body = Change),

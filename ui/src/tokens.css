@@ -105,7 +105,11 @@
      and lightens it in the dark one, because the ink is the text end of both. */
   --portal-info: color-mix(in oklab, var(--portal-info-base) 50%, var(--portal-ink));
   --portal-info-soft: color-mix(in oklab, var(--portal-info-base) 12%, var(--portal-paper));
-  --portal-ring: var(--portal-primary-500);
+  /* The focus ring is the only thing a keyboard user has to see where they are, and WCAG 2.2
+     asks 3:1 of it (1.4.11, 2.4.11). The brand colour raw is 1.56:1 on the page for an
+     installation branded in a pale civic colour, so the ring is the brand pulled towards the
+     ink — darker on paper, lighter on a dark page, the same hue in both (T-2323, UI-30). */
+  --portal-ring: color-mix(in oklab, var(--portal-primary-500) 65%, var(--portal-ink));
   --portal-overlay: color-mix(in oklab, var(--portal-neutral-900) 45%, transparent);
 
   /* Type scale: four sizes, each with its line height. */
@@ -158,8 +162,24 @@
        and the branded background the ink. The scales above re-derive themselves. */
     --portal-paper: color-mix(in oklab, var(--portal-color-surface-fg) 92%, var(--portal-color-primary));
     --portal-ink: var(--portal-color-surface);
-    --portal-brand: color-mix(in oklab, var(--portal-color-primary) 72%, white);
-    --portal-brand-fg: color-mix(in oklab, var(--portal-color-surface-fg) 90%, black);
+    /* The API's pair, and the old derivation as its fallback. The lightening used to live in
+       this line and the label in the next one — the branded text pushed towards black, whatever
+       the button ended up being — which is 2.31:1 for an installation branded `#111827` and
+       3.43:1 for one branded `#0000bf`. The API computes the colour and then chooses the text
+       that reads on it, the way it already does for the light theme (T-2324, UI-30).
+
+       The fallback is what this file did before, and it is here for one answer: a branding body
+       cached from a Portal that predates these two fields (`max-age=300`). Without it the two
+       tokens would fall back to a *literal* default and paint another installation's blue on a
+       branded page; with it, an old answer paints exactly what it used to. */
+    --portal-brand: var(
+      --portal-color-primary-dark,
+      color-mix(in oklab, var(--portal-color-primary) 72%, white)
+    );
+    --portal-brand-fg: var(
+      --portal-color-primary-fg-dark,
+      color-mix(in oklab, var(--portal-color-surface-fg) 90%, black)
+    );
     --portal-danger-base: #f87171;
     --portal-danger-base-fg: #1c0a0a;
     --portal-success-base: #4ade80;
