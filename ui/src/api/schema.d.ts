@@ -8056,7 +8056,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description No `file` field, an upload that does not parse, or a sample past the byte limit */
+            /** @description No `file` field, an upload that does not parse, or a sample past the byte limit, or a `format` that is not one of the four */
             400: {
                 headers: {
                     [name: string]: unknown;

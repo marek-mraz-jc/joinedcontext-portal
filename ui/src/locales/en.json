@@ -275,7 +275,10 @@
     "name": "Name",
     "phase": "State",
     "empty": "Nothing here yet.",
-    "emptyHint": "Nothing of this kind is in the project yet. Add the first one, or ask the assistant for it and decide what it proposes.",
+    "emptyHint": "Nothing of this kind is in the project yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
+    "emptyHintFor": {
+      "uischemas": "Nothing in this project changes a form. Every form ships with its own arrangement; the organization changes one in portal/forms/ of its configuration repository, not here."
+    },
     "lead": "Everything of this kind the project holds. Each row opens what it names."
   },
   "spaces": {
@@ -2413,6 +2416,7 @@
     "bar": {
       "label": "Copy",
       "message": "You are working on the copy {title}, started {date}. Nothing here is live.",
+      "loading": "You are working on the copy {name}. Nothing here is live.",
       "changes": "{count, plural, =0 {No changes yet} one {# change} other {# changes}}",
       "gone": "This copy has expired or was discarded.",
       "leave": "Leave",

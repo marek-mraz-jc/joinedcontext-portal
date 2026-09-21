@@ -328,7 +328,7 @@ pub async fn sdm_catalog(
         (status = 200, description = "The draft model as Model Tools wrote it: `linkml`, \
                                       `operations`, `detectedTypes`, `matches`, `untyped`, `rows`", body = Object),
         (status = 400, description = "No `file` field, an upload that does not parse, or a \
-                                      sample past the byte limit", body = ProblemDetails),
+                                      sample past the byte limit, or a `format` that is not one of the four", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 413, description = "Sample larger than the body limit", body = ProblemDetails),
         (status = 503, description = "No model tools service configured, or it did not answer", body = ProblemDetails)
@@ -382,6 +382,9 @@ pub async fn infer_schema(
     Ok(Json(answer))
 }
 
+/// The sample formats Model Tools parses (API/01 §11, DM-17).
+pub const SAMPLE_FORMATS: [&str; 4] = ["csv", "xlsx", "json", "pdf"];
+
 /// Core inference function from sample bytes, shared by the multipart upload route and `jc_model_infer`.
 pub async fn infer_schema_from_bytes(
     state: &AppState,
@@ -398,8 +401,16 @@ pub async fn infer_schema_from_bytes(
         "name": name.unwrap_or("sample"),
         "content": base64::engine::general_purpose::STANDARD.encode(content),
     });
-    if let Some(format) = format.filter(|f| !f.is_empty()) {
-        body["format"] = Value::String(format.to_string());
+    if let Some(format) = format.map(str::trim).filter(|f| !f.is_empty()) {
+        // The Portal is the trust boundary: Model Tools switches its parser on this value, so a
+        // caller names one of the four or none, and none lets the file name decide (DM-17).
+        if !SAMPLE_FORMATS.contains(&format) {
+            return Err(ApiError::BadRequest(format!(
+                "format '{format}' is not one of {}; leave it out to go by the file name",
+                SAMPLE_FORMATS.join(", ")
+            )));
+        }
+        body["format"] = Value::String(format.to_owned());
     }
 
     let route = "infer-schema";

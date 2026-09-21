@@ -1,0 +1,98 @@
+/**
+ * The draft calls go through the typed client (UI-07, CC-76).
+ *
+ * A raw `fetch` skipped the client's middleware, so inside a workspace the form read and wrote
+ * the project's own draft instead of the copy's, and an ended session answered the form with an
+ * error instead of the login.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getDraft, putDraft } from "../src/api/drafts";
+import { setActiveWorkspace } from "../src/components/layout/WorkspaceContext";
+
+const draft = {
+  project: "helsinki",
+  kind: "Endpoint",
+  name: "bikes",
+  manifest: { kind: "Endpoint" },
+  touchedBy: "demo.steward",
+  touchedKind: "person",
+  version: 3,
+  updatedAt: "2026-09-21T06:00:00Z",
+};
+
+let seen: Request[] = [];
+
+function answer(status: number, body: unknown): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (request: Request) => {
+      seen.push(request);
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+}
+
+beforeEach(() => {
+  seen = [];
+});
+
+afterEach(() => {
+  setActiveWorkspace(null);
+  vi.unstubAllGlobals();
+});
+
+describe("drafts through the typed client", () => {
+  // UI-07, CC-76: a copy's draft is not the project's.
+  it("reads and writes the draft of the workspace the person is in", async () => {
+    setActiveWorkspace("air-v2");
+    answer(200, draft);
+    await getDraft("helsinki", "Endpoint", "bikes");
+    await putDraft("helsinki", "Endpoint", "bikes", { kind: "Endpoint" }, 3);
+    expect(seen.map((r) => new URL(r.url).searchParams.get("workspace"))).toEqual([
+      "air-v2",
+      "air-v2",
+    ]);
+    expect(seen[1].method).toBe("PUT");
+    expect(await seen[1].json()).toEqual({ manifest: { kind: "Endpoint" }, expectedVersion: 3 });
+  });
+
+  it("reads the project's own draft outside a workspace", async () => {
+    answer(200, draft);
+    expect(await getDraft("helsinki", "Endpoint", "bikes")).toMatchObject({ version: 3 });
+    expect(new URL(seen[0].url).pathname).toBe("/api/v1/projects/helsinki/drafts/Endpoint/bikes");
+    expect(new URL(seen[0].url).search).toBe("");
+  });
+
+  it("answers null for no draft and for an answer that is not one", async () => {
+    answer(404, { detail: "no draft" });
+    expect(await getDraft("helsinki", "Endpoint", "bikes")).toBeNull();
+    answer(200, { something: "else" });
+    expect(await getDraft("helsinki", "Endpoint", "bikes")).toBeNull();
+  });
+
+  it("names the version it lost to on a conflict", async () => {
+    answer(409, { type: "https://joinedcontext.com/problems/draft-conflict", current: 7 });
+    await expect(putDraft("helsinki", "Endpoint", "bikes", {}, 3)).rejects.toMatchObject({
+      status: 409,
+      current: 7,
+    });
+  });
+
+  it("says why a write was refused", async () => {
+    answer(422, { detail: "literal secret in field 'spec.password' is forbidden" });
+    await expect(putDraft("helsinki", "Endpoint", "bikes", {})).rejects.toThrow(
+      "failed to put draft (422): literal secret in field 'spec.password' is forbidden",
+    );
+  });
+
+  it("carries the double-submit token on the write", async () => {
+    document.cookie = "jc_csrf=t0k";
+    answer(200, draft);
+    await putDraft("helsinki", "Endpoint", "bikes", {});
+    expect(seen[0].headers.get("x-csrf-token")).toBe("t0k");
+    document.cookie = "jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  });
+});

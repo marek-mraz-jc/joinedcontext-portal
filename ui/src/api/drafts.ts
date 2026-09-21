@@ -1,62 +1,28 @@
-import { readCsrfToken } from "./client";
+import { api } from "./client";
+import type { components } from "./schema";
 export { canonicalizeJson, digestOf } from "./digest";
 
-export type FindingLevel = "error" | "warning" | "info";
+// UI-07: the draft shapes are the Portal API's own, from the generated schema, never a copy.
+export type FindingLevel = components["schemas"]["Level"];
+export type Finding = components["schemas"]["Finding"];
+export type Verdict = components["schemas"]["Verdict"];
+export type Draft = components["schemas"]["Draft"];
+export type DraftEvent = components["schemas"]["DraftEvent"];
 
-export interface Finding {
-  level: FindingLevel;
-  path: string;
-  message: string;
-}
-
-export interface Verdict {
-  ok: boolean;
-  findings: Finding[];
-  trace?: unknown;
-  checkedAt: string;
-  inputDigest: string;
-}
-
-export interface Draft {
-  project: string;
-  kind: string;
-  name: string;
-  manifest: Record<string, unknown>;
-  verdict?: Verdict | null;
-  touchedBy: string;
-  touchedKind: "person" | "assistant" | "mcp" | "api-key" | "agent" | string;
-  version: number;
-  updatedAt: string;
-}
-
-export interface DraftEvent {
-  project: string;
-  kind: string;
-  name: string;
-  version: number;
-  touchedBy: string;
-  touchedKind: string;
-  event: "put" | "verdict" | "drop";
-  updatedAt: string;
-}
-
-function draftUrl(project: string, kind: string, name: string): string {
-  return new URL(
-    `/api/v1/projects/${encodeURIComponent(project)}/drafts/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`,
-    window.location.origin,
-  ).toString();
-}
-
+/**
+ * One draft, or null when there is none or it cannot be read. Through the typed client, so the
+ * workspace the person is in reaches the call (CC-76) and an ended session goes to the login.
+ */
 export async function getDraft(
   project: string,
   kind: string,
   name: string,
 ): Promise<Draft | null> {
   try {
-    const res = await fetch(
-      new Request(draftUrl(project, kind, name), { credentials: "same-origin" }),
-    );
-    return res.ok ? asDraft(await res.json()) : null;
+    const { data } = await api.GET("/api/v1/projects/{project}/drafts/{kind}/{name}", {
+      params: { path: { project, kind, name } },
+    });
+    return data === undefined ? null : asDraft(data);
   } catch {
     return null;
   }
@@ -77,32 +43,28 @@ export async function putDraft(
   manifest: unknown,
   expectedVersion?: number,
 ): Promise<Draft> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  const csrf = readCsrfToken();
-  if (csrf) {
-    headers["x-csrf-token"] = csrf;
-  }
-  const payload: { manifest: unknown; expectedVersion?: number } = { manifest };
+  const body: components["schemas"]["PutDraftRequest"] = { manifest };
   if (typeof expectedVersion === "number") {
-    payload.expectedVersion = expectedVersion;
+    body.expectedVersion = expectedVersion;
   }
-  const res = await fetch(
-    new Request(draftUrl(project, kind, name), {
-      method: "PUT",
-      credentials: "same-origin",
-      headers,
-      body: JSON.stringify(payload),
-    }),
+  const { data, error, response } = await api.PUT(
+    "/api/v1/projects/{project}/drafts/{kind}/{name}",
+    { params: { path: { project, kind, name } }, body },
   );
-  if (res.status === 409) {
-    const errorData = (await res.json().catch(() => null)) as { current?: number } | null;
-    throw Object.assign(new Error("draft conflict"), { status: 409, current: errorData?.current });
+  if (response.status === 409) {
+    const current = (error as { current?: unknown } | undefined)?.current;
+    throw Object.assign(new Error("draft conflict"), {
+      status: 409,
+      current: typeof current === "number" ? current : undefined,
+    });
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`failed to put draft (${res.status}): ${text}`);
+  if (data === undefined) {
+    const detail = (error as { detail?: unknown } | undefined)?.detail;
+    throw new Error(
+      `failed to put draft (${response.status})${typeof detail === "string" ? `: ${detail}` : ""}`,
+    );
   }
-  return asDraft(await res.json());
+  return asDraft(data);
 }
 
 const DRAFT_EVENTS = ["message", "draft", "put", "verdict", "drop"] as const;
