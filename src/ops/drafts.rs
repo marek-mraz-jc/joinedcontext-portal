@@ -18,8 +18,20 @@ use sqlx::Row;
 use tokio::sync::{broadcast, RwLock};
 use utoipa::ToSchema;
 
+use super::bounds;
+use super::parse_input;
+use super::verdict_schema;
+use super::workspaces;
+use super::Caller;
+use super::OpError;
+use super::Operation;
+use super::OperationAnnotations;
+use crate::change::Lane;
+use crate::error::ApiError;
 use crate::ops::verdict::Verdict;
 use crate::state::AppState;
+use jc_core::kinds::Verb;
+use serde_json::json;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -665,6 +677,352 @@ pub(crate) fn odt_to_chrono(odt: time::OffsetDateTime) -> DateTime<Utc> {
 pub(crate) fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(dt.timestamp())
         .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
+}
+
+// ---------------------------------------------------------------------------------------------
+// The registry's operations on drafts (AG-61).
+// ---------------------------------------------------------------------------------------------
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DraftRef {
+    pub kind: String,
+    pub name: String,
+}
+
+/// A draft of a workspace is written and dropped by the workspace's owner alone, as every other
+/// write into it is (API/01 §22, CC-76, T-2482): the workspace name is not a key anybody may
+/// pick. `None` is the project's own draft, which the kind's `propose` already decides.
+async fn draft_workspace_owned(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+    action: &str,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::owned(state, &caller.identity, project, name, action).await?;
+    }
+    Ok(())
+}
+
+/// A draft of a workspace is read where the workspace is (PF-59, T-2482): a copy the caller may
+/// not see, or a name that is no live workspace, answers the workspace's own 404.
+async fn draft_workspace_visible(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    workspace: Option<&str>,
+) -> Result<(), OpError> {
+    if let Some(name) = workspace {
+        workspaces::visible(state, &caller.identity, project, name).await?;
+    }
+    Ok(())
+}
+
+pub(crate) fn draft_error(err: DraftError) -> OpError {
+    match err {
+        DraftError::Conflict { current } => OpError::Conflict(json!({
+            "type": "https://joinedcontext.com/problems/draft-conflict",
+            "error": "draft_conflict",
+            "current": current,
+        })),
+        DraftError::Secret(path) => OpError::Api(ApiError::BadRequest(format!(
+            "literal secret in field '{path}' is forbidden; use secretRef instead (MF-24)"
+        ))),
+        DraftError::NotFound {
+            project,
+            kind,
+            name,
+        } => OpError::Api(ApiError::NotFound(format!(
+            "draft '{kind}/{name}' not found in project '{project}'"
+        ))),
+        DraftError::Db(msg) => OpError::Api(ApiError::Internal(msg)),
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DraftPutInput {
+    pub kind: String,
+    pub name: String,
+    pub manifest: Value,
+    #[serde(default)]
+    pub expected_version: Option<i64>,
+    /// The copy this draft belongs to; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftGetInput {
+    pub kind: String,
+    pub name: String,
+    /// The copy to read it in; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftDropInput {
+    pub kind: String,
+    pub name: String,
+    /// The copy to drop it in; `None` is the project's own draft (CC-76, T-2267).
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+/// Which drafts to list: those of one copy, or the project's own (CC-76, T-2267).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DraftListInput {
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+fn draft_put_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "manifest": manifest("The whole manifest to save as the draft"),
+            "expectedVersion": {
+                "type": "integer",
+                "description": "The version last read; a save over a newer one is refused as a conflict",
+                "minimum": 0
+            },
+            "workspace": workspace()
+        },
+        "required": ["kind", "name", "manifest"],
+        "additionalProperties": false
+    })
+}
+
+fn draft_get_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "kind": text("The draft's kind, e.g. Endpoint", TERM),
+            "name": text("The draft's metadata.name", NAME),
+            "workspace": workspace()
+        },
+        "required": ["kind", "name"],
+        "additionalProperties": false
+    })
+}
+
+fn draft_list_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "workspace": bounds::workspace()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// One draft as the operations answer it (T-0838: no `$ref` a client cannot resolve).
+fn draft_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "project": { "type": "string" },
+            "kind": { "type": "string" },
+            "name": { "type": "string" },
+            "manifest": { "type": "object" },
+            "verdict": verdict_schema(),
+            "touchedBy": { "type": "string" },
+            "touchedKind": { "type": "string", "description": "person, assistant, mcp, api-key or agent" },
+            "version": { "type": "integer" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["project", "kind", "name", "manifest", "version"]
+    })
+}
+
+fn draft_list_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "description": "A line per draft; the manifest is read with jc_draft_get (T-2248)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": { "type": "string" },
+                        "name": { "type": "string" },
+                        "workspace": { "type": "string" },
+                        "touchedBy": { "type": "string" },
+                        "touchedKind": { "type": "string" },
+                        "version": { "type": "integer" },
+                        "updatedAt": { "type": "string", "format": "date-time" },
+                        "verdict": {
+                            "type": "object",
+                            "properties": {
+                                "ok": { "type": "boolean" },
+                                "findings": { "type": "integer" },
+                                "checkedAt": { "type": "string", "format": "date-time" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn draft_drop_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "dropped": { "type": "boolean" }
+        }
+    })
+}
+
+/// This module's operations in the registry (`super::init_registry`).
+pub fn operations() -> Vec<Operation> {
+    vec![        Operation {
+            name: "jc_draft_put",
+            title: "Put Draft",
+            description: "Writes the shared draft of a manifest every window, assistant run and MCP client sees (AG-61)",
+            input: draft_put_input_schema,
+            output: draft_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftPutInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let input: DraftPutInput = parse_input(val)?;
+                    crate::permissions::for_request(state, &caller.identity, project)
+                        .check(&input.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
+                    let draft = draft_store(state)
+                        .put_in(
+                            input.workspace.as_deref(),
+                            project,
+                            &input.kind,
+                            &input.name,
+                            input.manifest,
+                            input.expected_version,
+                            &caller.identity.username,
+                            caller.via.touched_kind(),
+                        )
+                        .await
+                        .map_err(draft_error)?;
+                    Ok(serde_json::to_value(draft)?)
+                })
+            },
+        },        Operation {
+            name: "jc_draft_get",
+            title: "Get Draft",
+            description: "Reads one shared draft with its verdict (AG-61)",
+            input: draft_get_input_schema,
+            output: draft_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftGetInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let d: DraftGetInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, d.workspace.as_deref()).await?;
+                    let effective = crate::permissions::for_request(state, &caller.identity, project);
+                    let draft = draft_store(state)
+                        .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
+                        .await
+                        .map_err(draft_error)?
+                        // Not readable is not there (PF-59, R20, T-1455).
+                        .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+                        .ok_or_else(|| {
+                            ApiError::NotFound(format!(
+                                "draft '{}/{}' not found in project '{project}'",
+                                d.kind, d.name
+                            ))
+                        })?;
+                    Ok(serde_json::to_value(draft)?)
+                })
+            },
+        },        Operation {
+            name: "jc_draft_list",
+            title: "List Drafts",
+            description: "Lists the shared drafts of a project, or of one copy of it (AG-61, CC-76)",
+            input: draft_list_input_schema,
+            output: draft_list_output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftListInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let asked: DraftListInput = parse_input(val)?;
+                    draft_workspace_visible(state, caller, project, asked.workspace.as_deref()).await?;
+                    // A draft is readable exactly where its manifest would be (PF-59, T-1455).
+                    let effective = crate::permissions::for_request(state, &caller.identity, project);
+                    // A line per draft, never the manifest and never the verdict's trace
+                    // (T-2248): the manifest is read one at a time with jc_draft_get.
+                    let items: Vec<crate::ops::drafts::DraftLine> = draft_store(state)
+                        .list_in(asked.workspace.as_deref(), project)
+                        .await
+                        .map_err(draft_error)?
+                        .iter()
+                        .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+                        .map(crate::ops::drafts::DraftLine::from)
+                        .collect();
+                    Ok(json!({ "items": items }))
+                })
+            },
+        },        Operation {
+            name: "jc_draft_drop",
+            title: "Drop Draft",
+            description: "Discards a shared draft (AG-61)",
+            input: draft_get_input_schema,
+            output: draft_drop_output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: true,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<DraftDropInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let d: DraftDropInput = parse_input(val)?;
+                    crate::permissions::for_request(state, &caller.identity, project)
+                        .check(&d.kind, Verb::Propose, None)?;
+                    draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
+                    let dropped = draft_store(state)
+                        .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
+                        .await
+                        .map_err(draft_error)?;
+                    Ok(json!({ "dropped": dropped }))
+                })
+            },
+        },
+    ]
 }
 
 #[cfg(test)]
