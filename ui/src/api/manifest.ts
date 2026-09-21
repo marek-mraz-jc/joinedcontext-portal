@@ -138,3 +138,15 @@ export function refName(reference: unknown): string {
   }
   return "";
 }
+
+/**
+ * The metadata of the manifest an edit started from, kept whole: a kind's form edits the spec and
+ * has no field for a title, a description or a label, so an edit that rebuilt metadata from the
+ * name alone would propose deleting them.
+ */
+export function storedMetadata(stored: unknown): Record<string, unknown> {
+  const metadata = (stored as { metadata?: unknown } | null | undefined)?.metadata;
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    ? (metadata as Record<string, unknown>)
+    : {};
+}
