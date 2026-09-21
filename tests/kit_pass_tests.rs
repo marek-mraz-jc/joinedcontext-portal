@@ -3044,7 +3044,10 @@ async fn the_step_limit_ends_the_turn_with_a_message() {
         said.contains("the step limit of this run (3 tool calls a message)"),
         "{said}"
     );
-    assert!(said.contains("smaller step"), "the person is told what to do: {said}");
+    assert!(
+        said.contains("smaller step"),
+        "the person is told what to do: {said}"
+    );
     tokio::time::sleep(Duration::from_millis(200)).await;
     let tools = tool_events(&events(&app, &cookie, &id).await);
     assert_eq!(tools.len(), 3, "{tools:?}");
