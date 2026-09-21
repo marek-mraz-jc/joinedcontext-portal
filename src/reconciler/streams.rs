@@ -684,11 +684,20 @@ fn bento_processors(bento: &str) -> Result<Vec<Value>, RenderError> {
     if config.get("input").is_some() {
         return Err(RenderError::BentoInput);
     }
-    Ok(config
+    let processors = config
         .pointer("/pipeline/processors")
         .and_then(Value::as_array)
         .cloned()
-        .unwrap_or_default())
+        .unwrap_or_default();
+    // The author's processors pass the check a manifest's steps pass (PL-16, PL-50, PL-52): a
+    // name the platform runs, no refused processor nested inside, no read of the runner's
+    // environment. This is where an author's file meets the runner, which holds every
+    // project's credentials.
+    for processor in &processors {
+        jc_core::kinds::pipeline::validate_processor("pipeline.processors", processor)
+            .map_err(|e| RenderError::Bento(e.to_string()))?;
+    }
+    Ok(processors)
 }
 
 /// One query component, percent-encoded: the unreserved characters and `:` (every URN is full of
@@ -2057,6 +2066,33 @@ output:
         ));
         // An empty file is an author who has not written the mapping yet: the stream still renders.
         assert!(render("").is_ok());
+    }
+
+    /// PL-16, PL-50, PL-52 (T-2557): the author's `bento.yaml` processors pass the same check as a
+    /// manifest's steps: a processor the platform does not run, at the top or nested inside
+    /// another, or a Bloblang read of the runner's environment, and no stream is rendered.
+    #[test]
+    fn a_bento_processor_the_platform_refuses_does_not_render() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        let ds = helsinki_datasource_spec();
+        let render =
+            |bento: &str| render_stream(&spec, "p", "helsinki", &ds, "src", "abc123", Some(bento));
+        for bento in [
+            "pipeline:\n  processors:\n    - command: { name: sh }\n",
+            "pipeline:\n  processors:\n    - subprocess: { name: sh }\n",
+            "pipeline:\n  processors:\n    - try:\n        - file: { path: /etc/passwd }\n",
+            "pipeline:\n  processors:\n    - switch:\n        - processors:\n            - wasm: { module_path: /tmp/x.wasm }\n",
+            "pipeline:\n  processors:\n    - no_such_processor: {}\n",
+            "pipeline:\n  processors:\n    - mapping: 'root.s = env(\"JC_CLIENT_SECRET\")'\n",
+            "pipeline:\n  processors:\n    - branch:\n        processors:\n          - mapping: 'root = env(\"JC_CLIENT_SECRET\")'\n",
+        ] {
+            let refused = render(bento).expect_err(bento);
+            assert!(matches!(refused, RenderError::Bento(_)), "{bento}: {refused:?}");
+        }
+        // The same names as configuration of an allowed processor are not processors.
+        assert!(render("pipeline:\n  processors:\n    - redis: { url: redis://cache:6379, command: get, args_mapping: 'root = [this.id]' }\n").is_ok());
+        assert!(render(BENTO).is_ok());
     }
 
     #[tokio::test]
