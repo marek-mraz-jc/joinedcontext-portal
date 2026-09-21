@@ -200,11 +200,10 @@ pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
     /// `secrets` (DataSource), `passwordRef`, `headerRef` and `caCertRef` (DataSource),
     /// `apiTokenRef` (CkanInstance), `tokenSecretRef` (DataspaceConnector) and
     /// `cachedTokenSecretRef` (Endpoint). A new one in jc-core is added here.
-    const SECRET_FIELDS: [&str; 10] = [
+    const SECRET_FIELDS: [&str; 9] = [
         "secretRef",
         "previousSecretRef",
         "secretRefs",
-        "secrets",
         "passwordRef",
         "headerRef",
         "caCertRef",
@@ -224,6 +223,11 @@ pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
                     {
                         found.push(here);
                         continue;
+                    }
+                    // A `secrets` list is a need of its own, and each entry is still walked: an
+                    // entry names its `secretRef`, which is one more (MF-35).
+                    if key == "secrets" && child.is_array() {
+                        found.push(here.clone());
                     }
                     walk(child, &here, found);
                 }

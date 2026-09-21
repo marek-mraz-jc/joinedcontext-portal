@@ -126,3 +126,30 @@ fn a_reference_to_a_resource_is_not_a_secret_need() {
         secret_paths(&needs)
     );
 }
+
+/// MF-35: a `secrets` list is a need of its own and each entry's `secretRef` one more, as before
+/// the typed fields were added; a `secrets` that is not a list is walked, not reported.
+#[test]
+fn a_secrets_list_is_a_need_and_its_entries_are_still_walked() {
+    let source = manifest(
+        "DataSource",
+        "custom",
+        json!({ "secrets": [{ "env": "TOKEN", "secretRef": { "name": "n", "key": "k" } }] }),
+    );
+    assert_eq!(
+        secret_paths(&needs_of(&[source], PROJECT)),
+        [
+            "DataSource/custom spec.secrets",
+            "DataSource/custom spec.secrets[0].secretRef",
+        ]
+    );
+    let odd = manifest(
+        "Pipeline",
+        "odd",
+        json!({ "secrets": { "secretRef": { "name": "n" } } }),
+    );
+    assert_eq!(
+        secret_paths(&needs_of(&[odd], PROJECT)),
+        ["Pipeline/odd spec.secrets.secretRef"]
+    );
+}
