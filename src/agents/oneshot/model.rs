@@ -812,3 +812,343 @@ pub(super) fn tool_result_message(provider: &str, call_id: &str, content: &str) 
         json!({ "role": "tool", "tool_call_id": call_id, "content": content })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! `rows` (T-2513; PF-55, AG-76): a kit's sources read page by page through the proxy. The
+    //! endpoint is the gate for `q` and `attrs`; these cases prove what the Portal sends and what
+    //! it keeps when an endpoint fails.
+
+    use super::*;
+    use crate::state::AppState;
+    use std::collections::BTreeMap;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+
+    /// An endpoint holding `total` entities of its type, answering each page by `limit` and
+    /// `offset` like a broker does.
+    struct Holding(usize);
+
+    impl Respond for Holding {
+        fn respond(&self, request: &Request) -> ResponseTemplate {
+            let query: BTreeMap<String, String> = request.url.query_pairs().into_owned().collect();
+            let number = |key: &str| {
+                query
+                    .get(key)
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(0)
+            };
+            let (limit, offset) = (number("limit"), number("offset"));
+            let page: Vec<Value> = (offset..self.0.min(offset + limit))
+                .map(|i| json!({ "id": format!("urn:ngsi-ld:T:{i}"), "type": "T" }))
+                .collect();
+            ResponseTemplate::new(200).set_body_json(page)
+        }
+    }
+
+    async fn endpoint(server: &MockServer, entity_type: &str, answer: impl Respond + 'static) {
+        Mock::given(method("GET"))
+            .and(path("/v1/data/ngsi-ld/v1/entities"))
+            .and(query_param("type", entity_type))
+            .respond_with(answer)
+            .mount(server)
+            .await;
+    }
+
+    fn source(name: &str, entity_type: &str, limit: Option<u32>) -> kit::Source {
+        kit::Source {
+            name: name.to_owned(),
+            entity_type: entity_type.to_owned(),
+            attrs: Vec::new(),
+            q: None,
+            limit,
+        }
+    }
+
+    fn spec(sources: Vec<kit::Source>) -> kit::Spec {
+        kit::Spec {
+            title: "t".to_owned(),
+            subtitle: None,
+            sources,
+            filters: Vec::new(),
+            views: Vec::new(),
+            theme: None,
+        }
+    }
+
+    fn driver(server: &MockServer) -> (Driver, AppState) {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.proxy_base = server.uri();
+        (driver, state)
+    }
+
+    /// The `(limit, offset)` of every page read for `entity_type`, in order.
+    async fn pages(server: &MockServer, entity_type: &str) -> Vec<(String, String)> {
+        server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|request| {
+                let query: BTreeMap<String, String> =
+                    request.url.query_pairs().into_owned().collect();
+                (query.get("type").map(String::as_str) == Some(entity_type))
+                    .then(|| (query["limit"].clone(), query["offset"].clone()))
+            })
+            .collect()
+    }
+
+    async fn thoughts(state: &AppState) -> Vec<String> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .filter_map(|event| event.payload["text"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    fn count(data: &Value, name: &str) -> usize {
+        data[name].as_array().map_or(usize::MAX, Vec::len)
+    }
+
+    /// T-2513, AG-76: `q` and `attrs` travel percent-encoded, once each, beside the four
+    /// parameters the Portal sets; nothing else is added to the endpoint's URL.
+    #[tokio::test]
+    async fn q_and_attrs_are_sent_percent_encoded_in_one_url_and_nothing_else_is_added() {
+        let server = MockServer::start().await;
+        endpoint(&server, "BikeHireDockingStation", Holding(3)).await;
+        let (driver, _) = driver(&server);
+        let q = r#"status=="closed";name~="a b&c=d""#;
+        let mut stations = source("stations", "BikeHireDockingStation", Some(10));
+        stations.attrs = vec!["name".to_owned(), "status".to_owned()];
+        stations.q = Some(q.to_owned());
+
+        let data = driver.rows(&spec(vec![stations])).await;
+        assert_eq!(count(&data, "stations"), 3);
+        let requests = server.received_requests().await.unwrap_or_default();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].url.query(),
+            Some(
+                "type=BikeHireDockingStation&options=keyValues&limit=10&offset=0\
+                 &attrs=name%2Cstatus&q=status%3D%3D%22closed%22%3Bname~%3D%22a%20b%26c%3Dd%22"
+            )
+        );
+        let pairs: Vec<(String, String)> = requests[0].url.query_pairs().into_owned().collect();
+        assert_eq!(pairs.len(), 6, "{pairs:?}");
+        assert!(pairs.contains(&("q".to_owned(), q.to_owned())), "{pairs:?}");
+    }
+
+    /// T-2513, PF-55: a source that cannot be read is an empty list and a line in the chat; the
+    /// sources before and after it keep their rows, whichever order they come in.
+    #[tokio::test]
+    async fn one_sources_failure_does_not_empty_another_sources_rows() {
+        for broken_first in [true, false] {
+            let server = MockServer::start().await;
+            endpoint(&server, "Good", Holding(4)).await;
+            endpoint(
+                &server,
+                "Broken",
+                ResponseTemplate::new(502).set_body_string("gateway"),
+            )
+            .await;
+            let (driver, state) = driver(&server);
+            let (good, broken) = (
+                source("good", "Good", Some(10)),
+                source("broken", "Broken", Some(10)),
+            );
+            let sources = if broken_first {
+                vec![broken, good]
+            } else {
+                vec![good, broken]
+            };
+
+            let data = driver.rows(&spec(sources)).await;
+            assert_eq!(count(&data, "good"), 4, "broken first: {broken_first}");
+            assert_eq!(count(&data, "broken"), 0, "broken first: {broken_first}");
+            let said = thoughts(&state).await;
+            assert_eq!(said.len(), 1, "{said:?}");
+            assert!(
+                said[0].starts_with("The rows of broken could not be read: 502"),
+                "{said:?}"
+            );
+        }
+    }
+
+    /// T-2513: pages of at most `PAGE`, up to the source's limit and never beyond `MAX_LIMIT`,
+    /// stopping at the first short page. `(limit, entities held, pages read, rows kept)`.
+    #[tokio::test]
+    async fn a_limit_above_max_limit_is_clamped_before_the_first_request() {
+        let server = MockServer::start().await;
+        endpoint(&server, "Endless", Holding(100_000)).await;
+        let (driver, _) = driver(&server);
+        let data = driver
+            .rows(&spec(vec![source("all", "Endless", Some(9_000))]))
+            .await;
+        assert_eq!(count(&data, "all"), kit::MAX_LIMIT as usize);
+        let read = pages(&server, "Endless").await;
+        assert_eq!(read.len(), (kit::MAX_LIMIT / kit::PAGE) as usize);
+        assert!(
+            read.iter()
+                .all(|(limit, _)| *limit == kit::PAGE.to_string()),
+            "{read:?}"
+        );
+        assert_eq!(read.last().map(|(_, offset)| offset.as_str()), Some("4500"));
+    }
+
+    #[tokio::test]
+    async fn a_source_at_exactly_the_page_boundary_stops_after_one_page() {
+        let server = MockServer::start().await;
+        endpoint(&server, "Many", Holding(10_000)).await;
+        let (driver, _) = driver(&server);
+        let data = driver
+            .rows(&spec(vec![source("many", "Many", Some(kit::PAGE))]))
+            .await;
+        assert_eq!(count(&data, "many"), kit::PAGE as usize);
+        assert_eq!(
+            pages(&server, "Many").await,
+            vec![("500".to_owned(), "0".to_owned())]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_source_whose_limit_is_not_a_multiple_of_page_pages_correctly() {
+        let pairs = |list: &[(&str, &str)]| -> Vec<(String, String)> {
+            list.iter()
+                .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
+                .collect()
+        };
+        for (limit, held, read, kept) in [
+            (
+                1_234,
+                10_000,
+                pairs(&[("500", "0"), ("500", "500"), ("234", "1000")]),
+                1_234,
+            ),
+            // Fewer entities than the limit: the short page ends it.
+            (1_234, 700, pairs(&[("500", "0"), ("500", "500")]), 700),
+            // A full last page of what exists still asks once more and gets nothing.
+            (1_234, 500, pairs(&[("500", "0"), ("500", "500")]), 500),
+            (1, 10, pairs(&[("1", "0")]), 1),
+        ] {
+            let server = MockServer::start().await;
+            endpoint(&server, "T", Holding(held)).await;
+            let (driver, _) = driver(&server);
+            let data = driver
+                .rows(&spec(vec![source("s", "T", Some(limit))]))
+                .await;
+            assert_eq!(count(&data, "s"), kept, "limit {limit}, held {held}");
+            assert_eq!(
+                pages(&server, "T").await,
+                read,
+                "limit {limit}, held {held}"
+            );
+        }
+        // No limit is the default, not everything.
+        let server = MockServer::start().await;
+        endpoint(&server, "T", Holding(100_000)).await;
+        let (driver, _) = driver(&server);
+        let data = driver.rows(&spec(vec![source("s", "T", None)])).await;
+        assert_eq!(count(&data, "s"), kit::DEFAULT_LIMIT as usize);
+    }
+
+    /// T-2513: an answer that is JSON but not a list, or not JSON at all, is a failure said in
+    /// the chat, never a panic and never rows.
+    #[tokio::test]
+    async fn a_non_array_answer_is_treated_as_a_failure_not_a_panic() {
+        for (answer, reason) in [
+            (
+                ResponseTemplate::new(200).set_body_json(json!({ "id": "urn:x" })),
+                "did not answer a list",
+            ),
+            (
+                ResponseTemplate::new(200).set_body_string("<html>"),
+                "expected value",
+            ),
+            (ResponseTemplate::new(200).set_body_string(""), "EOF"),
+        ] {
+            let server = MockServer::start().await;
+            endpoint(&server, "Odd", answer).await;
+            let (driver, state) = driver(&server);
+            let data = driver
+                .rows(&spec(vec![source("odd", "Odd", Some(10))]))
+                .await;
+            assert_eq!(data, json!({ "odd": [] }));
+            let said = thoughts(&state).await;
+            assert!(
+                said.iter().any(|t| t.contains(reason)),
+                "{reason}: {said:?}"
+            );
+        }
+    }
+
+    /// T-2513: no sources, no request and an empty object. A source name used twice is struck:
+    /// `rows` is called only on a spec `kit::parse` accepted, and `kit::validate` refuses a
+    /// repeated name (kit.rs, `"sources[{index}].name: '{}' is used twice"`).
+    #[tokio::test]
+    async fn an_empty_sources_list_returns_an_empty_object() {
+        let server = MockServer::start().await;
+        let (driver, _) = driver(&server);
+        assert_eq!(driver.rows(&spec(Vec::new())).await, json!({}));
+        assert!(server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    /// T-2513, AG-76: a `q` in any script travels as UTF-8 percent-encoding and arrives as written.
+    #[tokio::test]
+    async fn unicode_in_q_is_encoded_and_round_trips() {
+        let server = MockServer::start().await;
+        endpoint(&server, "Station", Holding(1)).await;
+        let (driver, _) = driver(&server);
+        let q = r#"name=="Töölöntori ☂ 東京""#;
+        let mut stations = source("s", "Station", Some(5));
+        stations.q = Some(q.to_owned());
+        driver.rows(&spec(vec![stations])).await;
+        let requests = server.received_requests().await.unwrap_or_default();
+        let raw = requests[0].url.query().unwrap_or_default();
+        assert!(
+            raw.contains("q=name%3D%3D%22T%C3%B6%C3%B6l%C3%B6ntori%20%E2%98%82%20"),
+            "{raw}"
+        );
+        assert!(raw.is_ascii(), "{raw}");
+        let sent: Vec<String> = requests[0]
+            .url
+            .query_pairs()
+            .filter(|(key, _)| key == "q")
+            .map(|(_, value)| value.into_owned())
+            .collect();
+        assert_eq!(sent, vec![q.to_owned()]);
+    }
+
+    /// T-2513, PF-55: an endpoint refusing the run's ticket leaves that source empty, with the
+    /// status in the chat line, and reads no further page.
+    #[tokio::test]
+    async fn an_endpoint_answering_401_leaves_that_source_empty_with_its_reason() {
+        let server = MockServer::start().await;
+        endpoint(
+            &server,
+            "Private",
+            ResponseTemplate::new(401).set_body_json(json!({ "title": "invalid ticket" })),
+        )
+        .await;
+        let (driver, state) = driver(&server);
+        let data = driver
+            .rows(&spec(vec![source("private", "Private", Some(2_000))]))
+            .await;
+        assert_eq!(data, json!({ "private": [] }));
+        assert_eq!(pages(&server, "Private").await.len(), 1);
+        let said = thoughts(&state).await;
+        assert!(
+            said.iter()
+                .any(|t| t.starts_with("The rows of private could not be read: 401")),
+            "{said:?}"
+        );
+    }
+}

@@ -10,9 +10,8 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
-use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Json, Router};
 use jc_core::kinds::{PipelineSpec, Verb};
@@ -37,7 +36,7 @@ const DEADLINE: Duration = Duration::from_secs(3);
 /// Silence after the last captured message that ends the wait early.
 const QUIET: Duration = Duration::from_millis(300);
 /// The request body: the sample's five mebibytes plus the manifest and the JSON around them.
-const BODY_LIMIT: usize = MAX_SAMPLE_BYTES + 1024 * 1024;
+pub(crate) const BODY_LIMIT: usize = MAX_SAMPLE_BYTES + 1024 * 1024;
 
 /// The request of API/01 §7a.
 #[derive(Debug, Deserialize)]
@@ -48,13 +47,14 @@ pub struct TestRequest {
 }
 
 /// A test in flight: which project it belongs to and where its captured messages go.
-struct Running {
+pub(crate) struct Running {
     project: String,
-    sender: mpsc::UnboundedSender<Captured>,
+    pub(crate) sender: mpsc::UnboundedSender<Captured>,
 }
 
 /// One test per project at a time, keyed by the test id the capture route is called with.
-static RUNNING: LazyLock<Mutex<HashMap<String, Running>>> = LazyLock::new(Mutex::default);
+pub(crate) static RUNNING: LazyLock<Mutex<HashMap<String, Running>>> =
+    LazyLock::new(Mutex::default);
 
 /// Holds the project's slot while the test runs and frees it however the test ends.
 struct Slot(String);
@@ -181,7 +181,21 @@ pub async fn execute_test_pipeline(
         content = Object,
         description = "`pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, \
                        and a `format` (`csv`, `json`, `text`). API/01 §7a.",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({
+            "pipeline": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Pipeline",
+                "metadata": { "name": "shmu-air-quality" },
+                "spec": {
+                    "class": "resident",
+                    "source": { "dataSourceRef": { "kind": "DataSource", "name": "shmu-csv" } },
+                    "compute": { "kind": "bloblang", "bloblang": "root.pm10 = this.pm10.number()" },
+                    "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                }
+            },
+            "sample": { "text": "station_id,pm10\n01,18.2\n", "format": "csv" }
+        })
     ),
     responses(
         (status = 200, description = "The trace: what the harness read, what each step made of \
@@ -242,30 +256,20 @@ pub(crate) async fn run_harness(
     let _slot = Slot::take(project, &id, sender)?;
 
     let stream = format!("{runner}/streams/{STREAM_PREFIX}{id}");
-    let created = http().post(&stream).json(&config).send().await.map_err(|err| {
-        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
-        ApiError::Unavailable("the pipeline runner did not answer".into())
-    })?;
-    let status = created.status();
-    let refusal = created.text().await.unwrap_or_default();
+    let outcome = create_and_trace(project, &stream, &config, &mut receiver).await;
 
-    let mut result = if status.is_success() {
-        trace(&collect(&mut receiver).await)
-    } else if status.is_client_error() {
-        TestTrace {
-            errors: lint_errors(&refusal),
-            ..TestTrace::default()
+    // Gone whatever happened: a runner that timed out or answered 5xx may still have created the
+    // stream, and one it keeps answers 409 on the next test's create. A delete it refuses (anything
+    // but 2xx, or 404 for a stream it never made) is a log line and a runner error in the trace.
+    let deleted = match http().delete(&stream).send().await {
+        Ok(answer) if answer.status().is_success() || answer.status() == StatusCode::NOT_FOUND => {
+            Ok(())
         }
-    } else {
-        tracing::warn!(project = %project, status = %status, "pipeline runner refused a test stream");
-        return Err(ApiError::Unavailable(
-            "the pipeline runner did not answer".into(),
-        ));
+        Ok(answer) => Err(answer.status().to_string()),
+        Err(err) => Err(err.to_string()),
     };
-
-    // Gone whatever happened; a runner that keeps it answers 409 on the next test's create,
-    // which is why that failure is worth a log line and nothing else.
-    if let Err(err) = http().delete(&stream).send().await {
+    let mut result = outcome?;
+    if let Err(err) = deleted {
         tracing::warn!(project = %project, error = %err, "pipeline test stream not deleted");
         result.errors.push(TestError {
             stage: "runner".into(),
@@ -276,6 +280,37 @@ pub(crate) async fn run_harness(
         });
     }
     Ok(result)
+}
+
+/// Creates the harness stream and reads its trace: what the harness posted back, or the lint
+/// errors of a create the runner refused (4xx). A create that did not answer, or answered 5xx,
+/// is the caller's 503 with the runner's words kept in the log.
+async fn create_and_trace(
+    project: &str,
+    stream: &str,
+    config: &Value,
+    receiver: &mut mpsc::UnboundedReceiver<Captured>,
+) -> Result<TestTrace, ApiError> {
+    let created = http().post(stream).json(config).send().await.map_err(|err| {
+        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
+        ApiError::Unavailable("the pipeline runner did not answer".into())
+    })?;
+    let status = created.status();
+    let refusal = created.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        Ok(trace(&collect(receiver).await))
+    } else if status.is_client_error() {
+        Ok(TestTrace {
+            errors: lint_errors(&refusal),
+            ..TestTrace::default()
+        })
+    } else {
+        tracing::warn!(project = %project, status = %status, "pipeline runner refused a test stream");
+        Err(ApiError::Unavailable(
+            "the pipeline runner did not answer".into(),
+        ))
+    }
 }
 
 /// The URL an `http` DataSource is probed at, or why it is not (MF-39): `None` for every other
@@ -375,61 +410,18 @@ fn outcome_of(error: &str) -> String {
     }
 }
 
-/// `POST /internal/pipeline-tests/{id}`: what the harness produced, one message per call.
-///
-/// The id is 130 random bits minted for this test and known to the harness alone, so it is a
-/// capability of its own; a message for a test that is not running is dropped with a 404. Since
-/// T-2271 the caller is named as well: the project's pipeline runner presents its own ServiceAccount
-/// token, audience-bound to this listener, and a call with no identity gets the 401 it deserves
-/// rather than a 404 that only says "no such test" (AG-52).
-pub async fn capture(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> StatusCode {
-    if crate::auth::internal::authenticate_pipeline_runner(&state, &headers)
-        .await
-        .is_err()
-    {
-        return StatusCode::UNAUTHORIZED;
-    }
-    captured(&id, &body)
-}
-
-/// What the capture does once the caller is known: the message, or why it went nowhere.
-fn captured(id: &str, body: &Bytes) -> StatusCode {
-    let Ok(message) = serde_json::from_slice::<Captured>(body) else {
-        return StatusCode::BAD_REQUEST;
-    };
-    let sent = RUNNING
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(id)
-        .map(|running| running.sender.send(message).is_ok());
-    match sent {
-        Some(true) => StatusCode::NO_CONTENT,
-        _ => StatusCode::NOT_FOUND,
-    }
-}
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/projects/{project}/pipelines/test", post(test_pipeline))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }
 
-pub fn internal_router() -> Router<AppState> {
-    // The harness posts a whole fetched feed back as one message, so the capture route takes
-    // what the test route takes; axum's default two mebibytes turned a 1.2 MB feed into 413.
-    Router::new()
-        .route("/internal/pipeline-tests/{id}", post(capture))
-        .layer(DefaultBodyLimit::max(BODY_LIMIT))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::internal::pipeline_tests::captured;
+    use axum::body::Bytes;
+    use axum::http::StatusCode;
     use serde_json::json;
 
     fn harness_for(sample: Sample) -> Value {

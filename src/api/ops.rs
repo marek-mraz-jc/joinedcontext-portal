@@ -68,8 +68,10 @@ pub async fn list_ops(
     ),
     request_body(
         content = Option<Value>,
-        description = "Operation input parameters",
-        content_type = "application/json"
+        description = "Operation input parameters, as the operation's own input schema \
+                       names them",
+        content_type = "application/json",
+        example = json!({ "query": "air quality" })
     ),
     responses(
         (status = 200, description = "Operation executed successfully", body = Object),

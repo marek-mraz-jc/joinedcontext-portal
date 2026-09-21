@@ -4,13 +4,13 @@
  *
  * Three defects the user met on 2026-09-20, all in the same dock. The composer sat in the middle of
  * a scrolling column with a `Recent conversations` list of truncated prompts under it, so the input
- * moved as content grew and the last thing in the panel was a list of old questions. Inside a
- * conversation the example prompts and the app builder were gone altogether, because they render
- * only when no run is remembered. And every corner in the dock was Tailwind's bare `rounded`,
+ * moved as content grew and the last thing in the panel was a list of old questions. The example
+ * prompts and the app builder are the empty state's and only its (T-2464 reversed T-2423, which had
+ * put them inside a conversation too). And every corner in the dock was Tailwind's bare `rounded`,
  * 0.25rem, which is on no token of `src/tokens.css`, beside a page built from `rounded-md` and
  * `rounded-lg`.
  */
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -188,30 +188,40 @@ describe("where the assistant's input sits", () => {
     expect(empty.resume).toBeUndefined();
   });
 
-  it("offers the same prompts inside a conversation, and a click sends one into it", async () => {
-    const { messages, started } = renderDock();
-    const person = await openDock();
+  // T-2464: the owner, in the live demo — "this should not be there.... when having conversation".
+  it("shows the starter block once in a new conversation and never inside one", async () => {
+    renderDock();
+    await openDock();
+    const examples = await screen.findByTestId("assistant-examples");
+    expect(within(examples).getByRole("button", { name: en.apps.generate.title })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: en.assistant.empty.examples.find })).toHaveLength(1);
+
     await act(async () => {
       rememberRun({ project: PROJECT, runId: RUN_ID });
     });
-    const suggestions = await screen.findByTestId("assistant-suggestions");
-    const find = within(suggestions).getByRole("button", { name: en.assistant.empty.examples.find });
-    await person.click(find);
-    await waitFor(() => {
-      expect(messages).toEqual([{ text: en.assistant.empty.examples.find }]);
-    });
-    // The open conversation continues; a chip does not start a second run.
-    expect(started).toEqual([]);
+    const composer = await screen.findByLabelText(en.agentRun.conversation.placeholder);
+    expect(screen.queryByTestId("assistant-examples")).toBeNull();
+    expect(screen.queryByTestId("assistant-suggestions")).toBeNull();
+    for (const example of Object.values(en.assistant.empty.examples)) {
+      expect(screen.queryByRole("button", { name: example })).toBeNull();
+    }
+    expect(screen.queryByRole("button", { name: en.apps.generate.title })).toBeNull();
+    // Nothing stands between the thread and the composer but the data bar: no chip, no initials.
+    const form = composer.closest("form") as HTMLElement;
+    const above = (form.firstElementChild as HTMLElement).textContent ?? "";
+    expect(above.startsWith(en.assistant.data.title), above).toBe(true);
   });
 
-  it("keeps the app builder reachable from inside a conversation", async () => {
+  it("reaches the app builder from a conversation through a new one", async () => {
     renderDock();
     const person = await openDock();
     await act(async () => {
       rememberRun({ project: PROJECT, runId: RUN_ID });
     });
-    const suggestions = await screen.findByTestId("assistant-suggestions");
-    await person.click(within(suggestions).getByRole("button", { name: en.apps.generate.title }));
+    await screen.findByLabelText(en.agentRun.conversation.placeholder);
+    await person.click(screen.getByRole("button", { name: en.assistant.newConversation }));
+    const examples = await screen.findByTestId("assistant-examples");
+    await person.click(within(examples).getByRole("button", { name: en.apps.generate.title }));
     expect(await screen.findByRole("button", { name: en.assistant.backToChat })).toBeInTheDocument();
   });
 

@@ -278,8 +278,10 @@ async fn unknown_plural_returns_404_problem() {
     );
 }
 
+/// MF-11 (T-2375): a revision is read from the repository, so a Portal with none says so
+/// instead of answering today's list as though it were the one asked for.
 #[tokio::test]
-async fn revision_query_returns_501_not_implemented() {
+async fn a_revision_on_a_portal_without_a_repository_is_unavailable() {
     let config = Config::for_tests();
     let cookie = make_session_cookie(&config);
     let mirror = seed_demo_mirror();
@@ -296,19 +298,9 @@ async fn revision_query_returns_501_not_implemented() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(
         response.headers().get(header::CONTENT_TYPE).unwrap(),
         "application/problem+json"
     );
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let problem: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(
-        problem["type"],
-        "https://joinedcontext.com/errors/not-implemented"
-    );
-    assert!(problem["detail"]
-        .as_str()
-        .unwrap()
-        .contains("historical revisions are served from Git"));
 }

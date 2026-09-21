@@ -15,7 +15,43 @@ describe("API.md", () => {
     expect(missing).toEqual([]);
   });
 
+  // SDK-02: a model writes an app from API.md and believes it, so a name API.md declares that
+  // its entry point does not export is an import that fails in the generated app.
+  it.each([
+    ["@joinedcontext/sdk", sdk],
+    ["@joinedcontext/sdk/server", server],
+    ["@joinedcontext/sdk/testing", testing],
+  ])("declares nothing %s does not export", (entry, exports) => {
+    const invented = declaredIn(entry).filter((name) => !(name in exports));
+    expect(invented).toEqual([]);
+  });
+
+  it("finds the declarations it checks", () => {
+    expect(declaredIn("@joinedcontext/sdk")).toEqual(expect.arrayContaining(["jc", "ProblemError", "EntityGrid", "DEFAULT_PAGE_SIZE", "MAX_PAGE_SIZE"]));
+  });
+
   it("stays within 12 000 tokens (4 characters per token, rounded up)", () => {
     expect(Math.ceil(apiMd.length / 4)).toBeLessThanOrEqual(12_000);
   });
 });
+
+/** The runtime names (`function`, `class`, `const`) declared in the ts blocks of one entry point's section. */
+function declaredIn(entry: string): string[] {
+  const start = apiMd.indexOf(`## Entry Point: \`${entry}\``);
+  if (start < 0) return [];
+  const next = apiMd.indexOf("\n## ", start + 1);
+  const section = apiMd.slice(start, next < 0 ? undefined : next);
+  const names = new Set<string>();
+  for (const block of section.matchAll(/```ts\n([\s\S]*?)```/g)) {
+    for (const line of block[1].split("\n")) {
+      const declared = /^(?:async\s+)?(function|class|const)\s+([A-Za-z_$][\w$]*)/.exec(line.trim());
+      if (!declared) continue;
+      names.add(declared[2]);
+      // `const A = 1, B = 2` declares both.
+      if (declared[1] === "const") {
+        for (const more of line.matchAll(/,\s*([A-Za-z_$][\w$]*)\s*[:=]/g)) names.add(more[1]);
+      }
+    }
+  }
+  return [...names];
+}

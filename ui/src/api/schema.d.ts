@@ -1955,12 +1955,26 @@ export interface components {
              */
             organisation: string;
             /**
+             * @description The primary colour as a dark page paints it: the brand lightened towards white, because
+             *     a navy button on a navy page is not a button. Computed, never authored.
+             * @default #5985e7
+             */
+            primaryDark: string;
+            /**
              * @description Readable text on top of the primary colour. Always computed from that colour, never
              *     taken from the file: the block names a primary colour but no foreground, and white on
              *     a light primary is unreadable (WCAG 1.4.3). A value in the file is overwritten.
              * @default #ffffff
              */
             primaryForeground: string;
+            /**
+             * @description Readable text on top of `primary_dark` — on the lightened colour, not on the configured
+             *     one. The dark theme used to rule that this is always the branded text pushed to black,
+             *     which left a `#111827` installation at 2.31:1 and a `#0000bf` one at 3.43:1 (T-2324,
+             *     UI-30). Computed here because the choice needs the ratio of the lightened colour.
+             * @default #0f172a
+             */
+            primaryForegroundDark: string;
             /**
              * @description Short name: sidebars, tabs, e-mail subjects. A block that omits it gets the full name,
              *     so the field default is empty rather than the struct's.
@@ -2467,6 +2481,13 @@ export interface components {
              *     secret value, only where one is set.
              */
             needs: components["schemas"]["Need"][];
+            /**
+             * @description Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+             *     to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+             */
+            reassigned?: {
+                [key: string]: string;
+            };
             /** @description Resources imported under a new name, `old -> new` (`rename`). */
             renamed: {
                 [key: string]: string;
@@ -2568,6 +2589,12 @@ export interface components {
             endpointNames?: string[] | null;
             text: string;
         };
+        MintRequest: {
+            /** @description Name of the `api-key` credential in the manifest this key belongs to. */
+            credential: string;
+            /** @description Overrides the credential's own expiry; absent means the manifest's, or never. */
+            expiresAt?: string | null;
+        };
         /** @description A minted key. The only place a raw token ever appears (PF-36). */
         MintedKey: {
             credential: string;
@@ -2584,7 +2611,7 @@ export interface components {
         };
         /** @description One thing a copy cannot carry (CC-84, API/01 §10). */
         Need: {
-            /** @description `secret`, `person`, `host` or `credential`. */
+            /** @description `secret`, `person` or `host`. */
             kind: string;
             /** @description The Portal page that sets it. */
             link: string;
@@ -2994,6 +3021,13 @@ export interface components {
         RevisionList: {
             items: components["schemas"]["Revision"][];
         };
+        RotateRequest: {
+            /**
+             * Format: int64
+             * @description How long the rotated key keeps working beside its successor, in hours (PF-38).
+             */
+            overlapHours?: number | null;
+        };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
          *
@@ -3241,9 +3275,59 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
+        /** @description An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, its fields as attributes */
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "resourceLogs": [
+                 *         {
+                 *           "scopeLogs": [
+                 *             {
+                 *               "logRecords": [
+                 *                 {
+                 *                   "attributes": [
+                 *                     {
+                 *                       "key": "project",
+                 *                       "value": {
+                 *                         "stringValue": "helsinki"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "kind",
+                 *                       "value": {
+                 *                         "stringValue": "access.denied"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "source",
+                 *                       "value": {
+                 *                         "stringValue": "gateway"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "severity",
+                 *                       "value": {
+                 *                         "stringValue": "warning"
+                 *                       }
+                 *                     },
+                 *                     {
+                 *                       "key": "summary",
+                 *                       "value": {
+                 *                         "stringValue": "An anonymous caller was refused a write."
+                 *                       }
+                 *                     }
+                 *                   ],
+                 *                   "timeUnixNano": "1789314063000000000"
+                 *                 }
+                 *               ]
+                 *             }
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3286,6 +3370,11 @@ export interface operations {
         /** @description The provider's signed logout token */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "logout_token": "the-realms-signed-logout-token"
+                 *     }
+                 */
                 "application/x-www-form-urlencoded": components["schemas"]["BackChannelLogoutForm"];
             };
         };
@@ -3628,6 +3717,14 @@ export interface operations {
         /** @description A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The method decides what happens; the path never does (AG-60, ADR-N-021). */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "id": 1,
+                 *       "jsonrpc": "2.0",
+                 *       "method": "tools/list",
+                 *       "params": {}
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -3742,6 +3839,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "advancedMode": false,
+                 *       "defaultProject": "helsinki",
+                 *       "locale": "sk",
+                 *       "theme": "dark"
+                 *     }
+                 */
                 "application/json": components["schemas"]["Preferences"];
             };
         };
@@ -3831,6 +3936,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "description": "The city's open data",
+                 *       "displayName": "Helsinki",
+                 *       "name": "helsinki"
+                 *     }
+                 */
                 "application/json": components["schemas"]["OpenProject"];
             };
         };
@@ -4174,6 +4286,34 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "appClass": "fullstack",
+                 *       "appName": "city-bikes-overview",
+                 *       "dataNeeds": [
+                 *         {
+                 *           "attrs": [
+                 *             "name",
+                 *             "location"
+                 *           ],
+                 *           "contextSpaceRef": {
+                 *             "kind": "ContextSpace",
+                 *             "name": "mobility"
+                 *           },
+                 *           "operations": [
+                 *             "queryEntity",
+                 *             "retrieveEntity"
+                 *           ],
+                 *           "types": [
+                 *             "BikeHireDockingStation"
+                 *           ]
+                 *         }
+                 *       ],
+                 *       "endpointName": "helsinki-bikes",
+                 *       "prompt": "A live bike availability dashboard with station filtering",
+                 *       "visibility": "project"
+                 *     }
+                 */
                 "application/json": components["schemas"]["CreateRunRequest"];
             };
         };
@@ -4291,6 +4431,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "answers": [
+                 *         "A map beside the table"
+                 *       ],
+                 *       "questionId": "layout"
+                 *     }
+                 */
                 "application/json": components["schemas"]["AnswerRequest"];
             };
         };
@@ -4471,6 +4619,11 @@ export interface operations {
         /** @description The function's JSON body; an empty body is null */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "station": "001"
+                 *     }
+                 */
                 "application/json": unknown;
             };
         };
@@ -4572,6 +4725,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "text": "Show only stations with fewer than three bikes"
+                 *     }
+                 */
                 "application/json": components["schemas"]["MessageRequest"];
             };
         };
@@ -4705,6 +4863,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "file": "src/App.tsx",
+                 *       "line": 42,
+                 *       "message": "TypeError: rows is undefined"
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewErrorRequest"];
             };
         };
@@ -4777,6 +4942,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "failedRequests": [
+                 *         {
+                 *           "path": "/ngsi-ld/v1/entities",
+                 *           "status": 403
+                 *         }
+                 *       ],
+                 *       "pages": [
+                 *         {
+                 *           "label": "Overview",
+                 *           "rows": [
+                 *             12
+                 *           ],
+                 *           "text": "12 stations, 3 without a bike"
+                 *         }
+                 *       ],
+                 *       "version": 2
+                 *     }
+                 */
                 "application/json": components["schemas"]["PreviewObservationRequest"];
             };
         };
@@ -5004,6 +5189,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "message": "Which endpoints publish air quality?"
+                 *     }
+                 */
                 "application/json": components["schemas"]["StartConversation"];
             };
         };
@@ -5068,6 +5258,22 @@ export interface operations {
         /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04. */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "allowedProjects": [
+                 *         "regional-transport"
+                 *       ],
+                 *       "contextSpace": "mobility",
+                 *       "entityTypes": [
+                 *         "BikeHireDockingStation"
+                 *       ],
+                 *       "hiddenAttributes": [
+                 *         "maintenanceNote"
+                 *       ],
+                 *       "name": "bikes-regional-transport",
+                 *       "title": "City bikes for the regional transport team"
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -5334,9 +5540,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Optional approval confirmation for red-lane changes */
+        /** @description Optional approval confirmation for red-lane changes: `confirm` repeats the resource's name */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "confirm": "helsinki-air"
+                 *     }
+                 */
                 "application/json": null | components["schemas"]["ApproveBody"];
             };
         };
@@ -5412,6 +5623,11 @@ export interface operations {
         /** @description Optional reject payload */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "reason": "The endpoint would publish the stations' maintenance notes"
+                 *     }
+                 */
                 "application/json": null | components["schemas"]["ApproveBody"];
             };
         };
@@ -5587,6 +5803,17 @@ export interface operations {
         /** @description LinkML source in YAML format */
         requestBody: {
             content: {
+                /**
+                 * @example id: https://hel.fi/models/air
+                 *     name: air
+                 *     prefixes:
+                 *       linkml: https://w3id.org/linkml/
+                 *     imports: [linkml:types]
+                 *     classes:
+                 *       AirQualityObserved:
+                 *         attributes:
+                 *           pm10: { range: float }
+                 */
                 "text/yaml": string;
             };
         };
@@ -5826,6 +6053,29 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "expectedVersion": 3,
+                 *       "manifest": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha1",
+                 *         "kind": "Endpoint",
+                 *         "metadata": {
+                 *           "name": "helsinki-air",
+                 *           "namespace": "helsinki",
+                 *           "title": "Air quality"
+                 *         },
+                 *         "spec": {
+                 *           "audience": "organization",
+                 *           "contextSpaceRef": "air",
+                 *           "enabledRepresentations": [
+                 *             "ngsi-ld",
+                 *             "geojson"
+                 *           ],
+                 *           "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *         }
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["PutDraftRequest"];
             };
         };
@@ -6232,6 +6482,13 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "blueprint": "cross-city-sharing",
+                 *       "parameters": {},
+                 *       "version": "1.2.0"
+                 *     }
+                 */
                 "application/json": components["schemas"]["FlowRequest"];
             };
         };
@@ -6443,9 +6700,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Operation input parameters */
+        /** @description Operation input parameters, as the operation's own input schema names them */
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "query": "air quality"
+                 *     }
+                 */
                 "application/json": unknown;
             };
         };
@@ -6578,6 +6840,35 @@ export interface operations {
         /** @description `pipeline`: the candidate manifest, unsaved. `sample`: `text` or `url`, and a `format` (`csv`, `json`, `text`). API/01 §7a. */
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "pipeline": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha1",
+                 *         "kind": "Pipeline",
+                 *         "metadata": {
+                 *           "name": "shmu-air-quality"
+                 *         },
+                 *         "spec": {
+                 *           "class": "resident",
+                 *           "compute": {
+                 *             "bloblang": "root.pm10 = this.pm10.number()",
+                 *             "kind": "bloblang"
+                 *           },
+                 *           "source": {
+                 *             "dataSourceRef": {
+                 *               "kind": "DataSource",
+                 *               "name": "shmu-csv"
+                 *             }
+                 *           },
+                 *           "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:helsinki-air"
+                 *         }
+                 *       },
+                 *       "sample": {
+                 *         "format": "csv",
+                 *         "text": "station_id,pm10\n01,18.2\n"
+                 *       }
+                 *     }
+                 */
                 "application/json": Record<string, never>;
             };
         };
@@ -6818,7 +7109,13 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "credential": "ingest",
+                 *       "expiresAt": "2027-01-01T00:00:00Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MintRequest"];
             };
         };
         responses: {
@@ -6955,7 +7252,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                /**
+                 * @example {
+                 *       "overlapHours": 24
+                 *     }
+                 */
+                "application/json": components["schemas"]["RotateRequest"];
             };
         };
         responses: {
@@ -7090,6 +7392,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "paused": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["PauseRequest"];
             };
         };
@@ -7298,6 +7605,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "bike-lanes",
+                 *       "scope": {
+                 *         "kind": "space",
+                 *         "name": "mobility"
+                 *       },
+                 *       "title": "Bike lanes",
+                 *       "ttlDays": 7
+                 *     }
+                 */
                 "application/json": components["schemas"]["OpenRequest"];
             };
         };
@@ -7640,6 +7958,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "resolutions": [
+                 *         {
+                 *           "field": "spec.audience",
+                 *           "keep": "ours",
+                 *           "path": "projects/helsinki/endpoints/helsinki-air.yaml"
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateRequest"];
             };
         };
@@ -7682,7 +8011,7 @@ export interface operations {
                 limit?: number;
                 /** @description Pagination continue token */
                 continue?: string;
-                /** @description Historical revision */
+                /** @description Read the project as it stood at this commit id (MF-11) */
                 revision?: string;
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
@@ -7705,6 +8034,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            /** @description A bad selector or limit, a revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -7744,6 +8082,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "apiVersion": "joinedcontext.com/v1alpha1",
+                 *       "kind": "Endpoint",
+                 *       "metadata": {
+                 *         "name": "helsinki-air",
+                 *         "namespace": "helsinki",
+                 *         "title": "Air quality"
+                 *       },
+                 *       "spec": {
+                 *         "audience": "organization",
+                 *         "contextSpaceRef": "air",
+                 *         "enabledRepresentations": [
+                 *           "ngsi-ld",
+                 *           "geojson"
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ResourceEnvelope"];
             };
         };
@@ -7827,6 +8185,8 @@ export interface operations {
             query?: {
                 /** @description Read inside this workspace (CC-76) */
                 workspace?: string;
+                /** @description Read the project as it stood at this commit id (MF-11) */
+                revision?: string;
             };
             header?: never;
             path: {
@@ -7848,6 +8208,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResourceEnvelope"];
+                };
+            };
+            /** @description A revision that is not a commit id, or one beside a workspace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -7889,6 +8258,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "apiVersion": "joinedcontext.com/v1alpha1",
+                 *       "kind": "Endpoint",
+                 *       "metadata": {
+                 *         "name": "helsinki-air",
+                 *         "namespace": "helsinki",
+                 *         "title": "Air quality"
+                 *       },
+                 *       "spec": {
+                 *         "audience": "organization",
+                 *         "contextSpaceRef": "air",
+                 *         "enabledRepresentations": [
+                 *           "ngsi-ld",
+                 *           "geojson"
+                 *         ],
+                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["ResourceEnvelope"];
             };
         };
@@ -8080,7 +8469,14 @@ export interface operations {
         /** @description RFC 7386 merge patch, as JSON or as the YAML apply-patch document */
         requestBody: {
             content: {
-                "application/merge-patch+json": string;
+                /**
+                 * @example {
+                 *       "spec": {
+                 *         "audience": "organization"
+                 *       }
+                 *     }
+                 */
+                "application/merge-patch+json": Record<string, never>;
             };
         };
         responses: {
@@ -8225,6 +8621,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "source": "id: https://hel.fi/models/air\nname: air\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"
+                 *     }
+                 */
                 "application/json": components["schemas"]["GenerateRequest"];
             };
         };
@@ -8285,6 +8686,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "model": "AirQualityObserved"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ImportSdmRequest"];
             };
         };
@@ -8346,7 +8752,13 @@ export interface operations {
         /** @description `multipart/form-data`: the sample under `file`, and an optional `format` (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say */
         requestBody: {
             content: {
-                "multipart/form-data": string;
+                /**
+                 * @example {
+                 *       "file": "station_id,pm10\n01,18.2\n",
+                 *       "format": "csv"
+                 *     }
+                 */
+                "multipart/form-data": Record<string, never>;
             };
         };
         responses: {
@@ -8462,7 +8874,16 @@ export interface operations {
         /** @description Gitea webhook event payload */
         requestBody: {
             content: {
-                "application/json": string;
+                /**
+                 * @example {
+                 *       "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                 *       "ref": "refs/heads/main",
+                 *       "repository": {
+                 *         "full_name": "hel/config"
+                 *       }
+                 *     }
+                 */
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -8527,7 +8948,13 @@ export interface operations {
         /** @description Whatever the origin sends; the body is what the signature covers */
         requestBody: {
             content: {
-                "application/json": string;
+                /**
+                 * @example {
+                 *       "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+                 *       "ref": "refs/heads/main"
+                 *     }
+                 */
+                "application/json": unknown;
             };
         };
         responses: {

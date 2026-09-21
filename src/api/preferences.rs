@@ -126,7 +126,10 @@ pub async fn get_preferences(
     summary = "Save Preferences",
     description = "Stores the caller's own Portal preferences and answers what is now saved. A field the Portal understands is validated; the rest is kept as sent.",
     tag = "preferences",
-    request_body = Preferences,
+    request_body(
+        content = Preferences,
+        example = json!({ "locale": "sk", "theme": "dark", "advancedMode": false, "defaultProject": "helsinki" })
+    ),
     responses(
         (status = 200, description = "Stored; the body is what is now saved", body = Preferences),
         (status = 400, description = "A field the Portal understands is invalid", body = ProblemDetails),

@@ -716,7 +716,8 @@ fn ends_a_session(jwt: &str) -> bool {
     request_body(
         content = BackChannelLogoutForm,
         content_type = "application/x-www-form-urlencoded",
-        description = "The provider's signed logout token"
+        description = "The provider's signed logout token",
+        example = json!({ "logout_token": "the-realms-signed-logout-token" })
     ),
     responses(
         (status = 200, description = "Every session issued at or before the token's mark is revoked"),

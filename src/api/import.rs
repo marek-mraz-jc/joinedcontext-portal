@@ -151,6 +151,10 @@ pub struct ImportReport {
     pub skipped: Vec<String>,
     /// Resources imported under a new name, `old -> new` (`rename`).
     pub renamed: BTreeMap<String, String>,
+    /// Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+    /// to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub reassigned: BTreeMap<String, String>,
     /// Files carried through untouched: `bento.yaml`, LinkML sources, schema artifacts.
     pub native_files: usize,
     /// The lane the whole bundle lands in: the riskiest of everything it carries (CC-63).
@@ -173,7 +177,7 @@ pub struct ImportReport {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Need {
-    /// `secret`, `person`, `host` or `credential`.
+    /// `secret`, `person` or `host`.
     pub kind: String,
     /// The manifest and the path inside it, `Kind/name spec.path`.
     #[serde(rename = "where")]
@@ -191,16 +195,39 @@ pub struct Need {
 /// hosts and certificates are the origin's; a DataSource's `authorization` is a feed
 /// credential. Each is reported where it is, and nothing here blocks the import.
 pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
+    /// Every field a jc-core kind types as a `SecretRef`, or a list of them (MF-35, T-2564):
+    /// `secretRef`/`previousSecretRef` (Subscription, SyncSource), `secretRefs` (Pipeline),
+    /// `secrets` (DataSource), `passwordRef`, `headerRef` and `caCertRef` (DataSource),
+    /// `apiTokenRef` (CkanInstance), `tokenSecretRef` (DataspaceConnector) and
+    /// `cachedTokenSecretRef` (Endpoint). A new one in jc-core is added here.
+    const SECRET_FIELDS: [&str; 9] = [
+        "secretRef",
+        "previousSecretRef",
+        "secretRefs",
+        "passwordRef",
+        "headerRef",
+        "caCertRef",
+        "apiTokenRef",
+        "tokenSecretRef",
+        "cachedTokenSecretRef",
+    ];
     fn walk(value: &Value, path: &str, found: &mut Vec<String>) {
         match value {
             Value::Object(map) => {
                 for (key, child) in map {
                     let here = format!("{path}.{key}");
-                    if key == "secretRef" || (key == "secrets" && child.is_array()) {
+                    // One need per field, a list included: the report names where to set the
+                    // value, never the secret's name, key or value (CC-06).
+                    if SECRET_FIELDS.contains(&key.as_str())
+                        && (child.is_object() || child.is_array())
+                    {
+                        found.push(here);
+                        continue;
+                    }
+                    // A `secrets` list is a need of its own, and each entry is still walked: an
+                    // entry names its `secretRef`, which is one more (MF-35).
+                    if key == "secrets" && child.is_array() {
                         found.push(here.clone());
-                        if key == "secretRef" {
-                            continue;
-                        }
                     }
                     walk(child, &here, found);
                 }
@@ -233,17 +260,6 @@ pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
                 "the value behind this reference stays in the origin's secret store; set it here"
                     .into(),
             ));
-        }
-        if envelope.kind == "DataSource" {
-            if let Some(authorization) = envelope.spec.get("authorization") {
-                if !authorization.is_null() {
-                    needs.push(need(
-                        "credential",
-                        "spec.authorization",
-                        "the feed's credential is the origin's; give this project its own".into(),
-                    ));
-                }
-            }
         }
         let mut users = Vec::new();
         match envelope.kind.as_str() {
@@ -327,6 +343,15 @@ impl ImportReport {
         }
         let equal = self.verified.iter().filter(|file| file.equal).count();
         Some(format!("{equal} of {} files equal", self.verified.len()))
+    }
+
+    /// One line per Policy whose assigner the import rewrote, for the `Change` body: the person
+    /// who approves sees that the grant is signed by this organisation now (R6, T-2256).
+    fn reassignment_lines(&self) -> Vec<String> {
+        self.reassigned
+            .iter()
+            .map(|(policy, carried)| format!("{policy}: assigner {carried} is now {OWN_ASSIGNER}"))
+            .collect()
     }
 }
 
@@ -795,6 +820,39 @@ fn remap(
             }
         }
     }
+}
+
+/// The assigner every Policy of this repository writes: the loader renders it for the
+/// organisation that owns the file (CC-82).
+const OWN_ASSIGNER: &str = "did:web:{orgDomain}";
+
+/// Rewrites every Policy's `assigner` that is not [`OWN_ASSIGNER`] to it, and answers what each
+/// carried, keyed `Policy/{name}` by the name it lands under.
+///
+/// A Policy grants over a space of the project it lands in, so the organisation that may give
+/// that data away is this one (R6); a DID from the bundle would read as another organisation's
+/// decision. Rewritten rather than refused, so a migration keeps its grants, and reported, so the
+/// person who approves the Change sees it (T-2256).
+fn reassign_policies(manifests: &mut [ResourceEnvelope]) -> BTreeMap<String, String> {
+    let mut reassigned = BTreeMap::new();
+    for envelope in manifests
+        .iter_mut()
+        .filter(|envelope| envelope.kind == "Policy")
+    {
+        let Some(assigner) = envelope.spec.get_mut("assigner") else {
+            continue;
+        };
+        if assigner.as_str() == Some(OWN_ASSIGNER) {
+            continue;
+        }
+        let carried = match &*assigner {
+            Value::String(text) => text.clone(),
+            other => other.to_string(),
+        };
+        *assigner = Value::String(OWN_ASSIGNER.to_owned());
+        reassigned.insert(format!("Policy/{}", envelope.metadata.name), carried);
+    }
+    reassigned
 }
 
 /// The namespace a kind is stored in: `org` for an organization-scoped kind, the project
@@ -1303,9 +1361,15 @@ pub async fn propose_bundle(
     let detail = serde_json::to_string_pretty(&report).unwrap_or_else(|_| "imported bundle".into());
     // The one line an approver reads before the report: whether the transfer arrived whole
     // (MF-42). A bundle without checksums has no such line rather than a reassuring one.
-    let body = match report.verification_summary() {
-        Some(summary) => format!("{summary}\n\n{detail}"),
-        None => detail,
+    let lead: Vec<String> = report
+        .verification_summary()
+        .into_iter()
+        .chain(report.reassignment_lines())
+        .collect();
+    let body = if lead.is_empty() {
+        detail
+    } else {
+        format!("{}\n\n{detail}", lead.join("\n"))
     };
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
@@ -1489,6 +1553,7 @@ fn plan_import(
         replaced: Vec::new(),
         skipped: Vec::new(),
         renamed: BTreeMap::new(),
+        reassigned: BTreeMap::new(),
         native_files: natives.len(),
         lane: Lane::Green,
         source,
@@ -1598,6 +1663,7 @@ fn plan_import(
         }
     }
 
+    report.reassigned = reassign_policies(&mut keep);
     report.needs = needs_of(&keep, project);
 
     let missing = unresolved(&keep, state, project);
@@ -1673,6 +1739,22 @@ fn authorize(
                     .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
                 effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
                 crate::permissions::within_own_rights(state, identity, &raw, "proposer")?;
+                // PF-84, AP-14a: the same refusals as the single-manifest door.
+                crate::spaces::check(
+                    state,
+                    identity,
+                    project,
+                    &envelope.kind,
+                    &envelope.metadata.name,
+                    &envelope.spec,
+                )?;
+                crate::apps::names::check(
+                    state,
+                    identity,
+                    project,
+                    &envelope.kind,
+                    &envelope.metadata.name,
+                )?;
             }
             None => {
                 let Some(path) = &item.path else { continue };
@@ -1844,6 +1926,7 @@ mod verification_tests {
             replaced: Vec::new(),
             skipped: Vec::new(),
             renamed: std::collections::BTreeMap::new(),
+            reassigned: std::collections::BTreeMap::new(),
             native_files: 0,
             lane: Lane::Green,
             source: None,
@@ -1877,8 +1960,10 @@ mod verification_tests {
                 "feed",
                 serde_json::json!({
                     "type": "http",
-                    "connection": { "url": "https://example.invalid/feed" },
-                    "authorization": { "type": "bearer", "secretRef": { "name": "feed", "key": "token" } },
+                    "http": {
+                        "url": "https://example.invalid/feed",
+                        "authorization": { "headerRef": { "name": "feed", "key": "token" } }
+                    },
                     "secrets": [{ "name": "feed", "key": "password", "envVar": "PASSWORD" }],
                 }),
             ),
@@ -1895,21 +1980,17 @@ mod verification_tests {
         ];
         let needs = super::needs_of(&bundle, "espoo");
         let kinds: Vec<&str> = needs.iter().map(|need| need.kind.as_str()).collect();
-        assert_eq!(
-            kinds,
-            ["secret", "secret", "credential", "person"],
-            "{needs:?}"
-        );
+        assert_eq!(kinds, ["secret", "secret", "person"], "{needs:?}");
         assert_eq!(
             needs[0].location,
-            "DataSource/feed spec.authorization.secretRef"
+            "DataSource/feed spec.http.authorization.headerRef"
         );
         assert_eq!(needs[1].location, "DataSource/feed spec.secrets");
         assert_eq!(
-            needs[3].location,
+            needs[2].location,
             "RoleBinding/stewards spec.subjects[0].user"
         );
-        assert!(needs[3].why.contains("demo.steward@hel.fi"));
+        assert!(needs[2].why.contains("demo.steward@hel.fi"));
         assert!(needs
             .iter()
             .all(|need| need.link.starts_with("/projects/espoo/")));

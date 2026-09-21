@@ -194,7 +194,7 @@ export function EndpointPage({
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "endpoints" }}
-            className="text-sm text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+            className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
           >
             {t("endpoints.page.back")}
           </Link>
@@ -264,7 +264,7 @@ export function EndpointPage({
               <Link
                 to="/projects/$project/$plural/$name"
                 params={{ plural: "spaces", project, name: space }}
-                className="text-primary underline hover:no-underline"
+                className="text-primary-soft-fg underline hover:no-underline"
               >
                 {space}
               </Link>
@@ -387,7 +387,7 @@ export function EndpointPage({
               <Link
                 to="/projects/$project/$plural"
                 params={{ project, plural: "projections" }}
-                className="text-primary underline hover:no-underline"
+                className="text-primary-soft-fg underline hover:no-underline"
               >
                 {projectionName}
               </Link>
@@ -414,7 +414,7 @@ export function EndpointPage({
         <Link
           to="/projects/$project/$plural"
           params={{ project, plural: "policies" }}
-          className="text-caption text-primary underline hover:no-underline"
+          className="text-caption text-primary-soft-fg underline hover:no-underline"
         >
           {t("endpoints.page.openPolicies")}
         </Link>
@@ -474,7 +474,7 @@ export function EndpointPage({
                 href={catalogueUrl(spec.publish.ckan.name ?? name)}
                 target="_blank"
                 rel="noreferrer"
-                className="text-primary underline hover:no-underline"
+                className="text-primary-soft-fg underline hover:no-underline"
               >
                 {spec.publish.ckan.name ?? name}
               </a>

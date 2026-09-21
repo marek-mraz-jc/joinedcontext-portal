@@ -94,7 +94,7 @@ fn gitea(state: &AppState) -> Result<&GiteaClient, ApiError> {
 }
 
 /// Whether a revision is a commit id rather than a branch name (MF-17).
-fn is_commit(revision: &str) -> bool {
+pub(crate) fn is_commit(revision: &str) -> bool {
     (7..=40).contains(&revision.len())
         && revision
             .chars()
