@@ -830,6 +830,18 @@ async fn propose_engine(
         )?;
     }
 
+    // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
+    //     project, so another project's App of the same name is refused before a Change exists.
+    if operation != Operation::Delete {
+        crate::apps::names::check(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+        )?;
+    }
+
     // Every resource this manifest names has to be there, so a person meets a missing name in the
     // form they typed it into and not in the reconciler's log (MF-13, T-2233).
     if operation != Operation::Delete {
