@@ -6,6 +6,16 @@ import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
 import { humanizeName } from "../pages/apps/appTitle";
 import { ResourceRowActions } from "../components/ResourceRowActions";
+import type { EditableForm } from "../components/EditResourceDialog";
+import {
+  fromMappingManifest,
+  mappingSchema,
+  mappingUiSchema,
+  toMappingManifest,
+} from "../schemas/mapping";
+import type { MappingForm } from "../schemas/mapping";
+import { dataModelSchema, fromDataModelManifest, toDataModelManifest } from "../schemas/datamodel";
+import type { DataModelForm } from "../schemas/datamodel";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
   EmptyState,
@@ -51,6 +61,24 @@ const VIEWS: Record<string, (props: { project: string; edit?: string }) => JSX.E
   syncsources: SyncSourcesPage,
   // "access" is a section, not a kind: ServiceAccounts and the caller's own grants (PF-40, EP-60).
   access: AccessPage,
+};
+
+/**
+ * The edit form of a kind that has no page of its own. It writes onto the manifest the edit dialog
+ * read, so it keeps what it does not show (T-2354). A kind not listed here opens as YAML.
+ */
+const EDIT_FORMS: Record<string, (t: (key: string) => string) => EditableForm> = {
+  mappings: (t) => ({
+    schema: mappingSchema(t),
+    uiSchema: mappingUiSchema,
+    fromManifest: (manifest) => fromMappingManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toMappingManifest(stored, form as MappingForm),
+  }),
+  datamodels: (t) => ({
+    schema: dataModelSchema(t),
+    fromManifest: (manifest) => fromDataModelManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toDataModelManifest(stored, form as DataModelForm),
+  }),
 };
 
 /** `/api/v1/projects/{project}/{plural}`: a kind's own page, or its resources in a table (MF-11…MF-15). */
@@ -132,7 +160,7 @@ function GenericListPage({
               </TableCell>
               <TableCell align="right">
                 {/* One menu at the end of the row, for every kind that falls through here (T-2287). */}
-                <ResourceRowActions project={project} target={target} />
+                <ResourceRowActions project={project} target={target} form={EDIT_FORMS[plural]?.(t)} />
               </TableCell>
             </TableRow>
           );

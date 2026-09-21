@@ -16,6 +16,8 @@ import { arrange, localized, paths } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
+import { mappingSchema } from "../src/schemas/mapping";
+import { dataModelSchema } from "../src/schemas/datamodel";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -69,6 +71,10 @@ const FORMS: Record<string, JsonSchema[]> = {
   Group: [kinds.groupSchema(t)],
   Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
   ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
+  // Edited from the generic list; created on the Models page's Mappings tab (T-2354).
+  Mapping: [mappingSchema(t)],
+  // Edited from the generic list; written in the Models page's LinkML editor (T-2357).
+  DataModel: [dataModelSchema(t)],
   // One branch per target, as a sync source has one per origin, and the lists left empty so every
   // example is held against the pattern the free-text field takes (T-2345).
   ContextSourceRegistration: kinds.REGISTRATION_TARGETS.map((target) =>

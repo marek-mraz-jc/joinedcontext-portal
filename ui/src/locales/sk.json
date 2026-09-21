@@ -1370,6 +1370,20 @@
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}"
+    },
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "version": "Verzia",
+      "linkml": "Zdroj LinkML",
+      "lifecycle": "Životný cyklus",
+      "openWorld": "Prijímať nedeklarované atribúty"
+    },
+    "lifecycleOption": {
+      "draft": "Koncept",
+      "published": "Zverejnený",
+      "deprecated": "Zastaraný",
+      "retired": "Vyradený"
     }
   },
   "apps": {
@@ -1550,7 +1564,22 @@
     "propose": "Navrhnúť mapovanie",
     "sameModel": "Mapovanie potrebuje dva rôzne modely.",
     "noSpace": "Tento model neobsluhuje žiadny priestor, mapovanie teda nemá kam patriť.",
-    "goldenHint": "Návrh otvorí zmenu s mapovaním. Jeho zlatý test číta ./tests/<name>.input.json a ./tests/<name>.expect.json, ktoré sa commitujú vedľa neho."
+    "goldenHint": "Návrh otvorí zmenu s mapovaním. Jeho zlatý test číta ./tests/<name>.input.json a ./tests/<name>.expect.json, ktoré sa commitujú vedľa neho.",
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "model": "Dátový model",
+      "version": "Hlavná verzia",
+      "tests": "Zlaté testy",
+      "testInput": "Vstupný príklad",
+      "testExpect": "Očakávaný výstup",
+      "native": "Natívne bloky",
+      "language": "Jazyk",
+      "nativeSource": "Kód",
+      "artifacts": "Skompilované artefakty",
+      "bloblang": "Súbor Bloblang",
+      "gatewayIr": "Súbor mapovania brány"
+    }
   },
   "syncSources": {
     "title": "Zdroje synchronizácie",

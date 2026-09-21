@@ -1370,6 +1370,20 @@
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
       "more": "and {count} more"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context space",
+      "version": "Version",
+      "linkml": "LinkML source",
+      "lifecycle": "Lifecycle",
+      "openWorld": "Accept undeclared attributes"
+    },
+    "lifecycleOption": {
+      "draft": "Draft",
+      "published": "Published",
+      "deprecated": "Deprecated",
+      "retired": "Retired"
     }
   },
   "apps": {
@@ -1550,7 +1564,22 @@
     "propose": "Propose the mapping",
     "sameModel": "A mapping needs two different models.",
     "noSpace": "No space serves this model, so the mapping has nowhere to belong.",
-    "goldenHint": "Proposing opens a change with the mapping. Its golden test reads ./tests/<name>.input.json and ./tests/<name>.expect.json, which are committed beside it."
+    "goldenHint": "Proposing opens a change with the mapping. Its golden test reads ./tests/<name>.input.json and ./tests/<name>.expect.json, which are committed beside it.",
+    "field": {
+      "name": "Name",
+      "space": "Context space",
+      "model": "Data model",
+      "version": "Major version",
+      "tests": "Golden tests",
+      "testInput": "Input example",
+      "testExpect": "Expected output",
+      "native": "Native blocks",
+      "language": "Language",
+      "nativeSource": "Code",
+      "artifacts": "Compiled artifacts",
+      "bloblang": "Bloblang file",
+      "gatewayIr": "Gateway mapping file"
+    }
   },
   "syncSources": {
     "title": "Sync sources",

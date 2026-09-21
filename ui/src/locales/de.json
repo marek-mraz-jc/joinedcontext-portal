@@ -1370,6 +1370,20 @@
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "version": "Version",
+      "linkml": "LinkML-Quelle",
+      "lifecycle": "Lebenszyklus",
+      "openWorld": "Nicht deklarierte Attribute annehmen"
+    },
+    "lifecycleOption": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "deprecated": "Veraltet",
+      "retired": "Zurückgezogen"
     }
   },
   "apps": {
@@ -1550,7 +1564,22 @@
     "propose": "Mapping vorschlagen",
     "sameModel": "Ein Mapping braucht zwei verschiedene Modelle.",
     "noSpace": "Kein Raum bedient dieses Modell, das Mapping hat also keinen Ort.",
-    "goldenHint": "Der Vorschlag öffnet eine Änderung mit dem Mapping. Sein Golden Test liest ./tests/<name>.input.json und ./tests/<name>.expect.json, die daneben committet werden."
+    "goldenHint": "Der Vorschlag öffnet eine Änderung mit dem Mapping. Sein Golden Test liest ./tests/<name>.input.json und ./tests/<name>.expect.json, die daneben committet werden.",
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "model": "Datenmodell",
+      "version": "Hauptversion",
+      "tests": "Golden Tests",
+      "testInput": "Eingabebeispiel",
+      "testExpect": "Erwartete Ausgabe",
+      "native": "Native Blöcke",
+      "language": "Sprache",
+      "nativeSource": "Code",
+      "artifacts": "Kompilierte Artefakte",
+      "bloblang": "Bloblang-Datei",
+      "gatewayIr": "Gateway-Mapping-Datei"
+    }
   },
   "syncSources": {
     "title": "Synchronisierungsquellen",
