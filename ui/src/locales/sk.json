@@ -1342,6 +1342,20 @@
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}"
+    },
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "version": "Verzia",
+      "linkml": "Zdroj LinkML",
+      "lifecycle": "Životný cyklus",
+      "openWorld": "Prijímať nedeklarované atribúty"
+    },
+    "lifecycleOption": {
+      "draft": "Koncept",
+      "published": "Zverejnený",
+      "deprecated": "Zastaraný",
+      "retired": "Vyradený"
     }
   },
   "apps": {

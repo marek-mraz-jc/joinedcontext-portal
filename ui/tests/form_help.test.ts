@@ -17,6 +17,7 @@ import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
 import { mappingSchema } from "../src/schemas/mapping";
+import { dataModelSchema } from "../src/schemas/datamodel";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -70,6 +71,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   Group: [kinds.groupSchema(t)],
   // Edited from the generic list; created on the Models page's Mappings tab (T-2354).
   Mapping: [mappingSchema(t)],
+  // Edited from the generic list; written in the Models page's LinkML editor (T-2357).
+  DataModel: [dataModelSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */

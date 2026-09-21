@@ -1342,6 +1342,20 @@
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
       "more": "and {count} more"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Context space",
+      "version": "Version",
+      "linkml": "LinkML source",
+      "lifecycle": "Lifecycle",
+      "openWorld": "Accept undeclared attributes"
+    },
+    "lifecycleOption": {
+      "draft": "Draft",
+      "published": "Published",
+      "deprecated": "Deprecated",
+      "retired": "Retired"
     }
   },
   "apps": {

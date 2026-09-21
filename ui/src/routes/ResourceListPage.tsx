@@ -14,6 +14,8 @@ import {
   toMappingManifest,
 } from "../schemas/mapping";
 import type { MappingForm } from "../schemas/mapping";
+import { dataModelSchema, fromDataModelManifest, toDataModelManifest } from "../schemas/datamodel";
+import type { DataModelForm } from "../schemas/datamodel";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
   EmptyState,
@@ -65,6 +67,11 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string) => EditableForm> =
     uiSchema: mappingUiSchema,
     fromManifest: (manifest) => fromMappingManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toMappingManifest(stored, form as MappingForm),
+  }),
+  datamodels: (t) => ({
+    schema: dataModelSchema(t),
+    fromManifest: (manifest) => fromDataModelManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toDataModelManifest(stored, form as DataModelForm),
   }),
 };
 

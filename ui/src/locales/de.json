@@ -1342,6 +1342,20 @@
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere"
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "version": "Version",
+      "linkml": "LinkML-Quelle",
+      "lifecycle": "Lebenszyklus",
+      "openWorld": "Nicht deklarierte Attribute annehmen"
+    },
+    "lifecycleOption": {
+      "draft": "Entwurf",
+      "published": "Veröffentlicht",
+      "deprecated": "Veraltet",
+      "retired": "Zurückgezogen"
     }
   },
   "apps": {

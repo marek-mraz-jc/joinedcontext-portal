@@ -1342,6 +1342,20 @@
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
       "more": "a dalších {count}"
+    },
+    "field": {
+      "name": "Název",
+      "space": "Kontextový prostor",
+      "version": "Verze",
+      "linkml": "Zdroj LinkML",
+      "lifecycle": "Životní cyklus",
+      "openWorld": "Přijímat nedeklarované atributy"
+    },
+    "lifecycleOption": {
+      "draft": "Koncept",
+      "published": "Zveřejněný",
+      "deprecated": "Zastaralý",
+      "retired": "Vyřazený"
     }
   },
   "apps": {
