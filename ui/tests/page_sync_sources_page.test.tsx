@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { SyncSourcesPage } from "../src/pages/sync/SyncSourcesPage";
+import { expectDenied, expectOpen } from "./checks";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
@@ -50,13 +51,18 @@ interface World {
   fails?: { status: number; detail: string };
   pending?: boolean;
   status?: Record<string, unknown> | "fails";
+  /** What `permissions/me` answers; left out, the page has no document and the API decides. */
+  permissions?: unknown;
 }
 
 function renderSync(world: World = {}) {
-  const { rows = 1, fails, pending = false, status = STATUS } = world;
+  const { rows = 1, fails, pending = false, status = STATUS, permissions } = world;
   return renderPage(<SyncSourcesPage project={PROJECT} />, {
     path: `/projects/${PROJECT}/syncsources`,
     answer: (url, request) => {
+      if (permissions !== undefined && url.pathname.endsWith("/permissions/me")) {
+        return json(permissions);
+      }
       if (url.pathname.endsWith("/status")) {
         return status === "fails"
           ? problem(502, "The source's repository did not answer.")
@@ -158,6 +164,36 @@ describe("the sync sources page", () => {
       within(dialog).getByText(en.syncSources.detachConfirm.replace("{name}", "upstream-0")),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: en.syncSources.detach })).toBeInTheDocument();
+  });
+
+  // UI-44: every write control asks for the verb its route checks. A viewer meets each one closed
+  // with the reason; a person who may propose but not delete runs the loop but cannot detach.
+  it("closes each write control to a role without its verb, and says which verb", async () => {
+    renderSync({ rows: 1, permissions: { project: PROJECT, bootstrap: false, grants: [] } });
+    const reason = (verb: string) =>
+      `Disabled: your role does not permit '${verb}' on 'SyncSource' in this project`;
+    await waitFor(() => {
+      expectDenied(screen.getByRole("button", { name: en.syncSources.add }), reason("propose"));
+    });
+    expectDenied(await screen.findByRole("button", { name: en.syncSources.syncNow }), reason("propose"));
+    expectDenied(screen.getByRole("button", { name: en.syncSources.pause }), reason("propose"));
+    expectDenied(screen.getByRole("button", { name: en.syncSources.detach }), reason("delete"));
+
+    cleanup();
+    renderSync({
+      rows: 1,
+      permissions: {
+        project: PROJECT,
+        bootstrap: false,
+        grants: [{ role: "steward", binding: "stewards", rule: { kinds: ["SyncSource"], verbs: ["propose"] } }],
+      },
+    });
+    await waitFor(() => {
+      expectDenied(screen.getByRole("button", { name: en.syncSources.detach }), reason("delete"));
+    });
+    expectOpen(screen.getByRole("button", { name: en.syncSources.add }));
+    expectOpen(screen.getByRole("button", { name: en.syncSources.syncNow }));
+    expectOpen(screen.getByRole("button", { name: en.syncSources.pause }));
   });
 
   // A merge request the source reported is a link only when it is an address; the review link

@@ -1272,16 +1272,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                           </span>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          aria-label={`${t("endpoints.shared.use")}: ${source}/${endpoint.metadata.name}`}
-                          disabled={!slug || reference.isPending}
-                          icon={<Icon name="plus" className="size-4" />}
-                          onClick={() => reference.mutate({ source, endpoint })}
-                        >
-                          {t("endpoints.shared.use")}
-                        </Button>
+                        <PermissionGuard project={project} kind="SharedSpaceReference" verb="propose">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            aria-label={`${t("endpoints.shared.use")}: ${source}/${endpoint.metadata.name}`}
+                            disabled={!slug || reference.isPending}
+                            icon={<Icon name="plus" className="size-4" />}
+                            onClick={() => reference.mutate({ source, endpoint })}
+                          >
+                            {t("endpoints.shared.use")}
+                          </Button>
+                        </PermissionGuard>
                       )}
                     </TableCell>
                   </TableRow>
