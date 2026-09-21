@@ -213,6 +213,14 @@ pub fn pipeline_targets(spec: &serde_json::Value) -> Vec<&str> {
     }
 }
 
+/// The name a reference field holds, written either way a manifest may write it: `"transport"` or
+/// `{ kind: ContextSpace, name: transport }` (T-1483).
+pub fn reference_name(reference: &serde_json::Value) -> Option<&str> {
+    reference
+        .as_str()
+        .or_else(|| reference.get("name").and_then(serde_json::Value::as_str))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

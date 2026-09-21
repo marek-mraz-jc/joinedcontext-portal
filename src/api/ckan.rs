@@ -180,7 +180,7 @@ fn publication(
     let declared = env.spec.get("publish")?.get("ckan")?.clone();
     let instance_name = declared
         .get("instanceRef")
-        .and_then(reference_name)
+        .and_then(crate::resource::reference_name)
         .unwrap_or_default()
         .to_owned();
     let instance = instances.iter().find(|(name, _)| name == &instance_name);
@@ -264,12 +264,6 @@ fn datastore(declared: &Value) -> Option<DataStoreStatus> {
 }
 
 /// A `Ref` is either a bare name or `{ kind, name }` (MF-09).
-fn reference_name(reference: &Value) -> Option<&str> {
-    reference
-        .as_str()
-        .or_else(|| reference.get("name").and_then(Value::as_str))
-}
-
 fn text(value: &Value, key: &str) -> String {
     value
         .get(key)

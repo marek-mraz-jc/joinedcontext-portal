@@ -134,7 +134,8 @@ impl RegistrationSync {
                 let space = envelope
                     .spec
                     .get("contextSpaceRef")
-                    .and_then(reference_name)?;
+                    .and_then(crate::resource::reference_name)?
+                    .to_owned();
                 Some((
                     envelope.metadata.name,
                     crate::spaces::segment(mirror, project, &space),
@@ -203,14 +204,6 @@ impl RegistrationSync {
 }
 
 /// A `Ref` as its name, whether it is written as a string or as `{kind, name}`.
-fn reference_name(value: &Value) -> Option<String> {
-    match value {
-        Value::String(name) => Some(name.clone()),
-        Value::Object(map) => map.get("name")?.as_str().map(str::to_owned),
-        _ => None,
-    }
-}
-
 /// `what: status body`, with the body cut short — a problem document is a sentence, an HTML
 /// error page is not, and neither belongs in a status field whole.
 async fn refusal(what: &str, response: reqwest::Response) -> String {
@@ -425,12 +418,10 @@ mod tests {
 
     #[test]
     fn a_reference_reads_the_same_written_either_way() {
+        use crate::resource::reference_name;
+        assert_eq!(reference_name(&json!("transport")), Some("transport"));
         assert_eq!(
-            reference_name(&json!("transport")).as_deref(),
-            Some("transport")
-        );
-        assert_eq!(
-            reference_name(&json!({ "kind": "ContextSpace", "name": "transport" })).as_deref(),
+            reference_name(&json!({ "kind": "ContextSpace", "name": "transport" })),
             Some("transport")
         );
         assert_eq!(reference_name(&json!(7)), None);

@@ -165,6 +165,59 @@ async fn get_source_answers_file_content_and_yaml_content_type() {
     assert_eq!(body_str, PUBLISHED_LINKML);
 }
 
+/// DM-13, T-1483: the forge client hands back the file decoded once; a source whose text also
+/// happens to be valid base64 is served as the person wrote it, not decoded a second time.
+#[tokio::test]
+async fn a_model_source_that_is_valid_base64_is_returned_as_written() {
+    const WRITTEN: &str = "aGVsbG8=";
+    let forge = MockServer::start().await;
+    let forge_url = forge.uri().parse().expect("valid forge url");
+    let gitea = GiteaClient::new(forge_url, "owner", "repo", "token").expect("client");
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/owner/repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/owner/repo/contents/projects/ovzdusie/spaces/mobility/datamodels/air-quality.linkml.yaml",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "sha-linkml-1",
+            "content": STANDARD.encode(WRITTEN)
+        })))
+        .mount(&forge)
+        .await;
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config);
+    let state = AppState::new(config, None).with_gitea(Arc::new(gitea));
+    seed_datamodel(
+        &state,
+        "ovzdusie",
+        "air-quality",
+        "./air-quality.linkml.yaml",
+        "1.0.0",
+    );
+
+    let response = server::app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/projects/ovzdusie/datamodels/air-quality/source")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(
+        String::from_utf8_lossy(&body),
+        WRITTEN,
+        "not decoded a second time into 'hello'"
+    );
+}
+
 #[tokio::test]
 async fn path_traversal_and_absolute_paths_are_400_and_forge_is_not_called() {
     let forge = MockServer::start().await;
