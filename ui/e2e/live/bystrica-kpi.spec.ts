@@ -16,9 +16,14 @@
  */
 import { expect, request, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { STEWARD, signIn } from "./portal";
+import { STEWARD, goSignedIn, signIn } from "./portal";
 
 const APP = "bbsk-ukazovatele";
+/**
+ * Where applications are served: the apex, not the Portal host, since T-2476 (the Portal answers
+ * `/apps/*` with a 308 there). `JC_PORTAL_APPS_URL` on the cluster; `APPS_URL` here.
+ */
+const APPS_URL = process.env.APPS_URL ?? "https://2.28.67.127.sslip.io";
 
 /** The domain of the Organization the two projects sit on today; see the id check below (T-2455). */
 const ORG_DOMAIN = "hel.fi";
@@ -219,14 +224,19 @@ test("one application shows both bodies, each number the number in its own space
   browser,
 }) => {
   test.setTimeout(600_000);
-  const { context, page } = await signIn(browser, STEWARD, `/apps/${APP}/`);
+  // The spaces are read on the Portal, where the steward's session reads them; the application
+  // is then opened on its own origin, and the sign-in walk waits for the application's heading —
+  // an app page has no Portal navigation to wait for (T-2309).
+  const { context, page } = await signIn(browser, STEWARD, "/projects/bbsk/spaces?lang=en");
 
   const inSpace = new Map<string, Map<string, { value: number | string; unitCode?: string }>>();
   for (const body of BODIES) {
     inSpace.set(body.body, await indicatorsInSpace(page, body.kpi.space));
   }
 
-  await page.goto(`/apps/${APP}/`, { waitUntil: "load" });
+  await goSignedIn(page, STEWARD, `${APPS_URL}/apps/${APP}/`, (app) =>
+    app.getByRole("heading", { level: 1 }),
+  );
 
   for (const body of BODIES) {
     // The section and the cards are found by the ids the application mints, not by their words,

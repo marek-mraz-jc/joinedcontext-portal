@@ -1,0 +1,239 @@
+/**
+ * One kind, end to end on dev, the way a person does it (T-1536…T-1548; UI-44, PF-50).
+ *
+ * The coverage measurement of 2026-09-18 found kinds named in unit, Rust and assistant tests and
+ * in no live journey: a kind nobody ever created, changed and removed on dev by hand is not known
+ * to work there. Each `kind-<plural>.spec.ts` hands this module what is particular to its kind —
+ * the page a person creates one on and how its form is filled, how one is changed — and gets the
+ * same three tests:
+ *
+ * 1. the steward creates one through the page, the approver approves it, it answers on its route
+ *    with a phase that is not an error, one field is changed and approved, and it is removed again
+ *    (a Red change the steward approves under the administrator exception of CC-34, as
+ *    `removeCompletely` says);
+ * 2. the steward asks the assistant to create one and is taken to the kind's form, and nothing is
+ *    proposed on their behalf (AG-73);
+ * 3. the viewer finds every write control of the kind's page disabled with the verb and the kind
+ *    it lacks, and the create call made by hand answers 403 (UI-44, PF-50).
+ *
+ * What a journey makes is named `t<task>-<HHMM>`, which `residue.spec.ts` sweeps if a run dies
+ * half way, and each test cleans up in `finally` whichever way it ends.
+ */
+import { expect, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import {
+  APPROVER,
+  STEWARD,
+  VIEWER,
+  approve,
+  ask,
+  csrf,
+  proposedChange,
+  removeCompletely,
+  signIn,
+  sweepDrafts,
+} from "./portal";
+
+export const PROJECT = "helsinki";
+
+export interface KindJourney {
+  /** The task the journey is for, in lower case: `t1541`. Prefixes every name it makes. */
+  task: string;
+  kind: string;
+  plural: string;
+  /** The page the kind lives on for a person: where it is created and where a viewer looks. */
+  page: string;
+  /**
+   * Opens the create form on `page`, fills it for `name` and submits it; the page then shows the
+   * change it opened, which the journey reads.
+   */
+  create: (page: Page, name: string) => Promise<void>;
+  /** Changes one field of `name` and submits; `value` is what the stored resource then holds. */
+  change: { apply: (page: Page, name: string) => Promise<void>; value: (name: string) => string };
+  /** What the steward asks the assistant, and what shows that it opened the kind's form. */
+  assistant: { ask: (name: string) => string; opened: (page: Page) => Locator };
+}
+
+/** A name nobody has used, recognisable as this journey's. */
+export function journeyName(task: string): string {
+  return `${task}-${new Date().toISOString().slice(11, 16).replace(":", "")}`;
+}
+
+/** Proposes from a routed form, running its check first when the form asks for a fresh one. */
+export async function proposeFrom(form: Locator): Promise<void> {
+  const propose = form.getByRole("button", { name: /^Propose/ }).first();
+  if (await propose.isDisabled()) {
+    await form.getByRole("button", { name: "Check", exact: true }).click();
+  }
+  await expect(propose).toBeEnabled({ timeout: 120_000 });
+  await propose.click();
+}
+
+/** Chooses the first real option of a select: the one a person would take when any will do. */
+export async function pickFirst(select: Locator): Promise<string> {
+  await expect(select).toBeVisible();
+  const value = await select.evaluate((element) => {
+    const options = [...(element as HTMLSelectElement).options];
+    return options.find((option) => option.value !== "" && !option.disabled)?.value ?? "";
+  });
+  expect(value, "the select offers something to choose").not.toBe("");
+  await select.selectOption(value);
+  return value;
+}
+
+/** The kind's row menu on its list, then one of its items (`ResourceRowActions`). */
+export async function rowAction(page: Page, name: string, item: "Edit" | "Remove"): Promise<void> {
+  await page.getByRole("button", { name: `More actions for ${name}` }).first().click();
+  await page.getByRole("menuitem", { name: item }).click();
+}
+
+/**
+ * Changes a resource through its YAML editor, the only editor some kinds have (EditResourceDialog):
+ * the stored manifest is read, `edit` changes its spec, and the whole of it is written back as JSON,
+ * which is YAML too, so nothing is retyped key by key into Monaco. `open` clicks whatever opens the
+ * editor on the page the person is on.
+ */
+export async function editAsYaml(
+  page: Page,
+  plural: string,
+  name: string,
+  open: () => Promise<void>,
+  edit: (spec: Record<string, unknown>) => void,
+): Promise<void> {
+  const stored = await page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`);
+  expect(stored.ok(), `read ${plural}/${name}`).toBe(true);
+  const { status: _status, ...manifest } = (await stored.json()) as {
+    spec: Record<string, unknown>;
+    status?: unknown;
+  };
+  edit(manifest.spec);
+  await open();
+  const dialog = page.getByRole("dialog", { name: `Edit ${name}` });
+  const editor = dialog.locator(".monaco-editor .view-lines").first();
+  await expect(editor).toBeVisible({ timeout: 60_000 });
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Delete");
+  await page.keyboard.insertText(JSON.stringify(manifest, null, 2));
+  await dialog.getByRole("button", { name: "Propose change" }).click();
+}
+
+/** Waits until the resource answers on its route with a phase that is neither pending nor an error. */
+async function settled(page: Page, plural: string, name: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const answer = await page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`);
+        return answer.ok() ? String((await answer.json()).status?.phase ?? "no phase yet") : `http ${answer.status()}`;
+      },
+      { timeout: 180_000, message: `${plural}/${name} is live` },
+    )
+    .toMatch(/^(?!http |no phase yet|Pending|Error|Failed|Degraded)/);
+}
+
+/** Every change of the project, as the approvals route lists them. */
+async function changes(page: Page): Promise<string> {
+  const answer = await page.request.get(`/api/v1/projects/${PROJECT}/changes`);
+  return answer.ok() ? JSON.stringify((await answer.json()).items ?? []) : "";
+}
+
+export function kindJourney(journey: KindJourney): void {
+  const { task, kind, plural } = journey;
+  test.setTimeout(900_000);
+
+  test(`${kind}: created, changed and removed through the page by a person`, async ({ browser }) => {
+    const steward = await signIn(browser, STEWARD, `${journey.page}?lang=en`);
+    const name = journeyName(task);
+    let created = false;
+    try {
+      await journey.create(steward.page, name);
+      const change = await proposedChange(steward.page);
+      created = true;
+      const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
+      try {
+        await approve(approver.page, PROJECT, change, name);
+        await settled(steward.page, plural, name);
+
+        await steward.page.goto(`${journey.page}?lang=en`, { waitUntil: "load" });
+        await journey.change.apply(steward.page, name);
+        await approve(approver.page, PROJECT, await proposedChange(steward.page), name);
+        await expect
+          .poll(
+            async () =>
+              JSON.stringify(
+                await (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).json(),
+              ),
+            { timeout: 120_000, message: `the change reached ${plural}/${name}` },
+          )
+          .toContain(journey.change.value(name));
+      } finally {
+        await approver.context.close();
+      }
+    } finally {
+      if (created) {
+        await removeCompletely(steward, PROJECT, plural, name);
+        await expect
+          .poll(
+            async () => (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).status(),
+            { timeout: 120_000, message: `${plural}/${name} is removed` },
+          )
+          .toBe(404);
+      }
+      await sweepDrafts(steward.context, steward.page, PROJECT, new RegExp(`^${task}-`));
+      await steward.context.close();
+    }
+  });
+
+  test(`${kind}: the assistant opens the kind's form and proposes nothing`, async ({ browser }) => {
+    const steward = await signIn(browser, STEWARD, `${journey.page}?lang=en`);
+    const name = journeyName(`${task}a`);
+    try {
+      await ask(steward.page, journey.assistant.ask(name));
+      await expect(journey.assistant.opened(steward.page)).toBeVisible({ timeout: 180_000 });
+      // AG-73: the assistant drafts and the person proposes. No change names what it drafted.
+      expect(await changes(steward.page), "the assistant proposed nothing").not.toContain(name);
+    } finally {
+      await sweepDrafts(steward.context, steward.page, PROJECT, new RegExp(`^${task}a-`));
+      await steward.context.close();
+    }
+  });
+
+  test(`${kind}: a viewer finds every write control disabled with its reason, and the door answers 403`, async ({
+    browser,
+  }) => {
+    const viewer = await signIn(browser, VIEWER, `${journey.page}?lang=en`);
+    try {
+      const controls = viewer.page
+        .getByRole("main")
+        .getByRole("button", { name: /^(New|Edit|Remove|Delete|Propose)(\b|$)/i });
+      let seen = 0;
+      for (const control of await controls.all()) {
+        if (!(await control.isVisible())) {
+          continue;
+        }
+        seen += 1;
+        await expect(control, "a viewer may not write").toBeDisabled();
+        const described = await control.getAttribute("aria-describedby");
+        const reason = described
+          ? ((await viewer.page.locator(`[id="${described}"]`).first().textContent()) ?? "")
+          : ((await control.locator("xpath=ancestor-or-self::*[@title][1]").first().getAttribute("title")) ?? "");
+        expect(reason, "the control names what the viewer's role lacks (UI-44)").toMatch(
+          /permit|role|propose|delete|not allowed|no binding/i,
+        );
+      }
+      expect(seen, `${journey.page} offers the viewer the kind's write controls, disabled`).toBeGreaterThan(0);
+      const answer = await viewer.page.request.post(`/api/v1/projects/${PROJECT}/${plural}`, {
+        headers: { "x-csrf-token": await csrf(viewer.context) },
+        data: {
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind,
+          metadata: { name: journeyName(`${task}v`), namespace: PROJECT },
+          spec: {},
+        },
+      });
+      expect(answer.status(), `creating a ${kind} as a viewer: ${await answer.text()}`).toBe(403);
+    } finally {
+      await viewer.context.close();
+    }
+  });
+}

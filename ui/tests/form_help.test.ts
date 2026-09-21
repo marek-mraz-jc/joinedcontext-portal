@@ -80,6 +80,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   ContextSourceRegistration: kinds.REGISTRATION_TARGETS.map((target) =>
     kinds.registrationSchema(t, target, ["ovzdusie"]),
   ),
+  App: [kinds.appSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */
