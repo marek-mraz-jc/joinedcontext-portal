@@ -211,15 +211,11 @@ test("both bodies ingest, compute and publish their own indicators, each into it
 /**
  * The application, in the region's project, reading both bodies — `DEMO.md` step 6.
  *
- * `fixme`, and not a failure: `/apps/{name}/` answers `404 app 'bbsk-ukazovatele' not found` on
- * dev because no static app is served anywhere yet. The manifest is not in the configuration
- * repository, `JC_PORTAL_APPS_DIR` is unset so the host refuses before it looks at a file, no
- * lane produces the `integrity.json` the bundle needs (AP-12), and nothing injects the
- * `#jc-config` the SDK reads at startup. That is T-2457, and it is a feature rather than a
- * regression — this path has never been deployed. The moment it is, this becomes `test` again;
- * every assertion below is written against the application as it stands.
+ * The Portal image ships the bundle and its `integrity.json` under `JC_PORTAL_APPS_DIR`, the
+ * configuration repository holds the App, and the host writes the `#jc-config` naming the region's
+ * endpoint and the city's through `mesto-kpi` into the index it serves (T-2457).
  */
-test.fixme("one application shows both bodies, each number the number in its own space", async ({
+test("one application shows both bodies, each number the number in its own space", async ({
   browser,
 }) => {
   test.setTimeout(600_000);
