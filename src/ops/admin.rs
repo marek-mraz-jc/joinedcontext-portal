@@ -12,6 +12,7 @@ use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::bounds::{text, ID, NAME, QUERY, TERM, TITLE};
 use super::runs::{as_user, refuse_agent};
 use super::{change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation};
 use crate::change::Lane;
@@ -107,10 +108,10 @@ fn export_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "format": { "type": "string", "enum": ["yaml", "json"] },
-            "kinds": { "type": "string", "description": "Comma-separated plurals, e.g. endpoints,pipelines" },
-            "names": { "type": "string", "description": "Comma-separated names" },
-            "revision": { "type": "string", "description": "A commit of the configuration repository" }
+            "format": { "type": "string", "enum": ["yaml", "json"], "description": "The bundle's format; yaml when absent" },
+            "kinds": text("Comma-separated plurals, e.g. endpoints,pipelines", QUERY),
+            "names": text("Comma-separated names", QUERY),
+            "revision": text("A commit of the configuration repository", TERM)
         },
         "additionalProperties": false
     })
@@ -131,9 +132,9 @@ fn create_project_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string", "description": "The project slug: a DNS-1123 label, and the {project} segment of every path of it (PF-67)" },
-            "displayName": { "type": "string", "description": "What people call it; the slug when absent" },
-            "description": { "type": "string", "description": "One line about what the project is for" }
+            "name": text("The project slug: a DNS-1123 label, and the {project} segment of every path of it (PF-67)", 63),
+            "displayName": text("What people call it; the slug when absent", TITLE),
+            "description": text("One line about what the project is for", TITLE)
         },
         "required": ["name"],
         "additionalProperties": false
@@ -144,7 +145,7 @@ fn delete_project_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string", "description": "The project to delete; it is named rather than taken from the path, because this one is not undone (PF-77)" }
+            "name": text("The project to delete; it is named rather than taken from the path, because this one is not undone (PF-77)", 63)
         },
         "required": ["name"],
         "additionalProperties": false
@@ -155,8 +156,11 @@ fn import_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "bundle": { "type": "string", "description": "The bundle document an export answered" },
-            "orgDomain": { "type": "string", "description": "The organisation every imported id is rewritten to; this one when absent" },
+            "bundle": text(
+                "The bundle document an export answered",
+                crate::api::import::MAX_UPLOAD_BYTES as u64
+            ),
+            "orgDomain": text("The organisation every imported id is rewritten to; this one when absent", NAME),
             "conflictPolicy": {
                 "type": "string",
                 "enum": ["fail", "skip", "replace", "rename"],
@@ -190,10 +194,13 @@ fn source_put_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string", "description": "The DataModel's name" },
-            "source": { "type": "string", "description": "The LinkML document" },
-            "space": { "type": "string", "description": "The space a model the project does not hold yet is created in (DM-57)" },
-            "version": { "type": "string", "description": "The version to write; the next one the check computes when absent" },
+            "name": text("The DataModel's name", NAME),
+            "source": text(
+                "The LinkML document",
+                crate::tools::model_tools::MAX_REQUEST_BYTES as u64
+            ),
+            "space": text("The space a model the project does not hold yet is created in (DM-57)", NAME),
+            "version": text("The version to write; the next one the check computes when absent", TERM),
             "dryRun": { "type": "boolean", "description": "Answer the check and write nothing" }
         },
         "required": ["name", "source"],
@@ -209,9 +216,9 @@ fn key_mint_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "account": { "type": "string", "description": "The ServiceAccount's name" },
-            "credential": { "type": "string", "description": "The api-key credential of that account the key belongs to (PF-34)" },
-            "expiresAt": { "type": "string", "format": "date-time", "description": "Overrides the manifest's expiry" }
+            "account": text("The ServiceAccount's name", NAME),
+            "credential": text("The api-key credential of that account the key belongs to (PF-34)", NAME),
+            "expiresAt": { "type": "string", "format": "date-time", "description": "Overrides the manifest's expiry", "maxLength": 64 }
         },
         "required": ["account", "credential"],
         "additionalProperties": false
@@ -222,9 +229,9 @@ fn key_rotate_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "account": { "type": "string" },
-            "keyId": { "type": "string" },
-            "overlapHours": { "type": "integer", "description": "How long the old key keeps working beside its successor (PF-38)" }
+            "account": text("The ServiceAccount's name", NAME),
+            "keyId": text("The key to replace", ID),
+            "overlapHours": { "type": "integer", "minimum": 0, "description": "How long the old key keeps working beside its successor (PF-38)" }
         },
         "required": ["account", "keyId"],
         "additionalProperties": false
@@ -235,8 +242,8 @@ fn key_revoke_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "account": { "type": "string" },
-            "keyId": { "type": "string" }
+            "account": text("The ServiceAccount's name", NAME),
+            "keyId": text("The key to revoke", ID)
         },
         "required": ["account", "keyId"],
         "additionalProperties": false

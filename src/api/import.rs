@@ -36,7 +36,7 @@ use crate::state::AppState;
 
 /// Largest upload the endpoint reads. A project's whole configuration is manifests and a few
 /// native files; anything past this is not a bundle.
-const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
 
 /// Entries an archive may hold. A bundle carrying a thousand files is a mistake or an attack,
 /// and either way it must not become a thousand forge calls.
