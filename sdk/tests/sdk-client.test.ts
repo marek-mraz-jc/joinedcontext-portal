@@ -24,6 +24,7 @@ describe("isEndpointPath validation", () => {
     expect(isEndpointPath("demo", "/api/endpoint/demo/ngsi-ld/v1/entities?type=Bike&limit=10")).toBe(true);
   });
 
+  // SDK-05: the SDK writes only through its own endpoint; every other path is refused.
   it("refuses unauthorized paths, path traversal, multiple slashes, backslashes, and other slugs", () => {
     expect(isEndpointPath("demo", "/api/endpoint/other/ngsi-ld/v1/entities")).toBe(false);
     expect(isEndpointPath("demo", "/api/endpoint/demo/ngsi-ld/v1/subscriptions")).toBe(false);
@@ -103,6 +104,7 @@ describe("DataClient entity operations", () => {
     await expect(client.entities.list("T")).rejects.toThrowError("The endpoint did not answer a list.");
   });
 
+  // SDK-05: create mints urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId} from the served configuration.
   it("create mints URN, encodes GeoProperty and Property, drops nulls, and validates type/localId", async () => {
     let postedBody: unknown;
     const transport: Transport = async (req) => {
