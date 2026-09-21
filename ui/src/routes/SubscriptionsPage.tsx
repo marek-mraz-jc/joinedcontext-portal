@@ -332,12 +332,8 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
                     uiSchema: subscriptionUiSchema,
                     fromManifest: (manifest) =>
                       fromSubscriptionEnvelope(manifest) as unknown as Record<string, unknown>,
-                    toManifest: (edited) =>
-                      toSubscriptionEnvelope(
-                        project,
-                        edited as unknown as SubscriptionForm,
-                        subscription,
-                      ),
+                    toManifest: (edited, stored) =>
+                      toSubscriptionEnvelope(project, edited as unknown as SubscriptionForm, stored),
                   }}
                 />
               </TableCell>

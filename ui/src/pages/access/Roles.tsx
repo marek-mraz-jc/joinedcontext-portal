@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -48,11 +48,12 @@ export interface RoleForm {
 }
 
 /** The form as the manifest the API stores. A rule keeps the constraints it came with (PF-49). */
-export function toRoleEnvelope(namespace: string, form: RoleForm): unknown {
+export function toRoleEnvelope(namespace: string, form: RoleForm, stored?: unknown): unknown {
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Role",
-    metadata: { name: form.name, namespace },
+    // What the form has no field for travels on from the manifest the edit started from (T-2470).
+    metadata: { ...storedMetadata(stored), name: form.name, namespace },
     spec: {
       rules: (form.rules ?? []).map((rule) => ({
         kinds: rule.kinds ?? [],
@@ -302,8 +303,8 @@ export function Roles({ project }: { project: string }): JSX.Element {
                             schema: editSchema,
                             fromManifest: (manifest) =>
                               fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
-                            toManifest: (edited) =>
-                              toRoleEnvelope(row.home, edited as unknown as RoleForm),
+                            toManifest: (edited, stored) =>
+                              toRoleEnvelope(row.home, edited as unknown as RoleForm, stored),
                           }}
                         />
                         <DeleteResourceAction

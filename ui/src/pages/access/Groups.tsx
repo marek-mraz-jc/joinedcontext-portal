@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -49,12 +49,13 @@ export interface GroupForm {
 }
 
 /** The form as the manifest the API stores: an empty description is left out, not written blank. */
-export function toGroupEnvelope(form: GroupForm): unknown {
+export function toGroupEnvelope(form: GroupForm, stored?: unknown): unknown {
   const description = form.description?.trim();
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Group",
-    metadata: { name: form.name, namespace: ORG_NAMESPACE },
+    // What the form has no field for travels on from the manifest the edit started from (T-2470).
+    metadata: { ...storedMetadata(stored), name: form.name, namespace: ORG_NAMESPACE },
     spec: {
       ...(description ? { description } : {}),
       members: (form.members ?? []).filter((member) => (member.user ?? "").trim() !== ""),
@@ -307,8 +308,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
                             schema: memberSchema,
                             fromManifest: (manifest) =>
                               fromGroupEnvelope(manifest) as unknown as Record<string, unknown>,
-                            toManifest: (edited) =>
-                              toGroupEnvelope(edited as unknown as GroupForm),
+                            toManifest: (edited, stored) =>
+                              toGroupEnvelope(edited as unknown as GroupForm, stored),
                           }}
                         />
                         <DeleteResourceAction

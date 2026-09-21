@@ -455,7 +455,8 @@
         "Button": 2
       },
       "tests": [
-        "access_forms.test.tsx"
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
       ]
     },
     "src/pages/access/RoleBindings.tsx": {
@@ -471,7 +472,8 @@
         "Button": 2
       },
       "tests": [
-        "access_forms.test.tsx"
+        "access_forms.test.tsx",
+        "edit_keeps_stored_metadata.test.ts"
       ]
     },
     "src/pages/access/ServiceAccounts.tsx": {
@@ -917,6 +919,7 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "policy_form.test.tsx"
       ]
     },
@@ -925,6 +928,7 @@
         "Button": 1
       },
       "tests": [
+        "edit_keeps_stored_metadata.test.ts",
         "space_segment.test.tsx"
       ]
     },
