@@ -238,9 +238,11 @@ const STALL_AFTER_SECONDS = 45;
 function StallNotice({
   working,
   onCancel,
+  onRetry,
 }: {
   working: boolean;
   onCancel?: () => void;
+  onRetry?: () => void;
 }): JSX.Element | null {
   const { t } = useTranslation();
   const [waited, setWaited] = useState(0);
@@ -258,10 +260,21 @@ function StallNotice({
       tone="info"
       className="mt-2"
       actions={
-        onCancel ? (
-          <Button variant="secondary" size="xs" onClick={onCancel}>
-            {t("agentRun.conversation.stop")}
-          </Button>
+        onRetry || onCancel ? (
+          <>
+            {/* A run that died answers nothing, whatever it is told: asking again in a fresh
+                conversation is the way on, and stopping this one is the way out (T-2462). */}
+            {onRetry ? (
+              <Button variant="primary" size="xs" onClick={onRetry}>
+                {t("agentRun.conversation.retry")}
+              </Button>
+            ) : null}
+            {onCancel ? (
+              <Button variant="secondary" size="xs" onClick={onCancel}>
+                {t("agentRun.conversation.stop")}
+              </Button>
+            ) : null}
+          </>
         ) : undefined
       }
     >
@@ -280,6 +293,8 @@ export function ConversationPanel({
   onAnswer,
   onSend,
   onCancel,
+  onRetry,
+  onNewConversation,
   attach,
   above,
   onUseEndpoint,
@@ -302,6 +317,10 @@ export function ConversationPanel({
   onSend: (text: string) => void | Promise<unknown>;
   /** Stops a run that has stopped answering, offered once the wait is long enough. */
   onCancel?: () => void;
+  /** Asks the newest question again in a fresh conversation, offered beside the stop (T-2462). */
+  onRetry?: () => void;
+  /** Leaves this conversation for an empty one: the way on once a run has ended (T-2463). */
+  onNewConversation?: () => void;
   /** A control beside the text box, such as the dock's attach button. */
   attach?: ReactNode;
   /** A row above the text box, such as the dock's data bar. */
@@ -334,7 +353,10 @@ export function ConversationPanel({
   // indistinguishable from one still being written: the progress line says "working" either way.
   // The clock restarts during the render that brings a new turn, which is React's own way of
   // adjusting state to a prop, rather than in an effect that would render the stale value first.
-  const working = answering || progress !== null;
+  // Only while the agent owes the answer. A run that has answered and waits for the person is
+  // quiet because it is their turn: counting that as a stall told the owner "no answer for 55
+  // seconds" under an answer, and the one button offered stopped the conversation (T-2461).
+  const working = answering || progress === "working";
 
   // A chat that does not follow its own newest line is a log. `block: "nearest"` keeps the
   // scrolling inside the transcript rather than dragging the whole page; jsdom has no such
@@ -523,7 +545,7 @@ export function ConversationPanel({
 
         {/* Keyed on the newest turn: a turn that arrives remounts the wait and starts it over,
             which is the reset without a clock read during the render (T-1761). */}
-        <StallNotice key={events.length} working={working} onCancel={onCancel} />
+        <StallNotice key={events.length} working={working} onCancel={onCancel} onRetry={onRetry} />
 
         {questions.map((question) => (
           <div
@@ -591,9 +613,16 @@ export function ConversationPanel({
           </div>
         </form>
       ) : (
-        <p className="border-t border-border p-3 text-sm text-fg-muted">
-          {t("agentRun.conversation.closed")}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3">
+          <p className="text-sm text-fg-muted">{t("agentRun.conversation.closed")}</p>
+          {/* An ended run reads nothing more; without this the only way back to a working chat
+              was the dock's close button, which nobody reads as "start again" (T-2463). */}
+          {onNewConversation ? (
+            <Button variant="primary" size="sm" onClick={onNewConversation}>
+              {t("agentRun.conversation.newConversation")}
+            </Button>
+          ) : null}
+        </div>
       )}
     </section>
   );
