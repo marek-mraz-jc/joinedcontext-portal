@@ -37,10 +37,6 @@
     "/endpoints": {
       "why": "the cross-project table needs two projects seeded on the instance; covered by tests/page_all_endpoints_page.test.tsx"
     },
-    "/projects/$project/ckan": {
-      "task": "T-1765",
-      "why": "CKAN is an add-on and is not in every instance; a journey has to skip when it is absent"
-    },
     "/projects/$project/import": {
       "why": "an import journey writes a whole project; covered by tests/import_wizard.test.tsx until a throwaway project exists for it"
     },
