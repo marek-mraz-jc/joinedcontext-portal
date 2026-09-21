@@ -10,7 +10,7 @@ use std::path::{Path as FsPath, PathBuf};
 
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -27,16 +27,37 @@ use crate::state::AppState;
 pub const INTEGRITY_MANIFEST: &str = "integrity.json";
 
 /// Serves `/apps/{name}/` — the app's own index.
-async fn serve_index(user: OptionalUser, state: State<AppState>, name: Path<String>) -> Response {
-    serve(user, state, Path((name.0, "index.html".to_string()))).await
+async fn serve_index(
+    user: OptionalUser,
+    state: State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
+    name: Path<String>,
+) -> Response {
+    serve(
+        user,
+        state,
+        headers,
+        uri,
+        Path((name.0, "index.html".to_string())),
+    )
+    .await
 }
 
 /// Serves `/apps/{name}/{path}`.
 async fn serve(
     OptionalUser(user): OptionalUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
     Path((name, path)): Path<(String, String)>,
 ) -> Response {
+    if let Some(apps_url) = state.config.apps_url.as_ref() {
+        if !is_origin(&headers, apps_url) {
+            return to_apps_origin(apps_url, &uri);
+        }
+    }
+
     // Every refusal below is the same 404. A draft app, a retired app, a name that was never
     // created and a caller who may not see it are indistinguishable from outside, so the host
     // never discloses what is being worked on (AP-18).
@@ -109,6 +130,41 @@ async fn serve(
         HeaderValue::from_static_str_or_deny(spec.embeddable),
     );
     response
+}
+
+/// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
+/// port, the scheme's default when none is written. A request without a `Host` is not on it.
+fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
+    let Some(authority) = headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<axum::http::uri::Authority>().ok())
+    else {
+        return false;
+    };
+    origin
+        .host_str()
+        .is_some_and(|host| authority.host().eq_ignore_ascii_case(host))
+        && authority.port_u16().or(origin.port_or_known_default()) == origin.port_or_known_default()
+}
+
+/// An app asked for anywhere but its own origin, above all on the Portal's (T-2476): a `308`
+/// to the same path and query there, so every link keeps working and no byte of the bundle is
+/// ever served where it could reach the Portal API with the viewer's session. The target is
+/// the configured origin, never the request's `Host`, so this is no open redirect.
+fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
+    let target = uri
+        .path_and_query()
+        .map_or("/", axum::http::uri::PathAndQuery::as_str);
+    let location = format!("{}{target}", origin.as_str().trim_end_matches('/'));
+    match HeaderValue::from_str(&location) {
+        Ok(location) => (
+            StatusCode::PERMANENT_REDIRECT,
+            [(header::LOCATION, location)],
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// `X-Frame-Options` follows the app's own `frame-ancestors`: an app that may not be framed is
