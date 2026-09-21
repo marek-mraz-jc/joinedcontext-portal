@@ -87,6 +87,36 @@ fn write_openapi_json() {
     std::fs::write(spec_path(), rendered()).expect("write ui/openapi.json");
 }
 
+/// MF-34, T-1647…T-1654: the rendered reference, an MCP client reading the document and the
+/// assistant all got a bare path for 76 of 97 operations. Every operation now says what it does:
+/// a summary, and for the ones this batch wrote a description of who may call it or what it
+/// refuses (the registry-backed ones are held to the registry's words in `ops::tests`).
+#[test]
+fn every_operation_says_what_it_does() {
+    let spec = ApiDoc::openapi();
+    let mut bare = Vec::new();
+    for (path, item) in &spec.paths.paths {
+        for (method, operation) in [
+            ("GET", &item.get),
+            ("POST", &item.post),
+            ("PUT", &item.put),
+            ("PATCH", &item.patch),
+            ("DELETE", &item.delete),
+        ] {
+            let Some(operation) = operation else { continue };
+            let said =
+                |text: &Option<String>| text.as_deref().is_some_and(|t| !t.trim().is_empty());
+            if !said(&operation.summary) && !said(&operation.description) {
+                bare.push(format!("{method} {path}"));
+            }
+        }
+    }
+    assert!(
+        bare.is_empty(),
+        "operations with no summary or no description: {bare:#?}"
+    );
+}
+
 #[test]
 fn every_documented_path_is_versioned_and_not_a_kubernetes_apis_path() {
     let spec = ApiDoc::openapi();

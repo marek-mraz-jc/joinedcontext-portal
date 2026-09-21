@@ -126,6 +126,8 @@ pub enum EdgeKind {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/federation-graph",
+    summary = "Read Federation",
+    description = "The project's spaces, endpoints, pipelines and apps, and what links them.",
     tag = "federation",
     params(("project" = String, Path, description = "Project name")),
     responses(

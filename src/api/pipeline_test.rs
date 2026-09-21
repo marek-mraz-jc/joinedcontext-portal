@@ -173,6 +173,8 @@ pub async fn execute_test_pipeline(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/pipelines/test",
+    summary = "Pipeline Test",
+    description = "Tests candidate pipeline mapping and validation on runner without writing.",
     tag = "pipelines",
     params(("project" = String, Path, description = "Project slug")),
     request_body(

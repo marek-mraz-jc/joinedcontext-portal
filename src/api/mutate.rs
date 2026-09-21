@@ -1212,6 +1212,8 @@ async fn propose_draft(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/{plural}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1280,6 +1282,8 @@ pub async fn create(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1349,6 +1353,8 @@ pub async fn replace(
 #[utoipa::path(
     patch,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
