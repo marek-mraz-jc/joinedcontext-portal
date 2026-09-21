@@ -793,7 +793,7 @@ pub async fn answer_question(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<AnswerRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and asks nothing",
@@ -944,7 +944,7 @@ pub async fn post_message(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<MessageRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and reads nothing",
@@ -1039,7 +1039,7 @@ pub async fn post_preview_error(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<PreviewErrorRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and repairs nothing",
@@ -1105,7 +1105,7 @@ pub async fn post_preview_observation(
     Path((project, id)): Path<(String, String)>,
     Json(request): Json<PreviewObservationRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and verifies nothing",
@@ -1273,7 +1273,7 @@ pub async fn call_function(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if terminal(&run) {
         return Err(ApiError::Conflict(format!(
             "run '{id}' is '{}' and runs no function",
@@ -1633,12 +1633,7 @@ pub async fn cancel_run(
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
 ) -> Result<Json<AgentRun>, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
-    crate::permissions::for_request(&state, &user.0.identity, &project).check(
-        "App",
-        jc_core::kinds::Verb::Propose,
-        None,
-    )?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
 
     let reason = format!("cancelled by {}", user.0.identity.username);
     let cancelled = end_run(&state, &run, AgentRunStatus::Cancelled, &reason).await?;
@@ -1666,7 +1661,7 @@ pub async fn publish_run(
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
-    let run = own_run_of(&state, &user, &project, &id).await?;
+    let run = own_run_to_write(&state, &user, &project, &id).await?;
     if run.kind == "dashboard" {
         return Err(ApiError::Conflict(
             "publishing a dashboard run is not available yet".into(),
@@ -2218,6 +2213,24 @@ async fn own_run_of(
     Err(ApiError::NotFound(format!(
         "run '{id}' not found in project '{project}'"
     )))
+}
+
+/// [`own_run_of`] for a write (PF-50, T-2486): the caller's live bindings in the project are
+/// checked before the run is looked up, as the ops door checks `jc_run_message` and its siblings.
+/// Having started the run is not a grant: a person whose binding was removed writes nothing to it,
+/// and a stranger hears the same `403` here as there, before any id is looked up.
+async fn own_run_to_write(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    id: &str,
+) -> Result<AgentRun, ApiError> {
+    crate::permissions::for_request(state, &user.0.identity, project).check(
+        "App",
+        jc_core::kinds::Verb::Propose,
+        None,
+    )?;
+    own_run_of(state, user, project, id).await
 }
 
 /// Records one event and hands it to every connected stream.

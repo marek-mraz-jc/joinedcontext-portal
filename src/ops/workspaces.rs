@@ -525,6 +525,7 @@ use crate::change::{
 };
 use crate::error::ApiError;
 use crate::git::{GitError, GiteaClient};
+use crate::ops::bounds::{text, NAME, QUERY, TERM};
 use crate::ops::{Caller, OpError, Via};
 use crate::plan::{FieldConflict, Side};
 use crate::state::AppState;
@@ -1484,7 +1485,7 @@ struct UpdateInput {
 fn name_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "name": { "type": "string", "description": "The workspace's name" } },
+        "properties": { "name": text("The workspace's name", MAX_NAME as u64) },
         "required": ["name"],
         "additionalProperties": false
     })
@@ -1497,17 +1498,30 @@ fn empty_schema() -> Value {
 fn scope_schema() -> Value {
     json!({
         "type": "object",
-        "description": "{kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}",
+        "description": "{kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent",
         "properties": {
-            "kind": { "type": "string", "enum": ["project", "space", "resources"] },
-            "name": { "type": "string" },
-            "items": { "type": "array", "items": {
-                "type": "object",
-                "properties": { "kind": { "type": "string" }, "name": { "type": "string" } },
-                "required": ["kind", "name"]
-            } }
+            "kind": {
+                "type": "string",
+                "description": "What the workspace covers: the whole project, one space and what it holds, or a list of resources",
+                "enum": ["project", "space", "resources"]
+            },
+            "name": text("With kind space: the context space, by name", NAME),
+            "items": {
+                "type": "array",
+                "description": "With kind resources: the resources the workspace covers",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": text("The resource's kind, e.g. Pipeline", TERM),
+                        "name": text("The resource's metadata.name", NAME)
+                    },
+                    "required": ["kind", "name"],
+                    "additionalProperties": false
+                }
+            }
         },
-        "required": ["kind"]
+        "required": ["kind"],
+        "additionalProperties": false
     })
 }
 
@@ -1515,10 +1529,18 @@ fn open_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string", "description": "A DNS label of at most 20 characters, unique in the organization" },
-            "title": { "type": "string" },
+            "name": text(
+                "A DNS label of at most 20 characters, unique in the organization",
+                MAX_NAME as u64
+            ),
+            "title": text("What people call the workspace", MAX_TITLE as u64),
             "scope": scope_schema(),
-            "ttlDays": { "type": "integer", "minimum": 1, "maximum": 14 }
+            "ttlDays": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 14,
+                "description": "Days until the workspace expires; seven when absent"
+            }
         },
         "required": ["name"],
         "additionalProperties": false
@@ -1529,17 +1551,25 @@ fn update_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": { "type": "string" },
-            "resolutions": { "type": "array", "items": {
-                "type": "object",
-                "properties": {
-                    "path": { "type": "string", "description": "The file, as the comparison lists it" },
-                    "field": { "type": "string", "description": "The field, as the conflict lists it; empty for the whole file" },
-                    "keep": { "type": "string", "enum": ["ours", "theirs"] }
-                },
-                "required": ["path", "keep"],
-                "additionalProperties": false
-            } }
+            "name": text("The workspace's name", MAX_NAME as u64),
+            "resolutions": {
+                "type": "array",
+                "description": "The side kept for every conflicting field; none when main brought no conflict (CC-80)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "path": text("The file, as the comparison lists it", QUERY),
+                        "field": text("The field, as the conflict lists it; empty for the whole file", QUERY),
+                        "keep": {
+                            "type": "string",
+                            "description": "ours keeps the workspace's value, theirs takes main's",
+                            "enum": ["ours", "theirs"]
+                        }
+                    },
+                    "required": ["path", "keep"],
+                    "additionalProperties": false
+                }
+            }
         },
         "required": ["name"],
         "additionalProperties": false

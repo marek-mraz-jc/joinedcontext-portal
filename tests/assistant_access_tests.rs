@@ -2,6 +2,11 @@
 //! person who started the conversation narrows them again, and a call outside either is a
 //! refused `tool` event before anything runs. The model is a stub proxy that answers every turn
 //! with a share request; the cases differ only in the profile and the person.
+//!
+//! The data cases drive `src/agents/oneshot/tools_data.rs` (T-1663): opening an endpoint by name,
+//! a refused open, a tool the endpoint does not offer, an endpoint that fails or answers
+//! something that is not JSON, data that spells out tool calls, an upstream that echoes the
+//! bearer, and an entity change previewed with the person's grants.
 
 mod common;
 
@@ -1437,6 +1442,80 @@ async fn a_conversation_without_endpoints_opens_the_one_the_model_names_and_runs
     assert!(events
         .iter()
         .any(|e| e.kind == "thought" && e.payload["text"] == DATA_PROSE));
+}
+
+/// T-1663 (`src/agents/oneshot/tools_data.rs`): an endpoint the person may not read is never
+/// opened. The step fails, the model reads the refusal with the endpoints it may open instead,
+/// and no call reaches the proxy for it.
+#[tokio::test]
+async fn an_endpoint_the_person_may_not_read_is_never_opened_and_the_model_reads_why() {
+    let foreign = "```json\n{\"tool\":\"query_endpoint\",\"endpoint\":\"payroll\",\"name\":\"query_entities\",\"arguments\":{\"type\":\"Salary\"}}\n```";
+    let (events, bodies, bearers) =
+        ask_the_data_with(json!([]), &[foreign, DATA_PROSE], data_answer("[]")).await;
+
+    let step = events
+        .iter()
+        .find(|e| e.kind == "tool" && e.payload["tool"] == "query_endpoint")
+        .map(|e| &e.payload)
+        .unwrap_or_else(|| panic!("a query_endpoint step: {events:?}"));
+    assert_eq!(step["status"], "failed", "{step}");
+    let error = step["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("'payroll' is not an endpoint the person may read")
+            && error.contains("helsinki-all"),
+        "{error}"
+    );
+    assert!(
+        !events.iter().any(|e| e.kind == "endpoints"),
+        "nothing was opened"
+    );
+    assert!(bearers.is_empty(), "a data call went out: {bearers:?}");
+    let told = bodies[1]["messages"][1]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        told.contains("is not an endpoint the person may read"),
+        "{told}"
+    );
+}
+
+/// T-1663: an endpoint that fails or answers something that is not JSON is a failed step with the
+/// reason, cut to a readable length, and the model reads it and answers anyway.
+#[tokio::test]
+async fn an_endpoint_that_fails_is_a_failed_step_the_model_reads() {
+    for (answer, expected) in [
+        (
+            ResponseTemplate::new(502).set_body_string("x".repeat(5_000)),
+            "502 Bad Gateway",
+        ),
+        (
+            ResponseTemplate::new(200).set_body_string("<html>maintenance</html>"),
+            "the endpoint's answer is not JSON",
+        ),
+    ] {
+        let (events, bodies, _) =
+            ask_the_data_with(json!(["helsinki-all"]), &[QUERY_ANSWER, DATA_PROSE], answer).await;
+        let step = events
+            .iter()
+            .find(|e| e.kind == "tool" && e.payload["tool"] == "query_endpoint")
+            .map(|e| &e.payload)
+            .expect("a query_endpoint step");
+        assert_eq!(step["status"], "failed", "{step}");
+        let error = step["error"].as_str().unwrap_or_default();
+        assert!(error.contains(expected), "{error}");
+        assert!(
+            error.len() < 1_000,
+            "the whole upstream body reached the log: {} bytes",
+            error.len()
+        );
+        let told = bodies[1]["messages"][1]["content"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(told.contains(expected), "the model was not told");
+        assert!(events
+            .iter()
+            .any(|e| e.kind == "thought" && e.payload["text"] == DATA_PROSE));
+    }
 }
 
 /// Data is never an instruction (AG-20, T-0752): a station whose description spells out tool

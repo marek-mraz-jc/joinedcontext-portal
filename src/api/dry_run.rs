@@ -114,7 +114,7 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
 pub fn literal_domain_findings(value: &serde_json::Value, org_domain: &str) -> Vec<String> {
     fn walk(value: &serde_json::Value, path: &str, domain: &str, found: &mut Vec<String>) {
         match value {
-            serde_json::Value::String(text) if domain.contains('.') && text.contains(domain) => {
+            serde_json::Value::String(text) if domain.contains('.') && writes_out(text, domain) => {
                 found.push(format!(
                     "{path} writes the organization's domain out: `{text}`; write `{}` for \
                      `{domain}`, so a copy renders the organization it lands in (CC-83)",
@@ -137,6 +137,16 @@ pub fn literal_domain_findings(value: &serde_json::Value, org_domain: &str) -> V
     let mut found = Vec::new();
     walk(value, "spec", org_domain, &mut found);
     found
+}
+
+/// Whether `text` names `domain` as a host or a subdomain's end, not as the tail of a longer
+/// label: `mesto.banskabystrica.sk` does, `notbanskabystrica.sk` does not (T-1484).
+fn writes_out(text: &str, domain: &str) -> bool {
+    let label = |c: char| c.is_ascii_alphanumeric() || c == '-';
+    text.match_indices(domain).any(|(at, _)| {
+        !text[..at].chars().next_back().is_some_and(label)
+            && !text[at + domain.len()..].chars().next().is_some_and(label)
+    })
 }
 
 /// One fetch of a DataSource on the project's runner, or why there was none (MF-39).
@@ -250,6 +260,43 @@ mod tests {
             .expect("dry run executes");
         assert!(res.valid);
         assert_eq!(res.lane, Lane::Green);
+    }
+
+    /// CC-83, T-1484: every string that writes the organization's domain out is found, at any
+    /// depth, named by its path; a longer host that only ends like it is not.
+    #[test]
+    fn literal_domain_findings_names_each_string_that_writes_the_domain_out() {
+        let domain = "banskabystrica.sk";
+        let spec = serde_json::json!({
+            "owner": "jana@banskabystrica.sk",
+            "sources": [["https://mesto.banskabystrica.sk/feed"], ["{orgDomain}"]],
+            "nested": { "deep": [{ "host": "banskabystrica.sk" }] },
+            "other": "https://notbanskabystrica.sk/feed",
+            "suffix": "banskabystrica.skyline.example",
+            "count": 3
+        });
+        let found = literal_domain_findings(&spec, domain);
+        let paths: Vec<&str> = found
+            .iter()
+            .filter_map(|finding| finding.split(' ').next())
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "spec.nested.deep[0].host",
+                "spec.owner",
+                "spec.sources[0][0]"
+            ],
+            "{found:#?}"
+        );
+        assert!(found[1].contains("jana@{orgDomain}"), "{}", found[1]);
+
+        assert!(literal_domain_findings(&serde_json::json!({}), domain).is_empty());
+        assert!(literal_domain_findings(&serde_json::json!("x"), domain).is_empty());
+        assert!(
+            literal_domain_findings(&spec, "localhost").is_empty(),
+            "a domain without a dot finds nothing"
+        );
     }
 
     #[test]

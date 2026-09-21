@@ -89,6 +89,22 @@ describe("a kind's list page", () => {
     expect(screen.getByText(en.resourceList.emptyHint)).toBeInTheDocument();
   });
 
+  it("names no create action on a page that has none (T-2488)", async () => {
+    show("uischemas", (url) => (url.pathname.endsWith("/uischemas") ? json(list([])) : undefined));
+    // A form's arrangement ships with the UI and is changed in the organization's repository
+    // (UI-02, API/01 §8a), so the project page lists and reads, and says where the change is made.
+    expect(await screen.findByText(en.resourceList.emptyHintFor.uischemas)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /new|add|create/i })).toBeNull();
+    for (const locale of ["en", "sk", "cs", "de"] as const) {
+      const bundle = i18n.getResourceBundle(locale, "translation") as typeof en;
+      expect(bundle.resourceList.emptyHintFor.uischemas, locale).toContain("portal/forms/");
+      // The generic list has no New button either, so its hint promises none.
+      expect(bundle.resourceList.emptyHint, locale).not.toMatch(
+        /Add the first|Pridajte prvé|Přidejte první|Legen Sie das erste/,
+      );
+    }
+  });
+
   it("says why the list could not be read, in the API's own words, with a way to ask again", async () => {
     show("roles", (url) =>
       url.pathname.endsWith("/roles") ? problem(403, "You may not read the roles of helsinki.") : undefined,

@@ -527,3 +527,109 @@ async fn a_misspelled_field_is_ignored_rather_than_refused() {
         );
     }
 }
+
+// -------------------------------------------------------------------------------------------------
+// T-1495 infer_schema: the format a caller may name
+// -------------------------------------------------------------------------------------------------
+
+/// The `format` of every request the service received, `None` when a body carried none.
+async fn formats_sent(server: &MockServer) -> Vec<Option<String>> {
+    server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|request| {
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|body| body["format"].as_str().map(str::to_owned))
+        })
+        .collect()
+}
+
+/// DM-17: Model Tools switches its parser on `format`, so the Portal lets through one of the four
+/// it documents and refuses anything else with the four named, before the service is reached.
+#[tokio::test]
+async fn an_unknown_format_is_refused_with_the_four_it_may_be() {
+    let service = MockServer::start().await;
+    let config = config_for(&service);
+    for format in ["xml", "CSV", "csv;rm -rf", "../pdf", "parquet"] {
+        let (content_type, body) = multipart(&[
+            ("file", Some("sample.csv"), b"id,pm10\n1,22\n"),
+            ("format", None, format.as_bytes()),
+        ]);
+        let (status, answer) = send(
+            &config,
+            "POST",
+            "/api/v1/tools/infer-schema",
+            &content_type,
+            body,
+            false,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{format}: {answer}");
+        let text = answer.to_string();
+        for known in ["csv", "xlsx", "json", "pdf"] {
+            assert!(
+                text.contains(known),
+                "{format}: the refusal names {known}: {text}"
+            );
+        }
+    }
+    assert!(
+        asked(&service).await.is_empty(),
+        "a refused format reached Model Tools: {:?}",
+        asked(&service).await,
+    );
+}
+
+/// DM-17: each of the four documented formats travels to Model Tools as it was written, trimmed.
+#[tokio::test]
+async fn each_documented_format_reaches_model_tools() {
+    let service = MockServer::start().await;
+    let config = config_for(&service);
+    for format in ["csv", "xlsx", " json ", "pdf"] {
+        let (content_type, body) = multipart(&[
+            ("file", Some("sample"), b"id,pm10\n1,22\n"),
+            ("format", None, format.as_bytes()),
+        ]);
+        let (status, answer) = send(
+            &config,
+            "POST",
+            "/api/v1/tools/infer-schema",
+            &content_type,
+            body,
+            false,
+        )
+        .await;
+        assert_ne!(status, StatusCode::BAD_REQUEST, "{format}: {answer}");
+    }
+    assert_eq!(
+        formats_sent(&service).await,
+        ["csv", "xlsx", "json", "pdf"].map(|f| Some(f.to_owned())),
+    );
+}
+
+/// DM-17: an empty format is no format, so Model Tools goes by the file name.
+#[tokio::test]
+async fn an_empty_format_lets_the_file_name_decide() {
+    let service = MockServer::start().await;
+    let config = config_for(&service);
+    for format in ["", "   "] {
+        let (content_type, body) = multipart(&[
+            ("file", Some("sample.csv"), b"id,pm10\n1,22\n"),
+            ("format", None, format.as_bytes()),
+        ]);
+        let (status, answer) = send(
+            &config,
+            "POST",
+            "/api/v1/tools/infer-schema",
+            &content_type,
+            body,
+            false,
+        )
+        .await;
+        assert_ne!(status, StatusCode::BAD_REQUEST, "{format:?}: {answer}");
+    }
+    assert_eq!(formats_sent(&service).await, [None, None]);
+}

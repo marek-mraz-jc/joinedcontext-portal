@@ -444,9 +444,15 @@ async fn a_second_person_neither_reads_nor_steers_a_run_that_is_not_theirs() {
             body,
         )
         .await;
+        // A read is `404` (PF-59); a write is `403` before the id is looked up, as the ops door
+        // answers it, so neither tells the intruder whether the run exists (PF-50, T-2486).
+        let refused = if method == Method::GET {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::FORBIDDEN
+        };
         assert_eq!(
-            status,
-            StatusCode::NOT_FOUND,
+            status, refused,
             "{method} {path} answered a person who did not start the run"
         );
     }

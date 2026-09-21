@@ -6,6 +6,7 @@ metadata:
   name: contextsourceregistration
 spec:
   for: ContextSourceRegistration
+  guide: User-Guide/05-endpoints-and-sharing
   about:
     en: >-
       A registration tells one space's broker that another source holds some of its data, so a
