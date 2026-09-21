@@ -10,6 +10,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::bounds::{text, texts, ID, NAME, RECORD_MEMBERS, TERM, TEXT};
 use super::{parse_input, Annotations, Caller, OpError, Operation};
 use crate::auth::session::{CurrentUser, Session};
 use crate::change::Lane;
@@ -53,7 +54,7 @@ pub struct FlowInput {
 fn run_id_input_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "id": { "type": "string", "description": "The run's id" } },
+        "properties": { "id": text("The run's id", ID) },
         "required": ["id"],
         "additionalProperties": false
     })
@@ -64,19 +65,44 @@ fn create_input_schema() -> Value {
         "type": "object",
         "description": "What an unattended run is given (AG-69, AP-44); the same body the route takes",
         "properties": {
-            "appName": { "type": "string" },
-            "endpointName": { "type": "string" },
-            "endpointNames": { "type": "array", "items": { "type": "string" } },
-            "profile": { "type": "string" },
-            "appClass": { "type": "string" },
-            "visibility": { "type": "string" },
-            "prompt": { "type": "string" },
-            "kind": { "type": "string", "enum": ["application", "dashboard", "analysis", "conversation"] },
-            "unattended": { "type": "boolean" },
-            "continues": { "type": "string" },
-            "dataNeeds": { "type": "array", "items": { "type": "object" } }
+            "appName": text("Name of the application to build; becomes the App manifest's name", NAME),
+            "endpointName": text("The one Endpoint the application reads through; endpointNames for several", NAME),
+            "endpointNames": {
+                "type": "array",
+                "description": "The Endpoints the application reads, one to five, the first the primary (AP-44)",
+                "items": { "type": "string", "maxLength": NAME },
+                "maxItems": 5
+            },
+            "profile": text("Which AgentProfile runs; the platform's app-builder when left out", NAME),
+            "appClass": {
+                "type": "string",
+                "description": "How the App is built and served, as the App kind spells it",
+                "enum": ["static", "service", "fullstack"]
+            },
+            "visibility": {
+                "type": "string",
+                "description": "Who may reach the published application; public is refused (AP-42)",
+                "enum": ["private", "project", "organization"]
+            },
+            "prompt": text("What the application should do, in the person's own words", TEXT),
+            "kind": {
+                "type": "string",
+                "description": "What kind of run to execute",
+                "enum": ["application", "dashboard", "analysis", "conversation"]
+            },
+            "unattended": {
+                "type": "boolean",
+                "description": "Whether the run works without asking the person questions"
+            },
+            "dataNeeds": {
+                "type": "array",
+                "description": "The types, attributes and operations the application needs, as the App's spec.dataNeeds spells them: contextSpaceRef, types, attrs, operations, q, scopeQ, geoQ; checked against what the endpoint publishes (AP-44)",
+                "items": { "type": "object", "maxProperties": RECORD_MEMBERS },
+                "minItems": 1
+            }
         },
-        "required": ["appName", "prompt", "dataNeeds"]
+        "required": ["appName", "appClass", "prompt", "dataNeeds"],
+        "additionalProperties": false
     })
 }
 
@@ -160,9 +186,13 @@ fn answer_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "id": { "type": "string", "description": "The run's id" },
-            "questionId": { "type": "string", "description": "The question the run asked" },
-            "answers": { "type": "object", "description": "The answers, shaped by that question" }
+            "id": text("The run's id", ID),
+            "questionId": text("The question the run asked", ID),
+            "answers": {
+                "type": "object",
+                "description": "The answers, shaped by that question (AG-45)",
+                "maxProperties": RECORD_MEMBERS
+            }
         },
         "required": ["id", "questionId", "answers"],
         "additionalProperties": false
@@ -173,13 +203,12 @@ fn message_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "id": { "type": "string", "description": "The run's id" },
-            "text": { "type": "string" },
-            "endpointNames": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "On a conversation: the endpoints the assistant may query from here on (AG-75)"
-            }
+            "id": text("The run's id", ID),
+            "text": text("The message, in the person's own words", TEXT),
+            "endpointNames": texts(
+                "On a conversation: the endpoints the assistant may query from here on (AG-75)",
+                NAME
+            )
         },
         "required": ["id", "text"],
         "additionalProperties": false
@@ -198,9 +227,13 @@ fn flow_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "blueprint": { "type": "string", "description": "The organisation Blueprint to run" },
-            "version": { "type": "string", "description": "The version the parameters were filled against (CC-26)" },
-            "parameters": { "type": "object", "description": "What the blueprint's parameterSchema asks for (CC-24)" }
+            "blueprint": text("The organisation Blueprint to run", NAME),
+            "version": text("The version the parameters were filled against (CC-26)", TERM),
+            "parameters": {
+                "type": "object",
+                "description": "What the blueprint's parameterSchema asks for (CC-24)",
+                "maxProperties": RECORD_MEMBERS
+            }
         },
         "required": ["blueprint", "version", "parameters"],
         "additionalProperties": false
