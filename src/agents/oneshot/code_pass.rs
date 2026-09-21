@@ -40,6 +40,8 @@ impl Driver {
         let mut shown: Option<Shown> = None;
         // Verification passes since the last instruction (SDK-28).
         let mut verified = 0;
+        // Whether the last instruction was handled by the editing agent (see `Check::edited`).
+        let mut edited = false;
         // A frame that reports an error but never an observation (an older page, a crash
         // before the application settles) is still checked, on the errors alone.
         let mut fallback: Option<tokio::time::Instant> = None;
@@ -153,6 +155,7 @@ impl Driver {
                         samples: &samples,
                         conversation: &conversation,
                         instruction: &instruction,
+                        edited,
                     };
                     if let Some(next) = self
                         .verify(
@@ -207,6 +210,7 @@ impl Driver {
                         samples: &samples,
                         conversation: &conversation,
                         instruction: &instruction,
+                        edited,
                     };
                     if let Some(next) = self
                         .verify(
@@ -235,7 +239,8 @@ impl Driver {
                     self.thought("Working on your message…").await?;
                     // A version on screen is edited in place, tool by tool (SDK-20); before one
                     // exists the message is one more whole pass.
-                    if shown.is_some() {
+                    edited = shown.is_some();
+                    if edited {
                         match self
                             .edit_turn(
                                 &mut files,
@@ -339,6 +344,11 @@ impl Driver {
         if let Some(observation) = observation {
             asked.push(verification::rendered(observation));
         }
+        if check.edited {
+            return self
+                .repair_by_edit(check, files, committed, on_screen, &asked)
+                .await;
+        }
         match self
             .code_pass(
                 check.samples,
@@ -359,6 +369,39 @@ impl Driver {
                 Ok(None)
             }
             Ok(CodePass::Failed) => Ok(None),
+            // The version on screen stands; a failed call is said, not a failed run.
+            Err(message) => {
+                self.thought(&format!("The verification pass failed: {message}"))
+                    .await?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// A verification of a version an instruction produced, handed to the editing agent with
+    /// what the check found as its instruction: small targeted calls on the files that exist,
+    /// never the whole project written again (SDK-20, SDK-28). The person's conversation keeps
+    /// their own turns; the repair is on the stream as its thoughts and tool calls.
+    async fn repair_by_edit(
+        &self,
+        check: Check<'_>,
+        files: &mut BTreeMap<String, String>,
+        committed: &mut BTreeMap<String, String>,
+        on_screen: &Shown,
+        found: &[String],
+    ) -> Result<Option<Shown>, String> {
+        let mut conversation = check.conversation.to_vec();
+        match self
+            .edit_turn(
+                files,
+                committed,
+                &mut conversation,
+                &repair_instruction(check.instruction, found),
+                Some(on_screen),
+            )
+            .await
+        {
+            Ok(next) => Ok(next),
             // The version on screen stands; a failed call is said, not a failed run.
             Err(message) => {
                 self.thought(&format!("The verification pass failed: {message}"))
@@ -814,5 +857,101 @@ impl Driver {
                 crate::telemetry::record_run_timing("first_version", &r.profile, ms);
             }
         }
+    }
+}
+
+/// The editing agent's instruction for a verification: the person's request and what the check
+/// of its version found.
+fn repair_instruction(request: &str, found: &[String]) -> String {
+    let list = found
+        .iter()
+        .map(|problem| format!("- {problem}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "The last change was: {request}\nChecking the preview after it found these problems. \
+         Fix them in the files that cause them and change nothing else:\n{list}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What the one model call a verification makes looks like, for a version of the first run
+    /// or of an instruction.
+    async fn first_call_of_a_verification(edited: bool) -> Value {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "text", "text": "Fixed." }],
+            })))
+            .mount(&server)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.kind = "application".into();
+        driver.prompt = "A table of the stations".into();
+        driver
+            .state
+            .agents
+            .append_event(
+                &driver.run_id,
+                "preview_error",
+                json!({ "message": "x is undefined" }),
+            )
+            .await
+            .expect("event");
+        let conversation = vec![("A table of the stations".to_owned(), "Ready.".to_owned())];
+        let check = Check {
+            samples: &json!({}),
+            conversation: &conversation,
+            instruction: "add a form for a new station",
+            edited,
+        };
+        let on_screen = Shown {
+            version: 2,
+            seq: 0,
+            observed: true,
+        };
+        let mut files = preview::template_files();
+        driver
+            .verify(
+                check,
+                &mut files,
+                &mut BTreeMap::new(),
+                &on_screen,
+                None,
+                &mut 0,
+            )
+            .await
+            .expect("the verification ends");
+        let requests = server.received_requests().await.expect("recorded");
+        serde_json::from_slice(&requests[0].body).expect("a JSON body")
+    }
+
+    /// T-2466: once an instruction produced the version on screen, what the check finds is fixed
+    /// by the editing agent's small tool calls, never by writing the whole project again.
+    #[tokio::test]
+    async fn a_verification_after_an_instruction_goes_to_the_editing_agent() {
+        let body = first_call_of_a_verification(true).await;
+        assert!(body["tools"].is_array(), "{body}");
+        let system = body["system"].as_str().unwrap_or_default();
+        assert!(
+            system.starts_with("You edit a small web application"),
+            "{system}"
+        );
+        let asked = body["messages"].to_string();
+        assert!(asked.contains("x is undefined"), "{asked}");
+        assert!(asked.contains("add a form for a new station"), "{asked}");
+    }
+
+    /// T-2466: the first run's own version is still repaired by a pass over the project.
+    #[tokio::test]
+    async fn a_verification_of_the_first_run_stays_a_pass_over_the_project() {
+        let body = first_call_of_a_verification(false).await;
+        assert!(body.get("tools").is_none(), "{body}");
     }
 }
