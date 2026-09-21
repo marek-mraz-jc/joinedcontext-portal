@@ -1925,3 +1925,177 @@ export function serviceAccountSchema(
 export const serviceAccountUiSchema: UiSchema = {
   roles: { items: { operations: { "ui:widget": "operations" } } },
 };
+
+/**
+ * Where a registered source lives (MF-36): an `Endpoint` of this platform, or the base URL of an
+ * NGSI-LD API elsewhere. Exactly one of the two, so the form asks for one and shows that one.
+ */
+export const REGISTRATION_TARGETS = ["endpointRef", "endpoint"] as const;
+export type RegistrationTarget = (typeof REGISTRATION_TARGETS)[number];
+
+/** How the broker treats the source's answer, as CIM 009 clause 5.2.9 names the modes. */
+export const REGISTRATION_MODES = ["inclusive", "exclusive", "auxiliary", "redirect"] as const;
+
+/** Which identity a forwarded request carries (PF-48). */
+export const FEDERATION_IDENTITIES = ["serviceAccount", "caller"] as const;
+
+/** An RFC 3339 instant with seconds and an offset, which is what jc-core's `DateTime<Utc>` reads. */
+export const INSTANT_PATTERN =
+  "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$";
+
+/**
+ * The `ContextSourceRegistration` a person authors: the space whose broker learns of the source,
+ * where the source is, what it claims to hold, and who this platform is when it forwards
+ * (MF-36, PF-48, SP-09).
+ *
+ * `target` is the branch the person picked, as `syncSourceSchema` takes its origin: jc-core
+ * refuses a registration that names both an Endpoint and an address, so the form holds one.
+ * `operations` is CIM 009's vocabulary, offered through the policy form's picker from the same
+ * table (T-2282), and left empty it is the specification's default. The account to forward as is
+ * required in `serviceAccount` mode, because jc-core refuses the manifest without it (PF-48).
+ */
+export function registrationSchema(
+  t: (key: string) => string,
+  target: RegistrationTarget,
+  spaces: string[] = [],
+  endpoints: string[] = [],
+  serviceAccounts: string[] = [],
+  granted: string[] = [],
+): JsonSchema {
+  const targets: Record<RegistrationTarget, JsonSchema> = {
+    endpointRef: {
+      type: "string",
+      title: t("registrations.field.endpointRef"),
+      ...(endpoints.length > 0 ? { enum: endpoints } : { pattern: DNS1123 }),
+    },
+    endpoint: {
+      type: "string",
+      title: t("registrations.field.endpoint"),
+      pattern: "^https?://[^\\s/]+(/\\S*)?$",
+      maxLength: 2048,
+    },
+  };
+  return {
+    type: "object",
+    required: ["name", "contextSpaceRef", target, "information"],
+    properties: {
+      name: {
+        type: "string",
+        title: t("registrations.field.name"),
+        pattern: DNS1123,
+        maxLength: 63,
+      },
+      contextSpaceRef: {
+        type: "string",
+        title: t("registrations.field.space"),
+        ...(spaces.length > 0 ? { enum: spaces } : { pattern: DNS1123 }),
+      },
+      [target]: targets[target],
+      information: {
+        type: "array",
+        title: t("registrations.field.information"),
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["entities"],
+          properties: {
+            entities: {
+              type: "array",
+              title: t("registrations.field.entities"),
+              minItems: 1,
+              items: {
+                type: "object",
+                required: ["type"],
+                properties: {
+                  type: {
+                    type: "string",
+                    title: t("registrations.field.entityType"),
+                    pattern: ENTITY_TYPE_PATTERN,
+                  },
+                  id: {
+                    type: "string",
+                    title: t("registrations.field.entityId"),
+                    pattern: "^urn:ngsi-ld:[A-Z][A-Za-z0-9]{1,63}:\\S+$",
+                  },
+                  idPattern: { type: "string", title: t("registrations.field.idPattern") },
+                },
+              },
+            },
+            propertyNames: {
+              type: "array",
+              title: t("registrations.field.propertyNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+            relationshipNames: {
+              type: "array",
+              title: t("registrations.field.relationshipNames"),
+              items: { type: "string" },
+              uniqueItems: true,
+            },
+          },
+        },
+      },
+      operations: {
+        type: "array",
+        title: t("registrations.field.operations"),
+        items: { type: "string", enum: [...new Set([...OPERATION_CHOICES, ...granted])] },
+        uniqueItems: true,
+      },
+      mode: {
+        type: "string",
+        title: t("registrations.field.mode"),
+        enum: [...REGISTRATION_MODES],
+        default: "inclusive",
+      },
+      federation: {
+        type: "object",
+        title: t("registrations.field.federation"),
+        properties: {
+          identity: {
+            type: "string",
+            title: t("registrations.field.identity"),
+            enum: [...FEDERATION_IDENTITIES],
+            default: "serviceAccount",
+          },
+          serviceAccountRef: {
+            type: "string",
+            title: t("registrations.field.serviceAccount"),
+            ...(serviceAccounts.length > 0 ? { enum: serviceAccounts } : { pattern: DNS1123 }),
+          },
+        },
+        // Refused at the field rather than by the API afterwards: without the account there is no
+        // identity to forward as (PF-48).
+        if: { properties: { identity: { const: "serviceAccount" } } },
+        then: { required: ["serviceAccountRef"] },
+      },
+      interval: {
+        type: "string",
+        title: t("registrations.field.interval"),
+        pattern: "^[1-9][0-9]*(s|m|h|d)$",
+      },
+      expiresAt: {
+        type: "string",
+        title: t("registrations.field.expiresAt"),
+        pattern: INSTANT_PATTERN,
+      },
+    },
+  };
+}
+
+/**
+ * The operations picker, saying what an empty choice means for a registration: the source is
+ * registered for CIM 009's default operations, which is not the "nothing" it is on a policy.
+ */
+export function registrationUiSchema(t: (key: string) => string): UiSchema {
+  return {
+    operations: {
+      "ui:widget": "operations",
+      "ui:options": {
+        none: t("registrations.operations.none"),
+        moreHint: t("registrations.operations.moreHint"),
+      },
+    },
+    endpoint: { "ui:autocomplete": "off" },
+  };
+}

@@ -920,6 +920,15 @@
         "policy_form.test.tsx"
       ]
     },
+    "src/routes/RegistrationsPage.tsx": {
+      "controls": {
+        "Button": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "contextsourceregistration_form.test.tsx"
+      ]
+    },
     "src/routes/SpacesPage.tsx": {
       "controls": {
         "Button": 1

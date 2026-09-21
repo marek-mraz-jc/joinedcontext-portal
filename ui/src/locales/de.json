@@ -2485,5 +2485,50 @@
       "receiver": "Sendet an",
       "watches": "Beobachtet"
     }
+  },
+  "registrations": {
+    "title": "Kontextquellen-Registrierungen",
+    "lead": "Quellen, mit deren Daten der Broker eines Raums antwortet, als hielte er sie selbst: ein Endpoint dieser Plattform oder eine NGSI-LD-API anderswo.",
+    "empty": "Dieses Projekt registriert noch keine Kontextquelle.",
+    "add": "Neue Registrierung",
+    "addHint": "Speichern schlägt eine Änderung vor; der Broker erfährt von der Quelle, sobald sie genehmigt ist.",
+    "propose": "Änderung vorschlagen",
+    "target": "Wo die Daten liegen",
+    "targetKind": {
+      "endpointRef": "Ein Endpoint dieser Plattform",
+      "endpoint": "Eine NGSI-LD-API anderswo"
+    },
+    "targetHint": {
+      "endpointRef": "Ein anderer Raum dieses Projekts, erreicht über seinen Endpoint und dessen Richtlinien.",
+      "endpoint": "Ein Broker außerhalb dieser Plattform, über die Basis-URL seiner NGSI-LD-API."
+    },
+    "column": {
+      "source": "Quelle",
+      "covers": "Entitätstypen"
+    },
+    "operations": {
+      "none": "Leer gelassen, ist die Quelle für die Operationen registriert, die CIM 009 einer Registrierung standardmäßig gibt.",
+      "moreHint": "Die Operationen, aus denen die fünf Gruppen bestehen; eine Registrierung nennt normalerweise eine Gruppe."
+    },
+    "field": {
+      "name": "Name",
+      "space": "Kontextraum",
+      "endpointRef": "Endpoint",
+      "endpoint": "NGSI-LD-Basis-URL",
+      "information": "Was die Quelle hält",
+      "entities": "Entitätsauswahl",
+      "entityType": "Entitätstyp",
+      "entityId": "Entitätskennung",
+      "idPattern": "Kennungsmuster",
+      "propertyNames": "Eigenschaften",
+      "relationshipNames": "Beziehungen",
+      "operations": "Operationen",
+      "mode": "Modus",
+      "federation": "Identität beim Weiterleiten",
+      "identity": "Weiterleiten als",
+      "serviceAccount": "Dienstkonto",
+      "interval": "Intervall der Schemaspiegelung",
+      "expiresAt": "Läuft ab am"
+    }
   }
 }

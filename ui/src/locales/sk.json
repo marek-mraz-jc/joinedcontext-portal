@@ -2485,5 +2485,50 @@
       "receiver": "Posiela na",
       "watches": "Sleduje"
     }
+  },
+  "registrations": {
+    "title": "Registrácie kontextových zdrojov",
+    "lead": "Zdroje, ktorých údajmi broker priestoru odpovedá, akoby ich držal sám: endpoint tejto platformy alebo NGSI-LD API inde.",
+    "empty": "Tento projekt zatiaľ neregistruje žiadny kontextový zdroj.",
+    "add": "Nová registrácia",
+    "addHint": "Uložením navrhnete zmenu; broker sa o zdroji dozvie po schválení zmeny.",
+    "propose": "Navrhnúť zmenu",
+    "target": "Kde sú údaje",
+    "targetKind": {
+      "endpointRef": "Endpoint tejto platformy",
+      "endpoint": "NGSI-LD API inde"
+    },
+    "targetHint": {
+      "endpointRef": "Iný priestor tohto projektu, dostupný cez svoj Endpoint a politiky toho Endpointu.",
+      "endpoint": "Broker mimo tejto platformy, podľa základnej URL jeho NGSI-LD API."
+    },
+    "column": {
+      "source": "Zdroj",
+      "covers": "Typy entít"
+    },
+    "operations": {
+      "none": "Ak nič nevyberiete, zdroj je registrovaný na operácie, ktoré registrácii predvolene dáva CIM 009.",
+      "moreHint": "Operácie, z ktorých sa skladá päť skupín; registrácia zvyčajne uvádza skupinu."
+    },
+    "field": {
+      "name": "Názov",
+      "space": "Kontextový priestor",
+      "endpointRef": "Endpoint",
+      "endpoint": "Základná URL NGSI-LD",
+      "information": "Čo zdroj drží",
+      "entities": "Výbery entít",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátora",
+      "propertyNames": "Vlastnosti",
+      "relationshipNames": "Vzťahy",
+      "operations": "Operácie",
+      "mode": "Režim",
+      "federation": "Identita pri preposielaní",
+      "identity": "Preposielať ako",
+      "serviceAccount": "Servisný účet",
+      "interval": "Interval zrkadlenia schém",
+      "expiresAt": "Platí do"
+    }
   }
 }
