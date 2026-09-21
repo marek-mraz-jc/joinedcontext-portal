@@ -167,7 +167,7 @@ pub enum Operation {
 /// `docs/Architecture/06-configuration-as-code.md` §4 and CC-63.
 ///
 /// Precedence:
-/// - `Operation::Delete` is ALWAYS `Red`, without exception (CC-19, CC-39).
+/// - `Operation::Delete` is ALWAYS `Red`, without exception (CC-19, CC-39, PF-13).
 /// - `Endpoint` with `spec.audience == "public"` is `Red` (public exposure).
 /// - Federation edges and data-space edges (`ContextSourceRegistration`, `SharedSpaceReference`,
 ///   `DataSpaceParticipant`, `DataOffer`, `DataAgreement`) are `Red`.
@@ -365,6 +365,7 @@ mod tests {
         assert_eq!(json["metadata"]["namespace"], "helsinki");
     }
 
+    /// PF-13: a deletion of any managed resource takes the explicit protocol, never a lighter lane.
     #[test]
     fn deletions_always_land_in_red_lane() {
         let empty_spec = json!({});

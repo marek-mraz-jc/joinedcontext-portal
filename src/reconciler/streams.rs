@@ -676,7 +676,7 @@ fn labelled(component: serde_json::Value, label: &str) -> serde_json::Value {
 
 /// The author's processors from a `bento.yaml`. Its `input` is refused, the DataSource is the
 /// input (PL-39); its `output` and everything else at the top level are dropped: every stream
-/// writes through the endpoint upsert rendered here (PL-16), and the runner's own resources
+/// writes through the endpoint upsert rendered here (PL-16), never back to a caller (PL-06), and the runner's own resources
 /// (rate limits, caches) come from its resources file.
 fn bento_processors(bento: &str) -> Result<Vec<Value>, RenderError> {
     let config: Value =
@@ -1373,6 +1373,8 @@ fn pipeline_oauth2(project: &str) -> serde_json::Value {
 }
 
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
+/// It is the one output a stream has, so no pipeline answers a caller: a client-facing API is
+/// the Context Gateway's (PL-06, EP-05).
 ///
 /// An answer no retry can fix (a malformed entity, a batch too large) drops the batch and counts
 /// it under the output's label instead of retrying it for good, which stalled the messages behind
@@ -1958,6 +1960,41 @@ output:
         ));
         // An empty file is an author who has not written the mapping yet: the stream still renders.
         assert!(render("").is_ok());
+    }
+
+    /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
+    /// that serves HTTP is refused, and an output that answers the caller is replaced by the
+    /// endpoint write, whatever the author wrote.
+    #[test]
+    fn a_bento_cannot_serve_or_answer_http_requests() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        let ds = helsinki_datasource_spec();
+        let render =
+            |bento: &str| render_stream(&spec, "p", "helsinki", &ds, "src", "abc123", Some(bento));
+        assert!(matches!(
+            render("input:\n  http_server:\n    path: /api\n").unwrap_err(),
+            RenderError::BentoInput
+        ));
+        for output in [
+            "output:\n  sync_response: {}\n",
+            "output:\n  http_server:\n    path: /answer\n",
+        ] {
+            let rendered = render(&format!(
+                "pipeline:\n  processors:\n    - mapping: root = this\n{output}"
+            ))
+            .expect("renders");
+            let written = rendered["output"].as_object().expect("an output");
+            assert_eq!(
+                written.keys().filter(|k| *k != "label").collect::<Vec<_>>(),
+                vec!["http_client"],
+                "{output}"
+            );
+            let url = written["http_client"]["url"].as_str().unwrap_or_default();
+            assert!(url.contains("/api/endpoint/abc123/"), "{url}");
+            assert!(!rendered.to_string().contains("sync_response"), "{output}");
+            assert!(!rendered.to_string().contains("/answer"), "{output}");
+        }
     }
 
     #[tokio::test]
