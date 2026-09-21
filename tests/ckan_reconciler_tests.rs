@@ -101,6 +101,8 @@ fn target(name: &str, audience: &str, publication: Value) -> Target {
         publication: serde_json::from_value(publication).expect("a publication"),
         instance_name: "hel-fi".to_owned(),
         instance: serde_json::from_value(instance()).expect("an instance"),
+        language: None,
+        instance_title: None,
     }
 }
 
@@ -367,4 +369,51 @@ async fn without_a_way_to_read_the_token_the_run_says_so_and_publishes_nothing()
         "the reason says what is missing: {reason}"
     );
     assert!(!reason.contains(TOKEN), "the reason carried a credential");
+}
+
+/// T-2465, EP-62, EP-63: the reconciler's run carries what the walk resolved — the space's
+/// language picks the Slovak title and notes, the publication's licence fills the one term the
+/// gateway's record lacks, and an organization the catalogue lacks takes the instance's title
+/// rather than the installation's branding (which on dev names every organization after Helsinki).
+#[test]
+fn a_slovak_endpoint_publishes_under_its_slovak_title_licence_and_organization() {
+    let mut api = InMemoryCkan::new().with_token(TOKEN);
+    let mut target = target(
+        "public-air",
+        "public",
+        json!({ "instanceRef": { "kind": "CkanInstance", "name": "hel-fi" }, "license": "cc-by" }),
+    );
+    target.language = Some("sk".to_owned());
+    target.instance_title = Some("Mesto Banská Bystrica".to_owned());
+    let record = json!({
+        "dct:title": [
+            { "@value": "Air quality in Banská Bystrica", "@language": "en" },
+            { "@value": "Kvalita ovzdušia v Banskej Bystrici", "@language": "sk" }
+        ],
+    });
+
+    publish_with(&mut api, &target, &record, None, &settings()).expect("the endpoint publishes");
+
+    assert_eq!(api.actions(), vec!["organization_create", "package_create"]);
+    let (_, organization) = api.calls().next().expect("the organization call");
+    assert_eq!(organization["title"], json!("Mesto Banská Bystrica"));
+    let dataset = api.package("public-air").expect("the dataset");
+    assert_eq!(
+        dataset["title"],
+        json!("Kvalita ovzdušia v Banskej Bystrici")
+    );
+    assert_eq!(dataset["license_id"], json!("cc-by"));
+
+    // CC-18: the next reconcile finds the catalogue as it left it.
+    let again = publish_with(&mut api, &target, &record, None, &settings()).expect("second run");
+    assert!(
+        matches!(
+            again,
+            Publication::Published {
+                outcome: Outcome::Unchanged,
+                ..
+            }
+        ),
+        "{again:?}"
+    );
 }
