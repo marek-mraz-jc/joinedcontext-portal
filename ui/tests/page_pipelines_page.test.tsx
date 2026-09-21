@@ -156,6 +156,35 @@ describe("the pipelines page", () => {
     expect(window.localStorage.getItem("mqtt-credentials")).toBeNull();
   });
 
+  // PL-24, T-1503: a paused pipeline has no stream to measure, so its row says paused and the
+  // page never asks the runner; a runner that does not answer leaves the row without numbers.
+  it("a_paused_pipeline_says_paused_and_asks_the_runner_nothing", async () => {
+    const page = await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        if (path.endsWith("/pipelines")) {
+          return jsonResponse(
+            list([
+              pipeline("aq-paused", { spec: { class: "resident", enabled: false } }),
+              pipeline("aq-live"),
+            ]),
+          );
+        }
+        if (path.endsWith("/aq-live/metrics")) return problem(503, "the runner is not answering");
+        return undefined;
+      },
+    });
+    const paused = (await screen.findByText("aq-paused")).closest("tr") as HTMLElement;
+    expect(within(paused).getByText(en.pipelines.metrics.paused)).toBeInTheDocument();
+    const live = screen.getByText("aq-live").closest("tr") as HTMLElement;
+    expect(await within(live).findByText(en.pipelines.metrics.unavailable)).toBeInTheDocument();
+    const asked = page.fetchMock.mock.calls.map(([input]) =>
+      String(input instanceof Request ? input.url : input),
+    );
+    expect(asked.some((url) => url.includes("/aq-paused/metrics"))).toBe(false);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("says_everything_it_says_in_all_four_languages", async () => {
     for (const locale of LOCALES) {
       const { unmount } = await renderRoute({ path: PATH, locale, answer: answering([]) });
