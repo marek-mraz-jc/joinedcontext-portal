@@ -215,6 +215,13 @@ pub async fn delete_with_identity(
 
     // 1. Resolve plural catalogue entry and resource from mirror
     let kind_info = resource::by_plural(plural).ok_or_else(not_found)?;
+    // What a caller may not read is not there (R20, PF-59): the same 404 for a resource that
+    // exists as for one that does not, before anything is looked up (T-2563). A caller who reads
+    // it and lacks `delete` still gets the 403 that names the missing grant, below.
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read(kind_info.kind) {
+        return Err(not_found());
+    }
     // Inside a workspace the resource and what references it are read on its branch (CC-76).
     let mirror = match workspace {
         Some(workspace) => {
@@ -228,11 +235,10 @@ pub async fn delete_with_identity(
 
     // 1b. Deletion needs `delete` in a binding that covers the project (T-0526, PF-50).
     let target = serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
-    crate::permissions::for_request(state, identity, project).check(
-        kind_info.kind,
-        jc_core::kinds::Verb::Delete,
-        Some(&target),
-    )?;
+    if !effective.may_read_manifest(kind_info.kind, &target) {
+        return Err(not_found());
+    }
+    effective.check(kind_info.kind, jc_core::kinds::Verb::Delete, Some(&target))?;
 
     // 2. Every resource in the mirror that still references the target (MF-07, R20)
     let dependents = mirror.matching(|candidate| {
