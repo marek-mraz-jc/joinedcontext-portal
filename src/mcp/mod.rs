@@ -136,7 +136,8 @@ pub async fn oauth_protected_resource(State(state): State<AppState>) -> Response
         content = Object,
         description = "A JSON-RPC 2.0 request object: `jsonrpc`, `method`, `params`, `id`. The \
                        method decides what happens; the path never does (AG-60, ADR-N-021).",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} })
     ),
     responses(
         (status = 200, description = "The JSON-RPC response object. A refusal the protocol owns \

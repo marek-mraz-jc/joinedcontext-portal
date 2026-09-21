@@ -246,3 +246,280 @@ async fn without_a_backend_the_pipeline_is_refused_and_nothing_is_written() {
         "a value reached the status: {condition}"
     );
 }
+
+/// Edge cases of the OpenBao resolution itself (T-2503, PL-15, PL-17): every refusal names the
+/// reference a person wrote, and none carries the ServiceAccount JWT, the session token or a
+/// value. The role, the store's address and the KV path are deployment configuration, not
+/// credentials, and PL-17 redacts values; they may appear, so a person can act on the reason.
+mod openbao_edges {
+    use super::*;
+    use jc_core::envelope::SecretRef;
+    use joinedcontext_portal::pipeline_secrets::SecretError;
+    use std::path::Path;
+
+    const JWT: &str = "eyJ.the-service-account-jwt.sig";
+    const SESSION: &str = "hvs.the-session-token";
+
+    fn reference(name: &str, key: Option<&str>, env_var: &str) -> SecretRef {
+        SecretRef {
+            name: name.to_owned(),
+            key: key.map(str::to_owned),
+            env_var: Some(env_var.to_owned()),
+        }
+    }
+
+    fn token_file(name: &str, content: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("jc-portal-t2503-{name}-token"));
+        std::fs::write(&path, content).expect("write the token");
+        path
+    }
+
+    fn resolver(address: &str, jwt_path: std::path::PathBuf) -> Resolver {
+        Resolver::new(Backend::OpenBao {
+            address: address.to_owned(),
+            role: "portal".to_owned(),
+            jwt_path,
+        })
+    }
+
+    async fn login_ok(server: &MockServer) {
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/kubernetes/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "auth": { "client_token": SESSION, "lease_duration": 3600, "renewable": true }
+            })))
+            .mount(server)
+            .await;
+    }
+
+    async fn kv(server: &MockServer, name: &str, status: u16, body: Value) {
+        Mock::given(method("GET"))
+            .and(path(format!("/v1/secret/data/{name}")))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+            .mount(server)
+            .await;
+    }
+
+    async fn refusal(resolver: &Resolver, references: &[SecretRef]) -> (String, String) {
+        match resolver.resolve(Path::new("."), references).await {
+            Err(SecretError::Unresolved { name, reason }) => (name, reason),
+            other => panic!("expected a named refusal, got {other:?}"),
+        }
+    }
+
+    fn assert_no_credential(reason: &str) {
+        for secret in [JWT, SESSION, PASSWORD] {
+            assert!(
+                !reason.contains(secret),
+                "a credential reached the reason: {reason}"
+            );
+        }
+    }
+
+    /// Case 1: OpenBao refuses the login; the reason says so and carries neither the JWT nor a
+    /// session token.
+    #[tokio::test]
+    async fn a_login_the_realm_refuses_carries_no_jwt_in_the_message() {
+        let bao = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/kubernetes/login"))
+            .respond_with(
+                ResponseTemplate::new(403).set_body_json(json!({"errors": ["permission denied"]})),
+            )
+            .mount(&bao)
+            .await;
+        let resolver = resolver(&bao.uri(), token_file("login-refused", JWT));
+        let (name, reason) =
+            refusal(&resolver, &[reference("mqtt-mesto", None, "MQTT_PASSWORD")]).await;
+        assert_eq!(name, "mqtt-mesto");
+        assert!(
+            reason.contains("403") && reason.contains("permission denied"),
+            "{reason}"
+        );
+        assert_no_credential(&reason);
+    }
+
+    /// Case 2: a name that is not one path segment would read outside the project's subtree; it
+    /// is refused before any read, and no KV path is ever asked for.
+    #[tokio::test]
+    async fn a_reference_naming_a_path_outside_the_projects_subtree_is_refused() {
+        for bad in ["../other-project/db", "nested/name", ".hidden", ""] {
+            let bao = MockServer::start().await;
+            login_ok(&bao).await;
+            let resolver = resolver(&bao.uri(), token_file("outside", JWT));
+            let (name, reason) = refusal(&resolver, &[reference(bad, None, "X")]).await;
+            assert_eq!(name, bad);
+            assert!(reason.contains("single path segment"), "{bad}: {reason}");
+            let reads = bao.received_requests().await.unwrap_or_default();
+            assert!(
+                reads.iter().all(|r| r.method.as_str() != "GET"),
+                "{bad}: a KV read was sent: {reads:?}"
+            );
+        }
+    }
+
+    /// Case 3: the store cannot be reached; the reason says so and carries no credential.
+    #[tokio::test]
+    async fn a_transport_error_names_no_credential() {
+        // A port nothing listens on: bind, read the port, drop the listener.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .expect("a free port")
+            .local_addr()
+            .expect("an address")
+            .port();
+        let resolver = resolver(
+            &format!("http://127.0.0.1:{port}"),
+            token_file("unreachable", JWT),
+        );
+        let (name, reason) = refusal(&resolver, &[reference("mqtt-mesto", None, "M")]).await;
+        assert_eq!(name, "mqtt-mesto");
+        assert!(reason.contains("could not reach OpenBao"), "{reason}");
+        assert_no_credential(&reason);
+    }
+
+    /// Cases 4 and 5: a token file that is missing or empty is a named refusal before any
+    /// request, and never an empty login.
+    #[tokio::test]
+    async fn a_missing_or_empty_service_account_token_is_refused_before_any_request() {
+        let bao = MockServer::start().await;
+        login_ok(&bao).await;
+        let missing = std::env::temp_dir().join("jc-portal-t2503-no-such-token");
+        let _ = std::fs::remove_file(&missing);
+        for (jwt_path, expected) in [
+            (missing, "I/O error reading the ServiceAccount token"),
+            (token_file("empty", " \n"), "is empty"),
+        ] {
+            let resolver = resolver(&bao.uri(), jwt_path);
+            let (name, reason) = refusal(&resolver, &[reference("mqtt-mesto", None, "M")]).await;
+            assert_eq!(name, "mqtt-mesto");
+            assert!(reason.contains(expected), "{reason}");
+        }
+        let sent = bao.received_requests().await.unwrap_or_default();
+        assert!(
+            sent.is_empty(),
+            "a login was sent without a token: {sent:?}"
+        );
+    }
+
+    /// Cases 6 to 9, table-driven: what the store answers for the second of two references, and
+    /// the words the refusal must carry. The refusal names *that* reference, not the first one
+    /// the pipeline lists, so the person fixes the right secret.
+    #[tokio::test]
+    async fn a_secret_the_store_cannot_serve_is_refused_by_its_own_name() {
+        let cases: [(&str, u16, Value, Option<&str>, &str); 5] = [
+            (
+                "not-found",
+                404,
+                json!({}),
+                None,
+                "does not exist, or this role has no grant",
+            ),
+            (
+                "deleted",
+                200,
+                json!({"data": {"data": null, "metadata": {"version": 2}}}),
+                None,
+                "no live version",
+            ),
+            (
+                "wrong-key",
+                200,
+                json!({"data": {"data": {"password": "v"}, "metadata": {"version": 1}}}),
+                Some("username"),
+                "has no key `username`",
+            ),
+            (
+                "not-text",
+                200,
+                json!({"data": {"data": {"port": 1883}, "metadata": {"version": 1}}}),
+                Some("port"),
+                "is not a string",
+            ),
+            (
+                "several-keys",
+                200,
+                json!({"data": {"data": {"a": "1", "b": "2"}, "metadata": {"version": 1}}}),
+                None,
+                "must name one",
+            ),
+        ];
+        for (secret, status, body, key, expected) in cases {
+            let bao = MockServer::start().await;
+            login_ok(&bao).await;
+            kv(
+                &bao,
+                "mqtt-mesto",
+                200,
+                json!({"data": {"data": {"password": PASSWORD}, "metadata": {"version": 1}}}),
+            )
+            .await;
+            kv(&bao, secret, status, body).await;
+            let resolver = resolver(&bao.uri(), token_file("by-name", JWT));
+            let (name, reason) = refusal(
+                &resolver,
+                &[
+                    reference("mqtt-mesto", Some("password"), "MQTT_PASSWORD"),
+                    reference(secret, key, "SECOND"),
+                ],
+            )
+            .await;
+            assert_eq!(name, secret, "the refusal names another secret: {reason}");
+            assert!(reason.contains(expected), "{secret}: {reason}");
+            assert_no_credential(&reason);
+        }
+    }
+
+    /// Case 10: two references to two secrets resolve in one call, each to its own variable.
+    #[tokio::test]
+    async fn two_references_to_different_secrets_both_resolve_in_one_call() {
+        let bao = MockServer::start().await;
+        login_ok(&bao).await;
+        kv(
+            &bao,
+            "mqtt-mesto",
+            200,
+            json!({"data": {"data": {"password": PASSWORD}, "metadata": {"version": 1}}}),
+        )
+        .await;
+        kv(
+            &bao,
+            "http-api",
+            200,
+            json!({"data": {"data": {"token": "the-http-token"}, "metadata": {"version": 3}}}),
+        )
+        .await;
+        let resolver = resolver(&bao.uri(), token_file("two", JWT));
+        let environment = resolver
+            .resolve(
+                Path::new("."),
+                &[
+                    reference("mqtt-mesto", Some("password"), "MQTT_PASSWORD"),
+                    reference("http-api", None, "HTTP_TOKEN"),
+                ],
+            )
+            .await
+            .expect("both resolve");
+        assert_eq!(environment.len(), 2);
+        assert_eq!(environment["MQTT_PASSWORD"], PASSWORD);
+        assert_eq!(environment["HTTP_TOKEN"], "the-http-token");
+    }
+
+    /// Case 11: a pipeline with no references never logs in, never reads the token file, and
+    /// gets an empty environment. `environment()` returns before the backend is chosen, which is
+    /// what makes the `references[0]` of `resolve_with_openbao` safe.
+    #[tokio::test]
+    async fn an_empty_reference_list_never_reaches_the_resolver() {
+        let bao = MockServer::start().await;
+        let resolver = resolver(
+            &bao.uri(),
+            std::env::temp_dir().join("jc-portal-t2503-never"),
+        );
+        let environment = resolver
+            .resolve(Path::new("."), &[])
+            .await
+            .expect("nothing to resolve");
+        assert!(environment.is_empty());
+        let sent = bao.received_requests().await.unwrap_or_default();
+        assert!(sent.is_empty(), "the store was reached: {sent:?}");
+    }
+}

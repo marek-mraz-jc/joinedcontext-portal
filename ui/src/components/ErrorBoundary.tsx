@@ -26,7 +26,7 @@ function say(key: string, fallback: string): string {
 }
 
 /** Short enough to read out over a telephone, long enough not to collide within a day. */
-function reference(): string {
+export function errorReference(): string {
   try {
     return crypto.randomUUID().slice(0, 8);
   } catch {
@@ -38,11 +38,26 @@ interface State {
   reference: string | null;
 }
 
-export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
+export interface ErrorBoundaryProps {
+  children: ReactNode;
+  /**
+   * What to show instead of the whole-page panel. The Portal's chrome uses it to keep the
+   * header, the sidebar and the project switcher up while one page is down (T-2426): a person
+   * whose page failed can still go somewhere else, which is the one thing they will want.
+   */
+  fallback?: (reference: string, retry: () => void) => ReactNode;
+  /**
+   * A value that means "this is a different page now". React never clears a boundary by itself,
+   * so without this the panel would survive every navigation the chrome still allows.
+   */
+  resetKey?: string;
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   override state: State = { reference: null };
 
   static getDerivedStateFromError(): State {
-    return { reference: reference() };
+    return { reference: errorReference() };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -51,16 +66,27 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     console.error(`Portal error ${this.state.reference ?? ""}`, error, info.componentStack);
   }
 
+  override componentDidUpdate(previous: ErrorBoundaryProps): void {
+    if (this.state.reference !== null && previous.resetKey !== this.props.resetKey) {
+      this.retry();
+    }
+  }
+
+  private readonly retry = (): void => {
+    this.setState({ reference: null });
+  };
+
   override render(): ReactNode {
     const { reference: id } = this.state;
     if (id === null) {
       return this.props.children;
     }
-    return <ErrorPage reference={id} />;
+    return this.props.fallback ? this.props.fallback(id, this.retry) : <ErrorPage reference={id} />;
   }
 }
 
-function ErrorPage({ reference: id }: { reference: string }): JSX.Element {
+/** The whole-page panel: what is left when the chrome itself could not be drawn. */
+export function ErrorPage({ reference: id }: { reference: string }): JSX.Element {
   return (
     <main className="mx-auto flex max-w-lg flex-col gap-4 p-8" role="alert" aria-live="assertive">
       <h1 className="text-xl font-semibold">{say("app.error.crashTitle", "This page stopped")}</h1>

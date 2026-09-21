@@ -421,3 +421,66 @@ fn every_write_documents_its_refusals() {
         missing.join("\n")
     );
 }
+
+/// MF-40 (T-1655): an integrator writes the first call from the document, and schemathesis
+/// starts from what it shows, so every request body carries an example, and the example is one
+/// the body's own schema accepts. The example sits on the body or on the schema it names.
+#[test]
+fn every_request_body_has_an_example_that_validates_against_its_schema() {
+    let spec: serde_json::Value =
+        serde_json::to_value(ApiDoc::openapi()).expect("the document serializes");
+    let components = spec["components"].clone();
+    let mut missing = Vec::new();
+    let mut wrong = Vec::new();
+    for (path, item) in spec["paths"].as_object().expect("paths") {
+        for (method, operation) in item.as_object().expect("an operation map") {
+            let Some(content) = operation["requestBody"]["content"].as_object() else {
+                continue;
+            };
+            let call = format!("{} {path}", method.to_uppercase());
+            for (media, body) in content {
+                let schema = &body["schema"];
+                let named = schema["$ref"]
+                    .as_str()
+                    .and_then(|r| r.rsplit('/').next())
+                    .map(|name| &components["schemas"][name]);
+                let example = body
+                    .get("example")
+                    .or_else(|| named.and_then(|s| s.get("example")))
+                    .or_else(|| schema.get("example"));
+                let Some(example) = example else {
+                    missing.push(format!("{call} ({media})"));
+                    continue;
+                };
+                let mut root = schema.clone();
+                root["components"] = components.clone();
+                let validator = jsonschema::options()
+                    .with_draft(jsonschema::Draft::Draft202012)
+                    .build(&root)
+                    .unwrap_or_else(|err| panic!("{call}: the schema does not compile: {err}"));
+                let refused = validator
+                    .iter_errors(example)
+                    .next()
+                    .map(|err| format!("{err} at {}", err.instance_path()));
+                if let Some(refused) = refused {
+                    wrong.push(format!("{call} ({media}): {refused}"));
+                }
+                // A manifest in an example, whole or under `manifest`, is one its kind's own
+                // typed parse accepts (MF-37): the envelope's schema leaves `spec` open.
+                let manifest = example.get("manifest").unwrap_or(example);
+                if let Some(kind) = manifest.get("kind").and_then(|k| k.as_str()) {
+                    let yaml = serde_json::to_string(manifest).expect("an example serializes");
+                    if let Some(Err(err)) = jc_core::registry::validate_yaml(kind, &yaml) {
+                        wrong.push(format!("{call} ({media}): the {kind} is not one: {err}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty() && wrong.is_empty(),
+        "request bodies without an example:\n{}\n\nexamples their schema refuses:\n{}",
+        missing.join("\n"),
+        wrong.join("\n")
+    );
+}

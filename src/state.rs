@@ -160,6 +160,7 @@ impl AppState {
     pub fn with_db(mut self, db: sqlx::PgPool) -> Self {
         self.agents = Arc::new(AgentStore::new(Some(db.clone())));
         self.drafts = DraftStore::new(Some(db.clone())).with_hub(self.draft_events.clone());
+        self.draft_events.connect(db.clone());
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
@@ -200,6 +201,9 @@ impl AppState {
             );
         }
         state.drafts = DraftStore::new(db.clone()).with_hub(state.draft_events.clone());
+        if let Some(db) = &db {
+            state.draft_events.connect(db.clone());
+        }
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());

@@ -61,6 +61,18 @@ describe("what a colour token takes", () => {
     );
   });
 
+  it("the_dark_themes_pair_is_written_and_checked_like_the_light_one", () => {
+    // Both are computed by the API and both land in a custom property, so both are checked here
+    // as well: an answer that did not come from our own handler is still an answer (T-2324).
+    const good = apply({ primaryDark: "#4a505d", primaryForegroundDark: "#ffffff" });
+    expect(good.getPropertyValue("--portal-color-primary-dark")).toBe("#4a505d");
+    expect(good.getPropertyValue("--portal-color-primary-fg-dark")).toBe("#ffffff");
+
+    const bad = apply({ primaryDark: "url(x)", primaryForegroundDark: "expression(alert(1))" });
+    expect(bad.getPropertyValue("--portal-color-primary-dark")).toBe("");
+    expect(bad.getPropertyValue("--portal-color-primary-fg-dark")).toBe("");
+  });
+
   it("isHexColour_takes_three_and_six_digits_and_nothing_else", () => {
     for (const good of ["#fff", "#FFF", "#1d4ed8", "#1D4ED8"]) expect(isHexColour(good), good).toBe(true);
     for (const bad of ["fff", "#ff", "#ffff", "#fffffff", "#ggg", "", "#", "#fff "])

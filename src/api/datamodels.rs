@@ -545,6 +545,7 @@ pub async fn get_source(
         content = String,
         description = "LinkML source in YAML format",
         content_type = "text/yaml",
+        example = json!("id: https://hel.fi/models/air\nname: air\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports: [linkml:types]\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
