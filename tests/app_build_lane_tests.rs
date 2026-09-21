@@ -33,7 +33,9 @@ fn state_with(gitea: &MockServer) -> AppState {
         "Role",
         "app-editor",
         ORG_NAMESPACE,
-        json!({ "rules": [{ "kinds": ["App"], "verbs": ["propose"] }] }),
+        // ContextSpace too, so the refusal of a build on another kind is the content check
+        // and not the verb check that runs before the manifest is read (T-2576).
+        json!({ "rules": [{ "kinds": ["App", "ContextSpace"], "verbs": ["propose"] }] }),
     ));
     // The space the app's `dataNeeds` names: a manifest naming a resource that is not in the
     // project is refused before the lane is judged at all (MF-13, T-2268), and this project really
@@ -202,7 +204,8 @@ async fn an_image_annotation_is_refused_from_the_build_lane_too() {
     }
 }
 
-/// A `status.build` on any other kind is the platform's computation, whoever asks.
+/// A `status.build` on any other kind is the platform's computation, whoever asks: even a
+/// person who may propose that kind is refused on the content.
 #[tokio::test]
 async fn a_build_on_another_kind_is_refused() {
     let gitea = forge().await;
@@ -210,7 +213,7 @@ async fn a_build_on_another_kind_is_refused() {
 
     let refused = send(
         &state,
-        person("builder"),
+        person("jana"),
         "POST",
         "/api/v1/projects/ovzdusie/spaces",
         Some(json!({
