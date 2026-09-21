@@ -407,6 +407,12 @@ pub(crate) async fn check_source(
 ) -> Result<(SourceDryRunResult, Value), ApiError> {
     let next_val: Value = serde_yaml_ng::from_str(source)
         .map_err(|e| ApiError::BadRequest(format!("invalid yaml body: {e}")))?;
+    // The source is committed as typed, so a pasted credential would land in Git (MF-24).
+    if let Some(key) = crate::api::mutate::find_literal_secret(&next_val) {
+        return Err(ApiError::BadRequest(format!(
+            "literal secret in field '{key}' is forbidden; use secretRef instead (MF-24)"
+        )));
+    }
 
     let published_source = read_source(state, project, name).await.ok();
     let prev_val: Value = published_source
