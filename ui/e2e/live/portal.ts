@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import type { Browser, BrowserContext, Page } from "@playwright/test";
+import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
 export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };
@@ -27,12 +27,31 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   }
   const context = await browser.newContext();
   const page = await context.newPage();
+  await goSignedIn(page, who, path);
+  return { context, page };
+}
+
+/** The Portal's own landmark: what every Portal page has once the sign-in is over. */
+export const portalReady = (page: Page): Locator => page.getByRole("navigation", { name: "Main navigation" });
+
+/**
+ * Opens `url` and walks whatever sign-in stands in the way — the Portal's /login button, Keycloak's
+ * form — until `ready` is visible. An application page has no Portal navigation, so a journey into
+ * one names its own landmark (the app's heading) rather than waiting for one that never comes
+ * (T-2309).
+ */
+export async function goSignedIn(
+  page: Page,
+  who: { user: string; password: string },
+  url: string,
+  ready: (page: Page) => Locator = portalReady,
+): Promise<void> {
   // `load`, never `networkidle`: the Portal holds an activity stream and a drafts stream open
   // (`src/api/activity.ts`, `src/api/drafts.ts`, both `EventSource`) and polls a pending list
   // every ten seconds, so the network is never idle on any signed-in page. Waiting for it spent
   // the whole test budget on the login hop and every journey read as a timeout on whatever came
   // next (T-2452). Each step below waits for the thing it actually needs instead.
-  await page.goto(path, { waitUntil: "load" });
+  await page.goto(url, { waitUntil: "load" });
   for (let step = 0; step < 4; step += 1) {
     if (await page.locator("#username").count()) {
       await page.fill("#username", who.user);
@@ -50,8 +69,7 @@ export async function signIn(browser: Browser, who: { user: string; password: st
     }
     break;
   }
-  await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible({ timeout: 60_000 });
-  return { context, page };
+  await expect(ready(page)).toBeVisible({ timeout: 60_000 });
 }
 
 /** Asks in the docked assistant: its first composer, or the conversation's once one is running. */
