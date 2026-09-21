@@ -69,6 +69,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   // not arrived, so both branches are arranged by the one manifest (T-2400).
   Role: [kinds.roleSchema(t), kinds.roleSchema(t, ["Pipeline", "DataSource"], ["propose"])],
   Group: [kinds.groupSchema(t)],
+  Subscription: [kinds.subscriptionSchema(t, ["ovzdusie"], ["dispecing-hook"])],
+  ServiceAccount: [kinds.serviceAccountSchema(t, ["ovzdusie"])],
   // Edited from the generic list; created on the Models page's Mappings tab (T-2354).
   Mapping: [mappingSchema(t)],
   // Edited from the generic list; written in the Models page's LinkML editor (T-2357).

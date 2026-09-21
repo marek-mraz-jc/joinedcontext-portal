@@ -52,7 +52,8 @@
     "activity": "Activity",
     "import": "Import",
     "workspaces": "Kopie",
-    "policies": "Politiky"
+    "policies": "Politiky",
+    "subscriptions": "Odběry"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -1024,7 +1025,34 @@
       "empty": "Tento projekt zatím nemá servisní účet.",
       "owner": "Odpovědná osoba",
       "roles": "Role",
-      "purpose": "Účel"
+      "purpose": "Účel",
+      "add": "Nový servisní účet",
+      "addHint": "Uložením navrhnete změnu; účet a jeho klient vzniknou po jejím schválení.",
+      "propose": "Navrhnout změnu",
+      "field": {
+        "name": "Název",
+        "purpose": "Účel",
+        "owner": "Vlastník",
+        "ownerUser": "Přihlášení vlastníka",
+        "roles": "Oprávnění",
+        "role": "Role",
+        "scope": "Rozsah",
+        "scopeLevel": "Úroveň rozsahu",
+        "scopeName": "Název rozsahu",
+        "operations": "Operace",
+        "types": "Typy entit",
+        "credentials": "Přihlašovací údaje",
+        "credentialKind": "Typ údaje",
+        "credentialName": "Název údaje",
+        "expiresAt": "Platí do",
+        "ipAllowList": "Povolené bloky adres",
+        "limits": "Limity",
+        "requestsPerMinute": "Požadavky za minutu",
+        "workload": "Úloha v clusteru",
+        "kubernetes": "Kubernetes",
+        "k8sNamespace": "Jmenný prostor",
+        "k8sServiceAccount": "Servisní účet Kubernetes"
+      }
     },
     "keys": {
       "create": "Nový API klíč ({credential})",
@@ -2449,6 +2477,42 @@
       "validFrom": "Platí od",
       "validTo": "Platí do",
       "grants": "Povoluje"
+    }
+  },
+  "subscriptions": {
+    "title": "Odběry",
+    "lead": "Trvalé dotazy prostorů tohoto projektu: které změny se sledují a kam broker posílá notifikaci.",
+    "empty": "Tento projekt zatím nemá žádný odběr.",
+    "add": "Nový odběr",
+    "addHint": "Uložením navrhnete změnu; broker začne posílat notifikace po jejím schválení.",
+    "propose": "Navrhnout změnu",
+    "watchesNothing": "Odběr musí něco sledovat: přidejte výběr entit, sledovaný atribut nebo obojí.",
+    "paused": "Pozastavený",
+    "field": {
+      "name": "Název",
+      "subscriptionName": "Zobrazovaný název",
+      "space": "Kontextový prostor",
+      "description": "Popis",
+      "entities": "Sledované entity",
+      "entityType": "Typ entity",
+      "entityId": "Identifikátor entity",
+      "idPattern": "Vzor identifikátoru",
+      "watchedAttributes": "Sledované atributy",
+      "notification": "Notifikace",
+      "endpoint": "Příjemce",
+      "uri": "Adresa",
+      "accept": "Typ média",
+      "receiverInfo": "Hlavičky",
+      "headerName": "Název hlavičky",
+      "headerValue": "Hodnota hlavičky",
+      "secretRef": "Přihlašovací údaj",
+      "format": "Formát",
+      "attributes": "Posílané atributy",
+      "throttling": "Nejkratší interval (sekundy)",
+      "expiresAt": "Platí do",
+      "isActive": "Posílat notifikace",
+      "receiver": "Posílá na",
+      "watches": "Sleduje"
     }
   }
 }
