@@ -561,6 +561,73 @@ async fn mcp_tools_call_jc_catalog_search() {
     assert!(content[0]["text"].as_str().unwrap().contains("public-air"));
 }
 
+/// AG-12, CC-47: every `tools/call` result says what configuration it was evaluated against —
+/// the mirror's revision, when, and whether that revision may be behind the repository — on an
+/// answer and on a refusal alike. A JSON-RPC error carries no result and so no grounding.
+#[tokio::test]
+async fn every_tool_result_is_grounded_in_the_revision_it_was_evaluated_against() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let token = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "steward.user",
+        &["portal-approver"],
+        &["platform-admins"],
+    );
+    let call = |params: Value| {
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            let body =
+                json!({ "jsonrpc": "2.0", "id": 21, "method": "tools/call", "params": params });
+            let resp = app
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/v1/mcp")
+                        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        }
+    };
+
+    let answered = call(json!({
+        "name": "jc_catalog_search",
+        "arguments": { "project": "ovzdusie", "q": "air" }
+    }))
+    .await;
+    let refused = call(json!({ "name": "jc_catalog_search", "arguments": { "q": "air" } })).await;
+    assert_eq!(answered["result"]["isError"], false);
+    assert_eq!(refused["result"]["isError"], true);
+
+    for envelope in [&answered, &refused] {
+        let grounding = &envelope["result"]["_meta"]["joinedcontext.com/grounding"];
+        // This Portal has no repository to sync from, and says so rather than inventing a commit.
+        assert_eq!(grounding["drift"], "unsynced", "{envelope}");
+        assert_eq!(grounding["revision"], Value::Null);
+        assert_eq!(grounding["syncedAt"], Value::Null);
+        let at = grounding["evaluatedAt"].as_str().expect("evaluatedAt");
+        assert!(at.ends_with('Z'), "UTC: {at}");
+        chrono::DateTime::parse_from_rfc3339(at).expect("RFC 3339");
+        let text = grounding.to_string();
+        assert!(!text.contains("http") && !text.contains("token"), "{text}");
+    }
+
+    let unknown =
+        call(json!({ "name": "jc_no_such_tool", "arguments": { "project": "ovzdusie" } })).await;
+    assert!(unknown.get("error").is_some(), "{unknown}");
+    assert!(unknown.get("result").is_none());
+}
+
 #[tokio::test]
 async fn mcp_wrong_audience_bearer_returns_401_with_www_authenticate() {
     let (app, issuer, signer, kid) = setup_app_and_keys().await;

@@ -291,7 +291,14 @@ describe("dashboard editors", () => {
     const dialog = await findFormPage(en.dashboards.add);
     expect(writes(fetchMock)).toHaveLength(0);
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some((call) => (call[0] as Request).url.endsWith("/drafts/Layer/stations"))).toBe(true),
+      expect(
+        fetchMock.mock.calls.some((call) => {
+          // The layer's GeoJSON is read with a plain URL string; the draft goes through the client.
+          const input = call[0] as RequestInfo | URL;
+          const url = input instanceof Request ? input.url : String(input);
+          return new URL(url, window.location.origin).pathname.endsWith("/drafts/Layer/stations");
+        }),
+      ).toBe(true),
     );
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
