@@ -9331,6 +9331,16 @@
             },
             "description": "What the bundle cannot carry and has to be provided where it lands (CC-84): secret\nvalues, people, hosts, feed credentials. Empty means nothing is to be provided. Never a\nsecret value, only where one is set."
           },
+          "reassigned": {
+            "type": "object",
+            "description": "Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`\nto the DID the bundle carried: the grant is this organisation's now (CC-82, R6).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "renamed": {
             "type": "object",
             "description": "Resources imported under a new name, `old -> new` (`rename`).",

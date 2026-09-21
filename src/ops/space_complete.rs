@@ -1231,6 +1231,7 @@ pub async fn run(
             replaced: Vec::new(),
             skipped: Vec::new(),
             renamed: BTreeMap::new(),
+            reassigned: BTreeMap::new(),
             native_files: if drafts.iter().any(|d| d.kind == "DataModel") {
                 1
             } else {

@@ -2164,6 +2164,13 @@ export interface components {
              *     secret value, only where one is set.
              */
             needs: components["schemas"]["Need"][];
+            /**
+             * @description Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+             *     to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+             */
+            reassigned?: {
+                [key: string]: string;
+            };
             /** @description Resources imported under a new name, `old -> new` (`rename`). */
             renamed: {
                 [key: string]: string;
