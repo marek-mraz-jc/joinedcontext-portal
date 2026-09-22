@@ -19,6 +19,8 @@ import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { askAbout, standingIn } from "../assistant/state";
+import type { Effective } from "../api/permissions";
+import { proposeStanding } from "../api/approval";
 import type { Draft, Verdict } from "../api/drafts";
 
 // Monaco is loaded when the YAML view is opened and not before: it is the heaviest thing in
@@ -929,6 +931,8 @@ export function ResourceFormDialog<T>({
           </Alert>
         ) : null}
 
+        {draftKind && project ? <ProposeStandingNote project={project} kind={draftKind} /> : null}
+
         {draftKind && (currentDraft || isStrict) ? (
           <div className="flex flex-wrap items-center gap-2">
             {currentDraft ? (
@@ -1130,5 +1134,22 @@ export function ResourceFormDialog<T>({
         )}
       </div>
     </FormFrame>
+  );
+}
+
+/**
+ * Before the click, what proposing leads to: approved at once, or waiting for another approver
+ * and why (PF-58, PF-70). It reads the permissions the page already holds and fetches nothing, so
+ * opening a form never races its draft's load with a request of its own.
+ */
+function ProposeStandingNote({ project, kind }: { project: string; kind: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const { data } = useQuery<Effective>({ queryKey: queryKeys.permissions(project), enabled: false });
+  const standing = proposeStanding(data, kind);
+  if (!standing) return null;
+  return (
+    <p role="status" data-testid="propose-standing" className="text-caption text-fg-muted">
+      {t(`changes.${standing}`, { kind })}
+    </p>
   );
 }

@@ -149,6 +149,16 @@ describe("the refusal of a destructive confirm (UI-44)", () => {
       `/api/v1/projects/banskabystrica/endpoints/${NAME}`,
     );
   });
+
+  // PF-58, CC-39: the typed name goes with the removal, so an administrator's is approved with it.
+  it("the_typed_name_is_sent_as_the_confirmation", async () => {
+    const { sent } = renderDialog();
+    await userEvent.type(within(await dialog()).getByLabelText(`Type ${NAME} to confirm`), NAME);
+    await userEvent.click(await propose());
+    await waitFor(() => expect(sent.some((request) => request.method === "DELETE")).toBe(true));
+    const removal = sent.find((request) => request.method === "DELETE")!;
+    expect(new URL(removal.url, window.location.origin).searchParams.get("confirm")).toBe(NAME);
+  });
 });
 
 describe("what the server refuses is said in the server's words", () => {

@@ -49,7 +49,8 @@ export function DeleteResourceDialog({
     mutationFn: async () =>
       unwrap(
         await api.DELETE("/api/v1/projects/{project}/{plural}/{name}", {
-          params: { path: { project: home, plural, name } },
+          // The name typed back: an administrator's removal is approved with it (PF-58, CC-39).
+          params: { path: { project: home, plural, name }, query: { confirm: typed } },
         }),
       ),
     onSuccess: (result) => {
