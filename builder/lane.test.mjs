@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { appOf, bundleFunctions, functionEntries, propose, refusedDependencies, sbomOf, withBuild } from "./lane.mjs";
+import { createHash } from "node:crypto";
+import { appOf, artifactScope, bundleFunctions, functionEntries, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -140,4 +141,69 @@ test("a refusal names the App and the Portal's reason, never the token", async (
     /cannot read the App helsinki\/gone: the Portal answered 404/,
   );
   assert.equal(missing.calls.length, 1, "nothing is written after a failed read");
+});
+
+function jwt(claims) {
+  const part = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${part({ alg: "HS256" })}.${part(claims)}.sig`;
+}
+const RUNTIME = jwt({ scp: "Actions.UploadArtifacts:3:5 Actions.Results:3:5" });
+
+// AP-101: the run and job come from the runtime token the forge issued, nothing else.
+test("the artifact scope is the run and job of the runtime token", () => {
+  assert.deepEqual(artifactScope(RUNTIME), { workflowRunBackendId: "3", workflowJobRunBackendId: "5" });
+  assert.throws(() => artifactScope(jwt({ scp: "Actions.UploadArtifacts:3:5" })), /names no run/);
+  assert.throws(() => artifactScope("not-a-jwt"), /names no run/);
+  assert.throws(() => artifactScope(undefined), /names no run/);
+});
+
+function forge(answers) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url: String(url), method: init.method, headers: init.headers, body: init.body });
+    const [status, body] = answers.shift();
+    return { ok: status < 300, status, text: async () => (body === undefined ? "" : JSON.stringify(body)) };
+  };
+  return { calls, fetchImpl };
+}
+
+// AP-101, ADR-N-028: create, append, finalize; the signed address is sent to the runner's forge
+// origin, its signature kept, and the hash is the SHA-256 of the bytes uploaded.
+test("upload creates, appends to the in-cluster origin, and finalizes with the bytes' hash", async () => {
+  const signed = "https://forge.public.example/twirp/api/actions/3/artifacts/9/upload?sig=abc&expires=1";
+  const { calls, fetchImpl } = forge([[200, { ok: true, signedUploadUrl: signed }], [201], [200, { ok: true }]]);
+  const bytes = Buffer.from("bundle");
+  const hash = await uploadArtifact("http://gitea-http:3000/api/actions_pipeline/", RUNTIME, "bundle-abc", bytes, fetchImpl);
+
+  const expected = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+  assert.equal(hash, expected);
+  const service = "http://gitea-http:3000/api/actions_pipeline/twirp/github.actions.results.api.v1.ArtifactService/";
+  assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), [
+    `POST ${service}CreateArtifact`,
+    "PUT http://gitea-http:3000/twirp/api/actions/3/artifacts/9/upload?sig=abc&expires=1&comp=block",
+    `POST ${service}FinalizeArtifact`,
+  ]);
+  assert.deepEqual(JSON.parse(calls[0].body), { workflowRunBackendId: "3", workflowJobRunBackendId: "5", name: "bundle-abc", version: 4 });
+  assert.deepEqual(JSON.parse(calls[2].body), { workflowRunBackendId: "3", workflowJobRunBackendId: "5", name: "bundle-abc", size: "6", hash: expected });
+  assert.equal(calls[0].headers.Authorization, `Bearer ${RUNTIME}`);
+  assert.equal(calls[1].headers.Authorization, undefined, "the signed address carries its own grant");
+});
+
+test("a refused upload names the artifact and stops before finalize", async () => {
+  const refused = forge([[401, { msg: "bad token" }]]);
+  await assert.rejects(uploadArtifact("http://f/api/actions_pipeline", RUNTIME, "sbom-abc", Buffer.from("x"), refused.fetchImpl), /refused CreateArtifact of sbom-abc: 401/);
+  const noAddress = forge([[200, { ok: true }]]);
+  await assert.rejects(uploadArtifact("http://f/", RUNTIME, "sbom-abc", Buffer.from("x"), noAddress.fetchImpl), /no upload address for sbom-abc/);
+  const put = forge([[200, { signedUploadUrl: "http://f/u?sig=1" }], [500]]);
+  await assert.rejects(uploadArtifact("http://f/", RUNTIME, "sbom-abc", Buffer.from("x"), put.fetchImpl), /refused the upload of sbom-abc: 500/);
+  assert.equal(put.calls.length, 2, "nothing is finalized after a failed upload");
+});
+
+// AP-80: the outputs the propose job reads are the four fields, checked before they are written.
+test("the build job's outputs are the four fields of status.build, checked", () => {
+  assert.equal(outputsOf(build), `digest=${build.digest}\ncommit=${build.commit}\nsdk-version=${build.sdkVersion}\nbuilt-at=${build.builtAt}\n`);
+  assert.throws(() => outputsOf({ ...build, sdkVersion: "0.4.1\ndigest=sha256:evil" }), /SDK version/);
+  assert.throws(() => outputsOf({ ...build, builtAt: "yesterday" }), /UTC build time/);
+  assert.throws(() => outputsOf({ ...build, commit: "" }), /full commit/);
+  assert.throws(() => outputsOf(undefined), /sha256 digest/);
 });

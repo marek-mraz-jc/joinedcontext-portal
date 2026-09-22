@@ -7,12 +7,16 @@
 //   node lane.mjs app <owner/repo>     prints "{project} {app}" of an application repository
 //   node lane.mjs sbom <node_modules> <out-file>
 //                                      the CycloneDX SBOM of the packages the build linked
-//   node lane.mjs propose <owner/repo> <build.json>
-//                                      proposes status.build as the lane (JC_PORTAL_URL, JC_LANE_TOKEN)
+//   node lane.mjs upload <build-dir>   uploads bundle-{commit} and sbom-{commit} as the run's
+//                                      artifacts and writes the build to $GITHUB_OUTPUT
+//   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
+//                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
+//                                      to JC_PORTAL_URL with JC_LANE_TOKEN
 //
 // Lives beside /opt/template/node_modules in the image, so `vite` resolves to the template's.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const TEMPLATE = new URL("./package.json", import.meta.url);
@@ -126,6 +130,63 @@ export function withBuild(app, build) {
   return { apiVersion, kind, metadata, spec, status: { build } };
 }
 
+/** The run and job a runtime token was issued for (`scp: Actions.Results:{run}:{job}`). */
+export function artifactScope(runtimeToken) {
+  let claims = {};
+  try {
+    claims = JSON.parse(Buffer.from(String(runtimeToken).split(".")[1] ?? "", "base64url").toString());
+  } catch {
+    // A token that is not a JWT has no scope, which the check below says.
+  }
+  const scope = /(?:^| )Actions\.Results:([^: ]+):([^: ]+)/.exec(String(claims.scp ?? ""));
+  if (!scope) throw new Error("ACTIONS_RUNTIME_TOKEN names no run to upload to");
+  return { workflowRunBackendId: scope[1], workflowJobRunBackendId: scope[2] };
+}
+
+/**
+ * Uploads `bytes` as the run's artifact `name` through the forge's artifact API (v4): create,
+ * append, finalize. The upload address the forge signs carries its public ROOT_URL, which the
+ * runner cannot reach, so it is sent to the origin of `ACTIONS_RESULTS_URL` with the signed path
+ * and query kept as they are.
+ */
+export async function uploadArtifact(resultsUrl, runtimeToken, name, bytes, fetchImpl = fetch) {
+  const base = new URL(resultsUrl);
+  const ids = artifactScope(runtimeToken);
+  const service = new URL("twirp/github.actions.results.api.v1.ArtifactService/", `${base.origin}${base.pathname.replace(/\/*$/, "/")}`);
+  const call = async (method, body) => {
+    const response = await fetchImpl(new URL(method, service), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${runtimeToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`the forge refused ${method} of ${name}: ${response.status} ${text.slice(0, 200)}`);
+    return JSON.parse(text || "{}");
+  };
+  const created = await call("CreateArtifact", { ...ids, name, version: 4 });
+  if (!created.signedUploadUrl) throw new Error(`the forge gave no upload address for ${name}`);
+  const signed = new URL(created.signedUploadUrl);
+  const upload = new URL(`${signed.pathname}${signed.search}`, base.origin);
+  upload.searchParams.set("comp", "block");
+  const put = await fetchImpl(upload, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: bytes });
+  if (!put.ok) throw new Error(`the forge refused the upload of ${name}: ${put.status}`);
+  const hash = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+  await call("FinalizeArtifact", { ...ids, name, size: String(bytes.length), hash });
+  return hash;
+}
+
+/** The build job's outputs, one `key=value` line each, the four fields checked first. */
+export function outputsOf(build) {
+  const { digest, commit, sdkVersion, builtAt } = build ?? {};
+  if (!DIGEST.test(digest ?? "") || !COMMIT.test(commit ?? "")) {
+    throw new Error("build.json holds no sha256 digest and full commit");
+  }
+  if (!/^[0-9A-Za-z.+-]{1,64}$/.test(sdkVersion ?? "") || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(builtAt ?? "")) {
+    throw new Error("build.json holds no SDK version and UTC build time");
+  }
+  return `digest=${digest}\ncommit=${commit}\nsdk-version=${sdkVersion}\nbuilt-at=${builtAt}\n`;
+}
+
 /** Reads the App, then proposes it back with `status.build`; the Change the Portal answers. */
 export async function propose(api, token, repository, build, fetchImpl = fetch) {
   const { project, app } = appOf(repository);
@@ -170,17 +231,36 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const store = join(appDir, ".pnpm");
       const folders = existsSync(store) ? readdirSync(store) : [];
       writeFileSync(outDir, JSON.stringify(sbomOf(folders), null, 2) + "\n");
-    } else if (command === "propose" && appDir && outDir) {
+    } else if (command === "upload" && appDir) {
+      const env = process.env;
+      if (!env.ACTIONS_RESULTS_URL || !env.ACTIONS_RUNTIME_TOKEN || !env.GITHUB_OUTPUT) {
+        throw new Error("upload runs in a workflow job: ACTIONS_RESULTS_URL, ACTIONS_RUNTIME_TOKEN and GITHUB_OUTPUT are not set");
+      }
+      const build = JSON.parse(readFileSync(join(appDir, "build.json"), "utf8"));
+      const outputs = outputsOf(build);
+      const bundle = await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `bundle-${build.commit}`, readFileSync(join(appDir, "bundle.tar.gz")));
+      if (bundle !== build.digest) throw new Error(`the bundle uploaded is ${bundle}, not the ${build.digest} that was built`);
+      await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `sbom-${build.commit}`, readFileSync(join(appDir, "sbom.cdx.json")));
+      appendFileSync(env.GITHUB_OUTPUT, outputs);
+      console.log(`uploaded bundle-${build.commit} ${bundle}`);
+    } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
       const token = process.env.JC_LANE_TOKEN ?? "";
       if (!/^https?:\/\//.test(api)) throw new Error("JC_PORTAL_URL is not an http(s) URL");
       if (!token) throw new Error("JC_LANE_TOKEN is not set");
-      const change = await propose(api, token, appDir, JSON.parse(readFileSync(outDir, "utf8")));
+      const build = {
+        digest: process.env.JC_DIGEST,
+        commit: process.env.JC_COMMIT,
+        sdkVersion: process.env.JC_SDK_VERSION,
+        builtAt: process.env.JC_BUILT_AT,
+      };
+      outputsOf(build);
+      const change = await propose(api, token, appDir, build);
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | propose <owner/repo> <build.json>",
+        "usage: lane.mjs deps <app-dir> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

@@ -1,8 +1,8 @@
 #!/bin/sh
 # The build step of an application's workflow (AP-80, AP-82, ADR-N-028): clone the application at
-# its commit, test and build it offline, and leave in $JC_BUILD_DIR the package the next step
-# publishes, `bundle.tar.gz` and `sbom.cdx.json`, and `build.json`, the `status.build` the last
-# step proposes (AP-13a, AP-101). `.gitea/workflows/build.yml` of the template sets:
+# its commit, test and build it offline, and leave in $JC_BUILD_DIR what the next step uploads as
+# the run's artifacts, `bundle.tar.gz` and `sbom.cdx.json`, and `build.json`, the `status.build`
+# the `propose` job sends (AP-13a, AP-101, AP-104). `.gitea/workflows/build.yml` of the template sets:
 #
 #   JC_APP_REPO     https URL of the application's repository on the forge
 #   JC_APP_COMMIT   the commit to build, 40 lowercase hex
@@ -35,10 +35,10 @@ git -C "$APP" -c advice.detachedHead=false checkout -q FETCH_HEAD
 COMMIT=$(git -C "$APP" rev-parse HEAD)
 [ "$COMMIT" = "$JC_APP_COMMIT" ] || fail "the forge answered $COMMIT for $JC_APP_COMMIT"
 
-# The application's own code runs from here on, without the job token in its environment.
+# The application's own code runs from here on, without the job and runtime tokens in its environment.
 # ponytail: the same uid can still read it from /proc/<lane pid>/environ; what bounds that is
 # the job token's reach, this repository alone, and the runner's egress (AP-81, ADR-N-028 §5).
-untrusted() { env -u JC_FORGE_TOKEN "$@"; }
+untrusted() { env -u JC_FORGE_TOKEN -u ACTIONS_RUNTIME_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_TOKEN "$@"; }
 if [ -f "$APP/package.json" ]; then
   JC_APP_BUILD=node
 else

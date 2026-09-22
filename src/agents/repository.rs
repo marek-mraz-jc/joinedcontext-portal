@@ -220,6 +220,16 @@ mod tests {
                 && WORKFLOW_TEXT.contains("${{ secrets.JC_LANE_TOKEN }}"),
             "the lane's secret is in one step's environment and no other secret is (AP-80)"
         );
+        let (build, propose) = WORKFLOW_TEXT
+            .split_once("\n  propose:\n")
+            .expect("a propose job after the build job");
+        assert!(
+            propose.contains("needs: build")
+                && propose.contains("secrets.JC_LANE_TOKEN")
+                && !propose.contains("build-app")
+                && !build.contains("secrets."),
+            "the job that runs the application's code never sees the lane's secret (AP-80)"
+        );
         assert_eq!(build_refusal(&template, &BTreeMap::new()), None);
     }
 
