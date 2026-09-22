@@ -237,3 +237,28 @@ fn an_app_in_its_own_repository_names_it_and_keeps_the_shape_the_lane_builds() {
         "no application in its own repository layout under apps/"
     );
 }
+
+/// AP-87. `joinedcontext.com/shipped-with: portal` lets a published static App name no
+/// repository because the Portal image carries its bundle; the mark is true exactly for the
+/// apps the Dockerfile builds into `/srv/apps`, so a mark without a bundle or a bundle without
+/// its mark is found here, not as a 404 or a refused proposal on a cluster.
+#[test]
+fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
+    use jc_core::kinds::app::SHIPPED_WITH_ANNOTATION;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dockerfile = std::fs::read_to_string(root.join("Dockerfile")).expect("the Dockerfile");
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let marked = app
+            .metadata
+            .annotations
+            .get(SHIPPED_WITH_ANNOTATION)
+            .is_some_and(|value| value == "portal");
+        let built = dockerfile.contains(&format!("/srv/apps/{name} "))
+            || dockerfile.contains(&format!("/srv/apps/{name}\n"));
+        assert_eq!(
+            marked, built,
+            "apps/{name}: the shipped mark says {marked}, the Dockerfile builds it: {built}"
+        );
+    }
+}

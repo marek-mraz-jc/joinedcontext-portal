@@ -10,6 +10,10 @@ kind: App
 metadata:
   name: bbsk-ukazovatele
   namespace: bbsk
+  annotations:
+    # The Portal image ships this bundle (Dockerfile, /srv/apps), so the App names no
+    # repository of its own; the Portal accepts the mark only where the bundle is (AP-87).
+    joinedcontext.com/shipped-with: portal
   title:
     sk: "Ukazovatele kraja a mesta"
     en: "Indicators of the region and the city"

@@ -72,7 +72,11 @@ fn app(status: Option<Value>, annotation: Option<&str>) -> Value {
         "metadata": metadata,
         "spec": {
             "kind": "static",
-            "source": { "path": "./src" },
+            // A published static App names its repository (AP-87).
+            "source": { "git": {
+                "url": "https://git.example/joinedcontext/ovzdusie_air-quality.git",
+                "ref": "8c56954a1f0e",
+            }},
             "build": { "node": "22" },
             "visibility": "public",
             "lifecycle": "published",

@@ -322,6 +322,37 @@ fn app_root(root: &FsPath, name: &str, build: Option<&jc_core::Build>) -> Option
     base.canonicalize().ok()
 }
 
+/// Whether this Portal's image ships the bundle of the app `name`: `{apps_dir}/{name}/index.html`
+/// (AP-87). Only a DNS-1123 name is looked up, so a name never walks out of the directory.
+pub fn ships_bundle(apps_dir: Option<&str>, name: &str) -> bool {
+    crate::resource::is_dns1123(name)
+        && apps_dir.is_some_and(|root| FsPath::new(root).join(name).join("index.html").is_file())
+}
+
+/// The refusal of an `App` that says the Portal ships its bundle when this Portal holds none
+/// (AP-87): the annotation is what lets a published static App name no repository, so it is
+/// believed only where the bundle is. Names the App being written and nothing else (PF-59).
+pub fn unshipped_claim(
+    apps_dir: Option<&str>,
+    envelope: &crate::resource::ResourceEnvelope,
+) -> Option<String> {
+    use jc_core::kinds::app::SHIPPED_WITH_ANNOTATION;
+    let name = &envelope.metadata.name;
+    (envelope.kind == "App"
+        && envelope
+            .metadata
+            .annotations
+            .contains_key(SHIPPED_WITH_ANNOTATION)
+        && !ships_bundle(apps_dir, name))
+    .then(|| {
+        format!(
+            "annotation '{SHIPPED_WITH_ANNOTATION}' marks an application whose bundle the Portal \
+             image ships, and this Portal ships none for '{name}': remove the annotation and \
+             publish the App from its own repository with spec.source.git (AP-87)"
+        )
+    })
+}
+
 /// Every published app whose `status.build` names a build this host does not hold (AP-72).
 ///
 /// The host keeps serving what it has; this is the list the reconciler turns into a red `Ready`
