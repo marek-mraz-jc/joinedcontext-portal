@@ -109,14 +109,17 @@ const LISTS: [string, string][] = [
   ["syncsources", "syncsources"],
   ["csrs", "csrs"],
   ["ckan", "ckaninstances"],
-  ["access", "serviceaccounts"],
+  ["settings/service-accounts", "serviceaccounts"],
 ];
 
 for (const [who, person] of [
   ["steward", STEWARD],
   ["viewer", VIEWER],
 ] as const) {
-  test(`every resource list offers Edit and Delete to the ${who} exactly as the role allows`, async ({ browser }) => {
+  // UI-26, UI-44 (T-2618, T-2631): a row's Edit and Remove sit in its "More actions" menu, or
+  // beside it where a page has no menu; they are there for everyone, enabled for the steward and
+  // disabled with the reason for the viewer.
+  test(`every resource list offers Edit and Remove to the ${who} exactly as the role allows`, async ({ browser }) => {
     test.setTimeout(600_000);
     const { context, page } = await signIn(browser, person, "/projects/helsinki/spaces?lang=en");
     const missing: string[] = [];
@@ -128,17 +131,42 @@ for (const [who, person] of [
           continue;
         }
         await page.goto(`/projects/${project}/${route}?lang=en`, { waitUntil: "load" });
-        const main = page.locator("main");
-        const edits = await main.getByRole("button", { name: /^Edit\b/ }).count();
-        const deletes = await main.getByRole("button", { name: /^Delete\b/ }).count();
-        const offered = edits > 0 && deletes > 0;
-        const none = edits === 0 && deletes === 0;
-        if (who === "steward" ? !offered : !none) {
-          missing.push(`${project}/${route}: ${edits} Edit, ${deletes} Delete for ${items.length} listed`);
+        const found = await rowActions(page);
+        const wrong = found.length < 2 || found.some((action) => action.enabled !== (who === "steward"));
+        if (wrong) {
+          const shown = found.map((action) => `${action.name} ${action.enabled ? "enabled" : "disabled"}`).join(", ") || "none";
+          missing.push(`${project}/${route}: ${shown} for ${items.length} listed`);
         }
       }
     }
     await context.close();
     expect(missing).toEqual([]);
   });
+}
+
+/**
+ * Edit and Remove of the first row of a list: its "More actions for …" menu opened, or the two
+ * buttons of a page that shows them in the row. A disabled item carries its reason (UI-44).
+ */
+async function rowActions(page: Page): Promise<{ name: string; enabled: boolean }[]> {
+  const main = page.locator("main");
+  const more = main.getByRole("button", { name: /^More actions for / }).first();
+  await more.or(main.getByRole("button", { name: /^(Edit|Remove)\b/ }).first()).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+  if ((await more.count()) > 0) {
+    await more.click();
+    const menu = page.getByRole("menu");
+    const items = menu.getByRole("menuitem", { name: /^(Edit|Remove)\b/ });
+    await items.first().waitFor({ timeout: 5_000 }).catch(() => undefined);
+    const found = await items.evaluateAll((nodes) =>
+      nodes.map((node) => ({ name: (node.textContent ?? "").trim().split(/\s/)[0], enabled: node.getAttribute("aria-disabled") !== "true" })),
+    );
+    await page.keyboard.press("Escape");
+    return found;
+  }
+  const buttons = main.getByRole("button", { name: /^(Edit|Remove)\b/ });
+  return buttons.evaluateAll((nodes) =>
+    nodes
+      .slice(0, 2)
+      .map((node) => ({ name: (node.textContent ?? "").trim(), enabled: !(node as HTMLButtonElement).disabled && node.getAttribute("aria-disabled") !== "true" })),
+  );
 }

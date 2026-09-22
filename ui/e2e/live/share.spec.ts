@@ -47,7 +47,6 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   await dialog.locator("#root_name").fill(ENDPOINT);
   await dialog.locator("#root_title").fill("City bikes for the regional transport team");
   await dialog.locator("#root_contextSpaceRef").selectOption(PROJECT);
-  await dialog.getByRole("button", { name: "Generate slug" }).click();
   await dialog.locator("#root_audience").selectOption("public");
   await expect(dialog.getByText(/public audience/)).toBeVisible();
   await dialog.getByRole("checkbox", { name: "ngsi-ld" }).check();

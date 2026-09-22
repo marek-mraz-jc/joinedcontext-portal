@@ -12,13 +12,13 @@
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { APPROVER, STEWARD, proposedChange, reject, signIn } from "./portal";
+import { APPROVER, STEWARD, checkManifest, proposedChange, reject, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 /** Organization-scoped kinds are served under the `org` project (PF-49). */
 const ORG = "org";
 
-type Manifest = Record<string, unknown> & { metadata: { name: string }; spec: Record<string, unknown> };
+type Manifest = Record<string, unknown> & { kind: string; metadata: { name: string }; spec: Record<string, unknown> };
 
 interface Case {
   kind: string;
@@ -155,6 +155,7 @@ async function planned(page: Page, project: string, change: string): Promise<str
 }
 
 async function viaRest(page: Page, context: BrowserContext, c: Case, manifest: Manifest): Promise<string> {
+  await checkManifest(page, context, c.project, manifest);
   const answer = await page.request.put(`/api/v1/projects/${c.project}/${c.plural}/${c.name}`, {
     headers: { ...(await csrf(context)), "content-type": "application/json" },
     data: manifest,
@@ -164,6 +165,7 @@ async function viaRest(page: Page, context: BrowserContext, c: Case, manifest: M
 }
 
 async function viaRegistry(page: Page, context: BrowserContext, c: Case, manifest: Manifest): Promise<string> {
+  await checkManifest(page, context, c.project, manifest);
   const answer = await page.request.post(`/api/v1/projects/${c.project}/ops/jc_resource_propose`, {
     headers: { ...(await csrf(context)), "content-type": "application/json" },
     data: { manifest },
