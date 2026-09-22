@@ -239,6 +239,33 @@ export async function csrf(context: BrowserContext): Promise<string> {
 }
 
 /**
+ * The check a manifest proposed without a draft needs first (PF-57, T-0956): the verdict gate
+ * refuses an unchecked one on every door with `verdict_required`. The check records its verdict
+ * under the manifest's own kind and name, fresh for these exact bytes; a proposal that became a
+ * Change forgets it, so each door checks again (T-2631).
+ */
+export async function checkManifest(page: Page, context: BrowserContext, project: string, manifest: { kind: string } & Record<string, unknown>): Promise<void> {
+  const [op, field] =
+    manifest.kind === "Pipeline"
+      ? ["jc_pipeline_test", "pipeline"]
+      : manifest.kind === "DataSource"
+        ? ["jc_datasource_check", "manifest"]
+        : ["jc_manifest_dry_run", "manifest"];
+  const answer = await page.request.post(`/api/v1/projects/${project}/ops/${op}`, {
+    headers: { "x-csrf-token": await csrf(context), "content-type": "application/json" },
+    data: { [field]: manifest },
+  });
+  const text = await answer.text();
+  if (!answer.ok()) {
+    throw new Error(`${op} of ${manifest.kind}: ${answer.status()} ${text}`);
+  }
+  const verdict = (JSON.parse(text) as { verdict?: { ok?: boolean } }).verdict;
+  if (verdict?.ok !== true) {
+    throw new Error(`${op} of ${manifest.kind} is not green: ${text.slice(0, 500)}`);
+  }
+}
+
+/**
  * Removes a resource a journey created, all the way: the removal is itself a Change, so it is
  * proposed and then approved. A journey that only sent the DELETE left the resource standing and the
  * change open — which is how three spaces were found on dev on 2026-09-18 (T-2236).

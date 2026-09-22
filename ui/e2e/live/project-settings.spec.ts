@@ -17,7 +17,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { STEWARD, VIEWER, approve, csrf, proposedChange, removeCompletely, signIn } from "./portal";
+import { STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange, removeCompletely, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 const ROLE = "t2606-pipeline-author";
@@ -36,7 +36,8 @@ async function approveTyped(page: Page, project: string, change: string): Promis
 }
 
 /** Proposes one manifest through the resource route and approves it, as the steward. */
-async function proposeAndApprove(owner: Session, project: string, plural: string, manifest: object): Promise<void> {
+async function proposeAndApprove(owner: Session, project: string, plural: string, manifest: { kind: string } & Record<string, unknown>): Promise<void> {
+  await checkManifest(owner.page, owner.context, project, manifest);
   const answer = await owner.page.request.post(`/api/v1/projects/${project}/${plural}`, {
     headers: { "x-csrf-token": await csrf(owner.context) },
     data: manifest,
