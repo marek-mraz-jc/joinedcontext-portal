@@ -1567,6 +1567,13 @@
         "succeeded": "Built {commit}.",
         "failed": "The build of {commit} failed; the latest run says why.",
         "cancelled": "The build of {commit} was cancelled."
+      },
+      "state": {
+        "building": "Building {commit}",
+        "failed": "Build failed",
+        "failedLink": "Why it failed",
+        "served": "Served {commit}",
+        "noRepository": "No repository of its own: this application predates the per-application repository, so nothing builds or serves it."
       }
     }
   },

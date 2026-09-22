@@ -1567,6 +1567,13 @@
         "succeeded": "Sestaveno {commit}.",
         "failed": "Sestavení {commit} selhalo; poslední běh říká proč.",
         "cancelled": "Sestavení {commit} bylo zrušeno."
+      },
+      "state": {
+        "building": "Sestavuje se {commit}",
+        "failed": "Sestavení selhalo",
+        "failedLink": "Proč selhalo",
+        "served": "Poskytuje se {commit}",
+        "noRepository": "Nemá vlastní repozitář: aplikace vznikla před repozitářem pro každou aplikaci, proto ji nic nesestavuje ani neposkytuje."
       }
     }
   },

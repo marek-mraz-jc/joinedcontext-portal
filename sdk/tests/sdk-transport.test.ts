@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "../src/sdk/client";
 import { bridgeTransport, CSRF_COOKIE, CSRF_HEADER, originTransport, transportFor } from "../src/sdk/transport";
 
 /** Sends one request through the bridge transport the document names; the answer never comes. */
@@ -30,6 +31,29 @@ describe("originTransport", () => {
     expect(patchHeaders[CSRF_HEADER]).toBe("token-abc123");
     expect(patchHeaders["content-type"]).toBe("application/json");
     expect(calls[1].init?.body).toBe(JSON.stringify({ a: 1 }));
+  });
+
+  // AP-84, SDK-23: a published app's function call rides on the edge's token, so the host refuses
+  // it without the double-submit token; the call carries it the same way a data write does.
+  it("sends a published app's function call with the CSRF header, to the app's own route", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fakeFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ stations: 3 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    const fakeDoc = { cookie: `${CSRF_COOKIE}=token-fn` } as Document;
+    const client = createClient(
+      { slug: "demo", orgDomain: "example.org", space: "demo", transport: "origin", appName: "bikes" },
+      originTransport(fakeFetch, fakeDoc),
+    );
+
+    await expect(client.functions.call("near-me", { radius: 500 })).resolves.toEqual({ stations: 3 });
+    expect(calls[0].url).toBe("/apps/bikes/api/functions/near-me");
+    expect(calls[0].init?.method).toBe("POST");
+    expect((calls[0].init?.headers as Record<string, string>)[CSRF_HEADER]).toBe("token-fn");
   });
 
   it("returns null body on 204, parses text when not json, and resolves status 0 on network error", async () => {

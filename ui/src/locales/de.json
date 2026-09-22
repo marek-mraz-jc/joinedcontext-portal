@@ -1567,6 +1567,13 @@
         "succeeded": "{commit} gebaut.",
         "failed": "Der Build von {commit} ist fehlgeschlagen; der letzte Lauf sagt, warum.",
         "cancelled": "Der Build von {commit} wurde abgebrochen."
+      },
+      "state": {
+        "building": "Wird gebaut: {commit}",
+        "failed": "Build fehlgeschlagen",
+        "failedLink": "Warum er fehlschlug",
+        "served": "Ausgeliefert: {commit}",
+        "noRepository": "Kein eigenes Repository: Diese Anwendung ist älter als das Repository pro Anwendung, daher wird sie weder gebaut noch ausgeliefert."
       }
     }
   },
