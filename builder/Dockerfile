@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1
-# The build lane's image (AP-80, AP-82, ADR-N-028): git, curl, node, this release's SDK and the
-# template's dependencies installed once, here, so a build fetches no package. The runner runs an
-# application's `.gitea/workflows/build.yml` on it, whose steps are `build-app`, `publish-app` and
-# `lane.mjs propose`. Built from the
+# The build lane's image (AP-80, AP-82, ADR-N-026, ADR-N-028): git, curl, node, this release's SDK and the
+# template's dependencies installed once, here, so a build fetches no package. Built from the
 # repository root: docker build -f builder/Dockerfile .
 
 FROM node:24-slim AS sdk
@@ -25,6 +23,13 @@ RUN node -e 'const f="package.json",p=require("./"+f);p.dependencies["@joinedcon
     && test -x node_modules/.bin/vite && test -x node_modules/.bin/vitest && test -x node_modules/.bin/tsc \
     && cp /opt/sdk/sdk-version ./sdk-version
 
+# The forge's runner binary (ADR-N-028 §3.3), checked against the digest its release publishes.
+FROM node:24-slim AS runner
+ARG RUNNER_VERSION=3.5.0
+ARG RUNNER_SHA256=16dc5c89ad5ac5496369642f01ed29c9bb130a2512e16a8cc3b400d9d0bfea73
+ADD --checksum=sha256:${RUNNER_SHA256} \
+    https://dl.gitea.com/gitea-runner/${RUNNER_VERSION}/gitea-runner-${RUNNER_VERSION}-linux-amd64 /gitea-runner
+
 FROM node:24-slim
 # npm, npx and corepack ship in the base image and nothing here runs them: a build installs
 # nothing (AP-82). Removed, so their bundled packages are neither attack surface nor trivy findings.
@@ -35,7 +40,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
 COPY --from=template /opt/template/ /opt/template/
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
-COPY builder/publish-app.sh /usr/local/bin/publish-app
+# The same image is the forge's runner (ADR-N-028): the pod's command is `runner`.
+COPY --from=runner --chmod=0755 /gitea-runner /usr/local/bin/gitea-runner
+COPY builder/runner.sh /usr/local/bin/runner
+COPY builder/runner.yaml /opt/runner/runner.yaml
 # The restricted Pod Security Standard runs it as this uid, with nothing it may write but /tmp.
 USER 1000:1000
 WORKDIR /tmp
