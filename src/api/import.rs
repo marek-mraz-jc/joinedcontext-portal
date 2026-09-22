@@ -1206,6 +1206,8 @@ pub async fn import(
     match query.format.as_deref() {
         None => {}
         Some("git") => {
+            // Before the body: who may not open a project learns that and nothing else (PF-65).
+            crate::api::projects::may_open(&state, &user.0.identity)?;
             let (bytes, mut input) = read_git_request(&state, request).await?;
             input.dry_run |= query.dry_run.as_deref() == Some("All");
             let (status, body) =
@@ -1994,7 +1996,14 @@ fn digest(files: &[(String, String)]) -> u64 {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/projects/{project}/import", axum::routing::post(import))
+    // axum reads 2 MiB by default; the import's own limit, plus the multipart framing, is the
+    // one that holds (MF-45).
+    Router::new().route(
+        "/projects/{project}/import",
+        axum::routing::post(import).layer(axum::extract::DefaultBodyLimit::max(
+            MAX_UPLOAD_BYTES + 64 * 1024,
+        )),
+    )
 }
 
 #[cfg(test)]

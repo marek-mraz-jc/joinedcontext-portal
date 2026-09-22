@@ -45,8 +45,24 @@ fn bundle(head: &str) -> Vec<u8> {
 /// The archive `GET …/export?format=git` writes for `ovzdusie` and its App `air-map`, with
 /// `edit` applied to the files before the index is written.
 fn archive(project_yaml: &str, edit: impl Fn(&mut Vec<(String, Vec<u8>)>)) -> Vec<u8> {
+    archive_padded(project_yaml, 0, edit)
+}
+
+/// The same archive with `pad` bytes of pack data in the project's bundle, which deflate cannot
+/// shrink: a project with some history.
+fn archive_padded(
+    project_yaml: &str,
+    pad: usize,
+    edit: impl Fn(&mut Vec<(String, Vec<u8>)>),
+) -> Vec<u8> {
+    let mut project = bundle(HEAD);
+    let mut seed: u32 = 0x2644;
+    project.extend((0..pad).map(|_| {
+        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        (seed >> 16) as u8
+    }));
     let mut files: Vec<(String, Vec<u8>)> = vec![
-        ("ovzdusie.bundle".into(), bundle(HEAD)),
+        ("ovzdusie.bundle".into(), project),
         (
             "ovzdusie.tags".into(),
             format!("{TAGGED} refs/tags/v1.0.0\n").into_bytes(),
@@ -504,5 +520,40 @@ async fn layout_one_answers_with_the_zip_import() {
     )
     .await;
     assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    nothing_created(&server).await;
+}
+
+/// An archive over axum's 2 MiB default body limit and under the import's own limit is read,
+/// not cut off (MF-45).
+#[tokio::test]
+async fn an_archive_over_two_mebibytes_is_read() {
+    let (server, state) = world().await;
+    let file = archive_padded(PROJECT, 3 * 1024 * 1024, |_| {});
+    assert!(file.len() > 3 * 1024 * 1024, "{}", file.len());
+    let answer = import(&state, person("jana"), "?format=git&dryRun=All", &file, &[]).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    nothing_created(&server).await;
+}
+
+/// PF-65: who may not open a project is refused before the upload is read, so an unreadable
+/// or oversized body tells them nothing but that.
+#[tokio::test]
+async fn who_may_not_open_a_project_is_refused_before_the_body_is_read() {
+    let (server, state) = world().await;
+    state.mirror.upsert(envelope(
+        "Organization",
+        "bb",
+        ORG_NAMESPACE,
+        json!({ "domain": "banskabystrica.sk", "projects": { "creation": "org-admin" } }),
+    ));
+    let answer = import(
+        &state,
+        person("jana"),
+        "?format=git",
+        b"not a zip",
+        &[("stray", "x")],
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
     nothing_created(&server).await;
 }
