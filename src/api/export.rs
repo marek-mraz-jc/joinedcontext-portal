@@ -356,6 +356,8 @@ fn bundle_index(
                 _ => BTreeMap::new(),
             },
         }),
+        // A YAML bundle; a git-native export lists its repositories here (MF-45).
+        repositories: Vec::new(),
     };
     let bundle = serde_json::json!({
         "apiVersion": API_VERSION,

@@ -39,13 +39,27 @@ pub enum MirrorError {
 #[derive(Default)]
 pub struct Mirror {
     resources: RwLock<BTreeMap<ResourceKey, ResourceEnvelope>>,
+    /// Layout 2: each registered project's own repository in the forge, by slug (PF-86). Empty
+    /// in layout 1, where every project lives in the organization repository.
+    repositories: RwLock<BTreeMap<String, String>>,
 }
 
 impl Mirror {
     pub fn new() -> Self {
-        Self {
-            resources: RwLock::new(BTreeMap::new()),
-        }
+        Self::default()
+    }
+
+    /// The forge repository `project`'s own kinds are written to (CC-87), or `None` when they
+    /// live in the organization repository (layout 1, or a project outside the forge).
+    pub fn repository_of(&self, project: &str) -> Option<String> {
+        let lock = self.repositories.read().unwrap_or_else(|p| p.into_inner());
+        lock.get(project).cloned()
+    }
+
+    /// Records where each registered project lives, replacing what was recorded.
+    pub fn set_repositories(&self, repositories: BTreeMap<String, String>) {
+        let mut lock = self.repositories.write().unwrap_or_else(|p| p.into_inner());
+        *lock = repositories;
     }
 
     /// Holds one resource, unless its namespace is not a namespace (T-2298, MF-02) or its name is
@@ -118,6 +132,13 @@ impl Mirror {
             .clone();
         let mut lock = self.resources.write().unwrap_or_else(|p| p.into_inner());
         *lock = new_resources;
+        drop(lock);
+        let repositories = other
+            .repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        self.set_repositories(repositories);
     }
 
     /// Every resource matching a predicate, in no particular order.
