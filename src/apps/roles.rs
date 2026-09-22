@@ -16,31 +16,10 @@ use crate::auth::session::Identity;
 /// The locales the refusal page speaks, the Portal's own (UI-12); the first is the fallback.
 const LOCALES: [&str; 4] = ["en", "sk", "cs", "de"];
 
-/// The roles `identity` holds in the app, in the order `spec.roles` declares them.
-///
-/// A `user` subject matches the token's `preferred_username` ignoring case, a `group` subject a
-/// name of the `groups` claim, exactly as the gateway matches the Endpoint roles the reconciler
-/// renders from the same list (AP-97), so the page shows an edit control to the people whose
-/// write the gateway admits and to nobody else.
+/// The roles `identity` holds in the app: the one resolution the App's backend is told too
+/// (AP-92, AP-109), so the page, a function and the backend never disagree about a person.
 pub fn roles_of(spec: &AppSpec, identity: &Identity) -> Vec<String> {
-    spec.roles
-        .iter()
-        .filter(|role| {
-            spec.access
-                .iter()
-                .filter(|access| access.role == role.name)
-                .flat_map(|access| &access.subjects)
-                .any(|subject| match (&subject.user, &subject.group) {
-                    (Some(user), None) => identity.username.eq_ignore_ascii_case(user),
-                    (None, Some(group)) => identity
-                        .groups
-                        .iter()
-                        .any(|held| held.trim_start_matches('/') == group),
-                    _ => false,
-                })
-        })
-        .map(|role| role.name.clone())
-        .collect()
+    crate::permissions::app_roles(identity, spec)
 }
 
 /// `#jc-config.user` and a function's `request.user`: `{id, name, email, roles}` for a person,
@@ -200,12 +179,12 @@ mod tests {
         }
     }
 
-    /// AP-92: a user subject matches the e-mail whatever its case, a group with or without the
-    /// leading slash the mapper may emit, in the order the roles are declared.
+    /// AP-92: a user subject matches the e-mail whatever its case, a group by its name, in the
+    /// order the roles are declared, and nothing that only looks alike.
     #[test]
     fn a_person_holds_the_roles_their_e_mail_and_groups_match() {
         let spec = spec();
-        let both = person("jana.kovacova@hel.fi", &["/helsinki-operations"]);
+        let both = person("jana.kovacova@hel.fi", &["helsinki-operations"]);
         assert_eq!(roles_of(&spec, &both), ["viewer", "steward"]);
         assert_eq!(
             roles_of(&spec, &person("x@hel.fi", &["helsinki-operations"])),
