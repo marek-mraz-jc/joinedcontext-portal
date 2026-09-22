@@ -103,6 +103,11 @@ pub struct Config {
     /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
     pub apps_dir: Option<String>,
+    /// Where this replica keeps the builds it fetched from the package registry, one
+    /// `{name}/{hex}` directory per build (`JC_PORTAL_APPS_CACHE_DIR`, AP-102); it must be
+    /// writable, and `{apps_dir}` need not be. `None` fetches nothing, and an App whose
+    /// `status.build` names a build keeps serving the bundle the image ships.
+    pub apps_cache_dir: Option<String>,
     /// The origin apps are served from (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`; AP-26,
     /// ADR-N-019). When set, `/apps/*` is served only on that origin and answered with a `308`
     /// to it on any other host, above all the Portal's own: an app on the Portal origin would
@@ -184,6 +189,7 @@ impl std::fmt::Debug for Config {
             .field("model_tools_url", &self.model_tools_url)
             .field("functions_url", &self.functions_url)
             .field("apps_dir", &self.apps_dir)
+            .field("apps_cache_dir", &self.apps_cache_dir)
             .field("apps_url", &self.apps_url.as_ref().map(Url::as_str))
             .field("artifact_store", &self.artifact_store)
             .field("pipeline_secrets", &self.pipeline_secrets)
@@ -870,6 +876,8 @@ impl Config {
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
+        let apps_cache_dir =
+            lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
         let app_settings = app_settings(&lookup, &public_base_url);
         let agent_settings = agent_settings(&lookup)?;
@@ -924,6 +932,7 @@ impl Config {
             model_tools_url,
             functions_url,
             apps_dir,
+            apps_cache_dir,
             apps_url,
             branding_file,
             database_url,
@@ -965,6 +974,7 @@ impl Config {
             agent_settings: None,
             basemap: None,
             apps_dir: None,
+            apps_cache_dir: None,
             apps_url: None,
             branding_file: None,
             database_url: None,

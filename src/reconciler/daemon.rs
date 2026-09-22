@@ -108,9 +108,9 @@ pub struct Syncer {
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
-    /// Where the static host reads app bundles from, when this Portal serves any (AP-14): the
-    /// run checks that the build each manifest names is actually there (AP-72).
-    apps_dir: Option<String>,
+    /// Where this replica fetches the builds the manifests name (AP-102): the run fetches the
+    /// missing ones and checks that each named build is actually there (AP-72).
+    apps_cache_dir: Option<String>,
     /// The artifact store's admin API, held with the root credential. `None` leaves every
     /// organization without a scoped credential and the store untouched (PF-32).
     artifact_store: Option<Arc<crate::artifact_store::Client>>,
@@ -153,7 +153,7 @@ impl Syncer {
             subscriptions: None,
             groups: None,
             activity: None,
-            apps_dir: None,
+            apps_cache_dir: None,
             artifact_store: None,
             credentials: None,
             pipeline_secrets: None,
@@ -217,10 +217,10 @@ impl Syncer {
         self
     }
 
-    /// Where the static host reads app bundles from, so each run can say which app names a
-    /// build that never arrived (AP-72).
-    pub fn with_apps_dir(mut self, apps_dir: Option<String>) -> Self {
-        self.apps_dir = apps_dir;
+    /// Where this replica keeps the builds it fetched, so each run fetches what the mirror
+    /// names and says which app names a build that never arrived (AP-72, AP-102).
+    pub fn with_apps_cache_dir(mut self, apps_cache_dir: Option<String>) -> Self {
+        self.apps_cache_dir = apps_cache_dir;
         self
     }
 
@@ -662,6 +662,12 @@ impl Syncer {
         self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
             .await;
 
+        // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
+        //     the new mirror names before anything is leader-only (AP-102).
+        if let Some(cache) = self.apps_cache_dir.as_deref() {
+            crate::apps::fetch::fetch_missing(&self.gitea, Path::new(cache), &fresh_mirror).await;
+        }
+
         // A follower stops here: what the runner accepted, what the cluster runs and what the
         //    forge enforces are the leader's to converge, so its stream pipelines say so.
         if !leader {
@@ -917,7 +923,8 @@ impl Syncer {
 
         // 6b. An app whose `status.build` names a build this host does not hold keeps the
         //     previous one serving, and says so on the App rather than looking healthy (AP-72).
-        for name in crate::apps::static_host::build_missing(self.apps_dir.as_deref(), &self.mirror)
+        for name in
+            crate::apps::static_host::build_missing(self.apps_cache_dir.as_deref(), &self.mirror)
         {
             let Some(mut envelope) = self
                 .mirror

@@ -69,10 +69,12 @@ async fn serve(
     if !may_read(&spec, user.is_some()) {
         return not_found();
     }
-    let Some(root) = state.config.apps_dir.as_deref() else {
-        return not_found();
-    };
-    let Some(app_root) = app_root(FsPath::new(root), &name, build.as_ref()) else {
+    let Some(app_root) = app_root(
+        state.config.apps_dir.as_deref().map(FsPath::new),
+        state.config.apps_cache_dir.as_deref().map(FsPath::new),
+        &name,
+        build.as_ref(),
+    ) else {
         return not_found();
     };
     let Some(file) = resolve(&app_root, &path) else {
@@ -304,22 +306,24 @@ fn with_config(html: &str, config: &serde_json::Value) -> String {
     format!("{}{element}{}", &html[..at], &html[at..])
 }
 
-/// The directory one app is served from (AP-72, AP-74).
+/// The directory one app is served from (AP-72, AP-102).
 ///
-/// `status.build` names the build the manifest deploys, and until the artifact store exists the
-/// build lane publishes it under the commit: `{apps_dir}/{name}/{commit}/`. An app that names no
-/// build, or names one this host does not hold, keeps serving `{apps_dir}/{name}/` — the
-/// previous publish — and [`build_missing`] is what says so on the App itself.
-fn app_root(root: &FsPath, name: &str, build: Option<&jc_core::Build>) -> Option<PathBuf> {
-    let base = root.join(name);
-    if let Some(build) = build {
-        if let Ok(keyed) = base.join(&build.commit).canonicalize() {
-            if keyed.is_dir() && keyed.starts_with(base.canonicalize().ok()?) {
-                return Some(keyed);
-            }
-        }
-    }
-    base.canonicalize().ok()
+/// `status.build` names the build the manifest deploys, fetched into
+/// `{apps_cache_dir}/{name}/{hex}/` ([`crate::apps::fetch`]). An app that names no build, or
+/// names one this host does not hold yet, keeps serving `{apps_dir}/{name}/`, the bundle the
+/// image ships, and [`build_missing`] is what says so on the App itself.
+fn app_root(
+    shipped: Option<&FsPath>,
+    cache: Option<&FsPath>,
+    name: &str,
+    build: Option<&jc_core::Build>,
+) -> Option<PathBuf> {
+    let held = cache
+        .zip(build)
+        .and_then(|(cache, build)| crate::apps::fetch::build_dir(cache, name, &build.digest))
+        .and_then(|dir| dir.canonicalize().ok())
+        .filter(|dir| dir.is_dir());
+    held.or_else(|| shipped?.join(name).canonicalize().ok())
 }
 
 /// Whether this Portal's image ships the bundle of the app `name`: `{apps_dir}/{name}/index.html`
@@ -358,8 +362,8 @@ pub fn unshipped_claim(
 /// The host keeps serving what it has; this is the list the reconciler turns into a red `Ready`
 /// condition, so an operator sees a build that never arrived instead of a stale app that looks
 /// healthy.
-pub fn build_missing(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
-    let Some(root) = apps_dir else {
+pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
+    let Some(cache) = apps_cache_dir.map(FsPath::new) else {
         return Vec::new();
     };
     let mut missing: Vec<String> = mirror
@@ -369,10 +373,8 @@ pub fn build_missing(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> V
             let Some(build) = env.status.as_ref().and_then(|s| s.build.as_ref()) else {
                 return false;
             };
-            !FsPath::new(root)
-                .join(&env.metadata.name)
-                .join(&build.commit)
-                .is_dir()
+            !crate::apps::fetch::build_dir(cache, &env.metadata.name, &build.digest)
+                .is_some_and(|dir| dir.is_dir())
         })
         .map(|env| env.metadata.name)
         .collect();
@@ -573,7 +575,7 @@ mod tests {
         std::fs::write(dir.join("secret.txt"), b"not yours").expect("neighbour file");
         std::fs::write(app.join("index.html"), b"<!doctype html>").expect("index");
 
-        let root = app_root(&dir, "demo", None).expect("the app directory");
+        let root = app_root(Some(&dir), None, "demo", None).expect("the app directory");
         assert!(resolve(&root, "index.html").is_some());
         assert!(resolve(&root, "../secret.txt").is_none());
         assert!(resolve(&root, "/etc/passwd").is_none());

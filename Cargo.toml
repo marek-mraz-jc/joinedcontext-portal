@@ -86,6 +86,9 @@ base64 = "0.23"
 oxc = { version = "0.149", default-features = false, features = ["transformer", "codegen", "semantic", "ast_visit"] }
 hmac = "0.12"
 sha2 = "0.10"
+# The static host unpacks a published build (AP-102).
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
 
 # The Portal's own Prometheus surface (OPS-16, TS-22). No default features: the exporter's
 # own HTTP listener and push gateway would be a second server on a second port when the

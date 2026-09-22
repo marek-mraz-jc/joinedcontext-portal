@@ -336,10 +336,18 @@ async fn without_an_apps_directory_the_host_answers_not_found() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-/// One build directory of an app: `{apps_dir}/{name}/{commit}/` with its own integrity manifest
-/// (AP-74), beside the previous publish at `{apps_dir}/{name}/`.
-fn build_dir(dir: &tempdir::Dir, commit: &str, files: &[(&str, &[u8])]) {
-    let app = dir.path().join("air-quality").join(commit);
+/// The digest `mirror_with_build` names, as the directory the host fetches it into.
+const BUILD_HEX: &str = "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4";
+
+/// The cache a replica fetches builds into (AP-102), beside the bundles the image ships.
+fn cache_of(dir: &tempdir::Dir) -> std::path::PathBuf {
+    dir.path().join("cache")
+}
+
+/// One fetched build of an app: `{apps_cache_dir}/{name}/{hex}/` with its own integrity manifest
+/// (AP-102), beside the bundle the image ships at `{apps_dir}/{name}/`.
+fn build_dir(dir: &tempdir::Dir, files: &[(&str, &[u8])]) {
+    let app = cache_of(dir).join("air-quality").join(BUILD_HEX);
     std::fs::create_dir_all(&app).expect("build dir");
     let mut digests = serde_json::Map::new();
     for (name, bytes) in files {
@@ -356,6 +364,7 @@ fn build_dir(dir: &tempdir::Dir, commit: &str, files: &[(&str, &[u8])]) {
 async fn get_with(root: &std::path::Path, mirror: Arc<Mirror>, uri: &str) -> (StatusCode, Vec<u8>) {
     let config = Config {
         apps_dir: Some(root.to_string_lossy().into_owned()),
+        apps_cache_dir: Some(root.join("cache").to_string_lossy().into_owned()),
         ..Config::for_tests()
     };
     let app = server::app(AppState::new(config, None).with_mirror(mirror));
@@ -370,12 +379,12 @@ async fn get_with(root: &std::path::Path, mirror: Arc<Mirror>, uri: &str) -> (St
 
 const NEXT_INDEX: &[u8] = b"<!doctype html><title>air quality, next build</title>";
 
-/// AP-72, AP-74: the host serves the build the manifest names, not whatever sits in the app's
-/// directory.
+/// AP-72, AP-102: the host serves the build the manifest names, fetched under its digest, not
+/// the bundle the image ships.
 #[tokio::test]
 async fn the_host_serves_the_build_the_manifest_names() {
     let dir = app_root("named-build", &[("index.html", INDEX)]);
-    build_dir(&dir, "8c56954a1f0e", &[("index.html", NEXT_INDEX)]);
+    build_dir(&dir, &[("index.html", NEXT_INDEX)]);
 
     let (status, body) = get_with(
         dir.path(),
@@ -398,7 +407,7 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, INDEX, "the previous publish keeps serving");
 
-    let apps_dir = dir.path().to_string_lossy().into_owned();
+    let apps_dir = cache_of(&dir).to_string_lossy().into_owned();
     assert_eq!(
         joinedcontext_portal::apps::static_host::build_missing(Some(&apps_dir), &mirror),
         vec!["air-quality".to_owned()],
@@ -406,7 +415,7 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
     );
 
     // The build arrives: nothing else changes and the host follows it.
-    build_dir(&dir, "0000000feed", &[("index.html", NEXT_INDEX)]);
+    build_dir(&dir, &[("index.html", NEXT_INDEX)]);
     let (status, body) = get_with(dir.path(), mirror.clone(), "/apps/air-quality/").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, NEXT_INDEX);
