@@ -978,9 +978,9 @@ async fn propose_engine(
 
     // 8. Commit to Git merge request via Gitea client
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     // 8a. A lane's build is checked against the App's repository and published by the Portal
     //     before anything is written: the lane's token names a build, it never makes one

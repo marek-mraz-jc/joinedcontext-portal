@@ -164,9 +164,9 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
     let confined = confine_linkml_path(linkml)?;
 
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let repo_path = format!("projects/{project}/spaces/{space}/datamodels/{confined}");
@@ -690,9 +690,9 @@ pub async fn put_source(
             .map_err(|e| ApiError::Internal(format!("serialize example: {e}")))?;
 
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(&project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let operation = if creating {

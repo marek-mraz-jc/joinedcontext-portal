@@ -30,7 +30,7 @@ use crate::apps::reconciler::generate_slug;
 use crate::auth::CurrentUser;
 use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation};
 use crate::error::{ApiError, ProblemDetails};
-use crate::git::{Author, FileWrite, GiteaClient};
+use crate::git::{Author, FileWrite};
 use crate::resource::{self, ResourceEnvelope};
 use crate::state::AppState;
 
@@ -1318,10 +1318,10 @@ pub async fn propose_bundle(
     files: Vec<(String, String)>,
     headline: Option<(&str, &str)>,
 ) -> Result<Change, ApiError> {
-    let gitea: &GiteaClient = state
-        .gitea
-        .as_deref()
+    let gitea = state
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let default_branch = gitea.default_branch().await?;
     let hash = digest(&files);
     let branch = match headline {

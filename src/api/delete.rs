@@ -299,9 +299,9 @@ pub async fn delete_with_identity(
 
     // 5. Commit deletion to Git merge request via Gitea client
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let repo_path = resolve_repo_path(&envelope, kind_info, project)?;
