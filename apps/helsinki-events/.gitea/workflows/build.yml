@@ -5,7 +5,9 @@
 #
 # Runs on the installation's `gitea-runner` (label node-22), whose image carries the SDK and the
 # template's packages already installed, so nothing is installed here (AP-82). No step fetches an
-# action: the runner reaches the forge and the Portal API only (AP-81).
+# action: the runner reaches the forge and the Portal API only (AP-81), by the in-cluster
+# addresses it gives every job as JC_FORGE_URL and JC_PORTAL_URL; `gitea.server_url` is the
+# public host, which the runner cannot reach.
 name: build
 
 on:
@@ -24,16 +26,15 @@ jobs:
       # own code runs here, with the job token removed from its environment.
       - name: Test and build
         env:
-          JC_APP_REPO: ${{ gitea.server_url }}/${{ gitea.repository }}.git
+          JC_REPOSITORY: ${{ gitea.repository }}
           JC_APP_COMMIT: ${{ gitea.sha }}
           JC_FORGE_TOKEN: ${{ gitea.token }}
-        run: build-app
+        run: JC_APP_REPO="$JC_FORGE_URL/$JC_REPOSITORY.git" build-app
 
       # The package `app-{name}`, version `{commit}`, written with this repository's job token.
       - name: Publish the package
         env:
           JC_FORGE_TOKEN: ${{ gitea.token }}
-          JC_FORGE_URL: ${{ gitea.server_url }}
           JC_OWNER: ${{ gitea.repository_owner }}
           JC_REPOSITORY: ${{ gitea.repository }}
           JC_APP_COMMIT: ${{ gitea.sha }}
@@ -43,6 +44,5 @@ jobs:
       - name: Propose status.build
         env:
           JC_LANE_TOKEN: ${{ secrets.JC_LANE_TOKEN }}
-          JC_PORTAL_API: ${{ vars.JC_PORTAL_API }}
           JC_REPOSITORY: ${{ gitea.repository }}
         run: node /opt/template/lane.mjs propose "$JC_REPOSITORY" "$JC_BUILD_DIR/build.json"

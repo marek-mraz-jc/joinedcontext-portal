@@ -3,7 +3,7 @@
 # $JC_BUILD_DIR becomes the generic package `app-{name}`, version `{commit}`, of the organization,
 # written with this repository's job token and no other credential. `build.yml` sets:
 #
-#   JC_FORGE_URL    the forge's address, JC_OWNER the organization, JC_REPOSITORY owner/{project}_{app}
+#   JC_FORGE_URL    the forge in-cluster, as the runner sets it for every job; JC_OWNER the organization, JC_REPOSITORY owner/{project}_{app}
 #   JC_APP_COMMIT   the commit that was built
 #   JC_FORGE_TOKEN  the job token
 set -eu

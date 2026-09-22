@@ -8,7 +8,7 @@
 //   node lane.mjs sbom <node_modules> <out-file>
 //                                      the CycloneDX SBOM of the packages the build linked
 //   node lane.mjs propose <owner/repo> <build.json>
-//                                      proposes status.build as the lane (JC_PORTAL_API, JC_LANE_TOKEN)
+//                                      proposes status.build as the lane (JC_PORTAL_URL, JC_LANE_TOKEN)
 //
 // Lives beside /opt/template/node_modules in the image, so `vite` resolves to the template's.
 
@@ -171,9 +171,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const folders = existsSync(store) ? readdirSync(store) : [];
       writeFileSync(outDir, JSON.stringify(sbomOf(folders), null, 2) + "\n");
     } else if (command === "propose" && appDir && outDir) {
-      const api = process.env.JC_PORTAL_API ?? "";
+      // The runner gives every job the Portal's in-cluster address (AP-81).
+      const api = process.env.JC_PORTAL_URL ?? "";
       const token = process.env.JC_LANE_TOKEN ?? "";
-      if (!/^https?:\/\//.test(api)) throw new Error("JC_PORTAL_API is not an http(s) URL");
+      if (!/^https?:\/\//.test(api)) throw new Error("JC_PORTAL_URL is not an http(s) URL");
       if (!token) throw new Error("JC_LANE_TOKEN is not set");
       const change = await propose(api, token, appDir, JSON.parse(readFileSync(outDir, "utf8")));
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
