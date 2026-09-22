@@ -144,6 +144,10 @@ function renderDashboards(options: { writeStatus?: number; writeBody?: unknown; 
     if (url.pathname.endsWith("/auth/me")) {
       return json(IDENTITY);
     }
+    // A draft save is taken, as the server takes one; the write under test is the proposal.
+    if (request.method === "PUT" && url.pathname.includes("/drafts/")) {
+      return json({ version: 1, manifest: null, verdict: null, touchedBy: "anna", touchedKind: "person" });
+    }
     if (request.method !== "GET") {
       return json(options.writeBody ?? CHANGE, options.writeStatus ?? 202);
     }

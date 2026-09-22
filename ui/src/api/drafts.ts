@@ -60,8 +60,11 @@ export async function putDraft(
   }
   if (data === undefined) {
     const detail = (error as { detail?: unknown } | undefined)?.detail;
-    throw new Error(
-      `failed to put draft (${response.status})${typeof detail === "string" ? `: ${detail}` : ""}`,
+    // `detail` is the server's own sentence, which names a refused field and never its value
+    // (MF-24); the dialog shows it where the person is typing.
+    throw Object.assign(
+      new Error(`failed to put draft (${response.status})${typeof detail === "string" ? `: ${detail}` : ""}`),
+      { status: response.status, detail: typeof detail === "string" ? detail : undefined },
     );
   }
   return asDraft(data);

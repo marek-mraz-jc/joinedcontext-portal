@@ -2234,7 +2234,8 @@
     "laxWarning": "Mierne overenie: kontrola neprebehla alebo neuspela.",
     "findings": "Zistenia",
     "strict": "prísne overenie",
-    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená."
+    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená.",
+    "saveRefused": "Koncept sa neuložil: {reason}"
   },
   "assistantPage": {
     "title": "Asistent",
