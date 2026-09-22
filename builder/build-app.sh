@@ -10,7 +10,8 @@
 #   JC_BUILD_DIR    where the build is left (default /tmp/build)
 #
 # A repository with `package.json` at its root is a Vite project; one without is its own bundle,
-# the `build: {}` shape (AP-83).
+# the `build: {}` shape (AP-83). One with `Cargo.toml` at its root is a `fullstack` App, built on
+# the rust-1.90 runner into an image instead (AP-105).
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
@@ -47,16 +48,68 @@ fi
 
 # No install step at all: the release's template dependencies are baked in and linked, so no
 # package the application names is fetched and no install script it could ship ever runs (AP-82).
-cd "$APP"
-if [ -f package.json ]; then
-  node "$LANE/lane.mjs" deps "$APP" || fail "package.json asks for a package the SDK does not ship"
+link_template() {
+  if [ -f "$1/package.json" ]; then
+    node "$LANE/lane.mjs" deps "$1" || fail "package.json asks for a package the SDK does not ship"
+  fi
+  rm -rf "$1/node_modules" "$1/.jc-functions-entry.ts"
+  # A writable folder of links, not one link: Vite writes its temporary config and cache there.
+  mkdir "$1/node_modules"
+  for entry in "$LANE"/node_modules/* "$LANE"/node_modules/.bin "$LANE"/node_modules/.pnpm; do
+    ln -s "$entry" "$1/node_modules/"
+  done
+}
+SDK=$(cat "$LANE/sdk-version")
+built() {
+  printf '{"digest":"%s","commit":"%s","sdkVersion":"%s","builtAt":"%s"}\n' \
+    "$1" "$COMMIT" "$SDK" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$WORK/build.json"
+  cat "$WORK/build.json"
+}
+pack() { tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$1" -cf "$2" .; }
+rm -f "$WORK/image.tar"
+
+# A fullstack App (AP-105): the interface in ui/, then the binary that embeds it, then an image of
+# that binary alone. Nothing is fetched: the crates come from the store the runner image carries.
+if [ -f "$APP/Cargo.toml" ]; then
+  [ -d /opt/cargo/registry ] || fail "a fullstack App builds on the rust-1.90 runner, and this runner carries no crate store"
+  [ -f "$APP/ui/package.json" ] || fail "a fullstack App keeps its interface in ui/ with a package.json"
+  link_template "$APP/ui"
+  cd "$APP/ui"
+  echo "== interface tests"
+  untrusted node_modules/.bin/vitest run || fail "the interface tests fail"
+  echo "== interface"
+  untrusted node_modules/.bin/tsc -b || fail "the interface does not typecheck"
+  untrusted node_modules/.bin/vite build || fail "vite build failed"
+  cd "$APP"
+  # Cargo's home is this job's: the index and the .crate files are the image's, read-only, and
+  # every source is unpacked here and checked against the lock, so no build leaves a crate
+  # changed for the next one on this runner (AP-81, AP-106).
+  export CARGO_HOME="$WORK/cargo" CARGO_TARGET_DIR="$WORK/target" CARGO_NET_OFFLINE=true
+  rm -rf "$CARGO_HOME" "$CARGO_TARGET_DIR" && mkdir -p "$CARGO_HOME/registry"
+  ln -s /opt/cargo/registry/index /opt/cargo/registry/cache "$CARGO_HOME/registry/"
+  echo "== backend tests"
+  untrusted cargo test --offline --locked || fail "cargo test failed (a crate outside the runner's store fails here too)"
+  echo "== backend"
+  untrusted cargo build --release --offline --locked --target x86_64-unknown-linux-musl || fail "cargo build failed"
+  NAME=$(cargo metadata --offline --no-deps --format-version 1 | node -e '
+    const meta = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const root = meta.packages.find((p) => p.manifest_path === process.argv[1]);
+    const bins = (root?.targets ?? []).filter((t) => t.kind.includes("bin"));
+    if (bins.length !== 1) { console.error(`Cargo.toml names ${bins.length} binaries; a fullstack App is one`); process.exit(1); }
+    console.log(bins[0].name);' "$APP/Cargo.toml") || fail "cannot tell which binary is the App"
+  echo "== image"
+  rm -rf "$WORK/rootfs" "$WORK/layout" && mkdir -p "$WORK/rootfs"
+  install -m 0755 "$CARGO_TARGET_DIR/x86_64-unknown-linux-musl/release/$NAME" "$WORK/rootfs/app"
+  pack "$WORK/rootfs" "$WORK/layer.tar" || fail "cannot pack the layer"
+  DIGEST=$(node "$LANE/lane.mjs" image "$WORK/layer.tar" "$WORK/layout") || fail "cannot write the image"
+  pack "$WORK/layout" "$WORK/image.tar" || fail "cannot pack the image"
+  node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" "$APP/Cargo.lock" || fail "cannot write the SBOM"
+  built "$DIGEST"
+  exit 0
 fi
-rm -rf node_modules .jc-functions-entry.ts
-# A writable folder of links, not one link: Vite writes its temporary config and cache there.
-mkdir node_modules
-for entry in "$LANE"/node_modules/* "$LANE"/node_modules/.bin "$LANE"/node_modules/.pnpm; do
-  ln -s "$entry" node_modules/
-done
+
+cd "$APP"
+link_template "$APP"
 BIN=$APP/node_modules/.bin
 
 if [ "$JC_APP_BUILD" = node ]; then
@@ -86,12 +139,6 @@ node "$LANE/app-integrity.mjs" "$OUT" >/dev/null || fail "cannot compute integri
 # One file per build, the same bytes for the same tree: sorted, no owners, no times (AP-101).
 echo "== package"
 rm -f "$WORK/bundle.tar" "$WORK/bundle.tar.gz"
-tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$OUT" -cf "$WORK/bundle.tar" . \
-  && gzip -n "$WORK/bundle.tar" || fail "cannot pack the bundle"
+pack "$OUT" "$WORK/bundle.tar" && gzip -n "$WORK/bundle.tar" || fail "cannot pack the bundle"
 node "$LANE/lane.mjs" sbom "$LANE/node_modules" "$WORK/sbom.cdx.json" || fail "cannot write the SBOM"
-DIGEST=$(sha256sum "$WORK/bundle.tar.gz" | cut -d' ' -f1)
-
-SDK=$(cat "$LANE/sdk-version")
-printf '{"digest":"sha256:%s","commit":"%s","sdkVersion":"%s","builtAt":"%s"}\n' \
-  "$DIGEST" "$COMMIT" "$SDK" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$WORK/build.json"
-cat "$WORK/build.json"
+built "sha256:$(sha256sum "$WORK/bundle.tar.gz" | cut -d' ' -f1)"

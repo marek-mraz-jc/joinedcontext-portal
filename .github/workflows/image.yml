@@ -26,6 +26,8 @@ jobs:
         include:
           - { name: portal, file: Dockerfile, image: "ghcr.io/${{ github.repository }}" }
           - { name: app-builder, file: builder/Dockerfile, image: "ghcr.io/${{ github.repository_owner }}/joinedcontext-app-builder" }
+          # The rust-1.90 runner of fullstack Apps: the same Dockerfile's `rust` stage (AP-106).
+          - { name: app-builder-rust, file: builder/Dockerfile, target: rust, image: "ghcr.io/${{ github.repository_owner }}/joinedcontext-app-builder-rust" }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -36,6 +38,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ matrix.image }}:${{ github.sha }},${{ matrix.image }}:main
           cache-from: type=gha,scope=${{ matrix.name }}

@@ -112,6 +112,17 @@ fn digest(bytes: &[u8]) -> String {
 /// with the default branch at `head`. The artifact download redirects to the forge's public
 /// ROOT_URL, which the Portal cannot reach, as Gitea does.
 async fn built_on_forge(gitea: &MockServer, head: &str, bundle: &[u8], size: Option<u64>) {
+    built_on_forge_as(gitea, head, "bundle", bundle, size).await;
+}
+
+/// The forge after a run uploaded `built` as the artifact `{artifact}-{COMMIT}`, as above.
+async fn built_on_forge_as(
+    gitea: &MockServer,
+    head: &str,
+    artifact: &str,
+    bundle: &[u8],
+    size: Option<u64>,
+) {
     Mock::given(method("GET"))
         .and(path(APP_REPO))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
@@ -129,11 +140,11 @@ async fn built_on_forge(gitea: &MockServer, head: &str, bundle: &[u8], size: Opt
         .with_priority(10)
         .mount(gitea)
         .await;
-    for (id, name, bytes) in [(11, "bundle", bundle), (12, "sbom", SBOM)] {
+    for (id, name, bytes) in [(11, artifact, bundle), (12, "sbom", SBOM)] {
         let artifact = |id: u64, run: u64, sha: &str| {
             json!({
                 "id": id, "name": format!("{name}-{COMMIT}"),
-                "size_in_bytes": if name == "bundle" { size.unwrap_or(bytes.len() as u64) } else { bytes.len() as u64 },
+                "size_in_bytes": if name == artifact { size.unwrap_or(bytes.len() as u64) } else { bytes.len() as u64 },
                 "workflow_run": { "id": run, "head_sha": sha },
             })
         };
@@ -466,4 +477,172 @@ async fn a_build_on_another_kind_is_refused() {
     )
     .await;
     assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+}
+
+/// The OCI layout `lane.mjs image` writes, as a tar, and its manifest digest.
+fn image_layout() -> (Vec<u8>, String, Vec<u8>) {
+    let config = br#"{"architecture":"amd64","os":"linux"}"#.to_vec();
+    let layer = b"the layer holding /app".to_vec();
+    let manifest = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": { "mediaType": "application/vnd.oci.image.config.v1+json", "digest": digest(&config), "size": config.len() },
+        "layers": [{ "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": digest(&layer), "size": layer.len() }],
+    }))
+    .expect("json");
+    let image = digest(&manifest);
+    let index = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "manifests": [{ "mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": image, "size": manifest.len() }],
+    }))
+    .expect("json");
+    let mut tar = tar::Builder::new(Vec::new());
+    for (name, bytes) in [
+        ("index.json".to_owned(), &index),
+        (format!("blobs/sha256/{}", &digest(&config)[7..]), &config),
+        (format!("blobs/sha256/{}", &digest(&layer)[7..]), &layer),
+        (format!("blobs/sha256/{}", &image[7..]), &manifest),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar.append_data(&mut header, name, bytes.as_slice())
+            .expect("append");
+    }
+    (tar.into_inner().expect("tar"), image, manifest)
+}
+
+/// The container registry of the forge: a token for the Portal's own token, no blob held yet,
+/// and a manifest stored under the digest `stored`.
+async fn registry_takes(gitea: &MockServer, stored: &str) {
+    Mock::given(method("GET"))
+        .and(path("/v2/token"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "token": "registry-bearer" })),
+        )
+        .mount(gitea)
+        .await;
+    Mock::given(method("HEAD"))
+        .and(wiremock::matchers::path_regex(
+            "^/v2/test-owner/app-air-quality/blobs/sha256:.*",
+        ))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(gitea)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v2/test-owner/app-air-quality/blobs/uploads/"))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(gitea)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path(format!(
+            "/v2/test-owner/app-air-quality/manifests/{COMMIT}"
+        )))
+        .respond_with(ResponseTemplate::new(201).insert_header("Docker-Content-Digest", stored))
+        .mount(gitea)
+        .await;
+}
+
+fn fullstack(status: Value) -> Value {
+    let mut manifest = app(Some(status), None);
+    manifest["spec"]["kind"] = json!("fullstack");
+    manifest["spec"]["build"] = json!({ "rust": "1.90", "node": "22" });
+    manifest["spec"]["visibility"] = json!("project");
+    manifest
+}
+
+/// AP-105, AP-107: a fullstack App's build is the image in `image-{commit}`: the Portal pushes
+/// each blob with its digest and the manifest's bytes unchanged as `app-{name}:{commit}`, with
+/// the registry token its own token bought, and writes the build once the registry stored it.
+#[tokio::test]
+async fn a_fullstack_build_is_pushed_to_the_registry_as_checked_then_written() {
+    let (layout, image, manifest) = image_layout();
+    let gitea = forge().await;
+    built_on_forge_as(&gitea, COMMIT, "image", &layout, None).await;
+    registry_takes(&gitea, &image).await;
+    package_takes(&gitea, 201).await;
+    let state = state_with(&gitea);
+    let mut status = build();
+    status["build"]["digest"] = json!(image);
+
+    let accepted = send(
+        &state,
+        person("builder"),
+        "POST",
+        APPS,
+        Some(fullstack(status)),
+    )
+    .await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+
+    let requests = gitea.received_requests().await.unwrap_or_default();
+    let uploads: Vec<String> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/blobs/uploads/"))
+        .map(|r| r.url.query().unwrap_or_default().to_owned())
+        .collect();
+    assert_eq!(
+        uploads.len(),
+        2,
+        "the config and the layer, each with its digest: {uploads:?}"
+    );
+    assert!(uploads.iter().all(|q| q.starts_with("digest=sha256%3A")));
+    let pushed = requests
+        .iter()
+        .find(|r| r.method.as_str() == "PUT" && r.url.path().contains("/manifests/"))
+        .expect("the manifest was pushed");
+    assert_eq!(
+        pushed.body, manifest,
+        "the manifest's bytes, as they were hashed"
+    );
+    assert_eq!(
+        pushed.headers["content-type"],
+        "application/vnd.oci.image.manifest.v1+json"
+    );
+    assert_eq!(pushed.headers["authorization"], "Bearer registry-bearer");
+    assert_eq!(
+        published(&gitea).await,
+        vec![format!("/{COMMIT}/sbom.cdx.json")],
+        "the SBOM beside it; an image is no bundle"
+    );
+    assert!(committed(&gitea)
+        .await
+        .iter()
+        .any(|file| file.contains(&image)));
+}
+
+/// AP-107: a registry that stores another digest than the one proposed is a refusal, and the
+/// build is not written; so is a layout whose manifest is not the proposed digest.
+#[tokio::test]
+async fn a_fullstack_build_the_registry_stores_otherwise_is_refused() {
+    let (layout, image, _) = image_layout();
+    let other = format!("sha256:{}", "e".repeat(64));
+    for (proposed, stored, says) in [
+        (image.clone(), other.clone(), "the registry stored"),
+        (other.clone(), image.clone(), "names no manifest"),
+    ] {
+        let gitea = forge().await;
+        built_on_forge_as(&gitea, COMMIT, "image", &layout, None).await;
+        registry_takes(&gitea, &stored).await;
+        package_takes(&gitea, 201).await;
+        let state = state_with(&gitea);
+        let mut status = build();
+        status["build"]["digest"] = json!(proposed);
+
+        let refused = send(
+            &state,
+            person("builder"),
+            "POST",
+            APPS,
+            Some(fullstack(status)),
+        )
+        .await;
+        assert!(refused.status.is_client_error(), "{}", refused.text);
+        assert!(refused.text.contains(says), "{}", refused.text);
+        assert!(
+            committed(&gitea).await.is_empty(),
+            "the build was written: {says}"
+        );
+    }
 }
