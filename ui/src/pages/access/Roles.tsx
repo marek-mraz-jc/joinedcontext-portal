@@ -15,6 +15,7 @@ import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
   Alert,
+  Badge,
   Button,
   EmptyState,
   Table,
@@ -78,9 +79,44 @@ export function fromRoleEnvelope(manifest: unknown): RoleForm {
   };
 }
 
-function useRoles(project: string) {
+/**
+ * The role taxonomy every organization starts from (PF-56). Read only to mark a row *seeded*:
+ * the taxonomy is a seed the organization extends, so nothing is decided by these names.
+ */
+export const SEEDED_ROLES = [
+  "viewer",
+  "model-editor",
+  "pipeline-editor",
+  "endpoint-editor",
+  "app-editor",
+  "steward",
+  "publisher",
+  "org-admin",
+] as const;
+
+/**
+ * The kinds a role inside a project may never name (PF-68): they belong to the organization's own
+ * roles. jc-core refuses them at validation; the form leaves them out of its list and says so
+ * before the door does. The door stays the authority for any other organization kind.
+ */
+export const NOT_IN_A_PROJECT = ["Role", "RoleBinding", "Group", "Organization", "Project"] as const;
+
+/** The kinds of `rules` a project role may not name, each once (PF-68). */
+export function organizationKindsIn(rules: { kinds?: string[] }[] | undefined): string[] {
+  const named = new Set((rules ?? []).flatMap((rule) => rule.kinds ?? []));
+  return NOT_IN_A_PROJECT.filter((kind) => named.has(kind));
+}
+
+/**
+ * Which roles a page lists (Architecture/09 §14.4): the organization's own on the Organization
+ * page, this project's own in Project settings, both where both meet.
+ */
+export type RoleScope = "organization" | "project" | "all";
+
+function useRoles(project: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.list(project, "roles"),
+    enabled,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -140,14 +176,18 @@ export function NewRoleDialog({
   });
 
   const rights = ownRights(permissions.data);
+  const inProject = project !== ORG_NAMESPACE;
   const schema = roleSchema(
     t,
-    rights.kinds,
+    inProject
+      ? rights.kinds.filter((kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind))
+      : rights.kinds,
     rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS,
   );
   // PF-52 as the form reads it: the rules of the role in hand against the grants the caller holds.
   // The server runs the same comparison; this one only says it before the proposal is sent.
   const missing = beyondOwnRights(permissions.data, form?.rules);
+  const outOfPlace = inProject ? organizationKindsIn(form?.rules) : [];
 
   const failure =
     propose.error instanceof ApiError
@@ -201,9 +241,11 @@ export function NewRoleDialog({
       submitLabel={t("access.projectRoles.propose")}
       submitting={propose.isPending}
       submitDisabledReason={
-        missing.length > 0
-          ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
-          : undefined
+        outOfPlace.length > 0
+          ? t("projectSettings.roles.organizationKinds", { kinds: outOfPlace.join(", ") })
+          : missing.length > 0
+            ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
+            : undefined
       }
       error={failure}
       onSubmit={(role) => propose.mutate(role)}
@@ -215,17 +257,26 @@ export function NewRoleDialog({
  * Project → Access → the roles in force here: the organization's, which every project shares, and
  * this project's own, which its steward writes and nobody outside it can be given (PF-68, PF-69).
  */
-export function Roles({ project }: { project: string }): JSX.Element {
+export function Roles({
+  project,
+  scope = "all",
+}: {
+  project: string;
+  scope?: RoleScope;
+}): JSX.Element {
   const { t } = useTranslation();
-  const organization = useRoles(ORG_NAMESPACE);
-  const here = useRoles(project);
+  const organization = useRoles(ORG_NAMESPACE, scope !== "project");
+  // The organization's own namespace has no project roles: the same list twice would be the
+  // same rows twice (one query key, one cache entry).
+  const ownRoles = scope !== "organization" && project !== ORG_NAMESPACE;
+  const here = useRoles(project, ownRoles);
   const [writing, setWriting] = useState(false);
   // A role already written may name a kind the editor does not hold; the lists offer what they
   // hold and the schema keeps the rest, so editing one rule never silently drops another (PF-52).
   const editSchema = roleSchema(t, [], ROLE_VERBS);
 
   const rows: Row[] = [
-    ...asManifests(here.data?.items ?? []).map((role: Manifest) => ({
+    ...asManifests((ownRoles ? here.data?.items : undefined) ?? []).map((role: Manifest) => ({
       name: role.metadata.name,
       home: project,
       rules: ((role.spec ?? {}) as { rules?: Rule[] }).rules ?? [],
@@ -244,7 +295,10 @@ export function Roles({ project }: { project: string }): JSX.Element {
       .join("; ");
 
   const error = organization.error ?? here.error;
-  const pending = organization.isPending || here.isPending;
+  // A list this page does not ask for is not pending: an idle query stays `isPending` forever.
+  const waiting = (query: { isPending: boolean; fetchStatus: string }) =>
+    query.isPending && query.fetchStatus !== "idle";
+  const pending = waiting(organization) || waiting(here);
 
   return (
     <section className="space-y-4" aria-labelledby="project-roles-heading">
@@ -288,7 +342,15 @@ export function Roles({ project }: { project: string }): JSX.Element {
               ) : (
                 rows.map((row) => (
                   <TableRow key={`${row.home}/${row.name}`}>
-                    <TableCell primary>{row.name}</TableCell>
+                    <TableCell primary>
+                      <span className="inline-flex items-center gap-2">
+                        {row.name}
+                        {row.home === ORG_NAMESPACE &&
+                        (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
+                          <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
+                        ) : null}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {row.home === ORG_NAMESPACE
                         ? t("access.roles.organization")

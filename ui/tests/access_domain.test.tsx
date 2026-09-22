@@ -40,6 +40,10 @@ function renderAccess(domainVerification: unknown, page = false) {
     if (path === "/api/v1/projects/org/organizations") {
       return json(list([organization(domainVerification)]));
     }
+    // The Organization page stands in the shell of the first project (T-2605).
+    if (path === "/api/v1/projects") {
+      return json(list([{ name: "banskabystrica" }]));
+    }
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -59,10 +63,10 @@ async function section(): Promise<HTMLElement> {
   return heading.closest("section") as HTMLElement;
 }
 
-describe("the organization's domain on the Access page", () => {
+describe("the organization's domain on Organization → Settings", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/access");
+    window.history.pushState({}, "", "/organization/settings");
   });
 
   afterEach(() => {
@@ -124,7 +128,7 @@ describe("the organization's domain on the Access page", () => {
     expect(within(domain).queryByTestId("domain-record")).toBeNull();
   });
 
-  it("stands on the Access page", async () => {
+  it("stands on Organization → Settings", async () => {
     renderAccess({ state: "pending", challenge: "Q2hhbGxlbmdlLW9mLXRoaXMtaW5zdGFuY2U", record: RECORD }, true);
     const domain = await section();
     expect(within(domain).getByTestId("domain-record").textContent).toBe(RECORD);

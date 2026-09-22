@@ -34,6 +34,17 @@ const PAGES = [
   `/projects/${PROJECT}/approvals`,
   `/projects/${PROJECT}/approvals/chg-1a2b3c4d`,
   "/endpoints",
+  "/organization",
+  "/organization/settings",
+  "/organization/members",
+  "/organization/projects",
+  "/organization/groups/new",
+  `/projects/${PROJECT}/settings`,
+  `/projects/${PROJECT}/settings/general`,
+  `/projects/${PROJECT}/settings/members`,
+  `/projects/${PROJECT}/settings/access`,
+  `/projects/${PROJECT}/settings/danger`,
+  `/projects/${PROJECT}/settings/service-accounts/new`,
   "/playground",
   `/projects/${PROJECT}/models`,
   `/projects/${PROJECT}/explore`,
@@ -136,8 +147,11 @@ describe("the buttons of every page", () => {
     const paths = routerPaths(router);
     const missing = paths.filter((path) => {
       if (path === "/" || path === "/__gallery") return false;
-      // `$param` stands for a value; the list carries one address per route.
-      const pattern = new RegExp(`^${path.replace(/\$[a-zA-Z]+/g, "[^/]+")}$`);
+      // `$param` stands for a value, a trailing `$` for the rest of the address (a splat); the
+      // list carries one address per route.
+      const pattern = new RegExp(
+        `^${path.replace(/\/\$$/, "/.+").replace(/\$[a-zA-Z]+/g, "[^/]+")}$`,
+      );
       return !PAGES.some((address) => pattern.test(address));
     });
     expect(missing, "a route with no address in PAGES: its buttons are checked by nothing").toEqual([]);

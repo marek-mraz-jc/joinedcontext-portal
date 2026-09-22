@@ -810,7 +810,9 @@ impl Driver {
             .to_owned();
         let info = crate::resource::by_kind("RoleBinding")
             .ok_or_else(|| "RoleBinding is not a kind of this Portal".to_owned())?;
-        let route = format!("/projects/{}/access?grant={name}", self.project);
+        // Project settings → Members holds the grant form since T-2606 (Architecture/09 §14.3);
+        // the page keys the hand-off by the address it opens on, so it names that one.
+        let route = format!("/projects/{}/settings/members?grant={name}", self.project);
         let draft = json!({ "kind": "RoleBinding", "name": name });
         self.open_change(
             info, &name, manifest, answer, TOOL, input, started, last, route, draft, false,

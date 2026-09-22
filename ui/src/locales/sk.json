@@ -53,7 +53,9 @@
     "import": "Import",
     "workspaces": "Kópie",
     "policies": "Politiky",
-    "subscriptions": "Odbery"
+    "subscriptions": "Odbery",
+    "organization": "Organizácia",
+    "settings": "Nastavenia projektu"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -2645,6 +2647,141 @@
       "serviceAccount": "Servisný účet",
       "interval": "Interval zrkadlenia schém",
       "expiresAt": "Platí do"
+    }
+  },
+  "organization": {
+    "field": {
+      "domain": "Doména",
+      "locales": "Jazyky",
+      "defaultLocale": "Predvolený jazyk",
+      "contacts": "Kontakty",
+      "contactRole": "Zodpovedá za",
+      "contactName": "Meno",
+      "contactEmail": "E-mail",
+      "contactPhone": "Telefón",
+      "projects": "Pravidlá projektov",
+      "creation": "Kto smie otvoriť projekt",
+      "visibility": "Kto číta projekty",
+      "nameCooldownDays": "Dni rezervácie názvu zmazaného projektu",
+      "quota": {
+        "title": "Kvóta nového projektu",
+        "contextSpaces": "Kontextové priestory",
+        "residentPipelines": "Stále pipeline",
+        "publicEndpoints": "Verejné koncové body",
+        "ingestEventsPerSecond": "Aktualizácie za sekundu",
+        "apps": "Aplikácie",
+        "agentRunsPerDay": "Behy asistenta za deň",
+        "entitiesPerSpace": "Entity v priestore",
+        "requestsPerMinute": "Požiadavky za minútu na koncový bod"
+      }
+    },
+    "contactRole": {
+      "administrative": "Administratíva",
+      "technical": "Technika",
+      "data-protection": "Ochrana osobných údajov",
+      "security": "Bezpečnosť"
+    },
+    "visibility": {
+      "organization": "Každý prihlásený človek organizácie",
+      "members": "Iba ľudia, ktorých menuje väzba"
+    },
+    "title": "Organizácia",
+    "lead": "Čo je rovnaké v každom projekte: nastavenia organizácie, jej členovia, roly, skupiny a servisné účty a jej projekty. Každá zmena sa tu navrhuje a schvaľuje.",
+    "tabsLabel": "Časti organizácie",
+    "tab": {
+      "settings": "Nastavenia",
+      "members": "Členovia",
+      "roles": "Roly",
+      "groups": "Skupiny",
+      "service-accounts": "Servisné účty",
+      "projects": "Projekty"
+    },
+    "settings": {
+      "title": "Nastavenia",
+      "lead": "Doména, jazyky a kontakty organizácie a pravidlá, ktorými sa riadi každý projekt. Úprava navrhne zmenu, ktorú schváli administrátor.",
+      "empty": "Organizácia ešte nemá manifest",
+      "emptyHint": "Inštalácia zapíše org.yaml do konfiguračného repozitára; kým tam nie je, na tejto karte sa nedá nič upraviť.",
+      "locales": "{locales}; v jazyku {fallback}, keď jazyk osoby nie je v ponuke",
+      "noContacts": "Zatiaľ nie je uvedený žiadny kontakt.",
+      "creationAnyone": "Projekt smie otvoriť ktokoľvek prihlásený.",
+      "creationGroup": "Projekty otvárajú členovia skupiny {group}.",
+      "creationAdmin": "Projekty otvára iba administrátor organizácie.",
+      "cooldown": "{days} dní",
+      "noQuota": "Pre nový projekt nie je stanovený žiadny limit."
+    },
+    "members": {
+      "title": "Členovia",
+      "hidden": "Nevidíte, kto patrí do tejto organizácie; administrátor organizácie to vidí.",
+      "caption": "Kto má rolu v celej organizácii"
+    },
+    "roles": {
+      "seeded": "základná"
+    },
+    "projects": {
+      "title": "Projekty",
+      "lead": "Každý projekt, ktorý smiete čítať. Kto projekt otvorí, stáva sa jeho správcom; zmazanie je zmena v červenom pruhu s opísaným názvom.",
+      "caption": "Projekty organizácie",
+      "name": "Projekt",
+      "people": "Priradení ľudia a skupiny",
+      "peopleHidden": "Nezobrazuje sa vám",
+      "empty": "Zatiaľ žiadny projekt",
+      "emptyHint": "Prvý otvoríte tlačidlom Nový projekt."
+    }
+  },
+  "projectDelete": {
+    "title": "Zmazať projekt {name}",
+    "lead": "Navrhne sa jedna zmena v červenom pruhu. Schváli ju administrátor organizácie a dovtedy sa nič neodstráni.",
+    "propose": "Navrhnúť zmazanie projektu",
+    "cascadeTitle": "Čo odíde s ním",
+    "cascadeFailed": "Obsah projektu sa nepodarilo spočítať; zmena aj tak vypíše každý súbor, ktorý odstráni.",
+    "count": "{count} × {what}",
+    "everythingElse": "každý ďalší manifest napísaný preň: zdroje dát, pipeline, servisné účty a roly",
+    "bindings": "každá väzba roly organizácie, ktorá menuje projekt alebo niektorý z jeho priestorov",
+    "cooldown": "Názov {name} zostane po zlúčení zmazania rezervovaný {days} dní.",
+    "action": "Zmazať projekt {name}",
+    "button": "Zmazať"
+  },
+  "projectSettings": {
+    "title": "Nastavenia projektu",
+    "lead": "Všetko, čo patrí projektu {project}: jeho názov a kvóty, kto je doň priradený, jeho vlastné roly, servisné účty a jeho zmazanie. Každá zmena sa navrhuje a schvaľuje.",
+    "tabsLabel": "Časti nastavení projektu",
+    "tab": {
+      "general": "Všeobecné",
+      "members": "Členovia",
+      "roles": "Roly",
+      "service-accounts": "Servisné účty",
+      "access": "Váš prístup",
+      "danger": "Zmazať projekt"
+    },
+    "field": {
+      "title": "Názov",
+      "description": "Popis",
+      "quotas": "Kvóty tohto projektu"
+    },
+    "general": {
+      "title": "Všeobecné",
+      "lead": "Ako sa projekt volá a opisuje a čo smie obsahovať. Úprava navrhne zmenu súboru project.yaml.",
+      "noDescription": "Zatiaľ bez popisu.",
+      "organization": "Organizácia",
+      "unknown": "Pre vás nečitateľné"
+    },
+    "access": {
+      "title": "Váš prístup tu",
+      "lead": "Čo vám vaše väzby dovoľujú v tomto projekte čítať, navrhovať, schvaľovať a mazať, a odkiaľ každé oprávnenie pochádza.",
+      "bootstrap": "Ste v zakladajúcej skupine: smiete všetko, kým nebude priradený prvý administrátor.",
+      "caption": "Vaše oprávnenia v {project}",
+      "role": "Rola",
+      "allows": "Dovoľuje",
+      "from": "Odkiaľ",
+      "none": "Žiadna väzba vám tu nič nedáva.",
+      "binding": "väzba {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Zmazať projekt",
+      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním."
+    },
+    "roles": {
+      "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
     }
   }
 }

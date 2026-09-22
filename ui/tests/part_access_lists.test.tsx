@@ -1,6 +1,7 @@
 /**
  * T-1827, T-1829: the groups and the service accounts of the Access page (UI-01, UI-15, UI-16,
- * UI-44, PF-50).
+ * UI-44, PF-50). Since T-2606 the accounts are on Project settings → Service accounts and the
+ * groups on Organization → Groups; the cases follow them there.
  *
  * Neither file was named by a test. Both carried the same two defects the checklist looks for:
  * a refusal that could not be read — the Propose button was hard-disabled with its reason wired
@@ -24,7 +25,8 @@ import {
 } from "./pageHarness";
 import { findFormPage } from "./formPage";
 
-const PATH = "/projects/helsinki/access";
+const ACCOUNTS = "/projects/helsinki/settings/service-accounts";
+const GROUPS = "/organization/groups";
 
 const serviceAccount = (name: string) => ({
   apiVersion: "joinedcontext.com/v1alpha1",
@@ -52,7 +54,7 @@ const answering =
     return undefined;
   };
 
-describe("the access page", () => {
+describe("the service accounts and the groups", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
@@ -62,14 +64,14 @@ describe("the access page", () => {
   });
 
   it("opens_with_its_lists_and_no_axe_violation", async () => {
-    const { container } = await renderRoute({ path: PATH, answer: answering(), identity: VIEWER });
+    const { container } = await renderRoute({ path: ACCOUNTS, answer: answering(), identity: VIEWER });
     await screen.findByText("harvester");
     await expectAxeClean(container);
   });
 
   it("a_key_list_that_failed_says_the_apis_own_sentence_and_offers_one_more_try", async () => {
     const { calls } = await renderRoute({
-      path: PATH,
+      path: ACCOUNTS,
       answer: answering((path) =>
         path.includes("/keys") ? problem(500, "The key store lost its connection.") : undefined,
       ),
@@ -89,7 +91,7 @@ describe("the access page", () => {
 
   it("an_account_with_no_key_still_says_it_has_none", async () => {
     await renderRoute({
-      path: PATH,
+      path: ACCOUNTS,
       answer: answering((path) => (path.includes("/keys") ? jsonResponse(list([])) : undefined)),
     });
     expect(await screen.findByText(en.access.keys.empty)).toBeInTheDocument();
@@ -100,7 +102,7 @@ describe("the access page", () => {
     // It used to open on a textarea holding a nameless example, with Propose disabled until the
     // example was named. The fields replace both: the name is a field the schema validates, and
     // the manifest is one view away rather than the first thing a person meets (T-2400).
-    await renderRoute({ path: PATH, answer: answering() });
+    await renderRoute({ path: GROUPS, answer: answering() });
 
     await userEvent.click(await screen.findByRole("button", { name: en.access.groups.new }));
     const dialog = await findFormPage();
@@ -114,7 +116,7 @@ describe("the access page", () => {
 
   it("says_everything_it_says_in_all_four_languages", async () => {
     for (const locale of LOCALES) {
-      const { unmount } = await renderRoute({ path: PATH, locale, answer: answering() });
+      const { unmount } = await renderRoute({ path: GROUPS, locale, answer: answering() });
       expect(
         await screen.findByRole("button", { name: i18n.t("access.groups.new") }),
       ).toBeInTheDocument();
@@ -128,7 +130,7 @@ describe("the access page", () => {
 
   it("a_service_account_name_out_of_the_api_is_rendered_as_text", async () => {
     const { container } = await renderRoute({
-      path: PATH,
+      path: ACCOUNTS,
       answer: answering((path) =>
         path.endsWith("/serviceaccounts")
           ? jsonResponse(list([serviceAccount("<img src=x onerror=alert(1)>")]))

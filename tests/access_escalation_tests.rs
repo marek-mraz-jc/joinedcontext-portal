@@ -724,6 +724,111 @@ async fn a_role_of_one_project_grants_nothing_in_another_and_nothing_at_organiza
     );
 }
 
+/// T-2606, PF-68: Project settings → Roles offers project kinds only, and the door says the same
+/// to whoever sends the rest by hand — a project role naming `Role` or `RoleBinding` would let a
+/// project write the organization's grants.
+#[tokio::test]
+async fn a_project_role_naming_an_organization_kind_is_refused_at_the_door() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+
+    // The lead proposes and approves Role and RoleBinding over the whole organization, so the
+    // refusal is the kind's place, not their rights.
+    for kind in ["Role", "RoleBinding"] {
+        let answer = send(
+            &state,
+            person("lead"),
+            "POST",
+            "/api/v1/projects/helsinki/roles",
+            Some(project_role(
+                "helsinki",
+                "grant-writer",
+                json!([{ "kinds": [kind], "verbs": ["propose"] }]),
+            )),
+        )
+        .await;
+        assert!(
+            answer.status.is_client_error(),
+            "{kind}: {} {}",
+            answer.status,
+            answer.text
+        );
+        assert!(
+            answer.text.contains("project kinds only"),
+            "{kind}: the refusal says why: {}",
+            answer.text
+        );
+    }
+}
+
+/// T-2606, PF-69: a project's own role is bound in that project and nowhere else; the binding
+/// that names it in another project or over the organization is refused before anything is
+/// written, and the one in its own project is the red-lane change it always was.
+#[tokio::test]
+async fn a_binding_of_a_project_role_outside_its_project_is_refused() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+    state.mirror.upsert(envelope(
+        "Role",
+        "pipeline-author",
+        "helsinki",
+        json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["propose"] }] }),
+    ));
+
+    for (scope, name) in [
+        (project("espoo"), "jana-author-espoo"),
+        (organization(), "jana-author-everywhere"),
+    ] {
+        let answer = send(
+            &state,
+            person("lead"),
+            "POST",
+            PROPOSE,
+            Some(binding(name, "pipeline-author", scope)),
+        )
+        .await;
+        refused(
+            &answer,
+            "no role pipeline-author is defined where this binding applies",
+        );
+    }
+
+    let answer = send(
+        &state,
+        person("lead"),
+        "POST",
+        PROPOSE,
+        Some(binding(
+            "jana-author",
+            "pipeline-author",
+            project("helsinki"),
+        )),
+    )
+    .await;
+    red_change(&answer);
+}
+
+/// T-2606, PF-59: Project settings reads a project through its existing routes, and a project
+/// nobody bound the caller to is not there — 404, never 403, on the project and on its roles.
+#[tokio::test]
+async fn a_project_the_person_cannot_read_is_not_found_on_its_settings_routes() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+    for route in [
+        "/api/v1/projects/helsinki",
+        "/api/v1/projects/helsinki/roles",
+        "/api/v1/projects/helsinki/permissions/me",
+    ] {
+        let answer = send(&state, person("stranger"), "GET", route, None).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::NOT_FOUND,
+            "{route}: {}",
+            answer.text
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_project_role_is_read_through_the_operations_beside_the_organizations() {
     use joinedcontext_portal::ops::{self, Caller, Via};

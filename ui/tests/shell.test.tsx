@@ -85,7 +85,10 @@ describe("portal shell", () => {
       "Dashboards",
       "Applications",
       "Approvals",
-      "Access",
+      // Project → Access folded into Project settings, and the organization's part moved to the
+      // Organization page beside the project switcher (T-2605, T-2606).
+      "Project settings",
+      "Organization",
     ]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }

@@ -42,6 +42,14 @@
         "form_activity_feed.test.tsx"
       ]
     },
+    "src/components/DeleteProjectDialog.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "organization_page.test.tsx"
+      ]
+    },
     "src/components/DeleteResourceDialog.tsx": {
       "controls": {
         "Button": 4
@@ -489,7 +497,8 @@
       },
       "tests": [
         "access_forms.test.tsx",
-        "edit_keeps_stored_metadata.test.ts"
+        "edit_keeps_stored_metadata.test.ts",
+        "project_settings.test.tsx"
       ]
     },
     "src/pages/access/ServiceAccounts.tsx": {

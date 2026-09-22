@@ -53,7 +53,9 @@
     "import": "Import",
     "workspaces": "Copies",
     "policies": "Policies",
-    "subscriptions": "Subscriptions"
+    "subscriptions": "Subscriptions",
+    "organization": "Organization",
+    "settings": "Project settings"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -2645,6 +2647,141 @@
       "serviceAccount": "Service account",
       "interval": "Schema mirror interval",
       "expiresAt": "Expires at"
+    }
+  },
+  "organization": {
+    "field": {
+      "domain": "Domain",
+      "locales": "Languages",
+      "defaultLocale": "Default language",
+      "contacts": "Contacts",
+      "contactRole": "Responsible for",
+      "contactName": "Name",
+      "contactEmail": "E-mail",
+      "contactPhone": "Telephone",
+      "projects": "Rules for projects",
+      "creation": "Who may open a project",
+      "visibility": "Who reads the projects",
+      "nameCooldownDays": "Days a deleted project's name stays reserved",
+      "quota": {
+        "title": "Quota of a new project",
+        "contextSpaces": "Context Spaces",
+        "residentPipelines": "Resident pipelines",
+        "publicEndpoints": "Public endpoints",
+        "ingestEventsPerSecond": "Updates per second",
+        "apps": "Apps",
+        "agentRunsPerDay": "Assistant runs per day",
+        "entitiesPerSpace": "Entities per space",
+        "requestsPerMinute": "Requests per minute per endpoint"
+      }
+    },
+    "contactRole": {
+      "administrative": "Administration",
+      "technical": "Technology",
+      "data-protection": "Data protection",
+      "security": "Security"
+    },
+    "visibility": {
+      "organization": "Every signed-in person of the organization",
+      "members": "Only the people a binding names"
+    },
+    "title": "Organization",
+    "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
+    "tabsLabel": "Parts of the organization",
+    "tab": {
+      "settings": "Settings",
+      "members": "Members",
+      "roles": "Roles",
+      "groups": "Groups",
+      "service-accounts": "Service accounts",
+      "projects": "Projects"
+    },
+    "settings": {
+      "title": "Settings",
+      "lead": "The organization's domain, languages and contacts, and the rules every project follows. Edit proposes a change an administrator approves.",
+      "empty": "The organization has no manifest yet",
+      "emptyHint": "The installation writes org.yaml into the configuration repository; until it is there, nothing on this tab can be edited.",
+      "locales": "{locales}; shown in {fallback} when a person's own language is not offered",
+      "noContacts": "No contact is named yet.",
+      "creationAnyone": "Anyone signed in may open a project.",
+      "creationGroup": "The members of the group {group} open projects.",
+      "creationAdmin": "Only an organization administrator opens projects.",
+      "cooldown": "{days} days",
+      "noQuota": "No limit is set for a new project."
+    },
+    "members": {
+      "title": "Members",
+      "hidden": "You cannot see who belongs to this organization; an organization administrator can.",
+      "caption": "Who holds a role across the whole organization"
+    },
+    "roles": {
+      "seeded": "seeded"
+    },
+    "projects": {
+      "title": "Projects",
+      "lead": "Every project you may read. Opening one makes you its steward; deleting one is a red-lane change with the name typed back.",
+      "caption": "The organization's projects",
+      "name": "Project",
+      "people": "People and groups bound",
+      "peopleHidden": "Not shown to you",
+      "empty": "No project yet",
+      "emptyHint": "Open the first one with New project."
+    }
+  },
+  "projectDelete": {
+    "title": "Delete project {name}",
+    "lead": "This proposes one red-lane change. An organization administrator approves it, and until then nothing is removed.",
+    "propose": "Propose deleting the project",
+    "cascadeTitle": "What goes with it",
+    "cascadeFailed": "The contents of the project could not be counted; the change still lists every file it removes.",
+    "count": "{count} × {what}",
+    "everythingElse": "every other manifest written for it: data sources, pipelines, service accounts and roles",
+    "bindings": "every role binding of the organization that names the project or one of its spaces",
+    "cooldown": "The name {name} stays reserved for {days} days after the deletion is merged.",
+    "action": "Delete project {name}",
+    "button": "Delete"
+  },
+  "projectSettings": {
+    "title": "Project settings",
+    "lead": "Everything that belongs to the project {project}: its title and quotas, who is bound in it, its own roles, its service accounts and its deletion. Every change is proposed and approved.",
+    "tabsLabel": "Parts of the project's settings",
+    "tab": {
+      "general": "General",
+      "members": "Members",
+      "roles": "Roles",
+      "service-accounts": "Service accounts",
+      "access": "Your access",
+      "danger": "Delete project"
+    },
+    "field": {
+      "title": "Title",
+      "description": "Description",
+      "quotas": "Quotas of this project"
+    },
+    "general": {
+      "title": "General",
+      "lead": "How the project is named and described, and what it may hold. Edit proposes a change of project.yaml.",
+      "noDescription": "No description yet.",
+      "organization": "Organization",
+      "unknown": "Not readable for you"
+    },
+    "access": {
+      "title": "Your access here",
+      "lead": "What your bindings let you read, propose, approve and delete in this project, and where each grant comes from.",
+      "bootstrap": "You are in the bootstrap group: you may do everything until the first administrator is bound.",
+      "caption": "Your grants in {project}",
+      "role": "Role",
+      "allows": "Allows",
+      "from": "From",
+      "none": "No binding gives you anything here.",
+      "binding": "binding {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Delete project",
+      "lead": "Deleting the project removes everything written for it in one red-lane change an administrator approves. The dialog lists what goes with it before you confirm."
+    },
+    "roles": {
+      "organizationKinds": "A role of a project cannot name {kinds}: those belong to the organization's own roles."
     }
   }
 }
