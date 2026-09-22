@@ -302,7 +302,8 @@ test("a grant wider than the proposer's own rights is refused, and a narrower co
     // The reason names the rule and the verb that is missing, not a bare code (UI-44); the
     // wording is the one `tests/access_escalation_tests.rs` pins server-side.
     expect(refusal).toMatch(/may not grant more than its proposer holds/i);
-    expect(refusal).toMatch(/missing delete on/i);
+    // The missing verbs are listed kind by kind, Organization first (PF-52); `delete` is among them.
+    expect(refusal).toMatch(/missing .*\bdelete on /i);
   } finally {
     await context.close();
   }
