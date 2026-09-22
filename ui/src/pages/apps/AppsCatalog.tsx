@@ -42,6 +42,15 @@ export function appSpec(app: Manifest): AppSpec {
   return app.spec as AppSpec;
 }
 
+/**
+ * Whether the static host has something to serve under the app's name: a build the lane
+ * published, or the bundle the Portal image ships (AP-86, AP-87). A published App with neither
+ * answers 404, so the catalog offers no Open on it.
+ */
+export function isServed(app: Manifest): boolean {
+  return Boolean(app.status?.build) || app.metadata.annotations?.["joinedcontext.com/shipped-with"] === "portal";
+}
+
 export function draftState(status: string): "building" | "needsYou" | "failed" | "readyToPublish" | null {
   switch (status) {
     case "queued":
@@ -331,8 +340,9 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               <div className="mt-auto flex flex-wrap justify-center gap-2">
                 {/* A published app opens at its own address in a new tab, behind the edge
                     login like any audience member sees it (AP-14). Only a preview is framed
-                    here, and a draft has nothing deployed yet (AP-18, AP-19). */}
-                {spec.lifecycle === "published" && (
+                    here, and a draft has nothing deployed yet (AP-18, AP-19). A published App
+                    nothing serves yet offers no Open (AP-86, AP-87). */}
+                {spec.lifecycle === "published" && isServed(app) && (
                   <a
                     href={`/apps/${encodeURIComponent(app.metadata.name)}/`}
                     target="_blank"

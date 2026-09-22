@@ -1194,6 +1194,60 @@ spec:
     assert!(written(&server).await.is_empty());
 }
 
+/// AP-87 (T-2600): a bundle that publishes a static App on a folder of the configuration
+/// repository is refused whole, and so is one claiming a shipped bundle this Portal does not hold:
+/// the shipped mark of the instance it came from says nothing about this one.
+#[tokio::test]
+async fn a_bundle_publishing_a_static_app_nothing_can_build_is_refused_whole() {
+    let published = |annotation: &str| {
+        format!(
+            r#"apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: air-map
+  namespace: helsinki{annotation}
+spec:
+  kind: static
+  source:
+    path: apps/air-map
+  build:
+    node: "22"
+  visibility: project
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef: ovzdusie
+      types: [AirQualityObserved]
+      operations: [queryEntity]
+"#
+        )
+    };
+    for (annotation, named) in [
+        ("", "spec.source.git"),
+        (
+            "\n  annotations:\n    joinedcontext.com/shipped-with: portal",
+            "joinedcontext.com/shipped-with",
+        ),
+    ] {
+        let server = forge().await;
+        let (state, cookie) = state(&server, vec![]);
+        let app = published(annotation);
+        let bundle = archive(&[
+            ("projects/helsinki/spaces/ovzdusie/space.yaml", SPACE),
+            ("projects/helsinki/apps/air-map.yaml", &app),
+        ]);
+        let (content_type, body) = multipart(&bundle, &[("conflictPolicy", "fail")]);
+        let (status, answer) = post(state, &cookie, &content_type, body).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{answer}");
+        let detail = answer["detail"].as_str().unwrap_or_default();
+        assert!(
+            detail.contains(named) && detail.contains("AP-87"),
+            "{detail}"
+        );
+        assert!(written(&server).await.is_empty());
+    }
+}
+
 /// PF-68, T-0872: a role the bundle wrote inside a project lands inside the destination project,
 /// while the organization's own role keeps `users/` — the namespace decides, not the kind alone.
 #[tokio::test]
