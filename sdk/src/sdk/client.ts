@@ -1,5 +1,6 @@
 import type { Cell, Row } from "../ngsi";
-import { cell, toRow } from "../ngsi";
+import { cell, isLanguageMap, toRow } from "../ngsi";
+import type { LanguageMap } from "../ngsi";
 import type { Schema } from "../write";
 import type { AccessDocument } from "./access";
 import { parseAccess } from "./access";
@@ -81,8 +82,10 @@ export interface DataClient {
     list<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     all<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     get<T extends Row = Row>(id: string, attrs?: string[], options?: EndpointOption): Promise<T>;
-    create(type: string, attrs: Record<string, Cell>, localId?: string, options?: EndpointOption): Promise<string>;
-    update(id: string, patch: Record<string, Cell>, options?: EndpointOption): Promise<void>;
+    create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string>;
+    update(id: string, patch: Record<string, Cell | LanguageMap>, options?: EndpointOption): Promise<void>;
+    /** Every language of one LanguageProperty, which a row reduces to one; `{}` when it has none. */
+    languages(id: string, attr: string, options?: EndpointOption): Promise<Record<string, string>>;
     remove(id: string, options?: EndpointOption): Promise<void>;
   };
   temporal: { list(type: string, query: TemporalQuery): Promise<TemporalRow[]> };
@@ -134,11 +137,15 @@ function isGeoJsonGeometry(value: unknown): value is { type: string; coordinates
   return typeof value === "object" && value !== null && "type" in value && "coordinates" in value;
 }
 
-function encodeAttrs(attrs: Record<string, Cell>): Record<string, { type: "Property" | "GeoProperty"; value: Cell }> {
-  const result: Record<string, { type: "Property" | "GeoProperty"; value: Cell }> = {};
+type Encoded = { type: "Property" | "GeoProperty"; value: Cell } | { type: "LanguageProperty"; languageMap: Record<string, string> };
+
+function encodeAttrs(attrs: Record<string, Cell | LanguageMap>): Record<string, Encoded> {
+  const result: Record<string, Encoded> = {};
   for (const [key, val] of Object.entries(attrs)) {
     if (val === null) continue;
-    if (isGeoJsonGeometry(val)) {
+    if (isLanguageMap(val)) {
+      result[key] = { type: "LanguageProperty", languageMap: val.languageMap };
+    } else if (isGeoJsonGeometry(val)) {
       result[key] = { type: "GeoProperty", value: val };
     } else {
       result[key] = { type: "Property", value: val };
@@ -298,7 +305,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       return toRow(resp.body as Record<string, unknown>, config.language) as T;
     },
 
-    async create(type: string, attrs: Record<string, Cell>, localId?: string, options?: EndpointOption): Promise<string> {
+    async create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string> {
       if (!TYPE_RE.test(type)) {
         throw new ProblemError(0, { title: `Invalid entity type: '${type}'` });
       }
@@ -324,7 +331,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       return id;
     },
 
-    async update(id: string, patch: Record<string, Cell>, options?: EndpointOption): Promise<void> {
+    async update(id: string, patch: Record<string, Cell | LanguageMap>, options?: EndpointOption): Promise<void> {
       const encoded = encodeAttrs(patch);
       if (Object.keys(encoded).length === 0) {
         return;
@@ -337,6 +344,24 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       if (resp.status < 200 || resp.status >= 300) {
         throw new ProblemError(resp.status, resp.body);
       }
+    },
+
+    async languages(id: string, attr: string, options?: EndpointOption): Promise<Record<string, string>> {
+      const { slug } = endpointOfId(id, options?.endpoint);
+      const path = `/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1/entities/${encodeURIComponent(id)}?${queryString({ options: "keyValues", attrs: attr })}`;
+      checkEndpointPath(slug, path);
+
+      const resp = await transport({ method: "GET", path });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw new ProblemError(resp.status, resp.body);
+      }
+      const value = typeof resp.body === "object" && resp.body !== null ? (resp.body as Record<string, unknown>)[attr] : undefined;
+      // keyValues carries a LanguageProperty as `{languageMap}`, some brokers as the bare map; a
+      // plain string is a Property the form turns into one language of a map.
+      const map = isLanguageMap(value) ? value.languageMap : value;
+      if (typeof map === "string") return { [config.language ?? "en"]: map };
+      if (typeof map !== "object" || map === null) return {};
+      return Object.fromEntries(Object.entries(map).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
     },
 
     async remove(id: string, options?: EndpointOption): Promise<void> {
