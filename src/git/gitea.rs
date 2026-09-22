@@ -974,7 +974,9 @@ impl GiteaClient {
     ///
     /// The forge answers with a redirect to a signed address on its ROOT_URL, the public host the
     /// cluster may not reach, so the signed path is fetched from the API base the Portal dials;
-    /// the signature is the grant and no token goes with it.
+    /// the signature is the grant and no token goes with it. The path is kept from `/api/v1/` on:
+    /// a ROOT_URL with a path (`https://host/git/`) signs `/git/api/v1/…`, which only the public
+    /// proxy strips, and the forge itself answers 404 (T-2633).
     pub async fn download_artifact(&self, id: u64, limit: u64) -> Result<Vec<u8>, GitError> {
         let url = self.repo_url(&format!("actions/artifacts/{id}/zip"))?;
         let res = self.send(self.http.get(url)).await?;
@@ -985,8 +987,11 @@ impl GiteaClient {
                 .and_then(|value| value.to_str().ok())
                 .and_then(|value| Url::parse(value).ok())
                 .ok_or_else(|| GitError::Transport("the forge redirected nowhere".into()))?;
-            let mut here = self.base.clone();
-            here.set_path(signed.path());
+            let path = signed.path();
+            let api = path.find("/api/v1/").map_or(path, |at| &path[at..]);
+            let full = format!("{}{api}", self.base.as_str().trim_end_matches('/'));
+            let mut here = Url::parse(&full)
+                .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
             here.set_query(signed.query());
             self.http
                 .get(here)

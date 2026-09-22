@@ -178,7 +178,9 @@ async fn built_on_forge_as(
             .and(path(format!("{APP_REPO}/actions/artifacts/{id}/zip")))
             .respond_with(ResponseTemplate::new(302).insert_header(
                 "Location",
-                format!("https://forge.public.example{APP_REPO}/actions/artifacts/{id}/zip/raw?sig=s{id}&expires=9"),
+                // The forge signs its public ROOT_URL, which carries a path on dev
+                // (`https://host/git/`); the Portal dials the API base, where no `/git` exists.
+                format!("https://forge.public.example/git{APP_REPO}/actions/artifacts/{id}/zip/raw?sig=s{id}&expires=9"),
             ))
             .mount(gitea)
             .await;
