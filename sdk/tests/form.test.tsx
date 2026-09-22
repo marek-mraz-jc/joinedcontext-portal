@@ -85,6 +85,8 @@ describe("the form's inputs", () => {
     expect(fieldOf("name", SCHEMA.BikeHireDockingStation, "text")).toEqual({ name: "name", input: "text", pattern: undefined, required: true });
     expect(fieldOf("ghost", SCHEMA.BikeHireDockingStation, "number").input).toBe("number");
     expect(fieldOf("when", { properties: { when: { type: "string", format: "date-time" } } }, "text").input).toBe("date");
+    // SDK-07: a LanguageProperty is not a text box, which would write one language over them all.
+    expect(fieldOf("name", { properties: { name: { type: ["object", "null"], "x-ngsi-ld-kind": "LanguageProperty" } } }, "text").input).toBe("language");
   });
 });
 

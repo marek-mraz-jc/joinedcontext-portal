@@ -96,7 +96,8 @@ test("an administrator reads the organization and grants a role that reaches the
     await page.getByRole("button", { name: "Grant a role" }).click();
     const form = page.getByTestId("form-page").or(page.getByRole("dialog")).first();
     await form.getByLabel("Username or e-mail").fill(VIEWER.user);
-    await form.getByLabel("Role", { exact: true }).selectOption(ROLE);
+    // The label carries the required mark, "Role*", so it is matched from its start.
+    await form.getByLabel(/^Role\b/).selectOption(ROLE);
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     await form.getByLabel("Until (optional)").fill(tomorrow);
     await form.getByRole("button", { name: "Propose grant" }).click();
@@ -132,7 +133,8 @@ test("a viewer is told who can see the members, and the list is never fetched fo
 
     // UI-44: on Projects, Delete stays in place, refused with the reason.
     await page.getByRole("tab", { name: "Projects" }).click();
-    const remove = page.getByRole("button", { name: "Delete project helsinki" });
+    // Exact: "Delete project helsinki-mobility" is the next row's.
+    const remove = page.getByRole("button", { name: "Delete project helsinki", exact: true });
     await expect(remove).toHaveAttribute("aria-disabled", "true", { timeout: 60_000 });
 
     // A tab's routed form: the group the assistant opens at …/new.
