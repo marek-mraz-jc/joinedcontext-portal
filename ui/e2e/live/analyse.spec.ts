@@ -8,6 +8,7 @@
 import { expect, test } from "@playwright/test";
 import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
+import { proposeFrom } from "./kindJourney";
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -39,9 +40,9 @@ test("a KPI pipeline configured with the preset, tested on endpoint, proposed, a
   const kpiValue = studio.getByTestId("studio-kpi-value");
   await expect(kpiValue).toHaveText(/\d/, { timeout: 60_000 });
 
-  const propose = studio.getByRole("button", { name: "Propose change" });
-  await expect(propose).toBeEnabled();
-  await propose.click();
+  // Propose opens on the dialog's own fresh check (PF-57): the test above is the mapping's gate
+  // (PL-49), the check is the draft's, and the page says "Run the check first" until it ran.
+  await proposeFrom(studio);
   const change = await proposedChange(page);
   tick(start);
 
