@@ -10,7 +10,7 @@ type AppBuild = components["schemas"]["AppBuild"];
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 
 /** The forge's run state in the words the catalog uses (AP-86). */
-function runState(run: WorkflowRun): "building" | "succeeded" | "failed" | "cancelled" {
+export function runState(run: WorkflowRun): "building" | "succeeded" | "failed" | "cancelled" {
   if (run.status !== "completed") return "building";
   if (run.conclusion === "success") return "succeeded";
   if (run.conclusion === "cancelled" || run.conclusion === "skipped") return "cancelled";
@@ -20,7 +20,7 @@ function runState(run: WorkflowRun): "building" | "succeeded" | "failed" | "canc
 const buildKey = (project: string, name: string) => ["projects", project, "apps", name, "build"];
 
 /** Where the App is built, one query the catalog card and the App page share. */
-function useAppBuild(project: string, name: string) {
+export function useAppBuild(project: string, name: string) {
   return useQuery({
     queryKey: buildKey(project, name),
     queryFn: async (): Promise<AppBuild> =>
@@ -30,6 +30,22 @@ function useAppBuild(project: string, name: string) {
         }),
       ),
     retry: false,
+  });
+}
+
+/** Rebuild: a `workflow_dispatch` of the reviewed `build.yml` on the default branch (AP-103). */
+export function useRebuild(project: string, name: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST("/api/v1/projects/{project}/apps/{name}/rebuild", {
+          params: { path: { project, name } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: buildKey(project, name) });
+    },
   });
 }
 
@@ -82,22 +98,9 @@ export function AppBuildState({
  */
 export function AppBuildPanel({ project, name }: { project: string; name: string }): JSX.Element | null {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const [started, setStarted] = useState(false);
-  const queryKey = buildKey(project, name);
   const build = useAppBuild(project, name);
-  const rebuild = useMutation({
-    mutationFn: async () =>
-      unwrap(
-        await api.POST("/api/v1/projects/{project}/apps/{name}/rebuild", {
-          params: { path: { project, name } },
-        }),
-      ),
-    onSuccess: () => {
-      setStarted(true);
-      void queryClient.invalidateQueries({ queryKey });
-    },
-  });
+  const rebuild = useRebuild(project, name);
 
   if (build.isPending) return null;
   if (build.isError) {
@@ -128,7 +131,7 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
           disabledReason={data.rebuild.reason ?? undefined}
           onClick={() => {
             setStarted(false);
-            rebuild.mutate();
+            rebuild.mutate(undefined, { onSuccess: () => setStarted(true) });
           }}
         >
           {t("apps.build.rebuild")}

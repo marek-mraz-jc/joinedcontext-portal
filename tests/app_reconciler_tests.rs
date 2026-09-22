@@ -20,6 +20,9 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
+        apisix_namespace: "apisix".into(),
+        image_repository: None,
+        pull_secret: None,
     }
 }
 
@@ -194,8 +197,10 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
         json!({ "matchLabels": { "app.kubernetes.io/name": "app-air-quality-today" } })
     );
 
-    let ingress = policy["spec"]["ingress"].as_array().expect("one hole in");
-    assert_eq!(ingress.len(), 1, "APISIX is the only source admitted");
+    // In: APISIX alone, on the app port and on the Linkerd inbound port its meshed traffic
+    // lands on; the second rule is the proxy's admin ports, which carry no request.
+    let ingress = policy["spec"]["ingress"].as_array().expect("holes in");
+    assert_eq!(ingress.len(), 2);
     assert_eq!(
         ingress[0]["from"],
         json!([{
@@ -206,27 +211,53 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
     );
     assert_eq!(
         ingress[0]["ports"],
-        json!([{ "protocol": "TCP", "port": APP_PORT }]),
-        "the app port, no other"
+        json!([
+            { "protocol": "TCP", "port": APP_PORT },
+            { "protocol": "TCP", "port": 4143 },
+        ]),
+        "the app port and the mesh's inbound port, no other"
+    );
+    assert!(ingress[1].get("from").is_none());
+    assert_eq!(
+        ingress[1]["ports"],
+        json!([
+            { "protocol": "TCP", "port": 4190 },
+            { "protocol": "TCP", "port": 4191 },
+        ]),
+        "an open rule names the proxy's admin ports and nothing an app serves"
     );
 
-    // Out: DNS, and the platform host for the endpoint (443 and the controller's port), which
-    // is where both APISIX and Keycloak are reached from a pod.
-    let egress = policy["spec"]["egress"].as_array().expect("two holes out");
-    assert_eq!(egress.len(), 2);
+    // Out: the Linkerd control plane, DNS, and the platform host for the endpoint (443, the
+    // controller's port, and 4143 when the controller is meshed).
+    let egress = policy["spec"]["egress"]
+        .as_array()
+        .expect("three holes out");
+    assert_eq!(egress.len(), 3);
     assert_eq!(
-        egress[0]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
+        egress[0],
+        json!({
+            "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+            "ports": [
+                { "protocol": "TCP", "port": 8080 },
+                { "protocol": "TCP", "port": 8086 },
+                { "protocol": "TCP", "port": 8090 },
+            ],
+        })
+    );
+    assert_eq!(
+        egress[1]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
         "kube-dns"
     );
     assert_eq!(
-        egress[1]["to"],
+        egress[2]["to"],
         json!([{ "ipBlock": { "cidr": "0.0.0.0/0" } }])
     );
     assert_eq!(
-        egress[1]["ports"],
+        egress[2]["ports"],
         json!([
             { "protocol": "TCP", "port": 443 },
             { "protocol": "TCP", "port": 8443 },
+            { "protocol": "TCP", "port": 4143 },
         ])
     );
 }
@@ -566,6 +597,63 @@ fn a_generated_slug_is_unguessable_and_never_the_same_twice() {
     );
 }
 
+/// AP-108: APISIX is admitted from the namespace the installation runs it in, a setting; the
+/// literal `apisix` never matched `dev`, where APISIX runs in `dev`.
+#[test]
+fn ingress_admits_apisix_from_the_namespace_the_installation_names() {
+    let mut on_dev = settings();
+    on_dev.apisix_namespace = "dev".into();
+    let rendered = render(&app(json!({})), Some(APP_IMAGE), &generate_slug(), &on_dev)
+        .expect("the app renders");
+    let policy = rendered.workload.expect("a pod").network_policy;
+    assert_eq!(
+        policy["spec"]["ingress"][0]["from"][0]["namespaceSelector"],
+        json!({ "matchLabels": { "kubernetes.io/metadata.name": "dev" } })
+    );
+}
+
+/// AP-105, AP-108, AP-109: a fullstack pod pulls with the configured Secret, starts the binary at
+/// `/app` as a numeric non-root user, and is told where to ask for the caller's roles.
+#[test]
+fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user() {
+    let mut with_registry = settings();
+    with_registry.pull_secret = Some("app-registry".into());
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &with_registry,
+    )
+    .expect("the app renders");
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let pod = &deployment["spec"]["template"]["spec"];
+    assert_eq!(pod["imagePullSecrets"], json!([{ "name": "app-registry" }]));
+    assert_eq!(pod["securityContext"]["runAsNonRoot"], true);
+    assert_eq!(pod["securityContext"]["runAsUser"], 65532);
+    let binary = container(&deployment, "app");
+    assert_eq!(binary["command"], json!(["/app"]));
+    assert_eq!(
+        env(binary, "JC_ME_URL")["value"],
+        "https://bb.example.com/api/v1/projects/ovzdusie/apps/air-quality-today/me"
+    );
+
+    let without = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders")
+    .workload
+    .expect("a pod")
+    .deployment;
+    assert_eq!(
+        without["spec"]["template"]["spec"]["imagePullSecrets"],
+        json!([]),
+        "no Secret configured, none named"
+    );
+}
+
 /// AP-96: the app's grants are held on its own endpoint alone. A need without roles goes to the
 /// endpoint's caller role, a need with roles to one Policy per role, each exactly the need, and
 /// the endpoint carries the roles with their subjects so the gateway can hand them out (AP-97).
@@ -609,7 +697,8 @@ fn a_role_gated_need_is_granted_to_that_role_on_the_apps_endpoint_alone() {
 
     let endpoint = &rendered.endpoint.spec;
     assert_eq!(endpoint["callerRole"], true);
-    assert_eq!(endpoint["audience"], "organization");
+    assert_eq!(endpoint["audience"], "project-list");
+    assert_eq!(endpoint["allowedProjects"], json!(["ovzdusie"]));
     assert_eq!(
         endpoint["roles"],
         json!([

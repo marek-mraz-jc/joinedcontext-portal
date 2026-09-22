@@ -301,17 +301,30 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let template = std::fs::read_to_string(root.join("sdk/template/.gitea/workflows/build.yml"))
         .expect("the template's workflow");
+    // AP-105: a fullstack reference app carries the fullstack template's, wherever its source
+    // lives now, so the repository it is seeded into builds on its first push.
+    let fullstack =
+        std::fs::read_to_string(root.join("sdk/template-fullstack/.gitea/workflows/build.yml"))
+            .expect("the fullstack template's workflow");
     let mut seen = 0;
     for (name, yaml) in reference_apps() {
         let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
-        if app.spec.source.git.is_none() {
-            continue;
-        }
-        seen += 1;
         let workflow = root
             .join("apps")
             .join(&name)
             .join(".gitea/workflows/build.yml");
+        if app.spec.class == jc_core::kinds::AppClass::Fullstack {
+            assert_eq!(
+                std::fs::read_to_string(&workflow).ok().as_deref(),
+                Some(fullstack.as_str()),
+                "apps/{name} is fullstack, so it carries the fullstack template's build.yml"
+            );
+            continue;
+        }
+        if app.spec.source.git.is_none() {
+            continue;
+        }
+        seen += 1;
         assert_eq!(
             std::fs::read_to_string(&workflow).ok().as_deref(),
             Some(template.as_str()),

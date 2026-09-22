@@ -31,6 +31,7 @@ export function ResourceRowActions({
   form,
   onEdit,
   primary,
+  extra,
 }: {
   project: string;
   target: ResourceTarget;
@@ -41,6 +42,11 @@ export function ResourceRowActions({
   /** A page with its own editor (a pipeline, a data source) handles Edit itself instead. */
   onEdit?: () => void;
   primary?: ReactNode;
+  /**
+   * The row's own actions, listed before the four in the same menu with a line after them: one
+   * menu per row, never a second one beside it (T-2618).
+   */
+  extra?: RowAction[];
 }): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(target.home ?? project);
@@ -82,7 +88,16 @@ export function ResourceRowActions({
 
   return (
     <>
-      <RowActions label={target.label ?? target.name} actions={actions} primary={primary} />
+      <RowActions
+        label={target.label ?? target.name}
+        actions={[
+          ...(extra ?? []).map((action, index, all) =>
+            index === all.length - 1 ? { ...action, separatorAfter: true } : action,
+          ),
+          ...actions,
+        ]}
+        primary={primary}
+      />
       {onEdit ? null : (
         <EditResourceAction
           target={target}
