@@ -138,6 +138,15 @@ pub fn check(
         let Some(limit) = limits(&quotas).get(dimension).copied() else {
             continue;
         };
+        // Rewriting what is already counted changes no count, so it exceeds nothing even in a
+        // project already over the limit: the build lane's status.build of a published App, a
+        // fix to one (PF-74, T-2633). What stands beyond the quota stays unscheduled (`beyond`).
+        if mirror
+            .get(project, kind, name)
+            .is_some_and(|held| counts(dimension, kind, &held.spec))
+        {
+            continue;
+        }
         let others = mirror
             .list(project, kind, &ListOptions::default())
             .items
@@ -267,6 +276,28 @@ mod tests {
             &resident("two").spec,
         )
         .expect("an update of what is already counted");
+    }
+
+    #[test]
+    fn rewriting_an_app_already_counted_is_not_refused_in_a_project_over_its_quota() {
+        let app =
+            |name: &str| envelope("App", name, "helsinki", json!({ "lifecycle": "published" }));
+        let mirror = mirror_with(vec![
+            envelope(
+                "Organization",
+                "hel",
+                ORG_NAMESPACE,
+                json!({ "domain": "hel.fi", "projects": { "quota": { "apps": 2 } } }),
+            ),
+            app("alerts"),
+            app("bikes"),
+            app("events"),
+        ]);
+        // Three held against a limit of two: the build lane writes status.build of one of them.
+        assert!(check(&mirror, "helsinki", "App", "events", &json!({})).is_ok());
+        // A fourth is still refused, and so is a new one under the limit's count.
+        let refused = check(&mirror, "helsinki", "App", "hsl", &json!({})).unwrap_err();
+        assert!(refused.to_string().contains("apps 4 of 2"), "{refused}");
     }
 
     #[test]
