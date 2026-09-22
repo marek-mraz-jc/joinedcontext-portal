@@ -2,6 +2,7 @@
 // AP-101, ADR-N-028).
 //
 //   node lane.mjs deps <app-dir>       refuses a package the template does not install (SDK-12)
+//   node lane.mjs vitest-config <app-dir>  writes the config the tests run with, the app's own plus the SDK inlined
 //   node lane.mjs functions <app-dir> <out-dir>
 //                                      bundles functions/*.ts into <out-dir>/functions.js
 //   node lane.mjs app <owner/repo>     prints "{project} {app}" of an application repository
@@ -37,6 +38,34 @@ const names = (pkg) =>
 export function refusedDependencies(app, template) {
   const allowed = new Set(names(template));
   return names(app).filter((name) => !allowed.has(name)).sort();
+}
+
+/** The lane's vitest config, beside the app's so its root is the app (T-2649). */
+export const VITEST_CONFIG = ".jc-vitest.config.mjs";
+
+/**
+ * Writes the config the lane runs an app's tests with: the app's own `vite.config`, if it has
+ * one, with the packed SDK inlined. The app's packages are links into the template's store
+ * outside the app, so vitest externalises the SDK and Node would import the stylesheet the SDK
+ * imports, which it cannot (SDK-24, AP-82). The template's config says the same; this holds it
+ * for an app whose config does not.
+ */
+export function vitestConfig(appDir) {
+  const own = ["vite.config.ts", "vite.config.mts", "vite.config.js", "vite.config.mjs"].find((name) =>
+    existsSync(join(appDir, name)),
+  );
+  const lines = [
+    "// Written by the build lane (T-2649), removed before the next build.",
+    'import { mergeConfig } from "vitest/config";',
+    ...(own ? [`import app from "./${own}";`] : []),
+    'const lane = { test: { server: { deps: { inline: ["@joinedcontext/sdk"] } } } };',
+    own
+      ? "export default typeof app === \"function\" ? async (env) => mergeConfig(await app(env), lane) : mergeConfig(app, lane);"
+      : "export default lane;",
+  ];
+  const path = join(appDir, VITEST_CONFIG);
+  writeFileSync(path, lines.join("\n") + "\n");
+  return path;
 }
 
 /** The functions of `functions/`, by name; a test file is not a function. */
@@ -287,6 +316,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       if (refused.length > 0) {
         throw new Error(`the SDK template installs no ${refused.join(", ")} (SDK-12)`);
       }
+    } else if (command === "vitest-config" && appDir) {
+      console.log(vitestConfig(resolve(appDir)));
     } else if (command === "functions" && appDir && outDir) {
       await bundleFunctions(resolve(appDir), outDir);
     } else if (command === "app" && appDir) {

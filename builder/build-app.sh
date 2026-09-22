@@ -52,7 +52,7 @@ link_template() {
   if [ -f "$1/package.json" ]; then
     node "$LANE/lane.mjs" deps "$1" || fail "package.json asks for a package the SDK does not ship"
   fi
-  rm -rf "$1/node_modules" "$1/.jc-functions-entry.ts"
+  rm -rf "$1/node_modules" "$1/.jc-functions-entry.ts" "$1/.jc-vitest.config.mjs"
   # A writable folder of links, not one link: Vite writes its temporary config and cache there.
   mkdir "$1/node_modules"
   for entry in "$LANE"/node_modules/* "$LANE"/node_modules/.bin "$LANE"/node_modules/.pnpm; do
@@ -76,7 +76,8 @@ if [ -f "$APP/Cargo.toml" ]; then
   link_template "$APP/ui"
   cd "$APP/ui"
   echo "== interface tests"
-  untrusted node_modules/.bin/vitest run || fail "the interface tests fail"
+  TESTS=$(node "$LANE/lane.mjs" vitest-config "$APP/ui") || fail "cannot write the test config"
+  untrusted node_modules/.bin/vitest run --config "$TESTS" || fail "the interface tests fail"
   echo "== interface"
   untrusted node_modules/.bin/tsc -b || fail "the interface does not typecheck"
   untrusted node_modules/.bin/vite build || fail "vite build failed"
@@ -111,18 +112,20 @@ fi
 cd "$APP"
 link_template "$APP"
 BIN=$APP/node_modules/.bin
+# The app's own vitest config with the packed SDK inlined, which the linked store needs (T-2649).
+TESTS=$(node "$LANE/lane.mjs" vitest-config "$APP") || fail "cannot write the test config"
 
 if [ "$JC_APP_BUILD" = node ]; then
   [ -f package.json ] || fail "a node build needs package.json at the repository root"
   echo "== tests"
-  untrusted "$BIN/vitest" run || fail "the interface or function tests fail (SDK-24)"
+  untrusted "$BIN/vitest" run --config "$TESTS" || fail "the interface or function tests fail (SDK-24)"
   echo "== build"
   untrusted "$BIN/tsc" -b || fail "the application does not typecheck"
   untrusted "$BIN/vite" build --outDir "$OUT" --emptyOutDir || fail "vite build failed"
 else
   if [ -d functions ]; then
     echo "== function tests"
-    untrusted "$BIN/vitest" run --dir functions --passWithNoTests || fail "the function tests fail (SDK-24)"
+    untrusted "$BIN/vitest" run --config "$TESTS" --dir functions --passWithNoTests || fail "the function tests fail (SDK-24)"
   fi
   # The tree at the commit is the bundle, minus the function sources and the workflow, which
   # the host never serves.
