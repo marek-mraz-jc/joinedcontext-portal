@@ -238,9 +238,11 @@ fn vehicle(feature: &Value) -> Option<Vehicle> {
     Some(Vehicle {
         id,
         coordinates: [longitude, latitude],
-        bearing: number("bearing"),
+        // The `helsinki` model names them `heading` and `route` (HFP's `hdg` and `route`); the
+        // browser keeps the names it always had.
+        bearing: number("heading"),
         speed: number("speed"),
-        ref_line: text("refLine"),
+        ref_line: text("route"),
     })
 }
 

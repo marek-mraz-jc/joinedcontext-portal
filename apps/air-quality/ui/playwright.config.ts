@@ -34,6 +34,7 @@ export default defineConfig({
         JC_BIND_ADDRESS: `127.0.0.1:${APP_PORT}`,
         JC_BASE_PATH: BASE_PATH,
         JC_ENDPOINT_URL: `http://127.0.0.1:${STUB_PORT}/`,
+        JC_ME_URL: `http://127.0.0.1:${STUB_PORT}/me`,
       },
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,

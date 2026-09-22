@@ -1,7 +1,8 @@
 //! The `air-quality` reference app (AP-34, AP-37, AP-39, AP-40).
 //!
 //! It shows the stations of one Context Space with their latest values and a day of history,
-//! and lets a steward leave a note on one of them. Everything it serves comes from a single
+//! and gives a steward a record form: add a station, correct its name, position and note, and
+//! remove a station a steward added (Architecture/16 §13). Everything it serves comes from a single
 //! Endpoint whose URL it is handed at run time; it opens no other connection, holds no
 //! credential of its own and contains no login, session or authorization logic. The platform
 //! edge (APISIX `openid-connect`) in front of it does the Keycloak login and hands over the
@@ -17,17 +18,18 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, patch};
 use axum::{Json, Router};
 use base64::Engine as _;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 
 pub mod assets;
 
 /// The entity type this app was built for; it is also what the grant names.
 const TYPE: &str = "AirQualityObserved";
-/// The one attribute the app may write (AP-39).
+/// The steward's free text on a station, one of the three attributes the form writes.
 const NOTE: &str = "stewardNote";
 /// A note is a sentence a person types, not a payload.
 const NOTE_MAX: usize = 500;
@@ -41,10 +43,13 @@ pub struct Config {
     pub endpoint_url: String,
     /// `true` on a `public` app, where a missing `X-Access-Token` is normal (AP-28).
     pub anonymous: bool,
+    /// The Portal route that answers the caller's roles in this App (AP-109). Without it nobody
+    /// holds a role, so the form is offered to nobody.
+    pub me_url: Option<String>,
 }
 
 impl Config {
-    /// Reads the four variables of Architecture/16 §5. A missing endpoint URL is fatal: an
+    /// Reads the variables of Architecture/16 §5 and §13. A missing endpoint URL is fatal: an
     /// app with nowhere to read from has nothing to serve, and guessing a default would be
     /// guessing which data a user gets.
     pub fn from_env() -> Result<Self, String> {
@@ -54,6 +59,9 @@ impl Config {
             base_path: std::env::var("JC_BASE_PATH").unwrap_or_else(|_| "/".to_owned()),
             endpoint_url: with_trailing_slash(&endpoint_url),
             anonymous: std::env::var("JC_ANONYMOUS").is_ok_and(|value| value == "true"),
+            me_url: std::env::var("JC_ME_URL")
+                .ok()
+                .filter(|url| !url.is_empty()),
         })
     }
 }
@@ -98,9 +106,12 @@ pub fn router(app: Arc<App>) -> Router {
         // asks it, not a browser (Architecture/16 §5).
         .route("/healthz", get(healthz))
         .route(&at("/api/me"), get(me))
-        .route(&at("/api/stations"), get(stations))
+        .route(&at("/api/stations"), get(stations).post(create_station))
+        .route(
+            &at("/api/stations/{id}"),
+            patch(update_station).delete(delete_station),
+        )
         .route(&at("/api/stations/{id}/history"), get(history))
-        .route(&at("/api/stations/{id}/note"), post(write_note))
         // Both spellings of the front page: the edge routes the prefix, and a person who
         // types it without the slash is not a different visitor.
         .route(&base, get(assets::static_handler))
@@ -241,47 +252,60 @@ impl App {
         serde_json::from_str(&body).map_err(|_| AppError::Unreachable)
     }
 
-    /// Whether this caller may write a note, answered by the PDP that would enforce it rather
-    /// than by reading a role out of the token. A failure to ask is a no: the note box is
-    /// hidden when the answer is not a clear yes (fail closed).
-    async fn may_write(&self, caller: &Caller) -> bool {
-        if caller.token.is_none() {
-            return false;
-        }
-        let question = json!({
-            "subject": { "type": "user" },
-            "action": { "name": "updateAttrs" },
-            "resource": { "type": TYPE },
-        });
-        let mut request = self.http.post(self.url("access/check")).json(&question);
-        if let Some(token) = &caller.token {
-            request = request.bearer_auth(token);
-        }
-        let Ok(response) = request.send().await else {
-            return false;
+    /// The caller's roles in this App, from the Portal's `/me` (AP-109, Architecture/16 §13).
+    /// A failure to ask is no role: the form is hidden when the answer is not a clear list
+    /// (fail closed). The roles only decide what the page offers; the gateway decides the write.
+    async fn roles(&self, caller: &Caller) -> Vec<String> {
+        let (Some(url), Some(token)) = (&self.config.me_url, &caller.token) else {
+            return Vec::new();
+        };
+        let Ok(response) = self.http.get(url).bearer_auth(token).send().await else {
+            return Vec::new();
         };
         if !response.status().is_success() {
-            return false;
+            return Vec::new();
         }
         response
             .json::<Value>()
             .await
             .ok()
-            .and_then(|answer| answer.get("decision").and_then(Value::as_bool))
-            .unwrap_or(false)
+            .and_then(|me| {
+                me.get("roles")?.as_array().map(|roles| {
+                    roles
+                        .iter()
+                        .filter_map(|role| role.as_str().map(str::to_owned))
+                        .collect()
+                })
+            })
+            .unwrap_or_default()
+    }
+
+    /// One write against the endpoint with the caller's token; the gateway's refusal is the
+    /// answer, word for word (AP-40, GW6).
+    async fn write(&self, request: reqwest::RequestBuilder) -> Result<StatusCode, AppError> {
+        let response = request.send().await.map_err(|_| AppError::Unreachable)?;
+        let status =
+            StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        if status.is_success() {
+            return Ok(status);
+        }
+        Err(AppError::Upstream(
+            status,
+            response.text().await.unwrap_or_default(),
+        ))
     }
 }
 
-/// Who the browser is talking as, and whether the note box is worth showing.
+/// Who the browser is talking as, and the roles that decide whether the form is offered.
 async fn me(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     let caller = Caller::of(&headers);
-    let may_write = app.may_write(&caller).await;
+    let roles = app.roles(&caller).await;
     Json(json!({
         "signedIn": caller.token.is_some(),
         "email": caller.email,
         "user": caller.user,
         "anonymous": app.config.anonymous,
-        "canWriteNote": may_write,
+        "roles": roles,
     }))
     .into_response()
 }
@@ -335,60 +359,209 @@ async fn history(
     Ok(Json(entity))
 }
 
-/// The steward's note. This is the whole write surface of the app.
-async fn write_note(
-    State(app): State<Arc<App>>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    Json(body): Json<NoteBody>,
-) -> Result<Response, AppError> {
-    let caller = Caller::of(&headers);
-    // AP-40. A public app reads anonymously, but nothing writes anonymously, so this check
-    // does not look at `config.anonymous`: there is no configuration that turns it off.
-    let Some(token) = caller.token.as_deref() else {
-        return Err(AppError::Refused(
-            StatusCode::UNAUTHORIZED,
-            "writing a note needs a signed-in user",
-        ));
-    };
-    if !valid_urn(&id) {
-        return Err(AppError::Refused(
-            StatusCode::BAD_REQUEST,
-            "a station id is an NGSI-LD URN",
-        ));
-    }
-    let note = body.note.trim();
-    if note.is_empty() || note.chars().count() > NOTE_MAX {
-        return Err(AppError::Refused(
-            StatusCode::BAD_REQUEST,
-            "a note is between one and 500 characters",
-        ));
-    }
-
-    let response = app
-        .http
-        .patch(app.url(&format!("ngsi-ld/v1/entities/{id}/attrs")))
-        .bearer_auth(token)
-        .json(&json!({ NOTE: { "type": "Property", "value": note } }))
-        .send()
-        .await
-        .map_err(|_| AppError::Unreachable)?;
-
-    let status =
-        StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    if status.is_success() {
-        return Ok(StatusCode::NO_CONTENT.into_response());
-    }
-    // A refusal is the gateway's to explain, including which role the writer is missing.
-    Err(AppError::Upstream(
-        status,
-        response.text().await.unwrap_or_default(),
+/// The caller's token, or the refusal every write gives without one (AP-40). A public app reads
+/// anonymously, but nothing writes anonymously, so this does not look at `config.anonymous`:
+/// there is no configuration that turns it off.
+fn token_of(caller: &Caller) -> Result<&str, AppError> {
+    caller.token.as_deref().ok_or(AppError::Refused(
+        StatusCode::UNAUTHORIZED,
+        "a write needs a signed-in user",
     ))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct NoteBody {
-    pub note: String,
+fn refused(detail: &'static str) -> AppError {
+    AppError::Refused(StatusCode::BAD_REQUEST, detail)
+}
+
+/// What the record form sends. Only the station attributes a person may correct exist here and
+/// an unknown field is refused, so a measured value (`pm10`, `pm25`, `airQualityIndex`,
+/// `dateObserved`) or `source` can never be written through this app; the gateway's grant says
+/// the same a second time.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct StationFields {
+    /// The last segment of a new station's URN; on create only.
+    pub local_id: Option<String>,
+    /// The station's name per language, written whole (a `LanguageProperty`).
+    pub name: Option<BTreeMap<String, String>>,
+    /// `[longitude, latitude]`.
+    pub coordinates: Option<[f64; 2]>,
+    pub steward_note: Option<String>,
+}
+
+/// `fi`, `en`, `sv`, `en-GB`: a BCP 47 language with an optional region, nothing longer.
+fn valid_language(tag: &str) -> bool {
+    let mut parts = tag.split('-');
+    let language = parts.next().unwrap_or_default();
+    let region = parts.next();
+    (2..=3).contains(&language.len())
+        && language.chars().all(|c| c.is_ascii_lowercase())
+        && region.is_none_or(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_uppercase()))
+        && parts.next().is_none()
+}
+
+fn valid_local_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+}
+
+/// The NGSI-LD attributes of the fields that were sent, checked before anything leaves the pod.
+fn attributes(fields: &StationFields) -> Result<Map<String, Value>, AppError> {
+    let mut attrs = Map::new();
+    if let Some(names) = &fields.name {
+        let mut map = Map::new();
+        for (language, text) in names {
+            let text = text.trim();
+            if !valid_language(language) {
+                return Err(refused("a name's language is a code such as fi or en"));
+            }
+            if text.is_empty() {
+                continue;
+            }
+            if text.chars().count() > 200 {
+                return Err(refused("a name is at most 200 characters"));
+            }
+            map.insert(language.clone(), json!(text));
+        }
+        if map.is_empty() {
+            return Err(refused("a station has a name in at least one language"));
+        }
+        attrs.insert(
+            "name".to_owned(),
+            json!({ "type": "LanguageProperty", "languageMap": map }),
+        );
+    }
+    if let Some([longitude, latitude]) = fields.coordinates {
+        if !(-180.0..=180.0).contains(&longitude) || !(-90.0..=90.0).contains(&latitude) {
+            return Err(refused(
+                "a position is a longitude between -180 and 180 and a latitude between -90 and 90",
+            ));
+        }
+        attrs.insert(
+            "location".to_owned(),
+            json!({ "type": "GeoProperty", "value": { "type": "Point", "coordinates": [longitude, latitude] } }),
+        );
+    }
+    if let Some(note) = &fields.steward_note {
+        let note = note.trim();
+        if note.is_empty() || note.chars().count() > NOTE_MAX {
+            return Err(refused("a note is between one and 500 characters"));
+        }
+        attrs.insert(
+            NOTE.to_owned(),
+            json!({ "type": "Property", "value": note }),
+        );
+    }
+    Ok(attrs)
+}
+
+/// A new station: one `POST /entities` with the caller's token (AP-62).
+async fn create_station(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Json(fields): Json<StationFields>,
+) -> Result<Response, AppError> {
+    let caller = Caller::of(&headers);
+    let token = token_of(&caller)?;
+    let local_id = fields.local_id.as_deref().unwrap_or_default();
+    if !valid_local_id(local_id) {
+        return Err(refused(
+            "a station id is 1 to 64 letters, digits, '-' or '_'",
+        ));
+    }
+    if fields.name.is_none() || fields.coordinates.is_none() {
+        return Err(refused("a new station has a name and a position"));
+    }
+    let attrs = attributes(&fields)?;
+    // ponytail: the `{domain}:{space}` of the id is read off a station the endpoint already
+    // serves, so the first record of an empty space cannot be added here; the reconciler handing
+    // the app its organization domain and space would lift that.
+    let known = app
+        .get(
+            "ngsi-ld/v1/entities",
+            &[("type", TYPE.to_owned()), ("limit", "1".to_owned())],
+            &caller,
+        )
+        .await?;
+    let Some(prefix) = known
+        .as_array()
+        .and_then(|list| list.first())
+        .and_then(|entity| entity.get("id")?.as_str())
+        .and_then(|id| id.rsplit_once(':'))
+        .map(|(prefix, _)| prefix.to_owned())
+    else {
+        return Err(AppError::Refused(
+            StatusCode::CONFLICT,
+            "the space has no station yet to take the id's organization and space from",
+        ));
+    };
+    let id = format!("{prefix}:{local_id}");
+    if !valid_urn(&id) || !id.starts_with(&format!("urn:ngsi-ld:{TYPE}:")) {
+        return Err(AppError::Unreachable);
+    }
+    let mut entity = attrs;
+    entity.insert("id".to_owned(), json!(id));
+    entity.insert("type".to_owned(), json!(TYPE));
+    app.write(
+        app.http
+            .post(app.url("ngsi-ld/v1/entities"))
+            .bearer_auth(token)
+            .json(&entity),
+    )
+    .await?;
+    Ok((StatusCode::CREATED, Json(json!({ "id": id }))).into_response())
+}
+
+/// A correction: one `PATCH /entities/{id}/attrs` with only the attributes that were sent.
+async fn update_station(
+    State(app): State<Arc<App>>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(fields): Json<StationFields>,
+) -> Result<Response, AppError> {
+    let caller = Caller::of(&headers);
+    let token = token_of(&caller)?;
+    if !valid_urn(&id) {
+        return Err(refused("a station id is an NGSI-LD URN"));
+    }
+    if fields.local_id.is_some() {
+        return Err(refused("a station's id does not change"));
+    }
+    let attrs = attributes(&fields)?;
+    if attrs.is_empty() {
+        return Err(refused("nothing to change"));
+    }
+    app.write(
+        app.http
+            .patch(app.url(&format!("ngsi-ld/v1/entities/{id}/attrs")))
+            .bearer_auth(token)
+            .json(&attrs),
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+/// A removal. The gateway admits it only for a station a steward added, one without `source`,
+/// by evaluating the grant's `q` against the stored entity (R45); this app does not repeat that.
+async fn delete_station(
+    State(app): State<Arc<App>>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    let caller = Caller::of(&headers);
+    let token = token_of(&caller)?;
+    if !valid_urn(&id) {
+        return Err(refused("a station id is an NGSI-LD URN"));
+    }
+    app.write(
+        app.http
+            .delete(app.url(&format!("ngsi-ld/v1/entities/{id}")))
+            .bearer_auth(token),
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 /// The normalized form carries `{"pm10": {"type": "Property", "value": 34.2}}`; the browser
@@ -401,6 +574,25 @@ fn station(entity: &Value) -> Value {
             out.insert(attr.to_owned(), value.clone());
         }
     }
+    // The `helsinki` model's `name` is a `LanguageProperty`: the form gets every language, the
+    // card the English one, else the Finnish one, else whichever there is.
+    if let Some(names) = entity
+        .get("name")
+        .and_then(|name| name.get("languageMap"))
+        .and_then(Value::as_object)
+    {
+        if let Some(shown) = ["en", "fi"]
+            .iter()
+            .find_map(|language| names.get(*language))
+            .or_else(|| names.values().next())
+        {
+            out.insert("name".to_owned(), shown.clone());
+        }
+        out.insert("names".to_owned(), Value::Object(names.clone()));
+    }
+    // A record a pipeline wrote says where it came from; a station a steward added does not,
+    // and only that one is the steward's to remove.
+    out.insert("own".to_owned(), json!(entity.get("source").is_none()));
     if let Some(coordinates) = entity
         .get("location")
         .and_then(|location| location.get("value"))

@@ -8,33 +8,70 @@ metadata:
     fi: "Ilmanlaatu"
     en: "Air quality"
   description:
-    fi: "Asemat, niiden viimeisimmät arvot ja 24 tunnin historia; ylläpitäjä voi lisätä muistiinpanon."
-    en: "Stations, their latest values and 24 hours of history; a steward may add a note."
+    fi: "Asemat, niiden viimeisimmät arvot ja 24 tunnin historia; ylläpitäjä lisää ja korjaa asemia."
+    en: "Stations, their latest values and 24 hours of history; a steward adds and corrects stations."
 spec:
   kind: fullstack
   source:
-    path: ./apps/air-quality
+    git:
+      url: https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_air-quality.git
+      ref: main
   build:
     rust: "1.90"
     node: "22"
+  # `roles` is refused on a fullstack App (AP-94), so every person of the project opens it and
+  # reads; the backend asks the Portal's `/me` for the roles and offers the form to a steward
+  # only (Architecture/16 §13, AP-109).
   visibility: project
   # A reference app ships with the platform, so its publication is the commit that adds it and
   # its review is the pull request; there is no earlier state for it to sit in (AP-20).
   lifecycle: published
   # The Portal frames it in the apps catalogue, which is what `embeddable` is for (AP-12).
   embeddable: true
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Reads every station, its latest values and a day of history."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "Also adds stations, corrects their name, position and note, and removes the stations a steward added."
+  # A user subject is the person's e-mail, which the realm also issues as `preferred_username`
+  # (email as username), so the Portal's `/me` and the gateway match the same person (AP-91).
+  access:
+    - role: viewer
+      subjects: [{ user: demo.viewer@hel.fi }]
+    - role: steward
+      subjects: [{ user: demo.steward@hel.fi }]
   dataNeeds:
-    # One space, one type. The write is a single attribute, which is what puts the
-    # publication of this app in the red lane (AP-09, AP-39).
+    # Everyone the app admits reads the stations: `AirQualityObserved` of the `helsinki` model.
     - contextSpaceRef:
         kind: ContextSpace
-        name: air-quality
+        name: helsinki
       types: [AirQualityObserved]
-      attrs: [pm10, pm25, airQualityIndex, location, name, stewardNote]
-      operations: [queryEntity, retrieveEntity, queryTemporal, updateAttrs]
+      attrs: [name, location, dateObserved, pm10, pm25, airQualityIndex, stewardNote, source]
+      operations: [queryEntity, retrieveEntity, queryTemporal]
       temporalQ:
         window: P1D
       representations: [ngsi-ld, geojson]
+    # The steward's record form (AP-09, red lane on purpose): a station's name, position and
+    # note. The measured values, `dateObserved` and `source` are the pipeline's and stay
+    # read-only.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [AirQualityObserved]
+      attrs: [name, location, stewardNote]
+      operations: [createEntity, updateAttrs]
+      roles: [steward]
+    # A steward removes only a station a steward added: those carry no `source`, and the gateway
+    # evaluates this filter against the stored entity before it forwards the delete (R45).
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [AirQualityObserved]
+      operations: [deleteEntity]
+      q: "!source"
+      roles: [steward]
   limits:
     requestsPerMinute: 300
     maxFileRows: 5000

@@ -70,8 +70,8 @@ fn a_hand_written_app_claims_no_agent_attribution() {
 /// AP-39. A write is the one thing that puts an app's publication in the red lane, so the
 /// list of apps that can write is worth stating out loud rather than discovering later.
 ///
-/// Three apps write, and each one writes the same single attribute: the steward's note, which is
-/// the one attribute of its model that no pipeline overwrites (AP-62, T-2434). Any other app
+/// Two apps write the steward's note alone, the one attribute of their model that no pipeline
+/// overwrites (AP-62, T-2434); two carry a steward's record form (T-2598, T-2617). Any other app
 /// declaring a write fails this test until somebody adds it here on purpose.
 #[test]
 fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
@@ -97,7 +97,7 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
             .filter(|operation| writes.contains(operation))
             .collect();
         match name.as_str() {
-            "air-quality" | "banskabystrica-zaznamy" | "bbsk-zaznamy" => {
+            "banskabystrica-zaznamy" | "bbsk-zaznamy" => {
                 assert_eq!(writing, vec!["updateAttrs"], "{name} writes one way only");
                 let attrs: Vec<_> = app
                     .spec
@@ -110,9 +110,9 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
                     "the note attribute has to be in the grant"
                 );
             }
-            // T-2598: the steward's record form. Every write is granted to `steward` alone and
-            // none reaches `source`; the next test holds the rest of its shape.
-            "helsinki-alerts" => {
+            // T-2598, T-2617: the steward's record form. Every write is granted to `steward`
+            // alone and none reaches `source`; the next test holds the rest of its shape.
+            "helsinki-alerts" | "air-quality" => {
                 assert_eq!(
                     writing,
                     vec!["createEntity", "updateAttrs", "deleteEntity"],
@@ -411,4 +411,126 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
         );
     }
     assert!(seen > 0, "no reference app lives in its own repository");
+}
+
+/// AP-94, AP-109, AP-110 (T-2617). The two fullstack samples as they are seeded on `dev`: each a
+/// manifest `jcctl validate` accepts, built from its own forge repository; `hsl-transport` public,
+/// `air-quality` open to its project with the roles viewer and steward, and its record form never
+/// reaching a measured value, the pipeline's `dateObserved` or `source`.
+#[test]
+fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility() {
+    use jc_core::kinds::AppVisibility;
+    for (name, visibility) in [
+        ("hsl-transport", AppVisibility::Public),
+        ("air-quality", AppVisibility::Project),
+    ] {
+        let (_, yaml) = reference_apps()
+            .into_iter()
+            .find(|(found, _)| found == name)
+            .unwrap_or_else(|| panic!("apps/{name}/app.yaml"));
+        match jc_core::registry::validate_yaml("App", &yaml) {
+            Some(Ok(_)) => {}
+            other => panic!("jcctl validate refuses apps/{name}: {other:?}"),
+        }
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        assert_eq!(app.spec.class, jc_core::AppClass::Fullstack, "{name}");
+        assert_eq!(app.spec.visibility, visibility, "{name}");
+        let source = serde_json::to_value(&app.spec.source).expect("a source");
+        assert_eq!(
+            source["git"]["url"],
+            serde_json::json!(format!(
+                "https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_{name}.git"
+            )),
+            "{name} builds from its own repository"
+        );
+    }
+
+    let (_, yaml) = reference_apps()
+        .into_iter()
+        .find(|(found, _)| found == "air-quality")
+        .expect("apps/air-quality/app.yaml");
+    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    let roles: Vec<_> = app
+        .spec
+        .roles
+        .iter()
+        .map(|role| role.name.as_str())
+        .collect();
+    assert_eq!(roles, ["viewer", "steward"]);
+    for need in &app.spec.data_needs {
+        if need.roles.is_empty() {
+            continue;
+        }
+        for measured in ["pm10", "pm25", "airQualityIndex", "dateObserved", "source"] {
+            assert!(
+                !need.attrs.iter().any(|attr| attr == measured),
+                "the steward's form may write {measured}"
+            );
+        }
+    }
+}
+
+/// The `(name, version)` of every `[[package]]` of a Cargo.lock.
+fn locked_packages(lock: &str) -> std::collections::BTreeSet<(String, String)> {
+    let mut found = std::collections::BTreeSet::new();
+    let mut name = None;
+    for line in lock.lines() {
+        let value = |key: &str| {
+            line.strip_prefix(key)
+                .map(|rest| rest.trim().trim_matches('"').to_owned())
+        };
+        if line == "[[package]]" {
+            name = None;
+        } else if let Some(found_name) = value("name = ") {
+            name = Some(found_name);
+        } else if let (Some(version), Some(package)) = (value("version = "), name.take()) {
+            found.insert((package, version));
+        }
+    }
+    found
+}
+
+/// AP-106 (T-2617). A fullstack sample builds in its own forge repository with `cargo test
+/// --offline --locked` against the crate store the rust-1.90 runner fetched from this
+/// repository's Cargo.lock, so its own lock names no crate the store lacks. When a bump here
+/// breaks this, regenerate the app's lock from the workspace's: copy `Cargo.lock` into a copy
+/// of `apps/<name>/` and run `cargo tree --offline` there, which keeps the locked versions and
+/// drops the rest.
+#[test]
+fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let store = locked_packages(
+        &std::fs::read_to_string(root.join("Cargo.lock")).expect("the workspace lock"),
+    );
+    assert!(store.len() > 100, "the workspace lock did not parse");
+    let mut seen = 0;
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        if app.spec.class != jc_core::kinds::AppClass::Fullstack {
+            continue;
+        }
+        seen += 1;
+        let lock = std::fs::read_to_string(root.join("apps").join(&name).join("Cargo.lock"))
+            .unwrap_or_else(|_| {
+                panic!("apps/{name} has no Cargo.lock, so --locked fails on the forge")
+            });
+        let packages = locked_packages(&lock);
+        assert!(
+            packages.iter().any(|(package, _)| package == &name),
+            "apps/{name}/Cargo.lock does not lock the app itself"
+        );
+        let missing: Vec<_> = packages
+            .iter()
+            .filter(|(package, _)| package != &name)
+            .filter(|package| !store.contains(*package))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "apps/{name}/Cargo.lock names crates outside the store: {missing:?}"
+        );
+    }
+    assert_eq!(
+        seen, 2,
+        "hsl-transport and air-quality are the fullstack samples"
+    );
 }

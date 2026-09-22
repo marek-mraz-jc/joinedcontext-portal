@@ -3,7 +3,7 @@ name = "air-quality"
 version = "0.1.0"
 edition = "2021"
 license = "EUPL-1.2"
-description = "The air-quality reference app: stations, 24 hours of history and a steward note, all through one Endpoint"
+description = "The air-quality reference app: stations, 24 hours of history and a steward record form, all through one Endpoint"
 
 [lib]
 name = "air_quality"
