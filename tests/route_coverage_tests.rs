@@ -15,6 +15,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/activity", "the runner's OTLP ingest: a workload writes what happened, nobody calls it"),
 ("GET", "/apps/{name}/", "a published application, served as files"),
 ("GET", "/apps/{name}/{*path}", "a published application, served as files"),
+("POST", "/apps/{name}/api/functions/{fn}", "a published application's own function, called by its page with the person's edge token (AP-84, SDK-23); what it does is the application's, not an operation of the platform"),
 ("POST", "/auth/backchannel-logout", "signing out"),
 ("GET", "/auth/callback", "signing in"),
 ("GET", "/auth/login", "signing in"),
