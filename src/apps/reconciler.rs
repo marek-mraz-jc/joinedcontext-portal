@@ -508,9 +508,12 @@ fn endpoint(
     let (audience, allowed_projects) = match spec.visibility {
         AppVisibility::Public => ("public", Vec::new()),
         AppVisibility::Organization => ("organization", Vec::new()),
-        // `private` has no audience of its own in the endpoint model; the owning project is the
-        // narrowest one there is, and the app's policies bind who inside it may act (AP-18).
-        AppVisibility::Project | AppVisibility::Private => ("project-list", vec![project]),
+        // `private` and `roles` have no audience of their own in the endpoint model; the owning
+        // project is the narrowest one there is, and the app's policies bind who inside it may
+        // act (AP-18, AP-96).
+        AppVisibility::Project | AppVisibility::Private | AppVisibility::Roles => {
+            ("project-list", vec![project])
+        }
     };
 
     let mut endpoint_spec = json!({

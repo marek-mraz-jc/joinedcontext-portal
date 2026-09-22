@@ -649,6 +649,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Caller's Roles In An Application
+         * @description The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).
+         */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/rebuild": {
         parameters: {
             query?: never;
@@ -1877,6 +1897,21 @@ export interface components {
             /** @description The repository's page; `null` for an App not built on the forge. */
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
+        };
+        /**
+         * @description The caller as a published App sees them: the object the static host writes into
+         *     `#jc-config` as `user` (AP-95).
+         */
+        AppMe: {
+            email?: string | null;
+            /** @description The Keycloak `sub`. */
+            id: string;
+            name: string;
+            /**
+             * @description The App's roles this person holds, in the order `spec.roles` declares them; empty when
+             *     none (AP-92).
+             */
+            roles: string[];
         };
         /** @description Request body for approving or rejecting a change proposal. */
         ApproveBody: {
@@ -5222,6 +5257,49 @@ export interface operations {
             };
             /** @description No forge is configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller in this App */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppMe"];
+                };
+            };
+            /** @description No valid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No published App of this name in the project */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
