@@ -112,9 +112,15 @@ test("a viewer of the alerts reads them and their summary and is refused a write
   const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
   try {
     const page = viewer.page;
+    // The app opens on its overview, where the summary function's answer is drawn.
     await goSignedIn(page, VIEWER, `${APPS_URL}/apps/helsinki-alerts/`, (opened) =>
-      opened.getByRole("region", { name: "Alerts" }),
+      opened.getByRole("region", { name: "Overview" }),
     );
+    const overview = page.getByRole("region", { name: "Overview" });
+    // One count per category, whichever the space holds today.
+    await expect(overview.getByText(/^[a-zA-Z][\w -]*: \d+$/).first()).toBeVisible({ timeout: 120_000 });
+    await expect(overview.getByText(/Alerts stewards added/), "the steward's tile is the steward's").toHaveCount(0);
+    await page.getByRole("button", { name: "Alerts" }).click();
     const alerts = page.getByRole("region", { name: "Alerts" });
     await expect(alerts.locator("table tbody tr").first()).toBeVisible({ timeout: 120_000 });
     await expect(alerts.getByRole("button", { name: "New alert" })).toHaveCount(0);
@@ -155,8 +161,13 @@ test("a steward of the alerts adds one through the form and removes it", async (
   page.on("dialog", (dialog) => void dialog.accept());
   try {
     await goSignedIn(page, STEWARD, `${APPS_URL}/apps/helsinki-alerts/`, (opened) =>
-      opened.getByRole("region", { name: "Alerts" }),
+      opened.getByRole("region", { name: "Overview" }),
     );
+    // SDK-23: the summary counts what stewards added, for a steward alone.
+    await expect(page.getByRole("region", { name: "Overview" }).getByText(/^Alerts stewards added: \d+/)).toBeVisible({
+      timeout: 120_000,
+    });
+    await page.getByRole("button", { name: "Alerts" }).click();
     const alerts = page.getByRole("region", { name: "Alerts" });
     expect((await servedConfig(page)).user?.roles ?? []).toContain("steward");
 
