@@ -109,6 +109,22 @@ function renderCatalog(
   return fetchMock;
 }
 
+/** The same app with a build the lane published (AP-13a). */
+function built(manifest: ReturnType<typeof app>) {
+  return {
+    ...manifest,
+    status: {
+      ...manifest.status,
+      build: {
+        digest: "sha256:4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c",
+        commit: "9f1c2ab",
+        sdkVersion: "0.4.0",
+        builtAt: "2026-09-21T10:00:00Z",
+      },
+    },
+  };
+}
+
 function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
   return fetchMock.mock.calls
     .map((call) => call[0] as Request)
@@ -149,7 +165,7 @@ describe("apps catalog", () => {
   });
 
   it("offers preview and publish only while the app is in preview (AP-18, AP-19)", async () => {
-    renderCatalog([app(), app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" })]);
+    renderCatalog([app(), built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
 
     const preview = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
     expect(within(preview).getByRole("button", { name: en.apps.previewAction })).toBeInTheDocument();
@@ -164,6 +180,40 @@ describe("apps catalog", () => {
       "/apps/hluk/",
     );
     expect(within(preview).queryByRole("link", { name: en.apps.openAction })).toBeNull();
+  });
+
+  // AP-86, AP-87: the host serves a published App only from a build the lane published or the
+  // bundle the Portal image ships; one with neither answers 404, so its card offers no Open.
+  it("offers Open only on a published app something serves (AP-86, AP-87)", async () => {
+    renderCatalog([
+      app({ name: "allerts", title: { en: "Alerts" } }, { lifecycle: "published" }),
+      app(
+        {
+          name: "ukazovatele",
+          title: { en: "Indicators" },
+          annotations: { "joinedcontext.com/shipped-with": "portal" },
+        },
+        { lifecycle: "published" },
+      ),
+      app(
+        {
+          name: "unshipped",
+          title: { en: "Claims" },
+          annotations: { "joinedcontext.com/shipped-with": "gitea" },
+        },
+        { lifecycle: "published" },
+      ),
+      built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+    ]);
+
+    const openOn = async (title: string) =>
+      within((await screen.findByText(title)).closest("li") as HTMLElement).queryByRole("link", {
+        name: en.apps.openAction,
+      });
+    expect(await openOn("Alerts")).toBeNull();
+    expect(await openOn("Claims")).toBeNull();
+    expect(await openOn("Indicators")).toHaveAttribute("href", "/apps/ukazovatele/");
+    expect(await openOn("Bikes")).toHaveAttribute("href", "/apps/bikes/");
   });
 
   it("frames the preview in an opaque origin, never same-origin with the Portal (AP-19)", async () => {

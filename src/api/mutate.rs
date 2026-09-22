@@ -717,6 +717,17 @@ async fn propose_engine(
         )));
     }
 
+    // A published static App names its repository, unless the Portal image ships its bundle
+    // (AP-87). jc-core believes the annotation; this door checks the bundle is really here, so
+    // the annotation cannot publish an application nothing serves.
+    if operation != Operation::Delete {
+        if let Some(refusal) =
+            crate::apps::static_host::unshipped_claim(state.config.apps_dir.as_deref(), &envelope)
+        {
+            return Err(ApiError::BadRequest(refusal));
+        }
+    }
+
     // 4a'. A kind jc-core does not define is a kind no loader can read: `jcctl`, the Portal's
     //       own sync and the gateway's store all refuse an unknown kind and refuse the whole
     //       repository with it, so one such file stops configuration reaching every endpoint.
