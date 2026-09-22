@@ -10,4 +10,5 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: sdkAlias },
   build: { outDir: "dist", emptyOutDir: true },
+  worker: { format: "es" },
 });

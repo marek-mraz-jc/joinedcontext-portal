@@ -1,0 +1,38 @@
+# Helsinki events: the plain-HTML sample application (T-2597, AP-83). Hand written, so no
+# generated-by annotation (AP-35).
+#
+# `build: {}` is no build step: this folder is the bundle, index.html at its root, served as it is
+# by the Portal static host under /apps/helsinki-events/. The repository of record on dev is
+# Gitea (AP-75); T-2599 pushes this folder there unchanged and publishes the manifest.
+apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: helsinki-events
+  namespace: helsinki
+  title:
+    en: "Helsinki events"
+    fi: "Helsingin tapahtumat"
+  description:
+    en: "Upcoming events of the City of Helsinki's Linked Events register: search, filter by date, read the details and see where they are."
+    fi: "Helsingin kaupungin Linked Events -rekisterin tulevat tapahtumat: hae, rajaa päivämäärällä, lue tiedot ja katso sijainti."
+spec:
+  kind: static
+  source:
+    git:
+      url: https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_helsinki-events.git
+      ref: main
+  build: {}
+  # The events endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
+  # role is granted and nothing more.
+  visibility: public
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types: [Event]
+      # The attributes the Event entities carry on dev (2026-09-22); contactPoint is hidden by
+      # the endpoint's projection and is not asked for.
+      attrs: [name, description, startDate, endDate, eventStatus, address, location, source]
+      operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld, geojson]
