@@ -57,6 +57,15 @@ impl ChangeMeta {
         }
     }
 
+    /// A merge request of the organization repository listed under a project of layout 2:
+    /// `chg-org-` and its number, since the project repository numbers its own apart (CC-87).
+    pub fn from_organization_merge_request(mr_number: u64, namespace: impl Into<String>) -> Self {
+        Self {
+            name: format!("chg-org-{:08x}", mr_number),
+            namespace: namespace.into(),
+        }
+    }
+
     /// Derives the change metadata deterministically from a merge request string identifier or URL.
     pub fn from_mr_str(mr: &str, namespace: impl Into<String>) -> Self {
         let parsed_num: Option<u64> = mr

@@ -15,7 +15,7 @@ use utoipa::ToSchema;
 
 use crate::api::mutate::{author_credentials, branch_name, create_or_reuse_branch};
 use crate::auth::CurrentUser;
-use crate::change::{Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
+use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::state::AppState;
@@ -775,7 +775,7 @@ pub async fn put_source(
         .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
         .await?;
 
-    let change_meta = ChangeMeta::from_merge_request(pr.number, &project);
+    let change_meta = crate::api::changes::change_meta(&state, gitea, pr.number, &project);
     let change_status = ChangeStatus::new(
         lane,
         ChangePhase::PendingApproval,

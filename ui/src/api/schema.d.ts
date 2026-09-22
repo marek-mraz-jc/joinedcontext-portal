@@ -5800,7 +5800,7 @@ export interface operations {
             path: {
                 /** @description Project name */
                 project: string;
-                /** @description Change proposal ID (chg- + 8 hex digits) */
+                /** @description Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87) */
                 id: string;
             };
             cookie?: never;
@@ -5861,7 +5861,7 @@ export interface operations {
             path: {
                 /** @description Project name */
                 project: string;
-                /** @description Change proposal ID (chg- + 8 hex digits) */
+                /** @description Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87) */
                 id: string;
             };
             cookie?: never;
@@ -5941,7 +5941,7 @@ export interface operations {
             path: {
                 /** @description Project name */
                 project: string;
-                /** @description Change proposal ID (chg- + 8 hex digits) */
+                /** @description Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87) */
                 id: string;
             };
             cookie?: never;

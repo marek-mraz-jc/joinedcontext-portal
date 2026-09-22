@@ -28,7 +28,7 @@ use utoipa::ToSchema;
 use crate::api::mutate::{author_credentials, create_or_reuse_branch, find_literal_secret};
 use crate::apps::reconciler::generate_slug;
 use crate::auth::CurrentUser;
-use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::resource::{self, ResourceEnvelope};
@@ -1381,7 +1381,7 @@ pub async fn propose_bundle(
         0,
     );
     let change = Change::new(
-        ChangeMeta::from_merge_request(pull.number, project),
+        crate::api::changes::change_meta(state, gitea, pull.number, project),
         ChangeStatus::new(report.lane, ChangePhase::PendingApproval, summary)
             .in_repository(&pull.repository)
             .with_merge_request(pull.url),

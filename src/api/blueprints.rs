@@ -23,9 +23,7 @@ use crate::api::mutate::{
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::auth::session::CurrentUser;
-use crate::change::{
-    self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary,
-};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::plan;
@@ -393,7 +391,7 @@ pub async fn start_flow(
         .await?;
 
     let change = Change::new(
-        ChangeMeta::from_merge_request(pr.number, &project),
+        crate::api::changes::change_meta(&state, gitea, pr.number, &project),
         ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
             .in_repository(&pr.repository)
             .with_merge_request(pr.url),

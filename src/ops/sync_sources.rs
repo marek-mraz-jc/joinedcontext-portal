@@ -219,8 +219,12 @@ pub fn operations() -> Vec<Operation> {
                         &input.name,
                     )
                     .await?;
+                    // The route read the merge request from the project's forge (CC-87).
+                    let forge = state.forge_for(project).ok_or_else(|| {
+                        crate::error::ApiError::Unavailable("git forge is not configured".into())
+                    })?;
                     let change = crate::change::Change::new(
-                        crate::change::ChangeMeta::from_merge_request(pull.number, project),
+                        crate::api::changes::change_meta(state, &forge, pull.number, project),
                         crate::change::ChangeStatus::new(
                             crate::change::Lane::Red,
                             crate::change::ChangePhase::PendingApproval,
