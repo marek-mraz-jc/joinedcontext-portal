@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -410,7 +412,7 @@ pub async fn open_project(
 /// The checks a new project's slug passes, whether it is opened or duplicated (PF-67, PF-78):
 /// a DNS-1123 label, not the organization's namespace, not held, not reserved by a deleted
 /// project's cooling period, not proposed by an open change.
-async fn new_project_name(
+pub(crate) async fn new_project_name(
     state: &AppState,
     gitea: &crate::git::GiteaClient,
     name: &str,
@@ -475,7 +477,7 @@ fn lets_anyone_open(state: &AppState) -> bool {
 
 /// The two files a new project is: its manifest, and the binding that makes its opener the
 /// steward of it and of nothing else (PF-66).
-fn open_project_files(
+pub(crate) fn open_project_files(
     state: &AppState,
     identity: &crate::auth::session::Identity,
     request: &OpenProject,
@@ -559,7 +561,7 @@ fn open_project_files(
 /// Replaces the project's own file in `files` with its registry entry `projects/{name}.yaml`:
 /// the same manifest naming the repository `repo` at `main`, with `parameters` when given
 /// (PF-86, CC-88). Answers the project's own manifest it took out.
-fn into_registry_entry(
+pub(crate) fn into_registry_entry(
     files: &mut Vec<(String, String)>,
     name: &str,
     repo: &str,
@@ -585,8 +587,12 @@ fn into_registry_entry(
     Ok(project)
 }
 
+/// The CI of every project repository (CC-90), in its first commit.
+const VALIDATE_WORKFLOW: &str = include_str!("project-validate.yml");
+
 /// Creates the project repository of layout 2 and commits its first files to `main`: `.jc/layout`,
-/// the project's own `project.yaml` at version `0.1.0` and `CODEOWNERS` (CC-85, PF-86, PF-87).
+/// the project's own `project.yaml` at version `0.1.0`, `CODEOWNERS` and the CI workflow (CC-85,
+/// CC-90, PF-86, PF-87, PF-88).
 /// `main` then takes no direct push. `files` loses the project's own file and gains the
 /// registry entry `projects/{name}.yaml`, which the organization's Change carries.
 ///
@@ -625,6 +631,10 @@ async fn seed_project_repository(
         (
             format!("projects/{name}/CODEOWNERS"),
             format!("* @{}/{name}-writers\n", repository.owner),
+        ),
+        (
+            format!("projects/{name}/.gitea/workflows/validate.yml"),
+            VALIDATE_WORKFLOW.to_owned(),
         ),
     ];
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
@@ -746,7 +756,20 @@ pub async fn duplicate_project(
         )));
     }
     let prepared = async {
-        remount_copy(&copy, identity, &origin, &name).await?;
+        // A copy in the same organization never answers at the origin's URLs, so every slug is
+        // drawn anew (EP-02).
+        remount_copy(
+            &copy,
+            identity,
+            &Remount {
+                origin: &origin,
+                name: &name,
+                fresh_slug: &|_| true,
+                applications: &BTreeMap::new(),
+                message: format!("Duplicate {origin} as {name} (PF-89)"),
+            },
+        )
+        .await?;
         copy.protect_branch("main").await?;
         let report = crate::api::import::ImportReport {
             created: files.iter().map(|(path, _)| path.clone()).collect(),
@@ -815,55 +838,78 @@ async fn check_parameters(
         .map_err(|e| ApiError::BadRequest(format!("{e} (CC-88)")))
 }
 
-/// One commit on the copy's `main` that makes it a project of its own (PF-89, PF-83, EP-02):
-/// every manifest that names the origin names the copy, every Endpoint gets a fresh slug (a
-/// slug is a capability, and two projects must not answer at one URL), and CODEOWNERS names the
-/// copy's writers instead of the origin's. A file that is not YAML, or does not parse, stays
-/// as it is.
-async fn remount_copy(
+/// How a project repository is remounted from the slug it left onto the one it lands under
+/// (PF-89, MF-45).
+pub(crate) struct Remount<'a> {
+    pub origin: &'a str,
+    pub name: &'a str,
+    /// Whether an Endpoint's slug is drawn anew: always for a copy beside its origin, for an
+    /// import only when another project of this organization serves it (EP-02).
+    pub fresh_slug: &'a (dyn Fn(&str) -> bool + Sync),
+    /// Application repositories by the name the origin gave them, to the clone URL each one
+    /// lands at: an App's `source.git.url` follows its repository (AP-75).
+    pub applications: &'a BTreeMap<String, String>,
+    pub message: String,
+}
+
+/// One commit on the repository's `main` that makes it the project `remount.name` (PF-89, PF-83,
+/// EP-02): every manifest that names the origin names it, the Endpoint slugs `fresh_slug` asks
+/// for are drawn anew (a slug is a capability, and two projects must not answer at one URL),
+/// every App builds from its own repository, and CODEOWNERS names this project's writers. A file
+/// that is not YAML, or does not parse, stays as it is. Answers the commit, `None` when nothing
+/// changed.
+pub(crate) async fn remount_copy(
     copy: &crate::git::GiteaClient,
     identity: &crate::auth::session::Identity,
-    origin: &str,
-    name: &str,
-) -> Result<(), ApiError> {
+    remount: &Remount<'_>,
+) -> Result<Option<String>, ApiError> {
+    let name = remount.name;
+    let owners = format!("* @{}/{name}-writers\n", copy.owner);
     let mut uploads = Vec::new();
     for (path, _) in copy.list_tree_blobs("main").await? {
-        let file = if path.ends_with(".yaml") || path.ends_with(".yml") {
-            let Some(file) = copy.get_file(&path, "main").await? else {
+        let yaml = path.ends_with(".yaml") || path.ends_with(".yml");
+        let codeowners = path == format!("projects/{name}/CODEOWNERS");
+        if !yaml && !codeowners {
+            continue;
+        }
+        let Some(file) = copy.get_file(&path, "main").await? else {
+            continue;
+        };
+        let text = if codeowners {
+            if file.content == owners {
                 continue;
-            };
-            match remount_manifests(&file.content, origin, name) {
+            }
+            owners.clone()
+        } else {
+            match remount_manifests(&file.content, remount) {
                 Some(text) => text,
                 None => continue,
             }
-        } else if path == format!("projects/{name}/CODEOWNERS") {
-            format!("* @{}/{name}-writers\n", copy.owner)
-        } else {
-            continue;
         };
-        uploads.push((path, file));
+        uploads.push((path, text));
     }
     if uploads.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
-    copy.change_files(
-        "main",
-        &format!("Duplicate {origin} as {name} (PF-89)"),
-        crate::git::Author {
-            name: &author_name,
-            email: &author_email,
-        },
-        &uploads,
-        &[],
-    )
-    .await?;
-    Ok(())
+    let commit = copy
+        .change_files(
+            "main",
+            &remount.message,
+            crate::git::Author {
+                name: &author_name,
+                email: &author_email,
+            },
+            &uploads,
+            &[],
+        )
+        .await?;
+    Ok(Some(commit))
 }
 
-/// The documents of one YAML file remounted from `origin` onto `name`, or `None` when nothing
-/// in it changes or it does not parse.
-fn remount_manifests(text: &str, origin: &str, name: &str) -> Option<String> {
+/// The documents of one YAML file remounted as `remount` says, or `None` when nothing in it
+/// changes or it does not parse.
+fn remount_manifests(text: &str, remount: &Remount<'_>) -> Option<String> {
     use serde::Deserialize as _;
     let mut documents = Vec::new();
     let mut changed = false;
@@ -879,14 +925,21 @@ fn remount_manifests(text: &str, origin: &str, name: &str) -> Option<String> {
             } else {
                 "namespace"
             };
-            if metadata.get(field).and_then(Value::as_str) == Some(origin) {
-                metadata.insert(field.to_owned(), Value::String(name.to_owned()));
+            if remount.origin != remount.name
+                && metadata.get(field).and_then(Value::as_str) == Some(remount.origin)
+            {
+                metadata.insert(field.to_owned(), Value::String(remount.name.to_owned()));
                 changed = true;
             }
         }
-        if kind.as_deref() == Some("Endpoint") {
-            if let Some(spec) = manifest.get_mut("spec").and_then(Value::as_object_mut) {
-                if spec.contains_key("slug") {
+        let spec = manifest.get_mut("spec").and_then(Value::as_object_mut);
+        match (kind.as_deref(), spec) {
+            (Some("Endpoint"), Some(spec)) => {
+                let fresh = spec
+                    .get("slug")
+                    .and_then(Value::as_str)
+                    .is_some_and(|slug| (remount.fresh_slug)(slug));
+                if fresh {
                     spec.insert(
                         "slug".to_owned(),
                         Value::String(crate::apps::reconciler::generate_slug().as_str().to_owned()),
@@ -894,6 +947,25 @@ fn remount_manifests(text: &str, origin: &str, name: &str) -> Option<String> {
                     changed = true;
                 }
             }
+            (Some("App"), Some(spec)) => {
+                let url = spec
+                    .get_mut("source")
+                    .and_then(|source| source.get_mut("git"))
+                    .and_then(|git| git.get_mut("url"));
+                if let Some(url) = url {
+                    let repository = url
+                        .as_str()
+                        .and_then(|url| url.trim_end_matches('/').rsplit('/').next())
+                        .map(|last| last.trim_end_matches(".git").to_owned());
+                    if let Some(new) = repository.and_then(|r| remount.applications.get(&r)) {
+                        if url.as_str() != Some(new) {
+                            *url = Value::String(new.clone());
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
         documents.push(manifest);
     }

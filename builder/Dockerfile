@@ -75,6 +75,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
 COPY --from=template /opt/template/ /opt/template/
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
+# `jcctl validate --project`, the check every project repository's merge requests run on this
+# runner (CC-90, .gitea/workflows/validate.yml of the project template). The platform image's
+# own binary, pinned by digest: it links libc and libgcc alone, both in this base.
+COPY --from=ghcr.io/marek-mraz-jc/joinedcontext-platform@sha256:1405436f6b9c0b936cb7429d068ea3c77c071fd87bf23c6bb87d392ea3eee03a \
+    /usr/local/bin/jcctl /usr/local/bin/jcctl
 # The same image is the forge's runner (ADR-N-028): the pod's command is `runner`.
 COPY --from=runner --chmod=0755 /gitea-runner /usr/local/bin/gitea-runner
 COPY builder/runner.sh /usr/local/bin/runner

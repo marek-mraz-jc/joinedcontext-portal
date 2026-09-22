@@ -7,6 +7,7 @@ import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/man
 import { usePermissions } from "../../api/permissions";
 import type { Rule } from "../../api/permissions";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
+import { DuplicateProjectAction } from "../../components/DuplicateProjectDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { EditableForm } from "../../components/EditResourceDialog";
 import { ProjectQuota } from "../../components/ProjectQuota";
@@ -137,7 +138,12 @@ function General({ project }: { project: string }): JSX.Element {
             <p className="text-body text-fg-muted">{t("projectSettings.general.lead")}</p>
           </div>
           {manifest.data ? (
-            <EditResourceAction
+            <div className="flex flex-wrap gap-2">
+              <DuplicateProjectAction
+                project={project}
+                inOwnRepository={Boolean((stored.spec as { repository?: unknown } | undefined)?.repository)}
+              />
+              <EditResourceAction
               target={{
                 project,
                 home: ORG_NAMESPACE,
@@ -147,7 +153,8 @@ function General({ project }: { project: string }): JSX.Element {
                 label: title,
               }}
               form={form}
-            />
+              />
+            </div>
           ) : null}
         </div>
         {manifest.isError ? (

@@ -6789,7 +6789,7 @@ export interface operations {
     export: {
         parameters: {
             query?: {
-                /** @description yaml (default), json or zip */
+                /** @description yaml (default), json, zip, or git: one git bundle per repository of a layout 2 project */
                 format?: string;
                 /** @description Commit or branch; default branch head when absent */
                 revision?: string;
@@ -6832,8 +6832,26 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description A git export, and the caller may not read every manifest of the project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description No such project or revision */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A git export of a layout 1 project, of a repository that moved during it, or of an App outside the forge */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6977,6 +6995,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' to validate and plan without proposing */
                 dryRun?: string;
+                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2) */
+                format?: string;
             };
             header?: never;
             path: {

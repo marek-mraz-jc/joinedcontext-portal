@@ -137,6 +137,9 @@ pub struct SpaceMapping {
 pub struct ImportQuery {
     #[serde(default)]
     pub dry_run: Option<String>,
+    /// `git`: the archive of a `format=git` export, landing as a new project (MF-45).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 /// What one import would do, answered on a dry run and echoed in the merge request body.
@@ -1039,6 +1042,62 @@ fn renamed(name: &str, origin: &str) -> String {
 /// One extractor consumes the body, so the dispatch is here rather than in the signature: a
 /// wizard posts `multipart/form-data` with the file and the option fields beside it, and
 /// `jcctl` posts JSON.
+/// The multipart body of a git import: the archive as `file`, `parameters` as a JSON object,
+/// `displayName` and `dryRun` (MF-45, CC-88).
+async fn read_git_request(
+    state: &AppState,
+    request: Request,
+) -> Result<(Vec<u8>, crate::api::import_git::GitImport), ApiError> {
+    let mut multipart = Multipart::from_request(request, state)
+        .await
+        .map_err(|err| {
+            ApiError::BadRequest(format!(
+                "a git import is multipart/form-data with the archive as 'file': {err}"
+            ))
+        })?;
+    let mut bytes = Vec::new();
+    let mut input = crate::api::import_git::GitImport::default();
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|err| ApiError::BadRequest(format!("the upload did not parse: {err}")))?
+    {
+        let name = field.name().unwrap_or_default().to_owned();
+        let data = field
+            .bytes()
+            .await
+            .map_err(|err| ApiError::BadRequest(format!("field '{name}': {err}")))?;
+        match name.as_str() {
+            "file" | "bundle" => bytes = data.to_vec(),
+            "parameters" => {
+                input.parameters = serde_json::from_slice(&data).map_err(|err| {
+                    ApiError::BadRequest(format!(
+                        "parameters is a JSON object of values (CC-88): {err}"
+                    ))
+                })?
+            }
+            "displayName" => {
+                input.display_name = Some(String::from_utf8_lossy(&data).trim().to_owned())
+                    .filter(|name| !name.is_empty())
+            }
+            "dryRun" => {
+                input.dry_run = matches!(String::from_utf8_lossy(&data).trim(), "true" | "All")
+            }
+            other => {
+                return Err(ApiError::BadRequest(format!(
+                    "a git import takes file, parameters, displayName and dryRun, not '{other}'"
+                )))
+            }
+        }
+    }
+    if bytes.is_empty() {
+        return Err(ApiError::BadRequest(
+            "a git import carries the archive as 'file'".into(),
+        ));
+    }
+    Ok((bytes, input))
+}
+
 async fn read_request(
     state: &AppState,
     request: Request,
@@ -1122,6 +1181,7 @@ async fn read_request(
     params(
         ("project" = String, Path, description = "Project the bundle is imported into"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' to validate and plan without proposing"),
+        ("format" = Option<String>, Query, description = "'git': the archive of a format=git export, landing as the new project of the path (layout 2)"),
     ),
     responses(
         (status = 202, description = "One merge request for the whole bundle", body = Change),
@@ -1142,6 +1202,22 @@ pub async fn import(
 ) -> Result<Response, ApiError> {
     if !resource::is_dns1123(&project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    match query.format.as_deref() {
+        None => {}
+        Some("git") => {
+            let (bytes, mut input) = read_git_request(&state, request).await?;
+            input.dry_run |= query.dry_run.as_deref() == Some("All");
+            let (status, body) =
+                crate::api::import_git::import(&state, &user.0.identity, &project, &bytes, input)
+                    .await?;
+            return Ok((status, Json(body)).into_response());
+        }
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!(
+                "format '{other}' is not git; a bundle or manifests import without one"
+            )))
+        }
     }
     let (bytes, mut options) = read_request(&state, request).await?;
     if query.dry_run.as_deref() == Some("All") {

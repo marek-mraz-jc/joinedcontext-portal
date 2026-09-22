@@ -134,7 +134,35 @@ async fn a_project_opens_into_a_repository_of_its_own() {
         .filter_map(|file| file["path"].as_str())
         .collect();
     seeded.sort_unstable();
-    assert_eq!(seeded, [".jc/layout", "CODEOWNERS", "project.yaml"]);
+    assert_eq!(
+        seeded,
+        [
+            ".gitea/workflows/validate.yml",
+            ".jc/layout",
+            "CODEOWNERS",
+            "project.yaml"
+        ]
+    );
+    // CC-90: the workflow validates the project under its slug on the runner that carries
+    // jcctl, and fetches no action from outside the installation.
+    let workflow = seed[0]["files"]
+        .as_array()
+        .expect("files")
+        .iter()
+        .find(|file| file["path"] == ".gitea/workflows/validate.yml")
+        .and_then(|file| file["content"].as_str())
+        .and_then(|content| {
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, content).ok()
+        })
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .expect("the workflow");
+    let parsed: Value = serde_yaml_ng::from_str(&workflow).expect("the workflow is YAML");
+    assert_eq!(parsed["jobs"]["validate"]["runs-on"], "node-22");
+    assert!(
+        workflow.contains("jcctl validate --project . --slug"),
+        "{workflow}"
+    );
+    assert!(!workflow.contains("uses:"), "no action is fetched");
     assert_eq!(
         received(&server, "POST", &format!("{NEW}/branch_protections")).await[0]["rule_name"],
         "main"

@@ -59,6 +59,14 @@
         "permission_guard.test.tsx"
       ]
     },
+    "src/components/DuplicateProjectDialog.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "project_duplicate_import.test.tsx"
+      ]
+    },
     "src/components/EditResourceDialog.tsx": {
       "controls": {
         "Button": 5
@@ -74,6 +82,15 @@
       },
       "tests": [
         "browser_security.test.tsx"
+      ]
+    },
+    "src/components/ImportProjectDialog.tsx": {
+      "controls": {
+        "Button": 4,
+        "FilePicker": 1
+      },
+      "tests": [
+        "project_duplicate_import.test.tsx"
       ]
     },
     "src/components/LanguageSwitcher.tsx": {
@@ -221,7 +238,7 @@
     },
     "src/components/layout/NewProject.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_new_project.test.tsx"

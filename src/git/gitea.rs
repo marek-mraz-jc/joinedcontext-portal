@@ -173,6 +173,45 @@ pub struct RepoFile {
     pub content: String,
 }
 
+/// What `git-receive-pack` reported with `report-status`: `unpack ok`, then `ok {ref}` or
+/// `ng {ref} {reason}` per ref, in pkt-lines. Answers the refused refs.
+fn receive_pack_status(answer: &[u8]) -> Result<Vec<String>, GitError> {
+    let mut rest = answer;
+    let mut unpacked = false;
+    let mut refused = Vec::new();
+    while rest.len() >= 4 {
+        let size = std::str::from_utf8(&rest[..4])
+            .ok()
+            .and_then(|hex| usize::from_str_radix(hex, 16).ok())
+            .ok_or_else(|| GitError::Transport("the push answer is not pkt-lines".into()))?;
+        if size == 0 {
+            rest = &rest[4..];
+            continue;
+        }
+        if size < 4 || size > rest.len() {
+            return Err(GitError::Transport("the push answer is cut short".into()));
+        }
+        let text = String::from_utf8_lossy(&rest[4..size]);
+        let text = text.trim_end();
+        if text == "unpack ok" {
+            unpacked = true;
+        } else if let Some(reason) = text.strip_prefix("unpack ") {
+            return Err(GitError::Conflict(format!(
+                "the forge did not unpack the bundle: {reason}"
+            )));
+        } else if let Some(ng) = text.strip_prefix("ng ") {
+            refused.push(ng.to_owned());
+        }
+        rest = &rest[size..];
+    }
+    if !unpacked {
+        return Err(GitError::Transport(
+            "the push answer reported no unpack".into(),
+        ));
+    }
+    Ok(refused)
+}
+
 /// One file a pull request changes; `deleted` when it is gone from the head branch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangedFile {
@@ -818,6 +857,96 @@ impl GiteaClient {
         }
     }
 
+    /// Creates the repository in the organization, private and empty, for a push to fill (MF-45);
+    /// answers `false`, and creates nothing, when a repository of this name is already there.
+    pub async fn create_empty_repository(&self, description: &str) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let full = format!(
+            "{}/api/v1/orgs/{}/repos",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "name": self.repo,
+            "description": description,
+            "private": true,
+            "auto_init": false,
+            "default_branch": "main",
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Pushes the pack of a `git bundle` into this repository and sets `refs` to the commits
+    /// given, `(commit, refname)`, with one `git-receive-pack` request (MF-45): the Portal
+    /// holds no git, and a bundle is a header and the very pack a push sends. Every ref is
+    /// created, so the repository is empty or the forge refuses it. A pack the forge does not
+    /// unpack is the error; each ref it refuses on its own (`ng`, a tag whose commit the pack
+    /// does not hold) is answered as `ref reason`, and the others are set.
+    pub async fn push_bundle(
+        &self,
+        bundle: &[u8],
+        refs: &[(String, String)],
+    ) -> Result<Vec<String>, GitError> {
+        const ZERO: &str = "0000000000000000000000000000000000000000";
+        let pack = bundle
+            .windows(2)
+            .position(|pair| pair == b"\n\n")
+            .map(|end| &bundle[end + 2..])
+            .filter(|pack| pack.starts_with(b"PACK"))
+            .ok_or_else(|| GitError::Conflict("the bundle carries no pack".into()))?;
+        let Some(((first_commit, first_ref), rest)) = refs.split_first() else {
+            return Err(GitError::Conflict("a push sets at least one ref".into()));
+        };
+        let line = |text: String| format!("{:04x}{text}", text.len() + 4);
+        let mut body = line(format!(
+            "{ZERO} {first_commit} {first_ref}\0 report-status\n"
+        ))
+        .into_bytes();
+        for (commit, name) in rest {
+            body.extend_from_slice(line(format!("{ZERO} {commit} {name}\n")).as_bytes());
+        }
+        body.extend_from_slice(b"0000");
+        body.extend_from_slice(pack);
+
+        let full = format!(
+            "{}/{}/{}.git/git-receive-pack",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let res = self
+            .send(
+                self.http
+                    .post(url)
+                    .header(
+                        reqwest::header::CONTENT_TYPE,
+                        "application/x-git-receive-pack-request",
+                    )
+                    .body(body),
+            )
+            .await?;
+        let res = Self::check_status(res).await?;
+        let answer = res
+            .bytes()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to read the push answer: {e}")))?;
+        receive_pack_status(&answer)
+    }
+
     /// The push mirrors of the repository: where each one pushes, and what its last sync said
     /// (AP-79). Answers only for a caller that administers the repository.
     pub async fn push_mirrors(&self) -> Result<Vec<PushMirror>, GitError> {
@@ -1417,13 +1546,25 @@ impl GiteaClient {
         path: &str,
         limit: usize,
     ) -> Result<Vec<Commit>, GitError> {
-        let Some(path) = self.local_path(path) else {
-            return Ok(Vec::new());
+        // The project's own root in a project repository is the whole repository (CC-87).
+        let root = self
+            .mount
+            .as_deref()
+            .is_some_and(|mount| path.trim_matches('/') == mount.trim_end_matches('/'));
+        let path = if root {
+            String::new()
+        } else {
+            let Some(path) = self.local_path(path) else {
+                return Ok(Vec::new());
+            };
+            path
         };
         let mut url = self.repo_url("commits")?;
+        url.query_pairs_mut().append_pair("sha", git_ref);
+        if !path.is_empty() {
+            url.query_pairs_mut().append_pair("path", &path);
+        }
         url.query_pairs_mut()
-            .append_pair("sha", git_ref)
-            .append_pair("path", &path)
             .append_pair("limit", &limit.to_string())
             .append_pair("stat", "false")
             .append_pair("verification", "false")
@@ -1530,6 +1671,52 @@ impl GiteaClient {
             }
         }
         Ok(files)
+    }
+
+    /// `GET /archive/{git_ref}.bundle` — the history of `git_ref` as one `git bundle` (MF-45).
+    /// The forge bundles that ref alone, as `refs/heads/bundle` and `HEAD`: no other branch and
+    /// no tag.
+    pub async fn bundle(&self, git_ref: &str) -> Result<Vec<u8>, GitError> {
+        let url = self.repo_url(&format!("archive/{git_ref}.bundle"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        res.bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(|e| GitError::Transport(format!("failed to read the bundle: {e}")))
+    }
+
+    /// `GET /tags` — every tag of the repository and the commit it names, all pages.
+    pub async fn list_tags(&self) -> Result<Vec<(String, String)>, GitError> {
+        #[derive(Deserialize)]
+        struct TagDto {
+            name: String,
+            commit: TagCommitDto,
+        }
+        #[derive(Deserialize)]
+        struct TagCommitDto {
+            sha: String,
+        }
+        const PAGE: usize = 50;
+        let mut tags = Vec::new();
+        for page in 1.. {
+            let mut url = self.repo_url("tags")?;
+            url.query_pairs_mut()
+                .append_pair("page", &page.to_string())
+                .append_pair("limit", &PAGE.to_string());
+            let res = self.send(self.http.get(url)).await?;
+            let res = Self::check_status(res).await?;
+            let raw: Vec<TagDto> = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(format!("failed to parse tags: {e}")))?;
+            let count = raw.len();
+            tags.extend(raw.into_iter().map(|tag| (tag.name, tag.commit.sha)));
+            if count < PAGE {
+                break;
+            }
+        }
+        Ok(tags)
     }
 
     /// `GET /pulls/{number}` — retrieves an existing pull request.
@@ -1729,5 +1916,59 @@ mod project_repository_tests {
             organization.local_path("org.yaml").as_deref(),
             Some("org.yaml")
         );
+    }
+}
+
+#[cfg(test)]
+mod receive_pack_tests {
+    use super::receive_pack_status;
+
+    fn lines(texts: &[&str]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for text in texts {
+            out.extend_from_slice(format!("{:04x}{text}\n", text.len() + 5).as_bytes());
+        }
+        out.extend_from_slice(b"0000");
+        out
+    }
+
+    #[test]
+    fn an_unpacked_push_with_every_ref_taken_is_ok() {
+        // What Gitea 1.27 answered to a bundle pushed into an empty repository.
+        let none: Vec<String> = Vec::new();
+        assert_eq!(
+            receive_pack_status(b"000eunpack ok\n0017ok refs/heads/main\n0000").expect("ok"),
+            none
+        );
+        assert_eq!(
+            receive_pack_status(&lines(&[
+                "unpack ok",
+                "ok refs/heads/main",
+                "ok refs/tags/v1"
+            ]))
+            .expect("ok"),
+            none
+        );
+    }
+
+    #[test]
+    fn a_refused_ref_is_answered_and_a_failed_unpack_is_the_error() {
+        let refused = receive_pack_status(&lines(&[
+            "unpack ok",
+            "ok refs/heads/main",
+            "ng refs/tags/v1 missing necessary objects",
+        ]))
+        .expect("the other refs are set");
+        assert_eq!(refused, ["refs/tags/v1 missing necessary objects"]);
+        let unpack = receive_pack_status(&lines(&["unpack index-pack abnormal exit"]))
+            .expect_err("not unpacked");
+        assert!(unpack.to_string().contains("index-pack"), "{unpack}");
+    }
+
+    #[test]
+    fn an_answer_that_is_not_a_report_is_an_error() {
+        for answer in [&b""[..], b"0000", b"zzzz", b"00ffunpack ok"] {
+            assert!(receive_pack_status(answer).is_err(), "{answer:?}");
+        }
     }
 }
