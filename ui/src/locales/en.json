@@ -1222,7 +1222,9 @@
       "json": "JSON list",
       "jsonHelp": "A List object with the same manifests; a whole project adds the schemas beside them.",
       "zip": "ZIP archive",
-      "zipHelp": "Manifests, the files beside them and an index, re-importable as a bundle."
+      "zipHelp": "Manifests, the files beside them and an index, re-importable as a bundle.",
+      "git": "Git repositories (to move or copy the project)",
+      "gitHelp": "One git bundle per repository, the project's and each application's, with its whole history, its tags and the head it ends at, ready to import as a new project elsewhere. Only the default branch travels."
     },
     "otherFormats": "Other formats",
     "revision": "Revision",

@@ -1222,7 +1222,9 @@
       "json": "JSON-Liste",
       "jsonHelp": "Ein List-Objekt mit denselben Manifesten; ein ganzes Projekt fügt die Schemas daneben hinzu.",
       "zip": "ZIP-Archiv",
-      "zipHelp": "Manifeste, die Dateien daneben und ein Index, als Bündel reimportierbar."
+      "zipHelp": "Manifeste, die Dateien daneben und ein Index, als Bündel reimportierbar.",
+      "git": "Git-Repositories (zum Umziehen oder Kopieren des Projekts)",
+      "gitHelp": "Ein Git-Bundle pro Repository, das des Projekts und jeder Anwendung, mit der ganzen Geschichte, den Tags und dem Commit, auf dem es endet, bereit zum Import als neues Projekt anderswo. Nur der Standard-Branch reist mit."
     },
     "otherFormats": "Andere Formate",
     "revision": "Revision",

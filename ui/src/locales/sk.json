@@ -1222,7 +1222,9 @@
       "json": "Zoznam JSON",
       "jsonHelp": "Objekt List s tými istými manifestmi; celý projekt pridáva vedľa nich schémy.",
       "zip": "Archív ZIP",
-      "zipHelp": "Manifesty, súbory vedľa nich a index; dá sa naspäť importovať ako balík."
+      "zipHelp": "Manifesty, súbory vedľa nich a index; dá sa naspäť importovať ako balík.",
+      "git": "Git repozitáre (na presun alebo kópiu projektu)",
+      "gitHelp": "Jeden git bundle na repozitár, projektu aj každej aplikácie, s celou históriou, značkami a commitom, na ktorom končí, pripravený na import ako nový projekt inde. Prenáša sa iba predvolená vetva."
     },
     "otherFormats": "Iné formáty",
     "revision": "Revízia",

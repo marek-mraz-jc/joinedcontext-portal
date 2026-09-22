@@ -39,7 +39,11 @@ const REVISIONS = {
   ],
 };
 
-function renderEndpoints(revisionsStatus = 200, exportAnswer?: () => Response) {
+function renderEndpoints(
+  revisionsStatus = 200,
+  exportAnswer?: () => Response,
+  projectSpec?: Record<string, unknown>,
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = input instanceof Request ? input.url : input.toString();
     const path = new URL(url, "http://localhost").pathname;
@@ -58,6 +62,15 @@ function renderEndpoints(revisionsStatus = 200, exportAnswer?: () => Response) {
     }
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
+    }
+    if (path === "/api/v1/projects/banskabystrica" && projectSpec) {
+      return json({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "Project",
+        metadata: { name: "banskabystrica", namespace: "org" },
+        spec: projectSpec,
+        status: { usage: {} },
+      });
     }
     if (path.endsWith("/export")) {
       return Promise.resolve(
@@ -245,6 +258,47 @@ describe("export modal", () => {
     // Nothing was saved, and the dialog is still there to try another revision or format.
     expect(saved).toHaveLength(0);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("offers_git_for_a_project_in_its_own_repository_without_a_revision", async () => {
+    // MF-45: a project whose registry entry names its repository (layout 2) also exports as one
+    // git bundle per repository, which is the whole repository at its default branch.
+    const fetchMock = renderEndpoints(200, undefined, {
+      organizationRef: "bb",
+      repository: { name: "banskabystrica" },
+      ref: "main",
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    const dialog = await screen.findByRole("dialog");
+    const git = await within(dialog).findByRole("radio", {
+      name: (name) => name.startsWith(en.export.formats.git),
+    });
+    expect(within(dialog).getByLabelText(en.export.revision)).toBeInTheDocument();
+    await userEvent.click(git);
+    expect(within(dialog).queryByLabelText(en.export.revision)).toBeNull();
+    expect(await downloaded(fetchMock)).toBe(
+      "/api/v1/projects/banskabystrica/export?format=git",
+    );
+  });
+
+  it("offers_no_git_for_a_project_that_is_a_folder_of_the_organization", async () => {
+    const fetchMock = renderEndpoints(200, undefined, { organizationRef: "bb" });
+
+    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    const dialog = await screen.findByRole("dialog");
+    // The answer that decides it has arrived, and it names no repository.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([input]) =>
+            new URL(input instanceof Request ? input.url : String(input), "http://localhost")
+              .pathname === "/api/v1/projects/banskabystrica",
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() => expect(within(dialog).getAllByRole("radio")).toHaveLength(3));
+    expect(within(dialog).queryByText(en.export.formats.git)).toBeNull();
   });
 
   it("saves the archive the server answered, then closes", async () => {
