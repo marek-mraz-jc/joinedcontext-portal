@@ -132,13 +132,21 @@ export async function editAsYaml(
   };
   edit(manifest.spec);
   await open();
-  const dialog = page.getByRole("dialog", { name: `Edit ${name}` });
+  // A routed list draws the edit form as a page of its own, a region named like the dialog (T-2474).
+  const dialog = page
+    .getByRole("region", { name: `Edit ${name}` })
+    .or(page.getByRole("dialog", { name: `Edit ${name}` }))
+    .first();
   const editor = dialog.locator(".monaco-editor .view-lines").first();
   await expect(editor).toBeVisible({ timeout: 60_000 });
+  // Pasted, as `parity` and `secrets` do and as a person brings a whole document in: typed with
+  // `keyboard.insertText`, Monaco indented every line again and closed the first brace itself, so
+  // the text ended in one `}` too many and did not parse (T-2624).
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate((text) => navigator.clipboard.writeText(text), JSON.stringify(manifest, null, 2));
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.press("Delete");
-  await page.keyboard.insertText(JSON.stringify(manifest, null, 2));
+  await page.keyboard.press("ControlOrMeta+V");
   await dialog.getByRole("button", { name: "Propose change" }).click();
 }
 

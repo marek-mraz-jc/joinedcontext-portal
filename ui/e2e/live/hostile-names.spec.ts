@@ -20,7 +20,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { STEWARD, signIn, sweepDrafts } from "./portal";
+import { STEWARD, csrf, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
 const SUFFIX = new Date().toISOString().slice(11, 19).replace(/:/g, "");

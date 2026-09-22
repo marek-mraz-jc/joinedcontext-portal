@@ -1,7 +1,8 @@
 // @joinedcontext/sdk entry point barrel
 
 // NGSI-LD & Schema types
-export type { Cell, Column, Geo, Row } from "../ngsi";
+export type { Cell, Column, Geo, LanguageMap, Row } from "../ngsi";
+export { isLanguageMap } from "../ngsi";
 export { fieldOf } from "../write";
 export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 

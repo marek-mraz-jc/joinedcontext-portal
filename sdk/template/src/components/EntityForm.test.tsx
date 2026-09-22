@@ -249,4 +249,107 @@ describe("EntityForm component", () => {
     expect(select.tagName).toBe("SELECT");
     expect([...select.options].map((o) => o.value)).toEqual(["", "open", "closed"]);
   });
+
+  // SDK-07, AP-62: a LanguageProperty is written whole, so an edit of one language keeps the rest.
+  describe("a LanguageProperty", () => {
+    const multilingual: Schema = {
+      Alert: {
+        properties: {
+          name: { type: ["object", "null"], "x-ngsi-ld-kind": "LanguageProperty" },
+          address: { type: ["string", "null"] },
+        },
+      },
+    };
+    const alert = {
+      id: "urn:ngsi-ld:Alert:example.org:demo:1",
+      type: "Alert",
+      name: { languageMap: { fi: "Tietyö", sv: "Vägarbete", en: "Road work" } },
+      address: "Mannerheimintie 12",
+    } as unknown as Row;
+    // The row a page holds: one language of the map, as the client's list reads it.
+    const shown: Row = { ...alert, name: "Road work" };
+
+    it("edits one language and sends one PATCH that keeps every other", async () => {
+      const client = stubClient({ schema: multilingual, entities: [alert] });
+      const onSaved = vi.fn();
+      render(
+        <JcProvider client={client}>
+          <EntityForm type="Alert" row={shown} onSaved={onSaved} />
+        </JcProvider>,
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("name (fi)")).toHaveValue("Tietyö"));
+      expect(screen.getByLabelText("name (sv)")).toHaveValue("Vägarbete");
+      fireEvent.change(screen.getByLabelText("name (en)"), { target: { value: "Resurfacing" } });
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalledWith(alert.id));
+      const writes = client.transport.calls.filter((c) => c.method !== "GET");
+      expect(writes).toHaveLength(1);
+      expect(writes[0].body).toEqual({
+        name: { type: "LanguageProperty", languageMap: { fi: "Tietyö", sv: "Vägarbete", en: "Resurfacing" } },
+      });
+    });
+
+    it("leaves an unchanged map out of the patch", async () => {
+      const client = stubClient({ schema: multilingual, entities: [alert] });
+      const onSaved = vi.fn();
+      render(
+        <JcProvider client={client}>
+          <EntityForm type="Alert" row={shown} onSaved={onSaved} />
+        </JcProvider>,
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("name (fi)")).toHaveValue("Tietyö"));
+      fireEvent.change(screen.getByLabelText("address"), { target: { value: "Mannerheimintie 14" } });
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      const patch = client.transport.calls.find((c) => c.method === "PATCH");
+      expect(patch?.body).toEqual({ address: { type: "Property", value: "Mannerheimintie 14" } });
+    });
+
+    it("creates one in the application's language", async () => {
+      const client = stubClient({ schema: multilingual });
+      const onSaved = vi.fn();
+      render(
+        <JcProvider client={client}>
+          <EntityForm type="Alert" onSaved={onSaved} />
+        </JcProvider>,
+      );
+
+      await waitFor(() => expect(screen.getByLabelText("name (en)")).toBeInTheDocument());
+      expect(screen.queryByLabelText("name (fi)")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Local id"), { target: { value: "a2" } });
+      fireEvent.change(screen.getByLabelText("name (en)"), { target: { value: "Market day" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      const post = client.transport.calls.find((c) => c.method === "POST");
+      expect((post?.body as Record<string, unknown>).name).toEqual({ type: "LanguageProperty", languageMap: { en: "Market day" } });
+    });
+
+    it("keeps Save disabled and says why when the languages cannot be read", async () => {
+      const client = stubClient({
+        schema: multilingual,
+        entities: [alert],
+        refuse: (request) =>
+          request.method === "GET" && request.path.includes("/entities/urn")
+            ? { status: 403, body: { title: "Forbidden", status: 403, detail: "no read of name" } }
+            : null,
+      });
+      render(
+        <JcProvider client={client}>
+          <EntityForm type="Alert" row={shown} />
+        </JcProvider>,
+      );
+
+      expect(await screen.findByText(/no read of name/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(screen.getByLabelText("name (en)")).toBeDisabled();
+      expect(client.transport.calls.filter((c) => c.method !== "GET")).toEqual([]);
+    });
+  });
 });

@@ -243,6 +243,15 @@
   font-weight: 500;
 }
 
+/* One input per language of a LanguageProperty, stacked under the field's name. */
+.jc-field .jc-languages {
+  display: grid;
+  gap: var(--jc-space-1, 0.25rem);
+  font-size: inherit;
+  color: inherit;
+  font-weight: inherit;
+}
+
 .jc-field-error {
   margin: 0;
   font-size: var(--jc-font-size-sm, 0.75rem);

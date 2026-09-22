@@ -1,4 +1,4 @@
-import { useCreateForm } from "../components/forms/FormRoute";
+import { useCreateFormFromDraft } from "../components/forms/FormRoute";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -139,7 +139,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
   const queryClient = useQueryClient();
   const orgDomain = useOrgDomain(project);
   // The create form is a page at `/{plural}/new` on a routed list (T-2474).
-  const [dialogOpen, setDialogOpen] = useCreateForm();
+  const [dialogOpen, setDialogOpen, handedDraft] = useCreateFormFromDraft();
   const [form, setForm] = useState<PolicyForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
@@ -321,7 +321,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
         onChange={setForm}
         project={project}
         draftKind="Policy"
-        draftName={edit}
+        draftName={edit ?? handedDraft}
         plural="policies"
         source={{
           toManifest: (form) => toPolicyEnvelope(project, orgDomain, form),

@@ -299,6 +299,8 @@ export function ResourceFormDialog<T>({
     [currentManifest],
   );
   const [conflict, setConflict] = useState<string | null>(null);
+  /** Why the server would not save the draft (MF-24, T-2626), in its own words. */
+  const [saveRefused, setSaveRefused] = useState<string | null>(null);
   const lastVersionRef = useRef<number | undefined>(undefined);
   const lastTypedRef = useRef<number>(0);
   /** The digest of the manifest the draft last held: an unchanged form writes nothing. */
@@ -318,9 +320,32 @@ export function ResourceFormDialog<T>({
     };
   }, [open, kind, activeName]);
 
+  /** The verdict on screen, for the answers below that arrive after a newer one (T-2624). */
+  const heldVerdictRef = useRef<Verdict | null>(null);
   const updateVerdict = (v: Verdict | null) => {
+    heldVerdictRef.current = v;
     setInternalVerdict(v);
     onVerdictChange?.(v);
+  };
+  /**
+   * The verdict a save or a reload of the draft carries. The store keeps a draft's verdict
+   * across a save, so a save that crosses a check in flight answers with the verdict from before
+   * that check (none, or the one another hand ran on its own manifest). Taken as it came, it
+   * replaced the fresh one and Propose stayed refused (T-2624). The newer check wins; the digest
+   * still decides whether it is fresh for what the form holds (PF-57).
+   */
+  const adoptVerdict = (incoming: Verdict | null | undefined) => {
+    if (incoming === undefined) {
+      return;
+    }
+    const held = heldVerdictRef.current;
+    if (
+      held !== null &&
+      (incoming === null || Date.parse(incoming.checkedAt) < Date.parse(held.checkedAt))
+    ) {
+      return;
+    }
+    updateVerdict(incoming);
   };
 
   /** A dialog opens on its form again, whatever view it was closed from. */
@@ -398,25 +423,25 @@ export function ResourceFormDialog<T>({
           syncedDigestRef.current = digest;
           setCurrentDraft(d);
           lastVersionRef.current = d.version;
-          if (d.verdict !== undefined) {
-            updateVerdict(d.verdict ?? null);
-          }
+          adoptVerdict(d.verdict);
           setConflict(null);
+          setSaveRefused(null);
         })
         .catch((err: unknown) => {
           const isConflict =
             typeof err === "object" &&
             err !== null &&
             (err as { status?: number }).status === 409;
+          if (!isConflict) {
+            setSaveRefused(refusalOf(err));
+          }
           if (isConflict) {
             setConflict(t("drafts.conflict"));
             void getDraft(project, draftKind, activeName).then((reloaded) => {
               if (reloaded) {
                 setCurrentDraft(reloaded);
                 lastVersionRef.current = reloaded.version;
-                if (reloaded.verdict !== undefined) {
-                  updateVerdict(reloaded.verdict ?? null);
-                }
+                adoptVerdict(reloaded.verdict);
                 if (reloaded.manifest) {
                   const loaded = source
                     ? source.fromManifest(reloaded.manifest)
@@ -453,7 +478,7 @@ export function ResourceFormDialog<T>({
           void getDraft(project, draftKind, activeName).then((d) => {
             if (d) {
               setCurrentDraft(d);
-              updateVerdict(d.verdict ?? null);
+              adoptVerdict(d.verdict ?? null);
             }
           });
           return;
@@ -466,9 +491,7 @@ export function ResourceFormDialog<T>({
             if (reloaded) {
               setCurrentDraft(reloaded);
               lastVersionRef.current = reloaded.version;
-              if (reloaded.verdict !== undefined) {
-                updateVerdict(reloaded.verdict ?? null);
-              }
+              adoptVerdict(reloaded.verdict);
               if (reloaded.manifest) {
                 const loaded = source
                   ? source.fromManifest(reloaded.manifest)
@@ -523,6 +546,13 @@ export function ResourceFormDialog<T>({
   const effectiveSubmitDisabledReason = isLax
     ? submitDisabledReason
     : submitDisabledReason || proposeReason;
+
+  /** The server's own sentence for a refused save, else what the request failed with. */
+  function refusalOf(err: unknown): string {
+    const detail = (err as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail) return detail;
+    return err instanceof Error ? err.message : t("app.error.generic");
+  }
 
   /** The form the YAML describes, or `null` with the reason on screen. */
   function readYaml(): T | null {
@@ -584,15 +614,15 @@ export function ResourceFormDialog<T>({
         syncedDigestRef.current = digest;
         lastVersionRef.current = saved.version;
         setCurrentDraft(saved);
-        if (saved.verdict !== undefined) {
-          updateVerdict(saved.verdict ?? null);
-        }
+        adoptVerdict(saved.verdict);
+        setSaveRefused(null);
       } catch (err) {
         // Another window changed the draft: the person sees it before anything is proposed. Any
         // other failure leaves the proposal to the server's check, which says what to do.
         if ((err as { status?: number }).status === 409) {
           throw err;
         }
+        setSaveRefused(refusalOf(err));
       }
     }
     return { kind: draftKind, name: active };
@@ -881,6 +911,11 @@ export function ResourceFormDialog<T>({
         {conflict ? (
           <Alert role="alert" tone="warning">
             {conflict}
+          </Alert>
+        ) : null}
+        {saveRefused ? (
+          <Alert role="alert" tone="danger">
+            {t("drafts.saveRefused", { reason: saveRefused })}
           </Alert>
         ) : null}
 
