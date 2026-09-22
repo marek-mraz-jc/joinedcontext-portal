@@ -36,6 +36,22 @@ pub async fn internal_get_run(
         .into_iter()
         .map(|endpoint| endpoint.slug)
         .collect();
+    // Layout 2: the run's folder is in its project's own repository, at that repository's root
+    // (CC-87, AG-86). An application in its own repository is written by the Portal, not
+    // through the proxy, and keeps its empty prefix.
+    let repository = if run.in_own_repository() {
+        None
+    } else {
+        state.mirror.repository_of(&run.project)
+    };
+    let path_prefix = match &repository {
+        Some(_) => run
+            .path_prefix
+            .strip_prefix(&format!("projects/{}/", run.project))
+            .unwrap_or(&run.path_prefix)
+            .to_owned(),
+        None => run.path_prefix.clone(),
+    };
     Ok(Json(RunContext {
         id: run.id,
         project: run.project,
@@ -44,7 +60,8 @@ pub async fn internal_get_run(
         endpoint_slugs,
         allows_write: run.allows_write,
         branch: run.branch,
-        path_prefix: run.path_prefix,
+        path_prefix,
+        repository,
         status: run.status,
         ticket_hash: run.ticket_hash,
         max_tokens: profile.max_tokens_per_run,

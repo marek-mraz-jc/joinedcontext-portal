@@ -238,9 +238,9 @@ async fn mirror_at(
         ));
     }
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("no repository is configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let paths = match gitea.list_tree(revision).await {
         Ok(paths) => paths,
         Err(crate::git::GitError::NotFound) => return Err(not_found()),

@@ -168,6 +168,10 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}",
             get(get_project).delete(delete_project),
         )
+        .route(
+            "/projects/{project}/duplicate",
+            axum::routing::post(duplicate_project),
+        )
 }
 
 // ---------------------------------------------------------------------------
@@ -316,50 +320,22 @@ pub async fn open_project(
     may_open(&state, identity)?;
 
     let name = request.name.trim().to_owned();
-    if !resource::is_dns1123(&name) {
-        return Err(ApiError::BadRequest(format!(
-            "project name '{name}' is not a DNS-1123 label: lowercase letters, digits and \
-             hyphens, starting and ending with a letter or a digit (PF-67)"
-        )));
-    }
-    if name == crate::permissions::ORG_NAMESPACE {
-        return Err(ApiError::BadRequest(format!(
-            "'{name}' is the organization's own namespace and is not a project (PF-67)"
-        )));
-    }
-    if state.mirror.namespaces().iter().any(|held| held == &name)
-        || state
-            .mirror
-            .get(crate::permissions::ORG_NAMESPACE, "Project", &name)
-            .is_some()
-    {
-        return Err(ApiError::Conflict(format!(
-            "project '{name}' already exists (PF-67)"
-        )));
-    }
-
     let gitea = state
         .gitea
         .as_deref()
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
-    // A name a deleted project held stays reserved for the organization's cooling period, so
-    // nobody opens a project that inherits another one's URNs, dashboards and links (PF-78).
-    if let Some(free) = reserved_until(&state, gitea, &name).await {
-        return Err(ApiError::Conflict(format!(
-            "project '{name}' was deleted and its name stays reserved until {} (PF-78)",
-            free.format("%Y-%m-%d")
-        )));
-    }
-    // A name reserved by an open change is taken, even though nothing is merged yet (PF-67).
-    let open = gitea.list_pull_requests("open").await?;
-    let reserved = format!("portal/create-project-{name}-");
-    if open.iter().any(|pr| pr.head_branch.starts_with(&reserved)) {
-        return Err(ApiError::Conflict(format!(
-            "project '{name}' is already proposed and waiting for approval (PF-67)"
-        )));
-    }
+    new_project_name(&state, gitea, &name).await?;
 
-    let files = open_project_files(&state, identity, &request, &name)?;
+    let mut files = open_project_files(&state, identity, &request, &name)?;
+    // Layout 2 (CC-85, PF-86): the project gets a repository of its own, seeded here, and the
+    // organization's Change carries its registry entry in place of the project's own file.
+    let own_repository = if state.mirror.layout() == 2 {
+        let repository = gitea.for_project(&name, &name);
+        seed_project_repository(&repository, identity, &name, &mut files).await?;
+        Some(repository)
+    } else {
+        None
+    };
     // Yellow: a project and its opener's own steward binding are reviewed, not confirmed by
     // typing a name back (PF-66).
     let report = crate::api::import::ImportReport {
@@ -374,7 +350,7 @@ pub async fn open_project(
         verified: Vec::new(),
         needs: Vec::new(),
     };
-    let mut change = crate::api::import::propose_bundle(
+    let proposed = crate::api::import::propose_bundle(
         &state,
         identity,
         &name,
@@ -382,7 +358,18 @@ pub async fn open_project(
         files,
         Some(("Project", &name)),
     )
-    .await?;
+    .await;
+    let mut change = match (proposed, own_repository) {
+        (Ok(change), _) => change,
+        (Err(error), None) => return Err(error),
+        // Both or neither: a repository nobody registered is removed again (CC-85).
+        (Err(error), Some(repository)) => {
+            if let Err(cleanup) = repository.delete_repository().await {
+                tracing::error!(project = %name, error = %cleanup, "the repository of a project that did not open is left behind");
+            }
+            return Err(error);
+        }
+    };
 
     // The organization that lets anyone open a project, on an installation that does not hold
     // every change for a person, has nobody to wait for: the platform merges it and the merge
@@ -418,6 +405,54 @@ pub async fn open_project(
     }
 
     Ok((StatusCode::ACCEPTED, Json(change)))
+}
+
+/// The checks a new project's slug passes, whether it is opened or duplicated (PF-67, PF-78):
+/// a DNS-1123 label, not the organization's namespace, not held, not reserved by a deleted
+/// project's cooling period, not proposed by an open change.
+async fn new_project_name(
+    state: &AppState,
+    gitea: &crate::git::GiteaClient,
+    name: &str,
+) -> Result<(), ApiError> {
+    if !resource::is_dns1123(name) {
+        return Err(ApiError::BadRequest(format!(
+            "project name '{name}' is not a DNS-1123 label: lowercase letters, digits and \
+             hyphens, starting and ending with a letter or a digit (PF-67)"
+        )));
+    }
+    if name == crate::permissions::ORG_NAMESPACE {
+        return Err(ApiError::BadRequest(format!(
+            "'{name}' is the organization's own namespace and is not a project (PF-67)"
+        )));
+    }
+    if state.mirror.namespaces().iter().any(|held| held == name)
+        || state
+            .mirror
+            .get(crate::permissions::ORG_NAMESPACE, "Project", name)
+            .is_some()
+    {
+        return Err(ApiError::Conflict(format!(
+            "project '{name}' already exists (PF-67)"
+        )));
+    }
+    // A name a deleted project held stays reserved for the organization's cooling period, so
+    // nobody opens a project that inherits another one's URNs, dashboards and links (PF-78).
+    if let Some(free) = reserved_until(state, gitea, name).await {
+        return Err(ApiError::Conflict(format!(
+            "project '{name}' was deleted and its name stays reserved until {} (PF-78)",
+            free.format("%Y-%m-%d")
+        )));
+    }
+    // A name reserved by an open change is taken, even though nothing is merged yet (PF-67).
+    let open = gitea.list_pull_requests("open").await?;
+    let reserved = format!("portal/create-project-{name}-");
+    if open.iter().any(|pr| pr.head_branch.starts_with(&reserved)) {
+        return Err(ApiError::Conflict(format!(
+            "project '{name}' is already proposed and waiting for approval (PF-67)"
+        )));
+    }
+    Ok(())
 }
 
 fn lets_anyone_open(state: &AppState) -> bool {
@@ -484,7 +519,9 @@ fn open_project_files(
         "apiVersion": API_VERSION,
         "kind": "Project",
         "metadata": metadata,
-        "spec": { "organizationRef": { "name": organization } },
+        // A bare name: jc-core's `Ref` takes a name or a `{kind, name}` pair, and a `{name}`
+        // alone made every project this door opened a manifest the loader refuses (T-2643).
+        "spec": { "organizationRef": organization },
     });
 
     // The opener gets `steward` on their own project and nothing anywhere else (PF-66, PF-52).
@@ -519,6 +556,354 @@ fn open_project_files(
     ])
 }
 
+/// Replaces the project's own file in `files` with its registry entry `projects/{name}.yaml`:
+/// the same manifest naming the repository `repo` at `main`, with `parameters` when given
+/// (PF-86, CC-88). Answers the project's own manifest it took out.
+fn into_registry_entry(
+    files: &mut Vec<(String, String)>,
+    name: &str,
+    repo: &str,
+    parameters: Option<&serde_json::Map<String, Value>>,
+) -> Result<Value, ApiError> {
+    let own_path = format!("projects/{name}/project.yaml");
+    let position = files
+        .iter()
+        .position(|(path, _)| *path == own_path)
+        .ok_or_else(|| ApiError::Internal("the project's own manifest is missing".into()))?;
+    let (_, own) = files.remove(position);
+    let project: Value = serde_yaml_ng::from_str(&own)
+        .map_err(|e| ApiError::Internal(format!("the project manifest did not parse: {e}")))?;
+    let mut entry = project.clone();
+    entry["spec"]["repository"] = json!({ "name": repo });
+    entry["spec"]["ref"] = json!("main");
+    if let Some(parameters) = parameters.filter(|p| !p.is_empty()) {
+        entry["spec"]["parameters"] = Value::Object(parameters.clone());
+    }
+    let entry = serde_yaml_ng::to_string(&entry)
+        .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
+    files.insert(position, (format!("projects/{name}.yaml"), entry));
+    Ok(project)
+}
+
+/// Creates the project repository of layout 2 and commits its first files to `main`: `.jc/layout`,
+/// the project's own `project.yaml` at version `0.1.0` and `CODEOWNERS` (CC-85, PF-86, PF-87).
+/// `main` then takes no direct push. `files` loses the project's own file and gains the
+/// registry entry `projects/{name}.yaml`, which the organization's Change carries.
+///
+/// A repository of that name that is already there is refused, never adopted: somebody else's
+/// history would become the project's. A failure after the repository exists removes it.
+async fn seed_project_repository(
+    repository: &crate::git::GiteaClient,
+    identity: &crate::auth::session::Identity,
+    name: &str,
+    files: &mut Vec<(String, String)>,
+) -> Result<(), ApiError> {
+    let own_path = format!("projects/{name}/project.yaml");
+    let mut project = into_registry_entry(files, name, &repository.repo, None)?;
+    project["spec"]["version"] = json!("0.1.0");
+    let yaml = |value: &Value| -> Result<String, ApiError> {
+        serde_yaml_ng::to_string(value)
+            .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))
+    };
+
+    if !repository
+        .ensure_repository(&format!("The configuration of the project {name}"))
+        .await?
+    {
+        return Err(ApiError::Conflict(format!(
+            "a repository named '{}' is already in the forge; a project opens only into a new one \
+             (PF-86)",
+            repository.repo
+        )));
+    }
+    let seed = vec![
+        (
+            format!("projects/{name}/{}", jc_core::project::LAYOUT_FILE),
+            "2\n".to_owned(),
+        ),
+        (own_path, yaml(&project)?),
+        (
+            format!("projects/{name}/CODEOWNERS"),
+            format!("* @{}/{name}-writers\n", repository.owner),
+        ),
+    ];
+    let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
+    let author = crate::git::Author {
+        name: &author_name,
+        email: &author_email,
+    };
+    let seeded = async {
+        repository
+            .change_files(
+                "main",
+                &format!("Open the project {name} (PF-86)"),
+                author,
+                &seed,
+                &[],
+            )
+            .await?;
+        repository.protect_branch("main").await
+    }
+    .await;
+    if let Err(error) = seeded {
+        if let Err(cleanup) = repository.delete_repository().await {
+            tracing::error!(project = %name, error = %cleanup, "the repository of a project that did not open is left behind");
+        }
+        return Err(error.into());
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Duplicating a project (PF-89)
+// ---------------------------------------------------------------------------
+
+/// The new slug of a duplicate and this deployment's own values.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct DuplicateProject {
+    /// The copy's slug: the `{project}` segment of every path of it (PF-67).
+    pub name: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// Values for the parameters the origin's `project.yaml` declares (CC-88).
+    #[serde(default)]
+    #[schema(value_type = Object)]
+    pub parameters: serde_json::Map<String, Value>,
+}
+
+/// `POST /api/v1/projects/{project}/duplicate`: copies a project of layout 2 into a new
+/// repository with its history and proposes its registry entry under a new slug (PF-89).
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/duplicate",
+    summary = "Duplicate A Project",
+    description = "Copies the project's repository with its history under a new slug and proposes its registry entry and the caller's steward binding; the copy's endpoints get slugs of their own.",
+    tag = "resources",
+    params(("project" = String, Path, description = "Project slug of the origin")),
+    request_body(
+        content = DuplicateProject,
+        example = json!({ "name": "helsinki-test", "displayName": "Helsinki (test)", "parameters": {} })
+    ),
+    responses(
+        (status = 202, description = "The change that registers the copy", body = Change),
+        (status = 400, description = "The name is not a DNS-1123 label, or a parameter does not fit the origin's declarations", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The organization does not let this caller open a project", body = ProblemDetails),
+        (status = 404, description = "No binding of the caller covers the origin", body = ProblemDetails),
+        (status = 409, description = "The name is taken, or the organization is not of layout 2", body = ProblemDetails),
+        (status = 503, description = "No git forge configured", body = ProblemDetails)
+    )
+)]
+pub async fn duplicate_project(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    axum::extract::Path(origin): axum::extract::Path<String>,
+    Json(request): Json<DuplicateProject>,
+) -> Result<(StatusCode, Json<Change>), ApiError> {
+    let identity = &user.0.identity;
+    if !crate::permissions::for_request(&state, identity, &origin).may_read_project() {
+        return Err(ApiError::NotFound(format!("project '{origin}' not found")));
+    }
+    may_open(&state, identity)?;
+    if state.mirror.layout() != 2 {
+        return Err(ApiError::Conflict(
+            "a project of layout 1 has no repository of its own to copy; import its export \
+             under the new name instead (PF-89, MF-45)"
+                .into(),
+        ));
+    }
+    let origin_repo = state
+        .mirror
+        .repository_of(&origin)
+        .ok_or_else(|| ApiError::NotFound(format!("project '{origin}' not found")))?;
+    let name = request.name.trim().to_owned();
+    let gitea = state
+        .gitea
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    new_project_name(&state, gitea, &name).await?;
+
+    let source = gitea.for_project(&origin_repo, &origin);
+    let mut files = open_project_files(
+        &state,
+        identity,
+        &OpenProject {
+            name: name.clone(),
+            display_name: request.display_name.clone(),
+            description: None,
+        },
+        &name,
+    )?;
+    into_registry_entry(&mut files, &name, &name, Some(&request.parameters))?;
+    check_parameters(&source, &origin, &name, &files).await?;
+
+    let copy = gitea.for_project(&name, &name);
+    if !copy.migrate_repository(&source).await? {
+        return Err(ApiError::Conflict(format!(
+            "a repository named '{name}' is already in the forge; a duplicate goes only into a \
+             new one (PF-89)"
+        )));
+    }
+    let prepared = async {
+        remount_copy(&copy, identity, &origin, &name).await?;
+        copy.protect_branch("main").await?;
+        let report = crate::api::import::ImportReport {
+            created: files.iter().map(|(path, _)| path.clone()).collect(),
+            replaced: Vec::new(),
+            skipped: Vec::new(),
+            renamed: Default::default(),
+            reassigned: Default::default(),
+            native_files: 0,
+            lane: crate::change::Lane::Yellow,
+            source: None,
+            verified: Vec::new(),
+            needs: Vec::new(),
+        };
+        crate::api::import::propose_bundle(
+            &state,
+            identity,
+            &name,
+            report,
+            files,
+            Some(("Project", &name)),
+        )
+        .await
+    }
+    .await;
+    match prepared {
+        Ok(change) => Ok((StatusCode::ACCEPTED, Json(change))),
+        // Both or neither: a copy no registry entry names is removed again (CC-85).
+        Err(error) => {
+            if let Err(cleanup) = copy.delete_repository().await {
+                tracing::error!(project = %name, error = %cleanup, "the copy of a project that was not duplicated is left behind");
+            }
+            Err(error)
+        }
+    }
+}
+
+/// The registry entry in `files` against what the origin's `project.yaml` declares: a value
+/// for an undeclared parameter, or one that does not fit, is the caller's `400` before anything
+/// is copied (CC-88).
+async fn check_parameters(
+    source: &crate::git::GiteaClient,
+    origin: &str,
+    name: &str,
+    files: &[(String, String)],
+) -> Result<(), ApiError> {
+    let own = source
+        .get_file(&format!("projects/{origin}/project.yaml"), "main")
+        .await?
+        .ok_or_else(|| {
+            ApiError::Conflict(format!(
+                "the repository of '{origin}' has no project.yaml on main to copy (PF-86)"
+            ))
+        })?;
+    let own = jc_core::kinds::Project::from_yaml(&own.content).map_err(|e| {
+        ApiError::Conflict(format!("the project.yaml of '{origin}' does not load: {e}"))
+    })?;
+    let entry_path = format!("projects/{name}.yaml");
+    let entry = files
+        .iter()
+        .find(|(path, _)| *path == entry_path)
+        .ok_or_else(|| ApiError::Internal("the registry entry is missing".into()))?;
+    let entry = jc_core::kinds::Project::from_yaml(&entry.1)
+        .map_err(|e| ApiError::BadRequest(format!("the registry entry does not load: {e}")))?;
+    jc_core::project::resolve_parameters(&own.spec, &entry.spec)
+        .map(|_| ())
+        .map_err(|e| ApiError::BadRequest(format!("{e} (CC-88)")))
+}
+
+/// One commit on the copy's `main` that makes it a project of its own (PF-89, PF-83, EP-02):
+/// every manifest that names the origin names the copy, every Endpoint gets a fresh slug (a
+/// slug is a capability, and two projects must not answer at one URL), and CODEOWNERS names the
+/// copy's writers instead of the origin's. A file that is not YAML, or does not parse, stays
+/// as it is.
+async fn remount_copy(
+    copy: &crate::git::GiteaClient,
+    identity: &crate::auth::session::Identity,
+    origin: &str,
+    name: &str,
+) -> Result<(), ApiError> {
+    let mut uploads = Vec::new();
+    for (path, _) in copy.list_tree_blobs("main").await? {
+        let file = if path.ends_with(".yaml") || path.ends_with(".yml") {
+            let Some(file) = copy.get_file(&path, "main").await? else {
+                continue;
+            };
+            match remount_manifests(&file.content, origin, name) {
+                Some(text) => text,
+                None => continue,
+            }
+        } else if path == format!("projects/{name}/CODEOWNERS") {
+            format!("* @{}/{name}-writers\n", copy.owner)
+        } else {
+            continue;
+        };
+        uploads.push((path, file));
+    }
+    if uploads.is_empty() {
+        return Ok(());
+    }
+    let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
+    copy.change_files(
+        "main",
+        &format!("Duplicate {origin} as {name} (PF-89)"),
+        crate::git::Author {
+            name: &author_name,
+            email: &author_email,
+        },
+        &uploads,
+        &[],
+    )
+    .await?;
+    Ok(())
+}
+
+/// The documents of one YAML file remounted from `origin` onto `name`, or `None` when nothing
+/// in it changes or it does not parse.
+fn remount_manifests(text: &str, origin: &str, name: &str) -> Option<String> {
+    use serde::Deserialize as _;
+    let mut documents = Vec::new();
+    let mut changed = false;
+    for document in serde_yaml_ng::Deserializer::from_str(text) {
+        let mut manifest = Value::deserialize(document).ok()?;
+        let kind = manifest
+            .get("kind")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        if let Some(metadata) = manifest.get_mut("metadata").and_then(Value::as_object_mut) {
+            let field = if kind.as_deref() == Some("Project") {
+                "name"
+            } else {
+                "namespace"
+            };
+            if metadata.get(field).and_then(Value::as_str) == Some(origin) {
+                metadata.insert(field.to_owned(), Value::String(name.to_owned()));
+                changed = true;
+            }
+        }
+        if kind.as_deref() == Some("Endpoint") {
+            if let Some(spec) = manifest.get_mut("spec").and_then(Value::as_object_mut) {
+                if spec.contains_key("slug") {
+                    spec.insert(
+                        "slug".to_owned(),
+                        Value::String(crate::apps::reconciler::generate_slug().as_str().to_owned()),
+                    );
+                    changed = true;
+                }
+            }
+        }
+        documents.push(manifest);
+    }
+    if !changed {
+        return None;
+    }
+    let rendered: Result<Vec<String>, _> = documents.iter().map(serde_yaml_ng::to_string).collect();
+    Some(rendered.ok()?.join("---\n"))
+}
+
 // ---------------------------------------------------------------------------
 // Deleting a project (PF-77, PF-78)
 // ---------------------------------------------------------------------------
@@ -536,9 +921,12 @@ pub(crate) async fn deletion_plan(
 ) -> Result<Vec<String>, ApiError> {
     let tree = gitea.list_tree(git_ref).await?;
     let prefix = format!("projects/{project}/");
+    // Layout 2 holds the project's registry entry instead of its tree (PF-86); the sync
+    // archives the project's repository once the entry is gone.
+    let entry = format!("projects/{project}.yaml");
     let mut files: Vec<String> = tree
         .iter()
-        .filter(|path| path.starts_with(&prefix))
+        .filter(|path| path.starts_with(&prefix) || **path == entry)
         .cloned()
         .collect();
 
@@ -672,12 +1060,24 @@ async fn reserved_until(
         return None;
     }
     let branch = gitea.default_branch().await.ok()?;
-    let history = gitea
-        .list_commits(&branch, &format!("projects/{name}/project.yaml"), 1)
-        .await
-        .unwrap_or_default();
-    let last = history.first()?;
-    let removed = chrono::DateTime::parse_from_rfc3339(&last.date).ok()?;
+    // The project's own file in layout 1, its registry entry in layout 2 (PF-86).
+    let mut removed = None;
+    for path in [
+        format!("projects/{name}/project.yaml"),
+        format!("projects/{name}.yaml"),
+    ] {
+        let history = gitea
+            .list_commits(&branch, &path, 1)
+            .await
+            .unwrap_or_default();
+        if let Some(date) = history
+            .first()
+            .and_then(|last| chrono::DateTime::parse_from_rfc3339(&last.date).ok())
+        {
+            removed = removed.max(Some(date));
+        }
+    }
+    let removed = removed?;
     let free = removed.with_timezone(&chrono::Utc) + chrono::Duration::days(days as i64);
     (chrono::Utc::now() < free).then_some(free)
 }
@@ -801,6 +1201,7 @@ pub async fn delete_project_for(
             crate::change::ChangePhase::PendingApproval,
             summary,
         )
+        .in_repository(&pull.repository)
         .with_merge_request(pull.url),
     ))
 }

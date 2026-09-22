@@ -124,6 +124,7 @@
     "lane": "Risk lane",
     "phase": "Phase",
     "mergeRequest": "Merge request",
+    "repository": "Repository",
     "approve": "Approve",
     "reject": "Reject",
     "approving": "Approving...",

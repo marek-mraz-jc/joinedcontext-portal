@@ -325,6 +325,16 @@ async fn anyone_may_open_a_project_and_gets_steward_on_it_and_nothing_else() {
     assert!(binding.contains("project: doprava"), "{binding}");
     assert!(!binding.contains("organization:"), "{binding}");
     assert!(binding.contains("nobody@hel.fi"), "{binding}");
+
+    // The project file is one the loader takes (T-2643): `organizationRef` as jc-core reads it.
+    let project = bodies(&gitea)
+        .await
+        .into_iter()
+        .find(|body| body.contains("kind: Project"))
+        .expect("the project's own file");
+    let parsed =
+        jc_core::kinds::Project::from_yaml(&project).unwrap_or_else(|e| panic!("{e}: {project}"));
+    parsed.validate().expect("a valid project");
 }
 
 #[tokio::test]

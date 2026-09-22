@@ -39,6 +39,7 @@ use crate::apps::converge::{Converger, Outcome};
 use crate::git::{Author, FileWrite, GitError, GiteaClient};
 use crate::resource::ResourceEnvelope;
 use crate::store::Mirror;
+use jcctl::loader::Repository;
 
 /// The resident runner's Deployment, which mounts the Secret this reconciler writes (T-0927).
 /// One name, because a deployment that runs a second runner gives it the same chart and the
@@ -75,6 +76,10 @@ pub enum SyncError {
     /// not fit its kind (T-0527).
     #[error("roles do not compile: {0}")]
     Roles(String),
+    /// A layout 2 organization does not assemble: its registry, a layout file, or a name two
+    /// projects claim (CC-85, CC-86).
+    #[error("the organization does not assemble: {0}")]
+    Assemble(#[from] jcctl::assemble::AssembleError),
     /// The scratch directory the loader reads from could not be written.
     #[error("cannot stage the repository at {path}: {source}")]
     Scratch {
@@ -90,6 +95,10 @@ pub struct Syncer {
     mirror: Arc<Mirror>,
     status: Arc<RwLock<SyncStatus>>,
     running: Arc<Mutex<()>>,
+    /// Where a layout 2 organization is assembled, kept between syncs so a project that does
+    /// not stage renders as the last assembly left it (CC-86). One per syncer; its syncs run
+    /// one at a time behind `running`.
+    assembly: PathBuf,
     /// `None` when the Portal has no database: a single replica needs no election.
     leadership: Option<Arc<Leadership>>,
     /// `None` when this Portal applies no app objects: outside a cluster, or without the
@@ -145,6 +154,11 @@ impl Syncer {
                 ..SyncStatus::default()
             })),
             running: Arc::new(Mutex::new(())),
+            assembly: {
+                static SYNCERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                let n = SYNCERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                std::env::temp_dir().join(format!("jc-portal-assembly-{}-{n}", std::process::id()))
+            },
             leadership: None,
             converger: None,
             streams: None,
@@ -555,16 +569,82 @@ impl Syncer {
         self.status().last_sync.is_some()
     }
 
+    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
+    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
+    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
+    /// the rest of the organization renders.
+    async fn render(&self, org: Scratch) -> Result<(Render, Repository), SyncError> {
+        use jc_core::project::RepositoryRole;
+        use jcctl::assemble::{assemble, layout_at, read_registry, Directories};
+        if layout_at(org.path(), RepositoryRole::Organization)? == 1 {
+            let repository = Repository::load(org.path())?;
+            return Ok((
+                Render {
+                    layout: 1,
+                    root: org.path().to_path_buf(),
+                    _staged: vec![org],
+                    projects: BTreeMap::new(),
+                },
+                repository,
+            ));
+        }
+        let mut staged = Vec::new();
+        let mut directories = BTreeMap::new();
+        let mut projects = BTreeMap::new();
+        for (slug, entry) in read_registry(org.path())? {
+            let git_ref = entry.spec.git_ref.clone().unwrap_or_default();
+            let Some(name) = entry.spec.repository.and_then(|repository| repository.name) else {
+                // ponytail: a repository outside the forge (CC-89) is fetched with git by the
+                // checkouts sidecar; the Portal reads the forge API, so it keeps the last render.
+                tracing::warn!(project = %slug, "a repository outside the forge is not read by the Portal yet");
+                continue;
+            };
+            let client = self.gitea.for_repository(name);
+            match stage_project(&client, &git_ref).await {
+                Ok(scratch) => {
+                    directories.insert(slug.clone(), scratch.path().to_path_buf());
+                    staged.push(scratch);
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %git_ref, %error, "the project's repository did not stage; its last render stays");
+                }
+            }
+            projects.insert(slug, (client, git_ref));
+        }
+        let into = self.assembly.clone();
+        let environment = std::env::var("JC_ENVIRONMENT")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
+        let assembly = assemble(
+            org.path(),
+            &Directories(directories),
+            &into,
+            environment.as_deref(),
+        )?;
+        for finding in &assembly.findings {
+            tracing::warn!(project = %finding.slug, path = %finding.path.display(), message = %finding.message, "a project repository's finding");
+        }
+        staged.push(org);
+        Ok((
+            Render {
+                layout: 2,
+                root: into,
+                _staged: staged,
+                projects,
+            },
+            assembly.repository,
+        ))
+    }
+
     async fn do_sync(&self, leader: bool) -> Result<(usize, String), SyncError> {
         // 1. Resolve default branch and its commit revision
         let default_branch = self.gitea.default_branch().await?;
         let revision = self.gitea.branch_head(&default_branch).await?;
 
-        // 2, 3. The repository as files on disk, this run's own.
-        let scratch = stage(&self.gitea, &revision).await?;
-
+        // 2, 3. The repository as files on disk, this run's own; in layout 2 the organization
+        //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
-        let repository = jcctl::loader::Repository::load(scratch.path())?;
+        let (scratch, repository) = self.render(stage(&self.gitea, &revision).await?).await?;
         for (id, path, expected) in repository.misplaced() {
             tracing::warn!(resource = %id, path = %path.display(), %expected, "manifest is not at the path its kind declares");
         }
@@ -592,6 +672,14 @@ impl Syncer {
         // 5. Compile the live status of every resource and swap the mirror in one step, so a
         //    reader never sees a half-built repository (MF-04).
         let fresh_mirror = Mirror::new();
+        fresh_mirror.set_layout(scratch.layout);
+        fresh_mirror.set_repositories(
+            scratch
+                .projects
+                .iter()
+                .map(|(slug, (client, _))| (slug.clone(), client.repo.clone()))
+                .collect(),
+        );
         let mut loaded = 0usize;
         for (_, resource) in repository.iter() {
             let path = resource.path.to_string_lossy().to_string();
@@ -640,7 +728,7 @@ impl Syncer {
                 observed_revision: Some(revision.clone()),
                 // The branch, not the revision: a Source link should keep working after the
                 // next commit, and the observed revision is right there beside it.
-                source_url: Some(self.gitea.browse_url(&path, &default_branch)),
+                source_url: Some(scratch.browse_url(&self.gitea, &path, &default_branch)),
                 conditions: Vec::new(),
                 build,
                 domain_verification: None,
@@ -678,6 +766,31 @@ impl Syncer {
             );
             self.mirror.replace_all(&fresh_mirror);
             return Ok((loaded, revision));
+        }
+
+        // 5a''. A project whose registry entry is gone was deleted (PF-77): its repository is
+        //       archived, read-only with its history, never removed. The entry is what the
+        //       reviewed Change took away, so nothing else can make a repository go.
+        //       ponytail: compares with the last sync of this process; a deletion merged while
+        //       the Portal was down leaves its repository open until an operator archives it.
+        let registered = fresh_mirror.repositories();
+        for (slug, repository) in self.mirror.repositories() {
+            if registered.contains_key(&slug) || registered.values().any(|r| *r == repository) {
+                continue;
+            }
+            match self
+                .gitea
+                .for_repository(repository.as_str())
+                .archive_repository()
+                .await
+            {
+                Ok(()) => {
+                    tracing::info!(project = %slug, %repository, "a deleted project's repository is archived")
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %repository, %error, "a deleted project's repository did not archive")
+                }
+            }
         }
 
         // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
@@ -1425,10 +1538,36 @@ fn namespace_of(path: &str) -> String {
 /// foreign-model mirror that proposes a peer's schema. A second copy of this loop would be a
 /// second answer to "which files in the repository are manifests".
 pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch, SyncError> {
+    stage_repository(gitea, revision, false).await
+}
+
+/// One project repository of layout 2 at `revision`, staged as its own root (CC-85): the files
+/// that would be manifests under `projects/{slug}/` of layout 1, and its `.jc/layout`.
+pub(crate) async fn stage_project(
+    gitea: &GiteaClient,
+    revision: &str,
+) -> Result<Scratch, SyncError> {
+    stage_repository(gitea, revision, true).await
+}
+
+async fn stage_repository(
+    gitea: &GiteaClient,
+    revision: &str,
+    project: bool,
+) -> Result<Scratch, SyncError> {
     let tree_paths = gitea.list_tree(revision).await?;
     let candidate_paths: Vec<String> = tree_paths
         .into_iter()
-        .filter(|p| is_candidate_manifest(p))
+        .filter(|p| {
+            p == jc_core::project::LAYOUT_FILE
+                || if project {
+                    // The project's own tree is what lay under `projects/{slug}/`; the slug
+                    // is the registry's, so any one stands in for it here.
+                    is_candidate_manifest(&format!("projects/_/{}", p.trim_start_matches('/')))
+                } else {
+                    is_candidate_manifest(p)
+                }
+        })
         .collect();
 
     if candidate_paths.is_empty() {
@@ -1452,6 +1591,11 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
             }
             Err(err) => return Err(SyncError::Git(err)),
         };
+        if path == jc_core::project::LAYOUT_FILE {
+            // Which layout the repository follows (CC-85): read by the assembly, not a manifest.
+            scratch.write(path, &file.content)?;
+            continue;
+        }
         if path.ends_with("/bento.yaml") {
             // Not a manifest: the author's Bento mapping beside a Pipeline (PL-03), staged as
             // written so the streams can render it; the loader skips it by name.
@@ -1489,6 +1633,39 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
         )));
     }
     Ok(scratch)
+}
+
+/// The tree one sync loads: the staged organization in layout 1, the assembly in layout 2, with
+/// the repository each project is read from.
+struct Render {
+    /// The organization's `.jc/layout` (CC-85).
+    layout: u32,
+    root: PathBuf,
+    /// The staged checkouts, held so they are removed when the sync that fetched them ends.
+    _staged: Vec<Scratch>,
+    /// Slug → the project's repository and the ref it renders at.
+    projects: BTreeMap<String, (GiteaClient, String)>,
+}
+
+impl Render {
+    fn path(&self) -> &Path {
+        &self.root
+    }
+
+    /// Where a person reads the file at `path` of the render: in its project's repository at
+    /// the entry's ref for a mounted project, in the organization's otherwise.
+    fn browse_url(&self, organization: &GiteaClient, path: &str, branch: &str) -> String {
+        let clean = path.trim_start_matches('/');
+        if let Some((slug, rest)) = clean
+            .strip_prefix("projects/")
+            .and_then(|tail| tail.split_once('/'))
+        {
+            if let Some((client, git_ref)) = self.projects.get(slug) {
+                return client.browse_url(rest, git_ref);
+            }
+        }
+        organization.browse_url(clean, branch)
+    }
 }
 
 pub(crate) struct Scratch(PathBuf);

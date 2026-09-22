@@ -39,13 +39,51 @@ pub enum MirrorError {
 #[derive(Default)]
 pub struct Mirror {
     resources: RwLock<BTreeMap<ResourceKey, ResourceEnvelope>>,
+    /// Layout 2: each registered project's own repository in the forge, by slug (PF-86). Empty
+    /// in layout 1, where every project lives in the organization repository.
+    repositories: RwLock<BTreeMap<String, String>>,
+    /// The organization's `.jc/layout` (CC-85): 2 when every project lives in a repository of
+    /// its own; 0 until the first sync says, which reads as 1.
+    layout: std::sync::atomic::AtomicU32,
 }
 
 impl Mirror {
     pub fn new() -> Self {
-        Self {
-            resources: RwLock::new(BTreeMap::new()),
-        }
+        Self::default()
+    }
+
+    /// The forge repository `project`'s own kinds are written to (CC-87), or `None` when they
+    /// live in the organization repository (layout 1, or a project outside the forge).
+    pub fn repository_of(&self, project: &str) -> Option<String> {
+        let lock = self.repositories.read().unwrap_or_else(|p| p.into_inner());
+        lock.get(project).cloned()
+    }
+
+    /// The layout of the organization repository the mirror was read from (CC-85).
+    pub fn layout(&self) -> u32 {
+        self.layout
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .max(1)
+    }
+
+    /// Records the layout the sync read.
+    pub fn set_layout(&self, layout: u32) {
+        self.layout
+            .store(layout, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Every registered project's own repository, by slug.
+    pub fn repositories(&self) -> BTreeMap<String, String> {
+        self.repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Records where each registered project lives, replacing what was recorded.
+    pub fn set_repositories(&self, repositories: BTreeMap<String, String>) {
+        let mut lock = self.repositories.write().unwrap_or_else(|p| p.into_inner());
+        *lock = repositories;
     }
 
     /// Holds one resource, unless its namespace is not a namespace (T-2298, MF-02) or its name is
@@ -118,6 +156,14 @@ impl Mirror {
             .clone();
         let mut lock = self.resources.write().unwrap_or_else(|p| p.into_inner());
         *lock = new_resources;
+        drop(lock);
+        let repositories = other
+            .repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        self.set_repositories(repositories);
+        self.set_layout(other.layout());
     }
 
     /// Every resource matching a predicate, in no particular order.

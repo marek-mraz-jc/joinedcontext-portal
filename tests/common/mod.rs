@@ -206,80 +206,86 @@ pub fn state_on(gitea: &MockServer) -> AppState {
 /// and merge requests a test reads are mounted on top of it.
 pub async fn forge() -> MockServer {
     let gitea = MockServer::start().await;
+    mount_repository(&gitea, REPO).await;
+    gitea
+}
+
+/// One more repository of the forge that takes every write, at `REPO`-style `repo` (a project
+/// repository of layout 2 beside the organization's, CC-85).
+pub async fn mount_repository(gitea: &MockServer, repo: &str) {
     Mock::given(method("GET"))
-        .and(path(REPO))
+        .and(path(repo))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     Mock::given(method("POST"))
-        .and(path(format!("{REPO}/branches")))
+        .and(path(format!("{repo}/branches")))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     for verb in ["PUT", "POST", "DELETE"] {
         Mock::given(method(verb))
-            .and(path_regex(format!("^{REPO}/contents/.*")))
+            .and(path_regex(format!("^{repo}/contents/.*")))
             .respond_with(
                 ResponseTemplate::new(201)
                     .set_body_json(json!({ "commit": { "sha": "commit-1" } })),
             )
-            .mount(&gitea)
+            .mount(gitea)
             .await;
     }
     Mock::given(method("POST"))
-        .and(path(format!("{REPO}/pulls")))
+        .and(path(format!("{repo}/pulls")))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
             "number": 9, "html_url": "https://gitea.example/pulls/9", "state": "open",
             "mergeable": true, "merged": false
         })))
-        .mount(&gitea)
+        .mount(gitea)
         .await;
-    Mock::given(path_regex(format!("^{REPO}/pulls/[0-9]+/(merge|reviews)$")))
+    Mock::given(path_regex(format!("^{repo}/pulls/[0-9]+/(merge|reviews)$")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     Mock::given(method("PATCH"))
-        .and(path_regex(format!("^{REPO}/pulls/[0-9]+$")))
+        .and(path_regex(format!("^{repo}/pulls/[0-9]+$")))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "state": "closed" })))
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     Mock::given(method("GET"))
-        .and(path_regex(format!("^{REPO}/contents/.*")))
+        .and(path_regex(format!("^{repo}/contents/.*")))
         .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
         .with_priority(9)
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     // Every file of one change goes in one commit to `POST /contents`, which is the repository
     // path itself and not a path under it, so the per-file mocks above never match it (T-0900).
     Mock::given(method("POST"))
-        .and(path(format!("{REPO}/contents")))
+        .and(path(format!("{repo}/contents")))
         .respond_with(
             ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } })),
         )
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     // One open change per resource: a removal asks the forge for the open merge requests first
     // (CC-34, T-0883). This fixture has none open — at the fallback priority, so a suite that
     // mounts a forge with an open change of its own is answered its own, not this empty list.
     Mock::given(method("GET"))
-        .and(path(format!("{REPO}/pulls")))
+        .and(path(format!("{repo}/pulls")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
         .with_priority(9)
-        .mount(&gitea)
+        .mount(gitea)
         .await;
     // A removal lists the tree to find the files the resource owns beside its manifest (T-0900).
     // This fixture holds manifests alone, so the listing is empty and a delete removes the one
     // file; a suite with side files mounts a tree of its own, and this one stands at the fallback
     // priority so that tree is the one answered.
     Mock::given(method("GET"))
-        .and(path_regex(format!("^{REPO}/git/trees/.*")))
+        .and(path_regex(format!("^{repo}/git/trees/.*")))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(json!({ "tree": [], "truncated": false })),
         )
         .with_priority(9)
-        .mount(&gitea)
+        .mount(gitea)
         .await;
-    gitea
 }
 
 /// A proposal the way every door makes one since T-0956: the same request as a dry run first, which

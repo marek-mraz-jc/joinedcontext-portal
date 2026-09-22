@@ -4358,6 +4358,114 @@
         }
       }
     },
+    "/api/v1/projects/{project}/duplicate": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Duplicate A Project",
+        "description": "Copies the project's repository with its history under a new slug and proposes its registry entry and the caller's steward binding; the copy's endpoints get slugs of their own.",
+        "operationId": "duplicate_project",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug of the origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateProject"
+              },
+              "example": {
+                "displayName": "Helsinki (test)",
+                "name": "helsinki-test",
+                "parameters": {}
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The change that registers the copy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is not a DNS-1123 label, or a parameter does not fit the origin's declarations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organization does not let this caller open a project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No binding of the caller covers the origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken, or the organization is not of layout 2",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No git forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/export": {
       "get": {
         "tags": [
@@ -8926,6 +9034,13 @@
           },
           "plan": {
             "$ref": "#/components/schemas/PlanSummary"
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The one repository the Change targets (CC-87): the organization's, or in layout 2 a\nproject's own."
           }
         }
       },
@@ -9394,6 +9509,30 @@
             ]
           }
         }
+      },
+      "DuplicateProject": {
+        "type": "object",
+        "description": "The new slug of a duplicate and this deployment's own values.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "The copy's slug: the `{project}` segment of every path of it (PF-67)."
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Values for the parameters the origin's `project.yaml` declares (CC-88)."
+          }
+        },
+        "additionalProperties": false
       },
       "Edge": {
         "type": "object",
@@ -11563,7 +11702,8 @@
             "type": "string"
           },
           "pathPrefix": {
-            "type": "string"
+            "type": "string",
+            "description": "The folder the run writes, as its repository spells it."
           },
           "project": {
             "type": "string"
@@ -11574,6 +11714,13 @@
               "null"
             ],
             "description": "The profile's `model.reasoningEffort`: the proxy adds it to every model call (AG-72)."
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project's own repository in layout 2, the one repository the proxy's forge route\nreaches for this run (CC-87, AG-86); absent, the configuration repository."
           },
           "requestsPerMinute": {
             "type": "integer",

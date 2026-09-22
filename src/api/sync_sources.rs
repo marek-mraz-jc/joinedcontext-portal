@@ -257,9 +257,9 @@ pub(crate) async fn detach_for(
     may_drive(state, user, project, Verb::Delete)?;
     let driver = driver(state)?;
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let (project, name) = named(state, project, name)?;
 
     let info = resource::by_kind(KIND)

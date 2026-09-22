@@ -655,8 +655,9 @@ fn build_proposal(
     };
 
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
-    let change_status =
-        ChangeStatus::new(lane, phase, plan.summary).with_merge_request(pr.url.clone());
+    let change_status = ChangeStatus::new(lane, phase, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url.clone());
 
     ChangeProposal {
         api_version: crate::resource::API_VERSION.to_string(),
@@ -764,9 +765,9 @@ fn kind_of(proposal: &ChangeProposal) -> Option<&str> {
 /// Core proposal listing reusable by the REST route, operations registry and MCP.
 pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList, ApiError> {
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let prs = gitea.list_pull_requests("open").await?;
     let mut proposals = Vec::new();
@@ -834,9 +835,9 @@ pub async fn change_for(
 ) -> Result<ChangeProposal, ApiError> {
     let pr_number = parse_change_id(id)?;
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     if !is_change_branch(&pr.head_branch) {
@@ -1149,9 +1150,9 @@ pub async fn approve_change_for(
     may_approve_anything(state, identity, project)?;
     let pr_number = parse_change_id(id)?;
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     let data = load_manifest_data(gitea, &pr, project)
@@ -1316,8 +1317,9 @@ pub async fn approve_change_for(
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary).with_merge_request(pr.url);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
@@ -1424,9 +1426,9 @@ pub async fn reject_change_for(
     may_approve_anything(state, identity, project)?;
     let pr_number = parse_change_id(id)?;
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     let data = load_manifest_data(gitea, &pr, project)
@@ -1463,8 +1465,9 @@ pub async fn reject_change_for(
     };
 
     let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary).with_merge_request(pr.url);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
 }
 

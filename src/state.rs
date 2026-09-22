@@ -96,6 +96,17 @@ pub struct AppState {
 const REVOCATION_TTL_SECS: i64 = 48 * 3600;
 
 impl AppState {
+    /// The forge client for `project`'s own files (CC-87): in layout 2 its own repository,
+    /// spoken to in render paths (`projects/{project}/…`); the organization repository
+    /// otherwise. `None` when no forge is configured.
+    pub fn forge_for(&self, project: &str) -> Option<Arc<GiteaClient>> {
+        let organization = self.gitea.as_ref()?;
+        Some(match self.mirror.repository_of(project) {
+            Some(repository) => Arc::new(organization.for_project(repository, project)),
+            None => Arc::clone(organization),
+        })
+    }
+
     pub fn new(config: Config, oidc: Option<OidcClient>) -> Self {
         let bearer = config
             .oidc

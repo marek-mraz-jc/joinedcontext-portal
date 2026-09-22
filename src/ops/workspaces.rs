@@ -464,9 +464,9 @@ pub async fn mirror_of(
     use crate::error::ApiError;
     let workspace = visible(state, identity, project, name).await?;
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let base = workspace.base_revision.clone();
     let view = state.mirror.snapshot();
     let branch = workspace.branch();
@@ -670,11 +670,11 @@ pub async fn reap_expired_at(state: &AppState, now: DateTime<Utc>) -> usize {
         state.previews.forget(&workspace.name);
         // A branch the forge no longer has is already `Ok`, so a second pass over the same record
         // cannot stall on it.
-        if let Err(error) = forge(state) {
+        if let Err(error) = forge(state, &workspace.project) {
             tracing::warn!(workspace = %workspace.name, %error, "an expired workspace keeps its branch");
             continue;
         }
-        if let Err(error) = forge(state)
+        if let Err(error) = forge(state, &workspace.project)
             .expect("checked above")
             .delete_branch(&workspace.branch())
             .await
@@ -722,10 +722,11 @@ pub fn spawn_reaper(state: AppState) {
     });
 }
 
-fn forge(state: &AppState) -> Result<&GiteaClient, ApiError> {
+/// The repository a workspace of `project` is a branch of (CC-87): the project repository in
+/// layout 2, the organization repository in layout 1.
+fn forge(state: &AppState, project: &str) -> Result<std::sync::Arc<GiteaClient>, ApiError> {
     state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))
 }
 
@@ -856,7 +857,8 @@ pub async fn open(
             MAX_TTL_HOURS / 24
         )));
     }
-    let gitea = forge(state)?;
+    let gitea = forge(state, project)?;
+    let gitea: &GiteaClient = &gitea;
     let main = gitea.default_branch().await?;
     let base = gitea.branch_head(&main).await?;
     let owner = owner_of(identity);
@@ -1027,7 +1029,8 @@ pub async fn compare_workspace(
     state: &AppState,
     workspace: &Workspace,
 ) -> Result<Comparison, ApiError> {
-    let gitea = forge(state)?;
+    let gitea = forge(state, &workspace.project)?;
+    let gitea: &GiteaClient = &gitea;
     let Some(trees) = trees(gitea, workspace).await? else {
         return Ok(Comparison::default());
     };
@@ -1174,7 +1177,8 @@ pub async fn update_from_main(
     request: UpdateRequest,
 ) -> Result<UpdateReport, OpError> {
     let workspace = owned(state, identity, project, name, "update").await?;
-    let gitea = forge(state)?;
+    let gitea = forge(state, &workspace.project)?;
+    let gitea: &GiteaClient = &gitea;
     let main = gitea.default_branch().await.map_err(ApiError::from)?;
     let head = gitea.branch_head(&main).await.map_err(ApiError::from)?;
     let branch = workspace.branch();
@@ -1376,7 +1380,8 @@ pub async fn propose(
             "workspace '{name}' changes nothing yet"
         ))));
     }
-    let gitea = forge(state)?;
+    let gitea = forge(state, &workspace.project)?;
+    let gitea: &GiteaClient = &gitea;
     let branch = workspace.branch();
     if let Some(open) = crate::api::mutate::open_change_on(gitea, &branch, project).await? {
         return Err(OpError::Api(ApiError::Conflict(format!(
@@ -1436,8 +1441,9 @@ pub async fn propose(
         .create_pull_request(&branch, &main, &title, &body)
         .await
         .map_err(ApiError::from)?;
-    let status =
-        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary).with_merge_request(pr.url);
+    let status = ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     Ok(Change::new(
         ChangeMeta::from_merge_request(pr.number, project),
         status,
@@ -1453,7 +1459,9 @@ pub async fn discard(
     name: &str,
 ) -> Result<(), ApiError> {
     let workspace = owned(state, identity, project, name, "discard").await?;
-    forge(state)?.delete_branch(&workspace.branch()).await?;
+    forge(state, &workspace.project)?
+        .delete_branch(&workspace.branch())
+        .await?;
     state.workspaces.delete(name).await?;
     state.previews.forget(name);
     Ok(())

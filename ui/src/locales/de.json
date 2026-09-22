@@ -124,6 +124,7 @@
     "lane": "Risikostufe",
     "phase": "Phase",
     "mergeRequest": "Merge-Request",
+    "repository": "Repository",
     "approve": "Freigeben",
     "reject": "Ablehnen",
     "approving": "Wird freigegeben...",

@@ -22,6 +22,10 @@ pub struct GiteaClient {
     pub public_base: Url,
     pub owner: String,
     pub repo: String,
+    /// `projects/{slug}/` for a project repository of layout 2 (CC-87): the render path its
+    /// root sits at. Every path this client reads comes back under it and every path it writes
+    /// is taken out of it, so a caller speaks render paths whichever repository it talks to.
+    mount: Option<String>,
     token: String,
     pub http: reqwest::Client,
 }
@@ -32,6 +36,7 @@ impl std::fmt::Debug for GiteaClient {
             .field("base", &self.base.as_str())
             .field("owner", &self.owner)
             .field("repo", &self.repo)
+            .field("mount", &self.mount)
             .field("token", &"[redacted]")
             .finish()
     }
@@ -226,6 +231,8 @@ pub struct PullRequest {
     pub author_email: Option<String>,
     pub mergeable: Option<bool>,
     pub merged: bool,
+    /// The repository the pull request is in, as the client that read it names it (CC-87).
+    pub repository: String,
 }
 
 impl PullRequest {
@@ -458,6 +465,7 @@ impl From<GiteaPullResponse> for PullRequest {
             author_email,
             mergeable: raw.mergeable,
             merged: raw.merged,
+            repository: String::new(),
         }
     }
 }
@@ -524,6 +532,7 @@ impl GiteaClient {
             base,
             owner: owner.into(),
             repo: repo.into(),
+            mount: None,
             token: token.into(),
             http,
         })
@@ -571,7 +580,8 @@ impl GiteaClient {
             self.owner,
             self.repo,
             git_ref,
-            path.trim_start_matches('/'),
+            self.local_path(path)
+                .unwrap_or_else(|| path.trim_start_matches('/').to_owned()),
         ))
     }
 
@@ -613,6 +623,7 @@ impl GiteaClient {
     /// the public one; without, Gitea's own `html_url` is the best there is.
     fn pull(&self, raw: GiteaPullResponse) -> PullRequest {
         let mut pull = PullRequest::from(raw);
+        pull.repository = self.repo.clone();
         if self.public_base != self.base {
             pull.url = self.pull_url(pull.number);
         }
@@ -669,7 +680,56 @@ impl GiteaClient {
     pub fn for_repository(&self, repo: impl Into<String>) -> Self {
         Self {
             repo: repo.into(),
+            mount: None,
             ..self.clone()
+        }
+    }
+
+    /// The project repository `repo` of layout 2, which holds what the render has under
+    /// `projects/{slug}/` at its root (CC-85, CC-87).
+    pub fn for_project(&self, repo: impl Into<String>, slug: &str) -> Self {
+        Self {
+            repo: repo.into(),
+            mount: Some(format!("projects/{slug}/")),
+            ..self.clone()
+        }
+    }
+
+    /// Whether this is a project repository of layout 2.
+    pub fn is_project_repository(&self) -> bool {
+        self.mount.is_some()
+    }
+
+    /// A render path as this repository spells it, or `None` when it is not one of its files.
+    fn local_path(&self, path: &str) -> Option<String> {
+        let clean = path.trim_start_matches('/');
+        match &self.mount {
+            None => Some(clean.to_owned()),
+            Some(mount) => clean
+                .strip_prefix(mount.as_str())
+                .filter(|rest| !rest.is_empty())
+                .map(str::to_owned),
+        }
+    }
+
+    /// [`Self::local_path`] for a write: a path outside the project repository is refused,
+    /// so nothing meant for the organization repository lands in a project's (CC-87).
+    fn write_path(&self, path: &str) -> Result<String, GitError> {
+        self.local_path(path).ok_or_else(|| {
+            GitError::Conflict(format!(
+                "{} is not a file of the project repository {}; the organization's files are \
+                 changed in the organization repository",
+                path.trim_start_matches('/'),
+                self.repo
+            ))
+        })
+    }
+
+    /// A path of this repository as the render spells it.
+    fn render_path(&self, path: String) -> String {
+        match &self.mount {
+            None => path,
+            Some(mount) => format!("{mount}{path}"),
         }
     }
 
@@ -709,6 +769,46 @@ impl GiteaClient {
             "private": true,
             "auto_init": true,
             "default_branch": "main",
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Creates this repository as a copy of `origin` with its whole history, through the
+    /// forge's migration from its own address (PF-89): the forge refuses a fork into the owner
+    /// that holds the origin. Private, without the origin's issues, pull requests, wiki or
+    /// releases. Answers `false`, and copies nothing, when a repository of this name is already
+    /// there.
+    pub async fn migrate_repository(&self, origin: &GiteaClient) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let base = self.base.as_str().trim_end_matches('/');
+        let full = format!("{base}/api/v1/repos/migrate");
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "clone_addr": format!("{base}/{}/{}.git", origin.owner, origin.repo),
+            "service": "gitea",
+            "auth_token": self.token,
+            "repo_owner": self.owner,
+            "repo_name": self.repo,
+            "private": true,
+            "mirror": false,
+            "issues": false,
+            "pull_requests": false,
+            "wiki": false,
+            "releases": false,
+            "labels": false,
+            "milestones": false,
+            "lfs": false,
         });
         let res = self.send(self.http.post(url).json(&payload)).await?;
         match Self::check_status(res).await {
@@ -1055,6 +1155,40 @@ impl GiteaClient {
             .ok_or_else(|| GitError::Transport("the registry answered no digest".into()))
     }
 
+    /// `DELETE /repos/{owner}/{repo}` — removes a repository the Portal created in the same
+    /// operation, when the rest of it failed (both or neither, CC-85).
+    pub async fn delete_repository(&self) -> Result<(), GitError> {
+        let res = self.send(self.http.delete(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) | Err(GitError::NotFound) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// `PATCH /repos/{owner}/{repo}` with `archived: true` — a deleted project's repository is
+    /// kept read-only with its history, never deleted (PF-77).
+    pub async fn archive_repository(&self) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "archived": true });
+        let res = self
+            .send(self.http.patch(self.repo_url("")?).json(&payload))
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
+    /// `POST /branch_protections` — `branch` takes no direct push: every change reaches it
+    /// through a merged pull request (PF-87).
+    pub async fn protect_branch(&self, branch: &str) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "rule_name": branch, "enable_push": false });
+        let res = self
+            .send(
+                self.http
+                    .post(self.repo_url("branch_protections")?)
+                    .json(&payload),
+            )
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.
     pub async fn list_tree(&self, git_ref: &str) -> Result<Vec<String>, GitError> {
         Ok(self
@@ -1102,7 +1236,7 @@ impl GiteaClient {
             .tree
             .into_iter()
             .filter(|entry| entry.entry_type == "blob")
-            .map(|entry| (entry.path, entry.sha))
+            .map(|entry| (self.render_path(entry.path), entry.sha))
             .collect();
 
         Ok(paths)
@@ -1144,7 +1278,11 @@ impl GiteaClient {
 
     /// `GET /contents/{path}?ref={git_ref}` — reads a file and decodes its base64 content.
     pub async fn get_file(&self, path: &str, git_ref: &str) -> Result<Option<RepoFile>, GitError> {
-        let mut url = self.repo_url(&format!("contents/{}", path.trim_start_matches('/')))?;
+        // Not a file of this repository, so this repository does not have it.
+        let Some(path) = self.local_path(path) else {
+            return Ok(None);
+        };
+        let mut url = self.repo_url(&format!("contents/{path}"))?;
         url.query_pairs_mut().append_pair("ref", git_ref);
 
         let res = self.send(self.http.get(url)).await?;
@@ -1172,7 +1310,7 @@ impl GiteaClient {
 
     /// `PUT /contents/{path}` — creates or replaces a file with human commit attribution.
     pub async fn put_file(&self, req: &FileWrite<'_>) -> Result<String, GitError> {
-        let url = self.repo_url(&format!("contents/{}", req.path.trim_start_matches('/')))?;
+        let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
         let encoded = STANDARD.encode(req.content.as_bytes());
         let payload = PutFilePayload {
             content: encoded,
@@ -1209,22 +1347,25 @@ impl GiteaClient {
         deletes: &[(String, String)],
     ) -> Result<String, GitError> {
         let url = self.repo_url("contents")?;
+        let mut files = Vec::with_capacity(uploads.len() + deletes.len());
+        for (path, content) in uploads {
+            files.push(ChangeFileDto {
+                operation: "upload",
+                path: self.write_path(path)?,
+                content: Some(STANDARD.encode(content.as_bytes())),
+                sha: None,
+            });
+        }
+        for (path, sha) in deletes {
+            files.push(ChangeFileDto {
+                operation: "delete",
+                path: self.write_path(path)?,
+                content: None,
+                sha: Some(sha.clone()),
+            });
+        }
         let payload = ChangeFilesPayload {
-            files: uploads
-                .iter()
-                .map(|(path, content)| ChangeFileDto {
-                    operation: "upload",
-                    path: path.trim_start_matches('/').to_owned(),
-                    content: Some(STANDARD.encode(content.as_bytes())),
-                    sha: None,
-                })
-                .chain(deletes.iter().map(|(path, sha)| ChangeFileDto {
-                    operation: "delete",
-                    path: path.trim_start_matches('/').to_owned(),
-                    content: None,
-                    sha: Some(sha.clone()),
-                }))
-                .collect(),
+            files,
             message,
             branch,
             author,
@@ -1243,7 +1384,7 @@ impl GiteaClient {
 
     /// `DELETE /contents/{path}` — deletes a file with human commit attribution.
     pub async fn delete_file(&self, req: &FileDelete<'_>) -> Result<String, GitError> {
-        let url = self.repo_url(&format!("contents/{}", req.path.trim_start_matches('/')))?;
+        let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
         let payload = DeleteFilePayload {
             message: req.message,
             branch: req.branch,
@@ -1271,10 +1412,13 @@ impl GiteaClient {
         path: &str,
         limit: usize,
     ) -> Result<Vec<Commit>, GitError> {
+        let Some(path) = self.local_path(path) else {
+            return Ok(Vec::new());
+        };
         let mut url = self.repo_url("commits")?;
         url.query_pairs_mut()
             .append_pair("sha", git_ref)
-            .append_pair("path", path)
+            .append_pair("path", &path)
             .append_pair("limit", &limit.to_string())
             .append_pair("stat", "false")
             .append_pair("verification", "false")
@@ -1374,7 +1518,7 @@ impl GiteaClient {
             files.extend(raw.into_iter().map(|dto| ChangedFile {
                 deleted: dto.status == "deleted",
                 added: dto.status == "added",
-                path: dto.filename,
+                path: self.render_path(dto.filename),
             }));
             if count < PAGE {
                 break;
@@ -1508,5 +1652,77 @@ mod browse_url_tests {
     #[test]
     fn an_invalid_public_url_is_a_config_error() {
         assert!(GiteaClient::from_env(env(Some("not a url"))).is_err());
+    }
+}
+
+#[cfg(test)]
+mod project_repository_tests {
+    use super::{Author, GiteaClient};
+
+    fn project() -> GiteaClient {
+        GiteaClient::new(
+            "http://127.0.0.1:9".parse().expect("url"),
+            "joinedcontext",
+            "configuration",
+            "t",
+        )
+        .expect("client")
+        .for_project("ovzdusie-repo", "ovzdusie")
+    }
+
+    /// CC-87: a project repository is spoken to in render paths; one outside the project is not
+    /// its file on a read and is refused on a write, before anything reaches the forge (the
+    /// address above answers nothing).
+    #[tokio::test]
+    async fn a_path_outside_the_project_is_neither_read_nor_written() {
+        let client = project();
+        assert!(client.is_project_repository());
+        assert_eq!(
+            client
+                .local_path("projects/ovzdusie/spaces/air/space.yaml")
+                .as_deref(),
+            Some("spaces/air/space.yaml")
+        );
+        assert_eq!(
+            client.render_path("project.yaml".into()),
+            "projects/ovzdusie/project.yaml"
+        );
+        for outside in [
+            "org.yaml",
+            "projects/doprava/project.yaml",
+            "projects/ovzdusie/",
+            "users/roles/r.yaml",
+        ] {
+            assert_eq!(client.local_path(outside), None, "{outside}");
+            assert_eq!(
+                client.get_file(outside, "main").await.expect("no request"),
+                None
+            );
+        }
+        let author = Author {
+            name: "Jana",
+            email: "jana@hel.fi",
+        };
+        let refused = client
+            .change_files(
+                "portal/x",
+                "m",
+                author,
+                &[
+                    ("projects/ovzdusie/project.yaml".into(), "a".into()),
+                    ("org.yaml".into(), "b".into()),
+                ],
+                &[],
+            )
+            .await
+            .expect_err("org.yaml is not a file of the project repository");
+        assert!(refused.to_string().contains("org.yaml"), "{refused}");
+
+        let organization = client.for_repository("configuration");
+        assert!(!organization.is_project_repository());
+        assert_eq!(
+            organization.local_path("org.yaml").as_deref(),
+            Some("org.yaml")
+        );
     }
 }
