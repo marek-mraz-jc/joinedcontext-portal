@@ -440,7 +440,8 @@ fn the_secret_holds_the_slug_alone_and_the_pod_does_not_reference_it() {
 #[test]
 fn a_static_app_gets_its_grants_and_no_pod() {
     let rendered = render(
-        &app(json!({ "kind": "static", "visibility": "organization" })),
+        // A static bundle is built by node, never by rust (AP-83).
+        &app(json!({ "kind": "static", "visibility": "organization", "build": { "node": "22" } })),
         None,
         &generate_slug(),
         &settings(),
