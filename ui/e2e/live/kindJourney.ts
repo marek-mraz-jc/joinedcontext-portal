@@ -132,7 +132,11 @@ export async function editAsYaml(
   };
   edit(manifest.spec);
   await open();
-  const dialog = page.getByRole("dialog", { name: `Edit ${name}` });
+  // A routed list draws the edit form as a page of its own, a region named like the dialog (T-2474).
+  const dialog = page
+    .getByRole("region", { name: `Edit ${name}` })
+    .or(page.getByRole("dialog", { name: `Edit ${name}` }))
+    .first();
   const editor = dialog.locator(".monaco-editor .view-lines").first();
   await expect(editor).toBeVisible({ timeout: 60_000 });
   await editor.click();

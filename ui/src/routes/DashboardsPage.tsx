@@ -188,6 +188,26 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
   const [isNew, setIsNew] = useState(false);
   // The assistant may have sent the person here with a change to one dashboard or layer (AG-77).
   const [request, setRequest] = useState(() => takeEditRequest());
+  // Or with a new layer or dashboard it drafted (`?draft=`, AG-73): the address names the draft
+  // and not its kind, so the page asks for a Layer first and then for a Dashboard of that name.
+  // An `?edit=` hand-off names its draft too, and is the request above already.
+  const [handed, setHanded] = useState(() =>
+    request !== null || typeof window === "undefined"
+      ? undefined
+      : (new URLSearchParams(window.location.search).get("draft") || undefined),
+  );
+  const handedDraft = useQuery({
+    queryKey: ["drafts", project, "handed", handed],
+    enabled: handed !== undefined,
+    queryFn: async () =>
+      handed === undefined
+        ? null
+        : ((await getDraft(project, "Layer", handed)) ?? (await getDraft(project, "Dashboard", handed))),
+  });
+  if (handed !== undefined && handedDraft.data?.manifest) {
+    setHanded(undefined);
+    setRequest({ name: handed, manifest: handedDraft.data.manifest as Record<string, unknown> });
+  }
 
   const dashboards = useResourceList(project, "dashboards");
   const layers = useResourceList(project, "layers");

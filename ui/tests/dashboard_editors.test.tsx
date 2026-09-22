@@ -267,6 +267,29 @@ describe("dashboard editors", () => {
     expect(((await request.clone().json()) as { spec: { style: string } }).spec.style).toBe("heatmap");
   });
 
+  it("opens a new layer the assistant drafted, by the draft's name alone (`?draft=`, AG-73)", async () => {
+    window.history.pushState({}, "", "/projects/helsinki/dashboards?draft=night-bikes");
+    const fetchMock = renderDashboards({
+      drafts: {
+        "/api/v1/projects/helsinki/drafts/Layer/night-bikes": {
+          project: "helsinki",
+          kind: "Layer",
+          name: "night-bikes",
+          manifest: { ...LAYER, metadata: { name: "night-bikes", namespace: "helsinki" } },
+          verdict: null,
+          touchedBy: "jana.kovacova",
+          touchedKind: "assistant",
+          version: 1,
+          updatedAt: "2026-09-22T08:00:00Z",
+        },
+      },
+    });
+
+    const form = await findFormPage(en.dashboards.addLayer);
+    await waitFor(() => expect(within(form).getByDisplayValue("night-bikes")).toBeInTheDocument());
+    expect(writes(fetchMock)).toHaveLength(0);
+  });
+
   it("opens the dashboard the assistant drafted as new, and proposes it with its drafted layer as one import (T-0739)", async () => {
     const drafted = {
       ...DASHBOARD,

@@ -1,4 +1,4 @@
-import { useCreateForm } from "../components/forms/FormRoute";
+import { useCreateFormFromDraft } from "../components/forms/FormRoute";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -178,7 +178,7 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const queryClient = useQueryClient();
   // The create form is a page at `/{plural}/new` on a routed list (T-2474).
-  const [dialogOpen, setDialogOpen] = useCreateForm();
+  const [dialogOpen, setDialogOpen, handedDraft] = useCreateFormFromDraft();
   const [form, setForm] = useState<SubscriptionForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
@@ -356,7 +356,7 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
         onChange={setForm}
         project={project}
         draftKind="Subscription"
-        draftName={edit}
+        draftName={edit ?? handedDraft}
         plural="subscriptions"
         source={{
           toManifest: (form) => toSubscriptionEnvelope(project, form),
