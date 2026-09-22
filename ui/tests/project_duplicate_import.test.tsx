@@ -143,7 +143,7 @@ describe("Duplicate on the project's settings", () => {
   });
 });
 
-describe("Import project in the sidebar", () => {
+describe("Import project from the New project dialog", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
@@ -159,6 +159,7 @@ describe("Import project in the sidebar", () => {
         : new Response(JSON.stringify(CHANGE), { status: 202, headers: { "Content-Type": "application/json" } }),
     );
     const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "New project" }));
     await user.click(await screen.findByRole("button", { name: "Import project" }));
     const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
     expectDenied(within(dialog).getByRole("button", { name: "Check the archive" }), "Choose an export archive first.");
@@ -197,6 +198,7 @@ describe("Import project in the sidebar", () => {
         }),
     );
     const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "New project" }));
     await user.click(await screen.findByRole("button", { name: "Import project" }));
     const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
     await user.upload(within(dialog).getByLabelText("Choose the export archive"), new File(["x"], "bad.zip"));

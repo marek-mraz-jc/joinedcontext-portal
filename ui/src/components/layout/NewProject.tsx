@@ -35,9 +35,12 @@ export function nameProblem(name: string): "empty" | "label" | "reserved" | null
 export function NewProjectDialog({
   open,
   onOpenChange,
+  onImport,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Starts the project from a git export instead: one entry point for both ways in (PF-89). */
+  onImport?: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const ids = useId();
@@ -172,6 +175,19 @@ export function NewProjectDialog({
               onChange={(event) => setDescription(event.target.value)}
             />
           </Field>
+          {onImport ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => {
+                close(false);
+                onImport();
+              }}
+            >
+              {t("projectImport.button")}
+            </Button>
+          ) : null}
         </div>
       )}
     </Dialog>
@@ -211,17 +227,11 @@ export function NewProjectButton({ project }: { project: string }): JSX.Element 
       >
         {t("projects.new")}
       </Button>
-      <NewProjectDialog open={writing} onOpenChange={setWriting} />
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full justify-center"
-        disabled={!allowed}
-        disabledReason={allowed ? undefined : reason}
-        onClick={() => setImporting(true)}
-      >
-        {t("projectImport.button")}
-      </Button>
+      <NewProjectDialog
+        open={writing}
+        onOpenChange={setWriting}
+        onImport={() => setImporting(true)}
+      />
       <ImportProjectDialog open={importing} onOpenChange={setImporting} />
     </>
   );
