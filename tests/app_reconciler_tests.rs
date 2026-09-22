@@ -20,6 +20,9 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
+        apisix_namespace: "apisix".into(),
+        image_repository: None,
+        pull_secret: None,
     }
 }
 
@@ -563,5 +566,62 @@ fn a_generated_slug_is_unguessable_and_never_the_same_twice() {
     assert!(
         EndpointSlug::new("ovzdusie").is_err(),
         "a readable slug is not a slug (EP-02, EP-03)"
+    );
+}
+
+/// AP-108: APISIX is admitted from the namespace the installation runs it in, a setting; the
+/// literal `apisix` never matched `dev`, where APISIX runs in `dev`.
+#[test]
+fn ingress_admits_apisix_from_the_namespace_the_installation_names() {
+    let mut on_dev = settings();
+    on_dev.apisix_namespace = "dev".into();
+    let rendered = render(&app(json!({})), Some(APP_IMAGE), &generate_slug(), &on_dev)
+        .expect("the app renders");
+    let policy = rendered.workload.expect("a pod").network_policy;
+    assert_eq!(
+        policy["spec"]["ingress"][0]["from"][0]["namespaceSelector"],
+        json!({ "matchLabels": { "kubernetes.io/metadata.name": "dev" } })
+    );
+}
+
+/// AP-105, AP-108, AP-109: a fullstack pod pulls with the configured Secret, starts the binary at
+/// `/app` as a numeric non-root user, and is told where to ask for the caller's roles.
+#[test]
+fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user() {
+    let mut with_registry = settings();
+    with_registry.pull_secret = Some("app-registry".into());
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &with_registry,
+    )
+    .expect("the app renders");
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let pod = &deployment["spec"]["template"]["spec"];
+    assert_eq!(pod["imagePullSecrets"], json!([{ "name": "app-registry" }]));
+    assert_eq!(pod["securityContext"]["runAsNonRoot"], true);
+    assert_eq!(pod["securityContext"]["runAsUser"], 65532);
+    let binary = container(&deployment, "app");
+    assert_eq!(binary["command"], json!(["/app"]));
+    assert_eq!(
+        env(binary, "JC_ME_URL")["value"],
+        "https://bb.example.com/api/v1/projects/ovzdusie/apps/air-quality-today/me"
+    );
+
+    let without = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders")
+    .workload
+    .expect("a pod")
+    .deployment;
+    assert_eq!(
+        without["spec"]["template"]["spec"]["imagePullSecrets"],
+        json!([]),
+        "no Secret configured, none named"
     );
 }
