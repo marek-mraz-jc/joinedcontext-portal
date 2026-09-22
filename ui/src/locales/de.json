@@ -1549,6 +1549,23 @@
       "limits": "Grenzen",
       "requestsPerMinute": "Anfragen pro Minute",
       "maxFileRows": "Zeilen pro Datei-Download"
+    },
+    "build": {
+      "title": "Build in der Forge",
+      "rebuild": "Neu bauen",
+      "repository": "Repository",
+      "runLink": "Letzter Lauf",
+      "package": "Paket",
+      "started": "Die Forge wurde gebeten, den Standardzweig erneut zu bauen; der Lauf erscheint hier in Kürze.",
+      "unreadable": "Wo diese Anwendung gebaut wird, konnte gerade nicht aus der Forge gelesen werden.",
+      "notOnForge": "Diese Anwendung wird nicht in der Forge gebaut: Sie hat kein eigenes Repository.",
+      "run": {
+        "none": "Es lief noch kein Build.",
+        "building": "{commit} wird gebaut …",
+        "succeeded": "{commit} gebaut.",
+        "failed": "Der Build von {commit} ist fehlgeschlagen; der letzte Lauf sagt, warum.",
+        "cancelled": "Der Build von {commit} wurde abgebrochen."
+      }
     }
   },
   "appLifecycle": {

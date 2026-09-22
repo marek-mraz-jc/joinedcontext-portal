@@ -67,6 +67,93 @@ impl From<GitError> for ApiError {
     }
 }
 
+/// A workflow run of an application's repository, as the App page links it (AP-86, AP-103).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    /// `queued`, `in_progress`, `waiting` or `completed`, as the forge says it.
+    pub status: String,
+    /// `success`, `failure`, `cancelled`… once the run is completed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conclusion: Option<String>,
+    /// The commit the run built.
+    pub commit: String,
+    /// The run's page, behind the forge's sign-in (PF-81).
+    pub url: String,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunsResponse {
+    #[serde(default)]
+    workflow_runs: Vec<WorkflowRunResponse>,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunResponse {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    conclusion: Option<String>,
+    #[serde(default)]
+    head_sha: String,
+    #[serde(default)]
+    run_number: Option<u64>,
+}
+
+/// An Actions artifact of a repository and the commit its run built (AP-104).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Artifact {
+    pub id: u64,
+    pub size: u64,
+    /// The workflow run that uploaded it.
+    pub run: u64,
+    pub commit: String,
+}
+
+#[derive(Deserialize)]
+struct ArtifactsResponse {
+    #[serde(default)]
+    artifacts: Vec<ArtifactResponse>,
+}
+
+#[derive(Deserialize)]
+struct ArtifactResponse {
+    id: u64,
+    name: String,
+    #[serde(default)]
+    size_in_bytes: u64,
+    workflow_run: ArtifactRunResponse,
+}
+
+#[derive(Deserialize)]
+struct ArtifactRunResponse {
+    id: u64,
+    #[serde(default)]
+    head_sha: String,
+}
+
+/// A body read to its end, refused once it passes `limit` bytes rather than held in memory.
+async fn read_capped(
+    mut res: reqwest::Response,
+    limit: u64,
+    what: &str,
+) -> Result<Vec<u8>, GitError> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = res
+        .chunk()
+        .await
+        .map_err(|e| GitError::Transport(e.to_string()))?
+    {
+        if (bytes.len() + chunk.len()) as u64 > limit {
+            return Err(GitError::Transport(format!(
+                "{what} is larger than {limit} bytes"
+            )));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+
 /// Human author attributed on commits (CC-44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Author<'a> {
@@ -693,6 +780,187 @@ impl GiteaClient {
             GitError::Transport(format!("failed to parse repository response: {e}"))
         })?;
         Ok(repo.default_branch)
+    }
+
+    /// The repository's page, behind the forge's sign-in (AP-103, PF-81).
+    pub fn repository_page_url(&self) -> String {
+        self.signed_in(&format!(
+            "{}/{}/{}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        ))
+    }
+
+    /// The page of one version of a generic package of the organization (AP-101, AP-103).
+    pub fn package_page_url(&self, package: &str, version: &str) -> String {
+        self.signed_in(&format!(
+            "{}/{}/-/packages/generic/{package}/{version}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+        ))
+    }
+
+    /// `GET /actions/runs?limit=1` — the newest workflow run of the repository, `None` before
+    /// the first one. The link is built from the public URL, never Gitea's own `html_url`,
+    /// which carries the cluster-internal ROOT_URL (PF-81).
+    pub async fn latest_run(&self) -> Result<Option<WorkflowRun>, GitError> {
+        let mut url = self.repo_url("actions/runs")?;
+        url.query_pairs_mut().append_pair("limit", "1");
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let runs: WorkflowRunsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the workflow runs: {e}")))?;
+        Ok(runs.workflow_runs.into_iter().next().map(|run| {
+            let page = format!(
+                "{}/{}/{}/actions",
+                self.public_base.as_str().trim_end_matches('/'),
+                self.owner,
+                self.repo
+            );
+            WorkflowRun {
+                url: self.signed_in(&match run.run_number {
+                    Some(number) => format!("{page}/runs/{number}"),
+                    None => page,
+                }),
+                status: run.status,
+                conclusion: run.conclusion.filter(|c| !c.is_empty()),
+                commit: run.head_sha,
+            }
+        }))
+    }
+
+    /// `POST /actions/workflows/{file}/dispatches` — runs the workflow `file` on `git_ref`
+    /// (AP-103). A refusal keeps the forge's own words, which is what a person acts on.
+    pub async fn dispatch_workflow(&self, file: &str, git_ref: &str) -> Result<(), GitError> {
+        let url = self.repo_url(&format!("actions/workflows/{file}/dispatches"))?;
+        let res = self
+            .send(
+                self.http
+                    .post(url)
+                    .json(&serde_json::json!({ "ref": git_ref })),
+            )
+            .await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// `GET /actions/artifacts?name={name}` — the repository's artifacts of that exact name, each
+    /// with the commit its run built (AP-104).
+    pub async fn artifacts_named(&self, name: &str) -> Result<Vec<Artifact>, GitError> {
+        let mut url = self.repo_url("actions/artifacts")?;
+        url.query_pairs_mut().append_pair("name", name);
+        let res = Self::check_status(self.send(self.http.get(url)).await?).await?;
+        let listed: ArtifactsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the artifacts: {e}")))?;
+        Ok(listed
+            .artifacts
+            .into_iter()
+            .filter(|artifact| artifact.name == name)
+            .map(|artifact| Artifact {
+                id: artifact.id,
+                size: artifact.size_in_bytes,
+                run: artifact.workflow_run.id,
+                commit: artifact.workflow_run.head_sha,
+            })
+            .collect())
+    }
+
+    /// `GET /actions/artifacts/{id}/zip` — the bytes the run uploaded, at most `limit` of them.
+    ///
+    /// The forge answers with a redirect to a signed address on its ROOT_URL, the public host the
+    /// cluster may not reach, so the signed path is fetched from the API base the Portal dials;
+    /// the signature is the grant and no token goes with it.
+    pub async fn download_artifact(&self, id: u64, limit: u64) -> Result<Vec<u8>, GitError> {
+        let url = self.repo_url(&format!("actions/artifacts/{id}/zip"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = if res.status().is_redirection() {
+            let signed = res
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| Url::parse(value).ok())
+                .ok_or_else(|| GitError::Transport("the forge redirected nowhere".into()))?;
+            let mut here = self.base.clone();
+            here.set_path(signed.path());
+            here.set_query(signed.query());
+            self.http
+                .get(here)
+                .timeout(Duration::from_secs(120))
+                .send()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))?
+        } else {
+            res
+        };
+        read_capped(
+            Self::check_status(res).await?,
+            limit,
+            &format!("artifact {id}"),
+        )
+        .await
+    }
+
+    fn generic_package_url(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+    ) -> Result<Url, GitError> {
+        let full = format!(
+            "{}/api/packages/{}/generic/{package}/{version}/{file}",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        Url::parse(&full).map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))
+    }
+
+    /// `PUT /api/packages/{owner}/generic/{package}/{version}/{file}` — one file of a generic
+    /// package of the organization (AP-101). A file the version already holds is a
+    /// `GitError::Conflict`: the registry never replaces one.
+    pub async fn put_generic_file(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), GitError> {
+        let url = self.generic_package_url(package, version, file)?;
+        let res = self
+            .send(
+                self.http
+                    .put(url)
+                    .timeout(Duration::from_secs(120))
+                    .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+                    .body(bytes),
+            )
+            .await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// `GET /api/packages/{owner}/generic/{package}/{version}/{file}`, at most `limit` bytes.
+    pub async fn get_generic_file(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+        limit: u64,
+    ) -> Result<Vec<u8>, GitError> {
+        let url = self.generic_package_url(package, version, file)?;
+        let res = self
+            .send(self.http.get(url).timeout(Duration::from_secs(120)))
+            .await?;
+        read_capped(
+            Self::check_status(res).await?,
+            limit,
+            &format!("{package}/{version}/{file}"),
+        )
+        .await
     }
 
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.

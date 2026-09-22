@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
 import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import { AgentRunPage } from "./AgentRunPage";
+import { AppBuildPanel } from "./AppBuildPanel";
 import { AppGenerator } from "./AppGenerator";
 import { appDisplayName } from "./appTitle";
 import type { AgentRun } from "./useAgentRun";
@@ -69,13 +70,20 @@ export function AppPage({ project, name }: { project: string; name: string }): J
   const items = (data?.items ?? []) as unknown as AgentRun[];
   const newest = items[0];
 
+  // Where the published application is built, above its runs (AP-103).
   if (newest) {
-    return <AgentRunPage project={project} runId={newest.id} onClose={back} />;
+    return (
+      <div className="space-y-3">
+        <AppBuildPanel project={project} name={name} />
+        <AgentRunPage project={project} runId={newest.id} onClose={back} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-3">
       <Button onClick={back}>{t("apps.back")}</Button>
+      <AppBuildPanel project={project} name={name} />
       <AppGenerator project={project} initialName={name} />
     </div>
   );

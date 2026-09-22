@@ -518,6 +518,14 @@
         "page_agent_run_page.test.tsx"
       ]
     },
+    "src/pages/apps/AppBuildPanel.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "app_build_panel.test.tsx"
+      ]
+    },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
         "Button": 3,

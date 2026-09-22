@@ -1,12 +1,16 @@
 //! `status.build` has one writer: the build lane, the role whose `propose` on `App` is
 //! constrained to that field (AP-13a, AP-73). Everything else about `status` is the platform's
-//! own computation and no manifest carries it (MF-04).
+//! own computation and no manifest carries it (MF-04). And what the lane writes is checked: the
+//! commit is its repository's head, the bundle an artifact of a run of it hashing to the digest,
+//! and the Portal publishes the package itself before the build is written (AP-101, AP-104).
 
 mod common;
 
 use axum::http::StatusCode;
 use serde_json::{json, Value};
-use wiremock::MockServer;
+use sha2::{Digest, Sha256};
+use wiremock::matchers::{method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{checked_send as send, envelope, forge, person};
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
@@ -75,7 +79,7 @@ fn app(status: Option<Value>, annotation: Option<&str>) -> Value {
             // A published static App names its repository (AP-87).
             "source": { "git": {
                 "url": "https://git.example/joinedcontext/ovzdusie_air-quality.git",
-                "ref": "8c56954a1f0e",
+                "ref": COMMIT,
             }},
             "build": { "node": "22" },
             "visibility": "public",
@@ -93,13 +97,105 @@ fn app(status: Option<Value>, annotation: Option<&str>) -> Value {
     manifest
 }
 
+/// The App's own repository, `{project}_{app}` (AP-75), and the head of its default branch.
+const APP_REPO: &str = "/api/v1/repos/test-owner/ovzdusie_air-quality";
+const COMMIT: &str = "8c56954a1f0e3d2c1b0a99887766554433221100";
+const PACKAGE: &str = "/api/packages/test-owner/generic/app-air-quality";
+const BUNDLE: &[u8] = b"the bundle the workflow built";
+const SBOM: &[u8] = b"{\"bomFormat\":\"CycloneDX\"}";
+
+fn digest(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+/// The forge after a run of `COMMIT` uploaded `bundle` and the SBOM as run 5's artifacts, and
+/// with the default branch at `head`. The artifact download redirects to the forge's public
+/// ROOT_URL, which the Portal cannot reach, as Gitea does.
+async fn built_on_forge(gitea: &MockServer, head: &str, bundle: &[u8], size: Option<u64>) {
+    Mock::given(method("GET"))
+        .and(path(APP_REPO))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(gitea)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{APP_REPO}/branches/main")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": head } })))
+        .mount(gitea)
+        .await;
+    // Any other name: none, as the forge answers.
+    Mock::given(method("GET"))
+        .and(path(format!("{APP_REPO}/actions/artifacts")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "artifacts": [] })))
+        .with_priority(10)
+        .mount(gitea)
+        .await;
+    for (id, name, bytes) in [(11, "bundle", bundle), (12, "sbom", SBOM)] {
+        let artifact = |id: u64, run: u64, sha: &str| {
+            json!({
+                "id": id, "name": format!("{name}-{COMMIT}"),
+                "size_in_bytes": if name == "bundle" { size.unwrap_or(bytes.len() as u64) } else { bytes.len() as u64 },
+                "workflow_run": { "id": run, "head_sha": sha },
+            })
+        };
+        Mock::given(method("GET"))
+            .and(path(format!("{APP_REPO}/actions/artifacts")))
+            .and(query_param("name", format!("{name}-{COMMIT}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                // An artifact of this name from a run of another commit never counts.
+                "artifacts": [artifact(id, 5, COMMIT), artifact(id + 90, 9, "0000000000000000000000000000000000000000")],
+            })))
+            .mount(gitea)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{APP_REPO}/actions/artifacts/{id}/zip")))
+            .respond_with(ResponseTemplate::new(302).insert_header(
+                "Location",
+                format!("https://forge.public.example{APP_REPO}/actions/artifacts/{id}/zip/raw?sig=s{id}&expires=9"),
+            ))
+            .mount(gitea)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{APP_REPO}/actions/artifacts/{id}/zip/raw")))
+            .and(query_param("sig", format!("s{id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes.to_vec()))
+            .mount(gitea)
+            .await;
+    }
+}
+
+/// The package files the Portal wrote, in order.
+async fn published(gitea: &MockServer) -> Vec<String> {
+    gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "PUT" && r.url.path().starts_with(PACKAGE))
+        .map(|r| r.url.path().trim_start_matches(PACKAGE).to_owned())
+        .collect()
+}
+
+async fn package_takes(gitea: &MockServer, status: u16) {
+    Mock::given(method("PUT"))
+        .and(wiremock::matchers::path_regex(format!("^{PACKAGE}/.*")))
+        .respond_with(ResponseTemplate::new(status))
+        .mount(gitea)
+        .await;
+}
+
 fn build() -> Value {
     json!({ "build": {
-        "digest": format!("sha256:{}", "a1b2c3d4".repeat(8)),
-        "commit": "8c56954a1f0e",
+        "digest": digest(BUNDLE),
+        "commit": COMMIT,
         "sdkVersion": "0.4.1",
         "builtAt": "2026-09-17T06:00:00Z",
     }})
+}
+
+fn build_of(commit: &str) -> Value {
+    let mut build = build();
+    build["build"]["commit"] = json!(commit);
+    build
 }
 
 /// What the merge request wrote, decoded.
@@ -125,6 +221,8 @@ async fn committed(gitea: &MockServer) -> Vec<String> {
 #[tokio::test]
 async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_it_is() {
     let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
     let state = state_with(&gitea);
 
     let refused = send(
@@ -155,9 +253,147 @@ async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_i
     assert!(
         written.iter().any(|file| file.contains("status:")
             && file.contains("digest:")
-            && file.contains("8c56954a1f0e")),
+            && file.contains(COMMIT)),
         "the build the lane wrote is what lands in the repository: {written:?}"
     );
+    assert_eq!(
+        published(&gitea).await,
+        vec![
+            format!("/{COMMIT}/bundle.tar.gz"),
+            format!("/{COMMIT}/sbom.cdx.json")
+        ],
+        "the Portal publishes the package itself (AP-101)"
+    );
+    let raw: Vec<_> = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.url.path().ends_with("/zip/raw"))
+        .collect();
+    assert_eq!(
+        raw.len(),
+        2,
+        "both artifacts are fetched from the forge the Portal dials"
+    );
+    assert!(
+        raw.iter().all(|r| !r.headers.contains_key("authorization")),
+        "the signed address is the grant; the Portal's token never follows the redirect"
+    );
+}
+
+/// AP-104: a build whose commit is not the head, whose bundle no run of it uploaded, or whose
+/// bytes hash to another digest is refused, naming the check; nothing is published or written.
+#[tokio::test]
+async fn a_build_the_workflow_did_not_make_is_refused_and_nothing_is_published() {
+    let other = "1111111111111111111111111111111111111111";
+    let cases = [
+        (
+            "an older commit",
+            other,
+            BUNDLE,
+            None,
+            build(),
+            StatusCode::CONFLICT,
+            "the head of main",
+        ),
+        (
+            "a commit no run built",
+            other,
+            BUNDLE,
+            None,
+            build_of(other),
+            StatusCode::BAD_REQUEST,
+            "holds no artifact bundle-1111",
+        ),
+        (
+            "another digest",
+            COMMIT,
+            b"a bundle somebody else made".as_slice(),
+            None,
+            build(),
+            StatusCode::BAD_REQUEST,
+            "hashes to",
+        ),
+        (
+            "a bundle too large",
+            COMMIT,
+            BUNDLE,
+            Some(65 * 1024 * 1024),
+            build(),
+            StatusCode::BAD_REQUEST,
+            "more than",
+        ),
+    ];
+    for (what, head, bundle, size, status, code, says) in cases {
+        let gitea = forge().await;
+        built_on_forge(&gitea, head, bundle, size).await;
+        package_takes(&gitea, 201).await;
+        let state = state_with(&gitea);
+
+        let refused = send(
+            &state,
+            person("builder"),
+            "POST",
+            APPS,
+            Some(app(Some(status), None)),
+        )
+        .await;
+        assert_eq!(refused.status, code, "{what}: {}", refused.text);
+        assert!(refused.text.contains(says), "{what}: {}", refused.text);
+        assert!(
+            published(&gitea).await.is_empty(),
+            "{what}: a package was published"
+        );
+        assert!(
+            committed(&gitea).await.is_empty(),
+            "{what}: the build was written"
+        );
+    }
+}
+
+/// AP-101: the registry never replaces a file. The same bytes already there are the same build
+/// published again; other bytes under the same version are refused.
+#[tokio::test]
+async fn a_version_already_published_is_the_same_build_or_a_refusal() {
+    for (held, accepted) in [(BUNDLE, true), (b"other bytes".as_slice(), false)] {
+        let gitea = forge().await;
+        built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+        package_takes(&gitea, 409).await;
+        Mock::given(method("GET"))
+            .and(path(format!("{PACKAGE}/{COMMIT}/bundle.tar.gz")))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(held.to_vec()))
+            .mount(&gitea)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{PACKAGE}/{COMMIT}/sbom.cdx.json")))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(SBOM.to_vec()))
+            .mount(&gitea)
+            .await;
+        let state = state_with(&gitea);
+
+        let answer = send(
+            &state,
+            person("builder"),
+            "POST",
+            APPS,
+            Some(app(Some(build()), None)),
+        )
+        .await;
+        if accepted {
+            assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+        } else {
+            assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+            assert!(
+                answer
+                    .text
+                    .contains("already holds a different bundle.tar.gz"),
+                "{}",
+                answer.text
+            );
+            assert!(committed(&gitea).await.is_empty());
+        }
+    }
 }
 
 #[tokio::test]

@@ -941,6 +941,20 @@ async fn propose_engine(
         .as_deref()
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
 
+    // 8a. A lane's build is checked against the App's repository and published by the Portal
+    //     before anything is written: the lane's token names a build, it never makes one
+    //     (AP-101, AP-104).
+    if build_write {
+        crate::apps::built::check_and_publish(
+            gitea,
+            project,
+            &envelope.metadata.name,
+            &envelope.spec,
+            body_val.pointer("/status/build").unwrap_or(&Value::Null),
+        )
+        .await?;
+    }
+
     let default_branch = gitea.default_branch().await?;
 
     let op_str = match operation {

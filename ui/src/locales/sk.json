@@ -1549,6 +1549,23 @@
       "limits": "Limity",
       "requestsPerMinute": "Požiadavky za minútu",
       "maxFileRows": "Riadky na stiahnutie súboru"
+    },
+    "build": {
+      "title": "Zostavenie vo forge",
+      "rebuild": "Zostaviť znova",
+      "repository": "Repozitár",
+      "runLink": "Posledný beh",
+      "package": "Balík",
+      "started": "Forge dostal pokyn znova zostaviť predvolenú vetvu; beh sa tu čoskoro objaví.",
+      "unreadable": "Kde sa táto aplikácia zostavuje, sa teraz nepodarilo z forge prečítať.",
+      "notOnForge": "Táto aplikácia sa nezostavuje vo forge: nemá vlastný repozitár.",
+      "run": {
+        "none": "Zatiaľ neprebehlo žiadne zostavenie.",
+        "building": "Zostavuje sa {commit}…",
+        "succeeded": "Zostavené {commit}.",
+        "failed": "Zostavenie {commit} zlyhalo; posledný beh hovorí prečo.",
+        "cancelled": "Zostavenie {commit} bolo zrušené."
+      }
     }
   },
   "appLifecycle": {

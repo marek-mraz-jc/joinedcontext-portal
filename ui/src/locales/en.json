@@ -1549,6 +1549,23 @@
       "limits": "Limits",
       "requestsPerMinute": "Requests per minute",
       "maxFileRows": "Rows per file download"
+    },
+    "build": {
+      "title": "Build on the forge",
+      "rebuild": "Rebuild",
+      "repository": "Repository",
+      "runLink": "Latest run",
+      "package": "Package",
+      "started": "The forge was asked to build the default branch again; the run appears here shortly.",
+      "unreadable": "Where this application is built could not be read from the forge right now.",
+      "notOnForge": "This application is not built on the forge: it has no repository of its own.",
+      "run": {
+        "none": "No build has run yet.",
+        "building": "Building {commit}…",
+        "succeeded": "Built {commit}.",
+        "failed": "The build of {commit} failed; the latest run says why.",
+        "cancelled": "The build of {commit} was cancelled."
+      }
     }
   },
   "appLifecycle": {

@@ -629,6 +629,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where An Application's Build Is
+         * @description The repository, the newest workflow run and the package of an application built on the forge, and whether Rebuild is offered.
+         */
+        get: operations["build"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/apps/{name}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild An Application
+         * @description Dispatches the application's build.yml on its repository's default branch.
+         */
+        post: operations["rebuild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/assistant/access": {
         parameters: {
             query?: never;
@@ -1829,6 +1869,15 @@ export interface components {
             answers: unknown;
             questionId: string;
         };
+        /** @description Where an application's build is, and whether this person may ask for another (AP-103). */
+        AppBuild: {
+            /** @description The package of `status.build.commit`, `null` while the App has no build. */
+            packageUrl?: string | null;
+            rebuild: components["schemas"]["Rebuild"];
+            /** @description The repository's page; `null` for an App not built on the forge. */
+            repositoryUrl?: string | null;
+            run?: null | components["schemas"]["WorkflowRun"];
+        };
         /** @description Request body for approving or rejecting a change proposal. */
         ApproveBody: {
             confirm?: string | null;
@@ -2983,6 +3032,11 @@ export interface components {
         Readiness: {
             status: string;
         };
+        /** @description Whether Rebuild is offered, and why not when it is not (PF-50, UI-44). */
+        Rebuild: {
+            allowed: boolean;
+            reason?: string | null;
+        };
         /** @description What a registration's card shows (UI-27, PF-48). */
         RegistrationCard: {
             /** @description Whether the source is on this platform or outside it. */
@@ -3260,6 +3314,17 @@ export interface components {
             equal: boolean;
             /** @description The path the bundle index gave the file. */
             path: string;
+        };
+        /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
+        WorkflowRun: {
+            /** @description The commit the run built. */
+            commit: string;
+            /** @description `success`, `failure`, `cancelled`… once the run is completed. */
+            conclusion?: string | null;
+            /** @description `queued`, `in_progress`, `waiting` or `completed`, as the forge says it. */
+            status: string;
+            /** @description The run's page, behind the forge's sign-in (PF-81). */
+            url: string;
         };
         Workspace: {
             baseRevision: string;
@@ -5104,6 +5169,126 @@ export interface operations {
                 };
             };
             /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    build: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The build's links */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppBuild"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    rebuild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The forge accepted the dispatch */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose App here */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The App is not built on the forge */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge, or the forge refused the dispatch */
             503: {
                 headers: {
                     [name: string]: unknown;

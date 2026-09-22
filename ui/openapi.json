@@ -2379,6 +2379,163 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/build": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Where An Application's Build Is",
+        "description": "The repository, the newest workflow run and the package of an application built on the forge, and whether Rebuild is offered.",
+        "operationId": "build",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The build's links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuild"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/apps/{name}/rebuild": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Rebuild An Application",
+        "description": "Dispatches the application's build.yml on its repository's default branch.",
+        "operationId": "rebuild",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The forge accepted the dispatch"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose App here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App is not built on the forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or the forge refused the dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/assistant/access": {
       "get": {
         "tags": [
@@ -8010,6 +8167,43 @@
         },
         "additionalProperties": false
       },
+      "AppBuild": {
+        "type": "object",
+        "description": "Where an application's build is, and whether this person may ask for another (AP-103).",
+        "required": [
+          "rebuild"
+        ],
+        "properties": {
+          "packageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The package of `status.build.commit`, `null` while the App has no build."
+          },
+          "rebuild": {
+            "$ref": "#/components/schemas/Rebuild"
+          },
+          "repositoryUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository's page; `null` for an App not built on the forge."
+          },
+          "run": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowRun",
+                "description": "The newest workflow run, `null` before the first."
+              }
+            ]
+          }
+        }
+      },
       "ApproveBody": {
         "type": "object",
         "description": "Request body for approving or rejecting a change proposal.",
@@ -10941,6 +11135,24 @@
           }
         }
       },
+      "Rebuild": {
+        "type": "object",
+        "description": "Whether Rebuild is offered, and why not when it is not (PF-50, UI-44).",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "RegistrationCard": {
         "type": "object",
         "description": "What a registration's card shows (UI-27, PF-48).",
@@ -11723,6 +11935,36 @@
           "path": {
             "type": "string",
             "description": "The path the bundle index gave the file."
+          }
+        }
+      },
+      "WorkflowRun": {
+        "type": "object",
+        "description": "A workflow run of an application's repository, as the App page links it (AP-86, AP-103).",
+        "required": [
+          "status",
+          "commit",
+          "url"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string",
+            "description": "The commit the run built."
+          },
+          "conclusion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`success`, `failure`, `cancelled`… once the run is completed."
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, `in_progress`, `waiting` or `completed`, as the forge says it."
+          },
+          "url": {
+            "type": "string",
+            "description": "The run's page, behind the forge's sign-in (PF-81)."
           }
         }
       },

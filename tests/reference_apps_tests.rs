@@ -292,3 +292,31 @@ fn the_plain_html_sample_is_its_own_bundle_and_a_valid_published_app() {
         );
     }
 }
+
+/// AP-100. A reference application that lives in its own repository builds itself there, with the
+/// workflow the Portal writes into every generated one: the same bytes as the template's, so the
+/// sample on dev and a generated application build the same way (T-2609).
+#[test]
+fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let template = std::fs::read_to_string(root.join("sdk/template/.gitea/workflows/build.yml"))
+        .expect("the template's workflow");
+    let mut seen = 0;
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        if app.spec.source.git.is_none() {
+            continue;
+        }
+        seen += 1;
+        let workflow = root
+            .join("apps")
+            .join(&name)
+            .join(".gitea/workflows/build.yml");
+        assert_eq!(
+            std::fs::read_to_string(&workflow).ok().as_deref(),
+            Some(template.as_str()),
+            "apps/{name} names spec.source.git, so it carries the template's build.yml"
+        );
+    }
+    assert!(seen > 0, "no reference app lives in its own repository");
+}
