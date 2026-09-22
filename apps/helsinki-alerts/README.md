@@ -30,8 +30,12 @@ Both read only through `ctx.jc` with the caller's own grants and hold no secret.
 ```sh
 pnpm install
 pnpm test                 # the pages and both functions
-pnpm build && pnpm e2e    # the built bundle in Chromium against the SDK's stub
+pnpm build                # the bundle the build lane publishes
 ```
+
+The built bundle's browser flow lives in the portal repository, `apps-e2e/helsinki-alerts/`: the
+build lane refuses any package the SDK template does not install, `@playwright/test` included
+(SDK-12).
 
 Against dev, `pnpm dev` with `JC_ENDPOINT_SLUG` set to the app's endpoint serves the pages with
 your own sign-in. The repository of record is

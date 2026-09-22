@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -285,4 +285,21 @@ test("the crates of a Cargo.lock are SBOM components, registry crates only", () 
     { type: "library", name: "axum", version: "0.8.4", purl: "pkg:cargo/axum@0.8.4" },
   ]);
   assert.deepEqual(cratesOf(""), []);
+});
+
+// T-2635: helsinki-bikes and -alerts asked for @playwright/test and never built on dev. Every
+// application kept at the root of apps/<name>/ is the tree the forge seed pushes, so each one asks
+// only for what the SDK template installs, or the lane refuses it there.
+test("every application of apps/ asks only for packages the SDK template installs", () => {
+  const root = new URL("../", import.meta.url);
+  const sdkTemplate = JSON.parse(readFileSync(new URL("sdk/template/package.json", root), "utf8"));
+  const checked = [];
+  for (const entry of readdirSync(new URL("apps/", root), { withFileTypes: true })) {
+    const manifest = new URL(`apps/${entry.name}/package.json`, root);
+    if (!entry.isDirectory() || !existsSync(manifest)) continue;
+    const refused = refusedDependencies(JSON.parse(readFileSync(manifest, "utf8")), sdkTemplate);
+    assert.deepEqual(refused, [], `apps/${entry.name}/package.json`);
+    checked.push(entry.name);
+  }
+  assert.ok(checked.includes("helsinki-bikes") && checked.includes("helsinki-alerts"), checked.join(", "));
 });

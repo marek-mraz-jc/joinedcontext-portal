@@ -15,8 +15,11 @@ talks to that endpoint and to nothing else.
 pnpm install
 pnpm test          # vitest, against the SDK's stub transport and five sampled stations
 pnpm build         # the bundle the build lane publishes
-pnpm e2e           # the built bundle in Chromium, answered by the same stub (needs `pnpm build`)
 ```
+
+The built bundle's browser flow lives in the portal repository, `apps-e2e/helsinki-bikes/`: a test
+may import only `vitest`, `@testing-library/react` and `@joinedcontext/sdk/testing` (SDK-12), and
+the build lane refuses any package the SDK template does not install, `@playwright/test` included.
 
 ## Run it locally against dev
 
