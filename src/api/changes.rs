@@ -655,8 +655,9 @@ fn build_proposal(
     };
 
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
-    let change_status =
-        ChangeStatus::new(lane, phase, plan.summary).with_merge_request(pr.url.clone());
+    let change_status = ChangeStatus::new(lane, phase, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url.clone());
 
     ChangeProposal {
         api_version: crate::resource::API_VERSION.to_string(),
@@ -1298,8 +1299,9 @@ pub async fn approve_change_for(
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary).with_merge_request(pr.url);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
@@ -1405,8 +1407,9 @@ pub async fn reject_change_for(
     };
 
     let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary).with_merge_request(pr.url);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
 }
 

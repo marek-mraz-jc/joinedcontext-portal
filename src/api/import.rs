@@ -1383,6 +1383,7 @@ pub async fn propose_bundle(
     let change = Change::new(
         ChangeMeta::from_merge_request(pull.number, project),
         ChangeStatus::new(report.lane, ChangePhase::PendingApproval, summary)
+            .in_repository(&pull.repository)
             .with_merge_request(pull.url),
     );
     Ok(change)

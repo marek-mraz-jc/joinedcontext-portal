@@ -801,6 +801,7 @@ pub async fn delete_project_for(
             crate::change::ChangePhase::PendingApproval,
             summary,
         )
+        .in_repository(&pull.repository)
         .with_merge_request(pull.url),
     ))
 }

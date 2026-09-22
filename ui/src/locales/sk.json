@@ -124,6 +124,7 @@
     "lane": "Úroveň rizika",
     "phase": "Fáza",
     "mergeRequest": "Požiadavka na zlúčenie",
+    "repository": "Repozitár",
     "approve": "Schváliť",
     "reject": "Zamietnuť",
     "approving": "Schvaľuje sa...",

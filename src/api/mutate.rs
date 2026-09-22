@@ -1145,6 +1145,7 @@ async fn propose_engine(
     // 9. Answer 202 Accepted with Change resource
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
+        .in_repository(&pr.repository)
         .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 

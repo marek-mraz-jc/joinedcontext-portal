@@ -2200,6 +2200,11 @@ export interface components {
             mergeRequest?: string | null;
             phase: components["schemas"]["ChangePhase"];
             plan: components["schemas"]["PlanSummary"];
+            /**
+             * @description The one repository the Change targets (CC-87): the organization's, or in layout 2 a
+             *     project's own.
+             */
+            repository?: string | null;
         };
         /** @description Human-readable proposal summary parameters derived from the plan diff. */
         ChangeSummary: {

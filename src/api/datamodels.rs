@@ -793,6 +793,7 @@ pub async fn put_source(
             }
         },
     )
+    .in_repository(&pr.repository)
     .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 

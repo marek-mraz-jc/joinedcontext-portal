@@ -8890,6 +8890,13 @@
           },
           "plan": {
             "$ref": "#/components/schemas/PlanSummary"
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The one repository the Change targets (CC-87): the organization's, or in layout 2 a\nproject's own."
           }
         }
       },

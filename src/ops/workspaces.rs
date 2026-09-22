@@ -1441,8 +1441,9 @@ pub async fn propose(
         .create_pull_request(&branch, &main, &title, &body)
         .await
         .map_err(ApiError::from)?;
-    let status =
-        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary).with_merge_request(pr.url);
+    let status = ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     Ok(Change::new(
         ChangeMeta::from_merge_request(pr.number, project),
         status,

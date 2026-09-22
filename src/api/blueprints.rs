@@ -394,7 +394,9 @@ pub async fn start_flow(
 
     let change = Change::new(
         ChangeMeta::from_merge_request(pr.number, &project),
-        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary).with_merge_request(pr.url),
+        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
+            .in_repository(&pr.repository)
+            .with_merge_request(pr.url),
     );
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }

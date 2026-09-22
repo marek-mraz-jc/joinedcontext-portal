@@ -256,6 +256,14 @@ export function ApprovalDetailPage({
             </dd>
           </div>
         ) : null}
+        {proposal.status.repository ? (
+          <div>
+            <dt className="text-xs font-medium text-surface-fg/70">
+              {t("approvals.repository")}
+            </dt>
+            <dd className="mt-1 text-sm text-surface-fg">{proposal.status.repository}</dd>
+          </div>
+        ) : null}
         {proposal.status.mergeRequest ? (
           <div>
             <dt className="text-xs font-medium text-surface-fg/70">

@@ -95,6 +95,11 @@ async fn a_project_kind_lands_in_the_project_repository() {
     )
     .await;
     assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+    let change: serde_json::Value = serde_json::from_str(&answer.text).expect("a Change");
+    assert_eq!(
+        change["status"]["repository"], "ovzdusie",
+        "the Change names its repository"
+    );
 
     let branches = requests(&server, "POST", &format!("{PROJECT_REPO}/branches")).await;
     assert_eq!(branches.len(), 1, "one branch, in the project repository");

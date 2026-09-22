@@ -418,6 +418,7 @@ pub async fn delete_with_identity(
 
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
+        .in_repository(&pr.repository)
         .with_merge_request(pr.url);
     Ok(DeleteOutcome::Proposed(Change::new(
         change_meta,

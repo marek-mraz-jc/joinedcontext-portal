@@ -231,6 +231,8 @@ pub struct PullRequest {
     pub author_email: Option<String>,
     pub mergeable: Option<bool>,
     pub merged: bool,
+    /// The repository the pull request is in, as the client that read it names it (CC-87).
+    pub repository: String,
 }
 
 impl PullRequest {
@@ -463,6 +465,7 @@ impl From<GiteaPullResponse> for PullRequest {
             author_email,
             mergeable: raw.mergeable,
             merged: raw.merged,
+            repository: String::new(),
         }
     }
 }
@@ -620,6 +623,7 @@ impl GiteaClient {
     /// the public one; without, Gitea's own `html_url` is the best there is.
     fn pull(&self, raw: GiteaPullResponse) -> PullRequest {
         let mut pull = PullRequest::from(raw);
+        pull.repository = self.repo.clone();
         if self.public_base != self.base {
             pull.url = self.pull_url(pull.number);
         }
