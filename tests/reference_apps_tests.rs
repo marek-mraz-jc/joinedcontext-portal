@@ -469,3 +469,68 @@ fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility
         }
     }
 }
+
+/// The `(name, version)` of every `[[package]]` of a Cargo.lock.
+fn locked_packages(lock: &str) -> std::collections::BTreeSet<(String, String)> {
+    let mut found = std::collections::BTreeSet::new();
+    let mut name = None;
+    for line in lock.lines() {
+        let value = |key: &str| {
+            line.strip_prefix(key)
+                .map(|rest| rest.trim().trim_matches('"').to_owned())
+        };
+        if line == "[[package]]" {
+            name = None;
+        } else if let Some(found_name) = value("name = ") {
+            name = Some(found_name);
+        } else if let (Some(version), Some(package)) = (value("version = "), name.take()) {
+            found.insert((package, version));
+        }
+    }
+    found
+}
+
+/// AP-106 (T-2617). A fullstack sample builds in its own forge repository with `cargo test
+/// --offline --locked` against the crate store the rust-1.90 runner fetched from this
+/// repository's Cargo.lock, so its own lock names no crate the store lacks. When a bump here
+/// breaks this, regenerate the app's lock from the workspace's: copy `Cargo.lock` into a copy
+/// of `apps/<name>/` and run `cargo tree --offline` there, which keeps the locked versions and
+/// drops the rest.
+#[test]
+fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let store = locked_packages(
+        &std::fs::read_to_string(root.join("Cargo.lock")).expect("the workspace lock"),
+    );
+    assert!(store.len() > 100, "the workspace lock did not parse");
+    let mut seen = 0;
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        if app.spec.class != jc_core::kinds::AppClass::Fullstack {
+            continue;
+        }
+        seen += 1;
+        let lock = std::fs::read_to_string(root.join("apps").join(&name).join("Cargo.lock"))
+            .unwrap_or_else(|_| {
+                panic!("apps/{name} has no Cargo.lock, so --locked fails on the forge")
+            });
+        let packages = locked_packages(&lock);
+        assert!(
+            packages.iter().any(|(package, _)| package == &name),
+            "apps/{name}/Cargo.lock does not lock the app itself"
+        );
+        let missing: Vec<_> = packages
+            .iter()
+            .filter(|(package, _)| package != &name)
+            .filter(|package| !store.contains(*package))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "apps/{name}/Cargo.lock names crates outside the store: {missing:?}"
+        );
+    }
+    assert_eq!(
+        seen, 2,
+        "hsl-transport and air-quality are the fullstack samples"
+    );
+}

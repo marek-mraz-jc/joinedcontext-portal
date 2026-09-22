@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -19,6 +19,27 @@ test("a package the template does not install is refused by name", () => {
     refusedDependencies({ dependencies: { react: "^19", "left-pad": "1" }, devDependencies: { "evil-postinstall": "1" } }, template),
     ["evil-postinstall", "left-pad"],
   );
+});
+
+// SDK-12, AP-100, AP-105 (T-2617): a sample the forge bootstrap pushes to its own repository
+// builds there, so the lane's package check passes on it against the real template: the page of a
+// static app at its root, the interface of a fullstack app in ui/. Its Playwright flows are why
+// the template installs @playwright/test; the lane never runs them.
+test("every sample application passes the lane's package check against the template", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const real = JSON.parse(readFileSync(join(root, "sdk/template/package.json"), "utf8"));
+  let seen = 0;
+  for (const name of readdirSync(join(root, "apps"))) {
+    // Only an app whose source is a forge repository builds on the lane.
+    const app = join(root, "apps", name, "app.yaml");
+    if (!existsSync(app) || !/^  source:\n    git:$/m.test(readFileSync(app, "utf8"))) continue;
+    for (const manifest of [join(root, "apps", name, "package.json"), join(root, "apps", name, "ui/package.json")]) {
+      if (!existsSync(manifest)) continue;
+      seen += 1;
+      assert.deepEqual(refusedDependencies(JSON.parse(readFileSync(manifest, "utf8")), real), [], manifest);
+    }
+  }
+  assert.ok(seen >= 4, `only ${seen} sample packages found`);
 });
 
 function app(files) {
