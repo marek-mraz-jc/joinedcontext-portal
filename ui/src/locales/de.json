@@ -53,7 +53,8 @@
     "import": "Import",
     "workspaces": "Kopien",
     "policies": "Richtlinien",
-    "subscriptions": "Abonnements"
+    "subscriptions": "Abonnements",
+    "organization": "Organisation"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -2622,5 +2623,97 @@
       "interval": "Intervall der Schemaspiegelung",
       "expiresAt": "Läuft ab am"
     }
+  },
+  "organization": {
+    "field": {
+      "domain": "Domain",
+      "locales": "Sprachen",
+      "defaultLocale": "Standardsprache",
+      "contacts": "Kontakte",
+      "contactRole": "Zuständig für",
+      "contactName": "Name",
+      "contactEmail": "E-Mail",
+      "contactPhone": "Telefon",
+      "projects": "Regeln für Projekte",
+      "creation": "Wer ein Projekt eröffnen darf",
+      "visibility": "Wer die Projekte liest",
+      "nameCooldownDays": "Tage, die der Name eines gelöschten Projekts reserviert bleibt",
+      "quota": {
+        "title": "Kontingent eines neuen Projekts",
+        "contextSpaces": "Kontexträume",
+        "residentPipelines": "Dauerhafte Pipelines",
+        "publicEndpoints": "Öffentliche Endpunkte",
+        "ingestEventsPerSecond": "Aktualisierungen pro Sekunde",
+        "apps": "Apps",
+        "agentRunsPerDay": "Assistentenläufe pro Tag",
+        "entitiesPerSpace": "Entitäten pro Raum",
+        "requestsPerMinute": "Anfragen pro Minute je Endpunkt"
+      }
+    },
+    "contactRole": {
+      "administrative": "Verwaltung",
+      "technical": "Technik",
+      "data-protection": "Datenschutz",
+      "security": "Sicherheit"
+    },
+    "visibility": {
+      "organization": "Jede angemeldete Person der Organisation",
+      "members": "Nur, wen eine Bindung nennt"
+    },
+    "title": "Organisation",
+    "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
+    "tabsLabel": "Bereiche der Organisation",
+    "tab": {
+      "settings": "Einstellungen",
+      "members": "Mitglieder",
+      "roles": "Rollen",
+      "groups": "Gruppen",
+      "service-accounts": "Dienstkonten",
+      "projects": "Projekte"
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "lead": "Domain, Sprachen und Kontakte der Organisation und die Regeln, denen jedes Projekt folgt. Bearbeiten schlägt eine Änderung vor, die eine Verwaltung genehmigt.",
+      "empty": "Die Organisation hat noch kein Manifest",
+      "emptyHint": "Die Installation schreibt org.yaml in das Konfigurations-Repository; bis dahin lässt sich auf diesem Reiter nichts bearbeiten.",
+      "locales": "{locales}; auf {fallback}, wenn die eigene Sprache nicht angeboten wird",
+      "noContacts": "Noch kein Kontakt eingetragen.",
+      "creationAnyone": "Alle Angemeldeten dürfen ein Projekt eröffnen.",
+      "creationGroup": "Die Mitglieder der Gruppe {group} eröffnen Projekte.",
+      "creationAdmin": "Nur die Organisationsverwaltung eröffnet Projekte.",
+      "cooldown": "{days} Tage",
+      "noQuota": "Für ein neues Projekt ist keine Grenze gesetzt."
+    },
+    "members": {
+      "title": "Mitglieder",
+      "hidden": "Sie sehen nicht, wer zu dieser Organisation gehört; die Organisationsverwaltung sieht es.",
+      "caption": "Wer eine Rolle in der ganzen Organisation hat"
+    },
+    "roles": {
+      "seeded": "mitgeliefert"
+    },
+    "projects": {
+      "title": "Projekte",
+      "lead": "Jedes Projekt, das Sie lesen dürfen. Wer eines eröffnet, wird seine Verantwortliche; Löschen ist eine Änderung der roten Spur mit wieder eingetipptem Namen.",
+      "caption": "Die Projekte der Organisation",
+      "name": "Projekt",
+      "people": "Gebundene Personen und Gruppen",
+      "peopleHidden": "Für Sie nicht sichtbar",
+      "empty": "Noch kein Projekt",
+      "emptyHint": "Das erste eröffnen Sie mit Neues Projekt."
+    }
+  },
+  "projectDelete": {
+    "title": "Projekt {name} löschen",
+    "lead": "Das schlägt eine Änderung der roten Spur vor. Die Organisationsverwaltung genehmigt sie, bis dahin wird nichts entfernt.",
+    "propose": "Löschen des Projekts vorschlagen",
+    "cascadeTitle": "Was mit ihm geht",
+    "cascadeFailed": "Der Inhalt des Projekts ließ sich nicht zählen; die Änderung nennt trotzdem jede Datei, die sie entfernt.",
+    "count": "{count} × {what}",
+    "everythingElse": "jedes weitere Manifest für das Projekt: Datenquellen, Pipelines, Dienstkonten und Rollen",
+    "bindings": "jede Rollenbindung der Organisation, die das Projekt oder einen seiner Räume nennt",
+    "cooldown": "Der Name {name} bleibt nach dem Zusammenführen der Löschung {days} Tage reserviert.",
+    "action": "Projekt {name} löschen",
+    "button": "Löschen"
   }
 }

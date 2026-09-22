@@ -42,6 +42,14 @@
         "form_activity_feed.test.tsx"
       ]
     },
+    "src/components/DeleteProjectDialog.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "organization_page.test.tsx"
+      ]
+    },
     "src/components/DeleteResourceDialog.tsx": {
       "controls": {
         "Button": 4

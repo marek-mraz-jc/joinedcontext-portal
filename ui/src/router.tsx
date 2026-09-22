@@ -38,6 +38,7 @@ import { ComparePage } from "./pages/workspaces/ComparePage";
 import { BringBackPage } from "./pages/workspaces/BringBackPage";
 import { TryItPage } from "./pages/workspaces/TryItPage";
 import { Gallery } from "./pages/gallery/Gallery";
+import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { AuthState } from "./auth/AuthProvider";
 
 export interface RouterContext {
@@ -295,6 +296,37 @@ const allEndpointsRoute = createRoute({
       <AnyProjectShell>
         <AllEndpointsPage />
       </AnyProjectShell>
+    );
+  },
+});
+
+/** `/organization` opens on its first tab (Architecture/09 §14.1). */
+const organizationRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/organization",
+  beforeLoad: () => {
+    throw redirect({ to: "/organization/$tab", params: { tab: "settings" } });
+  },
+});
+
+/** The Organization page, one tab per address (T-2605, UI-75): outside any project. */
+const organizationTabRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/organization/$tab",
+  component: function OrganizationTabRoute() {
+    const { tab } = organizationTabRoute.useParams();
+    const projects = useProjects();
+    if (!isOrganizationTab(tab)) {
+      return <NotFound />;
+    }
+    const first = projects.data?.[0];
+    if (!first) {
+      return <NoProject projects={projects} />;
+    }
+    return (
+      <Shell project={first}>
+        <OrganizationPage tab={tab} anchor={first} />
+      </Shell>
     );
   },
 });
@@ -592,6 +624,8 @@ export const routeTree = rootRoute.addChildren([
     approvalDetailRoute,
     playgroundRoute,
     allEndpointsRoute,
+    organizationRoute,
+    organizationTabRoute,
     modelsRoute,
     exploreRoute,
     ckanRoute,

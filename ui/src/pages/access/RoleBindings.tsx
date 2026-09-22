@@ -48,6 +48,13 @@ interface BindingSpec {
 /** Where a grant applies, as the form holds it: `organization`, `project`, or `space:<name>`. */
 type Place = string;
 
+/**
+ * Which bindings a page shows and grants (Architecture/09 §14.3): the organization's own on the
+ * Organization page, this project's and its spaces' in Project settings, all of them where both
+ * meet. A page never offers a place it does not show.
+ */
+export type BindingScope = "organization" | "project" | "all";
+
 interface GrantForm {
   subjectKind: "user" | "group";
   subject: string;
@@ -91,14 +98,18 @@ export function bindingOf(form: GrantForm, project: string, orgDomain: string): 
 }
 
 /** The form a manifest fills: the assistant's draft, or an empty one. */
-function formOf(manifest: Record<string, unknown> | null, project: string): GrantForm {
+function formOf(
+  manifest: Record<string, unknown> | null,
+  project: string,
+  scope: BindingScope = "all",
+): GrantForm {
   const spec = (manifest?.spec ?? {}) as BindingSpec;
   const subject = spec.subjects?.[0];
   return {
     subjectKind: subject?.group ? "group" : "user",
     subject: subject?.group ?? subject?.user ?? "",
     role: spec.role ?? "",
-    place: manifest ? placeOf(spec.scope, project) : "project",
+    place: manifest ? placeOf(spec.scope, project) : scope === "organization" ? "organization" : "project",
     until: spec.validity?.notAfter?.slice(0, 10) ?? "",
   };
 }
@@ -108,9 +119,10 @@ function reasonOf(error: unknown, fallback: string): string {
   return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
 }
 
-function useList(project: string, plural: string) {
+function useList(project: string, plural: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.list(project, plural),
+    enabled,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -130,8 +142,11 @@ export function GrantRoleDialog({
   open,
   onOpenChange,
   prefill,
+  scope = "all",
 }: {
   project: string;
+  /** The places the dialog offers; the organization page grants at organization scope only. */
+  scope?: BindingScope;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The binding the assistant drafted, when the page was opened on one. */
@@ -142,7 +157,7 @@ export function GrantRoleDialog({
   const ids = useId();
   const queryClient = useQueryClient();
   const branding = useBranding();
-  const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project));
+  const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project, scope));
   const [change, setChange] = useState<Change | null>(null);
   // The fields an empty Propose marked, so the person is told which one is missing instead of
   // meeting a button that does nothing (UI-04, T-1492).
@@ -151,7 +166,7 @@ export function GrantRoleDialog({
   const subjectRef = useRef<HTMLInputElement | null>(null);
   const roleRef = useRef<HTMLSelectElement | null>(null);
   const roles = useList(ORG_NAMESPACE, "roles");
-  const spaces = useList(project, "spaces");
+  const spaces = useList(project, "spaces", scope !== "organization");
 
   const propose = useMutation({
     mutationFn: async () =>
@@ -175,14 +190,14 @@ export function GrantRoleDialog({
     },
   });
 
-  const empty = formOf(null, project);
+  const empty = formOf(null, project, scope);
   // Something typed is something to lose: the subject, a chosen role, a place other than the
   // default or an end date. The proposed change itself is not: it is already saved.
   const typed =
     form.subject.trim() !== "" || form.role !== "" || form.place !== empty.place || form.until !== "";
 
   const leave = () => {
-    setForm(formOf(null, project));
+    setForm(formOf(null, project, scope));
     setChange(null);
     setMissing({});
     setDiscarding(false);
@@ -336,8 +351,12 @@ export function GrantRoleDialog({
             help={spaces.isPending ? t("app.loading") : (spacesFailure ?? undefined)}
           >
             <Select id={`${ids}-place`} value={form.place} onChange={(event) => set({ place: event.target.value })}>
-              <option value="project">{t("access.roles.project", { name: project })}</option>
-              <option value="organization">{t("access.roles.organization")}</option>
+              {scope !== "organization" ? (
+                <option value="project">{t("access.roles.project", { name: project })}</option>
+              ) : null}
+              {scope !== "project" ? (
+                <option value="organization">{t("access.roles.organization")}</option>
+              ) : null}
               {spaceNames.map((name) => (
                 <option key={name} value={`space:${name}`}>
                   {t("access.roles.space", { name })}
@@ -379,12 +398,22 @@ export function GrantRoleDialog({
   );
 }
 
-/** Project → Access → who holds which role here: over the organization, this project or one of its spaces. */
-export function RoleBindings({ project }: { project: string }): JSX.Element {
+/**
+ * Who holds which role: over the organization, this project or one of its spaces. `scope` narrows
+ * it to the organization's own bindings (Organization → Members) or to this project's and its
+ * spaces' (Project settings → Members), T-2605, T-2606.
+ */
+export function RoleBindings({
+  project,
+  scope = "all",
+}: {
+  project: string;
+  scope?: BindingScope;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const bindings = useList(ORG_NAMESPACE, "rolebindings");
-  const spaces = useList(project, "spaces");
+  const spaces = useList(project, "spaces", scope !== "organization");
   const [prefill] = useState(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("grant")
       ? takePrefill(window.location.pathname)
@@ -397,14 +426,13 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
   // the table under-reports: the rows do not appear and nothing says they are missing. An
   // access review that quietly shows fewer grants than exist is worse than one that fails, so
   // the gap is named and the rows that are still trustworthy are shown.
-  const loading = bindings.isPending || spaces.isPending;
+  const loading = bindings.isPending || (scope !== "organization" && spaces.isPending);
   const here = asManifests(bindings.data?.items ?? []).filter((binding) => {
-    const scope = (binding.spec as BindingSpec).scope;
-    return (
-      Boolean(scope?.organization) ||
-      scope?.project === project ||
-      (scope?.contextSpace !== undefined && spaceNames.has(scope.contextSpace))
-    );
+    const at = (binding.spec as BindingSpec).scope;
+    const organizational = Boolean(at?.organization);
+    const inProject =
+      at?.project === project || (at?.contextSpace !== undefined && spaceNames.has(at.contextSpace));
+    return scope === "organization" ? organizational : scope === "project" ? inProject : organizational || inProject;
   });
 
   const where = (scope: Scope | undefined) =>
@@ -434,7 +462,7 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
         </PermissionGuard>
       </div>
 
-      {spaces.isError ? (
+      {scope !== "organization" && spaces.isError ? (
         <Alert tone="danger" role="alert">
           {t("access.roles.spacesFailed", { reason: reasonOf(spaces.error, t("app.error.generic")) })}
         </Alert>
@@ -446,7 +474,9 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
         </Alert>
       ) : (
         <Table
-          caption={t("access.roles.caption", { project })}
+          caption={
+            scope === "organization" ? t("organization.members.caption") : t("access.roles.caption", { project })
+          }
           status={loading ? t("app.loading") : undefined}
         >
           <TableHead>
@@ -501,7 +531,13 @@ export function RoleBindings({ project }: { project: string }): JSX.Element {
         </Table>
       )}
 
-      <GrantRoleDialog project={project} open={granting} onOpenChange={setGranting} prefill={prefill} />
+      <GrantRoleDialog
+        project={project}
+        open={granting}
+        onOpenChange={setGranting}
+        prefill={prefill}
+        scope={scope}
+      />
     </section>
   );
 }

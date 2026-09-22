@@ -297,6 +297,7 @@ export function Shell({
   );
 
   const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
+  const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -389,6 +390,17 @@ export function Shell({
             {/* Opening a project is a setting of the organization, so the control is always
                 here, disabled with the reason when this caller may not (UI-44, PF-65). */}
             <NewProjectButton project={project} />
+            {/* What is the same in every project lives outside any of them, beside the project
+                switcher (T-2605, Architecture/09 §14.1). */}
+            <Link
+              to="/organization/$tab"
+              params={{ tab: "settings" }}
+              onClick={closeNav}
+              aria-current={organizationActive ? "page" : undefined}
+              className={navLinkClass(organizationActive)}
+            >
+              <NavLabel icon="user" label={t("nav.organization")} />
+            </Link>
           </div>
           <ul className="flex flex-col gap-0.5">
             {NAV_SECTIONS.map((section) => {
