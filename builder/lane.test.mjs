@@ -1,10 +1,12 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
+import * as lane from "./lane.mjs";
 import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, ociImage, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
@@ -40,6 +42,41 @@ test("every sample application passes the lane's package check against the templ
     }
   }
   assert.ok(seen >= 4, `only ${seen} sample packages found`);
+});
+
+// SDK-24, AP-82 (T-2649). On the lane an app's packages are links into the template's store,
+// outside the app, so vitest externalises the packed SDK and Node imports the MapLibre stylesheet
+// the SDK imports: "Unknown file extension .css". The lane runs the tests with its own config,
+// which is the app's with the SDK inlined, so an app whose vite.config lacks that still passes.
+test("an app's tests pass on the lane when the linked SDK imports a stylesheet", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const store = mkdtempSync(join(tmpdir(), "lane-store-"));
+  mkdirSync(join(store, "node_modules/@joinedcontext/sdk"), { recursive: true });
+  for (const name of ["vitest", "vite", "maplibre-gl", "jsdom", ".bin"]) {
+    symlinkSync(join(root, "sdk/node_modules", name), join(store, "node_modules", name));
+  }
+  // The packed SDK's shape: an ES module that imports the map's stylesheet.
+  writeFileSync(join(store, "node_modules/@joinedcontext/sdk/package.json"), JSON.stringify({ name: "@joinedcontext/sdk", type: "module", exports: { ".": "./index.js" } }));
+  writeFileSync(join(store, "node_modules/@joinedcontext/sdk/index.js"), 'import "maplibre-gl/dist/maplibre-gl.css";\nexport const sdk = "packed";\n');
+  const dir = app({
+    "vite.config.ts": 'import { defineConfig } from "vite";\nexport default defineConfig({ test: { include: ["src/**/*.test.ts"] } });\n',
+    "src/map.test.ts": 'import { expect, test } from "vitest";\nimport { sdk } from "@joinedcontext/sdk";\ntest("the SDK loads", () => { expect(sdk).toBe("packed"); });\n',
+  });
+  mkdirSync(join(dir, "node_modules"));
+  for (const name of readdirSync(join(store, "node_modules"))) {
+    symlinkSync(join(store, "node_modules", name), join(dir, "node_modules", name));
+  }
+  const vitest = (...args) => spawnSync(join(dir, "node_modules/.bin/vitest"), ["run", ...args], { cwd: dir, encoding: "utf8" });
+
+  const own = vitest();
+  assert.notEqual(own.status, 0, "the app's own config was expected to hit the linked stylesheet");
+  assert.match(own.stdout + own.stderr, /Unknown file extension "\.css"/);
+
+  const config = lane.vitestConfig(dir);
+  const laned = vitest("--config", config);
+  assert.equal(laned.status, 0, laned.stdout + laned.stderr);
+  // The app's own settings still hold: its include found the one test.
+  assert.match(laned.stdout, /1 passed/);
 });
 
 function app(files) {
