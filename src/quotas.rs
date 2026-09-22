@@ -46,12 +46,20 @@ pub fn organization_default(mirror: &Mirror) -> Quotas {
         .unwrap_or_default()
 }
 
-/// Whether one manifest counts against `dimension`: every context space and app, a pipeline the
-/// runner keeps resident, an endpoint open to the public.
+/// Whether one manifest counts against `dimension`: every context space, an app in `preview` or
+/// `published` of any class, a pipeline the runner keeps resident, an endpoint open to the public.
+/// A draft or retired App runs, serves and is built nowhere, so it counts nothing (PF-73, AP-18,
+/// AP-21, T-2654).
 fn counts(dimension: &str, kind: &str, spec: &Value) -> bool {
     match dimension {
         "contextSpaces" => kind == "ContextSpace",
-        "apps" => kind == "App",
+        "apps" => {
+            kind == "App"
+                && matches!(
+                    spec.get("lifecycle").and_then(Value::as_str),
+                    Some("preview" | "published")
+                )
+        }
         "publicEndpoints" => {
             kind == "Endpoint" && spec.get("audience").and_then(Value::as_str) == Some("public")
         }
@@ -293,11 +301,91 @@ mod tests {
             app("bikes"),
             app("events"),
         ]);
+        let published = json!({ "lifecycle": "published" });
         // Three held against a limit of two: the build lane writes status.build of one of them.
-        assert!(check(&mirror, "helsinki", "App", "events", &json!({})).is_ok());
+        assert!(check(&mirror, "helsinki", "App", "events", &published).is_ok());
         // A fourth is still refused, and so is a new one under the limit's count.
-        let refused = check(&mirror, "helsinki", "App", "hsl", &json!({})).unwrap_err();
+        let refused = check(&mirror, "helsinki", "App", "hsl", &published).unwrap_err();
         assert!(refused.to_string().contains("apps 4 of 2"), "{refused}");
+    }
+
+    /// PF-73, T-2654: the apps quota counts what is live, `preview` or `published`, of every class;
+    /// a draft or retired App counts nothing, holds no slot beyond, and can always be written.
+    #[test]
+    fn only_a_live_app_counts_against_the_apps_quota() {
+        let app = |name: &str, class: &str, lifecycle: Option<&str>| {
+            let mut spec = json!({ "kind": class });
+            if let Some(lifecycle) = lifecycle {
+                spec["lifecycle"] = json!(lifecycle);
+            }
+            envelope("App", name, "helsinki", spec)
+        };
+        let mirror = mirror_with(vec![
+            envelope(
+                "Organization",
+                "hel",
+                ORG_NAMESPACE,
+                json!({ "domain": "hel.fi", "projects": { "quota": { "apps": 2 } } }),
+            ),
+            app("alerts", "static", Some("published")),
+            app("allerts", "static", Some("retired")),
+            app("citiy-bike-station", "static", Some("retired")),
+            app("drafted", "fullstack", None),
+            app("sketch", "fullstack", Some("draft")),
+            app("transport", "fullstack", Some("preview")),
+        ]);
+        assert_eq!(usage(&mirror, "helsinki").get("apps"), Some(&2));
+        assert!(
+            beyond(&mirror, "helsinki", "apps").is_empty(),
+            "the two live ones fit; the retired and drafts hold no slot"
+        );
+
+        for lifecycle in ["draft", "retired"] {
+            check(
+                &mirror,
+                "helsinki",
+                "App",
+                "another",
+                &json!({ "lifecycle": lifecycle }),
+            )
+            .unwrap_or_else(|err| panic!("a {lifecycle} App counts nothing: {err}"));
+        }
+        check(
+            &mirror,
+            "helsinki",
+            "App",
+            "alerts",
+            &json!({ "lifecycle": "retired" }),
+        )
+        .expect("retiring a counted App frees its slot");
+        for lifecycle in ["preview", "published"] {
+            let refused = check(
+                &mirror,
+                "helsinki",
+                "App",
+                "sketch",
+                &json!({ "kind": "static", "lifecycle": lifecycle }),
+            )
+            .expect_err("a draft that goes live is counted, whatever its class");
+            assert!(refused.to_string().contains("apps 3 of 2"), "{refused}");
+        }
+
+        let crowded = mirror_with(vec![
+            envelope(
+                "Organization",
+                "hel",
+                ORG_NAMESPACE,
+                json!({ "domain": "hel.fi", "projects": { "quota": { "apps": 1 } } }),
+            ),
+            app("aaa-retired", "fullstack", Some("retired")),
+            app("bbb", "fullstack", Some("published")),
+            app("ccc", "static", Some("published")),
+        ]);
+        assert_eq!(
+            beyond(&crowded, "helsinki", "apps"),
+            ["ccc"],
+            "a retired App ahead by name takes no slot from a live one"
+        );
     }
 
     #[test]
