@@ -367,8 +367,8 @@ fn a_public_app_tells_its_container_that_anonymous_callers_are_normal() {
     assert_eq!(rendered.endpoint.spec["audience"], "public");
     assert_eq!(
         rendered.policies[0].spec["assignee"],
-        json!({ "kind": "role", "id": "public" }),
-        "anonymous callers act under the synthetic public role (GW22)"
+        json!({ "kind": "role", "id": "endpoint:ovzdusie/app-air-quality-today" }),
+        "anonymous callers the endpoint admits hold its caller role there alone (AP-96, GW22)"
     );
 
     // A project app has no such flag: an absent token there is the edge's `unauth_action: auth`
@@ -563,5 +563,115 @@ fn a_generated_slug_is_unguessable_and_never_the_same_twice() {
     assert!(
         EndpointSlug::new("ovzdusie").is_err(),
         "a readable slug is not a slug (EP-02, EP-03)"
+    );
+}
+
+/// AP-96: the app's grants are held on its own endpoint alone. A need without roles goes to the
+/// endpoint's caller role, a need with roles to one Policy per role, each exactly the need, and
+/// the endpoint carries the roles with their subjects so the gateway can hand them out (AP-97).
+#[test]
+fn a_role_gated_need_is_granted_to_that_role_on_the_apps_endpoint_alone() {
+    let rendered = render(
+        &app(json!({
+            "kind": "static",
+            "source": { "path": "." },
+            "build": { "node": "22" },
+            "visibility": "roles",
+            "roles": [
+                { "name": "viewer" },
+                { "name": "steward" },
+                { "name": "auditor" }
+            ],
+            "access": [
+                { "role": "viewer", "subjects": [{ "group": "bb-operations" }] },
+                { "role": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+            ],
+            "dataNeeds": [
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+                    "types": ["AirQualityObserved"],
+                    "operations": ["queryEntity"]
+                },
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+                    "types": ["AirQualityObserved"],
+                    "attrs": ["stewardNote"],
+                    "operations": ["updateAttrs"],
+                    "roles": ["steward", "auditor"]
+                }
+            ]
+        })),
+        None,
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("a static app with roles renders");
+
+    let endpoint = &rendered.endpoint.spec;
+    assert_eq!(endpoint["callerRole"], true);
+    assert_eq!(endpoint["audience"], "organization");
+    assert_eq!(
+        endpoint["roles"],
+        json!([
+            { "name": "viewer", "subjects": [{ "group": "bb-operations" }] },
+            { "name": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+        ]),
+        "a role nobody holds gives nobody anything and is left out"
+    );
+    let parsed: EndpointSpec =
+        serde_json::from_value(endpoint.clone()).expect("the endpoint parses");
+    parsed.validate().expect("the endpoint is valid");
+
+    let granted: Vec<(&str, &Value)> = rendered
+        .policies
+        .iter()
+        .map(|p| (p.metadata.name.as_str(), &p.spec["assignee"]["id"]))
+        .collect();
+    assert_eq!(
+        granted,
+        [
+            (
+                "app-air-quality-today-1",
+                &json!("endpoint:ovzdusie/app-air-quality-today")
+            ),
+            (
+                "app-air-quality-today-2-steward",
+                &json!("endpoint:ovzdusie/app-air-quality-today/steward")
+            ),
+            (
+                "app-air-quality-today-2-auditor",
+                &json!("endpoint:ovzdusie/app-air-quality-today/auditor")
+            ),
+        ]
+    );
+    for policy in &rendered.policies[1..] {
+        assert_eq!(policy.spec["operations"], json!(["updateAttrs"]));
+        assert_eq!(
+            policy.spec["information"][0]["propertyNames"],
+            json!(["stewardNote"]),
+            "a role's grant is the need and never more (AP-06)"
+        );
+        let parsed: PolicySpec =
+            serde_json::from_value(policy.spec.clone()).expect("a rendered policy parses");
+        parsed.validate().expect("a rendered policy is valid");
+    }
+}
+
+/// AP-96: before roles the grant named `app-{name}`, a role no token carries, so a project app
+/// read nothing; now every caller the endpoint admits holds the caller role it is granted to.
+#[test]
+fn a_project_app_is_granted_to_the_endpoints_caller_role() {
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders");
+    assert_eq!(rendered.endpoint.spec["callerRole"], true);
+    assert!(rendered.endpoint.spec.get("roles").is_none());
+    assert_eq!(
+        rendered.policies[0].spec["assignee"],
+        json!({ "kind": "role", "id": "endpoint:ovzdusie/app-air-quality-today" })
     );
 }
