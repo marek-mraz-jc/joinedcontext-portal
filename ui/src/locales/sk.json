@@ -1567,6 +1567,13 @@
         "succeeded": "Zostavené {commit}.",
         "failed": "Zostavenie {commit} zlyhalo; posledný beh hovorí prečo.",
         "cancelled": "Zostavenie {commit} bolo zrušené."
+      },
+      "state": {
+        "building": "Zostavuje sa {commit}",
+        "failed": "Zostavenie zlyhalo",
+        "failedLink": "Prečo zlyhalo",
+        "served": "Podáva sa {commit}",
+        "noRepository": "Nemá vlastný repozitár: aplikácia vznikla pred repozitárom pre každú aplikáciu, preto ju nič nezostavuje ani nepodáva."
       }
     }
   },

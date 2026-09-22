@@ -27,6 +27,10 @@ use crate::state::AppState;
 pub const INTEGRITY_MANIFEST: &str = "integrity.json";
 
 /// Serves `/apps/{name}/` — the app's own index.
+///
+/// A signed-in person's first index also brings the double-submit CSRF cookie of the apps origin:
+/// the Portal's own is host-only on the Portal host, and a function call that carries the edge's
+/// token is refused without one (AP-84, [`super::functions`]).
 async fn serve_index(
     user: OptionalUser,
     state: State<AppState>,
@@ -34,14 +38,25 @@ async fn serve_index(
     uri: Uri,
     name: Path<String>,
 ) -> Response {
-    serve(
+    let needs_csrf = user.0.is_some()
+        && axum_extra::extract::cookie::CookieJar::from_headers(&headers)
+            .get(crate::auth::csrf::CSRF_COOKIE)
+            .is_none();
+    let mut response = serve(
         user,
         state,
         headers,
         uri,
         Path((name.0, "index.html".to_string())),
     )
-    .await
+    .await;
+    if needs_csrf && response.status().is_success() {
+        let cookie = crate::auth::csrf::cookie(&crate::auth::csrf::Token::mint());
+        if let Ok(value) = HeaderValue::from_str(&cookie.to_string()) {
+            response.headers_mut().append(header::SET_COOKIE, value);
+        }
+    }
+    response
 }
 
 /// Serves `/apps/{name}/{path}`.
@@ -69,10 +84,12 @@ async fn serve(
     if !may_read(&spec, user.is_some()) {
         return not_found();
     }
-    let Some(root) = state.config.apps_dir.as_deref() else {
-        return not_found();
-    };
-    let Some(app_root) = app_root(FsPath::new(root), &name, build.as_ref()) else {
+    let Some(app_root) = app_root(
+        state.config.apps_dir.as_deref().map(FsPath::new),
+        state.config.apps_cache_dir.as_deref().map(FsPath::new),
+        &name,
+        build.as_ref(),
+    ) else {
         return not_found();
     };
     let Some(file) = resolve(&app_root, &path) else {
@@ -134,7 +151,7 @@ async fn serve(
 
 /// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
 /// port, the scheme's default when none is written. A request without a `Host` is not on it.
-fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
+pub(super) fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
     let Some(authority) = headers
         .get(header::HOST)
         .and_then(|v| v.to_str().ok())
@@ -152,7 +169,7 @@ fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
 /// to the same path and query there, so every link keeps working and no byte of the bundle is
 /// ever served where it could reach the Portal API with the viewer's session. The target is
 /// the configured origin, never the request's `Host`, so this is no open redirect.
-fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
+pub(super) fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
     let target = uri
         .path_and_query()
         .map_or("/", axum::http::uri::PathAndQuery::as_str);
@@ -186,7 +203,7 @@ impl FrameOptions for HeaderValue {
 /// The published App manifest of this name, whatever project owns it. App names are
 /// DNS-1123 labels and the app URL has no project segment (AP-14), so the name is what
 /// identifies it here.
-fn published_app(
+pub(super) fn published_app(
     state: &AppState,
     name: &str,
 ) -> Option<(String, AppSpec, Option<jc_core::Build>)> {
@@ -209,7 +226,7 @@ fn published_app(
 /// then every Endpoint the project's `SharedSpaceReference`s point at (EP-15). The first is the
 /// primary. Slugs and spaces only, never a token: the reader's own session is what reaches each
 /// endpoint, and the gateway's Policy decides what it may read (AP-07).
-fn served_config(
+pub(super) fn served_config(
     mirror: &crate::store::Mirror,
     project: &str,
     name: &str,
@@ -304,22 +321,24 @@ fn with_config(html: &str, config: &serde_json::Value) -> String {
     format!("{}{element}{}", &html[..at], &html[at..])
 }
 
-/// The directory one app is served from (AP-72, AP-74).
+/// The directory one app is served from (AP-72, AP-102).
 ///
-/// `status.build` names the build the manifest deploys, and until the artifact store exists the
-/// build lane publishes it under the commit: `{apps_dir}/{name}/{commit}/`. An app that names no
-/// build, or names one this host does not hold, keeps serving `{apps_dir}/{name}/` — the
-/// previous publish — and [`build_missing`] is what says so on the App itself.
-fn app_root(root: &FsPath, name: &str, build: Option<&jc_core::Build>) -> Option<PathBuf> {
-    let base = root.join(name);
-    if let Some(build) = build {
-        if let Ok(keyed) = base.join(&build.commit).canonicalize() {
-            if keyed.is_dir() && keyed.starts_with(base.canonicalize().ok()?) {
-                return Some(keyed);
-            }
-        }
-    }
-    base.canonicalize().ok()
+/// `status.build` names the build the manifest deploys, fetched into
+/// `{apps_cache_dir}/{name}/{hex}/` ([`crate::apps::fetch`]). An app that names no build, or
+/// names one this host does not hold yet, keeps serving `{apps_dir}/{name}/`, the bundle the
+/// image ships, and [`build_missing`] is what says so on the App itself.
+pub(super) fn app_root(
+    shipped: Option<&FsPath>,
+    cache: Option<&FsPath>,
+    name: &str,
+    build: Option<&jc_core::Build>,
+) -> Option<PathBuf> {
+    let held = cache
+        .zip(build)
+        .and_then(|(cache, build)| crate::apps::fetch::build_dir(cache, name, &build.digest))
+        .and_then(|dir| dir.canonicalize().ok())
+        .filter(|dir| dir.is_dir());
+    held.or_else(|| shipped?.join(name).canonicalize().ok())
 }
 
 /// Whether this Portal's image ships the bundle of the app `name`: `{apps_dir}/{name}/index.html`
@@ -358,8 +377,8 @@ pub fn unshipped_claim(
 /// The host keeps serving what it has; this is the list the reconciler turns into a red `Ready`
 /// condition, so an operator sees a build that never arrived instead of a stale app that looks
 /// healthy.
-pub fn build_missing(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
-    let Some(root) = apps_dir else {
+pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
+    let Some(cache) = apps_cache_dir.map(FsPath::new) else {
         return Vec::new();
     };
     let mut missing: Vec<String> = mirror
@@ -369,10 +388,8 @@ pub fn build_missing(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> V
             let Some(build) = env.status.as_ref().and_then(|s| s.build.as_ref()) else {
                 return false;
             };
-            !FsPath::new(root)
-                .join(&env.metadata.name)
-                .join(&build.commit)
-                .is_dir()
+            !crate::apps::fetch::build_dir(cache, &env.metadata.name, &build.digest)
+                .is_some_and(|dir| dir.is_dir())
         })
         .map(|env| env.metadata.name)
         .collect();
@@ -382,7 +399,7 @@ pub fn build_missing(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> V
 
 /// Who may read a published app. `visibility` beyond "is there a session" is the endpoint
 /// authorization's job; the host only refuses to serve a non-public app to an anonymous caller.
-fn may_read(spec: &AppSpec, authenticated: bool) -> bool {
+pub(super) fn may_read(spec: &AppSpec, authenticated: bool) -> bool {
     matches!(spec.visibility, jc_core::kinds::AppVisibility::Public) || authenticated
 }
 
@@ -425,7 +442,7 @@ fn quoted(source: &String) -> String {
 /// Resolves a bundle-relative path inside one app's directory, or `None` if it would leave it.
 /// `canonicalize` is what decides: it resolves `..` and every symlink, so a link pointing out of
 /// the root is caught as surely as a literal traversal.
-fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
+pub(super) fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
     if path.is_empty() || path.ends_with('/') {
         return None;
     }
@@ -434,7 +451,7 @@ fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
 }
 
 /// The digest the build lane recorded for this file, if any.
-fn integrity_of(app_root: &FsPath, path: &str) -> Option<String> {
+pub(super) fn integrity_of(app_root: &FsPath, path: &str) -> Option<String> {
     let manifest = resolve(app_root, INTEGRITY_MANIFEST)?;
     let digests: std::collections::BTreeMap<String, String> =
         serde_json::from_slice(&std::fs::read(manifest).ok()?).ok()?;
@@ -451,7 +468,7 @@ pub fn sri_sha384(bytes: &[u8]) -> String {
 
 /// A session if the caller has one, nothing if not: a public app is served to anyone, and a
 /// non-public one needs a login without the route itself being a login wall.
-struct OptionalUser(Option<crate::auth::CurrentUser>);
+pub(super) struct OptionalUser(pub(super) Option<crate::auth::CurrentUser>);
 
 impl axum::extract::FromRequestParts<AppState> for OptionalUser {
     type Rejection = std::convert::Infallible;
@@ -471,6 +488,12 @@ impl axum::extract::FromRequestParts<AppState> for OptionalUser {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/apps/{name}/", get(serve_index))
+        .route(
+            "/apps/{name}/api/functions/{fn}",
+            axum::routing::post(super::functions::call).layer(
+                axum::extract::DefaultBodyLimit::max(super::functions::MAX_BODY_BYTES),
+            ),
+        )
         .route("/apps/{name}/{*path}", get(serve))
 }
 
@@ -573,7 +596,7 @@ mod tests {
         std::fs::write(dir.join("secret.txt"), b"not yours").expect("neighbour file");
         std::fs::write(app.join("index.html"), b"<!doctype html>").expect("index");
 
-        let root = app_root(&dir, "demo", None).expect("the app directory");
+        let root = app_root(Some(&dir), None, "demo", None).expect("the app directory");
         assert!(resolve(&root, "index.html").is_some());
         assert!(resolve(&root, "../secret.txt").is_none());
         assert!(resolve(&root, "/etc/passwd").is_none());
