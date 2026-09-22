@@ -35,9 +35,9 @@ fn feature(id: &str, longitude: f64, latitude: f64) -> Value {
         "geometry": { "type": "Point", "coordinates": [longitude, latitude] },
         "properties": {
             "type": "Vehicle",
-            "bearing": { "type": "Property", "value": 143.0 },
+            "heading": { "type": "Property", "value": 143.0 },
             "speed": { "type": "Property", "value": 8.5 },
-            "refLine": { "type": "Property", "value": "550" }
+            "route": { "type": "Property", "value": "550" }
         }
     })
 }

@@ -1,16 +1,30 @@
-// The Endpoint the app talks to during the browser flow: one space, one station, one
-// grant that depends on the bearer token. It is deliberately not the gateway; what it
-// reproduces is the only thing the flow needs, namely that the PDP answers differently for a
-// steward and for a viewer, and that the app carries the caller's token to it (GW10).
+// The Endpoint and the Portal's `/me` the app talks to during the browser flow: one space, a
+// pipeline's station and whatever a steward adds. It is deliberately not the gateway; what it
+// reproduces is what the flow needs: the roles differ by bearer token (AP-109), a viewer's write
+// is refused with a problem document (GW10), and only a station without `source` may be removed
+// (the grant's `q: "!source"`, R45).
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.STUB_PORT ?? 4319);
-const ID = "urn:ngsi-ld:AirQualityObserved:hel.fi:air-quality:station-01";
+const PREFIX = "urn:ngsi-ld:AirQualityObserved:hel.fi:helsinki";
+const ID = `${PREFIX}:kallio`;
 
-let note = null;
+const stations = new Map([
+  [
+    ID,
+    {
+      id: ID,
+      type: "AirQualityObserved",
+      name: { type: "LanguageProperty", languageMap: { fi: "Kallio", en: "Kallio" } },
+      pm10: { type: "Property", value: 34.2, observedAt: "2026-09-06T10:00:00Z" },
+      pm25: { type: "Property", value: 21 },
+      location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.95, 60.18] } },
+      source: { type: "Property", value: "https://example.org/air-quality" },
+    },
+  ],
+]);
 
-const isSteward = (request) =>
-  (request.headers.authorization ?? "").includes("steward");
+const isSteward = (request) => (request.headers.authorization ?? "").includes("steward");
 
 const send = (response, status, body) => {
   if (body === undefined) {
@@ -25,47 +39,53 @@ const send = (response, status, body) => {
   response.end(payload);
 };
 
-const station = () => ({
-  id: ID,
-  type: "AirQualityObserved",
-  name: { type: "Property", value: "Kallio" },
-  pm10: { type: "Property", value: 34.2, observedAt: "2026-09-06T10:00:00Z" },
-  pm25: { type: "Property", value: 21 },
-  location: {
-    type: "GeoProperty",
-    value: { type: "Point", coordinates: [19.146, 48.736] },
-  },
-  ...(note ? { stewardNote: { type: "Property", value: note } } : {}),
-});
+const forbidden = (detail) => ({ type: "https://joinedcontext.com/errors/forbidden", title: "Forbidden", status: 403, detail });
+
+const read = (request, then) => {
+  let body = "";
+  request.on("data", (chunk) => (body += chunk));
+  request.on("end", () => then(JSON.parse(body || "{}")));
+};
 
 createServer((request, response) => {
   const { pathname } = new URL(request.url, `http://127.0.0.1:${PORT}`);
+  const entity = /^\/ngsi-ld\/v1\/entities\/([^/]+)(\/attrs)?$/.exec(pathname);
+  const id = entity ? decodeURIComponent(entity[1]) : null;
 
   if (pathname === "/health") {
     return send(response, 200, { ok: true });
   }
+  if (pathname === "/me" && request.method === "GET") {
+    const who = (request.headers.authorization ?? "").replace("Bearer token-for-", "");
+    return send(response, 200, { id: `f:1:demo.${who}`, name: who, roles: [isSteward(request) ? "steward" : "viewer"] });
+  }
   if (pathname === "/ngsi-ld/v1/entities" && request.method === "GET") {
-    return send(response, 200, [station()]);
+    return send(response, 200, [...stations.values()]);
   }
-  if (pathname === "/access/check" && request.method === "POST") {
-    return send(response, 200, { decision: isSteward(request) });
-  }
-  if (pathname === `/ngsi-ld/v1/entities/${ID}/attrs` && request.method === "PATCH") {
+  if (pathname === "/ngsi-ld/v1/entities" && request.method === "POST") {
     if (!isSteward(request)) {
-      return send(response, 403, {
-        type: "https://joinedcontext.com/errors/forbidden",
-        title: "Forbidden",
-        status: 403,
-        detail: "writing stewardNote needs the project-steward role",
-      });
+      return send(response, 403, forbidden("createEntity on AirQualityObserved needs the steward role"));
     }
-    let body = "";
-    request.on("data", (chunk) => (body += chunk));
-    request.on("end", () => {
-      note = JSON.parse(body).stewardNote?.value ?? null;
+    return read(request, (body) => {
+      stations.set(body.id, body);
+      send(response, 201);
+    });
+  }
+  if (id && entity[2] && request.method === "PATCH") {
+    if (!isSteward(request)) {
+      return send(response, 403, forbidden("updateAttrs on AirQualityObserved needs the steward role"));
+    }
+    return read(request, (body) => {
+      stations.set(id, { ...stations.get(id), ...body });
       send(response, 204);
     });
-    return undefined;
+  }
+  if (id && !entity[2] && request.method === "DELETE") {
+    if (!isSteward(request) || stations.get(id)?.source) {
+      return send(response, 403, forbidden("deleteEntity is granted on records without source only"));
+    }
+    stations.delete(id);
+    return send(response, 204);
   }
   return send(response, 404, { status: 404, detail: `no route for ${pathname}` });
 }).listen(PORT, "127.0.0.1", () => {
