@@ -3137,7 +3137,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Change proposal ID (chg- + 8 hex digits)",
+            "description": "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)",
             "required": true,
             "schema": {
               "type": "string"
@@ -3219,7 +3219,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Change proposal ID (chg- + 8 hex digits)",
+            "description": "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)",
             "required": true,
             "schema": {
               "type": "string"
@@ -3331,7 +3331,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Change proposal ID (chg- + 8 hex digits)",
+            "description": "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)",
             "required": true,
             "schema": {
               "type": "string"

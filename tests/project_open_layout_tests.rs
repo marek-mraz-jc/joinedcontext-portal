@@ -4,7 +4,7 @@
 mod common;
 
 use axum::http::StatusCode;
-use common::{envelope, forge, person, send, state_on, REPO};
+use common::{envelope, forge, mount_repository, person, send, state_on, REPO};
 use joinedcontext_portal::state::AppState;
 use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
@@ -285,5 +285,117 @@ async fn deleting_a_project_removes_its_registry_entry() {
             format!("{REPO}/contents/users/assignments/doprava-creator.yaml"),
         ],
         "the entry and the binding, and not the other project's entry nor the repository"
+    );
+}
+
+// --- an organization Change keeps its own id under a project (T-2656, CC-87) ---------------
+
+/// The paths of the pull request reads the forge received, either repository.
+async fn pulls_read(server: &MockServer) -> Vec<String> {
+    server
+        .received_requests()
+        .await
+        .expect("requests")
+        .into_iter()
+        .filter(|r| r.method.as_str() == "GET" && r.url.path().contains("/pulls/"))
+        .map(|r| r.url.path().to_owned())
+        .collect()
+}
+
+/// `doprava` has its own repository, and `admin@hel.fi` reads and decides its changes.
+fn registered(state: &AppState) {
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    state.mirror.upsert(envelope(
+        "Role",
+        "org-admin",
+        org,
+        json!({ "rules": [{ "kinds": ["Project", "RoleBinding", "ContextSpace"], "verbs": ["propose", "approve", "delete", "read"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "org-admins",
+        org,
+        json!({ "subjects": [{ "user": "admin@hel.fi" }], "role": "org-admin", "scope": { "organization": "bb" } }),
+    ));
+    state
+        .mirror
+        .set_repositories(std::collections::BTreeMap::from([(
+            "doprava".to_owned(),
+            "doprava".to_owned(),
+        )]));
+}
+
+/// CC-87: the Change that opens a project is a merge request of the organization repository,
+/// so it is named `chg-org-`, and the name still means that merge request once the project has
+/// its own repository.
+#[tokio::test]
+async fn the_opening_change_is_named_for_the_organization_repository() {
+    let (_server, state) = world(false).await;
+    let (status, text) = open(&state).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{text}");
+    let change: Value = serde_json::from_str(&text).expect("a Change");
+    assert_eq!(change["metadata"]["name"], "chg-org-00000009");
+}
+
+/// CC-87: read, approve and reject by `chg-org-` reach the organization repository after the project is
+/// registered, never the project repository's merge request of the same number.
+#[tokio::test]
+async fn an_organization_change_is_read_and_rejected_in_the_organization_repository() {
+    let (server, state) = world(false).await;
+    mount_repository(&server, NEW).await;
+    registered(&state);
+
+    for (verb, uri, body) in [
+        (
+            "GET",
+            "/api/v1/projects/doprava/changes/chg-org-00000009",
+            None,
+        ),
+        (
+            "POST",
+            "/api/v1/projects/doprava/changes/chg-org-00000009/approve",
+            Some(json!({ "confirm": "doprava" })),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/doprava/changes/chg-org-00000009/reject",
+            Some(json!({ "reason": "not yet" })),
+        ),
+    ] {
+        send(&state, person("admin"), verb, uri, body).await;
+    }
+
+    let read = pulls_read(&server).await;
+    let organization = format!("{REPO}/pulls/9");
+    assert!(
+        read.iter().filter(|path| **path == organization).count() >= 3,
+        "each of read, approve and reject asked the organization repository: {read:?}"
+    );
+    assert!(!read.iter().any(|path| path.starts_with(NEW)), "{read:?}");
+}
+
+/// CC-87: a `chg-` id under a registered project is still its own repository's merge request.
+#[tokio::test]
+async fn a_project_change_keeps_its_id_and_its_repository() {
+    let (server, state) = world(false).await;
+    mount_repository(&server, NEW).await;
+    registered(&state);
+
+    send(
+        &state,
+        person("admin"),
+        "GET",
+        "/api/v1/projects/doprava/changes/chg-00000009",
+        None,
+    )
+    .await;
+
+    let read = pulls_read(&server).await;
+    assert!(read.contains(&format!("{NEW}/pulls/9")), "{read:?}");
+    assert!(
+        !read
+            .iter()
+            .any(|path| path.starts_with(&format!("{REPO}/"))),
+        "{read:?}"
     );
 }

@@ -511,9 +511,7 @@ pub async fn mirror_of(
 
 use crate::api::changes::ChangeFile;
 use crate::auth::session::Identity;
-use crate::change::{
-    Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation as Op, PlanSummary,
-};
+use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation as Op, PlanSummary};
 use crate::error::ApiError;
 use crate::git::{GitError, GiteaClient};
 use crate::ops::bounds::{text, NAME, QUERY, TERM};
@@ -1383,7 +1381,7 @@ pub async fn propose(
     let gitea = forge(state, &workspace.project)?;
     let gitea: &GiteaClient = &gitea;
     let branch = workspace.branch();
-    if let Some(open) = crate::api::mutate::open_change_on(gitea, &branch, project).await? {
+    if let Some(open) = crate::api::mutate::open_change_on(state, gitea, &branch, project).await? {
         return Err(OpError::Api(ApiError::Conflict(format!(
             "workspace '{name}' is already brought back as {}; approve or reject it first",
             open.name
@@ -1445,7 +1443,7 @@ pub async fn propose(
         .in_repository(&pr.repository)
         .with_merge_request(pr.url);
     Ok(Change::new(
-        ChangeMeta::from_merge_request(pr.number, project),
+        crate::api::changes::change_meta(state, gitea, pr.number, project),
         status,
     ))
 }

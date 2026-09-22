@@ -178,6 +178,7 @@ pub(crate) fn within_workspace(
 
 /// The open change whose pull request still uses `branch`, if any (T-0883, T-0886).
 pub(crate) async fn open_change_on(
+    state: &AppState,
     gitea: &crate::git::GiteaClient,
     branch: &str,
     project: &str,
@@ -193,7 +194,7 @@ pub(crate) async fn open_change_on(
     Ok(pulls
         .into_iter()
         .find(|pr| pr.head_branch == branch || pr.head_branch.starts_with(&suffixed))
-        .map(|pr| ChangeMeta::from_merge_request(pr.number, project)))
+        .map(|pr| crate::api::changes::change_meta(state, gitea, pr.number, project)))
 }
 
 /// The branch a proposal is written on, starting from the default branch. A branch left by
@@ -1052,7 +1053,7 @@ async fn propose_engine(
             // operation, so a second proposal while one is pending would rewrite the open pull
             // request under its approver. Refused before anything is written, naming the change
             // to decide first (T-0883).
-            if let Some(pending) = open_change_on(gitea, &branch, project).await? {
+            if let Some(pending) = open_change_on(state, gitea, &branch, project).await? {
                 return Err(ApiError::Conflict(format!(
                     "a change for {} '{}' is already open: {}; approve or reject it first",
                     kind_info.kind, envelope.metadata.name, pending.name
@@ -1162,7 +1163,7 @@ async fn propose_engine(
         .await?;
 
     // 9. Answer 202 Accepted with Change resource
-    let change_meta = ChangeMeta::from_merge_request(pr.number, project);
+    let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
         .in_repository(&pr.repository)
         .with_merge_request(pr.url);

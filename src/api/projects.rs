@@ -375,7 +375,7 @@ pub async fn open_project(
     // every change for a person, has nobody to wait for: the platform merges it and the merge
     // message says so (PF-66, PF-57).
     if lets_anyone_open(&state) && state.branding().validation == crate::branding::Validation::Lax {
-        let number = crate::api::changes::parse_change_id(&change.metadata.name)?;
+        let (_, number) = crate::api::changes::parse_change_ref(&change.metadata.name)?;
         gitea
             .merge(
                 number,
@@ -1148,7 +1148,9 @@ pub async fn delete_project_for(
     }
 
     let branch = format!("portal/delete-project-{project}");
-    if let Some(pending) = crate::api::mutate::open_change_on(gitea, &branch, project).await? {
+    if let Some(pending) =
+        crate::api::mutate::open_change_on(state, gitea, &branch, project).await?
+    {
         return Err(ApiError::Conflict(format!(
             "deleting project '{project}' is already proposed: {}; approve or reject it first",
             pending.name
@@ -1195,7 +1197,7 @@ pub async fn delete_project_for(
 
     let summary = crate::change::PlanSummary::new(0, 0, files.len());
     Ok(Change::new(
-        crate::change::ChangeMeta::from_merge_request(pull.number, project),
+        crate::api::changes::change_meta(state, gitea, pull.number, project),
         crate::change::ChangeStatus::new(
             crate::change::Lane::Red,
             crate::change::ChangePhase::PendingApproval,

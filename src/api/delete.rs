@@ -10,7 +10,7 @@ use crate::api::mutate::{
 };
 use crate::auth::session::{Front, Identity};
 use crate::auth::CurrentUser;
-use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Operation};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Operation};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::Author;
 use crate::plan;
@@ -355,7 +355,7 @@ pub async fn delete_with_identity(
         None => {
             let branch = branch_name(project, kind_info.kind, name, Operation::Delete);
             // One open change per resource (CC-34, T-0883): the pending removal is decided first.
-            if let Some(pending) = open_change_on(gitea, &branch, project).await? {
+            if let Some(pending) = open_change_on(state, gitea, &branch, project).await? {
                 return Err(ApiError::Conflict(format!(
                     "a change for {} '{name}' is already open: {}; approve or reject it first",
                     kind_info.kind, pending.name
@@ -433,7 +433,7 @@ pub async fn delete_with_identity(
         .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
         .await?;
 
-    let change_meta = ChangeMeta::from_merge_request(pr.number, project);
+    let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
         .in_repository(&pr.repository)
         .with_merge_request(pr.url);
