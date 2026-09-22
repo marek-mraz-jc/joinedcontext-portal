@@ -50,11 +50,11 @@ Loads merged JSON Schema definitions for all models exposed by the endpoint.
 ```ts
 function useAccess(endpoint?: string): { access: AccessDocument | null; error: ProblemError | null; can: (operation: string, type: string, attr?: string) => Decision }
 ```
-Loads user permissions (of the named endpoint, the primary by default) and provides synchronous evaluation of permissions and prohibitions.
+Loads user permissions (of the named endpoint, the primary by default) and provides synchronous evaluation of permissions and prohibitions. The endpoint decides; a refusal to a person who holds roles in the application names them: "Your role viewer does not permit updateAttrs on Alert." (SDK-36).
 ```ts
 function useMe(): JcUser | null
 ```
-Returns the identity and roles of the authenticated user from configuration.
+Returns `{ id, name, email, roles }` of the signed-in person as the host served it, `roles` being the person's roles in this application (`spec.access`), or `null` for an anonymous visitor. It never fetches, decodes or stores a token (SDK-35, AP-95).
 ```ts
 function useFunction<T = unknown>(name: string, body?: unknown, options?: { enabled?: boolean }): Loaded & { data: T | null }
 ```
