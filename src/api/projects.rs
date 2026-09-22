@@ -585,8 +585,12 @@ fn into_registry_entry(
     Ok(project)
 }
 
+/// The CI of every project repository (CC-90), in its first commit.
+const VALIDATE_WORKFLOW: &str = include_str!("project-validate.yml");
+
 /// Creates the project repository of layout 2 and commits its first files to `main`: `.jc/layout`,
-/// the project's own `project.yaml` at version `0.1.0` and `CODEOWNERS` (CC-85, PF-86, PF-87).
+/// the project's own `project.yaml` at version `0.1.0`, `CODEOWNERS` and the CI workflow (CC-85,
+/// CC-90, PF-86, PF-87, PF-88).
 /// `main` then takes no direct push. `files` loses the project's own file and gains the
 /// registry entry `projects/{name}.yaml`, which the organization's Change carries.
 ///
@@ -625,6 +629,10 @@ async fn seed_project_repository(
         (
             format!("projects/{name}/CODEOWNERS"),
             format!("* @{}/{name}-writers\n", repository.owner),
+        ),
+        (
+            format!("projects/{name}/.gitea/workflows/validate.yml"),
+            VALIDATE_WORKFLOW.to_owned(),
         ),
     ];
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
