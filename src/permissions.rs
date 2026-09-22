@@ -209,6 +209,11 @@ impl Effective {
             if !rule.kinds.iter().any(|k| k == kind) || !rule.verbs.contains(&verb) {
                 continue;
             }
+            // The build lane's rule writes `status.build` and authorizes no other proposal: its
+            // one write is judged by `may_write_status_field` and the unchanged spec (AP-73).
+            if verb == Verb::Propose && writes_status_only(rule) {
+                continue;
+            }
             if let Some(space) = &grant.space {
                 if space_of_target.as_deref() != Some(space.as_str()) {
                     continue;
@@ -707,6 +712,12 @@ fn field_text(target: Option<&Value>, path: &str) -> Option<String> {
         Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
+}
+
+/// Whether `rule` is the build lane's: `propose` on `App` constrained to `status.build`, which
+/// names the field's writer and carries no operator (AP-73, jc-core `Rule::writes_status_only`).
+fn writes_status_only(rule: &Rule) -> bool {
+    rule.constraints.iter().any(|c| c.field == "status.build")
 }
 
 fn satisfied(constraint: &Constraint, target: Option<&Value>) -> bool {

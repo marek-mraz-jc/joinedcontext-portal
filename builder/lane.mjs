@@ -281,7 +281,11 @@ export function outputsOf(build) {
   return `digest=${digest}\ncommit=${commit}\nsdk-version=${sdkVersion}\nbuilt-at=${builtAt}\n`;
 }
 
-/** Reads the App, then proposes it back with `status.build`; the Change the Portal answers. */
+/**
+ * Reads the App, checks it back with `status.build`, then proposes it; the Change the Portal
+ * answers. The REST door takes a proposal only after a green check of the same manifest
+ * (PF-57), so the check is a call of its own, not a formality (T-2636).
+ */
 export async function propose(api, token, repository, build, fetchImpl = fetch) {
   const { project, app } = appOf(repository);
   const url = `${api.replace(/\/+$/, "")}/api/v1/projects/${project}/apps/${app}`;
@@ -298,6 +302,17 @@ export async function propose(api, token, repository, build, fetchImpl = fetch) 
   const read = await fetchImpl(url, { headers });
   if (!read.ok) throw await refused("cannot read the App", read);
   const body = withBuild(await read.json(), build);
+  const checked = await fetchImpl(`${url}?dryRun=All`, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!checked.ok) throw await refused("status.build was refused for", checked);
+  const verdict = (await checked.json())?.verdict;
+  if (verdict?.ok !== true) {
+    const findings = (verdict?.findings ?? []).map((f) => f?.message ?? f?.code ?? "").filter(Boolean).join("; ");
+    throw new Error(`the check of status.build for ${project}/${app} is not green${findings ? `: ${findings}` : ""}`);
+  }
   const written = await fetchImpl(url, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },

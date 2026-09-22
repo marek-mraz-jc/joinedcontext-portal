@@ -2195,7 +2195,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=962eac9#962eac900d0cfffdfcb81cf5f8761b48d2820695"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9c3b980#9c3b9805a4587261216eac3c482d834403db7f69"
 dependencies = [
  "chrono",
  "regex",
@@ -2210,7 +2210,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=962eac9#962eac900d0cfffdfcb81cf5f8761b48d2820695"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9c3b980#9c3b9805a4587261216eac3c482d834403db7f69"
 dependencies = [
  "aes-gcm",
  "age",
@@ -2882,7 +2882,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.17",
  "http",
