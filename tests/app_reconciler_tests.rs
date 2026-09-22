@@ -197,8 +197,10 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
         json!({ "matchLabels": { "app.kubernetes.io/name": "app-air-quality-today" } })
     );
 
-    let ingress = policy["spec"]["ingress"].as_array().expect("one hole in");
-    assert_eq!(ingress.len(), 1, "APISIX is the only source admitted");
+    // In: APISIX alone, on the app port and on the Linkerd inbound port its meshed traffic
+    // lands on; the second rule is the proxy's admin ports, which carry no request.
+    let ingress = policy["spec"]["ingress"].as_array().expect("holes in");
+    assert_eq!(ingress.len(), 2);
     assert_eq!(
         ingress[0]["from"],
         json!([{
@@ -209,27 +211,53 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
     );
     assert_eq!(
         ingress[0]["ports"],
-        json!([{ "protocol": "TCP", "port": APP_PORT }]),
-        "the app port, no other"
+        json!([
+            { "protocol": "TCP", "port": APP_PORT },
+            { "protocol": "TCP", "port": 4143 },
+        ]),
+        "the app port and the mesh's inbound port, no other"
+    );
+    assert!(ingress[1].get("from").is_none());
+    assert_eq!(
+        ingress[1]["ports"],
+        json!([
+            { "protocol": "TCP", "port": 4190 },
+            { "protocol": "TCP", "port": 4191 },
+        ]),
+        "an open rule names the proxy's admin ports and nothing an app serves"
     );
 
-    // Out: DNS, and the platform host for the endpoint (443 and the controller's port), which
-    // is where both APISIX and Keycloak are reached from a pod.
-    let egress = policy["spec"]["egress"].as_array().expect("two holes out");
-    assert_eq!(egress.len(), 2);
+    // Out: the Linkerd control plane, DNS, and the platform host for the endpoint (443, the
+    // controller's port, and 4143 when the controller is meshed).
+    let egress = policy["spec"]["egress"]
+        .as_array()
+        .expect("three holes out");
+    assert_eq!(egress.len(), 3);
     assert_eq!(
-        egress[0]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
+        egress[0],
+        json!({
+            "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+            "ports": [
+                { "protocol": "TCP", "port": 8080 },
+                { "protocol": "TCP", "port": 8086 },
+                { "protocol": "TCP", "port": 8090 },
+            ],
+        })
+    );
+    assert_eq!(
+        egress[1]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
         "kube-dns"
     );
     assert_eq!(
-        egress[1]["to"],
+        egress[2]["to"],
         json!([{ "ipBlock": { "cidr": "0.0.0.0/0" } }])
     );
     assert_eq!(
-        egress[1]["ports"],
+        egress[2]["ports"],
         json!([
             { "protocol": "TCP", "port": 443 },
             { "protocol": "TCP", "port": 8443 },
+            { "protocol": "TCP", "port": 4143 },
         ])
     );
 }

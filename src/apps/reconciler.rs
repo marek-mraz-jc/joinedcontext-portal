@@ -42,6 +42,8 @@ pub const APP_ADDRESS: &str = "0.0.0.0";
 /// The pod label the edge's own NetworkPolicy selects app pods by for its egress
 /// (Deployment/10 §4): one value for every app, the name is in `app.kubernetes.io/name`.
 pub const APP_LABEL: &str = "joinedcontext.com/app";
+/// Where meshed traffic lands on a pod: the Linkerd inbound proxy, not the service port.
+const LINKERD_INBOUND: u16 = 4143;
 
 /// Base32 alphabet of RFC 4648 in the lowercase form [`EndpointSlug`] accepts (EP-02).
 const SLUG_ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
@@ -451,14 +453,39 @@ fn network_policy(name: &str, settings: &Settings, labels: &Value, selector: &Va
             "policyTypes": ["Ingress", "Egress"],
             // Only the gateway may open a connection into the pod, and only on the app's port:
             // the edge is the login front, so the port is not a door for anyone else (AP-26).
-            "ingress": [{
-                "from": [{
-                    "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": settings.apisix_namespace } },
-                    "podSelector": { "matchLabels": { "app.kubernetes.io/name": "apisix" } },
-                }],
-                "ports": [{ "protocol": "TCP", "port": APP_PORT }],
-            }],
+            // The pod is meshed, and meshed traffic lands on the Linkerd inbound proxy (4143),
+            // not on the app's port, so the one source is admitted on both.
+            "ingress": [
+                {
+                    "from": [{
+                        "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": settings.apisix_namespace } },
+                        "podSelector": { "matchLabels": { "app.kubernetes.io/name": "apisix" } },
+                    }],
+                    "ports": [
+                        { "protocol": "TCP", "port": APP_PORT },
+                        { "protocol": "TCP", "port": LINKERD_INBOUND },
+                    ],
+                },
+                // The proxy's own admin ports, which the kubelet probes; no request reaches
+                // the app through them.
+                {
+                    "ports": [
+                        { "protocol": "TCP", "port": 4190 },
+                        { "protocol": "TCP", "port": 4191 },
+                    ],
+                },
+            ],
             "egress": [
+                // The Linkerd control plane (identity, destination, policy): without it the
+                // proxy never learns its inbound policy and the pod never starts.
+                {
+                    "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+                    "ports": [
+                        { "protocol": "TCP", "port": 8080 },
+                        { "protocol": "TCP", "port": 8086 },
+                        { "protocol": "TCP", "port": 8090 },
+                    ],
+                },
                 {
                     "to": [{
                         "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "kube-system" } },
@@ -479,6 +506,8 @@ fn network_policy(name: &str, settings: &Settings, labels: &Value, selector: &Va
                     "ports": [
                         { "protocol": "TCP", "port": 443 },
                         { "protocol": "TCP", "port": 8443 },
+                        // A meshed ingress controller is reached on its inbound proxy.
+                        { "protocol": "TCP", "port": LINKERD_INBOUND },
                     ],
                 },
             ],
