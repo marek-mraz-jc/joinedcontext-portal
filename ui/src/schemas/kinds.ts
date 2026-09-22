@@ -331,9 +331,14 @@ function secretRef(t: (key: string) => string, title: string, secrets: string[])
     title,
     required: ["name", "key"],
     properties: {
+      // The name of a Secret is a DNS-1123 label, the rule jc-core holds (`SecretRef::validate`):
+      // a token pasted here instead of its name is refused at the field, before any check
+      // (T-2631).
       name: {
         type: "string",
         title: t("datasources.field.secretName"),
+        pattern: DNS1123,
+        maxLength: 63,
         ...(secrets.length > 0 ? { examples: secrets } : {}),
       },
       key: { type: "string", title: t("datasources.field.secretKey") },
