@@ -363,6 +363,20 @@ pub async fn delete_with_identity(
         }
     }
 
+    // An App's Endpoint and Policies were committed with it and leave with it, or the gateway
+    // keeps serving a removed App's grants (T-2632, AP-21).
+    if kind_info.kind == "App" {
+        for grant in crate::api::mutate::held_grants(state, project, name) {
+            let info = crate::resource::by_kind(&grant.kind).ok_or_else(|| {
+                ApiError::Internal(format!("no catalogue entry for {}", grant.kind))
+            })?;
+            let path = resolve_repo_path(&grant, info, project)?;
+            if let Some(file) = gitea.get_file(&path, &read_from).await? {
+                removals.push((path, file.sha));
+            }
+        }
+    }
+
     let (author_name, author_email) = author_credentials(identity, project);
     let commit_msg = format!("delete {} {name}", kind_info.kind);
 
