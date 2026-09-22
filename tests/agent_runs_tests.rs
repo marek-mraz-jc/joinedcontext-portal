@@ -4299,3 +4299,55 @@ mod filtered_list_edges {
         assert_eq!(ids(&pool, &project, none, 2).await, ["a", "b"]);
     }
 }
+
+/// CC-87, AG-86: in layout 2 the proxy is told the run's one repository, the project's own, and
+/// the run's folder as that repository spells it; before the project is registered it is the
+/// configuration repository's folder and no repository is named.
+#[tokio::test]
+async fn a_workspace_run_reaches_its_project_repository_alone() {
+    let config = config();
+    let (state, app, internal) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let (status, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(create_body()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{created}");
+    let id = created["id"].as_str().expect("an id").to_owned();
+    let context = |internal: axum::Router| {
+        let id = id.clone();
+        async move {
+            internal_call(
+                &internal,
+                Some(proxy_bearer()),
+                Method::GET,
+                &format!("/internal/agent-runs/{id}"),
+                None,
+            )
+            .await
+        }
+    };
+
+    let (status, before) = context(internal.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{before}");
+    assert!(before.get("repository").is_none(), "{before}");
+    assert_eq!(
+        before["pathPrefix"],
+        json!("projects/helsinki/apps/city-bikes-overview/")
+    );
+
+    state
+        .mirror
+        .set_repositories(std::collections::BTreeMap::from([(
+            PROJECT.to_owned(),
+            "helsinki".to_owned(),
+        )]));
+    let (status, after) = context(internal).await;
+    assert_eq!(status, StatusCode::OK, "{after}");
+    assert_eq!(after["repository"], json!("helsinki"));
+    assert_eq!(after["pathPrefix"], json!("apps/city-bikes-overview/"));
+}

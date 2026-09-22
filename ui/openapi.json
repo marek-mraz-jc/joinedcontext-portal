@@ -11702,7 +11702,8 @@
             "type": "string"
           },
           "pathPrefix": {
-            "type": "string"
+            "type": "string",
+            "description": "The folder the run writes, as its repository spells it."
           },
           "project": {
             "type": "string"
@@ -11713,6 +11714,13 @@
               "null"
             ],
             "description": "The profile's `model.reasoningEffort`: the proxy adds it to every model call (AG-72)."
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project's own repository in layout 2, the one repository the proxy's forge route\nreaches for this run (CC-87, AG-86); absent, the configuration repository."
           },
           "requestsPerMinute": {
             "type": "integer",

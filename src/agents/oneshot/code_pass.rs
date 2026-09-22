@@ -791,7 +791,8 @@ impl Driver {
         committed: &mut BTreeMap<String, String>,
         message: &str,
     ) -> Result<(), String> {
-        let Some(gitea) = self.state.gitea.clone() else {
+        // A workspace run's folder is in the project's own repository in layout 2 (CC-87).
+        let Some(gitea) = self.state.forge_for(&self.project) else {
             return Ok(());
         };
         if self.branch.is_empty() {

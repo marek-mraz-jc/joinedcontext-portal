@@ -639,7 +639,8 @@ impl Driver {
     /// keeps the run in its store alone; a forge that refuses is said in the chat and the pass
     /// stands.
     pub(super) async fn commit(&self, message: &str) -> Result<(), String> {
-        let Some(gitea) = self.state.gitea.clone() else {
+        // The project's own repository in layout 2 (CC-87).
+        let Some(gitea) = self.state.forge_for(&self.project) else {
             return Ok(());
         };
         if self.branch.is_empty() {

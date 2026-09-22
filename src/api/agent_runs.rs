@@ -259,7 +259,12 @@ pub struct RunContext {
     pub endpoint_slugs: Vec<String>,
     pub allows_write: bool,
     pub branch: String,
+    /// The folder the run writes, as its repository spells it.
     pub path_prefix: String,
+    /// The project's own repository in layout 2, the one repository the proxy's forge route
+    /// reaches for this run (CC-87, AG-86); absent, the configuration repository.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
     pub status: String,
     pub ticket_hash: String,
     pub max_tokens: u64,
@@ -701,7 +706,11 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
                     .for_repository(repository::name(&run.project, &run.app_name))
                     .browse_url("", &run.branch)
             } else {
-                gitea.browse_url(&run.path_prefix, &run.branch)
+                // The project's own repository in layout 2 (CC-87).
+                state.forge_for(&run.project).map_or_else(
+                    || gitea.browse_url(&run.path_prefix, &run.branch),
+                    |forge| forge.browse_url(&run.path_prefix, &run.branch),
+                )
             });
             if run.in_own_repository() {
                 run.mirror_url = state.github_mirror.as_deref().map(|mirror| {

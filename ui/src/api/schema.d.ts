@@ -3200,10 +3200,16 @@ export interface components {
             /** Format: int64 */
             maxTokens: number;
             modelName: string;
+            /** @description The folder the run writes, as its repository spells it. */
             pathPrefix: string;
             project: string;
             /** @description The profile's `model.reasoningEffort`: the proxy adds it to every model call (AG-72). */
             reasoningEffort?: string | null;
+            /**
+             * @description The project's own repository in layout 2, the one repository the proxy's forge route
+             *     reaches for this run (CC-87, AG-86); absent, the configuration repository.
+             */
+            repository?: string | null;
             /** Format: int32 */
             requestsPerMinute: number;
             status: string;
