@@ -12,6 +12,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
+import { proposeFrom } from "./kindJourney";
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -205,8 +206,8 @@ for (const c of CASES) {
     const ready = studio.getByText(/All \d+ messages map to entities/);
     await expect(ready).toBeVisible({ timeout: 60_000 });
     info.annotations.push({ type: "test", description: (await ready.textContent()) ?? "" });
-    await expect(propose).toBeEnabled();
-    await propose.click();
+    // Propose opens on the dialog's own fresh check (PF-57), after the mapping's test (PL-49).
+    await proposeFrom(studio);
     await approve(approver.page, PROJECT, await proposedChange(page));
     await waitForListed(page, "pipelines", c.pipeline);
 

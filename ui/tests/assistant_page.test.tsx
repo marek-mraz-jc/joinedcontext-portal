@@ -21,6 +21,8 @@ const IDENTITY = {
   name: "Jana Kováčová",
   email: "jana.kovacova@banskabystrica.sk",
   roles: ["portal-approver"],
+  // A member of the project: its endpoints' `project-list` audience admits her (EP-14, T-2631).
+  groups: [PROJECT],
 };
 
 const CONV_RUN = {
