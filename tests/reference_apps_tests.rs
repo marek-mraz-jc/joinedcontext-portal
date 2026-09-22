@@ -110,6 +110,32 @@ fn only_the_note_is_ever_written_and_only_by_the_apps_named_here() {
                     "the note attribute has to be in the grant"
                 );
             }
+            // T-2598: the steward's record form. Every write is granted to `steward` alone and
+            // none reaches `source`; the next test holds the rest of its shape.
+            "helsinki-alerts" => {
+                assert_eq!(
+                    writing,
+                    vec!["createEntity", "updateAttrs", "deleteEntity"],
+                    "{name} writes through its record form only"
+                );
+                for need in &app.spec.data_needs {
+                    let writes_here = need
+                        .operations
+                        .iter()
+                        .any(|operation| writes.contains(&operation.as_str()));
+                    if writes_here {
+                        assert_eq!(
+                            need.roles,
+                            vec!["steward"],
+                            "{name}: a write not gated to steward"
+                        );
+                        assert!(
+                            !need.attrs.iter().any(|attr| attr == "source"),
+                            "{name} writes source"
+                        );
+                    }
+                }
+            }
             other => assert!(
                 writing.is_empty(),
                 "apps/{other} declares writes {writing:?}; add it to this test on purpose"
@@ -289,6 +315,59 @@ fn the_plain_html_sample_is_its_own_bundle_and_a_valid_published_app() {
         assert!(
             !root.join(toolchain).exists(),
             "{toolchain} in a folder that is served as it is"
+        );
+    }
+}
+
+/// AP-01, AP-09, AP-40, AP-92, AP-96. The functions sample is what T-2599 pushes to its own
+/// repository unchanged: a manifest `jcctl validate` accepts, opened only by a person holding one
+/// of its two roles, its functions beside the pages, and its steward able to remove only a record
+/// with no `source`, which the gateway checks against the stored entity (R45).
+#[test]
+fn the_functions_sample_has_two_roles_and_a_steward_gated_record_form() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/helsinki-alerts");
+    let (_, yaml) = reference_apps()
+        .into_iter()
+        .find(|(name, _)| name == "helsinki-alerts")
+        .expect("apps/helsinki-alerts/app.yaml");
+    match jc_core::registry::validate_yaml("App", &yaml) {
+        Some(Ok(_)) => {}
+        other => panic!("jcctl validate refuses apps/helsinki-alerts: {other:?}"),
+    }
+    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    assert_eq!(app.spec.class, jc_core::AppClass::Static);
+    assert_eq!(app.spec.visibility, jc_core::kinds::AppVisibility::Roles);
+    let roles: Vec<_> = app
+        .spec
+        .roles
+        .iter()
+        .map(|role| role.name.as_str())
+        .collect();
+    assert_eq!(roles, ["viewer", "steward"]);
+    let delete = app
+        .spec
+        .data_needs
+        .iter()
+        .find(|need| {
+            need.operations
+                .iter()
+                .any(|op| op.as_str() == "deleteEntity")
+        })
+        .expect("the steward's delete item");
+    assert_eq!(
+        delete.operations.len(),
+        1,
+        "delete stands alone, with its own filter"
+    );
+    assert_eq!(delete.q.as_deref(), Some("!source"));
+    for file in [
+        "index.html",
+        "functions/summary.ts",
+        "functions/expiring.ts",
+    ] {
+        assert!(
+            root.join(file).is_file(),
+            "apps/helsinki-alerts has no {file}"
         );
     }
 }
