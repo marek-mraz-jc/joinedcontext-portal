@@ -897,6 +897,16 @@ async fn propose_engine(
         });
     }
 
+    // 5a. What an App grants rides in the same change as the App (CC-61, AP-96, T-2632): the
+    //     gateway reads endpoints and policies from the repository alone, so a grant nobody
+    //     commits is a grant it never enforces. The reviewer reads each one in the plan.
+    let grants = if kind_info.kind == "App" && operation != Operation::Delete {
+        app_grants(state, project, &envelope)?
+    } else {
+        AppGrants::default()
+    };
+    plan.fields.extend(grants.review.iter().cloned());
+
     // 6. Risk-classified approval lane
     let lane = change::classify(kind_info.kind, operation, &envelope.spec);
     // OPS-16: the one series no other component can produce. A rise in red proposals is a
@@ -1059,6 +1069,27 @@ async fn propose_engine(
             .await?;
     }
 
+    if !grants.uploads.is_empty() || !grants.removed.is_empty() {
+        let mut deletes = Vec::new();
+        for path in &grants.removed {
+            if let Some(file) = gitea.get_file(path, &branch).await? {
+                deletes.push((path.clone(), file.sha));
+            }
+        }
+        gitea
+            .change_files(
+                &branch,
+                &commit_msg,
+                Author {
+                    name: &author_name,
+                    email: &author_email,
+                },
+                &grants.uploads,
+                &deletes,
+            )
+            .await?;
+    }
+
     gitea.put_file(&file_write).await?;
 
     if let Some(name) = workspace {
@@ -1087,6 +1118,190 @@ async fn propose_engine(
     let change = Change::new(change_meta, change_status);
 
     Ok(ProposeOutcome::Change(change))
+}
+
+/// The grants one App proposal commits and removes (CC-61, AP-96).
+#[derive(Default)]
+struct AppGrants {
+    /// `(path, yaml)` of the App's Endpoint and every Policy it compiles to.
+    uploads: Vec<(String, String)>,
+    /// Paths of generated grants of this App that it no longer compiles to: a role taken away,
+    /// a need removed, or the App leaving `preview`/`published`, where it grants nothing.
+    removed: Vec<String>,
+    /// One line per grant, so the review names who may do what (AP-98).
+    review: Vec<plan::FieldChange>,
+}
+
+/// Compiles an App's Endpoint and Policies for the change that proposes it (T-2632).
+///
+/// The slug is the App's Endpoint's own once it has one, and a fresh one (EP-02) the first time,
+/// so republishing never moves the endpoint under its readers. Only what the reconciler generated
+/// is replaced or removed: an Endpoint or Policy of the same name somebody wrote by hand is
+/// refused, never overwritten.
+fn app_grants(
+    state: &AppState,
+    project: &str,
+    envelope: &ResourceEnvelope,
+) -> Result<AppGrants, ApiError> {
+    use crate::apps::reconciler::{generate_slug, grants, RenderError, GENERATOR};
+    use jc_core::annotations::GENERATED_BY;
+
+    let name = &envelope.metadata.name;
+    let endpoint_name = format!("app-{name}");
+    let generated = |env: &ResourceEnvelope| {
+        env.metadata
+            .annotations
+            .get(GENERATED_BY)
+            .map(String::as_str)
+            == Some(GENERATOR)
+    };
+    let current_endpoint = state.mirror.get(project, "Endpoint", &endpoint_name);
+    if let Some(endpoint) = current_endpoint.as_ref().filter(|env| !generated(env)) {
+        return Err(ApiError::Conflict(format!(
+            "Endpoint '{}' in project '{project}' was not generated for App '{name}', and the \
+             App's own endpoint has that name: rename one of them (AP-04, T-2632)",
+            endpoint.metadata.name
+        )));
+    }
+    let slug = current_endpoint
+        .as_ref()
+        .and_then(|env| env.spec.get("slug").and_then(Value::as_str))
+        .and_then(|slug| jc_core::kinds::EndpointSlug::new(slug).ok())
+        .unwrap_or_else(generate_slug);
+
+    let manifest: jcctl::loader::RawManifest = serde_json::from_value(
+        serde_json::to_value(envelope).map_err(|e| ApiError::Internal(e.to_string()))?,
+    )
+    .map_err(|e| ApiError::Internal(format!("the App as a manifest: {e}")))?;
+    let domain = crate::api::assistant::org_domain(state, project);
+    let compiled = match grants(&manifest, &slug, &domain) {
+        Ok((endpoint, policies)) => std::iter::once(endpoint).chain(policies).collect(),
+        // A draft or a retired App grants nothing (AP-18, AP-21).
+        Err(RenderError::NotDeployable { .. }) => Vec::new(),
+        Err(err) => return Err(ApiError::BadRequest(err.to_string())),
+    };
+
+    let mut out = AppGrants::default();
+    let mut kept = std::collections::BTreeSet::new();
+    for raw in compiled {
+        let env: ResourceEnvelope = serde_json::from_value(
+            serde_json::to_value(&raw).map_err(|e| ApiError::Internal(e.to_string()))?,
+        )
+        .map_err(|e| ApiError::Internal(format!("a generated {}: {e}", raw.kind)))?;
+        if raw.kind == "Policy" {
+            if let Some(held) = state
+                .mirror
+                .get(project, "Policy", &env.metadata.name)
+                .filter(|held| !generated(held))
+            {
+                return Err(ApiError::Conflict(format!(
+                    "Policy '{}' in project '{project}' was not generated for App '{name}' and \
+                     has the name its grant needs: rename it (AP-05, T-2632)",
+                    held.metadata.name
+                )));
+            }
+            out.review.push(plan::FieldChange {
+                path: format!("grants.{}", env.metadata.name),
+                from: None,
+                to: Some(Value::from(review_line(name, &env.spec))),
+            });
+        }
+        // The same check the App itself passed: a grant the gateway's loader would refuse
+        // fails here, as a form error, not after the approval.
+        if let Some(checked) = jc_core::registry::validate_yaml(
+            &raw.kind,
+            &serde_json::to_string(&env).map_err(|e| ApiError::Internal(e.to_string()))?,
+        ) {
+            checked.map_err(|e| {
+                ApiError::BadRequest(format!("the App's {} is not valid: {e}", raw.kind))
+            })?;
+        }
+        let info = resource::by_kind(&raw.kind)
+            .ok_or_else(|| ApiError::Internal(format!("no catalogue entry for {}", raw.kind)))?;
+        let path = resolve_repo_path(&env, info, project)?;
+        kept.insert((raw.kind.clone(), env.metadata.name.clone()));
+        let yaml = serde_yaml_ng::to_string(&env)
+            .map_err(|e| ApiError::Internal(format!("serialize {}: {e}", raw.kind)))?;
+        out.uploads.push((path, yaml));
+    }
+
+    for held in held_grants(state, project, name) {
+        if kept.contains(&(held.kind.clone(), held.metadata.name.clone())) {
+            continue;
+        }
+        let info = resource::by_kind(&held.kind)
+            .ok_or_else(|| ApiError::Internal(format!("no catalogue entry for {}", held.kind)))?;
+        out.removed.push(resolve_repo_path(&held, info, project)?);
+        out.review.push(plan::FieldChange {
+            path: format!("grants.{}", held.metadata.name),
+            from: Some(Value::from(held.kind.clone())),
+            to: None,
+        });
+    }
+    Ok(out)
+}
+
+/// The Endpoint and Policies the reconciler generated for App `app` of `project` (T-2632).
+///
+/// A generated Policy is the App's when it is granted to the App's endpoint, one of its roles, or
+/// its service account: by name alone, `app-bikes-2-1` could be App `bikes-2`'s.
+pub(crate) fn held_grants(state: &AppState, project: &str, app: &str) -> Vec<ResourceEnvelope> {
+    use jc_core::annotations::GENERATED_BY;
+    let endpoint_name = format!("app-{app}");
+    let caller = jc_core::kinds::endpoint_role(project, &endpoint_name, None);
+    let role_of_app = format!("{caller}/");
+    let this_apps = |assignee: &Value| {
+        let id = assignee["id"].as_str().unwrap_or_default();
+        match assignee["kind"].as_str() {
+            Some("role") => id == caller || id.starts_with(&role_of_app),
+            Some("serviceAccount") => id == endpoint_name,
+            _ => false,
+        }
+    };
+    state.mirror.matching(|env| {
+        env.metadata.namespace.as_deref() == Some(project)
+            && env
+                .metadata
+                .annotations
+                .get(GENERATED_BY)
+                .map(String::as_str)
+                == Some(crate::apps::reconciler::GENERATOR)
+            && ((env.kind == "Endpoint" && env.metadata.name == endpoint_name)
+                || (env.kind == "Policy" && this_apps(&env.spec["assignee"])))
+    })
+}
+
+/// One grant as a reviewer reads it: who, which operations, on which types (AP-98).
+fn review_line(app: &str, policy: &Value) -> String {
+    let join = |value: &Value, key: &str| {
+        value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        if key.is_empty() {
+                            item.as_str().map(str::to_owned)
+                        } else {
+                            item.get(key).and_then(Value::as_str).map(str::to_owned)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default()
+    };
+    let operations = join(&policy["operations"], "");
+    let types = join(&policy["information"][0]["entities"], "type");
+    let who = policy["assignee"]["id"]
+        .as_str()
+        .and_then(|id| id.rsplit_once('/'))
+        .map(|(_, last)| last.to_owned())
+        .filter(|last| last != &format!("app-{app}"));
+    match who {
+        Some(role) => format!("role {role} of {app} can {operations} {types}"),
+        None => format!("everyone who can open {app} can {operations} {types}"),
+    }
 }
 
 /// What a body's `files` member commits beside the manifest, each path resolved against the

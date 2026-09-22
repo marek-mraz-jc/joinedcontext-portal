@@ -181,6 +181,41 @@ pub fn render(
     slug: &EndpointSlug,
     settings: &Settings,
 ) -> Result<Rendered, RenderError> {
+    let (name, project, spec) = deployable(manifest)?;
+    let (endpoint, policies) = compiled_grants(name, project, &spec, slug, &settings.org_domain)?;
+    let workload = match spec.class {
+        AppClass::Static => None,
+        class => {
+            let image = image.ok_or_else(|| RenderError::NoImage {
+                class: class.to_string(),
+            })?;
+            Some(render_workload(
+                name, project, &spec, image, slug, settings,
+            )?)
+        }
+    };
+    Ok(Rendered {
+        workload,
+        endpoint,
+        policies,
+    })
+}
+
+/// What an App grants, without what runs it: its Endpoint and one Policy per need, or per role of
+/// a role-gated need (AP-04, AP-05, AP-96). The Portal commits these beside the App in the same
+/// change, since the gateway reads its endpoints and policies from the repository and nowhere
+/// else (CC-61, T-2632).
+pub fn grants(
+    manifest: &RawManifest,
+    slug: &EndpointSlug,
+    org_domain: &str,
+) -> Result<(RawManifest, Vec<RawManifest>), RenderError> {
+    let (name, project, spec) = deployable(manifest)?;
+    compiled_grants(name, project, &spec, slug, org_domain)
+}
+
+/// The name, project and valid spec of an App that runs (AP-18, AP-21).
+fn deployable(manifest: &RawManifest) -> Result<(&str, &str, AppSpec), RenderError> {
     if manifest.kind != "App" {
         return Err(RenderError::NotAnApp {
             kind: manifest.kind.clone(),
@@ -198,38 +233,29 @@ pub fn render(
         .ok_or(RenderError::NoProject)?;
 
     match spec.lifecycle {
-        AppLifecycle::Preview | AppLifecycle::Published => {}
-        state => {
-            return Err(RenderError::NotDeployable {
-                lifecycle: state.as_str().to_owned(),
-            })
-        }
+        AppLifecycle::Preview | AppLifecycle::Published => Ok((name, project, spec)),
+        state => Err(RenderError::NotDeployable {
+            lifecycle: state.as_str().to_owned(),
+        }),
     }
+}
 
-    let space = single_space(&spec)?;
-
-    let workload = match spec.class {
-        AppClass::Static => None,
-        class => {
-            let image = image.ok_or_else(|| RenderError::NoImage {
-                class: class.to_string(),
-            })?;
-            Some(render_workload(
-                name, project, &spec, image, slug, settings,
-            )?)
-        }
-    };
-
-    Ok(Rendered {
-        workload,
-        endpoint: endpoint(name, project, space, &spec, slug),
-        policies: spec
-            .data_needs
+fn compiled_grants(
+    name: &str,
+    project: &str,
+    spec: &AppSpec,
+    slug: &EndpointSlug,
+    org_domain: &str,
+) -> Result<(RawManifest, Vec<RawManifest>), RenderError> {
+    let space = single_space(spec)?;
+    Ok((
+        endpoint(name, project, space, spec, slug),
+        spec.data_needs
             .iter()
             .enumerate()
-            .flat_map(|(index, need)| policies(name, project, index, need, &spec, settings))
+            .flat_map(|(index, need)| policies(name, project, index, need, spec, org_domain))
             .collect(),
-    })
+    ))
 }
 
 /// The one space every data need must name; two spaces cannot become one endpoint (AP-04).
@@ -595,7 +621,7 @@ fn policies(
     index: usize,
     need: &DataNeed,
     spec: &AppSpec,
-    settings: &Settings,
+    org_domain: &str,
 ) -> Vec<RawManifest> {
     // 1-based and in declaration order: stable across runs, so a second reconcile of an
     // unchanged app writes the same names and changes nothing.
@@ -606,7 +632,7 @@ fn policies(
             project,
             need,
             assignee(name, project, spec, None),
-            settings,
+            org_domain,
         )];
     }
     need.roles
@@ -617,7 +643,7 @@ fn policies(
                 project,
                 need,
                 assignee(name, project, spec, Some(role)),
-                settings,
+                org_domain,
             )
         })
         .collect()
@@ -628,7 +654,7 @@ fn policy(
     project: &str,
     need: &DataNeed,
     assignee: Value,
-    settings: &Settings,
+    org_domain: &str,
 ) -> RawManifest {
     let mut information = json!({
         "entities": need
@@ -648,7 +674,7 @@ fn policy(
 
     let mut policy_spec = json!({
         "contextSpaceRef": { "kind": "ContextSpace", "name": need.context_space_ref.name() },
-        "assigner": format!("did:web:{}", settings.org_domain),
+        "assigner": format!("did:web:{org_domain}"),
         "assignee": assignee,
         "operations": need.operations,
         "information": [information],

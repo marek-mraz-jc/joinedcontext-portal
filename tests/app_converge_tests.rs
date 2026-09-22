@@ -433,3 +433,72 @@ async fn a_name_that_is_not_a_dns_label_never_becomes_a_path() {
         .await
         .is_some_and(|requests| requests.is_empty()));
 }
+
+/// T-2632: the slug the door committed in the App's Endpoint is the one the gateway routes, so
+/// the pod is deployed on it even where an older Secret holds another.
+#[tokio::test]
+async fn the_pod_calls_the_slug_its_committed_endpoint_carries() {
+    let api = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(SECRET))
+        .respond_with(ResponseTemplate::new(200).set_body_json(stored_secret()))
+        .mount(&api)
+        .await;
+    for api_path in [DEPLOYMENT, SERVICE, SECRET, POLICY] {
+        accepts_apply(&api, api_path).await;
+    }
+
+    let root =
+        std::env::temp_dir().join(format!("jc-app-converge-committed-{}", std::process::id()));
+    let space = root.join("projects/ovzdusie/spaces/ovzdusie");
+    std::fs::create_dir_all(space.join("endpoints")).expect("a scratch repository");
+    let endpoint = |name: &str, annotations: &str| {
+        format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: {name}\n  namespace: ovzdusie\n{annotations}spec:\n  slug: committedslugofthegeneratedendpoint\n"
+        )
+    };
+    std::fs::write(
+        space.join("endpoints/app-air-quality-today.yaml"),
+        endpoint(
+            "app-air-quality-today",
+            "  annotations:\n    joinedcontext.com/generated-by: portal/app-reconciler\n",
+        ),
+    )
+    .expect("the committed endpoint");
+    // An Endpoint somebody wrote by hand under another App's name is not that App's.
+    std::fs::write(
+        space.join("endpoints/app-other.yaml"),
+        endpoint("app-other", ""),
+    )
+    .expect("a hand-written endpoint");
+    let repository = jcctl::loader::Repository::load(&root).expect("the repository loads");
+    let mut other = app("published", Some(DIGEST));
+    other.metadata.name = "other".to_owned();
+    assert_eq!(
+        joinedcontext_portal::apps::converge::committed_slug(&repository, &other),
+        None
+    );
+    let committed = joinedcontext_portal::apps::converge::committed_slug(
+        &repository,
+        &app("published", Some(DIGEST)),
+    )
+    .expect("the committed endpoint's slug");
+    let _ = std::fs::remove_dir_all(&root);
+
+    converger(&api)
+        .converge_with(&app("published", Some(DIGEST)), Some(&committed))
+        .await
+        .expect("the app converges");
+    let requests = api.received_requests().await.expect("recorded");
+    let secret = body_of(applied(&requests, SECRET));
+    assert_eq!(
+        secret["stringData"]["endpoint-slug"],
+        json!("committedslugofthegeneratedendpoint")
+    );
+    let deployment = body_of(applied(&requests, DEPLOYMENT)).to_string();
+    assert!(
+        deployment.contains("committedslugofthegeneratedendpoint"),
+        "{deployment}"
+    );
+    assert!(!deployment.contains(SLUG), "not the Secret's older slug");
+}
