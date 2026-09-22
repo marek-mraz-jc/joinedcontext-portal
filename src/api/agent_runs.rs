@@ -1262,7 +1262,7 @@ pub(crate) async fn within_runs_per_day(state: &AppState, project: &str) -> Resu
 }
 
 /// `[a-z][a-z0-9-]{0,39}`: the name of a function file (Architecture/20 §3).
-fn is_function_name(name: &str) -> bool {
+pub(crate) fn is_function_name(name: &str) -> bool {
     name.len() <= 40
         && name.starts_with(|c: char| c.is_ascii_lowercase())
         && name
@@ -1513,6 +1513,54 @@ pub(crate) async fn invoke_function(
     if !problems.is_empty() {
         return Err(InvokeError::DoesNotBuild(problems));
     }
+    let space = state
+        .mirror
+        .get(&run.project, "Endpoint", &run.endpoint_name)
+        .and_then(|env| crate::api::assistant::ref_name(&env.spec["contextSpaceRef"]))
+        .unwrap_or_else(|| run.project.clone());
+    let request = serde_json::json!({
+        "method": "POST",
+        "query": query,
+        "body": input,
+        "user": {
+            "id": identity.subject,
+            "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
+            "email": identity.email,
+            "roles": identity.roles,
+        },
+    });
+    let mut config = serde_json::json!({
+        "slug": run.endpoint_slug,
+        "orgDomain": crate::api::assistant::org_domain(state, &run.project),
+        "space": space,
+    });
+    let run_endpoints = crate::agents::endpoints::of_run(run);
+    if run_endpoints.len() > 1 {
+        config["endpoints"] = crate::agents::endpoints::config(&run_endpoints, &run.data_needs);
+    }
+    invoke(
+        state,
+        built.functions,
+        format!("{}{entry}", transpile::APP),
+        request,
+        config,
+        caller_token,
+    )
+    .await
+}
+
+/// Sends one invocation to `jc-functions` with the Portal's audience-bound token: `modules` by
+/// import name, the `entry` whose default export runs, the request, the SDK's configuration and
+/// the caller's own token, which is the only credential the function's data calls carry
+/// (SDK-18, SDK-23, AP-84). The preview and the published route share it.
+pub(crate) async fn invoke(
+    state: &AppState,
+    mut modules: BTreeMap<String, String>,
+    entry: String,
+    request: serde_json::Value,
+    config: serde_json::Value,
+    caller_token: Option<String>,
+) -> Result<Invocation, InvokeError> {
     let runtime = state.config.functions_url.as_deref().ok_or_else(|| {
         InvokeError::Unavailable(
             "this Portal has no jc-functions address (JC_FUNCTIONS_URL)".into(),
@@ -1533,40 +1581,14 @@ pub(crate) async fn invoke_function(
         .service_token()
         .await
         .map_err(|err| InvokeError::Unavailable(format!("no token for jc-functions: {err}")))?;
-
-    let space = state
-        .mirror
-        .get(&run.project, "Endpoint", &run.endpoint_name)
-        .and_then(|env| crate::api::assistant::ref_name(&env.spec["contextSpaceRef"]))
-        .unwrap_or_else(|| run.project.clone());
-    let mut modules = built.functions;
     modules.insert("@joinedcontext/sdk/server".to_owned(), server);
-    let mut invocation = serde_json::json!({
+    let invocation = serde_json::json!({
         "files": modules,
-        "entry": format!("{}{entry}", transpile::APP),
-        "request": {
-            "method": "POST",
-            "query": query,
-            "body": input,
-            "user": {
-                "id": identity.subject,
-                "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
-                "email": identity.email,
-                "roles": identity.roles,
-            },
-        },
-        "config": {
-            "slug": run.endpoint_slug,
-            "orgDomain": crate::api::assistant::org_domain(state, &run.project),
-            "space": space,
-        },
+        "entry": entry,
+        "request": request,
+        "config": config,
         "token": caller_token,
     });
-    let run_endpoints = crate::agents::endpoints::of_run(run);
-    if run_endpoints.len() > 1 {
-        invocation["config"]["endpoints"] =
-            crate::agents::endpoints::config(&run_endpoints, &run.data_needs);
-    }
 
     let started = std::time::Instant::now();
     let answer = functions_http()

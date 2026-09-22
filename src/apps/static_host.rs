@@ -27,6 +27,10 @@ use crate::state::AppState;
 pub const INTEGRITY_MANIFEST: &str = "integrity.json";
 
 /// Serves `/apps/{name}/` — the app's own index.
+///
+/// A signed-in person's first index also brings the double-submit CSRF cookie of the apps origin:
+/// the Portal's own is host-only on the Portal host, and a function call that carries the edge's
+/// token is refused without one (AP-84, [`super::functions`]).
 async fn serve_index(
     user: OptionalUser,
     state: State<AppState>,
@@ -34,14 +38,25 @@ async fn serve_index(
     uri: Uri,
     name: Path<String>,
 ) -> Response {
-    serve(
+    let needs_csrf = user.0.is_some()
+        && axum_extra::extract::cookie::CookieJar::from_headers(&headers)
+            .get(crate::auth::csrf::CSRF_COOKIE)
+            .is_none();
+    let mut response = serve(
         user,
         state,
         headers,
         uri,
         Path((name.0, "index.html".to_string())),
     )
-    .await
+    .await;
+    if needs_csrf && response.status().is_success() {
+        let cookie = crate::auth::csrf::cookie(&crate::auth::csrf::Token::mint());
+        if let Ok(value) = HeaderValue::from_str(&cookie.to_string()) {
+            response.headers_mut().append(header::SET_COOKIE, value);
+        }
+    }
+    response
 }
 
 /// Serves `/apps/{name}/{path}`.
@@ -136,7 +151,7 @@ async fn serve(
 
 /// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
 /// port, the scheme's default when none is written. A request without a `Host` is not on it.
-fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
+pub(super) fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
     let Some(authority) = headers
         .get(header::HOST)
         .and_then(|v| v.to_str().ok())
@@ -154,7 +169,7 @@ fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
 /// to the same path and query there, so every link keeps working and no byte of the bundle is
 /// ever served where it could reach the Portal API with the viewer's session. The target is
 /// the configured origin, never the request's `Host`, so this is no open redirect.
-fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
+pub(super) fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
     let target = uri
         .path_and_query()
         .map_or("/", axum::http::uri::PathAndQuery::as_str);
@@ -188,7 +203,7 @@ impl FrameOptions for HeaderValue {
 /// The published App manifest of this name, whatever project owns it. App names are
 /// DNS-1123 labels and the app URL has no project segment (AP-14), so the name is what
 /// identifies it here.
-fn published_app(
+pub(super) fn published_app(
     state: &AppState,
     name: &str,
 ) -> Option<(String, AppSpec, Option<jc_core::Build>)> {
@@ -211,7 +226,7 @@ fn published_app(
 /// then every Endpoint the project's `SharedSpaceReference`s point at (EP-15). The first is the
 /// primary. Slugs and spaces only, never a token: the reader's own session is what reaches each
 /// endpoint, and the gateway's Policy decides what it may read (AP-07).
-fn served_config(
+pub(super) fn served_config(
     mirror: &crate::store::Mirror,
     project: &str,
     name: &str,
@@ -312,7 +327,7 @@ fn with_config(html: &str, config: &serde_json::Value) -> String {
 /// `{apps_cache_dir}/{name}/{hex}/` ([`crate::apps::fetch`]). An app that names no build, or
 /// names one this host does not hold yet, keeps serving `{apps_dir}/{name}/`, the bundle the
 /// image ships, and [`build_missing`] is what says so on the App itself.
-fn app_root(
+pub(super) fn app_root(
     shipped: Option<&FsPath>,
     cache: Option<&FsPath>,
     name: &str,
@@ -384,7 +399,7 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 
 /// Who may read a published app. `visibility` beyond "is there a session" is the endpoint
 /// authorization's job; the host only refuses to serve a non-public app to an anonymous caller.
-fn may_read(spec: &AppSpec, authenticated: bool) -> bool {
+pub(super) fn may_read(spec: &AppSpec, authenticated: bool) -> bool {
     matches!(spec.visibility, jc_core::kinds::AppVisibility::Public) || authenticated
 }
 
@@ -427,7 +442,7 @@ fn quoted(source: &String) -> String {
 /// Resolves a bundle-relative path inside one app's directory, or `None` if it would leave it.
 /// `canonicalize` is what decides: it resolves `..` and every symlink, so a link pointing out of
 /// the root is caught as surely as a literal traversal.
-fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
+pub(super) fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
     if path.is_empty() || path.ends_with('/') {
         return None;
     }
@@ -436,7 +451,7 @@ fn resolve(app_root: &FsPath, path: &str) -> Option<PathBuf> {
 }
 
 /// The digest the build lane recorded for this file, if any.
-fn integrity_of(app_root: &FsPath, path: &str) -> Option<String> {
+pub(super) fn integrity_of(app_root: &FsPath, path: &str) -> Option<String> {
     let manifest = resolve(app_root, INTEGRITY_MANIFEST)?;
     let digests: std::collections::BTreeMap<String, String> =
         serde_json::from_slice(&std::fs::read(manifest).ok()?).ok()?;
@@ -453,7 +468,7 @@ pub fn sri_sha384(bytes: &[u8]) -> String {
 
 /// A session if the caller has one, nothing if not: a public app is served to anyone, and a
 /// non-public one needs a login without the route itself being a login wall.
-struct OptionalUser(Option<crate::auth::CurrentUser>);
+pub(super) struct OptionalUser(pub(super) Option<crate::auth::CurrentUser>);
 
 impl axum::extract::FromRequestParts<AppState> for OptionalUser {
     type Rejection = std::convert::Infallible;
@@ -473,6 +488,12 @@ impl axum::extract::FromRequestParts<AppState> for OptionalUser {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/apps/{name}/", get(serve_index))
+        .route(
+            "/apps/{name}/api/functions/{fn}",
+            axum::routing::post(super::functions::call).layer(
+                axum::extract::DefaultBodyLimit::max(super::functions::MAX_BODY_BYTES),
+            ),
+        )
         .route("/apps/{name}/{*path}", get(serve))
 }
 

@@ -1,6 +1,8 @@
 //! The static apps host: what it serves, what it refuses, and the headers every app carries
 //! (AP-12, AP-14, AP-17).
 
+mod common;
+
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -636,4 +638,61 @@ async fn an_app_is_served_on_the_apps_origin() {
         StatusCode::PERMANENT_REDIRECT,
         "another port is another origin"
     );
+}
+
+/// AP-84: a signed-in person's first index on the apps origin brings the double-submit CSRF
+/// cookie a function call needs there; the Portal's own is host-only on the Portal host. An
+/// anonymous visitor gets none, and one who already holds it keeps the one they have.
+#[tokio::test]
+async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
+    let dir = app_root("csrf-cookie", &[("index.html", INDEX)]);
+    let config = Config {
+        apps_dir: Some(dir.path().to_string_lossy().into_owned()),
+        ..Config::for_tests()
+    };
+    let session: String = common::cookie(&config, common::person("jana"))
+        .split("; ")
+        .filter(|part| !part.starts_with("jc_csrf="))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let app = server::app(
+        AppState::new(config, None).with_mirror(mirror_with_app(app_spec("published"))),
+    );
+    let csrf_cookie = |cookie: Option<&str>| {
+        let app = app.clone();
+        let cookie = cookie.map(str::to_owned);
+        async move {
+            let mut request = Request::builder().uri("/apps/air-quality/");
+            if let Some(cookie) = cookie {
+                request = request.header(header::COOKIE, cookie);
+            }
+            let response = app
+                .oneshot(request.body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            response
+                .headers()
+                .get_all(header::SET_COOKIE)
+                .iter()
+                .filter_map(|value| value.to_str().ok())
+                .find(|value| value.starts_with("jc_csrf="))
+                .map(str::to_owned)
+        }
+    };
+
+    let issued = csrf_cookie(Some(&session))
+        .await
+        .expect("a CSRF cookie for the signed-in person");
+    assert!(
+        issued.contains("Secure") && issued.contains("SameSite=Lax"),
+        "{issued}"
+    );
+    assert_eq!(
+        csrf_cookie(None).await,
+        None,
+        "nothing for an anonymous visitor"
+    );
+    let held = format!("{session}; jc_csrf=already-held");
+    assert_eq!(csrf_cookie(Some(&held)).await, None, "a held token is kept");
 }
