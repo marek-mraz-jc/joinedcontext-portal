@@ -1425,6 +1425,7 @@
     "dataNeeds": "Reads {types} in {spaces}",
     "previewAction": "Open preview",
     "publishAction": "Publish",
+    "openAction": "Open app",
     "history": "Source and history",
     "back": "Back to applications",
     "preview": {

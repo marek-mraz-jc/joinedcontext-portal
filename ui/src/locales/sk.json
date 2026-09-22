@@ -1425,6 +1425,7 @@
     "dataNeeds": "Číta {types} v {spaces}",
     "previewAction": "Otvoriť náhľad",
     "publishAction": "Publikovať",
+    "openAction": "Otvoriť aplikáciu",
     "history": "Zdroj a história",
     "back": "Späť na aplikácie",
     "preview": {

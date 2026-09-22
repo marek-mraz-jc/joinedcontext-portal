@@ -329,8 +329,19 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               )}
 
               <div className="mt-auto flex flex-wrap justify-center gap-2">
-                {/* Only a preview is framed here: a published app is reached by its own
-                    audience, and a draft has nothing deployed yet (AP-18, AP-19). */}
+                {/* A published app opens at its own address in a new tab, behind the edge
+                    login like any audience member sees it (AP-14). Only a preview is framed
+                    here, and a draft has nothing deployed yet (AP-18, AP-19). */}
+                {spec.lifecycle === "published" && (
+                  <a
+                    href={`/apps/${encodeURIComponent(app.metadata.name)}/`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className={buttonClass("primary", "sm")}
+                  >
+                    {t("apps.openAction")}
+                  </a>
+                )}
                 {spec.lifecycle === "preview" && (
                   <Button
                     size="sm"

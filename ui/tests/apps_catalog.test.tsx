@@ -159,6 +159,11 @@ describe("apps catalog", () => {
     const published = screen.getByText("Noise").closest("li") as HTMLElement;
     expect(within(published).queryByRole("button", { name: en.apps.previewAction })).toBeNull();
     expect(within(published).queryByRole("button", { name: en.apps.publishAction })).toBeNull();
+    expect(within(published).getByRole("link", { name: en.apps.openAction })).toHaveAttribute(
+      "href",
+      "/apps/hluk/",
+    );
+    expect(within(preview).queryByRole("link", { name: en.apps.openAction })).toBeNull();
   });
 
   it("frames the preview in an opaque origin, never same-origin with the Portal (AP-19)", async () => {
