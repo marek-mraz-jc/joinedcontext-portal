@@ -191,6 +191,53 @@ fn every_static_app_is_excluded_from_the_cargo_workspace() {
     }
 }
 
+/// AP-75, AP-80, AP-87 (T-2596). An application kept in its own repository names that repository
+/// and not a folder, and its tree is what the build lane builds: `package.json` and `index.html`
+/// at the root for a Vite project, no `ui/` below it.
+#[test]
+fn an_app_in_its_own_repository_names_it_and_keeps_the_shape_the_lane_builds() {
+    let apps = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apps");
+    let mut seen = 0;
+    for (name, yaml) in reference_apps() {
+        let dir = apps.join(&name);
+        if !dir.join("package.json").is_file() {
+            continue;
+        }
+        seen += 1;
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let namespace = app.metadata.namespace.clone().unwrap_or_default();
+        let git = app.spec.source.git.as_ref().unwrap_or_else(|| {
+            panic!("apps/{name} sits at its repository's root but names no spec.source.git")
+        });
+        assert!(
+            app.spec.source.path.is_none(),
+            "apps/{name} names a folder as well (AP-87)"
+        );
+        assert!(
+            git.url.starts_with("https://")
+                && git.url.ends_with(&format!("/{namespace}_{name}.git")),
+            "apps/{name} names {} instead of its own repository {namespace}_{name} (AP-75)",
+            git.url
+        );
+        assert!(
+            git.path.is_none(),
+            "apps/{name} is the whole repository, not a folder of it"
+        );
+        assert!(
+            dir.join("index.html").is_file(),
+            "apps/{name} has no index.html at its root"
+        );
+        assert!(
+            !dir.join("ui").exists(),
+            "apps/{name} keeps the old ui/ folder beside its root"
+        );
+    }
+    assert!(
+        seen > 0,
+        "no application in its own repository layout under apps/"
+    );
+}
+
 /// AP-87. `joinedcontext.com/shipped-with: portal` lets a published static App name no
 /// repository because the Portal image carries its bundle; the mark is true exactly for the
 /// apps the Dockerfile builds into `/srv/apps`, so a mark without a bundle or a bundle without
