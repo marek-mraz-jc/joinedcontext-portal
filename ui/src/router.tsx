@@ -38,6 +38,11 @@ import { ComparePage } from "./pages/workspaces/ComparePage";
 import { BringBackPage } from "./pages/workspaces/BringBackPage";
 import { TryItPage } from "./pages/workspaces/TryItPage";
 import { Gallery } from "./pages/gallery/Gallery";
+import { ORG_NAMESPACE } from "./api/manifest";
+import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
+import type { OrganizationTab } from "./pages/organization/OrganizationPage";
+import { isProjectSettingsTab, ProjectSettingsPage } from "./pages/projectSettings/ProjectSettingsPage";
+import type { ProjectSettingsTab } from "./pages/projectSettings/ProjectSettingsPage";
 import type { AuthState } from "./auth/AuthProvider";
 
 export interface RouterContext {
@@ -298,6 +303,163 @@ const allEndpointsRoute = createRoute({
     );
   },
 });
+
+/**
+ * Project → Access is folded into Project settings (T-2606, Architecture/09 §14.3): a saved link,
+ * a chat message or an older assistant answer lands on Members with its query string, so a
+ * `?grant=` hand-off still opens its form.
+ */
+const accessRedirectRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/access",
+  beforeLoad: ({ params, location }) => {
+    throw redirect({
+      href: `/projects/${encodeURIComponent(params.project)}/settings/members${location.searchStr}`,
+      replace: true,
+    });
+  },
+});
+
+/** Project settings opens on General. */
+const projectSettingsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/settings",
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: "/projects/$project/settings/$tab", params: { project: params.project, tab: "general" } });
+  },
+});
+
+/** The kind a tab of Project settings creates and edits through its routed form (T-2474). */
+const SETTINGS_FORMS: Partial<Record<ProjectSettingsTab, string>> = {
+  members: "rolebindings",
+  roles: "roles",
+  "service-accounts": "serviceaccounts",
+};
+
+function ProjectSettingsView({
+  project,
+  tab,
+  form,
+}: {
+  project: string;
+  tab: string;
+  form: FormTarget | null;
+}): React.JSX.Element {
+  if (!isProjectSettingsTab(tab)) {
+    return <NotFound />;
+  }
+  return (
+    <Shell project={project}>
+      <HandOff>
+        <FormRouteHost
+          project={project}
+          plural={SETTINGS_FORMS[tab] ?? tab}
+          base={`/projects/${encodeURIComponent(project)}/settings/${tab}`}
+          form={form}
+        >
+          <ProjectSettingsPage project={project} tab={tab} />
+        </FormRouteHost>
+      </HandOff>
+    </Shell>
+  );
+}
+
+/** Project settings, one tab per address (T-2606, UI-76). */
+const projectSettingsTabRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/settings/$tab",
+  component: function ProjectSettingsTabRoute() {
+    const { project, tab } = projectSettingsTabRoute.useParams();
+    return <ProjectSettingsView project={project} tab={tab} form={null} />;
+  },
+});
+
+/** A tab's form as a page of its own: `…/new`, `…/{name}/edit` (T-2474, UI-27). */
+const projectSettingsFormRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/settings/$tab/$",
+  component: function ProjectSettingsFormRoute() {
+    const { project, tab, _splat: rest = "" } = projectSettingsFormRoute.useParams();
+    // The splat matches an empty rest too, and the router may pick it for the tab's own address.
+    const form = formOfRest(rest);
+    return rest === "" || form !== null ? (
+      <ProjectSettingsView project={project} tab={tab} form={form} />
+    ) : (
+      <NotFound />
+    );
+  },
+});
+
+/** `/organization` opens on its first tab (Architecture/09 §14.1). */
+const organizationRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/organization",
+  beforeLoad: () => {
+    throw redirect({ to: "/organization/$tab", params: { tab: "settings" } });
+  },
+});
+
+/** The kind a tab of the Organization page creates and edits through its routed form (T-2474). */
+const ORGANIZATION_FORMS: Partial<Record<OrganizationTab, string>> = {
+  members: "rolebindings",
+  roles: "roles",
+  groups: "groups",
+  "service-accounts": "serviceaccounts",
+};
+
+function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null }): React.JSX.Element {
+  const projects = useProjects();
+  if (!isOrganizationTab(tab)) {
+    return <NotFound />;
+  }
+  const first = projects.data?.[0];
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first}>
+      <HandOff>
+        <FormRouteHost
+          project={ORG_NAMESPACE}
+          plural={ORGANIZATION_FORMS[tab] ?? tab}
+          base={`/organization/${tab}`}
+          form={form}
+        >
+          <OrganizationPage tab={tab} anchor={first} />
+        </FormRouteHost>
+      </HandOff>
+    </Shell>
+  );
+}
+
+/** The Organization page, one tab per address (T-2605, UI-75): outside any project. */
+const organizationTabRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/organization/$tab",
+  component: function OrganizationTabRoute() {
+    const { tab } = organizationTabRoute.useParams();
+    return <OrganizationView tab={tab} form={null} />;
+  },
+});
+
+/** A tab's form as a page of its own: `…/new`, `…/{name}/edit` (T-2474, UI-27). */
+const organizationFormRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/organization/$tab/$",
+  component: function OrganizationFormRoute() {
+    const { tab, _splat: rest = "" } = organizationFormRoute.useParams();
+    const form = formOfRest(rest);
+    return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
+  },
+});
+
+/** `new` or `{name}/edit` after a tab's address; anything else names no form. */
+function formOfRest(rest: string): FormTarget | null {
+  const [first, second, third] = rest.split("/");
+  if (first === "new" && second === undefined) return { mode: "new" };
+  if (first && second === "edit" && third === undefined) return { mode: "edit", name: decodeURIComponent(first) };
+  return null;
+}
 
 const modelsRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -592,6 +754,13 @@ export const routeTree = rootRoute.addChildren([
     approvalDetailRoute,
     playgroundRoute,
     allEndpointsRoute,
+    organizationRoute,
+    organizationTabRoute,
+    organizationFormRoute,
+    accessRedirectRoute,
+    projectSettingsRoute,
+    projectSettingsTabRoute,
+    projectSettingsFormRoute,
     modelsRoute,
     exploreRoute,
     ckanRoute,

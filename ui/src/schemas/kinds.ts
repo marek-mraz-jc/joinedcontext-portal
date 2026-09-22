@@ -2329,3 +2329,151 @@ export const appUiSchema: UiSchema = {
     },
   },
 };
+
+/** The four contact roles jc-core's `ContactRole` accepts (PF-01). */
+export const CONTACT_ROLES = ["administrative", "technical", "data-protection", "security"] as const;
+
+/** `projects.visibility` (PF-61): every signed-in person of the organization, or only the named. */
+export const PROJECT_VISIBILITIES = ["organization", "members"] as const;
+
+/** `projects.creation` (PF-65): `anyone`, `org-admin` or `group:<name>` of a Group. */
+export const PROJECT_CREATION_PATTERN = "^(anyone|org-admin|group:[a-z0-9]([-a-z0-9]*[a-z0-9])?)$";
+
+/** The quota dimensions of PF-73, in the order jc-core's `Quotas::dimensions` lists them. */
+export const QUOTA_DIMENSIONS = [
+  "contextSpaces",
+  "residentPipelines",
+  "publicEndpoints",
+  "ingestEventsPerSecond",
+  "apps",
+  "agentRunsPerDay",
+  "entitiesPerSpace",
+  "requestsPerMinute",
+] as const;
+
+/**
+ * The `Organization` manifest's `spec` as a form (T-2605, PF-01, PF-25, PF-41, PF-61, PF-65,
+ * PF-73, PF-78), field for field jc-core's `OrganizationSpec`. `gitRepositoryUrl` is the
+ * installation's and not offered; the form keeps it from the stored manifest.
+ */
+export function organizationSchema(t: (key: string) => string): JsonSchema {
+  const quota = Object.fromEntries(
+    QUOTA_DIMENSIONS.map((dimension) => [
+      dimension,
+      { type: "integer", minimum: 0, title: t(`organization.field.quota.${dimension}`) },
+    ]),
+  );
+  return {
+    type: "object",
+    required: ["domain", "locales", "defaultLocale"],
+    properties: {
+      domain: {
+        type: "string",
+        title: t("organization.field.domain"),
+        pattern: "^([a-z0-9]([-a-z0-9]*[a-z0-9])?\\.)+[a-z]{2,63}$",
+        maxLength: 253,
+      },
+      locales: {
+        type: "array",
+        title: t("organization.field.locales"),
+        minItems: 1,
+        uniqueItems: true,
+        items: { type: "string", pattern: "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$" },
+      },
+      defaultLocale: {
+        type: "string",
+        title: t("organization.field.defaultLocale"),
+        pattern: "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      },
+      contacts: {
+        type: "array",
+        title: t("organization.field.contacts"),
+        items: {
+          type: "object",
+          required: ["role", "name", "email"],
+          properties: {
+            role: {
+              type: "string",
+              title: t("organization.field.contactRole"),
+              oneOf: CONTACT_ROLES.map((role) => ({
+                const: role,
+                title: t(`organization.contactRole.${role}`),
+              })),
+            },
+            name: { type: "string", title: t("organization.field.contactName"), minLength: 1, maxLength: 253 },
+            email: {
+              type: "string",
+              title: t("organization.field.contactEmail"),
+              pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+              maxLength: 253,
+            },
+            phone: {
+              type: "string",
+              title: t("organization.field.contactPhone"),
+              pattern: "^\\+?[0-9 ()-]{5,32}$",
+            },
+          },
+        },
+      },
+      projects: {
+        type: "object",
+        title: t("organization.field.projects"),
+        properties: {
+          creation: {
+            type: "string",
+            title: t("organization.field.creation"),
+            pattern: PROJECT_CREATION_PATTERN,
+          },
+          visibility: {
+            type: "string",
+            title: t("organization.field.visibility"),
+            oneOf: PROJECT_VISIBILITIES.map((visibility) => ({
+              const: visibility,
+              title: t(`organization.visibility.${visibility}`),
+            })),
+          },
+          nameCooldownDays: {
+            type: "integer",
+            title: t("organization.field.nameCooldownDays"),
+            minimum: 0,
+          },
+          quota: {
+            type: "object",
+            title: t("organization.field.quota.title"),
+            properties: quota,
+          },
+        },
+      },
+    },
+  } as JsonSchema;
+}
+
+/**
+ * The fields of `project.yaml` Project settings → General edits (T-2606, PF-17, PF-73): the
+ * project's title and description, and its own quotas, which may only lower the organization's.
+ * `spec.organizationRef` is the installation's and never offered.
+ */
+export function projectSchema(t: (key: string) => string): JsonSchema {
+  const quotas = Object.fromEntries(
+    QUOTA_DIMENSIONS.map((dimension) => [
+      dimension,
+      { type: "integer", minimum: 0, title: t(`organization.field.quota.${dimension}`) },
+    ]),
+  );
+  return {
+    type: "object",
+    properties: {
+      title: titleProperty(t("projectSettings.field.title")),
+      description: {
+        type: "string",
+        title: t("projectSettings.field.description"),
+        maxLength: 1024,
+      },
+      quotas: {
+        type: "object",
+        title: t("projectSettings.field.quotas"),
+        properties: quotas,
+      },
+    },
+  } as JsonSchema;
+}

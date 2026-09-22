@@ -92,6 +92,10 @@ function renderAccess(verbs: string[]) {
     if (path === "/api/v1/projects/org/groups") {
       return json(GROUPS);
     }
+    // The Organization page stands in the shell of the first project (T-2605).
+    if (path === "/api/v1/projects") {
+      return json(list([{ name: "banskabystrica" }]));
+    }
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -108,10 +112,10 @@ function renderAccess(verbs: string[]) {
   return { posted };
 }
 
-describe("the groups of the organization on the Access page", () => {
+describe("the groups of the organization on Organization → Groups", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/access");
+    window.history.pushState({}, "", "/organization/groups");
   });
 
   afterEach(() => {

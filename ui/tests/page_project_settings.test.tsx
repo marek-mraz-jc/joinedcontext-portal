@@ -1,20 +1,20 @@
 /**
- * T-1777: Project → Access against the page contract (UI-11, UI-15, UI-16, UI-44).
+ * T-1777, T-2606: Project settings against the page contract (UI-11, UI-15, UI-16, UI-44, UI-76).
  *
- * `AccessPage` composes the five panels that answer one question — who may do what here — so
- * what it owns is the frame: the H1 and the tab, one heading outline over five sections, the
- * keyboard reaching every panel in the order they are read, the four languages, and axe over
- * the whole page rather than over one panel at a time. Each panel's own cases stay in its own
- * test (`role_bindings`, `access_groups`, `service_accounts_view`, `effective_permissions`);
- * what is asserted here is that the four states each panel can be in reach the page at all,
- * because the page is where a person meets them.
+ * Project → Access became Project settings (Architecture/09 §14.3): its panels are tabs now, each
+ * at its own address, so what this file owns is the frame and each tab's states — the H1 and the
+ * document title, one outline per tab, the four states a list can be in, the keyboard, the four
+ * languages, axe — and that what the Access page gave a person still reaches them: the grant form
+ * from Members, the endpoint matrix from Your access. Each panel's own cases stay in its own test
+ * (`role_bindings`, `access_groups`, `service_accounts_view`, `part_effective_permissions`).
  */
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { AccessPage } from "../src/pages/access/AccessPage";
+import { ProjectSettingsPage } from "../src/pages/projectSettings/ProjectSettingsPage";
+import type { ProjectSettingsTab } from "../src/pages/projectSettings/ProjectSettingsPage";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
@@ -65,12 +65,13 @@ interface World {
   fails?: { status: number; detail: string };
   pending?: boolean;
   grants?: "ok" | "forbidden";
+  tab?: ProjectSettingsTab;
 }
 
-function renderAccess(world: World = {}) {
-  const { rows = 1, fails, pending = false, grants = "ok" } = world;
-  return renderPage(<AccessPage project={PROJECT} />, {
-    path: `/projects/${PROJECT}/access`,
+function renderSettings(world: World = {}) {
+  const { rows = 1, fails, pending = false, grants = "ok", tab = "members" } = world;
+  return renderPage(<ProjectSettingsPage project={PROJECT} tab={tab} />, {
+    path: `/projects/${PROJECT}/settings/${tab}`,
     answer: async (url) => {
       if (pending) return new Promise<Response>(() => undefined);
       if (url.pathname.endsWith("/rolebindings")) {
@@ -94,6 +95,8 @@ function renderAccess(world: World = {}) {
   });
 }
 
+const MEMBERS_CAPTION = en.access.roles.caption.replace("{project}", PROJECT);
+
 beforeEach(async () => {
   await i18n.changeLanguage("en");
 });
@@ -104,53 +107,55 @@ afterEach(() => {
   document.title = "";
 });
 
-describe("the Access page", () => {
+describe("Project settings", () => {
   // UI-15: the page names itself once, to the screen and to the tab.
   it("has one H1 and names the page and the project in the tab", async () => {
-    renderAccess();
-    const heading = await screen.findByRole("heading", { level: 1, name: en.access.title });
+    renderSettings();
+    const heading = await screen.findByRole("heading", { level: 1, name: en.projectSettings.title });
     expect(heading).toBeInTheDocument();
-    expect(screen.getByText(en.access.lead)).toBeInTheDocument();
+    expect(screen.getByText(en.projectSettings.lead.replace("{project}", PROJECT))).toBeInTheDocument();
     await waitFor(() => {
-      expect(document.title).toBe(`${en.access.title} · ${PROJECT} · Helsinki Region Context`);
+      expect(document.title).toBe(`${en.projectSettings.title} · ${PROJECT} · Helsinki Region Context`);
     });
   });
 
-  // UI-16: one H1 and five H2s, in the order a heading list reads them, nothing skipped.
-  it("reads as one outline over its five panels", async () => {
-    const { container } = renderAccess();
-    await screen.findByRole("heading", { level: 1, name: en.access.title });
-    await screen.findByRole("heading", { level: 2, name: en.access.roles.title });
-    await screen.findByRole("heading", { level: 2, name: en.access.accounts.title });
+  // UI-76: the six tabs of Architecture/09 §14.2, the address's one selected.
+  it("offers the six tabs, the address's one selected", async () => {
+    renderSettings({ tab: "roles" });
+    const tabs = within(await screen.findByRole("tablist", { name: en.projectSettings.tabsLabel })).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      en.projectSettings.tab.general,
+      en.projectSettings.tab.members,
+      en.projectSettings.tab.roles,
+      en.projectSettings.tab["service-accounts"],
+      en.projectSettings.tab.access,
+      en.projectSettings.tab.danger,
+    ]);
+    expect(screen.getByRole("tab", { name: en.projectSettings.tab.roles })).toHaveAttribute("aria-selected", "true");
+  });
+
+  // UI-16: one H1 and the tab's H2s, in the order a heading list reads them, nothing skipped.
+  it.each(["members", "access", "danger"] as const)("reads as one outline on %s", async (tab) => {
+    const { container } = renderSettings({ tab });
+    await screen.findByRole("heading", { level: 1, name: en.projectSettings.title });
+    await screen.findAllByRole("heading", { level: 2 });
     expectHeadingOutline(container);
-    for (const section of [
-      en.access.roles.title,
-      en.access.projectRoles.title,
-      en.access.groups.title,
-      en.access.accounts.title,
-      en.access.matrix.title,
-    ]) {
-      expect(screen.getByRole("heading", { level: 2, name: section })).toBeInTheDocument();
-    }
   });
 
   // UI-16: every panel is a region a screen reader can jump to, named by its own heading.
-  it("gives every panel a named region", async () => {
-    const { container } = renderAccess();
-    await screen.findByRole("heading", { level: 2, name: en.access.roles.title });
-    await screen.findByRole("heading", { level: 2, name: en.access.accounts.title });
+  it("gives each panel of Your access a named region", async () => {
+    const { container } = renderSettings({ tab: "access" });
+    await screen.findByRole("heading", { level: 2, name: en.access.matrix.title });
     const named = [...container.querySelectorAll("section[aria-labelledby]")].map(
       (section) => section.querySelector("h2")?.textContent,
     );
-    expect(named).toHaveLength(5);
-    expect(named).toContain(en.access.roles.title);
-    expect(named).toContain(en.access.matrix.title);
+    expect(named).toEqual([en.projectSettings.access.title, en.access.matrix.title]);
   });
 
   // The loading state: a skeleton, and a table that says it is still loading rather than
   // claiming the project holds nobody.
   it("says the lists are loading rather than showing them empty", async () => {
-    renderAccess({ pending: true });
+    renderSettings({ pending: true });
     const loading = await screen.findAllByText(en.app.loading);
     expect(loading.length).toBeGreaterThan(0);
     expect(screen.queryByText(en.access.roles.empty)).not.toBeInTheDocument();
@@ -158,7 +163,7 @@ describe("the Access page", () => {
 
   // The empty state: what this is, and what to do first.
   it("offers the first action when nobody holds a role yet", async () => {
-    renderAccess({ rows: 0 });
+    renderSettings({ rows: 0 });
     expect(await screen.findByText(en.access.roles.empty)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: en.access.roles.grant })).toBeInTheDocument();
   });
@@ -166,7 +171,7 @@ describe("the Access page", () => {
   // The error state: the API's own sentence, not "something went wrong", and never an empty
   // list — a list that failed is not "you have nothing".
   it("shows the reason a list failed instead of an empty list", async () => {
-    renderAccess({ fails: { status: 503, detail: "The configuration store is not answering." } });
+    renderSettings({ fails: { status: 503, detail: "The configuration store is not answering." } });
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The configuration store is not answering.");
     expect(screen.queryByText(en.access.roles.empty)).not.toBeInTheDocument();
@@ -174,17 +179,14 @@ describe("the Access page", () => {
 
   // UI-44: what a person may not read says so in words; the server stays the judge.
   it("says who may grant what when the grants are refused", async () => {
-    renderAccess({ grants: "forbidden" });
+    renderSettings({ tab: "access", grants: "forbidden" });
     expect(await screen.findByText(en.access.matrix.forbidden)).toBeInTheDocument();
   });
 
   // A list that holds one row and a list that holds many read the same way.
   it.each([0, 1, 500])("draws %i rows without changing how the page reads", async (rows) => {
-    const { container } = renderAccess({ rows });
-    await screen.findByRole("heading", { level: 2, name: en.access.roles.title });
-    const table = await screen.findByRole("table", {
-      name: en.access.roles.caption.replace("{project}", PROJECT),
-    });
+    const { container } = renderSettings({ rows });
+    const table = await screen.findByRole("table", { name: MEMBERS_CAPTION });
     await waitFor(() => {
       expect(within(table).queryByText(en.app.loading)).not.toBeInTheDocument();
     });
@@ -193,69 +195,66 @@ describe("the Access page", () => {
     expectHeadingOutline(container);
   });
 
-  // UI-16: the keyboard reaches the page's controls in the order the panels are read, and
-  // nothing takes focus on arrival.
-  it("is reachable by keyboard in the order the panels are read", async () => {
-    const { container } = renderAccess();
+  // UI-16: the keyboard reaches the tab list first, then the tab's own action, and nothing takes
+  // focus on arrival.
+  it("is reachable by keyboard: the selected tab, then the tab's action", async () => {
+    const { container } = renderSettings();
     await screen.findByRole("button", { name: en.access.roles.grant });
     expect(document.activeElement).toBe(document.body);
     const reached = await tabOrder(container);
-    const labels = reached.map((element) => element.textContent?.trim() ?? "");
-    expect(labels).toContain(en.access.roles.grant);
-    expect(reached.indexOf(screen.getByRole("button", { name: en.access.roles.grant }))).toBe(0);
+    expect(reached[0]).toBe(screen.getByRole("tab", { name: en.projectSettings.tab.members }));
+    expect(reached.indexOf(screen.getByRole("button", { name: en.access.roles.grant }))).toBe(1);
   });
 
   // UI-11: every string of the page comes from the bundle, in all four languages.
   it("says the same things in every language", async () => {
     await inEveryLocale(async (locale) => {
       cleanup();
-      renderAccess({ rows: 0 });
-      const title = i18n.t("access.title");
+      renderSettings({ rows: 0 });
+      const title = i18n.t("projectSettings.title");
       expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
       expect(
-        screen.getByText(i18n.t("access.lead")),
+        screen.getByText(i18n.t("projectSettings.lead", { project: PROJECT })),
         `the lead is missing in ${locale}`,
       ).toBeInTheDocument();
       if (locale !== "en") {
-        expect(title, `${locale} still shows the English title`).not.toBe(en.access.title);
+        expect(title, `${locale} still shows the English title`).not.toBe(en.projectSettings.title);
       }
     });
   });
 
   // PF-50: a name that arrived as markup is read as text, never parsed.
   it("renders a role holder that arrived as markup as text", async () => {
-    renderPage(<AccessPage project={PROJECT} />, {
-      path: `/projects/${PROJECT}/access`,
+    renderPage(<ProjectSettingsPage project={PROJECT} tab="members" />, {
+      path: `/projects/${PROJECT}/settings/members`,
       answer: (url) =>
         url.pathname.endsWith("/rolebindings")
           ? json(list([binding("x", "<img src=x onerror=alert(1)>", "domain-editor")]))
           : undefined,
     });
-    expect(
-      await screen.findByText("<img src=x onerror=alert(1)>"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
     expect(document.querySelector("img")).toBeNull();
   });
 
-  it("has no axe violations with its lists full", async () => {
-    const { container } = renderAccess({ rows: 3 });
-    await screen.findByRole("heading", { level: 2, name: en.access.matrix.title });
+  it.each(["members", "access", "general", "danger"] as const)("has no axe violations on %s", async (tab) => {
+    const { container } = renderSettings({ tab, rows: 3 });
+    await screen.findAllByRole("heading", { level: 2 });
     await waitFor(() => {
       expect(screen.queryAllByText(en.app.loading)).toHaveLength(0);
     });
     await expectNoAxeViolations(container);
   });
 
-  it("has no axe violations while it is empty", async () => {
-    const { container } = renderAccess({ rows: 0 });
+  it("has no axe violations while Members is empty", async () => {
+    const { container } = renderSettings({ rows: 0 });
     await screen.findByText(en.access.roles.empty);
     await expectNoAxeViolations(container);
   });
 
-  // The grant form the page's primary action opens is the same form the assistant's draft
+  // The grant form the Members tab's primary action opens is the same form the assistant's draft
   // opens; pressing it from here has to reach it (UI-44, the parity table).
-  it("opens the grant form from the page's own action", async () => {
-    renderAccess({ rows: 0 });
+  it("opens the grant form from the Members tab's own action", async () => {
+    renderSettings({ rows: 0 });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: en.access.roles.grant }));
     expect(await screen.findByRole("dialog", { name: en.access.roles.grantTitle })).toBeInTheDocument();

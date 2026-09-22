@@ -275,11 +275,17 @@ export function FormRouteHost({
   project,
   plural,
   form,
+  base,
   children,
 }: {
   project: string;
   plural: string;
   form: FormTarget | null;
+  /**
+   * The list's own address when it is not `/projects/{project}/{plural}`: a tab of Project
+   * settings hosts its forms at `{base}/new` and `{base}/{name}/edit` (T-2606).
+   */
+  base?: string;
   children: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -302,17 +308,29 @@ export function FormRouteHost({
       openNew: () => {
         remember();
         setNotice(null);
+        if (base) {
+          void navigate({ href: `${base}/new` });
+          return;
+        }
         void navigate({ to: "/projects/$project/$plural/new", params: { project, plural } });
       },
       openEdit: (name) => {
         remember();
         setNotice(null);
+        if (base) {
+          void navigate({ href: `${base}/${encodeURIComponent(name)}/edit` });
+          return;
+        }
         void navigate({
           to: "/projects/$project/$plural/$name/edit",
           params: { project, plural, name },
         });
       },
       close: () => {
+        if (base) {
+          void navigate({ href: base });
+          return;
+        }
         void navigate({ to: "/projects/$project/$plural", params: { project, plural } });
       },
       leave: setNotice,
@@ -322,7 +340,7 @@ export function FormRouteHost({
         return () => setOpen((count) => count - 1);
       },
     }),
-    [form, navigate, project, plural, slot],
+    [form, navigate, project, plural, base, slot],
   );
 
   const showing = open > 0;

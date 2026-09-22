@@ -14,6 +14,8 @@ const PROJECT_PAGES: Record<string, string> = {
   approvals: "nav.approvals",
   assistant: "nav.assistant",
   apps: "nav.apps",
+  // An older answer's `/access` route lands on Project settings (T-2606) and is named as it.
+  access: "nav.settings",
 };
 
 /**
