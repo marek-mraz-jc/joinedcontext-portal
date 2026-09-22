@@ -76,7 +76,8 @@ export function fromGroupEnvelope(manifest: unknown): GroupForm {
   };
 }
 
-function useGroups() {
+/** The organization's groups, which a binding or an application role may name (PF-64). */
+export function useGroups() {
   return useQuery({
     queryKey: queryKeys.list(ORG_NAMESPACE, "groups"),
     queryFn: async () =>

@@ -1575,6 +1575,25 @@
         "served": "Served {commit}",
         "noRepository": "No repository of its own: this application predates the per-application repository, so nothing builds or serves it."
       }
+    },
+    "roles": {
+      "title": "Roles and members",
+      "lead": "Who may do what inside this application. Adding or removing a member proposes a change to the application, which an approver reviews.",
+      "count": "Members: {count}",
+      "nobody": "Nobody holds this role yet.",
+      "groupMember": "Group {group}",
+      "remove": "Remove",
+      "removeLabel": "Remove {member} from {role}",
+      "kind": "Add a",
+      "kindUser": "Person",
+      "kindGroup": "Group",
+      "email": "E-mail",
+      "group": "Group",
+      "pickGroup": "Choose a group",
+      "add": "Add member",
+      "needEmail": "Type the person's e-mail address.",
+      "needGroup": "Choose a group.",
+      "already": "Already holds this role."
     }
   },
   "appLifecycle": {
