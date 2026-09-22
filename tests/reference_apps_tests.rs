@@ -190,3 +190,58 @@ fn every_static_app_is_excluded_from_the_cargo_workspace() {
         );
     }
 }
+
+/// AP-87. `joinedcontext.com/shipped-with: portal` lets a published static App name no
+/// repository because the Portal image carries its bundle; the mark is true exactly for the
+/// apps the Dockerfile builds into `/srv/apps`, so a mark without a bundle or a bundle without
+/// its mark is found here, not as a 404 or a refused proposal on a cluster.
+#[test]
+fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
+    use jc_core::kinds::app::SHIPPED_WITH_ANNOTATION;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dockerfile = std::fs::read_to_string(root.join("Dockerfile")).expect("the Dockerfile");
+    for (name, yaml) in reference_apps() {
+        let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let marked = app
+            .metadata
+            .annotations
+            .get(SHIPPED_WITH_ANNOTATION)
+            .is_some_and(|value| value == "portal");
+        let built = dockerfile.contains(&format!("/srv/apps/{name} "))
+            || dockerfile.contains(&format!("/srv/apps/{name}\n"));
+        assert_eq!(
+            marked, built,
+            "apps/{name}: the shipped mark says {marked}, the Dockerfile builds it: {built}"
+        );
+    }
+}
+
+/// AP-83, AP-01, AP-75. The plain-HTML sample is what T-2599 pushes to its own repository
+/// unchanged: a static App with no build step, whose folder is the bundle (`index.html` at its
+/// root, no toolchain file), and whose manifest passes the validation `jcctl validate` runs.
+#[test]
+fn the_plain_html_sample_is_its_own_bundle_and_a_valid_published_app() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apps/helsinki-events");
+    let (_, yaml) = reference_apps()
+        .into_iter()
+        .find(|(name, _)| name == "helsinki-events")
+        .expect("apps/helsinki-events/app.yaml");
+    match jc_core::registry::validate_yaml("App", &yaml) {
+        Some(Ok(_)) => {}
+        other => panic!("jcctl validate refuses apps/helsinki-events: {other:?}"),
+    }
+    let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+    assert_eq!(app.spec.class, jc_core::AppClass::Static);
+    assert!(app.spec.build.0.is_empty(), "no build step (AP-83)");
+    assert!(
+        app.spec.source.git.is_some(),
+        "published from its own repository (AP-87)"
+    );
+    assert!(root.join("index.html").is_file(), "index.html at the root");
+    for toolchain in ["package.json", "Cargo.toml", "vite.config.ts"] {
+        assert!(
+            !root.join(toolchain).exists(),
+            "{toolchain} in a folder that is served as it is"
+        );
+    }
+}

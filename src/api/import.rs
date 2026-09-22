@@ -1175,7 +1175,7 @@ pub async fn import_bundle(
 
     let incoming = parse(bytes)?;
     authorize(state, identity, &project, &incoming)?;
-    well_formed(&incoming)?;
+    well_formed(&incoming, state.config.apps_dir.as_deref())?;
     let target = options
         .target_namespace
         .clone()
@@ -1781,13 +1781,18 @@ fn authorize(
 /// 2026-09-18: the approver read an ordinary plan, and the reconciler has refused the file on every
 /// tick since (DM-22). Checked before anything is planned, so a dry run says the same thing as the
 /// proposal, and the file it came from is named — a bundle holds many manifests.
-fn well_formed(incoming: &[Incoming]) -> Result<(), ApiError> {
+fn well_formed(incoming: &[Incoming], apps_dir: Option<&str>) -> Result<(), ApiError> {
     for item in incoming {
         let Some(envelope) = &item.envelope else {
             continue;
         };
         if envelope.kind == BUNDLE_KIND {
             continue;
+        }
+        // The shipped bundle a published static App may stand on instead of a repository has
+        // to be on this Portal, not on the one the bundle was exported from (AP-87).
+        if let Some(refusal) = crate::apps::static_host::unshipped_claim(apps_dir, envelope) {
+            return Err(ApiError::BadRequest(refusal));
         }
         let Some(checked) = jc_core::registry::validate_yaml(
             &envelope.kind,
