@@ -83,3 +83,8 @@ jobs:
       # The digest map the static host checks before it serves a file (AP-12, T-2457).
       - name: the integrity manifest a static app ships with
         run: node --test scripts/app-integrity.test.mjs
+      # The build lane's package check and functions bundle (AP-82, AP-84, ADR-N-026); the bundle
+      # test needs Vite, which the SDK step above installed.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the build lane refuses foreign packages and bundles functions
+        run: ln -s ../sdk/node_modules builder/node_modules && node --test builder/lane.test.mjs
