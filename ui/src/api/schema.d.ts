@@ -8362,6 +8362,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
+                /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
+                confirm?: string;
             };
             header?: never;
             path: {
@@ -8536,6 +8538,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
+                /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
+                confirm?: string;
             };
             header?: never;
             path: {
@@ -8653,6 +8657,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
+                /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
+                confirm?: string;
             };
             header?: never;
             path: {
@@ -8746,6 +8752,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
+                /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
+                confirm?: string;
             };
             header?: never;
             path: {

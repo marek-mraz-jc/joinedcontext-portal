@@ -8,7 +8,7 @@ use crate::api::dry_run::{self, DryRunQuery, DryRunResult};
 use crate::api::mutate::{
     author_credentials, branch_name, create_or_reuse_branch, open_change_on, resolve_repo_path,
 };
-use crate::auth::session::Identity;
+use crate::auth::session::{Front, Identity};
 use crate::auth::CurrentUser;
 use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Operation};
 use crate::error::{ApiError, ProblemDetails};
@@ -159,6 +159,7 @@ impl DeleteOutcome {
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
@@ -172,6 +173,7 @@ impl DeleteOutcome {
 )]
 pub async fn delete_resource(
     user: CurrentUser,
+    front: Front,
     State(state): State<AppState>,
     Path((project, plural, name)): Path<(String, String, String)>,
     Query(dry_run_q): Query<DryRunQuery>,
@@ -190,6 +192,21 @@ pub async fn delete_resource(
     {
         DeleteOutcome::DryRun(result) => Ok((StatusCode::OK, Json(result)).into_response()),
         DeleteOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
+        // Removed at once, the name typed back, when the person administers the kind (PF-58);
+        // a bearer caller's removal always waits (AG-11).
+        DeleteOutcome::Proposed(change) if front != Front::Bearer => {
+            let kind = resource::by_plural(&plural).map_or("", |info| info.kind);
+            let change = crate::api::changes::approve_as_proposed(
+                &state,
+                &user.0.identity,
+                &project,
+                kind,
+                change,
+                dry_run_q.confirm.as_deref(),
+            )
+            .await;
+            Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+        }
         DeleteOutcome::Proposed(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         DeleteOutcome::Referenced { here, elsewhere } => Err(ApiError::Conflict(
             DeleteOutcome::conflict_message(&here, elsewhere),
@@ -573,6 +590,7 @@ mod tests {
 
         let err_plural = delete_resource(
             user.clone(),
+            Front::Portal,
             State(state.clone()),
             Path(("ovzdusie".into(), "unknownplural".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -586,6 +604,7 @@ mod tests {
 
         let err_name = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "nonexistent".into())),
             Query(DryRunQuery::default()),
@@ -621,11 +640,13 @@ mod tests {
         let user = dummy_user();
         let resp = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                confirm: None,
             }),
         )
         .await
@@ -673,6 +694,7 @@ mod tests {
         let user = dummy_user();
         let err1 = delete_resource(
             user.clone(),
+            Front::Portal,
             State(state.clone()),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -709,6 +731,7 @@ mod tests {
 
         let err2 = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -745,6 +768,7 @@ mod tests {
         let user = dummy_user();
         let err = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -837,6 +861,7 @@ mod tests {
         let user = dummy_user();
         let resp = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -901,6 +926,7 @@ mod tests {
         let user = dummy_user();
         let err = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),

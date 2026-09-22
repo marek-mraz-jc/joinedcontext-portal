@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { queryKeys } from "../src/api/client";
 import { digestOf } from "../src/api/digest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -148,5 +149,52 @@ describe("a draft another hand wrote, without the schema's defaults (T-2624, PF-
     await new Promise((resolve) => setTimeout(resolve, 1200));
     expectOpen(propose);
     expect(checked).toHaveLength(1);
+  });
+});
+
+// PF-58, PF-70: before the click the dialog says what proposing leads to for this person.
+describe("what proposing leads to, said in the dialog", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    vi.stubGlobal("EventSource", SilentEventSource);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // The page that opens the form has read the person's permissions already; the dialog reads them.
+  function withVerbs(verbs: string[]) {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const grants = [{ binding: "b", role: "r", scope: "organization", rule: { kinds: ["ContextSpace"], verbs } }];
+    client.setQueryData(queryKeys.permissions("helsinki"), { bootstrap: false, project: "helsinki", grants });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <Harness />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("an administrator of the kind hears the change is approved when they propose", async () => {
+    withVerbs(["propose", "approve", "delete"]);
+    expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
+      en.changes.approvedOnPropose.replace("{kind}", "ContextSpace"),
+    );
+  });
+
+  it("a steward hears the change waits and why", async () => {
+    withVerbs(["propose", "approve"]);
+    expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
+      en.changes.approveNotDelete.replace("{kind}", "ContextSpace"),
+    );
+  });
+
+  it("an editor hears nothing new", async () => {
+    withVerbs(["propose"]);
+    await waitFor(() => expect(screen.getByRole("button", { name: en.form.check })).toBeInTheDocument());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId("propose-standing")).toBeNull();
   });
 });

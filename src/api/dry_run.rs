@@ -13,6 +13,10 @@ pub struct DryRunQuery {
     /// Write into this workspace's branch instead of opening a Change (API/01 §22, CC-76).
     #[serde(default)]
     pub workspace: Option<String>,
+    /// The resource's name typed back: an administrator's own red-lane change is approved as it
+    /// is proposed only with it (PF-58, CC-39).
+    #[serde(default)]
+    pub confirm: Option<String>,
 }
 
 /// Evaluates the `?dryRun` query parameter.
@@ -304,6 +308,7 @@ mod tests {
         let q = DryRunQuery {
             workspace: None,
             dry_run: None,
+            confirm: None,
         };
         assert!(!is_dry_run(&q).expect("query should succeed"));
     }
@@ -313,6 +318,7 @@ mod tests {
         let q = DryRunQuery {
             workspace: None,
             dry_run: Some("All".to_string()),
+            confirm: None,
         };
         assert!(is_dry_run(&q).expect("query should succeed"));
     }
@@ -323,6 +329,7 @@ mod tests {
             let q = DryRunQuery {
                 workspace: None,
                 dry_run: Some(candidate.to_string()),
+                confirm: None,
             };
             let err = is_dry_run(&q).expect_err("should reject unsupported values");
             match err {

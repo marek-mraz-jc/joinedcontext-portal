@@ -6690,6 +6690,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -6945,6 +6954,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -7101,6 +7119,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -7225,6 +7252,15 @@
             "name": "dryRun",
             "in": "query",
             "description": "Set to 'All' for dry run",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "description": "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)",
             "required": false,
             "schema": {
               "type": "string"

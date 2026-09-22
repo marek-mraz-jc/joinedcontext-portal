@@ -462,6 +462,7 @@ async fn propose_checked(
     dry_run: bool,
     body_val: Value,
     workspace: Option<&str>,
+    confirm: Option<&str>,
 ) -> Result<Response, ApiError> {
     let manifest = body_val.clone();
     if dry_run {
@@ -533,6 +534,24 @@ async fn propose_checked(
     crate::ops::forget_check(state, project, &manifest).await;
     match outcome {
         ProposeOutcome::DryRun(res) => Ok((StatusCode::OK, Json(res)).into_response()),
+        // A person at the Portal who administers every kind of it has it approved now (PF-58);
+        // a bearer caller never does (AG-11).
+        ProposeOutcome::Change(change) if front != Front::Bearer => {
+            let kind = manifest
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let change = crate::api::changes::approve_as_proposed(
+                state,
+                &user.0.identity,
+                project,
+                kind,
+                change,
+                confirm,
+            )
+            .await;
+            Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+        }
         ProposeOutcome::Change(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         ProposeOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
     }
@@ -1504,6 +1523,7 @@ async fn propose_draft(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     request_body(content = ResourceEnvelope, example = json!({
             "apiVersion": "joinedcontext.com/v1alpha1",
@@ -1560,6 +1580,7 @@ pub async fn create(
         is_dry,
         body_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -1575,6 +1596,7 @@ pub async fn create(
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     request_body(content = ResourceEnvelope, example = json!({
             "apiVersion": "joinedcontext.com/v1alpha1",
@@ -1631,6 +1653,7 @@ pub async fn replace(
         is_dry,
         body_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -1646,6 +1669,7 @@ pub async fn replace(
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     // Declared by hand: the handler takes the raw `Bytes` because the media type decides how the
     // body is parsed, and utoipa cannot derive a schema from that extractor.
@@ -1728,6 +1752,7 @@ pub async fn patch(
         is_dry,
         desired_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -2201,6 +2226,7 @@ mod tests {
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                confirm: None,
             }),
             headers,
             patch_body,

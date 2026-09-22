@@ -345,6 +345,20 @@ async fn remove(
     )
     .await?
     {
+        // A person at the Portal who administers the kind removes it at once, the name typed
+        // back (PF-58); an agent run, a bearer caller and MCP wait for an approver (AG-11).
+        DeleteOutcome::Proposed(change) if caller.via == super::Via::Session => {
+            let change = crate::api::changes::approve_as_proposed(
+                state,
+                &caller.identity,
+                &home_holding(state, info, project, &input.name),
+                info.kind,
+                change,
+                Some(&input.confirm),
+            )
+            .await;
+            Ok(ProposeOutcome::Change(change).into_value())
+        }
         DeleteOutcome::Proposed(change) => Ok(ProposeOutcome::Change(change).into_value()),
         DeleteOutcome::Workspace(commit) => Ok(ProposeOutcome::Workspace(commit).into_value()),
         DeleteOutcome::DryRun(result) => Ok(ProposeOutcome::DryRun(result).into_value()),
