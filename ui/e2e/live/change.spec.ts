@@ -70,13 +70,13 @@ test("the assistant opens a change or a removal on the kind's page, and the pers
   await approver.context.close();
 });
 
-test("the assistant drafts a role grant into the access page's form, and the person proposes it as a red change", async ({ browser }) => {
+test("the assistant drafts a role grant into the Members form, and the person proposes it as a red change", async ({ browser }) => {
   // The demo steward is also the organization's administrator, so the grant is within their rights.
-  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/access?lang=en`);
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/settings/members?lang=en`);
   const page = steward.page;
 
   await ask(page, "Give jana.kovacova the steward role on the helsinki project");
-  await expect(page).toHaveURL(/\/projects\/helsinki\/access\?grant=jana-kovacova-steward-helsinki/, { timeout: 180_000 });
+  await expect(page).toHaveURL(/\/projects\/helsinki\/settings\/members(\/new)?\?(.*&)?grant=jana-kovacova-steward-helsinki/, { timeout: 180_000 });
   const grant = page.getByRole("region", { name: "Grant a role" });
   await expect(grant).toBeVisible();
   await expect(grant.getByLabel(/Username or e-mail/)).toHaveValue("jana.kovacova");

@@ -89,7 +89,7 @@ const CASES: Case[] = [
     kind: "RoleBinding",
     plural: "rolebindings",
     project: ORG,
-    route: `/projects/${PROJECT}/access`,
+    route: `/projects/${PROJECT}/settings/members`,
     name: "stewards",
     form: {
       // The access page labels a binding by whom it binds and to what (RoleBindings.tsx).
