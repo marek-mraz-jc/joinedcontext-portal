@@ -169,3 +169,80 @@ async fn an_unreadable_project_keeps_its_last_render() {
         "the space the last assembly rendered stays"
     );
 }
+
+/// PF-77: once a project's registry entry is gone (its deletion Change merged), the next sync
+/// archives the project's repository, keeping its history, and removes nothing.
+#[tokio::test]
+async fn a_project_taken_out_of_the_registry_has_its_repository_archived() {
+    let server = MockServer::start().await;
+    organization(&server).await;
+    repository(
+        &server,
+        "ovzdusie",
+        "main",
+        &[
+            (".jc/layout", "2\n"),
+            ("project.yaml", PROJECT),
+            ("spaces/ovzdusie/space.yaml", SPACE),
+        ],
+    )
+    .await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v1/repos/test-owner/ovzdusie"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "archived": true })))
+        .mount(&server)
+        .await;
+    let (syncer, mirror) = syncer(&server);
+    syncer.sync_once().await.expect("the first sync");
+
+    server.reset().await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v1/repos/test-owner/ovzdusie"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "archived": true })))
+        .mount(&server)
+        .await;
+    let base = "/api/v1/repos/test-owner/test-repo";
+    Mock::given(method("GET"))
+        .and(path(base))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{base}/branches/main")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "name": "main", "commit": { "id": "d00d" }
+        })))
+        .mount(&server)
+        .await;
+    repository(
+        &server,
+        "test-repo",
+        "d00d",
+        &[("org.yaml", ORG), (".jc/layout", "2\n")],
+    )
+    .await;
+    syncer
+        .sync_once()
+        .await
+        .expect("the sync after the deletion");
+
+    let archived: Vec<serde_json::Value> = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .into_iter()
+        .filter(|r| r.method.as_str() == "PATCH")
+        .map(|r| serde_json::from_slice(&r.body).expect("json"))
+        .collect();
+    assert_eq!(archived, [json!({ "archived": true })]);
+    assert!(mirror.repository_of("ovzdusie").is_none());
+    assert!(
+        server
+            .received_requests()
+            .await
+            .expect("requests")
+            .iter()
+            .all(|r| r.method.as_str() != "DELETE"),
+        "nothing is removed"
+    );
+}

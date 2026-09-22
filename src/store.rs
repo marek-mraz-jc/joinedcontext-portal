@@ -72,6 +72,14 @@ impl Mirror {
             .store(layout, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Every registered project's own repository, by slug.
+    pub fn repositories(&self) -> BTreeMap<String, String> {
+        self.repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
     /// Records where each registered project lives, replacing what was recorded.
     pub fn set_repositories(&self, repositories: BTreeMap<String, String>) {
         let mut lock = self.repositories.write().unwrap_or_else(|p| p.into_inner());

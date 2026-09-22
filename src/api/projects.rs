@@ -637,9 +637,12 @@ pub(crate) async fn deletion_plan(
 ) -> Result<Vec<String>, ApiError> {
     let tree = gitea.list_tree(git_ref).await?;
     let prefix = format!("projects/{project}/");
+    // Layout 2 holds the project's registry entry instead of its tree (PF-86); the sync
+    // archives the project's repository once the entry is gone.
+    let entry = format!("projects/{project}.yaml");
     let mut files: Vec<String> = tree
         .iter()
-        .filter(|path| path.starts_with(&prefix))
+        .filter(|path| path.starts_with(&prefix) || **path == entry)
         .cloned()
         .collect();
 
@@ -773,12 +776,24 @@ async fn reserved_until(
         return None;
     }
     let branch = gitea.default_branch().await.ok()?;
-    let history = gitea
-        .list_commits(&branch, &format!("projects/{name}/project.yaml"), 1)
-        .await
-        .unwrap_or_default();
-    let last = history.first()?;
-    let removed = chrono::DateTime::parse_from_rfc3339(&last.date).ok()?;
+    // The project's own file in layout 1, its registry entry in layout 2 (PF-86).
+    let mut removed = None;
+    for path in [
+        format!("projects/{name}/project.yaml"),
+        format!("projects/{name}.yaml"),
+    ] {
+        let history = gitea
+            .list_commits(&branch, &path, 1)
+            .await
+            .unwrap_or_default();
+        if let Some(date) = history
+            .first()
+            .and_then(|last| chrono::DateTime::parse_from_rfc3339(&last.date).ok())
+        {
+            removed = removed.max(Some(date));
+        }
+    }
+    let removed = removed?;
     let free = removed.with_timezone(&chrono::Utc) + chrono::Duration::days(days as i64);
     (chrono::Utc::now() < free).then_some(free)
 }

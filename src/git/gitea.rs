@@ -1125,6 +1125,16 @@ impl GiteaClient {
         }
     }
 
+    /// `PATCH /repos/{owner}/{repo}` with `archived: true` — a deleted project's repository is
+    /// kept read-only with its history, never deleted (PF-77).
+    pub async fn archive_repository(&self) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "archived": true });
+        let res = self
+            .send(self.http.patch(self.repo_url("")?).json(&payload))
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
     /// `POST /branch_protections` — `branch` takes no direct push: every change reaches it
     /// through a merged pull request (PF-87).
     pub async fn protect_branch(&self, branch: &str) -> Result<(), GitError> {

@@ -768,6 +768,31 @@ impl Syncer {
             return Ok((loaded, revision));
         }
 
+        // 5a''. A project whose registry entry is gone was deleted (PF-77): its repository is
+        //       archived, read-only with its history, never removed. The entry is what the
+        //       reviewed Change took away, so nothing else can make a repository go.
+        //       ponytail: compares with the last sync of this process; a deletion merged while
+        //       the Portal was down leaves its repository open until an operator archives it.
+        let registered = fresh_mirror.repositories();
+        for (slug, repository) in self.mirror.repositories() {
+            if registered.contains_key(&slug) || registered.values().any(|r| *r == repository) {
+                continue;
+            }
+            match self
+                .gitea
+                .for_repository(repository.as_str())
+                .archive_repository()
+                .await
+            {
+                Ok(()) => {
+                    tracing::info!(project = %slug, %repository, "a deleted project's repository is archived")
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %repository, %error, "a deleted project's repository did not archive")
+                }
+            }
+        }
+
         // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
         //      runner as one Secret (T-0927, PL-15). A pipeline whose reference does not
         //      resolve, or whose `envVar` another pipeline already claims, is named here and

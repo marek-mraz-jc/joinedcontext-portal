@@ -200,3 +200,90 @@ async fn a_failed_registration_removes_the_new_repository() {
         "the new repository is removed"
     );
 }
+
+/// PF-77, PF-86: deleting a project of layout 2 is the organization's Change that removes its
+/// registry entry and the bindings that name it; the project's repository is not touched here
+/// (the sync archives it once the entry is gone).
+#[tokio::test]
+async fn deleting_a_project_removes_its_registry_entry() {
+    let (server, state) = world(false).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/git/trees/main")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "truncated": false,
+            "tree": [
+                { "path": "org.yaml", "type": "blob" },
+                { "path": "projects/doprava.yaml", "type": "blob" },
+                { "path": "projects/ovzdusie.yaml", "type": "blob" },
+                { "path": "users/assignments/doprava-creator.yaml", "type": "blob" },
+            ],
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-1", "content": "", "encoding": "base64"
+        })))
+        .mount(&server)
+        .await;
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    state.mirror.upsert(envelope(
+        "Project",
+        "doprava",
+        org,
+        json!({ "organizationRef": "bb" }),
+    ));
+    state.mirror.upsert(envelope(
+        "Role",
+        "org-admin",
+        org,
+        json!({ "rules": [{ "kinds": ["Project", "RoleBinding"], "verbs": ["propose", "approve", "delete", "read"] }] }),
+    ));
+    for (binding, scope) in [
+        ("org-admins", json!({ "organization": "bb" })),
+        ("doprava-creator", json!({ "project": "doprava" })),
+    ] {
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            binding,
+            org,
+            json!({ "subjects": [{ "user": "admin@hel.fi" }], "role": "org-admin", "scope": scope }),
+        ));
+    }
+    state
+        .mirror
+        .set_repositories(std::collections::BTreeMap::from([(
+            "doprava".to_owned(),
+            "doprava".to_owned(),
+        )]));
+
+    let answer = send(
+        &state,
+        person("admin"),
+        "DELETE",
+        "/api/v1/projects/doprava",
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+    let mut removed: Vec<String> = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .into_iter()
+        .filter(|r| r.method.as_str() == "DELETE")
+        .map(|r| r.url.path().to_owned())
+        .collect();
+    removed.sort();
+    assert_eq!(
+        removed,
+        [
+            format!("{REPO}/contents/projects/doprava.yaml"),
+            format!("{REPO}/contents/users/assignments/doprava-creator.yaml"),
+        ],
+        "the entry and the binding, and not the other project's entry nor the repository"
+    );
+}
