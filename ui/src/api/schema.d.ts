@@ -1061,6 +1061,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Duplicate A Project
+         * @description Copies the project's repository with its history under a new slug and proposes its registry entry and the caller's steward binding; the copy's endpoints get slugs of their own.
+         */
+        post: operations["duplicate_project"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/export": {
         parameters: {
             query?: never;
@@ -2392,6 +2412,14 @@ export interface components {
             restartsStream?: boolean;
             valid: boolean;
             verdict?: null | components["schemas"]["Verdict"];
+        };
+        /** @description The new slug of a duplicate and this deployment's own values. */
+        DuplicateProject: {
+            displayName?: string | null;
+            /** @description The copy's slug: the `{project}` segment of every path of it (PF-67). */
+            name: string;
+            /** @description Values for the parameters the origin's `project.yaml` declares (CC-88). */
+            parameters?: Record<string, never>;
         };
         /** @description One directed relation between two nodes. */
         Edge: {
@@ -6654,6 +6682,94 @@ export interface operations {
                 };
             };
             /** @description The space or the repository cannot be reached now */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    duplicate_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug of the origin */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "displayName": "Helsinki (test)",
+                 *       "name": "helsinki-test",
+                 *       "parameters": {}
+                 *     }
+                 */
+                "application/json": components["schemas"]["DuplicateProject"];
+            };
+        };
+        responses: {
+            /** @description The change that registers the copy */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description The name is not a DNS-1123 label, or a parameter does not fit the origin's declarations */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The organization does not let this caller open a project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No binding of the caller covers the origin */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The name is taken, or the organization is not of layout 2 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No git forge configured */
             503: {
                 headers: {
                     [name: string]: unknown;

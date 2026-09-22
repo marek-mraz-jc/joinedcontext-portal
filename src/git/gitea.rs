@@ -778,6 +778,46 @@ impl GiteaClient {
         }
     }
 
+    /// Creates this repository as a copy of `origin` with its whole history, through the
+    /// forge's migration from its own address (PF-89): the forge refuses a fork into the owner
+    /// that holds the origin. Private, without the origin's issues, pull requests, wiki or
+    /// releases. Answers `false`, and copies nothing, when a repository of this name is already
+    /// there.
+    pub async fn migrate_repository(&self, origin: &GiteaClient) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let base = self.base.as_str().trim_end_matches('/');
+        let full = format!("{base}/api/v1/repos/migrate");
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "clone_addr": format!("{base}/{}/{}.git", origin.owner, origin.repo),
+            "service": "gitea",
+            "auth_token": self.token,
+            "repo_owner": self.owner,
+            "repo_name": self.repo,
+            "private": true,
+            "mirror": false,
+            "issues": false,
+            "pull_requests": false,
+            "wiki": false,
+            "releases": false,
+            "labels": false,
+            "milestones": false,
+            "lfs": false,
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
     /// The push mirrors of the repository: where each one pushes, and what its last sync said
     /// (AP-79). Answers only for a caller that administers the repository.
     pub async fn push_mirrors(&self) -> Result<Vec<PushMirror>, GitError> {

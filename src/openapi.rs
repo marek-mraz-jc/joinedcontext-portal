@@ -29,7 +29,7 @@ use crate::api::ops::{OperationAnnotations, OperationSummary};
 use crate::api::pipelines::PipelineMetrics;
 use crate::api::preferences::Preferences;
 use crate::api::projects::{
-    OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
+    DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::api::service_accounts::{KeyInfo, KeyList, MintedKey};
@@ -68,6 +68,7 @@ use crate::tools::model_tools::{
         crate::api::projects::open_project,
         crate::api::projects::get_project,
         crate::api::projects::delete_project,
+        crate::api::projects::duplicate_project,
         crate::api::resources::list,
         crate::api::resources::list_endpoints_everywhere,
         crate::api::blueprints::list_blueprints,
@@ -211,6 +212,7 @@ use crate::tools::model_tools::{
         Status,
         ResourceList,
         ListMeta,
+        DuplicateProject,
         OpenProject,
         ProjectDetail,
         ProjectStatus,
