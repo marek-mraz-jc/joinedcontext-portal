@@ -308,7 +308,10 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
             continue;
         }
         seen += 1;
-        let workflow = root.join("apps").join(&name).join(".gitea/workflows/build.yml");
+        let workflow = root
+            .join("apps")
+            .join(&name)
+            .join(".gitea/workflows/build.yml");
         assert_eq!(
             std::fs::read_to_string(&workflow).ok().as_deref(),
             Some(template.as_str()),
