@@ -1412,13 +1412,25 @@ impl GiteaClient {
         path: &str,
         limit: usize,
     ) -> Result<Vec<Commit>, GitError> {
-        let Some(path) = self.local_path(path) else {
-            return Ok(Vec::new());
+        // The project's own root in a project repository is the whole repository (CC-87).
+        let root = self
+            .mount
+            .as_deref()
+            .is_some_and(|mount| path.trim_matches('/') == mount.trim_end_matches('/'));
+        let path = if root {
+            String::new()
+        } else {
+            let Some(path) = self.local_path(path) else {
+                return Ok(Vec::new());
+            };
+            path
         };
         let mut url = self.repo_url("commits")?;
+        url.query_pairs_mut().append_pair("sha", git_ref);
+        if !path.is_empty() {
+            url.query_pairs_mut().append_pair("path", &path);
+        }
         url.query_pairs_mut()
-            .append_pair("sha", git_ref)
-            .append_pair("path", &path)
             .append_pair("limit", &limit.to_string())
             .append_pair("stat", "false")
             .append_pair("verification", "false")
@@ -1525,6 +1537,52 @@ impl GiteaClient {
             }
         }
         Ok(files)
+    }
+
+    /// `GET /archive/{git_ref}.bundle` — the history of `git_ref` as one `git bundle` (MF-45).
+    /// The forge bundles that ref alone, as `refs/heads/bundle` and `HEAD`: no other branch and
+    /// no tag.
+    pub async fn bundle(&self, git_ref: &str) -> Result<Vec<u8>, GitError> {
+        let url = self.repo_url(&format!("archive/{git_ref}.bundle"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        res.bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(|e| GitError::Transport(format!("failed to read the bundle: {e}")))
+    }
+
+    /// `GET /tags` — every tag of the repository and the commit it names, all pages.
+    pub async fn list_tags(&self) -> Result<Vec<(String, String)>, GitError> {
+        #[derive(Deserialize)]
+        struct TagDto {
+            name: String,
+            commit: TagCommitDto,
+        }
+        #[derive(Deserialize)]
+        struct TagCommitDto {
+            sha: String,
+        }
+        const PAGE: usize = 50;
+        let mut tags = Vec::new();
+        for page in 1.. {
+            let mut url = self.repo_url("tags")?;
+            url.query_pairs_mut()
+                .append_pair("page", &page.to_string())
+                .append_pair("limit", &PAGE.to_string());
+            let res = self.send(self.http.get(url)).await?;
+            let res = Self::check_status(res).await?;
+            let raw: Vec<TagDto> = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(format!("failed to parse tags: {e}")))?;
+            let count = raw.len();
+            tags.extend(raw.into_iter().map(|tag| (tag.name, tag.commit.sha)));
+            if count < PAGE {
+                break;
+            }
+        }
+        Ok(tags)
     }
 
     /// `GET /pulls/{number}` — retrieves an existing pull request.

@@ -4487,7 +4487,7 @@
           {
             "name": "format",
             "in": "query",
-            "description": "yaml (default), json or zip",
+            "description": "yaml (default), json, zip, or git: one git bundle per repository of a layout 2 project",
             "required": false,
             "schema": {
               "type": "string"
@@ -4545,8 +4545,28 @@
               }
             }
           },
+          "403": {
+            "description": "A git export, and the caller may not read every manifest of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such project or revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A git export of a layout 1 project, of a repository that moved during it, or of an App outside the forge",
             "content": {
               "application/json": {
                 "schema": {

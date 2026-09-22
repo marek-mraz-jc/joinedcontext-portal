@@ -86,10 +86,11 @@ pub(crate) fn strip_secret_values(value: &mut Value) {
     }
 }
 
-fn gitea(state: &AppState) -> Result<&GiteaClient, ApiError> {
+/// The repository that holds `project`: its own in layout 2, the organization's otherwise
+/// (CC-87). Paths stay render paths either way.
+fn gitea(state: &AppState, project: &str) -> Result<std::sync::Arc<GiteaClient>, ApiError> {
     state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("no repository is configured".into()))
 }
 
@@ -741,7 +742,7 @@ fn readme(
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("format" = Option<String>, Query, description = "yaml (default), json or zip"),
+        ("format" = Option<String>, Query, description = "yaml (default), json, zip, or git: one git bundle per repository of a layout 2 project"),
         ("revision" = Option<String>, Query, description = "Commit or branch; default branch head when absent"),
         ("kinds" = Option<String>, Query, description = "Comma-separated plurals to include"),
         ("names" = Option<String>, Query, description = "Comma-separated resource names to include"),
@@ -750,7 +751,9 @@ fn readme(
         (status = 200, description = "The project's configuration at the revision"),
         (status = 400, description = "Unknown format or malformed revision", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "A git export, and the caller may not read every manifest of the project", body = ProblemDetails),
         (status = 404, description = "No such project or revision", body = ProblemDetails),
+        (status = 409, description = "A git export of a layout 1 project, of a repository that moved during it, or of an App outside the forge", body = ProblemDetails),
         (status = 503, description = "No repository configured", body = ProblemDetails)
     )
 )]
@@ -771,12 +774,29 @@ pub async fn export(
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
     let format = query.format.as_deref().unwrap_or("yaml").to_string();
-    if !matches!(format.as_str(), "yaml" | "json" | "zip") {
+    if !matches!(format.as_str(), "yaml" | "json" | "zip" | "git") {
         return Err(ApiError::BadRequest(format!(
-            "format '{format}' is not yaml, json or zip"
+            "format '{format}' is not yaml, json, zip or git"
         )));
     }
-    let gitea = gitea(&state)?;
+    let forge = gitea(&state, &project)?;
+    let gitea: &GiteaClient = &forge;
+    if format == "git" {
+        if !gitea.is_project_repository() {
+            return Err(ApiError::Conflict(
+                "format=git exports a project that lives in a repository of its own (layout 2); \
+                 this one is a folder of the organization repository, so export it as zip (MF-45)"
+                    .into(),
+            ));
+        }
+        if query.revision.is_some() || query.kinds.is_some() || query.names.is_some() {
+            return Err(ApiError::BadRequest(
+                "format=git is the whole repository at its default branch: it takes no \
+                 revision, kinds or names (MF-45)"
+                    .into(),
+            ));
+        }
+    }
 
     let revision = match query.revision.as_deref() {
         Some(revision) => {
@@ -844,6 +864,24 @@ pub async fn export(
         (keep, drop)
     };
     let omitted = unreadable + refused.len();
+    // A git bundle is every file of the repository with its history, so it answers only a
+    // caller who reads every manifest of the project; nothing is left out of a bundle (MF-18).
+    if format == "git" {
+        if omitted > 0 {
+            return Err(ApiError::Denied(format!(
+                "a git export carries the whole project; {omitted} of its manifests are not \
+                 yours to read, so export it as zip, which leaves them out (MF-45, MF-18)"
+            )));
+        }
+        let archive =
+            crate::api::export_git::archive(&state, gitea, &project, &user.0.identity.username)
+                .await?;
+        return Ok(attachment(
+            archive.bytes,
+            "application/zip",
+            format!("{project}-git-{}.zip", &archive.head[..7]),
+        ));
+    }
     let kinds = kind_filter(query.kinds.as_deref());
     let names = selected(query.names.as_deref());
     let short = revision.chars().take(7).collect::<String>();
@@ -1068,7 +1106,7 @@ pub async fn revisions(
             "limit must be between 1 and {MAX_REVISIONS}"
         )));
     }
-    let gitea = gitea(&state)?;
+    let gitea = gitea(&state, &project)?;
     let branch = gitea.default_branch().await?;
     let commits = gitea
         .list_commits(&branch, &format!("projects/{project}"), limit)

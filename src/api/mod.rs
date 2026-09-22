@@ -14,6 +14,7 @@ pub mod drafts;
 pub mod drift;
 pub mod dry_run;
 pub mod export;
+pub mod export_git;
 pub mod federation;
 pub mod forms;
 pub mod health;
