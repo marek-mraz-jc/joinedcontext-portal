@@ -56,6 +56,22 @@ export function admits(endpoint: Manifest, owner: string, project: string): bool
   }
 }
 
+/**
+ * Whether the gateway admits a person with `groups` to this endpoint at all (EP-14, T-2631): its
+ * own rule for a human — `public` and `organization` admit anyone signed in, `project-list` a
+ * member of the owning project or of one it lists. A page reads only through an endpoint that
+ * admits the person, instead of fetching and meeting a 403.
+ */
+export function admitsPerson(endpoint: Manifest, groups: readonly string[], project: string): boolean {
+  const { audience, allowedProjects } = sharingOf(endpoint);
+  if (audience === "public" || audience === "organization") {
+    return true;
+  }
+  // A project lists its own endpoints; a manifest that omits its namespace is the page's project's.
+  const owner = endpoint.metadata.namespace ?? project;
+  return audience === "project-list" && [owner, ...allowedProjects].some((project) => project !== "" && groups.includes(project));
+}
+
 /** The audience as a chip, and for `project-list` the projects it names, so the owner sees who. */
 export function SharedWithBadge({ endpoint }: { endpoint: Manifest }): JSX.Element {
   const { t } = useTranslation();
