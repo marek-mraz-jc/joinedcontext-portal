@@ -162,3 +162,17 @@ jobs:
             [ -f "$app/playwright.config.ts" ] || continue
             (cd "$app" && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
+      # The same flows for an application at the root of its own repository (T-2596), built from
+      # the tree copied out with the SDK linked from this checkout, as the fast lane tests it.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the flows of the applications in their own repository
+        run: |
+          set -eu
+          for app in apps/*/; do
+            [ -f "$app/playwright.config.ts" ] || continue
+            work=$(mktemp -d)
+            cp -r "$app". "$work"
+            (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
+              && pnpm install --no-frozen-lockfile && pnpm build \
+              && pnpm exec playwright install --with-deps chromium && pnpm e2e)
+          done
