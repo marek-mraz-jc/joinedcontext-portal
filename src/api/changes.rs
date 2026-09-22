@@ -1028,9 +1028,11 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
     Ok(listed)
 }
 
-/// The approval checks of every file the merge request changes, and the strictest lane among
-/// them (T-0832). The headline manifest is among them and passes the same checks twice, which
-/// costs nothing and keeps this loop free of a special case.
+/// The approval checks of every file the merge request changes, the strictest lane among them
+/// (T-0832), and whether the caller may also delete every kind they touch: an author approves
+/// their own change only as an administrator of every kind in it (PF-58). The headline manifest
+/// is among them and passes the same checks twice, which costs nothing and keeps this loop free
+/// of a special case.
 /// ponytail: one `get_file` per changed file; a bundle is a handful, the tree diff is the upgrade.
 async fn approve_every_file(
     state: &AppState,
@@ -1038,7 +1040,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<Lane, ApiError> {
+) -> Result<(Lane, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -1047,6 +1049,7 @@ async fn approve_every_file(
     let mut grants: std::collections::HashMap<String, crate::permissions::Effective> =
         std::collections::HashMap::new();
     let mut lane = Lane::Green;
+    let mut deletes_every_kind = true;
     for file in gitea.pull_request_files(pr.number).await? {
         // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
         // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
@@ -1086,6 +1089,9 @@ async fn approve_every_file(
             if file.deleted {
                 effective.check(kind, jc_core::kinds::Verb::Delete, target.as_ref())?;
             }
+            deletes_every_kind &= effective
+                .check(kind, jc_core::kinds::Verb::Delete, target.as_ref())
+                .is_ok();
             continue;
         };
         let manifest =
@@ -1095,6 +1101,13 @@ async fn approve_every_file(
             jc_core::kinds::Verb::Approve,
             Some(&manifest),
         )?;
+        deletes_every_kind &= effective
+            .check(
+                &envelope.kind,
+                jc_core::kinds::Verb::Delete,
+                Some(&manifest),
+            )
+            .is_ok();
         let access = matches!(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
@@ -1121,7 +1134,7 @@ async fn approve_every_file(
             change::classify(&envelope.kind, Operation::Create, &envelope.spec),
         );
     }
-    Ok(lane)
+    Ok((lane, deletes_every_kind))
 }
 
 /// Core approval function factored out for reuse by both the REST route and the operations registry.
@@ -1191,7 +1204,8 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let bundle_lane = approve_every_file(state, identity, project, gitea, &pr).await?;
+    let (bundle_lane, deletes_every_kind) =
+        approve_every_file(state, identity, project, gitea, &pr).await?;
 
     let author = human_author(gitea, &pr).await;
     let is_author = match (&author.email, &identity.email) {
@@ -1205,9 +1219,13 @@ pub async fn approve_change_for(
         }
     };
 
-    // An author approves their own change only at the button and only as an administrator of its
-    // kind (PF-58); an agent never does (AG-11).
-    if is_author && !(by == ApprovedBy::Person && administers(state, identity, project, &data)) {
+    // An author's own change is approved only by a person, and only as an administrator of every
+    // kind in it (PF-58); an agent never does (AG-11).
+    if is_author
+        && !(by == ApprovedBy::Person
+            && deletes_every_kind
+            && administers(state, identity, project, &data))
+    {
         return Err(ApiError::SelfApproval(
             "proposal author cannot approve their own change (AG-11); an administrator of its kind may, in the Portal (PF-58)".to_string(),
         ));
@@ -1303,6 +1321,46 @@ pub async fn approve_change_for(
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
+}
+
+/// A change a person just proposed with their own session, approved in the same call when they
+/// administer every kind it touches (PF-58): the button's one approval path, so the checks, the
+/// merge and its commit message are the same. Anyone else's change comes back as it was, waiting
+/// for an approver (PF-70), and so does an administrator's red-lane change without its typed
+/// name (CC-39). Only the Portal's session doors call this; an agent run, a bearer caller and MCP
+/// never do (AG-11, AG-82).
+pub async fn approve_as_proposed(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    kind: &str,
+    change: Change,
+    confirm: Option<&str>,
+) -> Change {
+    let effective = crate::permissions::for_request(state, identity, project);
+    // The bootstrap group is not a binding and administers nothing (PF-58).
+    let administers = !effective.bootstrap
+        && effective.may(kind, jc_core::kinds::Verb::Approve)
+        && effective.may(kind, jc_core::kinds::Verb::Delete);
+    if !administers || (change.status.lane == Lane::Red && confirm.is_none()) {
+        return change;
+    }
+    match approve_change_for(
+        state,
+        identity,
+        project,
+        &change.metadata.name,
+        confirm,
+        ApprovedBy::Person,
+    )
+    .await
+    {
+        Ok(approved) => approved,
+        Err(err) => {
+            tracing::info!(change = %change.metadata.name, error = %err, "the proposer's own change waits for an approver");
+            change
+        }
+    }
 }
 
 #[utoipa::path(

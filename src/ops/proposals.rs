@@ -11,6 +11,7 @@ use super::Caller;
 use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
+use super::Via;
 use super::{draft_store, verdict, Draft, DraftError, Finding, Level, Verdict};
 use crate::agents::share;
 use crate::api::assistant;
@@ -220,6 +221,7 @@ async fn mutate_manifest(
         None => ChangeOp::Create,
     };
 
+    let kind = kind.to_owned();
     let outcome = if gated && !dry_run {
         mutate::propose_gated(
             &caller.identity,
@@ -243,6 +245,24 @@ async fn mutate_manifest(
             manifest,
         )
         .await?
+    };
+    // A person proposing in the Portal who administers every kind of the change has it approved
+    // as it is proposed (PF-58); an agent run, a bearer caller and MCP never do (AG-11, AG-82).
+    let outcome = match outcome {
+        mutate::ProposeOutcome::Change(change) if caller.via == Via::Session => {
+            mutate::ProposeOutcome::Change(
+                crate::api::changes::approve_as_proposed(
+                    state,
+                    &caller.identity,
+                    project,
+                    &kind,
+                    change,
+                    None,
+                )
+                .await,
+            )
+        }
+        other => other,
     };
 
     Ok(outcome.into_value())

@@ -3,7 +3,7 @@
  * tests/roles_matrix_tests.rs, the Portal offers a control exactly when the API takes the action.
  */
 import { describe, expect, it } from "vitest";
-import { approvalStanding } from "../src/api/approval";
+import { approvalStanding, proposeStanding } from "../src/api/approval";
 import { allows } from "../src/api/permissions";
 import type { Effective, Verb } from "../src/api/permissions";
 
@@ -129,5 +129,31 @@ describe("approving a public endpoint", () => {
   it("lets the publisher and the administrator through", () => {
     expect(approvalStanding(publisher, "mayor@hel.fi", publicEndpointChange("someone@hel.fi")).block).toBeNull();
     expect(approvalStanding(admin, "admin@hel.fi", publicEndpointChange("someone@hel.fi")).block).toBeNull();
+  });
+});
+
+// PF-58, PF-70: what proposing says before the click, for each role.
+describe("what proposing leads to for each role", () => {
+  it.each([
+    ["viewer", null],
+    ["editor", null],
+    ["steward", "approveNotDelete"],
+    ["admin", "approvedOnPropose"],
+  ] as const)("%s: %s", (role, expected) => {
+    for (const kind of KINDS) {
+      expect(proposeStanding(effective(role), kind), kind).toBe(expected);
+    }
+  });
+
+  it("a kind the admin's binding does not name waits like anyone's", () => {
+    expect(proposeStanding(effective("admin"), "Role")).toBeNull();
+  });
+
+  it("the bootstrap group is not a binding and is promised nothing", () => {
+    expect(proposeStanding({ bootstrap: true, project: "helsinki", grants: [] }, "Pipeline")).toBeNull();
+  });
+
+  it("no permissions document yet promises nothing", () => {
+    expect(proposeStanding(undefined, "Pipeline")).toBeNull();
   });
 });

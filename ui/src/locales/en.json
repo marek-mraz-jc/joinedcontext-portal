@@ -248,7 +248,11 @@
   },
   "changes": {
     "accepted": "Proposed as a change:",
-    "review": "Review it in Approvals"
+    "review": "Review it in Approvals",
+    "approvedOnPropose": "Will be approved when you propose: you hold approve and delete on {kind}.",
+    "approveNotDelete": "Waits for an approver: you hold approve but not delete on {kind}.",
+    "approvedAsProposed": "Approved as you proposed it, applying:",
+    "open": "Open the change"
   },
   "resourceDelete": {
     "title": "Remove {name}",

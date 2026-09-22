@@ -248,7 +248,11 @@
   },
   "changes": {
     "accepted": "Navrhnuté ako zmena:",
-    "review": "Otvoriť v Schvaľovaní"
+    "review": "Otvoriť v Schvaľovaní",
+    "approvedOnPropose": "Po navrhnutí sa schváli: {kind} môžete schvaľovať aj mazať.",
+    "approveNotDelete": "Počká na schvaľovateľa: {kind} môžete schvaľovať, ale nie mazať.",
+    "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
+    "open": "Otvoriť zmenu"
   },
   "resourceDelete": {
     "title": "Odstrániť {name}",

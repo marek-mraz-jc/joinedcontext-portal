@@ -248,7 +248,11 @@
   },
   "changes": {
     "accepted": "Als Änderung vorgeschlagen:",
-    "review": "In Freigaben öffnen"
+    "review": "In Freigaben öffnen",
+    "approvedOnPropose": "Wird beim Vorschlagen genehmigt: Sie dürfen {kind} genehmigen und löschen.",
+    "approveNotDelete": "Wartet auf eine Genehmigung: Sie dürfen {kind} genehmigen, aber nicht löschen.",
+    "approvedAsProposed": "Beim Vorschlagen genehmigt, wird angewendet:",
+    "open": "Änderung öffnen"
   },
   "resourceDelete": {
     "title": "{name} entfernen",
