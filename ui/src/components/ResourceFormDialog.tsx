@@ -706,7 +706,9 @@ export function ResourceFormDialog<T>({
    * expression, or nothing at all — and no field was marked, which left a person and a screen
    * reader with no idea where (T-1491, UI-44, UI-45). The browser knows this much already.
    */
-  function schemaRefusals(form: T): { marked: ErrorSchema; sentences: string[] } | null {
+  function schemaRefusals(
+    form: T,
+  ): { marked: ErrorSchema; sentences: string[]; missing: boolean } | null {
     const { errors } = validator.validateFormData(form, schema);
     if (errors.length === 0) {
       return null;
@@ -718,7 +720,10 @@ export function ResourceFormDialog<T>({
       sentences.push(`${issue.property ?? ""} ${sentence}`.trim());
       atPath(marked, (issue.property ?? "").split(".")).push(sentence);
     }
-    return { marked, sentences };
+    // A required field left empty is a manifest the server cannot even read: a reference with no
+    // name answers "does not parse: untagged enum Ref" instead of anything a person can act on
+    // (T-2634).
+    return { marked, sentences, missing: errors.some((issue) => issue.name === "required") };
   }
 
   /**
@@ -749,9 +754,14 @@ export function ResourceFormDialog<T>({
       if (formData) {
         // What the browser already knows goes onto the fields at once, in words (T-1491); the
         // server is still asked, because its check sees what the schema cannot — a reference that
-        // does not resolve, a name already taken, a grant the proposer does not have.
-        setSchemaErrors(schemaRefusals(formData)?.marked);
-        check(formData);
+        // does not resolve, a name already taken, a grant the proposer does not have. Not while a
+        // required field is empty: that manifest does not parse, and the field already says what
+        // it needs (T-2634).
+        const refused = schemaRefusals(formData);
+        setSchemaErrors(refused?.marked);
+        if (!refused?.missing) {
+          check(formData);
+        }
       }
       return;
     }

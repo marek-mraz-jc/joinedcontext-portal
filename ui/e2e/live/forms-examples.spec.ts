@@ -112,6 +112,20 @@ test("every create form is green from its own examples", async ({
       }
 
       const examplesTaken = await takeTheExamples(dialog);
+      // A select offers its choices instead of an example (the Context Space of a Subscription or
+      // a Policy): a required one left empty takes its first real option, as a person picks one.
+      // Left empty, the form refuses at the field and Check sends nothing (T-2634).
+      for (const select of await dialog.locator("select[required], select[aria-required=true]").all()) {
+        const value = await select.evaluate((element) => {
+          const own = element as HTMLSelectElement;
+          return own.value === ""
+            ? ([...own.options].find((option) => option.value !== "" && !option.disabled)?.value ?? "")
+            : "";
+        });
+        if (value !== "") {
+          await select.selectOption(value);
+        }
+      }
       const name = dialog.locator("#root_name");
       if (await name.count()) {
         await name.fill(NAME);
