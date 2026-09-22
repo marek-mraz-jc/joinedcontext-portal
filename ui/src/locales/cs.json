@@ -1575,6 +1575,30 @@
         "served": "Poskytuje se {commit}",
         "noRepository": "Nemá vlastní repozitář: aplikace vznikla před repozitářem pro každou aplikaci, proto ji nic nesestavuje ani neposkytuje."
       }
+    },
+    "rebuildAction": "Rebuild",
+    "retireAction": "Retire",
+    "latestRun": "Latest build run",
+    "package": "Package",
+    "previewOnlyPreview": "Only a preview can be previewed here",
+    "publishOnlyPreview": "Only a preview can be published",
+    "rebuildOnlyPublished": "Only a published application is built",
+    "rebuildRunning": "A build is running",
+    "retireOnlyPublished": "Only a published application can be retired",
+    "openDisabled": {
+      "draft": "Nothing published yet",
+      "preview": "A preview opens from the menu",
+      "retired": "This application is retired",
+      "building": "Building…",
+      "failed": "Build failed",
+      "notBuilt": "No build is served yet"
+    },
+    "retire": {
+      "title": "Retire {name}",
+      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
+      "hint": "This opens a merge request. The source and its builds stay in the forge.",
+      "confirm": "Open the merge request",
+      "cancel": "Cancel"
     }
   },
   "appLifecycle": {
