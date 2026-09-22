@@ -277,6 +277,32 @@ fn build_lane_write(
                 .to_owned(),
         ));
     }
+    // The lane writes the build of an App on `main` and nothing else of it (AP-73): a stolen
+    // lane token can neither create an App nor change what one reads, shows or who opens it.
+    let name = body
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(current) = state.mirror.get(project, "App", name) else {
+        return Err(ApiError::Denied(format!(
+            "status.build is written back to an App on main; project {project} holds no App \
+             '{name}' (AP-73)"
+        )));
+    };
+    let map_at = |pointer: &str| -> std::collections::BTreeMap<String, String> {
+        body.pointer(pointer)
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default()
+    };
+    if body.get("spec") != Some(&current.spec)
+        || map_at("/metadata/labels") != current.metadata.labels
+        || map_at("/metadata/annotations") != current.metadata.annotations
+    {
+        return Err(ApiError::Denied(format!(
+            "the build lane writes status.build and nothing else: the spec, labels and \
+             annotations of App '{name}' must stay as they are on main (AP-73)"
+        )));
+    }
     Ok(())
 }
 
@@ -858,11 +884,15 @@ async fn propose_engine(
 
     // 4c. Who may propose this kind here, with this content (T-0526, PF-50): the bindings of
     //     the organization repository, before a Change exists. 403 names the verb or the field.
-    crate::permissions::for_request(state, identity, project).check(
-        kind_info.kind,
-        jc_core::kinds::Verb::Propose,
-        Some(&body_val),
-    )?;
+    //     A build write was judged by `build_lane_write`: the lane's rule, the App on main and
+    //     nothing of it changed (AP-73).
+    if !build_write {
+        crate::permissions::for_request(state, identity, project).check(
+            kind_info.kind,
+            jc_core::kinds::Verb::Propose,
+            Some(&body_val),
+        )?;
+    }
     // 4d. Nobody grants above their own rights (PF-52, AG-77).
     crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
 
@@ -919,7 +949,8 @@ async fn propose_engine(
     // 5a. What an App grants rides in the same change as the App (CC-61, AP-96, T-2632): the
     //     gateway reads endpoints and policies from the repository alone, so a grant nobody
     //     commits is a grant it never enforces. The reviewer reads each one in the plan.
-    let grants = if kind_info.kind == "App" && operation != Operation::Delete {
+    // A build write leaves the App as it is on main (AP-73), so it carries no grant either.
+    let grants = if kind_info.kind == "App" && operation != Operation::Delete && !build_write {
         app_grants(state, project, &envelope)?
     } else {
         AppGrants::default()

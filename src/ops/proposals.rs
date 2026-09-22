@@ -320,9 +320,12 @@ pub(crate) async fn record_verdict(
     ) {
         return;
     }
-    let may_propose = crate::permissions::for_request(state, &caller.identity, project)
-        .check(&draft.kind, Verb::Propose, None)
-        .is_ok();
+    let permissions = crate::permissions::for_request(state, &caller.identity, project);
+    // The build lane's check of its `status.build` is kept like anybody's, for the proposal
+    // that follows it: its rule authorizes that write alone (AP-73, T-2636).
+    let may_propose = permissions.check(&draft.kind, Verb::Propose, None).is_ok()
+        || (manifest.pointer("/status/build").is_some()
+            && permissions.may_write_status_field(&draft.kind, "status.build"));
     if !may_propose {
         return;
     }
