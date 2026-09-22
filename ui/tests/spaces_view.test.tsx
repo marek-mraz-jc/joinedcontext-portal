@@ -131,6 +131,10 @@ function renderSpaces(
     if (path.includes("/projects/banskabystrica/projects")) {
       return json({ status: 404, title: "Resource Not Found" }, 404);
     }
+    // A draft save is taken, as the server takes one; the write under test is the proposal.
+    if (request.method === "PUT" && path.includes("/drafts/ContextSpace/")) {
+      return json({ version: 1, manifest: null, verdict: null, touchedBy: "anna", touchedKind: "person" });
+    }
     if (path.includes("/drafts/ContextSpace/")) {
       return options.draft
         ? json(options.draft)

@@ -2234,7 +2234,8 @@
     "laxWarning": "Mírné ověření: kontrola neproběhla nebo neuspěla.",
     "findings": "Nálezy",
     "strict": "přísné ověření",
-    "strictHelp": "Nic se nenavrhne, dokud kontrola není zelená."
+    "strictHelp": "Nic se nenavrhne, dokud kontrola není zelená.",
+    "saveRefused": "Koncept se neuložil: {reason}"
   },
   "assistantPage": {
     "title": "Asistent",

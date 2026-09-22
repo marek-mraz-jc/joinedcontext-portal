@@ -325,6 +325,30 @@ describe("the registrations page", () => {
     await waitFor(() => expect(add).toHaveAttribute("aria-disabled", "true"));
   });
 
+  it("opens its form on the registration the assistant drafted, read from the draft (`?draft=`, AG-73)", async () => {
+    renderPage(<RegistrationsPage project={PROJECT} />, {
+      path: `/projects/${PROJECT}/csrs?draft=zvolen-meteo`,
+      answer: (url) => {
+        if (url.pathname.endsWith("/permissions/me")) {
+          return json({ grants: [{ rule: { kinds: ["ContextSourceRegistration"], verbs: ["propose"] } }] });
+        }
+        if (url.pathname.endsWith("/drafts/ContextSourceRegistration/zvolen-meteo")) {
+          return json({
+            version: 1,
+            manifest: toRegistrationEnvelope(PROJECT, { ...FILLED, name: "zvolen-meteo" }),
+            verdict: null,
+            touchedBy: "assistant",
+            touchedKind: "assistant",
+          });
+        }
+        if (url.pathname.endsWith("/csrs")) return json(list([STORED]));
+        return undefined;
+      },
+    });
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByDisplayValue("zvolen-meteo")).toBeInTheDocument());
+  });
+
   it("asks where the data is first and shows the one field that target takes, from the keyboard", async () => {
     const user = userEvent.setup();
     page(["propose"]);

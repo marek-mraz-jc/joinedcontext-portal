@@ -219,6 +219,151 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     });
   });
 
+  // MF-24, T-2626: a draft the server refuses (a literal secret pasted into the YAML view) is
+  // said where the person is typing, in the server's words, which name the field and never the
+  // value; the next save the server takes clears it.
+  it("says why the server refused to save the draft, and clears it once a save is taken", async () => {
+    vi.useFakeTimers();
+    const refusal = "literal secret in field 'password' is forbidden; use secretRef instead (MF-24)";
+    let refuse = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      const method = input instanceof Request ? input.method : (init?.method ?? "GET");
+      if (method === "PUT" && url.includes("/drafts/DataSource/leaky")) {
+        if (refuse) {
+          return new Response(JSON.stringify({ title: "Bad Request", status: 400, detail: refusal }), {
+            status: 400,
+            headers: { "Content-Type": "application/problem+json" },
+          });
+        }
+        const body = JSON.parse(await (input as Request).clone().text());
+        return new Response(
+          JSON.stringify({
+            project: "banskabystrica",
+            kind: "DataSource",
+            name: "leaky",
+            manifest: body.manifest,
+            verdict: null,
+            touchedBy: "demo.steward",
+            touchedKind: "person",
+            version: 1,
+            updatedAt: "2026-09-13T12:00:00Z",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <Harness
+            open={true}
+            onOpenChange={() => {}}
+            title="Create Data Source"
+            description="Create draft"
+            project="banskabystrica"
+            draftKind="DataSource"
+            plural="datasources"
+            schema={TEST_SCHEMA}
+            submitLabel="Propose change"
+            source={TEST_SOURCE}
+            onSubmit={() => {}}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Name/i), { target: { value: "leaky" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+    const said = en.drafts.saveRefused.replace("{reason}", refusal);
+    expect(screen.getByText(said).closest("[role=alert]")).not.toBeNull();
+
+    refuse = false;
+    fireEvent.change(screen.getByLabelText(/URL/i), { target: { value: "https://example.org" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+    expect(screen.queryByText(said)).toBeNull();
+  });
+
+  // AG-77, T-2626: opening a draft someone else wrote (the assistant's, with its check) writes
+  // nothing back until the person changes something, even when the form cannot reproduce the
+  // stored manifest byte for byte; a save would make the draft the person's and drop its check.
+  it("opens a draft without writing it back, though the form does not round-trip it exactly", async () => {
+    vi.useFakeTimers();
+    const puts: unknown[] = [];
+    const stored = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "DataSource",
+      metadata: { name: "from-assistant", namespace: "banskabystrica" },
+      // `schedule` is not a field of this form, so the form's manifest differs from the draft's.
+      spec: { type: "http", http: { url: "https://example.org/feed" }, schedule: "PT5M" },
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      const method = input instanceof Request ? input.method : (init?.method ?? "GET");
+      if (url.includes("/drafts/DataSource/from-assistant")) {
+        if (method === "PUT") {
+          puts.push(JSON.parse(await (input as Request).clone().text()));
+        }
+        return new Response(
+          JSON.stringify({
+            project: "banskabystrica",
+            kind: "DataSource",
+            name: "from-assistant",
+            manifest: stored,
+            verdict: { ok: true, findings: [], digest: digestOf(stored), checkedAt: "2026-09-22T09:00:00Z" },
+            touchedBy: "demo.steward",
+            touchedKind: "assistant",
+            version: 3,
+            updatedAt: "2026-09-22T09:00:00Z",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <Harness
+            open={true}
+            onOpenChange={() => {}}
+            title="Edit Data Source"
+            description="Edit draft"
+            project="banskabystrica"
+            draftKind="DataSource"
+            draftName="from-assistant"
+            plural="datasources"
+            schema={TEST_SCHEMA}
+            submitLabel="Propose change"
+            source={TEST_SOURCE}
+            onSubmit={() => {}}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(screen.getByLabelText(/URL/i)).toHaveValue("https://example.org/feed");
+    expect(puts, "opening the draft rewrote it as the person's").toEqual([]);
+
+    // A change the person makes is theirs, and is saved.
+    fireEvent.change(screen.getByLabelText(/URL/i), { target: { value: "https://example.org/other" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+    expect(puts).toHaveLength(1);
+  });
+
   it("writes a draft for a named resource that has no draft yet (the load answered 404)", async () => {
     vi.useFakeTimers();
     const putCalls: string[] = [];

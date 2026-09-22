@@ -299,6 +299,8 @@ export function ResourceFormDialog<T>({
     [currentManifest],
   );
   const [conflict, setConflict] = useState<string | null>(null);
+  /** Why the server would not save the draft (MF-24, T-2626), in its own words. */
+  const [saveRefused, setSaveRefused] = useState<string | null>(null);
   const lastVersionRef = useRef<number | undefined>(undefined);
   const lastTypedRef = useRef<number>(0);
   /** The digest of the manifest the draft last held: an unchanged form writes nothing. */
@@ -423,12 +425,16 @@ export function ResourceFormDialog<T>({
           lastVersionRef.current = d.version;
           adoptVerdict(d.verdict);
           setConflict(null);
+          setSaveRefused(null);
         })
         .catch((err: unknown) => {
           const isConflict =
             typeof err === "object" &&
             err !== null &&
             (err as { status?: number }).status === 409;
+          if (!isConflict) {
+            setSaveRefused(refusalOf(err));
+          }
           if (isConflict) {
             setConflict(t("drafts.conflict"));
             void getDraft(project, draftKind, activeName).then((reloaded) => {
@@ -541,6 +547,13 @@ export function ResourceFormDialog<T>({
     ? submitDisabledReason
     : submitDisabledReason || proposeReason;
 
+  /** The server's own sentence for a refused save, else what the request failed with. */
+  function refusalOf(err: unknown): string {
+    const detail = (err as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail) return detail;
+    return err instanceof Error ? err.message : t("app.error.generic");
+  }
+
   /** The form the YAML describes, or `null` with the reason on screen. */
   function readYaml(): T | null {
     if (!source) {
@@ -602,12 +615,14 @@ export function ResourceFormDialog<T>({
         lastVersionRef.current = saved.version;
         setCurrentDraft(saved);
         adoptVerdict(saved.verdict);
+        setSaveRefused(null);
       } catch (err) {
         // Another window changed the draft: the person sees it before anything is proposed. Any
         // other failure leaves the proposal to the server's check, which says what to do.
         if ((err as { status?: number }).status === 409) {
           throw err;
         }
+        setSaveRefused(refusalOf(err));
       }
     }
     return { kind: draftKind, name: active };
@@ -896,6 +911,11 @@ export function ResourceFormDialog<T>({
         {conflict ? (
           <Alert role="alert" tone="warning">
             {conflict}
+          </Alert>
+        ) : null}
+        {saveRefused ? (
+          <Alert role="alert" tone="danger">
+            {t("drafts.saveRefused", { reason: saveRefused })}
           </Alert>
         ) : null}
 

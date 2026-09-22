@@ -2234,7 +2234,8 @@
     "laxWarning": "Lax validation: check has not run or passed.",
     "findings": "Findings",
     "strict": "strict validation",
-    "strictHelp": "Nothing is proposed until the check is green."
+    "strictHelp": "Nothing is proposed until the check is green.",
+    "saveRefused": "The draft was not saved: {reason}"
   },
   "assistantPage": {
     "title": "Assistant",

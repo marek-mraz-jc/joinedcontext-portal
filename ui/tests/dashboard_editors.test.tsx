@@ -144,6 +144,10 @@ function renderDashboards(options: { writeStatus?: number; writeBody?: unknown; 
     if (url.pathname.endsWith("/auth/me")) {
       return json(IDENTITY);
     }
+    // A draft save is taken, as the server takes one; the write under test is the proposal.
+    if (request.method === "PUT" && url.pathname.includes("/drafts/")) {
+      return json({ version: 1, manifest: null, verdict: null, touchedBy: "anna", touchedKind: "person" });
+    }
     if (request.method !== "GET") {
       return json(options.writeBody ?? CHANGE, options.writeStatus ?? 202);
     }
@@ -261,6 +265,29 @@ describe("dashboard editors", () => {
     const request = writes(fetchMock)[0];
     expect(new URL(request.url).pathname).toBe("/api/v1/projects/helsinki/layers/bikes");
     expect(((await request.clone().json()) as { spec: { style: string } }).spec.style).toBe("heatmap");
+  });
+
+  it("opens a new layer the assistant drafted, by the draft's name alone (`?draft=`, AG-73)", async () => {
+    window.history.pushState({}, "", "/projects/helsinki/dashboards?draft=night-bikes");
+    const fetchMock = renderDashboards({
+      drafts: {
+        "/api/v1/projects/helsinki/drafts/Layer/night-bikes": {
+          project: "helsinki",
+          kind: "Layer",
+          name: "night-bikes",
+          manifest: { ...LAYER, metadata: { name: "night-bikes", namespace: "helsinki" } },
+          verdict: null,
+          touchedBy: "jana.kovacova",
+          touchedKind: "assistant",
+          version: 1,
+          updatedAt: "2026-09-22T08:00:00Z",
+        },
+      },
+    });
+
+    const form = await findFormPage(en.dashboards.addLayer);
+    await waitFor(() => expect(within(form).getByDisplayValue("night-bikes")).toBeInTheDocument());
+    expect(writes(fetchMock)).toHaveLength(0);
   });
 
   it("opens the dashboard the assistant drafted as new, and proposes it with its drafted layer as one import (T-0739)", async () => {

@@ -2234,7 +2234,8 @@
     "laxWarning": "Verhaltene Validierung: Prüfung wurde nicht ausgeführt oder ist fehlgeschlagen.",
     "findings": "Befunde",
     "strict": "strikte Validierung",
-    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist."
+    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist.",
+    "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}"
   },
   "assistantPage": {
     "title": "Assistent",
