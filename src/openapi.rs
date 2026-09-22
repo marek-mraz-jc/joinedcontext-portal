@@ -99,6 +99,7 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::publish_run,
         crate::api::app_build::build,
         crate::api::app_build::rebuild,
+        crate::api::app_me::me,
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
@@ -159,6 +160,7 @@ use crate::tools::model_tools::{
     components(schemas(
         crate::api::app_build::AppBuild,
         crate::api::app_build::Rebuild,
+        crate::api::app_me::AppMe,
         crate::git::WorkflowRun,
         AgentRun,
         AgentRunEvent,

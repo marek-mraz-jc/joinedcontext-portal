@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
-import { appOf, artifactScope, bundleFunctions, functionEntries, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild } from "./lane.mjs";
+import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, ociImage, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -206,4 +206,70 @@ test("the build job's outputs are the four fields of status.build, checked", () 
   assert.throws(() => outputsOf({ ...build, builtAt: "yesterday" }), /UTC build time/);
   assert.throws(() => outputsOf({ ...build, commit: "" }), /full commit/);
   assert.throws(() => outputsOf(undefined), /sha256 digest/);
+});
+
+// AP-105: the image is one gzip layer, a config that runs /app as uid 65532, and an OCI
+// manifest whose digest is the SHA-256 of its bytes; the same layer is the same digest.
+test("the image of a layer is a digest-addressed OCI manifest, reproducible", () => {
+  const layer = Buffer.from("a tar holding /app");
+  const image = ociImage(layer);
+  const [config, gz, manifestBytes] = image.blobs;
+  const manifest = JSON.parse(manifestBytes);
+  const digestOf = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+
+  assert.equal(image.digest, digestOf(manifestBytes));
+  assert.equal(manifest.mediaType, "application/vnd.oci.image.manifest.v1+json");
+  assert.deepEqual(manifest.config, { mediaType: "application/vnd.oci.image.config.v1+json", digest: digestOf(config), size: config.length });
+  assert.deepEqual(manifest.layers, [{ mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: digestOf(gz), size: gz.length }]);
+  const parsed = JSON.parse(config);
+  assert.deepEqual(parsed.config, { Entrypoint: ["/app"], User: "65532:65532", WorkingDir: "/" });
+  assert.deepEqual(parsed.rootfs.diff_ids, [digestOf(layer)]);
+  assert.ok(!("created" in parsed), "no time in the config");
+  assert.equal(JSON.parse(image.index).manifests[0].digest, image.digest);
+  assert.equal(ociImage(Buffer.from("a tar holding /app")).digest, image.digest);
+  assert.notEqual(ociImage(Buffer.from("another /app")).digest, image.digest);
+});
+
+test("the layout holds oci-layout, index.json and each blob under its digest", () => {
+  const dir = mkdtempSync(join(tmpdir(), "layout-"));
+  const image = ociImage(Buffer.from("x"));
+  writeLayout(image, dir);
+  assert.equal(readFileSync(join(dir, "oci-layout"), "utf8"), '{"imageLayoutVersion":"1.0.0"}');
+  assert.deepEqual(readFileSync(join(dir, "index.json")), image.index);
+  for (const blob of image.blobs) {
+    const hex = createHash("sha256").update(blob).digest("hex");
+    assert.deepEqual(readFileSync(join(dir, "blobs", "sha256", hex)), blob);
+  }
+});
+
+// AP-105: the SBOM names every registry crate of the lock, and no path crate (the app itself).
+test("the crates of a Cargo.lock are SBOM components, registry crates only", () => {
+  const lock = [
+    "version = 4",
+    "",
+    "[[package]]",
+    'name = "air-quality"',
+    'version = "0.1.0"',
+    "",
+    "[[package]]",
+    'name = "axum"',
+    'version = "0.8.4"',
+    'source = "registry+https://github.com/rust-lang/crates.io-index"',
+    'checksum = "abc"',
+    "",
+    "[[package]]",
+    'name = "anyhow"',
+    'version = "1.0.98"',
+    'source = "registry+https://github.com/rust-lang/crates.io-index"',
+    "",
+    "[[package]]",
+    'name = "from-git"',
+    'version = "0.1.0"',
+    'source = "git+https://example.org/x#abc"',
+  ].join("\n");
+  assert.deepEqual(cratesOf(lock), [
+    { type: "library", name: "anyhow", version: "1.0.98", purl: "pkg:cargo/anyhow@1.0.98" },
+    { type: "library", name: "axum", version: "0.8.4", purl: "pkg:cargo/axum@0.8.4" },
+  ]);
+  assert.deepEqual(cratesOf(""), []);
 });

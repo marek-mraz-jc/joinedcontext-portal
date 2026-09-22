@@ -154,23 +154,28 @@ impl Converger {
 
         // A static app is served by the Portal's own static host, so it has no objects at all
         // and its absence here is the design, not a gap (AP-14).
+        if spec.class == jc_core::kinds::AppClass::Static {
+            return Ok(Outcome::Skipped(
+                "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
+            ));
+        }
         // The digest the build lane wrote back in the commit that published the artifact, and
         // the only place one is read from: an annotation naming an image is refused at every
         // door now, so a manifest that still carries one deploys nothing (AP-13a, AP-72).
-        let image = match built_digest(manifest) {
-            Some(image) => image,
-            None if spec.class == jc_core::kinds::AppClass::Static => {
-                return Ok(Outcome::Skipped(
-                    "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
-                ))
-            }
-            None => {
-                return Ok(Outcome::Skipped(
-                    "no status.build yet, so the build lane has not published an artifact \
-                     (AP-13a)"
-                        .to_owned(),
-                ))
-            }
+        let Some(digest) = built_digest(manifest) else {
+            return Ok(Outcome::Skipped(
+                "no status.build yet, so the build lane has not published an artifact (AP-13a)"
+                    .to_owned(),
+            ));
+        };
+        // The reference is composed from this installation's registry and the digest the
+        // Portal checked on push, never read from the manifest (AP-107, AP-108).
+        let Some(image) = self.settings.image_of(&name, &digest) else {
+            return Ok(Outcome::Skipped(
+                "no registry is configured (JC_PORTAL_APPS_REGISTRY), so no image reference can \
+                 be composed (AP-108)"
+                    .to_owned(),
+            ));
         };
 
         let slug = self.slug_of(&name).await?;

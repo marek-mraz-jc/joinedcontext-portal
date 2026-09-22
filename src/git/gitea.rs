@@ -963,6 +963,98 @@ impl GiteaClient {
         .await
     }
 
+    /// A registry token for pushing to `{owner}/{image}` of the forge's container registry,
+    /// asked of `/v2/token` with this client's own token (AP-107). The token realm the registry
+    /// names carries ROOT_URL, the public host the cluster may not reach, so the token is asked
+    /// of the API base the Portal dials.
+    async fn registry_token(&self, image: &str) -> Result<String, GitError> {
+        let mut url = Url::parse(&format!(
+            "{}/v2/token",
+            self.base.as_str().trim_end_matches('/')
+        ))
+        .map_err(|e| GitError::Config(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("service", "container_registry")
+            .append_pair(
+                "scope",
+                &format!("repository:{}/{image}:push,pull", self.owner),
+            );
+        let res = self
+            .http
+            .get(url)
+            .basic_auth(&self.owner, Some(&self.token))
+            .send()
+            .await
+            .map_err(|e| GitError::Transport(e.to_string()))?;
+        #[derive(Deserialize)]
+        struct Token {
+            token: String,
+        }
+        let token: Token =
+            Self::check_status(res).await?.json().await.map_err(|e| {
+                GitError::Transport(format!("failed to parse the registry token: {e}"))
+            })?;
+        Ok(token.token)
+    }
+
+    /// Pushes an image to `{owner}/{image}:{tag}` of the forge's container registry: every blob
+    /// it does not hold yet, then the manifest's bytes as they are, and answers the digest the
+    /// registry says it stored (AP-107). A blob goes up in one request with its digest, so the
+    /// registry checks each one itself.
+    pub async fn push_image(
+        &self,
+        image: &str,
+        tag: &str,
+        blobs: &[(&str, &[u8])],
+        manifest_type: &str,
+        manifest: &[u8],
+    ) -> Result<String, GitError> {
+        let bearer = self.registry_token(image).await?;
+        let base = format!(
+            "{}/v2/{}/{image}",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let parse = |url: String| Url::parse(&url).map_err(|e| GitError::Config(e.to_string()));
+        let send = |builder: reqwest::RequestBuilder| async {
+            builder
+                .bearer_auth(&bearer)
+                .timeout(Duration::from_secs(300))
+                .send()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))
+        };
+        for (digest, bytes) in blobs {
+            let held = send(self.http.head(parse(format!("{base}/blobs/{digest}"))?)).await?;
+            if held.status().is_success() {
+                continue;
+            }
+            let mut upload = parse(format!("{base}/blobs/uploads/"))?;
+            upload.query_pairs_mut().append_pair("digest", digest);
+            let res = send(
+                self.http
+                    .post(upload)
+                    .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+                    .body(bytes.to_vec()),
+            )
+            .await?;
+            Self::check_status(res).await?;
+        }
+        let res = send(
+            self.http
+                .put(parse(format!("{base}/manifests/{tag}"))?)
+                .header(reqwest::header::CONTENT_TYPE, manifest_type)
+                .body(manifest.to_vec()),
+        )
+        .await?;
+        let res = Self::check_status(res).await?;
+        res.headers()
+            .get("docker-content-digest")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+            .ok_or_else(|| GitError::Transport("the registry answered no digest".into()))
+    }
+
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.
     pub async fn list_tree(&self, git_ref: &str) -> Result<Vec<String>, GitError> {
         Ok(self

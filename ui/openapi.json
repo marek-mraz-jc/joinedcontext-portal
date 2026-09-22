@@ -2451,6 +2451,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/me": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "The Caller's Roles In An Application",
+        "description": "The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).",
+        "operationId": "me",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller in this App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppMe"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No published App of this name in the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/rebuild": {
       "post": {
         "tags": [
@@ -8201,6 +8263,37 @@
                 "description": "The newest workflow run, `null` before the first."
               }
             ]
+          }
+        }
+      },
+      "AppMe": {
+        "type": "object",
+        "description": "The caller as a published App sees them: the object the static host writes into\n`#jc-config` as `user` (AP-95).",
+        "required": [
+          "id",
+          "name",
+          "roles"
+        ],
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "The Keycloak `sub`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The App's roles this person holds, in the order `spec.roles` declares them; empty when\nnone (AP-92)."
           }
         }
       },

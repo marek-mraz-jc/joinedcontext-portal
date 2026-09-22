@@ -7,6 +7,9 @@
 //   node lane.mjs app <owner/repo>     prints "{project} {app}" of an application repository
 //   node lane.mjs sbom <node_modules> <out-file>
 //                                      the CycloneDX SBOM of the packages the build linked
+//   node lane.mjs image <layer.tar> <dir>
+//                                      writes a fullstack App's OCI image layout from its one
+//                                      layer and prints the manifest digest (AP-105)
 //   node lane.mjs upload <build-dir>   uploads bundle-{commit} and sbom-{commit} as the run's
 //                                      artifacts and writes the build to $GITHUB_OUTPUT
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
@@ -16,7 +19,8 @@
 // Lives beside /opt/template/node_modules in the image, so `vite` resolves to the template's.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const TEMPLATE = new URL("./package.json", import.meta.url);
@@ -113,6 +117,65 @@ export function sbomOf(folders) {
     return { type: "library", name, version, purl: `pkg:npm/${name.replace("@", "%40")}@${version}` };
   });
   return { bomFormat: "CycloneDX", specVersion: "1.5", version: 1, components };
+}
+
+/** The crates a `Cargo.lock` names from a registry, as SBOM components; path crates are the app. */
+export function cratesOf(lock) {
+  const crates = [];
+  for (const block of String(lock).split(/^\[\[package\]\]$/m).slice(1)) {
+    const field = (key) => new RegExp(`^${key} = "([^"]*)"$`, "m").exec(block)?.[1];
+    const [name, version, source] = [field("name"), field("version"), field("source")];
+    if (name && version && source?.startsWith("registry+")) {
+      crates.push({ type: "library", name, version, purl: `pkg:cargo/${name}@${version}` });
+    }
+  }
+  return crates.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
+}
+
+const sha256 = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+
+/**
+ * A fullstack App's image from its one layer (`/app`, a tar): the gzip layer, a config that runs
+ * `/app` as uid 65532, and the OCI manifest, as the blobs of an OCI image layout. No time and no
+ * host goes into any of them, so the same layer is the same digest (AP-105).
+ */
+export function ociImage(layerTar) {
+  const layer = gzipSync(layerTar, { level: 9 });
+  const config = Buffer.from(
+    JSON.stringify({
+      architecture: "amd64",
+      os: "linux",
+      config: { Entrypoint: ["/app"], User: "65532:65532", WorkingDir: "/" },
+      rootfs: { type: "layers", diff_ids: [sha256(layerTar)] },
+    }),
+  );
+  const manifest = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 2,
+      mediaType: "application/vnd.oci.image.manifest.v1+json",
+      config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: sha256(config), size: config.length },
+      layers: [{ mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: sha256(layer), size: layer.length }],
+    }),
+  );
+  const digest = sha256(manifest);
+  const index = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 2,
+      mediaType: "application/vnd.oci.image.index.v1+json",
+      manifests: [{ mediaType: "application/vnd.oci.image.manifest.v1+json", digest, size: manifest.length }],
+    }),
+  );
+  return { digest, index, blobs: [config, layer, manifest] };
+}
+
+/** Writes `image` as an OCI image layout under `dir`: `oci-layout`, `index.json`, `blobs/sha256/*`. */
+export function writeLayout(image, dir) {
+  mkdirSync(join(dir, "blobs", "sha256"), { recursive: true });
+  writeFileSync(join(dir, "oci-layout"), '{"imageLayoutVersion":"1.0.0"}');
+  writeFileSync(join(dir, "index.json"), image.index);
+  for (const blob of image.blobs) {
+    writeFileSync(join(dir, "blobs", "sha256", sha256(blob).slice("sha256:".length)), blob);
+  }
 }
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
@@ -230,7 +293,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     } else if (command === "sbom" && appDir && outDir) {
       const store = join(appDir, ".pnpm");
       const folders = existsSync(store) ? readdirSync(store) : [];
-      writeFileSync(outDir, JSON.stringify(sbomOf(folders), null, 2) + "\n");
+      const sbom = sbomOf(folders);
+      // A fullstack App: the crates its lock names are in the image too.
+      const lock = process.argv[5];
+      if (lock) sbom.components.push(...cratesOf(readFileSync(lock, "utf8")));
+      writeFileSync(outDir, JSON.stringify(sbom, null, 2) + "\n");
+    } else if (command === "image" && appDir && outDir) {
+      const image = ociImage(readFileSync(appDir));
+      writeLayout(image, outDir);
+      console.log(image.digest);
     } else if (command === "upload" && appDir) {
       const env = process.env;
       if (!env.ACTIONS_RESULTS_URL || !env.ACTIONS_RUNTIME_TOKEN || !env.GITHUB_OUTPUT) {
@@ -238,11 +309,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       }
       const build = JSON.parse(readFileSync(join(appDir, "build.json"), "utf8"));
       const outputs = outputsOf(build);
-      const bundle = await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `bundle-${build.commit}`, readFileSync(join(appDir, "bundle.tar.gz")));
-      if (bundle !== build.digest) throw new Error(`the bundle uploaded is ${bundle}, not the ${build.digest} that was built`);
+      // A fullstack build leaves its image layout as image.tar; its digest is the manifest's,
+      // which the Portal checks inside the layout (AP-105, AP-107).
+      if (existsSync(join(appDir, "image.tar"))) {
+        await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `image-${build.commit}`, readFileSync(join(appDir, "image.tar")));
+      } else {
+        const bundle = await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `bundle-${build.commit}`, readFileSync(join(appDir, "bundle.tar.gz")));
+        if (bundle !== build.digest) throw new Error(`the bundle uploaded is ${bundle}, not the ${build.digest} that was built`);
+      }
       await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `sbom-${build.commit}`, readFileSync(join(appDir, "sbom.cdx.json")));
       appendFileSync(env.GITHUB_OUTPUT, outputs);
-      console.log(`uploaded bundle-${build.commit} ${bundle}`);
+      console.log(`uploaded the build of ${build.commit} as ${build.digest}`);
     } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
@@ -260,7 +337,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

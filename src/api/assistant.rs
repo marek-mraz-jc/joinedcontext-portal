@@ -1006,6 +1006,9 @@ mod tests {
             host: "portal.example.org".into(),
             namespace: "apps".into(),
             org_domain: "hel.fi".into(),
+            apisix_namespace: "apisix".into(),
+            image_repository: None,
+            pull_secret: None,
         });
         assert_eq!(
             org_domain(&crate::state::AppState::new(config, None), "helsinki"),

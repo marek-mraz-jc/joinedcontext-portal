@@ -304,18 +304,95 @@ fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, Con
 /// Where an App's objects are applied: `JC_PORTAL_APPS_NAMESPACE` and `JC_PORTAL_ORG_DOMAIN`,
 /// both or neither, with the host taken from the public URL rather than configured twice
 /// (AP-13).
+///
+/// A pod-backed App also needs (AP-108):
+///
+/// - `JC_PORTAL_APPS_REGISTRY` — the host, and port if any, of the forge's container registry;
+///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`.
+/// - `JC_PORTAL_APPS_PULL_SECRET_NAME` — the name of the `dockerconfigjson` Secret in the apps
+///   namespace a node pulls app images with (a forge token that reads packages only).
+/// - `JC_PORTAL_APISIX_NAMESPACE` — the namespace the installation runs APISIX in, the only one
+///   whose pods reach an app pod; default `apisix`.
 fn app_settings(
     lookup: &impl Fn(&str) -> Option<String>,
     public_base_url: &Url,
-) -> Option<crate::apps::reconciler::Settings> {
-    let namespace = lookup("JC_PORTAL_APPS_NAMESPACE").filter(|v| !v.trim().is_empty())?;
-    let org_domain = lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty())?;
-    let host = public_base_url.host_str()?.to_owned();
-    Some(crate::apps::reconciler::Settings {
+) -> Result<Option<crate::apps::reconciler::Settings>, ConfigError> {
+    let set = |var: &str| {
+        lookup(var)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    let (Some(namespace), Some(org_domain), Some(host)) = (
+        set("JC_PORTAL_APPS_NAMESPACE"),
+        set("JC_PORTAL_ORG_DOMAIN"),
+        public_base_url.host_str().map(str::to_owned),
+    ) else {
+        return Ok(None);
+    };
+    let name = |var: &'static str, value: Option<String>| match value {
+        Some(value) if !crate::resource::is_dns1123(&value) => Err(ConfigError::Invalid {
+            var,
+            reason: format!("'{value}' is not a Kubernetes name (lowercase letters, digits, '-')"),
+        }),
+        other => Ok(other),
+    };
+    let apisix_namespace = name(
+        "JC_PORTAL_APISIX_NAMESPACE",
+        set("JC_PORTAL_APISIX_NAMESPACE"),
+    )?
+    .unwrap_or_else(|| "apisix".to_owned());
+    let pull_secret = name(
+        "JC_PORTAL_APPS_PULL_SECRET_NAME",
+        set("JC_PORTAL_APPS_PULL_SECRET_NAME"),
+    )?;
+    let image_repository = match set("JC_PORTAL_APPS_REGISTRY") {
+        None => None,
+        Some(registry) => {
+            // A host and an optional port: a scheme or a path would compose a reference no
+            // node resolves, and it is the one part of an image an App cannot name (AP-108).
+            if !is_registry_host(&registry) {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APPS_REGISTRY",
+                    reason: format!(
+                        "'{registry}' is not a registry host such as forge.example.org or \
+                         forge.example.org:5000"
+                    ),
+                });
+            }
+            let owner = set("JC_GITEA_OWNER").ok_or_else(|| ConfigError::Invalid {
+                var: "JC_PORTAL_APPS_REGISTRY",
+                reason:
+                    "the images live under the forge's organization, and JC_GITEA_OWNER is not set"
+                        .to_owned(),
+            })?;
+            Some(format!("{registry}/{owner}"))
+        }
+    };
+    Ok(Some(crate::apps::reconciler::Settings {
         host,
         namespace,
         org_domain,
-    })
+        apisix_namespace,
+        image_repository,
+        pull_secret,
+    }))
+}
+
+/// `forge.example.org` or `forge.example.org:5000`: lowercase DNS labels and an optional port.
+fn is_registry_host(value: &str) -> bool {
+    let (host, port_ok) = match value.split_once(':') {
+        None => (value, true),
+        Some((host, port)) => (host, port.parse::<u16>().is_ok_and(|port| port > 0)),
+    };
+    port_ok
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
 }
 
 /// Where a builder run happens and how the credential proxy reaches this Portal (ADR-N-020).
@@ -879,7 +956,7 @@ impl Config {
         let apps_cache_dir =
             lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
-        let app_settings = app_settings(&lookup, &public_base_url);
+        let app_settings = app_settings(&lookup, &public_base_url)?;
         let agent_settings = agent_settings(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
@@ -1263,6 +1340,70 @@ mod tests {
             })
             .expect("a Portal without apps is still a Portal");
             assert!(config.app_settings.is_none(), "{missing} was not needed");
+        }
+    }
+
+    /// AP-108: a pod-backed App's image is composed from the registry and the forge's
+    /// organization, pulled with the named Secret, and reached from the configured APISIX
+    /// namespace; a registry that is not a bare host, or a name that is not a Kubernetes name,
+    /// stops the Portal at start rather than rendering a pod no node can pull.
+    #[test]
+    fn app_settings_compose_the_image_repository_and_refuse_what_no_node_resolves() {
+        let with = |extra: Vec<(&'static str, &'static str)>| {
+            move |k: &str| match k {
+                "JC_PORTAL_PUBLIC_URL" => Some("https://bb.example.sk".to_string()),
+                "JC_PORTAL_APPS_NAMESPACE" => Some("joinedcontext".to_string()),
+                "JC_PORTAL_ORG_DOMAIN" => Some("banskabystrica.sk".to_string()),
+                _ => extra
+                    .iter()
+                    .find(|(key, _)| *key == k)
+                    .map(|(_, value)| (*value).to_string()),
+            }
+        };
+        let plain = Config::from_vars(with(vec![]))
+            .unwrap()
+            .app_settings
+            .unwrap();
+        assert_eq!(plain.apisix_namespace, "apisix");
+        assert_eq!((plain.image_repository, plain.pull_secret), (None, None));
+
+        let dev = Config::from_vars(with(vec![
+            ("JC_PORTAL_APPS_REGISTRY", "2.28.67.127.sslip.io"),
+            ("JC_GITEA_OWNER", "joinedcontext"),
+            ("JC_PORTAL_APPS_PULL_SECRET_NAME", "app-registry"),
+            ("JC_PORTAL_APISIX_NAMESPACE", "dev"),
+        ]))
+        .unwrap()
+        .app_settings
+        .unwrap();
+        assert_eq!(
+            dev.image_of("air-quality", "sha256:ab").as_deref(),
+            Some("2.28.67.127.sslip.io/joinedcontext/app-air-quality@sha256:ab")
+        );
+        assert_eq!(dev.pull_secret.as_deref(), Some("app-registry"));
+        assert_eq!(dev.apisix_namespace, "dev");
+
+        for (var, value) in [
+            ("JC_PORTAL_APPS_REGISTRY", "https://forge.example.org"),
+            ("JC_PORTAL_APPS_REGISTRY", "forge.example.org/git"),
+            ("JC_PORTAL_APPS_REGISTRY", "forge.example.org:"),
+            ("JC_PORTAL_APPS_REGISTRY", "Forge.example.org"),
+            ("JC_PORTAL_APPS_PULL_SECRET_NAME", "App_Registry"),
+            ("JC_PORTAL_APISIX_NAMESPACE", "dev/x"),
+        ] {
+            match Config::from_vars(with(vec![
+                (var, value),
+                ("JC_GITEA_OWNER", "joinedcontext"),
+            ])) {
+                Err(ConfigError::Invalid { var: refused, .. }) => {
+                    assert_eq!(refused, var, "{value}")
+                }
+                Ok(_) => panic!("{var}={value} was accepted"),
+            }
+        }
+        match Config::from_vars(with(vec![("JC_PORTAL_APPS_REGISTRY", "forge.example.org")])) {
+            Err(ConfigError::Invalid { reason, .. }) => assert!(reason.contains("JC_GITEA_OWNER")),
+            Ok(_) => panic!("a registry without the forge's organization was accepted"),
         }
     }
 

@@ -42,6 +42,8 @@ pub const APP_ADDRESS: &str = "0.0.0.0";
 /// The pod label the edge's own NetworkPolicy selects app pods by for its egress
 /// (Deployment/10 §4): one value for every app, the name is in `app.kubernetes.io/name`.
 pub const APP_LABEL: &str = "joinedcontext.com/app";
+/// Where meshed traffic lands on a pod: the Linkerd inbound proxy, not the service port.
+const LINKERD_INBOUND: u16 = 4143;
 
 /// Base32 alphabet of RFC 4648 in the lowercase form [`EndpointSlug`] accepts (EP-02).
 const SLUG_ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
@@ -58,6 +60,24 @@ pub struct Settings {
     pub namespace: String,
     /// The organization's domain, which becomes the policy assigner (`did:web:{domain}`).
     pub org_domain: String,
+    /// The namespace the installation runs APISIX in, the only one whose pods reach an app pod
+    /// (AP-108). `apisix` on an installation that sets nothing; `dev` runs it in `dev`.
+    pub apisix_namespace: String,
+    /// Where the Portal pushed the images, `{registry}/{organization}`, so an image reference
+    /// is composed here and never read from a manifest (AP-108). `None`: no pod-backed App runs.
+    pub image_repository: Option<String>,
+    /// The `dockerconfigjson` Secret in [`Settings::namespace`] a node pulls app images with, a
+    /// forge token that reads packages and nothing else (AP-108).
+    pub pull_secret: Option<String>,
+}
+
+impl Settings {
+    /// `{registry}/{organization}/app-{name}@{digest}`, the one image an App runs (AP-108).
+    pub fn image_of(&self, name: &str, digest: &str) -> Option<String> {
+        self.image_repository
+            .as_deref()
+            .map(|repository| format!("{repository}/app-{name}@{digest}"))
+    }
 }
 
 /// A fresh endpoint slug for an app that has none yet (EP-02).
@@ -283,11 +303,20 @@ fn render_workload(
                     // the first thing a compromised app would use.
                     "automountServiceAccountToken": false,
                     "enableServiceLinks": false,
+                    // A numeric user: the image is one layer on an empty base and names none, so
+                    // `runAsNonRoot` alone cannot tell the kubelet it holds (AP-108).
                     "securityContext": {
                         "runAsNonRoot": true,
+                        "runAsUser": 65532,
+                        "runAsGroup": 65532,
                         "seccompProfile": { "type": "RuntimeDefault" },
                     },
-                    "containers": [app_container(name, image, spec, slug, settings)],
+                    "imagePullSecrets": settings
+                        .pull_secret
+                        .iter()
+                        .map(|secret| json!({ "name": secret }))
+                        .collect::<Vec<_>>(),
+                    "containers": [app_container(name, project, image, spec, slug, settings)],
                     "volumes": [{ "name": "tmp-app", "emptyDir": {} }],
                 },
             },
@@ -348,12 +377,15 @@ fn object_meta(name: &str, settings: &Settings, labels: &Value) -> Value {
 /// - `JC_BIND_ADDRESS` — where it listens, which is the port the Service routes to.
 /// - `JC_BASE_PATH` — the path it is served under, so every link it writes resolves.
 /// - `JC_ENDPOINT_URL` — the one Endpoint it may read, as a caller reaches it.
+/// - `JC_ME_URL` — the Portal route that answers the caller's roles in this App, called with the
+///   edge's `X-Access-Token` as the bearer (AP-109).
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
 ///
 /// Never a credential: an application calls its Endpoint with the caller's own token.
 fn app_container(
     name: &str,
+    project: &str,
     image: &str,
     spec: &AppSpec,
     slug: &EndpointSlug,
@@ -366,6 +398,13 @@ fn app_container(
             "name": "JC_ENDPOINT_URL",
             "value": format!("https://{}/api/endpoint/{}/", settings.host, slug.as_str()),
         }),
+        json!({
+            "name": "JC_ME_URL",
+            "value": format!(
+                "https://{}/api/v1/projects/{project}/apps/{name}/me",
+                settings.host
+            ),
+        }),
     ];
     if spec.visibility == AppVisibility::Public {
         // A public app is called by people who never logged in, so the backend has to know that
@@ -373,7 +412,7 @@ fn app_container(
         env.push(json!({ "name": "JC_ANONYMOUS", "value": "true" }));
     }
 
-    json!({
+    let mut container = json!({
         "name": "app",
         "image": image,
         "imagePullPolicy": "IfNotPresent",
@@ -394,7 +433,12 @@ fn app_container(
             "limits": { "cpu": "1", "memory": "512Mi" },
         },
         "volumeMounts": [{ "name": "tmp-app", "mountPath": "/tmp" }],
-    })
+    });
+    // A fullstack image is the binary at `/app` and nothing else, no entrypoint (AP-105).
+    if spec.class == jc_core::kinds::AppClass::Fullstack {
+        container["command"] = json!(["/app"]);
+    }
+    container
 }
 
 /// Default-deny in both directions with two holes: APISIX in, and the platform host out
@@ -409,14 +453,39 @@ fn network_policy(name: &str, settings: &Settings, labels: &Value, selector: &Va
             "policyTypes": ["Ingress", "Egress"],
             // Only the gateway may open a connection into the pod, and only on the app's port:
             // the edge is the login front, so the port is not a door for anyone else (AP-26).
-            "ingress": [{
-                "from": [{
-                    "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "apisix" } },
-                    "podSelector": { "matchLabels": { "app.kubernetes.io/name": "apisix" } },
-                }],
-                "ports": [{ "protocol": "TCP", "port": APP_PORT }],
-            }],
+            // The pod is meshed, and meshed traffic lands on the Linkerd inbound proxy (4143),
+            // not on the app's port, so the one source is admitted on both.
+            "ingress": [
+                {
+                    "from": [{
+                        "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": settings.apisix_namespace } },
+                        "podSelector": { "matchLabels": { "app.kubernetes.io/name": "apisix" } },
+                    }],
+                    "ports": [
+                        { "protocol": "TCP", "port": APP_PORT },
+                        { "protocol": "TCP", "port": LINKERD_INBOUND },
+                    ],
+                },
+                // The proxy's own admin ports, which the kubelet probes; no request reaches
+                // the app through them.
+                {
+                    "ports": [
+                        { "protocol": "TCP", "port": 4190 },
+                        { "protocol": "TCP", "port": 4191 },
+                    ],
+                },
+            ],
             "egress": [
+                // The Linkerd control plane (identity, destination, policy): without it the
+                // proxy never learns its inbound policy and the pod never starts.
+                {
+                    "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+                    "ports": [
+                        { "protocol": "TCP", "port": 8080 },
+                        { "protocol": "TCP", "port": 8086 },
+                        { "protocol": "TCP", "port": 8090 },
+                    ],
+                },
                 {
                     "to": [{
                         "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "kube-system" } },
@@ -437,6 +506,8 @@ fn network_policy(name: &str, settings: &Settings, labels: &Value, selector: &Va
                     "ports": [
                         { "protocol": "TCP", "port": 443 },
                         { "protocol": "TCP", "port": 8443 },
+                        // A meshed ingress controller is reached on its inbound proxy.
+                        { "protocol": "TCP", "port": LINKERD_INBOUND },
                     ],
                 },
             ],
@@ -466,9 +537,12 @@ fn endpoint(
     let (audience, allowed_projects) = match spec.visibility {
         AppVisibility::Public => ("public", Vec::new()),
         AppVisibility::Organization => ("organization", Vec::new()),
-        // `private` has no audience of its own in the endpoint model; the owning project is the
-        // narrowest one there is, and the app's policies bind who inside it may act (AP-18).
-        AppVisibility::Project | AppVisibility::Private => ("project-list", vec![project]),
+        // `private` and `roles` have no audience of their own in the endpoint model; the owning
+        // project is the narrowest one there is, and the app's policies bind who inside it may
+        // act (AP-18, AP-96).
+        AppVisibility::Project | AppVisibility::Private | AppVisibility::Roles => {
+            ("project-list", vec![project])
+        }
     };
 
     let mut endpoint_spec = json!({
