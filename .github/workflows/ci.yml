@@ -73,6 +73,26 @@ jobs:
         run: cd ui && pnpm lint && pnpm test -- --run && pnpm build
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
+  # The applications, beside the UI rather than after it: each app installs, tests and builds on
+  # its own, and after the UI suite they ran past the ui job's budget (d40934c, run 35714368871).
+  # Same steps as before, in their own job; nothing is skipped or sharded.
+  apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: has
+        run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ui == 'yes'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - if: steps.has.outputs.ui == 'yes'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
+      # The apps link the SDK's sources, and the lane test needs its Vite.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the SDK's dependencies, which the apps link
+        run: cd sdk && pnpm install --frozen-lockfile
       # The reference apps of AP-34 carry their own bundle; the Rust half is covered by the
       # workspace lanes above, this is its screens.
       - if: steps.has.outputs.ui == 'yes'
