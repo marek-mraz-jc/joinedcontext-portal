@@ -158,6 +158,41 @@ describe("DataClient entity operations", () => {
     expect(calls[0].body).toEqual({ bikes: { type: "Property", value: 5 } });
   });
 
+  // SDK-07: a LanguageProperty is written as one, every language of its map in the one PATCH.
+  it("update writes a language map as a LanguageProperty", async () => {
+    const calls: JcRequest[] = [];
+    const client = createClient(CONFIG, async (req) => {
+      calls.push(req);
+      return { status: 204, body: null };
+    });
+    await client.entities.update("urn:ngsi-ld:T:1", { name: { languageMap: { fi: "Tietyö", en: "Road work" } }, bikes: 5 });
+    expect(calls[0].body).toEqual({
+      name: { type: "LanguageProperty", languageMap: { fi: "Tietyö", en: "Road work" } },
+      bikes: { type: "Property", value: 5 },
+    });
+  });
+
+  it.each([
+    ["a keyValues LanguageProperty", { languageMap: { fi: "Tietyö", sv: "Vägarbete" } }, { fi: "Tietyö", sv: "Vägarbete" }],
+    ["a bare language map", { fi: "Tietyö", n: 3 }, { fi: "Tietyö" }],
+    ["a plain string, in the application's language", "Tietyö", { fi: "Tietyö" }],
+    ["no such attribute", undefined, {}],
+  ])("languages reads every language of %s", async (_, stored, expected) => {
+    const calls: JcRequest[] = [];
+    const client = createClient(CONFIG, async (req) => {
+      calls.push(req);
+      return { status: 200, body: { id: "urn:ngsi-ld:T:1", type: "T", ...(stored === undefined ? {} : { name: stored }) } };
+    });
+    expect(await client.entities.languages("urn:ngsi-ld:T:1", "name")).toEqual(expected);
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].path).toBe("/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Angsi-ld%3AT%3A1?options=keyValues&attrs=name");
+  });
+
+  it("languages throws the endpoint's refusal", async () => {
+    const client = createClient(CONFIG, async () => ({ status: 403, body: { title: "Forbidden", detail: "no read" } }));
+    await expect(client.entities.languages("urn:ngsi-ld:T:1", "name")).rejects.toBeInstanceOf(ProblemError);
+  });
+
   it("remove sends DELETE to entity path", async () => {
     let deletedPath = "";
     const transport: Transport = async (req) => {

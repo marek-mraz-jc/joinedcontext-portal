@@ -68,7 +68,11 @@ Orders two rows by one attribute: numbers as numbers, text in the document's loc
 ```ts
 function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column): Field
 ```
-The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox or geo.
+The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox, geo or language (a LanguageProperty).
+```ts
+function isLanguageMap(value: unknown): value is LanguageMap
+```
+Whether a value is `{ languageMap }`, the shape `entities.create`/`update` write as a `LanguageProperty`.
 ```ts
 const NO_BASEMAP: string
 function styleFor(basemap?: string): string | StyleSpecification
@@ -300,6 +304,7 @@ Logs an error and, in the preview frame, posts it to the Portal with file and li
 - `Row`: Entity object `{ id: string, type: string } & Record<string, Cell>`.
 - `Cell`: Scalar value `string | number | boolean | Geo | null`.
 - `Geo`: Geometry object `{ type: string, coordinates: unknown }`.
+- `LanguageMap`: `{ languageMap: Record<string, string> }`, one LanguageProperty with every language.
 - `Column`: Kind `"number" | "date" | "geo" | "text"`.
 - `Agg`: Aggregation `"count" | "sum" | "avg" | "min" | "max"`.
 - `Group`: Aggregated group `{ key: string, value: number }`.
@@ -356,7 +361,7 @@ Constructs a server function execution context capturing log statements.
 An application may read up to five endpoints (e.g. `transportation` and `transportation-kpis`); the pack's THE ENDPOINTS section lists them with their types. A type served by one endpoint is read there with no extra argument. Only a type served by more than one needs `{ endpoint: "<name>" }`: in `Query` (`useEntities("Vehicle", { endpoint: "transportation" })`), in `TemporalQuery`, or as the last argument of `entities.get`/`create`/`update`/`remove`; without it the call throws a `ProblemError` naming the candidates. Writes go to the endpoint of the entity's type (an id's space picks among several). `schema()` merges every endpoint's schemas; `schema(name)` and `access(name)` read one.
 
 ## Rows (SDK-03)
-Entities read through the SDK are flattened into `Row` objects. `id` (URN) and `type` are always present. KeyValues attributes are simplified into `Cell` values: `Property` becomes primitive value, `GeoProperty` becomes a GeoJSON object, and `LanguageProperty` is resolved to the preferred language string.
+Entities read through the SDK are flattened into `Row` objects. `id` (URN) and `type` are always present. KeyValues attributes are simplified into `Cell` values: `Property` becomes primitive value, `GeoProperty` becomes a GeoJSON object, and `LanguageProperty` is resolved to the preferred language string. A write replaces a LanguageProperty whole, so an edit reads every language with `entities.languages(id, attr)` and writes them all back as `{ languageMap }` in `create`/`update`; writing the row's string would drop the others.
 
 ## Errors (SDK-04)
 Refusals from endpoints and policy checks arrive as `ProblemError` instances containing HTTP `status`, `title`, and `detail`. The `useSave` hook exposes `problem` directly without throwing exceptions, allowing `EntityForm` and `<Problem error={problem} />` to render error details inline without reloading the page.

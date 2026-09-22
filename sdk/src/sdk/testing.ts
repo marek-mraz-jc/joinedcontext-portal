@@ -47,6 +47,9 @@ function decodeAttrs(body: unknown): Record<string, Cell> {
       if (k === "id" || k === "type") continue;
       if (typeof v === "object" && v !== null && ("type" in v) && "value" in v) {
         decoded[k] = (v as { value: Cell }).value;
+      } else if (typeof v === "object" && v !== null && "languageMap" in v) {
+        // Kept in its keyValues shape, as a broker answers it; rows read one language of it.
+        decoded[k] = { languageMap: (v as { languageMap: unknown }).languageMap } as unknown as Cell;
       } else {
         decoded[k] = v as Cell;
       }

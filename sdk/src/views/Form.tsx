@@ -38,7 +38,9 @@ export function Form({ row, rows, fields, title, schema, creating, onSave, onClo
     const patch: Record<string, Cell> = {};
     for (const field of fields) {
       const spec = specs[field];
-      if (spec.input === "geo") continue;
+      // Neither is written from a text box: a geometry is picked on the map, and a LanguageProperty
+      // written as the one language a row shows would drop every other language.
+      if (spec.input === "geo" || spec.input === "language") continue;
       const text = draft[field] ?? "";
       if (row && text === format(row[field])) continue;
       if (spec.input === "number") patch[field] = text.trim() === "" ? null : Number(text);
@@ -63,6 +65,7 @@ export function Form({ row, rows, fields, title, schema, creating, onSave, onClo
     const set = (next: string) => setDraft((d) => ({ ...d, [field]: next }));
     switch (spec.input) {
       case "geo":
+      case "language":
         return <input value={value} readOnly />;
       case "select":
         return (

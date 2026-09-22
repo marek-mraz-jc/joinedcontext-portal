@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { columnKind, fieldOf, format, pointOf, useAccess, useSave, useSchema } from "@joinedcontext/sdk";
-import type { Cell, Field, Row } from "@joinedcontext/sdk";
+import { columnKind, fieldOf, format, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
+import type { Cell, Field, LanguageMap, Row } from "@joinedcontext/sdk";
 import { Problem } from "./states";
 
 export function parseInput(field: Field, text: string): { value: Cell } | { error: string } {
@@ -100,6 +100,8 @@ export function EntityForm({
   const { typeSchema } = useSchema(type);
   const save = useSave();
   const { can } = useAccess();
+  const client = useClient();
+  const language = client.config.language ?? "en";
 
   const isEdit = Boolean(row);
   const op = isEdit
@@ -141,8 +143,50 @@ export function EntityForm({
   const [localId, setLocalId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // A LanguageProperty is edited language by language. A row holds one language of it, and a
+  // write replaces the attribute whole, so an edit reads every language first and writes them
+  // all back (SDK-07). `null` while that read is outstanding; a failed read leaves it null, and
+  // the field cannot be written.
+  const languageFields = useMemo(() => fieldNames.filter((name) => fieldSpecs[name]?.input === "language"), [fieldNames, fieldSpecs]);
+  const [stored, setStored] = useState<Record<string, Record<string, string>> | null>(row ? null : {});
+  const [languageDraft, setLanguageDraft] = useState<Record<string, Record<string, string>>>({});
+  const [languageProblem, setLanguageProblem] = useState<Error | null>(null);
+
   const rowId = row?.id ?? null;
   const { clear } = save;
+  const languageKey = languageFields.join(",");
+  useEffect(() => {
+    setLanguageProblem(null);
+    if (!rowId || languageFields.length === 0) {
+      setStored({});
+      setLanguageDraft({});
+      return;
+    }
+    setStored(null);
+    let current = true;
+    void Promise.all(languageFields.map(async (name) => [name, await client.entities.languages(rowId, name)] as const))
+      .then((entries) => {
+        if (!current) return;
+        const maps = Object.fromEntries(entries);
+        setStored(maps);
+        setLanguageDraft(maps);
+      })
+      .catch((err: unknown) => {
+        if (current) setLanguageProblem(err instanceof Error ? err : new Error(String(err)));
+      });
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowId, type, languageKey]);
+
+  /** The languages a field offers: the ones it holds, then the application's own. */
+  const languagesOf = (name: string) => [...new Set([...Object.keys(stored?.[name] ?? {}), language])];
+  /** The map a write sends: every language kept, the ones emptied dropped. */
+  const mapOf = (name: string): LanguageMap | null => {
+    const merged = Object.entries({ ...(stored?.[name] ?? {}), ...(languageDraft[name] ?? {}) }).filter(([, text]) => text.trim() !== "");
+    return merged.length > 0 ? { languageMap: Object.fromEntries(merged) } : null;
+  };
   // Another entity, or a new one: start over. Only its identity counts, so a parent that
   // re-renders or a refusal arriving never wipes what the person typed.
   useEffect(() => {
@@ -171,6 +215,10 @@ export function EntityForm({
 
     for (const name of fieldNames) {
       const spec = fieldSpecs[name];
+      if (spec.input === "language") {
+        if (spec.required && !mapOf(name)) errors[name] = `${name} is required`;
+        continue;
+      }
       const text = draft[name] ?? "";
       if (spec.required && text.trim() === "") {
         errors[name] = `${name} is required`;
@@ -190,9 +238,14 @@ export function EntityForm({
     }
 
     if (!row) {
-      const attrs: Record<string, Cell> = {};
+      const attrs: Record<string, Cell | LanguageMap> = {};
       for (const name of fieldNames) {
         const spec = fieldSpecs[name];
+        if (spec.input === "language") {
+          const map = mapOf(name);
+          if (map) attrs[name] = map;
+          continue;
+        }
         const text = draft[name] ?? "";
         if (text.trim() !== "") {
           const parsed = parseInput(spec, text);
@@ -206,10 +259,20 @@ export function EntityForm({
         onSaved?.(newId);
       }
     } else {
-      const patch: Record<string, Cell> = {};
+      const patch: Record<string, Cell | LanguageMap> = {};
       let changed = false;
       for (const name of fieldNames) {
         const spec = fieldSpecs[name];
+        if (spec.input === "language") {
+          const map = mapOf(name);
+          // ponytail: emptying every language leaves the attribute as it was; removing an
+          // attribute is a deleteAttrs the form does not offer.
+          if (map && JSON.stringify(map.languageMap) !== JSON.stringify(stored?.[name] ?? {})) {
+            changed = true;
+            patch[name] = map;
+          }
+          continue;
+        }
         const text = draft[name] ?? "";
         const prev = initialDraft[name] ?? "";
         if (text !== prev) {
@@ -231,7 +294,7 @@ export function EntityForm({
     }
   };
 
-  const submitDisabled = !formDecision.ok || save.saving;
+  const submitDisabled = !formDecision.ok || save.saving || stored === null;
   const submitTitle = !formDecision.ok ? formDecision.reason : undefined;
 
   return (
@@ -261,6 +324,27 @@ export function EntityForm({
 
         let inputElement: React.JSX.Element;
         switch (spec.input) {
+          case "language":
+            inputElement = (
+              <span className="jc-languages">
+                {languagesOf(name).map((lang) => (
+                  <input
+                    key={lang}
+                    type="text"
+                    lang={lang}
+                    aria-label={`${name} (${lang})`}
+                    placeholder={lang}
+                    value={languageDraft[name]?.[lang] ?? ""}
+                    disabled={disabled || stored === null}
+                    title={reason}
+                    onChange={(e) =>
+                      setLanguageDraft((d) => ({ ...d, [name]: { ...(d[name] ?? {}), [lang]: e.target.value } }))
+                    }
+                  />
+                ))}
+              </span>
+            );
+            break;
           case "number":
             inputElement = (
               <input
@@ -362,6 +446,7 @@ export function EntityForm({
           </label>
         );
       })}
+      {languageProblem && <Problem error={languageProblem} />}
       {save.problem && <Problem error={save.problem} />}
       <div className="jc-form-actions">
         {onCancel && (
