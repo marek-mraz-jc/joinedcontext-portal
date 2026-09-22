@@ -1,14 +1,20 @@
+import { Fragment } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "./Menu";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./Menu";
 import { Button } from "./Button";
 
 /** One thing a row can do, as the menu shows it. */
 export interface RowAction {
   key: string;
   label: string;
-  onSelect: () => void;
+  /** What choosing it does; an item with `href` is a link instead and needs none. */
+  onSelect?: () => void;
+  /** A place elsewhere (the forge): the item is a link that opens in a new tab. */
+  href?: string;
   tone?: "default" | "danger";
+  /** A line after this item, between one block of the menu and the next. */
+  separatorAfter?: boolean;
   /**
    * Why this action cannot be taken right now (UI-44). The item stays in the menu, disabled, and
    * says the reason — a person whose role is too narrow has to be able to read that, not guess it
@@ -56,19 +62,29 @@ export function RowActions({
         </MenuTrigger>
         <MenuContent align="end">
           {actions.map((action) => (
-            <MenuItem
-              key={action.key}
-              tone={action.tone}
-              disabled={Boolean(action.disabledReason)}
-              title={action.disabledReason}
-              aria-disabled={action.disabledReason ? "true" : undefined}
-              onSelect={action.disabledReason ? undefined : action.onSelect}
-            >
-              {action.label}
-              {action.disabledReason ? (
-                <span className="sr-only"> — {action.disabledReason}</span>
-              ) : null}
-            </MenuItem>
+            <Fragment key={action.key}>
+              {action.href && !action.disabledReason ? (
+                <MenuItem asChild tone={action.tone}>
+                  <a href={action.href} target="_blank" rel="noreferrer noopener">
+                    {action.label}
+                  </a>
+                </MenuItem>
+              ) : (
+                <MenuItem
+                  tone={action.tone}
+                  disabled={Boolean(action.disabledReason)}
+                  title={action.disabledReason}
+                  aria-disabled={action.disabledReason ? "true" : undefined}
+                  onSelect={action.disabledReason ? undefined : action.onSelect}
+                >
+                  {action.label}
+                  {action.disabledReason ? (
+                    <span className="sr-only"> — {action.disabledReason}</span>
+                  ) : null}
+                </MenuItem>
+              )}
+              {action.separatorAfter ? <MenuSeparator /> : null}
+            </Fragment>
           ))}
         </MenuContent>
       </Menu>
