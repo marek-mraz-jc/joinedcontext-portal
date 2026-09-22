@@ -1115,6 +1115,30 @@ impl GiteaClient {
             .ok_or_else(|| GitError::Transport("the registry answered no digest".into()))
     }
 
+    /// `DELETE /repos/{owner}/{repo}` — removes a repository the Portal created in the same
+    /// operation, when the rest of it failed (both or neither, CC-85).
+    pub async fn delete_repository(&self) -> Result<(), GitError> {
+        let res = self.send(self.http.delete(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) | Err(GitError::NotFound) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// `POST /branch_protections` — `branch` takes no direct push: every change reaches it
+    /// through a merged pull request (PF-87).
+    pub async fn protect_branch(&self, branch: &str) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "rule_name": branch, "enable_push": false });
+        let res = self
+            .send(
+                self.http
+                    .post(self.repo_url("branch_protections")?)
+                    .json(&payload),
+            )
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.
     pub async fn list_tree(&self, git_ref: &str) -> Result<Vec<String>, GitError> {
         Ok(self

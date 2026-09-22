@@ -42,6 +42,9 @@ pub struct Mirror {
     /// Layout 2: each registered project's own repository in the forge, by slug (PF-86). Empty
     /// in layout 1, where every project lives in the organization repository.
     repositories: RwLock<BTreeMap<String, String>>,
+    /// The organization's `.jc/layout` (CC-85): 2 when every project lives in a repository of
+    /// its own; 0 until the first sync says, which reads as 1.
+    layout: std::sync::atomic::AtomicU32,
 }
 
 impl Mirror {
@@ -54,6 +57,19 @@ impl Mirror {
     pub fn repository_of(&self, project: &str) -> Option<String> {
         let lock = self.repositories.read().unwrap_or_else(|p| p.into_inner());
         lock.get(project).cloned()
+    }
+
+    /// The layout of the organization repository the mirror was read from (CC-85).
+    pub fn layout(&self) -> u32 {
+        self.layout
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .max(1)
+    }
+
+    /// Records the layout the sync read.
+    pub fn set_layout(&self, layout: u32) {
+        self.layout
+            .store(layout, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Records where each registered project lives, replacing what was recorded.
@@ -139,6 +155,7 @@ impl Mirror {
             .unwrap_or_else(|p| p.into_inner())
             .clone();
         self.set_repositories(repositories);
+        self.set_layout(other.layout());
     }
 
     /// Every resource matching a predicate, in no particular order.

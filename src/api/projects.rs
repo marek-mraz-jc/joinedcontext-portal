@@ -359,7 +359,16 @@ pub async fn open_project(
         )));
     }
 
-    let files = open_project_files(&state, identity, &request, &name)?;
+    let mut files = open_project_files(&state, identity, &request, &name)?;
+    // Layout 2 (CC-85, PF-86): the project gets a repository of its own, seeded here, and the
+    // organization's Change carries its registry entry in place of the project's own file.
+    let own_repository = if state.mirror.layout() == 2 {
+        let repository = gitea.for_project(&name, &name);
+        seed_project_repository(&repository, identity, &name, &mut files).await?;
+        Some(repository)
+    } else {
+        None
+    };
     // Yellow: a project and its opener's own steward binding are reviewed, not confirmed by
     // typing a name back (PF-66).
     let report = crate::api::import::ImportReport {
@@ -374,7 +383,7 @@ pub async fn open_project(
         verified: Vec::new(),
         needs: Vec::new(),
     };
-    let mut change = crate::api::import::propose_bundle(
+    let proposed = crate::api::import::propose_bundle(
         &state,
         identity,
         &name,
@@ -382,7 +391,18 @@ pub async fn open_project(
         files,
         Some(("Project", &name)),
     )
-    .await?;
+    .await;
+    let mut change = match (proposed, own_repository) {
+        (Ok(change), _) => change,
+        (Err(error), None) => return Err(error),
+        // Both or neither: a repository nobody registered is removed again (CC-85).
+        (Err(error), Some(repository)) => {
+            if let Err(cleanup) = repository.delete_repository().await {
+                tracing::error!(project = %name, error = %cleanup, "the repository of a project that did not open is left behind");
+            }
+            return Err(error);
+        }
+    };
 
     // The organization that lets anyone open a project, on an installation that does not hold
     // every change for a person, has nobody to wait for: the platform merges it and the merge
@@ -484,7 +504,9 @@ fn open_project_files(
         "apiVersion": API_VERSION,
         "kind": "Project",
         "metadata": metadata,
-        "spec": { "organizationRef": { "name": organization } },
+        // A bare name: jc-core's `Ref` takes a name or a `{kind, name}` pair, and a `{name}`
+        // alone made every project this door opened a manifest the loader refuses (T-2643).
+        "spec": { "organizationRef": organization },
     });
 
     // The opener gets `steward` on their own project and nothing anywhere else (PF-66, PF-52).
@@ -517,6 +539,85 @@ fn open_project_files(
             yaml(&binding)?,
         ),
     ])
+}
+
+/// Creates the project repository of layout 2 and commits its first files to `main`: `.jc/layout`,
+/// the project's own `project.yaml` at version `0.1.0` and `CODEOWNERS` (CC-85, PF-86, PF-87).
+/// `main` then takes no direct push. `files` loses the project's own file and gains the
+/// registry entry `projects/{name}.yaml`, which the organization's Change carries.
+///
+/// A repository of that name that is already there is refused, never adopted: somebody else's
+/// history would become the project's. A failure after the repository exists removes it.
+async fn seed_project_repository(
+    repository: &crate::git::GiteaClient,
+    identity: &crate::auth::session::Identity,
+    name: &str,
+    files: &mut Vec<(String, String)>,
+) -> Result<(), ApiError> {
+    let own_path = format!("projects/{name}/project.yaml");
+    let position = files
+        .iter()
+        .position(|(path, _)| *path == own_path)
+        .ok_or_else(|| ApiError::Internal("the project's own manifest is missing".into()))?;
+    let (_, own) = files.remove(position);
+    let mut project: Value = serde_yaml_ng::from_str(&own)
+        .map_err(|e| ApiError::Internal(format!("the project manifest did not parse: {e}")))?;
+    let mut entry = project.clone();
+    project["spec"]["version"] = json!("0.1.0");
+    entry["spec"]["repository"] = json!({ "name": repository.repo });
+    entry["spec"]["ref"] = json!("main");
+    let yaml = |value: &Value| -> Result<String, ApiError> {
+        serde_yaml_ng::to_string(value)
+            .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))
+    };
+    files.insert(position, (format!("projects/{name}.yaml"), yaml(&entry)?));
+
+    if !repository
+        .ensure_repository(&format!("The configuration of the project {name}"))
+        .await?
+    {
+        return Err(ApiError::Conflict(format!(
+            "a repository named '{}' is already in the forge; a project opens only into a new one \
+             (PF-86)",
+            repository.repo
+        )));
+    }
+    let seed = vec![
+        (
+            format!("projects/{name}/{}", jc_core::project::LAYOUT_FILE),
+            "2\n".to_owned(),
+        ),
+        (own_path, yaml(&project)?),
+        (
+            format!("projects/{name}/CODEOWNERS"),
+            format!("* @{}/{name}-writers\n", repository.owner),
+        ),
+    ];
+    let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
+    let author = crate::git::Author {
+        name: &author_name,
+        email: &author_email,
+    };
+    let seeded = async {
+        repository
+            .change_files(
+                "main",
+                &format!("Open the project {name} (PF-86)"),
+                author,
+                &seed,
+                &[],
+            )
+            .await?;
+        repository.protect_branch("main").await
+    }
+    .await;
+    if let Err(error) = seeded {
+        if let Err(cleanup) = repository.delete_repository().await {
+            tracing::error!(project = %name, error = %cleanup, "the repository of a project that did not open is left behind");
+        }
+        return Err(error.into());
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

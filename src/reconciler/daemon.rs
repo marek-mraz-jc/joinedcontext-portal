@@ -580,6 +580,7 @@ impl Syncer {
             let repository = Repository::load(org.path())?;
             return Ok((
                 Render {
+                    layout: 1,
                     root: org.path().to_path_buf(),
                     _staged: vec![org],
                     projects: BTreeMap::new(),
@@ -626,6 +627,7 @@ impl Syncer {
         staged.push(org);
         Ok((
             Render {
+                layout: 2,
                 root: into,
                 _staged: staged,
                 projects,
@@ -670,6 +672,7 @@ impl Syncer {
         // 5. Compile the live status of every resource and swap the mirror in one step, so a
         //    reader never sees a half-built repository (MF-04).
         let fresh_mirror = Mirror::new();
+        fresh_mirror.set_layout(scratch.layout);
         fresh_mirror.set_repositories(
             scratch
                 .projects
@@ -1610,6 +1613,8 @@ async fn stage_repository(
 /// The tree one sync loads: the staged organization in layout 1, the assembly in layout 2, with
 /// the repository each project is read from.
 struct Render {
+    /// The organization's `.jc/layout` (CC-85).
+    layout: u32,
     root: PathBuf,
     /// The staged checkouts, held so they are removed when the sync that fetched them ends.
     _staged: Vec<Scratch>,
