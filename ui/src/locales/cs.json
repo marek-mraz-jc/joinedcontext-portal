@@ -54,7 +54,8 @@
     "workspaces": "Kopie",
     "policies": "Politiky",
     "subscriptions": "Odběry",
-    "organization": "Organizace"
+    "organization": "Organizace",
+    "settings": "Nastavení projektu"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -2715,5 +2716,48 @@
     "cooldown": "Název {name} zůstane po sloučení smazání rezervovaný {days} dní.",
     "action": "Smazat projekt {name}",
     "button": "Smazat"
+  },
+  "projectSettings": {
+    "title": "Nastavení projektu",
+    "lead": "Vše, co patří projektu {project}: jeho název a kvóty, kdo je do něj přiřazen, jeho vlastní role, servisní účty a jeho smazání. Každá změna se navrhuje a schvaluje.",
+    "tabsLabel": "Části nastavení projektu",
+    "tab": {
+      "general": "Obecné",
+      "members": "Členové",
+      "roles": "Role",
+      "service-accounts": "Servisní účty",
+      "access": "Váš přístup",
+      "danger": "Smazat projekt"
+    },
+    "field": {
+      "title": "Název",
+      "description": "Popis",
+      "quotas": "Kvóty tohoto projektu"
+    },
+    "general": {
+      "title": "Obecné",
+      "lead": "Jak se projekt jmenuje a popisuje a co smí obsahovat. Úprava navrhne změnu souboru project.yaml.",
+      "noDescription": "Zatím bez popisu.",
+      "organization": "Organizace",
+      "unknown": "Pro vás nečitelné"
+    },
+    "access": {
+      "title": "Váš přístup zde",
+      "lead": "Co vám vaše vazby dovolují v tomto projektu číst, navrhovat, schvalovat a mazat, a odkud každé oprávnění pochází.",
+      "bootstrap": "Jste v zakládající skupině: smíte vše, dokud nebude přiřazen první administrátor.",
+      "caption": "Vaše oprávnění v {project}",
+      "role": "Role",
+      "allows": "Dovoluje",
+      "from": "Odkud",
+      "none": "Žádná vazba vám zde nic nedává.",
+      "binding": "vazba {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Smazat projekt",
+      "lead": "Smazání projektu odstraní vše napsané pro něj jednou změnou v červeném pruhu, kterou schválí administrátor. Dialog před potvrzením vypíše, co odejde s ním."
+    },
+    "roles": {
+      "organizationKinds": "Role projektu nesmí jmenovat {kinds}: ty patří vlastním rolím organizace."
+    }
   }
 }

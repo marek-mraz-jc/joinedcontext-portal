@@ -166,6 +166,9 @@ export function GrantRoleDialog({
   const subjectRef = useRef<HTMLInputElement | null>(null);
   const roleRef = useRef<HTMLSelectElement | null>(null);
   const roles = useList(ORG_NAMESPACE, "roles");
+  // A binding in a project may name that project's own role as well as an organization one
+  // (PF-69); the organization page binds organization roles only.
+  const projectRoles = useList(project, "roles", scope !== "organization" && project !== ORG_NAMESPACE);
   const spaces = useList(project, "spaces", scope !== "organization");
 
   const propose = useMutation({
@@ -235,7 +238,13 @@ export function GrantRoleDialog({
     propose.mutate();
   };
 
-  const roleNames = asManifests(roles.data?.items ?? []).map((role) => role.metadata.name);
+  const roleNames = [
+    ...new Set(
+      [...asManifests(projectRoles.data?.items ?? []), ...asManifests(roles.data?.items ?? [])].map(
+        (role) => role.metadata.name,
+      ),
+    ),
+  ];
   const spaceNames = asManifests(spaces.data?.items ?? []).map((space) => space.metadata.name);
   const failure =
     propose.error instanceof ApiError

@@ -206,7 +206,10 @@ fn page<'a>(kind: &str, plural: &'a str) -> &'a str {
         "ContextSpace" => "spaces",
         "DataModel" => "models",
         "Dashboard" | "Layer" => "dashboards",
-        "ServiceAccount" | "Role" | "RoleBinding" => "access",
+        // Project settings holds them since T-2606, one tab each (Architecture/09 §14.3).
+        "ServiceAccount" => "settings/service-accounts",
+        "Role" => "settings/roles",
+        "RoleBinding" => "settings/members",
         "CkanInstance" => "ckan",
         _ => plural,
     }
@@ -224,7 +227,7 @@ const NEW_FORMS: [&str; 9] = [
     "csrs",
     "datasources",
     "syncsources",
-    "access",
+    "settings/service-accounts",
 ];
 
 /// The section a kind's create form opens in, from its plural or its kind as the model spells

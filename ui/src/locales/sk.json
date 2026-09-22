@@ -54,7 +54,8 @@
     "workspaces": "Kópie",
     "policies": "Politiky",
     "subscriptions": "Odbery",
-    "organization": "Organizácia"
+    "organization": "Organizácia",
+    "settings": "Nastavenia projektu"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -2715,5 +2716,48 @@
     "cooldown": "Názov {name} zostane po zlúčení zmazania rezervovaný {days} dní.",
     "action": "Zmazať projekt {name}",
     "button": "Zmazať"
+  },
+  "projectSettings": {
+    "title": "Nastavenia projektu",
+    "lead": "Všetko, čo patrí projektu {project}: jeho názov a kvóty, kto je doň priradený, jeho vlastné roly, servisné účty a jeho zmazanie. Každá zmena sa navrhuje a schvaľuje.",
+    "tabsLabel": "Časti nastavení projektu",
+    "tab": {
+      "general": "Všeobecné",
+      "members": "Členovia",
+      "roles": "Roly",
+      "service-accounts": "Servisné účty",
+      "access": "Váš prístup",
+      "danger": "Zmazať projekt"
+    },
+    "field": {
+      "title": "Názov",
+      "description": "Popis",
+      "quotas": "Kvóty tohto projektu"
+    },
+    "general": {
+      "title": "Všeobecné",
+      "lead": "Ako sa projekt volá a opisuje a čo smie obsahovať. Úprava navrhne zmenu súboru project.yaml.",
+      "noDescription": "Zatiaľ bez popisu.",
+      "organization": "Organizácia",
+      "unknown": "Pre vás nečitateľné"
+    },
+    "access": {
+      "title": "Váš prístup tu",
+      "lead": "Čo vám vaše väzby dovoľujú v tomto projekte čítať, navrhovať, schvaľovať a mazať, a odkiaľ každé oprávnenie pochádza.",
+      "bootstrap": "Ste v zakladajúcej skupine: smiete všetko, kým nebude priradený prvý administrátor.",
+      "caption": "Vaše oprávnenia v {project}",
+      "role": "Rola",
+      "allows": "Dovoľuje",
+      "from": "Odkiaľ",
+      "none": "Žiadna väzba vám tu nič nedáva.",
+      "binding": "väzba {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Zmazať projekt",
+      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním."
+    },
+    "roles": {
+      "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
+    }
   }
 }

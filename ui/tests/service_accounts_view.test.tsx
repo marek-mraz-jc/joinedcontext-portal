@@ -116,7 +116,7 @@ describe("service accounts view", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     document.cookie = "jc_csrf=csrf-token-value";
-    window.history.pushState({}, "", "/projects/banskabystrica/access");
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/service-accounts");
     Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
   });
 

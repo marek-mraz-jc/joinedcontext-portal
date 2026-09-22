@@ -54,7 +54,8 @@
     "workspaces": "Kopien",
     "policies": "Richtlinien",
     "subscriptions": "Abonnements",
-    "organization": "Organisation"
+    "organization": "Organisation",
+    "settings": "Projekteinstellungen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -2715,5 +2716,48 @@
     "cooldown": "Der Name {name} bleibt nach dem Zusammenführen der Löschung {days} Tage reserviert.",
     "action": "Projekt {name} löschen",
     "button": "Löschen"
+  },
+  "projectSettings": {
+    "title": "Projekteinstellungen",
+    "lead": "Alles, was zum Projekt {project} gehört: Titel und Kontingente, wer daran gebunden ist, seine eigenen Rollen, seine Dienstkonten und seine Löschung. Jede Änderung wird vorgeschlagen und genehmigt.",
+    "tabsLabel": "Bereiche der Projekteinstellungen",
+    "tab": {
+      "general": "Allgemein",
+      "members": "Mitglieder",
+      "roles": "Rollen",
+      "service-accounts": "Dienstkonten",
+      "access": "Ihr Zugriff",
+      "danger": "Projekt löschen"
+    },
+    "field": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "quotas": "Kontingente dieses Projekts"
+    },
+    "general": {
+      "title": "Allgemein",
+      "lead": "Wie das Projekt heißt und beschrieben wird und was es enthalten darf. Bearbeiten schlägt eine Änderung von project.yaml vor.",
+      "noDescription": "Noch keine Beschreibung.",
+      "organization": "Organisation",
+      "unknown": "Für Sie nicht lesbar"
+    },
+    "access": {
+      "title": "Ihr Zugriff hier",
+      "lead": "Was Ihre Bindungen Ihnen in diesem Projekt zu lesen, vorzuschlagen, zu genehmigen und zu löschen erlauben, und woher jede Berechtigung kommt.",
+      "bootstrap": "Sie sind in der Gründungsgruppe: Sie dürfen alles, bis die erste Verwaltung gebunden ist.",
+      "caption": "Ihre Berechtigungen in {project}",
+      "role": "Rolle",
+      "allows": "Erlaubt",
+      "from": "Woher",
+      "none": "Keine Bindung gibt Ihnen hier etwas.",
+      "binding": "Bindung {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Projekt löschen",
+      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht."
+    },
+    "roles": {
+      "organizationKinds": "Eine Rolle eines Projekts darf {kinds} nicht nennen: das gehört zu den eigenen Rollen der Organisation."
+    }
   }
 }

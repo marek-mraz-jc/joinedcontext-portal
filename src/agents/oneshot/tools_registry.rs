@@ -442,7 +442,18 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
             };
             return Err(format!("the page '{}' needs {what}", call.page));
         }
-        route = route.replace(&hole, &urlencoding(value));
+        // A section may be a page inside another (`settings/service-accounts`, T-2606): it comes
+        // from the Portal's own table, and each of its segments is still encoded on its own.
+        let filled = if placeholder == "section" {
+            value
+                .split('/')
+                .map(urlencoding)
+                .collect::<Vec<_>>()
+                .join("/")
+        } else {
+            urlencoding(value)
+        };
+        route = route.replace(&hole, &filled);
     }
     Ok(without_empty_pairs(&route))
 }
@@ -1148,8 +1159,14 @@ mod tests {
             q: None,
         };
         for (plural, route) in [
-            ("serviceaccounts", "/projects/helsinki/access/new"),
-            ("ServiceAccount", "/projects/helsinki/access/new"),
+            (
+                "serviceaccounts",
+                "/projects/helsinki/settings/service-accounts/new",
+            ),
+            (
+                "ServiceAccount",
+                "/projects/helsinki/settings/service-accounts/new",
+            ),
             ("subscriptions", "/projects/helsinki/subscriptions/new"),
             ("csrs", "/projects/helsinki/csrs/new"),
             ("syncsources", "/projects/helsinki/syncsources/new"),

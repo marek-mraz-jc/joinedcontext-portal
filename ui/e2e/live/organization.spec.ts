@@ -134,6 +134,10 @@ test("a viewer is told who can see the members, and the list is never fetched fo
     await page.getByRole("tab", { name: "Projects" }).click();
     const remove = page.getByRole("button", { name: "Delete project helsinki" });
     await expect(remove).toHaveAttribute("aria-disabled", "true", { timeout: 60_000 });
+
+    // A tab's routed form: the group the assistant opens at …/new.
+    await page.goto("/organization/groups/new?lang=en", { waitUntil: "load" });
+    await expect(page.getByRole("heading", { name: "New group" })).toBeVisible({ timeout: 60_000 });
   } finally {
     await context.close();
   }

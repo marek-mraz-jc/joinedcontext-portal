@@ -11,7 +11,7 @@
  * announces, and the placeholder a sighted person reads before typing. The help is asserted in
  * all four languages, because help that only exists in English is help for some of the people.
  */
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -89,6 +89,10 @@ function renderPortal(path: string) {
     }
     if (url.pathname.endsWith("/roles")) {
       return json(ROLES);
+    }
+    // The Organization page stands in the shell of the first project (T-2605).
+    if (url.pathname === "/api/v1/projects") {
+      return json(list([{ name: "banskabystrica" }]));
     }
     if (method !== "GET") {
       return json({ apiVersion: LIST, kind: "Change", metadata: { name: "chg-1" } }, 202);
@@ -168,7 +172,7 @@ describe("the help beside a hand-built form field", () => {
 
   it("describes every field of the role binding form", async () => {
     const person = userEvent.setup();
-    renderPortal("/projects/banskabystrica/access");
+    renderPortal("/projects/banskabystrica/settings/members");
 
     await person.click(await screen.findByRole("button", { name: en.access.roles.grant }));
     const dialog = await findFormPage(new RegExp(en.access.roles.grantTitle));
@@ -188,12 +192,14 @@ describe("the help beside a hand-built form field", () => {
     // sentence per field in four languages, which `tests/form_help.test.ts` holds them to. What is
     // asserted here is what a person meets: every control of the open dialog carries it.
     const person = userEvent.setup();
-    renderPortal("/projects/banskabystrica/access");
 
-    for (const [button, title] of [
-      [en.access.projectRoles.new, en.access.projectRoles.newTitle],
-      [en.access.groups.new, en.access.groups.newTitle],
+    // A project's role is written in Project settings, a group on the Organization page (T-2606).
+    for (const [address, button, title] of [
+      ["/projects/banskabystrica/settings/roles", en.access.projectRoles.new, en.access.projectRoles.newTitle],
+      ["/organization/groups", en.access.groups.new, en.access.groups.newTitle],
     ] as const) {
+      cleanup();
+      renderPortal(address);
       await person.click(await screen.findByRole("button", { name: button }));
       const dialog = await findFormPage(new RegExp(title));
       const fields = controls(dialog).filter((field) => field.id.startsWith("root"));

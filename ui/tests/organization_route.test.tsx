@@ -67,6 +67,16 @@ describe("the Organization page's addresses (T-2605)", () => {
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
+  it("opens a tab's create form as a page of its own, the assistant's `…/new` address", async () => {
+    renderAt("/organization/groups/new");
+    expect(await screen.findByRole("heading", { name: en.access.groups.newTitle })).toBeInTheDocument();
+  });
+
+  it("answers a tab address with something that is no form with the not-found page", async () => {
+    renderAt("/organization/groups/whatever/else");
+    expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+  });
+
   it("answers an address that names no tab with the not-found page", async () => {
     renderAt("/organization/billing");
     expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();

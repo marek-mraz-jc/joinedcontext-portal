@@ -122,6 +122,12 @@ test.describe("the Organization page", () => {
     expect(writes).toEqual(["DELETE /api/v1/projects/helsinki"]);
   });
 
+  test("a tab's create form is a page of its own", async ({ page }) => {
+    await stubApi(page);
+    await page.goto("/organization/groups/new?lang=en");
+    await expect(page.getByRole("heading", { name: "New group" })).toBeVisible();
+  });
+
   test("has no axe violations", async ({ page }) => {
     await stubApi(page);
     await page.goto("/organization/settings?lang=en");

@@ -1,0 +1,122 @@
+# Default form arrangement for Project (UI-02, T-2606).
+# What Project settings → General edits of project.yaml: its title, its description and its own
+# quotas. The examples are Banská Bystrica's.
+apiVersion: joinedcontext.com/v1alpha1
+kind: UiSchema
+metadata:
+  name: project
+spec:
+  for: Project
+  guide: User-Guide/12-managing-organization-and-projects
+  about:
+    en: >-
+      A project holds one body's spaces, endpoints, pipelines and applications, and the people
+      bound in it work there. Its title and description are what everybody reads in the project
+      switcher, and its quotas may only lower the limits the organization sets.
+    sk: >-
+      Projekt drží priestory, koncové body, pipeline a aplikácie jedného útvaru a pracujú v ňom
+      ľudia, ktorí sú doň priradení. Jeho názov a popis čítajú všetci v prepínači projektov a jeho
+      kvóty môžu limity organizácie iba znížiť.
+    cs: >-
+      Projekt drží prostory, koncové body, pipeline a aplikace jednoho útvaru a pracují v něm
+      lidé, kteří jsou do něj přiřazeni. Jeho název a popis čtou všichni v přepínači projektů a
+      jeho kvóty mohou limity organizace jen snížit.
+    de: >-
+      Ein Projekt hält die Räume, Endpunkte, Pipelines und Anwendungen einer Stelle, und die
+      daran gebundenen Personen arbeiten darin. Titel und Beschreibung lesen alle im
+      Projektwechsler, und seine Kontingente können die Grenzen der Organisation nur senken.
+  order: [title, description, quotas]
+  groups:
+    - title:
+        en: The project
+        sk: Projekt
+        cs: Projekt
+        de: Das Projekt
+      description:
+        en: How the project is named and described wherever a person picks it.
+        sk: Ako sa projekt volá a opisuje všade, kde si ho človek vyberá.
+        cs: Jak se projekt jmenuje a popisuje všude, kde si jej člověk vybírá.
+        de: Wie das Projekt überall heißt und beschrieben wird, wo man es auswählt.
+      fields: [title, description]
+    - title:
+        en: Its limits
+        sk: Jeho limity
+        cs: Jeho limity
+        de: Seine Grenzen
+      description:
+        en: What the project may hold; empty keeps the organization's limit for a new project.
+        sk: Čo smie projekt obsahovať; prázdne ponechá limit organizácie pre nový projekt.
+        cs: Co smí projekt obsahovat; prázdné ponechá limit organizace pro nový projekt.
+        de: Was das Projekt enthalten darf; leer behält die Grenze der Organisation für neue Projekte.
+      fields: [quotas]
+  fields:
+    title:
+      placeholder: Kvalita ovzdušia Banská Bystrica
+      help:
+        en: The name people read in the project switcher and at the top of every page of it.
+        sk: Názov, ktorý ľudia čítajú v prepínači projektov a navrchu každej jeho stránky.
+        cs: Název, který lidé čtou v přepínači projektů a nahoře na každé jeho stránce.
+        de: Der Name im Projektwechsler und oben auf jeder Seite des Projekts.
+    description:
+      placeholder: Meranie kvality ovzdušia v meste a jeho zverejnenie
+      help:
+        en: One or two sentences on what the project is for, for whoever is deciding whether to join it.
+        sk: Jedna či dve vety o tom, načo projekt je, pre toho, kto sa rozhoduje, či sa pridá.
+        cs: Jedna či dvě věty o tom, k čemu projekt je, pro toho, kdo se rozhoduje, zda se přidá.
+        de: Ein, zwei Sätze, wofür das Projekt da ist, für alle, die überlegen, ob sie mitmachen.
+    quotas.contextSpaces:
+      placeholder: 5
+      help:
+        en: How many context spaces this project may run; it cannot exceed the organization's limit.
+        sk: Koľko kontextových priestorov smie projekt prevádzkovať; nesmie prekročiť limit organizácie.
+        cs: Kolik kontextových prostorů smí projekt provozovat; nesmí překročit limit organizace.
+        de: Wie viele Kontexträume dieses Projekt betreiben darf; höchstens die Grenze der Organisation.
+    quotas.residentPipelines:
+      placeholder: 3
+      help:
+        en: How many of this project's pipelines may run all the time.
+        sk: Koľko pipeline tohto projektu smie bežať nepretržite.
+        cs: Kolik pipeline tohoto projektu smí běžet nepřetržitě.
+        de: Wie viele Pipelines dieses Projekts dauerhaft laufen dürfen.
+    quotas.publicEndpoints:
+      placeholder: 2
+      help:
+        en: How many of this project's endpoints anyone may read without signing in.
+        sk: Koľko koncových bodov tohto projektu smie ktokoľvek čítať bez prihlásenia.
+        cs: Kolik koncových bodů tohoto projektu smí kdokoli číst bez přihlášení.
+        de: Wie viele Endpunkte dieses Projekts alle ohne Anmeldung lesen dürfen.
+    quotas.ingestEventsPerSecond:
+      placeholder: 100
+      help:
+        en: How many updates per second this project's sources may write.
+        sk: Koľko aktualizácií za sekundu smú zapísať zdroje tohto projektu.
+        cs: Kolik aktualizací za sekundu smějí zapsat zdroje tohoto projektu.
+        de: Wie viele Aktualisierungen pro Sekunde die Quellen dieses Projekts schreiben dürfen.
+    quotas.apps:
+      placeholder: 3
+      help:
+        en: How many applications this project may publish.
+        sk: Koľko aplikácií smie tento projekt zverejniť.
+        cs: Kolik aplikací smí tento projekt zveřejnit.
+        de: Wie viele Anwendungen dieses Projekt veröffentlichen darf.
+    quotas.agentRunsPerDay:
+      placeholder: 10
+      help:
+        en: How many assistant runs this project may start in one day.
+        sk: Koľko behov asistenta smie tento projekt spustiť za deň.
+        cs: Kolik běhů asistenta smí tento projekt spustit za den.
+        de: Wie viele Assistentenläufe dieses Projekt pro Tag starten darf.
+    quotas.entitiesPerSpace:
+      placeholder: 50000
+      help:
+        en: How many entities one context space of this project may hold.
+        sk: Koľko entít smie mať jeden kontextový priestor tohto projektu.
+        cs: Kolik entit smí mít jeden kontextový prostor tohoto projektu.
+        de: Wie viele Entitäten ein Kontextraum dieses Projekts halten darf.
+    quotas.requestsPerMinute:
+      placeholder: 300
+      help:
+        en: How many requests per minute one endpoint of this project answers.
+        sk: Na koľko požiadaviek za minútu odpovie jeden koncový bod tohto projektu.
+        cs: Na kolik požadavků za minutu odpoví jeden koncový bod tohoto projektu.
+        de: Wie viele Anfragen pro Minute ein Endpunkt dieses Projekts beantwortet.

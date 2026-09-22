@@ -303,12 +303,19 @@ export function Shell({
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
 
+  // Project settings is one entry over six tab addresses (T-2606).
+  const onSettings = Boolean(
+    matchRoute({ to: "/projects/$project/settings/$tab", params: { project }, fuzzy: true }),
+  );
+
   const activeSection = NAV_SECTIONS.find((section) =>
     section.plural === "approvals"
       ? onApprovals
       : section.plural === "assistant"
         ? onAssistant
-        : Boolean(
+        : section.plural === "settings"
+          ? onSettings
+          : Boolean(
             matchRoute({
               to: "/projects/$project/$plural",
               params: { project, plural: section.plural },

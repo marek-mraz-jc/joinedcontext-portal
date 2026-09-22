@@ -2447,3 +2447,33 @@ export function organizationSchema(t: (key: string) => string): JsonSchema {
     },
   } as JsonSchema;
 }
+
+/**
+ * The fields of `project.yaml` Project settings → General edits (T-2606, PF-17, PF-73): the
+ * project's title and description, and its own quotas, which may only lower the organization's.
+ * `spec.organizationRef` is the installation's and never offered.
+ */
+export function projectSchema(t: (key: string) => string): JsonSchema {
+  const quotas = Object.fromEntries(
+    QUOTA_DIMENSIONS.map((dimension) => [
+      dimension,
+      { type: "integer", minimum: 0, title: t(`organization.field.quota.${dimension}`) },
+    ]),
+  );
+  return {
+    type: "object",
+    properties: {
+      title: titleProperty(t("projectSettings.field.title")),
+      description: {
+        type: "string",
+        title: t("projectSettings.field.description"),
+        maxLength: 1024,
+      },
+      quotas: {
+        type: "object",
+        title: t("projectSettings.field.quotas"),
+        properties: quotas,
+      },
+    },
+  } as JsonSchema;
+}

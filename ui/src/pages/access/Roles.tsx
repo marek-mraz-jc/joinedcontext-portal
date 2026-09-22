@@ -95,6 +95,19 @@ export const SEEDED_ROLES = [
 ] as const;
 
 /**
+ * The kinds a role inside a project may never name (PF-68): they belong to the organization's own
+ * roles. jc-core refuses them at validation; the form leaves them out of its list and says so
+ * before the door does. The door stays the authority for any other organization kind.
+ */
+export const NOT_IN_A_PROJECT = ["Role", "RoleBinding", "Group", "Organization", "Project"] as const;
+
+/** The kinds of `rules` a project role may not name, each once (PF-68). */
+export function organizationKindsIn(rules: { kinds?: string[] }[] | undefined): string[] {
+  const named = new Set((rules ?? []).flatMap((rule) => rule.kinds ?? []));
+  return NOT_IN_A_PROJECT.filter((kind) => named.has(kind));
+}
+
+/**
  * Which roles a page lists (Architecture/09 §14.4): the organization's own on the Organization
  * page, this project's own in Project settings, both where both meet.
  */
@@ -163,14 +176,18 @@ export function NewRoleDialog({
   });
 
   const rights = ownRights(permissions.data);
+  const inProject = project !== ORG_NAMESPACE;
   const schema = roleSchema(
     t,
-    rights.kinds,
+    inProject
+      ? rights.kinds.filter((kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind))
+      : rights.kinds,
     rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS,
   );
   // PF-52 as the form reads it: the rules of the role in hand against the grants the caller holds.
   // The server runs the same comparison; this one only says it before the proposal is sent.
   const missing = beyondOwnRights(permissions.data, form?.rules);
+  const outOfPlace = inProject ? organizationKindsIn(form?.rules) : [];
 
   const failure =
     propose.error instanceof ApiError
@@ -224,9 +241,11 @@ export function NewRoleDialog({
       submitLabel={t("access.projectRoles.propose")}
       submitting={propose.isPending}
       submitDisabledReason={
-        missing.length > 0
-          ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
-          : undefined
+        outOfPlace.length > 0
+          ? t("projectSettings.roles.organizationKinds", { kinds: outOfPlace.join(", ") })
+          : missing.length > 0
+            ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
+            : undefined
       }
       error={failure}
       onSubmit={(role) => propose.mutate(role)}

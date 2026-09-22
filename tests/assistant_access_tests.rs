@@ -762,7 +762,7 @@ async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_propose
         .expect("the grant form opens");
     assert_eq!(
         navigate.payload["route"],
-        "/projects/helsinki/access?grant=jana-kovacova-steward-helsinki"
+        "/projects/helsinki/settings/members?grant=jana-kovacova-steward-helsinki"
     );
     let prefill = &navigate.payload["prefill"];
     assert_eq!(prefill["kind"], "RoleBinding");
@@ -892,7 +892,7 @@ async fn taking_a_role_away_opens_the_removal_of_its_binding_on_the_access_page(
         .expect("the removal dialog opens");
     assert_eq!(
         navigate.payload,
-        json!({ "route": "/projects/helsinki/access?delete=lead-steward" })
+        json!({ "route": "/projects/helsinki/settings/members?delete=lead-steward" })
     );
 }
 

@@ -17,8 +17,12 @@ describe("the page the assistant opened", () => {
   it("names a section and the resource the route hands over", () => {
     expect(pageOf("/projects/helsinki/endpoints", t)).toBe("Endpoints");
     expect(pageOf("/projects/helsinki/pipelines?edit=hel-news&draft=hel-news", t)).toBe("Pipelines: hel-news");
+    expect(pageOf("/projects/helsinki/settings/members?grant=jana-kovacova-steward-helsinki", t)).toBe(
+      "Project settings: jana-kovacova-steward-helsinki",
+    );
+    // An older answer's Access route lands on Project settings and is named as it (T-2606).
     expect(pageOf("/projects/helsinki/access?grant=jana-kovacova-steward-helsinki", t)).toBe(
-      "Access: jana-kovacova-steward-helsinki",
+      "Project settings: jana-kovacova-steward-helsinki",
     );
     expect(pageOf("/projects/helsinki/spaces/complete?space=city-bikes", t)).toBe("Complete this space: city-bikes");
     expect(pageOf("/projects/helsinki/spaces/city-bikes", t)).toBe("Context Spaces: city-bikes");

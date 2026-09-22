@@ -10,7 +10,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
-import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
+import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { groupSchema } from "../../schemas/kinds";
 import {
   Alert,
@@ -197,7 +197,7 @@ export function NewGroupDialog({
 export function Groups({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const groups = useGroups();
-  const [writing, setWriting] = useState(false);
+  const [writing, setWriting] = useCreateForm();
   // The same fields the new-group dialog shows, so a member is added where the group is read.
   const memberSchema = groupSchema(t);
 

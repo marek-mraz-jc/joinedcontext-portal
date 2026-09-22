@@ -30,7 +30,9 @@ export const NAV_SECTIONS = [
   // Who may read and write the context data, beside the platform roles that say who may
   // change the manifests: a policy is authored like every other kind (T-2326, R5).
   { plural: "policies", labelKey: "nav.policies", icon: "access" },
-  { plural: "access", labelKey: "nav.access", icon: "access" },
+  // The last item of the project's menu: its title and quotas, who is bound in it, its roles, its
+  // service accounts and its deletion. Project → Access folded into it (T-2606, §14.3).
+  { plural: "settings", labelKey: "nav.settings", icon: "access" },
 ] as const satisfies ReadonlyArray<{ plural: string; labelKey: string; icon: IconName }>;
 
 /** Where the project menu goes: the same section of the other project, never past its list. */

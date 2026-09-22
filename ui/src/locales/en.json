@@ -54,7 +54,8 @@
     "workspaces": "Copies",
     "policies": "Policies",
     "subscriptions": "Subscriptions",
-    "organization": "Organization"
+    "organization": "Organization",
+    "settings": "Project settings"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -2715,5 +2716,48 @@
     "cooldown": "The name {name} stays reserved for {days} days after the deletion is merged.",
     "action": "Delete project {name}",
     "button": "Delete"
+  },
+  "projectSettings": {
+    "title": "Project settings",
+    "lead": "Everything that belongs to the project {project}: its title and quotas, who is bound in it, its own roles, its service accounts and its deletion. Every change is proposed and approved.",
+    "tabsLabel": "Parts of the project's settings",
+    "tab": {
+      "general": "General",
+      "members": "Members",
+      "roles": "Roles",
+      "service-accounts": "Service accounts",
+      "access": "Your access",
+      "danger": "Delete project"
+    },
+    "field": {
+      "title": "Title",
+      "description": "Description",
+      "quotas": "Quotas of this project"
+    },
+    "general": {
+      "title": "General",
+      "lead": "How the project is named and described, and what it may hold. Edit proposes a change of project.yaml.",
+      "noDescription": "No description yet.",
+      "organization": "Organization",
+      "unknown": "Not readable for you"
+    },
+    "access": {
+      "title": "Your access here",
+      "lead": "What your bindings let you read, propose, approve and delete in this project, and where each grant comes from.",
+      "bootstrap": "You are in the bootstrap group: you may do everything until the first administrator is bound.",
+      "caption": "Your grants in {project}",
+      "role": "Role",
+      "allows": "Allows",
+      "from": "From",
+      "none": "No binding gives you anything here.",
+      "binding": "binding {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Delete project",
+      "lead": "Deleting the project removes everything written for it in one red-lane change an administrator approves. The dialog lists what goes with it before you confirm."
+    },
+    "roles": {
+      "organizationKinds": "A role of a project cannot name {kinds}: those belong to the organization's own roles."
+    }
   }
 }

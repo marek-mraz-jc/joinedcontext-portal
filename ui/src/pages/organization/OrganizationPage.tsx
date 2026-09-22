@@ -173,7 +173,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                       <Link
                         to="/projects/$project/$plural"
                         params={{ project: name, plural: "spaces" }}
-                        className="focus-ring rounded-sm text-primary underline-offset-2 hover:underline"
+                        className="focus-ring rounded-sm font-medium text-fg underline-offset-2 hover:underline"
                       >
                         {titles.get(name) || name}
                       </Link>

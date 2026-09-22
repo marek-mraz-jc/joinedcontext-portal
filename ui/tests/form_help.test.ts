@@ -83,6 +83,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   App: [kinds.appSchema(t)],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
+  // Edited on Project settings → General (T-2606).
+  Project: [kinds.projectSchema(t)],
 };
 
 /** One field of a form: the leaf a person types into, and what its schema allows. */
