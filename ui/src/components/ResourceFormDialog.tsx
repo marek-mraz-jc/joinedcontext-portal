@@ -318,9 +318,32 @@ export function ResourceFormDialog<T>({
     };
   }, [open, kind, activeName]);
 
+  /** The verdict on screen, for the answers below that arrive after a newer one (T-2624). */
+  const heldVerdictRef = useRef<Verdict | null>(null);
   const updateVerdict = (v: Verdict | null) => {
+    heldVerdictRef.current = v;
     setInternalVerdict(v);
     onVerdictChange?.(v);
+  };
+  /**
+   * The verdict a save or a reload of the draft carries. The store keeps a draft's verdict
+   * across a save, so a save that crosses a check in flight answers with the verdict from before
+   * that check (none, or the one another hand ran on its own manifest). Taken as it came, it
+   * replaced the fresh one and Propose stayed refused (T-2624). The newer check wins; the digest
+   * still decides whether it is fresh for what the form holds (PF-57).
+   */
+  const adoptVerdict = (incoming: Verdict | null | undefined) => {
+    if (incoming === undefined) {
+      return;
+    }
+    const held = heldVerdictRef.current;
+    if (
+      held !== null &&
+      (incoming === null || Date.parse(incoming.checkedAt) < Date.parse(held.checkedAt))
+    ) {
+      return;
+    }
+    updateVerdict(incoming);
   };
 
   /** A dialog opens on its form again, whatever view it was closed from. */
@@ -398,9 +421,7 @@ export function ResourceFormDialog<T>({
           syncedDigestRef.current = digest;
           setCurrentDraft(d);
           lastVersionRef.current = d.version;
-          if (d.verdict !== undefined) {
-            updateVerdict(d.verdict ?? null);
-          }
+          adoptVerdict(d.verdict);
           setConflict(null);
         })
         .catch((err: unknown) => {
@@ -414,9 +435,7 @@ export function ResourceFormDialog<T>({
               if (reloaded) {
                 setCurrentDraft(reloaded);
                 lastVersionRef.current = reloaded.version;
-                if (reloaded.verdict !== undefined) {
-                  updateVerdict(reloaded.verdict ?? null);
-                }
+                adoptVerdict(reloaded.verdict);
                 if (reloaded.manifest) {
                   const loaded = source
                     ? source.fromManifest(reloaded.manifest)
@@ -453,7 +472,7 @@ export function ResourceFormDialog<T>({
           void getDraft(project, draftKind, activeName).then((d) => {
             if (d) {
               setCurrentDraft(d);
-              updateVerdict(d.verdict ?? null);
+              adoptVerdict(d.verdict ?? null);
             }
           });
           return;
@@ -466,9 +485,7 @@ export function ResourceFormDialog<T>({
             if (reloaded) {
               setCurrentDraft(reloaded);
               lastVersionRef.current = reloaded.version;
-              if (reloaded.verdict !== undefined) {
-                updateVerdict(reloaded.verdict ?? null);
-              }
+              adoptVerdict(reloaded.verdict);
               if (reloaded.manifest) {
                 const loaded = source
                   ? source.fromManifest(reloaded.manifest)
@@ -584,9 +601,7 @@ export function ResourceFormDialog<T>({
         syncedDigestRef.current = digest;
         lastVersionRef.current = saved.version;
         setCurrentDraft(saved);
-        if (saved.verdict !== undefined) {
-          updateVerdict(saved.verdict ?? null);
-        }
+        adoptVerdict(saved.verdict);
       } catch (err) {
         // Another window changed the draft: the person sees it before anything is proposed. Any
         // other failure leaves the proposal to the server's check, which says what to do.
