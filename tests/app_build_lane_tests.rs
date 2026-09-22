@@ -65,6 +65,23 @@ fn state_with(gitea: &MockServer) -> AppState {
     state
 }
 
+/// What the lane sends (T-2636): it reads the App on `main` and writes it back, unchanged, with
+/// `status.build`, so the App is put on `main` first and the write is a `PUT` of that App.
+async fn as_lane(state: &AppState, body: Value) -> common::Answer {
+    let mut on_main: joinedcontext_portal::resource::ResourceEnvelope =
+        serde_json::from_value(body.clone()).expect("an App manifest");
+    on_main.status = None;
+    state.mirror.upsert(on_main);
+    send(
+        state,
+        person("builder"),
+        "PUT",
+        &format!("{APPS}/air-quality"),
+        Some(body),
+    )
+    .await
+}
+
 fn app(status: Option<Value>, annotation: Option<&str>) -> Value {
     let mut metadata = json!({ "name": "air-quality", "namespace": "ovzdusie" });
     if let Some(key) = annotation {
@@ -251,14 +268,7 @@ async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_i
         "nothing was written for a refused proposal"
     );
 
-    let accepted = send(
-        &state,
-        person("builder"),
-        "POST",
-        APPS,
-        Some(app(Some(build()), None)),
-    )
-    .await;
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
     assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
     let written = committed(&gitea).await;
     assert!(
@@ -342,14 +352,7 @@ async fn a_build_the_workflow_did_not_make_is_refused_and_nothing_is_published()
         package_takes(&gitea, 201).await;
         let state = state_with(&gitea);
 
-        let refused = send(
-            &state,
-            person("builder"),
-            "POST",
-            APPS,
-            Some(app(Some(status), None)),
-        )
-        .await;
+        let refused = as_lane(&state, app(Some(status), None)).await;
         assert_eq!(refused.status, code, "{what}: {}", refused.text);
         assert!(refused.text.contains(says), "{what}: {}", refused.text);
         assert!(
@@ -383,14 +386,7 @@ async fn a_version_already_published_is_the_same_build_or_a_refusal() {
             .await;
         let state = state_with(&gitea);
 
-        let answer = send(
-            &state,
-            person("builder"),
-            "POST",
-            APPS,
-            Some(app(Some(build()), None)),
-        )
-        .await;
+        let answer = as_lane(&state, app(Some(build()), None)).await;
         if accepted {
             assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
         } else {
@@ -417,14 +413,7 @@ async fn every_other_part_of_status_is_refused_even_from_the_build_lane() {
         json!({ "build": null }),
         json!({ "phase": "Live", "build": build()["build"] }),
     ] {
-        let refused = send(
-            &state,
-            person("builder"),
-            "POST",
-            APPS,
-            Some(app(Some(status.clone()), None)),
-        )
-        .await;
+        let refused = as_lane(&state, app(Some(status.clone()), None)).await;
         assert_eq!(
             refused.status,
             StatusCode::BAD_REQUEST,
@@ -442,14 +431,7 @@ async fn an_image_annotation_is_refused_from_the_build_lane_too() {
     let state = state_with(&gitea);
 
     for key in ["joinedcontext.com/image", "joinedcontext.com/module"] {
-        let refused = send(
-            &state,
-            person("builder"),
-            "POST",
-            APPS,
-            Some(app(Some(build()), Some(key))),
-        )
-        .await;
+        let refused = as_lane(&state, app(Some(build()), Some(key))).await;
         assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
         assert!(refused.text.contains(key), "{}", refused.text);
     }
@@ -566,14 +548,7 @@ async fn a_fullstack_build_is_pushed_to_the_registry_as_checked_then_written() {
     let mut status = build();
     status["build"]["digest"] = json!(image);
 
-    let accepted = send(
-        &state,
-        person("builder"),
-        "POST",
-        APPS,
-        Some(fullstack(status)),
-    )
-    .await;
+    let accepted = as_lane(&state, fullstack(status)).await;
     assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
 
     let requests = gitea.received_requests().await.unwrap_or_default();
@@ -630,14 +605,7 @@ async fn a_fullstack_build_the_registry_stores_otherwise_is_refused() {
         let mut status = build();
         status["build"]["digest"] = json!(proposed);
 
-        let refused = send(
-            &state,
-            person("builder"),
-            "POST",
-            APPS,
-            Some(fullstack(status)),
-        )
-        .await;
+        let refused = as_lane(&state, fullstack(status)).await;
         assert!(refused.status.is_client_error(), "{}", refused.text);
         assert!(refused.text.contains(says), "{}", refused.text);
         assert!(
@@ -645,4 +613,80 @@ async fn a_fullstack_build_the_registry_stores_otherwise_is_refused() {
             "the build was written: {says}"
         );
     }
+}
+
+/// AP-73, T-2636: the lane's rule writes `status.build` of an App on `main` and authorizes
+/// nothing else. A stolen lane token cannot create an App, change one's spec or labels beside a
+/// build, or propose an App change with no build at all; and its build write commits no grant.
+#[tokio::test]
+async fn the_lanes_rule_writes_the_build_of_an_app_on_main_and_nothing_else() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    let state = state_with(&gitea);
+
+    let created = send(
+        &state,
+        person("builder"),
+        "POST",
+        APPS,
+        Some(app(Some(build()), None)),
+    )
+    .await;
+    assert_eq!(created.status, StatusCode::FORBIDDEN, "{}", created.text);
+    assert!(created.text.contains("holds no App"), "{}", created.text);
+
+    let on_main: joinedcontext_portal::resource::ResourceEnvelope =
+        serde_json::from_value(app(None, None)).expect("an App");
+    state.mirror.upsert(on_main);
+    let one = format!("{APPS}/air-quality");
+
+    let mut wider = app(Some(build()), None);
+    wider["spec"]["visibility"] = json!("organization");
+    let mut labelled = app(Some(build()), None);
+    labelled["metadata"]["labels"] = json!({ "team": "lane" });
+    for (what, body) in [("a spec change", wider), ("a label", labelled)] {
+        let refused = send(&state, person("builder"), "PUT", &one, Some(body)).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::FORBIDDEN,
+            "{what}: {}",
+            refused.text
+        );
+        assert!(
+            refused.text.contains("nothing else"),
+            "{what}: {}",
+            refused.text
+        );
+    }
+
+    let mut plain = app(None, None);
+    plain["spec"]["visibility"] = json!("organization");
+    let refused = send(&state, person("builder"), "PUT", &one, Some(plain)).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+    assert!(committed(&gitea).await.is_empty(), "nothing was written");
+
+    let accepted = send(
+        &state,
+        person("builder"),
+        "PUT",
+        &one,
+        Some(app(Some(build()), None)),
+    )
+    .await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let commits: Vec<Value> = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/contents"))
+        .filter_map(|r| serde_json::from_slice(&r.body).ok())
+        .collect();
+    assert!(
+        commits
+            .iter()
+            .all(|c| c["files"].as_array().is_none_or(Vec::is_empty)),
+        "a build write carries no Endpoint or Policy: {commits:?}"
+    );
 }

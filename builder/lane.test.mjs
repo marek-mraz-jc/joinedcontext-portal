@@ -136,22 +136,27 @@ function portal(answers) {
   return { calls, fetchImpl };
 }
 
-// AP-80: the lane token travels only as the bearer, to the App's own route, read then proposed.
-test("propose reads the App and writes it back once with the lane's bearer", async () => {
-  const { calls, fetchImpl } = portal([[200, manifest], [202, { metadata: { name: "chg-00000042" } }]]);
+const green = [200, { valid: true, verdict: { ok: true, findings: [] } }];
+
+// AP-80: the lane token travels only as the bearer, to the App's own route, read, checked, then
+// proposed (PF-57, T-2636).
+test("propose reads the App, checks it and writes it back once with the lane's bearer", async () => {
+  const { calls, fetchImpl } = portal([[200, manifest], green, [202, { metadata: { name: "chg-00000042" } }]]);
   const change = await propose("https://portal.example/", "lane-token", "joinedcontext/helsinki_city-bikes", build, fetchImpl);
   assert.equal(change.metadata.name, "chg-00000042");
   assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), [
     "GET https://portal.example/api/v1/projects/helsinki/apps/city-bikes",
+    "PUT https://portal.example/api/v1/projects/helsinki/apps/city-bikes?dryRun=All",
     "PUT https://portal.example/api/v1/projects/helsinki/apps/city-bikes",
   ]);
-  assert.equal(calls[1].headers.Authorization, "Bearer lane-token");
-  assert.deepEqual(JSON.parse(calls[1].body).status, { build });
+  assert.equal(calls[2].headers.Authorization, "Bearer lane-token");
+  assert.equal(calls[1].body, calls[2].body, "the proposal is the manifest the check judged");
+  assert.deepEqual(JSON.parse(calls[2].body).status, { build });
   assert.ok(!calls.some((c) => c.url.includes("lane-token")));
 });
 
 test("a refusal names the App and the Portal's reason, never the token", async () => {
-  const { fetchImpl } = portal([[200, manifest], [403, { detail: "status.build is written by the build lane" }]]);
+  const { fetchImpl } = portal([[200, manifest], green, [403, { detail: "status.build is written by the build lane" }]]);
   await assert.rejects(
     propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, fetchImpl),
     (err) => /helsinki\/city-bikes: the Portal answered 403 status.build is written/.test(err.message) && !err.message.includes("lane-token"),
@@ -162,6 +167,21 @@ test("a refusal names the App and the Portal's reason, never the token", async (
     /cannot read the App helsinki\/gone: the Portal answered 404/,
   );
   assert.equal(missing.calls.length, 1, "nothing is written after a failed read");
+});
+
+test("a check that is not green proposes nothing and says why", async () => {
+  const red = portal([[200, manifest], [200, { valid: false, verdict: { ok: false, findings: [{ message: "spec.source.git is required" }] } }]]);
+  await assert.rejects(
+    propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, red.fetchImpl),
+    /check of status.build for helsinki\/city-bikes is not green: spec.source.git is required/,
+  );
+  assert.equal(red.calls.length, 2, "nothing is proposed after a red check");
+  const refused = portal([[200, manifest], [403, { detail: "the build lane writes status.build and nothing else" }]]);
+  await assert.rejects(
+    propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, refused.fetchImpl),
+    /answered 403 the build lane writes status.build and nothing else/,
+  );
+  assert.equal(refused.calls.length, 2);
 });
 
 function jwt(claims) {
