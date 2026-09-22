@@ -1482,9 +1482,10 @@ fn is_encrypted_secrets_file(path: &str) -> bool {
 /// Prepares one fetched file for the loader, or leaves it out (MF-04, MF-05).
 ///
 /// Two judgements are made here and nowhere else, because the loader is right to refuse both
-/// and the Portal is right to survive them. A `status:` block somebody committed is dropped:
-/// status is computed by the server and never read from Git, so a manifest carrying one is
-/// sanitised rather than refused. A document of a kind the Portal does not serve is left out:
+/// and the Portal is right to survive them. A `status:` block somebody committed is dropped,
+/// all but `status.build`, the one member the build lane writes back (AP-13a): status is
+/// computed by the server and never read from Git, so a manifest carrying one is sanitised
+/// rather than refused. A document of a kind the Portal does not serve is left out:
 /// one unknown kind in the repository must not cost every other resource its place in the
 /// mirror. Everything past this point is the loader's judgement, including which two files
 /// claim one identity and which path a kind belongs at.
@@ -1498,7 +1499,15 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
         let Some(mapping) = value.as_mapping_mut() else {
             continue;
         };
-        mapping.remove("status");
+        // Dropping `status.build` too left every published App without a build to serve (T-2633).
+        let build = mapping
+            .remove("status")
+            .and_then(|mut status| status.as_mapping_mut()?.remove("build"));
+        if let Some(build) = build {
+            let mut status = serde_yaml_ng::Mapping::new();
+            status.insert("build".into(), build);
+            mapping.insert("status".into(), status.into());
+        }
         // A document without a `kind` is not a manifest (a LinkML source beside its DataModel,
         // a note): nothing for an operator to act on. A kind the catalogue lacks is (OPS-27).
         let Some(kind) = mapping.get("kind").and_then(serde_yaml_ng::Value::as_str) else {
@@ -1818,6 +1827,19 @@ output_error{stream="kpi"} 6
             tracing::subscriber::with_default(subscriber, || stageable(content).expect("YAML"));
         let said = String::from_utf8_lossy(&log.0.lock().expect("log")).into_owned();
         (staged, said)
+    }
+
+    /// T-2633, AP-13a: the build lane's `status.build` reaches the loader; the rest of status
+    /// does not.
+    #[test]
+    fn staging_keeps_status_build_and_drops_the_rest_of_status() {
+        let app = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: a\nspec: {}\nstatus:\n  phase: Pending\n  build:\n    commit: abc\n";
+        let staged = stageable(app).expect("YAML").expect("an App");
+        let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&staged).expect("YAML");
+        assert_eq!(value["status"]["build"]["commit"].as_str(), Some("abc"));
+        assert!(value["status"].get("phase").is_none());
+        let bare = stageable(&app.replace("  build:\n    commit: abc\n", "")).expect("YAML");
+        assert!(!bare.expect("an App").contains("status"));
     }
 
     /// T-2254, OPS-27: a LinkML source beside its DataModel is not a manifest and says nothing at
