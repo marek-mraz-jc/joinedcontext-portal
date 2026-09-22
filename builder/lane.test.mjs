@@ -199,6 +199,19 @@ test("a refused upload names the artifact and stops before finalize", async () =
   assert.equal(put.calls.length, 2, "nothing is finalized after a failed upload");
 });
 
+// T-2633: dev's forge has ROOT_URL https://host/git/, so it signs /git/twirp/…; the forge itself
+// serves /twirp/… and answered 404 to the prefixed path until the prefix was dropped.
+test("upload drops the public ROOT_URL path in front of /twirp/", async () => {
+  const signed =
+    "https://2.28.67.127.sslip.io/git/twirp/github.actions.results.api.v1.ArtifactService/UploadArtifact?sig=s&expires=1&artifactName=bundle-abc&taskID=9";
+  const { calls, fetchImpl } = forge([[200, { ok: true, signedUploadUrl: signed }], [201], [200, { ok: true }]]);
+  await uploadArtifact("http://gitea-http.dev.svc:3000/", RUNTIME, "bundle-abc", Buffer.from("b"), fetchImpl);
+  assert.equal(
+    `${calls[1].method} ${calls[1].url}`,
+    "PUT http://gitea-http.dev.svc:3000/twirp/github.actions.results.api.v1.ArtifactService/UploadArtifact?sig=s&expires=1&artifactName=bundle-abc&taskID=9&comp=block",
+  );
+});
+
 // AP-80: the outputs the propose job reads are the four fields, checked before they are written.
 test("the build job's outputs are the four fields of status.build, checked", () => {
   assert.equal(outputsOf(build), `digest=${build.digest}\ncommit=${build.commit}\nsdk-version=${build.sdkVersion}\nbuilt-at=${build.builtAt}\n`);

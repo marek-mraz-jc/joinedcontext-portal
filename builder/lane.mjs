@@ -209,8 +209,9 @@ export function artifactScope(runtimeToken) {
 /**
  * Uploads `bytes` as the run's artifact `name` through the forge's artifact API (v4): create,
  * append, finalize. The upload address the forge signs carries its public ROOT_URL, which the
- * runner cannot reach, so it is sent to the origin of `ACTIONS_RESULTS_URL` with the signed path
- * and query kept as they are.
+ * runner cannot reach, so it is sent to the origin of `ACTIONS_RESULTS_URL` with the signed query
+ * kept as it is. The path starts at `/twirp/`: a ROOT_URL with a path (`https://host/git/`) signs
+ * `/git/twirp/…`, which only the public proxy strips, and the forge itself answers 404 (T-2633).
  */
 export async function uploadArtifact(resultsUrl, runtimeToken, name, bytes, fetchImpl = fetch) {
   const base = new URL(resultsUrl);
@@ -229,7 +230,8 @@ export async function uploadArtifact(resultsUrl, runtimeToken, name, bytes, fetc
   const created = await call("CreateArtifact", { ...ids, name, version: 4 });
   if (!created.signedUploadUrl) throw new Error(`the forge gave no upload address for ${name}`);
   const signed = new URL(created.signedUploadUrl);
-  const upload = new URL(`${signed.pathname}${signed.search}`, base.origin);
+  const path = signed.pathname.slice(Math.max(0, signed.pathname.indexOf("/twirp/")));
+  const upload = new URL(`${path}${signed.search}`, base.origin);
   upload.searchParams.set("comp", "block");
   const put = await fetchImpl(upload, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: bytes });
   if (!put.ok) throw new Error(`the forge refused the upload of ${name}: ${put.status}`);
