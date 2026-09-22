@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { bundleFunctions, functionEntries, refusedDependencies } from "./lane.mjs";
+import { appOf, bundleFunctions, functionEntries, propose, refusedDependencies, sbomOf, withBuild } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -58,4 +58,86 @@ test("the bundle exports each function by name and leaves the SDK server to the 
 test("an app with no functions gets no bundle", async () => {
   const dir = app({ "index.html": "<p>hi</p>" });
   assert.equal(await bundleFunctions(dir, join(dir, "dist")), false);
+});
+
+// AP-75: the repository name carries the project and the application, split at the one `_`.
+test("an application repository names its project and application", () => {
+  assert.deepEqual(appOf("joinedcontext/helsinki_city-bikes"), { project: "helsinki", app: "city-bikes" });
+  assert.deepEqual(appOf("helsinki_bikes"), { project: "helsinki", app: "bikes" });
+  for (const name of ["configuration", "_bikes", "helsinki_", "Helsinki_bikes", "helsinki_bi_kes"]) {
+    assert.throws(() => appOf(`joinedcontext/${name}`), /\{project\}_\{app\}/, name);
+  }
+});
+
+// AP-11, AP-101: the SBOM lists every linked package once, sorted, the same bytes on every build.
+test("the SBOM names each package of the store once, scoped ones included", () => {
+  const bom = sbomOf(["react@19.2.0", "@deck.gl+core@9.4.0_@luma.gl+core@9.4.2", "react@19.2.0", "lock.yaml", "node_modules"]);
+  assert.equal(bom.bomFormat, "CycloneDX");
+  assert.deepEqual(
+    bom.components.map((c) => c.purl),
+    ["pkg:npm/%40deck.gl/core@9.4.0", "pkg:npm/react@19.2.0"],
+  );
+  assert.equal(JSON.stringify(sbomOf(["b@1", "a@2"])), JSON.stringify(sbomOf(["a@2", "b@1"])));
+  assert.deepEqual(sbomOf([]).components, []);
+});
+
+const build = {
+  digest: `sha256:${"ab".repeat(32)}`,
+  commit: "0123456789abcdef0123456789abcdef01234567",
+  sdkVersion: "0.4.1",
+  builtAt: "2026-09-22T06:00:00Z",
+};
+const manifest = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "App",
+  metadata: { name: "city-bikes", namespace: "helsinki" },
+  spec: { kind: "static", lifecycle: "published" },
+  status: { phase: "Live", sourceUrl: "https://git.example/x", conditions: [] },
+};
+
+// AP-73: the lane writes status.build and nothing else, whatever status the Portal computed.
+test("the proposal carries the App as read with status.build alone", () => {
+  assert.deepEqual(withBuild(manifest, build).status, { build });
+  assert.deepEqual(withBuild(manifest, build).spec, manifest.spec);
+  assert.throws(() => withBuild(manifest, { ...build, digest: "sha256:short" }), /sha256 digest/);
+  assert.throws(() => withBuild(manifest, { ...build, commit: "main" }), /full commit/);
+  assert.throws(() => withBuild({ kind: "Endpoint", metadata: {}, spec: {} }, build), /not answer with an App/);
+});
+
+function portal(answers) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url, method: init.method ?? "GET", headers: init.headers, body: init.body });
+    const [status, body] = answers.shift();
+    return { ok: status < 300, status, json: async () => body };
+  };
+  return { calls, fetchImpl };
+}
+
+// AP-80: the lane token travels only as the bearer, to the App's own route, read then proposed.
+test("propose reads the App and writes it back once with the lane's bearer", async () => {
+  const { calls, fetchImpl } = portal([[200, manifest], [202, { metadata: { name: "chg-00000042" } }]]);
+  const change = await propose("https://portal.example/", "lane-token", "joinedcontext/helsinki_city-bikes", build, fetchImpl);
+  assert.equal(change.metadata.name, "chg-00000042");
+  assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), [
+    "GET https://portal.example/api/v1/projects/helsinki/apps/city-bikes",
+    "PUT https://portal.example/api/v1/projects/helsinki/apps/city-bikes",
+  ]);
+  assert.equal(calls[1].headers.Authorization, "Bearer lane-token");
+  assert.deepEqual(JSON.parse(calls[1].body).status, { build });
+  assert.ok(!calls.some((c) => c.url.includes("lane-token")));
+});
+
+test("a refusal names the App and the Portal's reason, never the token", async () => {
+  const { fetchImpl } = portal([[200, manifest], [403, { detail: "status.build is written by the build lane" }]]);
+  await assert.rejects(
+    propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, fetchImpl),
+    (err) => /helsinki\/city-bikes: the Portal answered 403 status.build is written/.test(err.message) && !err.message.includes("lane-token"),
+  );
+  const missing = portal([[404, null]]);
+  await assert.rejects(
+    propose("https://portal.example", "t", "joinedcontext/helsinki_gone", build, missing.fetchImpl),
+    /cannot read the App helsinki\/gone: the Portal answered 404/,
+  );
+  assert.equal(missing.calls.length, 1, "nothing is written after a failed read");
 });

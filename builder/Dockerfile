@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
-# The build lane's image (AP-80, AP-82, ADR-N-026): git, curl, node, this release's SDK and the
-# template's dependencies installed once, here, so a build fetches no package. Built from the
+# The build lane's image (AP-80, AP-82, ADR-N-028): git, curl, node, this release's SDK and the
+# template's dependencies installed once, here, so a build fetches no package. The runner runs an
+# application's `.gitea/workflows/build.yml` on it, whose steps are `build-app`, `publish-app` and
+# `lane.mjs propose`. Built from the
 # repository root: docker build -f builder/Dockerfile .
 
 FROM node:24-slim AS sdk
@@ -33,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
 COPY --from=template /opt/template/ /opt/template/
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
+COPY builder/publish-app.sh /usr/local/bin/publish-app
 # The restricted Pod Security Standard runs it as this uid, with nothing it may write but /tmp.
 USER 1000:1000
 WORKDIR /tmp
