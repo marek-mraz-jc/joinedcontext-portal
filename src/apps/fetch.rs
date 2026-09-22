@@ -144,7 +144,7 @@ fn prune(app: &Path, keep: &std::ffi::OsStr) {
 }
 
 /// Unpacks a `.tar.gz` into `dest`: regular files and directories only, every path inside
-/// `dest`, no file written twice, and at most [`MAX_UNPACKED_BYTES`] in [`MAX_ENTRIES`] entries.
+/// `dest`, no file written twice, and at most `MAX_UNPACKED_BYTES` in `MAX_ENTRIES` entries.
 /// A link, a device or a path that climbs out refuses the whole archive.
 pub fn unpack(archive: &[u8], dest: &Path) -> Result<(), FetchError> {
     let refuse = |why: String| FetchError::Unpack(why);
