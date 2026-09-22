@@ -223,6 +223,7 @@ async fn the_git_export_is_a_bundle_per_repository_with_its_head() {
             "bundle.yaml",
             "ovzdusie.bundle",
             "ovzdusie.tags",
+            "project.yaml",
             "projects/ovzdusie.yaml",
         ]
     );

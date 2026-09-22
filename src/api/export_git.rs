@@ -114,6 +114,19 @@ pub async fn archive(
         }
         let file = format!("{name}.bundle");
         entries.push((file.clone(), bundle));
+        // The project's own file at that head, where an import reads the parameters it declares
+        // without unpacking the bundle (CC-88).
+        if role == BundleRole::Project {
+            let own = forge
+                .get_file(&format!("projects/{project}/project.yaml"), &head)
+                .await?
+                .ok_or_else(|| {
+                    ApiError::Conflict(format!(
+                        "the repository '{name}' has no project.yaml at {head} (PF-86)"
+                    ))
+                })?;
+            entries.push(("project.yaml".to_owned(), own.content.into_bytes()));
+        }
         let tags: String = repository
             .list_tags()
             .await?

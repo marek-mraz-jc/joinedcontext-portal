@@ -6995,6 +6995,8 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' to validate and plan without proposing */
                 dryRun?: string;
+                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2) */
+                format?: string;
             };
             header?: never;
             path: {

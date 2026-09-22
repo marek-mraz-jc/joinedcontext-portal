@@ -19,6 +19,7 @@ pub mod federation;
 pub mod forms;
 pub mod health;
 pub mod import;
+pub mod import_git;
 pub mod internal;
 pub mod mutate;
 pub mod ops;
