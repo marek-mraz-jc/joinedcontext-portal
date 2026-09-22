@@ -9,6 +9,7 @@
 import { expect, test } from "@playwright/test";
 import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
+import { proposeFrom } from "./kindJourney";
 
 const PROJECT = "helsinki";
 const FEED = "https://gbfs.theta.fifteen.eu/gbfs/2.2/helsinki/en/free_bike_status.json";
@@ -105,8 +106,9 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   const ready = studio.getByText(/All \d+ messages map to entities/);
   await expect(ready).toBeVisible({ timeout: 60_000 });
   info.annotations.push({ type: "test", description: (await ready.textContent()) ?? "" });
-  await expect(propose).toBeEnabled();
-  await propose.click();
+  // Propose opens on the dialog's own fresh check (PF-57): the test above is the mapping's gate
+  // (PL-49), the check is the draft's, and the page says "Run the check first" until it ran.
+  await proposeFrom(studio);
   const pipelineChange = await proposedChange(page);
   tick(start);
 

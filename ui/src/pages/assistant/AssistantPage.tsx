@@ -4,6 +4,8 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
+import { useIdentity } from "../../auth/AuthProvider";
+import { admitsPerson } from "../../components/endpoints/sharing";
 import type { components } from "../../api/schema";
 import { rememberRun, requestOpen } from "../../assistant/state";
 import {
@@ -114,8 +116,12 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
     },
   });
 
+  const identity = useIdentity();
   const endpointNames = useMemo(() => {
-    const raw = endpointsQuery.data?.items ?? [];
+    // Only an endpoint whose audience admits this person: another is refused at the gateway
+    // (EP-14), and the page would fetch its schema to meet the 403 (T-2631).
+    const groups = identity?.groups ?? [];
+    const raw = asManifests(endpointsQuery.data?.items ?? []).filter((item) => admitsPerson(item, groups, project));
     return raw
       .map((item: unknown) => {
         if (typeof item === "object" && item !== null) {
@@ -132,7 +138,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
         return "";
       })
       .filter(Boolean);
-  }, [endpointsQuery.data?.items]);
+  }, [endpointsQuery.data?.items, identity?.groups, project]);
 
   // The first endpoint until the person picks another.
   const chosenEndpoint = endpointName || (endpointNames[0] ?? "");
