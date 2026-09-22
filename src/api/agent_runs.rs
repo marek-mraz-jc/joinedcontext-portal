@@ -1838,6 +1838,16 @@ async fn publish_source(state: &AppState, run: &AgentRun) -> Result<serde_json::
         }
         Err(err) => return Err(err.into()),
     };
+    // What the approval merges into `main` is this commit; a tree without the application would
+    // leave the repository README-only and the published application serving nothing (T-2603).
+    if !repository::holds_application(&repo, &sha).await? {
+        return Err(ApiError::Conflict(format!(
+            "run '{}' has committed no file of the application to its branch '{}' yet, so \
+             publishing it would leave main with the README alone: publish once a version has \
+             been committed (AP-77)",
+            run.id, run.branch
+        )));
+    }
     repository::open_merge_request(&repo, run).await?;
     Ok(serde_json::json!({ "git": { "url": repo.clone_url(), "ref": sha } }))
 }

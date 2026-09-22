@@ -153,6 +153,18 @@ pub async fn open_merge_request(
         .await
 }
 
+/// Whether the tree at `sha` holds the application: a file that is neither the Portal's README
+/// nor the build folder (AP-77). A run that never committed a version has a branch that is `main`
+/// as the repository was created, and merging it would leave `main` with the README alone, which
+/// is how a published application once served nothing (T-2603).
+pub async fn holds_application(repo: &GiteaClient, sha: &str) -> Result<bool, GitError> {
+    Ok(repo
+        .list_tree(sha)
+        .await?
+        .iter()
+        .any(|path| path != README && !path.starts_with(BUILD_FOLDER)))
+}
+
 /// Merges the run's merge request once its `App` Change is approved, pinned to `sha`, the commit
 /// the approved manifest names: a branch that moved after publish is refused, never merged
 /// unread (AP-77, PF-57). A merge commit keeps `sha` in `main`'s history.
@@ -499,5 +511,38 @@ mod tests {
             merge_published(&repo, &other, "abc", "approver@hel.fi").await,
             Err(GitError::NotFound)
         );
+    }
+
+    fn tree_of(paths: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "sha": "abc",
+            "truncated": false,
+            "tree": paths.iter().map(|p| serde_json::json!({ "path": p, "type": "blob", "sha": "b" })).collect::<Vec<_>>(),
+        })
+    }
+
+    /// AP-77, T-2603: a branch holding only the README and the build workflow is no application,
+    /// so publishing it would leave `main` README-only; one file of its own is enough.
+    #[tokio::test]
+    async fn a_branch_with_only_the_readme_and_the_workflow_holds_no_application() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, ResponseTemplate};
+        let (server, repo) = forge().await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/empty")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(tree_of(&[README, WORKFLOW])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/built")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(tree_of(&[
+                README,
+                WORKFLOW,
+                "src/App.tsx",
+            ])))
+            .mount(&server)
+            .await;
+        assert!(!holds_application(&repo, "empty").await.expect("read"));
+        assert!(holds_application(&repo, "built").await.expect("read"));
     }
 }
