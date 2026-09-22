@@ -3376,6 +3376,73 @@ async fn a_static_run_with_no_commit_is_not_published() {
     assert_eq!(stored.status, "previewing");
 }
 
+/// AP-77, T-2603: a run whose branch holds nothing but the README and the build workflow is not
+/// published, because the approval would merge it and leave `main` README-only; no merge request
+/// is opened and the run does not move.
+#[tokio::test]
+async fn a_static_run_whose_branch_holds_no_application_is_not_published() {
+    use wiremock::matchers::{method, path, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/api/v1/repos/joinedcontext/helsinki_city-bikes/branches/.*$",
+        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "readmeonly" } })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/joinedcontext/helsinki_city-bikes/git/trees/readmeonly",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "readmeonly",
+            "truncated": false,
+            "tree": [
+                { "path": "README.md", "type": "blob", "sha": "r" },
+                { "path": ".gitea/workflows/build.yml", "type": "blob", "sha": "w" },
+            ],
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/api/v1/repos/joinedcontext/helsinki_city-bikes/pulls",
+        ))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(0)
+        .mount(&server)
+        .await;
+    let config = config();
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror(Some(builder_profile_spec())))
+        .with_gitea(forge(&server));
+    let run = a_static_run(AgentRunStatus::Previewing);
+    state.agents.create_run(&run).await.expect("a run");
+    let app = server::app(state.clone());
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{}/publish", run.id),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{problem}");
+    assert!(problem.to_string().contains("README alone"), "{problem}");
+    let stored = state
+        .agents
+        .get_run(&run.id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(stored.status, "previewing");
+}
+
 fn published_app(run: &AgentRun, sha: &str) -> ResourceEnvelope {
     let mut manifest = envelope(
         "App",
