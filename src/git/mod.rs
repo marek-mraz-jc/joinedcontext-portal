@@ -3,5 +3,5 @@ pub mod github_mirror;
 
 pub use gitea::{
     Author, Commit, FileDelete, FileWrite, GitError, GiteaClient, MergeStyle, PullRequest,
-    PushMirror, RepoFile, ReviewEvent,
+    PushMirror, RepoFile, ReviewEvent, WorkflowRun,
 };

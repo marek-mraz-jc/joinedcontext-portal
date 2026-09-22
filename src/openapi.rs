@@ -97,6 +97,8 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::call_function,
         crate::api::agent_runs::cancel_run,
         crate::api::agent_runs::publish_run,
+        crate::api::app_build::build,
+        crate::api::app_build::rebuild,
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
@@ -155,6 +157,9 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::app_build::AppBuild,
+        crate::api::app_build::Rebuild,
+        crate::git::WorkflowRun,
         AgentRun,
         AgentRunEvent,
         AgentRunStatus,

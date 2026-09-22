@@ -67,6 +67,39 @@ impl From<GitError> for ApiError {
     }
 }
 
+/// A workflow run of an application's repository, as the App page links it (AP-86, AP-103).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    /// `queued`, `in_progress`, `waiting` or `completed`, as the forge says it.
+    pub status: String,
+    /// `success`, `failure`, `cancelled`… once the run is completed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conclusion: Option<String>,
+    /// The commit the run built.
+    pub commit: String,
+    /// The run's page, behind the forge's sign-in (PF-81).
+    pub url: String,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunsResponse {
+    #[serde(default)]
+    workflow_runs: Vec<WorkflowRunResponse>,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunResponse {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    conclusion: Option<String>,
+    #[serde(default)]
+    head_sha: String,
+    #[serde(default)]
+    run_number: Option<u64>,
+}
+
 /// Human author attributed on commits (CC-44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Author<'a> {
@@ -693,6 +726,71 @@ impl GiteaClient {
             GitError::Transport(format!("failed to parse repository response: {e}"))
         })?;
         Ok(repo.default_branch)
+    }
+
+    /// The repository's page, behind the forge's sign-in (AP-103, PF-81).
+    pub fn repository_page_url(&self) -> String {
+        self.signed_in(&format!(
+            "{}/{}/{}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        ))
+    }
+
+    /// The page of one version of a generic package of the organization (AP-101, AP-103).
+    pub fn package_page_url(&self, package: &str, version: &str) -> String {
+        self.signed_in(&format!(
+            "{}/{}/-/packages/generic/{package}/{version}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+        ))
+    }
+
+    /// `GET /actions/runs?limit=1` — the newest workflow run of the repository, `None` before
+    /// the first one. The link is built from the public URL, never Gitea's own `html_url`,
+    /// which carries the cluster-internal ROOT_URL (PF-81).
+    pub async fn latest_run(&self) -> Result<Option<WorkflowRun>, GitError> {
+        let mut url = self.repo_url("actions/runs")?;
+        url.query_pairs_mut().append_pair("limit", "1");
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let runs: WorkflowRunsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the workflow runs: {e}")))?;
+        Ok(runs.workflow_runs.into_iter().next().map(|run| {
+            let page = format!(
+                "{}/{}/{}/actions",
+                self.public_base.as_str().trim_end_matches('/'),
+                self.owner,
+                self.repo
+            );
+            WorkflowRun {
+                url: self.signed_in(&match run.run_number {
+                    Some(number) => format!("{page}/runs/{number}"),
+                    None => page,
+                }),
+                status: run.status,
+                conclusion: run.conclusion.filter(|c| !c.is_empty()),
+                commit: run.head_sha,
+            }
+        }))
+    }
+
+    /// `POST /actions/workflows/{file}/dispatches` — runs the workflow `file` on `git_ref`
+    /// (AP-103). A refusal keeps the forge's own words, which is what a person acts on.
+    pub async fn dispatch_workflow(&self, file: &str, git_ref: &str) -> Result<(), GitError> {
+        let url = self.repo_url(&format!("actions/workflows/{file}/dispatches"))?;
+        let res = self
+            .send(
+                self.http
+                    .post(url)
+                    .json(&serde_json::json!({ "ref": git_ref })),
+            )
+            .await?;
+        Self::check_status(res).await?;
+        Ok(())
     }
 
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.

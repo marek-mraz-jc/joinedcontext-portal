@@ -1549,6 +1549,23 @@
       "limits": "Limity",
       "requestsPerMinute": "Požadavky za minutu",
       "maxFileRows": "Řádky na stažení souboru"
+    },
+    "build": {
+      "title": "Sestavení ve forge",
+      "rebuild": "Sestavit znovu",
+      "repository": "Repozitář",
+      "runLink": "Poslední běh",
+      "package": "Balíček",
+      "started": "Forge dostal pokyn znovu sestavit výchozí větev; běh se zde brzy objeví.",
+      "unreadable": "Kde se tato aplikace sestavuje, se teď nepodařilo z forge přečíst.",
+      "notOnForge": "Tato aplikace se nesestavuje ve forge: nemá vlastní repozitář.",
+      "run": {
+        "none": "Zatím neproběhlo žádné sestavení.",
+        "building": "Sestavuje se {commit}…",
+        "succeeded": "Sestaveno {commit}.",
+        "failed": "Sestavení {commit} selhalo; poslední běh říká proč.",
+        "cancelled": "Sestavení {commit} bylo zrušeno."
+      }
     }
   },
   "appLifecycle": {
