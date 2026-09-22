@@ -94,6 +94,7 @@
         "draft_form_defaults.test.tsx",
         "form_asks_the_assistant.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
+        "form_required_reference_check.test.tsx",
         "form_resource_form_dialog.test.tsx",
         "resource_form_dialog.test.tsx"
       ]
@@ -962,6 +963,7 @@
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",
+        "form_required_reference_check.test.tsx",
         "policy_form.test.tsx"
       ]
     },
@@ -988,6 +990,7 @@
         "Button": 1
       },
       "tests": [
+        "form_required_reference_check.test.tsx",
         "subscription_form.test.tsx"
       ]
     },

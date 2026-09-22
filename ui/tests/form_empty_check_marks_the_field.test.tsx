@@ -91,7 +91,7 @@ function open(onCheck: (form: Form) => void): void {
 }
 
 describe("an empty check marks the name and says what a name is", () => {
-  it("marks the field and says the rule in words, and still asks the server", async () => {
+  it("marks the field and says the rule in words, and asks the server nothing it cannot read", async () => {
     const onCheck = vi.fn();
     open(onCheck);
 
@@ -108,9 +108,10 @@ describe("an empty check marks the name and says what a name is", () => {
     expect(described).toContain(i18n.t("form.required"));
     expect(document.body.textContent ?? "").not.toContain("^[a-z0-9]");
     expect(document.body.textContent ?? "").not.toContain("resource envelope");
-    // The server is still asked: its check sees what the schema cannot (a name already taken, a
-    // reference that does not resolve), and the field is marked either way.
-    expect(onCheck).toHaveBeenCalledTimes(1);
+    // A required field is empty, so the manifest would not parse: the field says what it needs
+    // and nothing is sent (T-2634). A form the schema refuses for anything else is still checked
+    // by the server, which sees what the schema cannot (the test below and the next one).
+    expect(onCheck).not.toHaveBeenCalled();
   });
 
   it("asks the server once the form can pass the schema", async () => {
@@ -122,6 +123,17 @@ describe("an empty check marks the name and says what a name is", () => {
 
     await waitFor(() => expect(onCheck).toHaveBeenCalledTimes(1));
     expect(await screen.findByLabelText(/Name/)).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("still asks the server when the fields are there and one of them breaks a rule", async () => {
+    const onCheck = vi.fn();
+    open(onCheck);
+
+    await userEvent.type(await screen.findByLabelText(/Name/), "Air Quality");
+    await userEvent.click(screen.getByRole("button", { name: /check/i }));
+
+    await waitFor(() => expect(onCheck).toHaveBeenCalledTimes(1));
+    expect(await screen.findByLabelText(/Name/)).toHaveAttribute("aria-invalid", "true");
   });
 
   it("lands a server finding on the field its path names", async () => {
