@@ -16,6 +16,7 @@ import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Icon } from "../../components/ui/icons";
 import { requestOpen } from "../../assistant/state";
+import { AppBuildState } from "./AppBuildPanel";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
@@ -335,6 +336,15 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
                     types: [...new Set(needs.flatMap((need) => need.types ?? []))].join(", "),
                   })}
                 </p>
+              )}
+
+              {spec.lifecycle === "published" && (
+                <AppBuildState
+                  project={project}
+                  name={app.metadata.name}
+                  served={app.status?.build?.commit ?? null}
+                  shipped={app.metadata.annotations?.["joinedcontext.com/shipped-with"] === "portal"}
+                />
               )}
 
               <div className="mt-auto flex flex-wrap justify-center gap-2">

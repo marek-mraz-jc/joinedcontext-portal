@@ -64,6 +64,7 @@ function renderCatalog(
   writeResponse: { body: unknown; status: number } = { body: CHANGE, status: 202 },
   runs: unknown[] = [],
   check: unknown = GREEN,
+  builds: Record<string, unknown> = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -83,6 +84,12 @@ function renderCatalog(
     }
     if (path.endsWith("/apps") && request.method === "GET") {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: apps });
+    }
+    const build = /\/apps\/([^/]+)\/build$/.exec(path);
+    if (build && request.method === "GET") {
+      return build[1] in builds
+        ? json(builds[build[1]])
+        : json({ title: "Not Found", status: 404 }, 404);
     }
     if (path.endsWith("/agent-runs") && request.method === "GET") {
       return json({ items: runs });
@@ -214,6 +221,55 @@ describe("apps catalog", () => {
     expect(await openOn("Claims")).toBeNull();
     expect(await openOn("Indicators")).toHaveAttribute("href", "/apps/ukazovatele/");
     expect(await openOn("Bikes")).toHaveAttribute("href", "/apps/bikes/");
+  });
+
+  // AP-86, AP-87: a published card says whether its newest run is building, failed or served,
+  // and one with no repository of its own that nothing ships says why it has no Open.
+  it("shows each published app's build state from the forge's runs (AP-86)", async () => {
+    const FORGE = "https://forge.example/user/login?redirect_to=";
+    const run = (status: string, conclusion: string | null, commit: string) => ({
+      status,
+      conclusion,
+      commit,
+      url: `${FORGE}%2Fjoinedcontext%2Fruns%2F${commit}`,
+    });
+    const onForge = (runState: unknown) => ({
+      repositoryUrl: `${FORGE}%2Fjoinedcontext%2Frepo`,
+      run: runState,
+      rebuild: { allowed: true },
+    });
+    renderCatalog(
+      [
+        app({ name: "building", title: { en: "Building one" } }, { lifecycle: "published" }),
+        built(app({ name: "failing", title: { en: "Failing one" } }, { lifecycle: "published" })),
+        built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+        app({ name: "allerts", title: { en: "Alerts" } }, { lifecycle: "published" }),
+      ],
+      undefined,
+      [],
+      GREEN,
+      {
+        building: onForge(run("running", null, "abcdef0123")),
+        failing: onForge(run("completed", "failure", "0123456789")),
+        bikes: onForge(run("completed", "success", "9f1c2ab")),
+        allerts: { repositoryUrl: null, run: null, rebuild: { allowed: false } },
+      },
+    );
+
+    const card = async (title: string) => (await screen.findByText(title)).closest("li") as HTMLElement;
+    expect(
+      await within(await card("Building one")).findByText(en.apps.build.state.building.replace("{commit}", "abcdef0")),
+    ).toBeInTheDocument();
+    const failing = await card("Failing one");
+    expect(await within(failing).findByText(en.apps.build.state.failed)).toBeInTheDocument();
+    expect(within(failing).getByRole("link", { name: new RegExp(en.apps.build.state.failedLink) })).toHaveAttribute(
+      "href",
+      `${FORGE}%2Fjoinedcontext%2Fruns%2F0123456789`,
+    );
+    expect(
+      await within(await card("Bikes")).findByText(en.apps.build.state.served.replace("{commit}", "9f1c2ab")),
+    ).toBeInTheDocument();
+    expect(await within(await card("Alerts")).findByText(en.apps.build.state.noRepository)).toBeInTheDocument();
   });
 
   it("frames the preview in an opaque origin, never same-origin with the Portal (AP-19)", async () => {

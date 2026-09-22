@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
-import { Alert, Button, ExternalLink } from "../../components/ui";
+import { Alert, Badge, Button, ExternalLink } from "../../components/ui";
 
 type AppBuild = components["schemas"]["AppBuild"];
 type WorkflowRun = components["schemas"]["WorkflowRun"];
@@ -15,6 +15,61 @@ function runState(run: WorkflowRun): "building" | "succeeded" | "failed" | "canc
   if (run.conclusion === "success") return "succeeded";
   if (run.conclusion === "cancelled" || run.conclusion === "skipped") return "cancelled";
   return "failed";
+}
+
+const buildKey = (project: string, name: string) => ["projects", project, "apps", name, "build"];
+
+/** Where the App is built, one query the catalog card and the App page share. */
+function useAppBuild(project: string, name: string) {
+  return useQuery({
+    queryKey: buildKey(project, name),
+    queryFn: async (): Promise<AppBuild> =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/apps/{name}/build", {
+          params: { path: { project, name } },
+        }),
+      ),
+    retry: false,
+  });
+}
+
+/**
+ * The build state on a published App's catalog card (AP-86): building while its newest run is in
+ * progress, build failed with the run's log when that run failed and nothing newer is served,
+ * otherwise served with the commit `status.build` names. An App with no repository of its own
+ * that nothing ships says so (AP-87), instead of a card that silently has no Open.
+ */
+export function AppBuildState({
+  project,
+  name,
+  served,
+  shipped,
+}: {
+  project: string;
+  name: string;
+  served: string | null;
+  shipped: boolean;
+}): JSX.Element | null {
+  const { t } = useTranslation();
+  const build = useAppBuild(project, name);
+  if (!build.data) return null;
+  if (!build.data.repositoryUrl) {
+    return shipped ? null : <p className="text-xs text-fg-muted">{t("apps.build.state.noRepository")}</p>;
+  }
+  const run = build.data.run ?? null;
+  const state = run ? runState(run) : null;
+  if (run && state === "building") {
+    return <Badge tone="info">{t("apps.build.state.building", { commit: run.commit.slice(0, 7) })}</Badge>;
+  }
+  if (run && state === "failed" && run.commit !== served) {
+    return (
+      <span className="flex flex-wrap items-center justify-center gap-2 text-xs">
+        <Badge tone="danger">{t("apps.build.state.failed")}</Badge>
+        <ExternalLink href={run.url}>{t("apps.build.state.failedLink")}</ExternalLink>
+      </span>
+    );
+  }
+  return served ? <Badge tone="success">{t("apps.build.state.served", { commit: served.slice(0, 7) })}</Badge> : null;
 }
 
 /**
@@ -29,17 +84,8 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [started, setStarted] = useState(false);
-  const queryKey = ["projects", project, "apps", name, "build"];
-  const build = useQuery({
-    queryKey,
-    queryFn: async (): Promise<AppBuild> =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/apps/{name}/build", {
-          params: { path: { project, name } },
-        }),
-      ),
-    retry: false,
-  });
+  const queryKey = buildKey(project, name);
+  const build = useAppBuild(project, name);
   const rebuild = useMutation({
     mutationFn: async () =>
       unwrap(
