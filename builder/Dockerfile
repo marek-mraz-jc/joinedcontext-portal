@@ -24,8 +24,12 @@ RUN node -e 'const f="package.json",p=require("./"+f);p.dependencies["@joinedcon
     && cp /opt/sdk/sdk-version ./sdk-version
 
 FROM node:24-slim
+# npm, npx and corepack ship in the base image and nothing here runs them: a build installs
+# nothing (AP-82). Removed, so their bundled packages are neither attack surface nor trivy findings.
 RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY --from=template /opt/template/ /opt/template/
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
 COPY builder/build-app.sh /usr/local/bin/build-app
