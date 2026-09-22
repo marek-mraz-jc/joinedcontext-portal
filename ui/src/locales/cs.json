@@ -2834,5 +2834,32 @@
     "roles": {
       "organizationKinds": "Role projektu nesmí jmenovat {kinds}: ty patří vlastním rolím organizace."
     }
+  },
+  "projectDuplicate": {
+    "title": "Duplikovat {name}",
+    "lead": "Zkopíruje repozitář projektu s celou historií a navrhne záznam kopie v registru.",
+    "propose": "Navrhnout kopii",
+    "sameName": "Zvolte jiný název, než má původní projekt.",
+    "note": "Koncové body kopie odpovídají na vlastních identifikátorech; data v brokeru se nekopírují.",
+    "button": "Duplikovat",
+    "needsRepository": "Duplikovat lze jen projekt ve vlastním repozitáři."
+  },
+  "projectImport": {
+    "title": "Importovat projekt",
+    "lead": "Vytvoří repozitáře projektu z git exportu a poté navrhne jeho záznam v registru.",
+    "button": "Importovat projekt",
+    "file": "Vyberte archiv exportu",
+    "fileHint": "Soubor .zip, který zapsal Export ve formátu git.",
+    "chosen": "Vybráno: {name}",
+    "noFile": "Nejprve vyberte archiv exportu.",
+    "check": "Zkontrolovat archiv",
+    "import": "Importovat",
+    "repositories": "Repozitáře k vytvoření",
+    "repository": "{repository} na {head}",
+    "parameters": "Parametry",
+    "noParameters": "Projekt nedeklaruje žádné parametry.",
+    "secretHint": "Zadejte název tajemství, nikdy jeho hodnotu.",
+    "default": "Výchozí: {value}.",
+    "useDefault": "Použít výchozí"
   }
 }

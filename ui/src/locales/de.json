@@ -2834,5 +2834,32 @@
     "roles": {
       "organizationKinds": "Eine Rolle eines Projekts darf {kinds} nicht nennen: das gehört zu den eigenen Rollen der Organisation."
     }
+  },
+  "projectDuplicate": {
+    "title": "{name} duplizieren",
+    "lead": "Kopiert das Repository des Projekts mit seiner ganzen Historie und schlägt den Registereintrag der Kopie vor.",
+    "propose": "Kopie vorschlagen",
+    "sameName": "Wählen Sie einen anderen Namen als den des Originals.",
+    "note": "Die Endpunkte der Kopie antworten unter eigenen Kennungen; Daten im Broker werden nicht kopiert.",
+    "button": "Duplizieren",
+    "needsRepository": "Nur ein Projekt in einem eigenen Repository kann dupliziert werden."
+  },
+  "projectImport": {
+    "title": "Projekt importieren",
+    "lead": "Legt die Repositories des Projekts aus einem Git-Export an und schlägt dann seinen Registereintrag vor.",
+    "button": "Projekt importieren",
+    "file": "Exportarchiv wählen",
+    "fileHint": "Eine .zip-Datei, die der Export im Git-Format geschrieben hat.",
+    "chosen": "Gewählt: {name}",
+    "noFile": "Wählen Sie zuerst ein Exportarchiv.",
+    "check": "Archiv prüfen",
+    "import": "Importieren",
+    "repositories": "Anzulegende Repositories",
+    "repository": "{repository} bei {head}",
+    "parameters": "Parameter",
+    "noParameters": "Das Projekt deklariert keine Parameter.",
+    "secretHint": "Geben Sie den Namen eines Secrets ein, nie seinen Wert.",
+    "default": "Standard: {value}.",
+    "useDefault": "Standard verwenden"
   }
 }

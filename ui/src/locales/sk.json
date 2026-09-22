@@ -2834,5 +2834,32 @@
     "roles": {
       "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
     }
+  },
+  "projectDuplicate": {
+    "title": "Duplikovať {name}",
+    "lead": "Skopíruje repozitár projektu s celou históriou a navrhne záznam kópie v registri.",
+    "propose": "Navrhnúť kópiu",
+    "sameName": "Zvoľte iný názov, než má pôvodný projekt.",
+    "note": "Koncové body kópie odpovedajú na vlastných identifikátoroch; dáta v brokeri sa nekopírujú.",
+    "button": "Duplikovať",
+    "needsRepository": "Duplikovať možno len projekt vo vlastnom repozitári."
+  },
+  "projectImport": {
+    "title": "Importovať projekt",
+    "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",
+    "button": "Importovať projekt",
+    "file": "Vyberte archív exportu",
+    "fileHint": "Súbor .zip, ktorý zapísal Export vo formáte git.",
+    "chosen": "Vybraný: {name}",
+    "noFile": "Najprv vyberte archív exportu.",
+    "check": "Skontrolovať archív",
+    "import": "Importovať",
+    "repositories": "Repozitáre na vytvorenie",
+    "repository": "{repository} na {head}",
+    "parameters": "Parametre",
+    "noParameters": "Projekt nedeklaruje žiadne parametre.",
+    "secretHint": "Zadajte názov tajomstva, nikdy jeho hodnotu.",
+    "default": "Predvolené: {value}.",
+    "useDefault": "Použiť predvolené"
   }
 }

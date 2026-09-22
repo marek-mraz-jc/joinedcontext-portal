@@ -2834,5 +2834,32 @@
     "roles": {
       "organizationKinds": "A role of a project cannot name {kinds}: those belong to the organization's own roles."
     }
+  },
+  "projectDuplicate": {
+    "title": "Duplicate {name}",
+    "lead": "Copies the project's repository with its full history and proposes the copy's registry entry.",
+    "propose": "Propose the copy",
+    "sameName": "Choose a name other than the original's.",
+    "note": "The copy's endpoints answer at slugs of their own; data in the broker is not copied.",
+    "button": "Duplicate",
+    "needsRepository": "Only a project in a repository of its own can be duplicated."
+  },
+  "projectImport": {
+    "title": "Import a project",
+    "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",
+    "button": "Import project",
+    "file": "Choose the export archive",
+    "fileHint": "A .zip written by Export in the git format.",
+    "chosen": "Chosen: {name}",
+    "noFile": "Choose an export archive first.",
+    "check": "Check the archive",
+    "import": "Import",
+    "repositories": "Repositories to create",
+    "repository": "{repository} at {head}",
+    "parameters": "Parameters",
+    "noParameters": "The project declares no parameters.",
+    "secretHint": "Type the name of a secret, never its value.",
+    "default": "Default: {value}.",
+    "useDefault": "Use the default"
   }
 }
