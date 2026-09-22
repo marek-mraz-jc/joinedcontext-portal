@@ -6,6 +6,7 @@ import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { ALERTS } from "./fixtures/alerts";
 import { STEWARD, VIEWER } from "./fixtures/access";
+import { SCHEMA } from "./fixtures/schema";
 
 vi.mock("maplibre-gl", () => ({
   Map: class {
@@ -27,6 +28,7 @@ function app(access: AccessDocument, user: JcUser, entities = ALERTS) {
   const client = stubClient(
     {
       entities,
+      schema: SCHEMA,
       access,
       functions: {
         summary: () => ({ total: entities.length, byCategory: { traffic: 4, event: 1 }, bySubCategory: { ROAD_WORK: 3 }, oldestOpen: null }),
@@ -103,7 +105,8 @@ describe("helsinki-alerts", () => {
     // Every writable field and none of the read-only ones.
     expect(within(form).getAllByRole("textbox").length + within(form).queryAllByRole("combobox").length).toBeGreaterThan(0);
     expect(within(form).queryByLabelText("source")).not.toBeInTheDocument();
-    expect(within(form).queryByLabelText("name")).not.toBeInTheDocument();
+    // T-2628: name is edited language by language, the stored Finnish one included.
+    expect(await within(form).findByLabelText("name (fi)")).toHaveValue("Mannerheimintien päällystys");
     expect(within(page).getByText(/source: where Fintraffic published it/)).toBeInTheDocument();
 
     fireEvent.change(within(form).getByLabelText("address"), { target: { value: "Mannerheimintie 14, Helsinki" } });
@@ -116,6 +119,22 @@ describe("helsinki-alerts", () => {
     expect(patch.method).toBe("PATCH");
     expect(patch.path).toContain(encodeURIComponent("urn:ngsi-ld:Alert:hel.fi:helsinki:GUID50001"));
     expect(patch.body).toEqual({ address: { type: "Property", value: "Mannerheimintie 14, Helsinki" } });
+  });
+
+  // SDK-07, T-2628: correcting the English name keeps the Finnish one, in the same one PATCH.
+  it("lets a steward correct one language of the name and keeps the others", async () => {
+    const client = app(STEWARD, PERSON.steward);
+    const page = await openAlert("Mannerheimintie resurfacing");
+    fireEvent.click(within(page).getByRole("button", { name: "Edit" }));
+    const form = within(page).getByRole("form", { name: "Edit Alert" });
+    fireEvent.change(await within(form).findByLabelText("name (en)"), { target: { value: "Mannerheimintie repaving" } });
+    await waitFor(() => expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled());
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(writes(client)).toHaveLength(1));
+    expect(writes(client)[0].body).toEqual({
+      name: { type: "LanguageProperty", languageMap: { fi: "Mannerheimintien päällystys", en: "Mannerheimintie repaving" } },
+    });
   });
 
   // AP-09: a new alert carries no source, which is what lets the steward remove it later.

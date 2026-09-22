@@ -12,9 +12,9 @@ frontend on the App SDK plus serverless functions, with two roles.
 
 The roles are enforced by the gateway, not by this page (AP-96): `app.yaml` grants the write items
 to `steward` only, and the delete item carries `q: "!source"`, so only a record with no `source`
-(one a steward added, never Fintraffic's) can be removed. The form writes `category`,
-`subCategory`, `address`, `dateIssued`, `validFrom`, `validTo` and `location`; it lists the fields
-it leaves alone and why. A later run of the traffic-messages pipeline overwrites a correction of
+(one a steward added, never Fintraffic's) can be removed. The form writes every attribute of
+`Alert` but `source` (`name` and `description` language by language, keeping the others); it lists
+the fields it leaves alone and why. A later run of the traffic-messages pipeline overwrites a correction of
 a Fintraffic record's fields.
 
 ## Functions

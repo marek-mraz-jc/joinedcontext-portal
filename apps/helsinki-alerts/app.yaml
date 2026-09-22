@@ -53,14 +53,13 @@ spec:
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, geojson]
     # The steward's record form (AP-09, red lane on purpose): create and correct every attribute
-    # the form can write without losing data. `source` says where Fintraffic published a record
-    # and stays read-only; `name` and `description` are per-language maps the SDK cannot write
-    # yet without dropping the other languages, so they stay read-only too.
+    # of `Alert` but `source`, which says where Fintraffic published a record and stays
+    # read-only. `name` and `description` are per-language maps, written whole (T-2628).
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki
       types: [Alert]
-      attrs: [category, subCategory, address, dateIssued, validFrom, validTo, location]
+      attrs: [name, description, category, subCategory, address, dateIssued, validFrom, validTo, location]
       operations: [createEntity, updateAttrs]
       roles: [steward]
     # A steward removes only an alert a steward added: those carry no `source`, and the gateway

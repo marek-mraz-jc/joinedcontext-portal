@@ -8,7 +8,8 @@ export const ALERTS: Row[] = [
   {
     id: id("GUID50001"),
     type: "Alert",
-    name: "Mannerheimintie resurfacing",
+    // A LanguageProperty in its keyValues shape; a row reads the application's language of it.
+    name: { languageMap: { fi: "Mannerheimintien päällystys", en: "Mannerheimintie resurfacing" } } as unknown as string,
     category: "traffic",
     subCategory: "ROAD_WORK",
     address: "Mannerheimintie 12, Helsinki",

@@ -6,7 +6,7 @@ export const ALERT = "Alert";
 export const COLUMNS = ["name", "category", "subCategory", "address", "validFrom", "validTo", "dateIssued"];
 
 /** What the steward's form writes: the `dataNeeds` item of `app.yaml` granted to `steward`. */
-export const WRITABLE = ["category", "subCategory", "address", "dateIssued", "validFrom", "validTo", "location"];
+export const WRITABLE = ["name", "description", "category", "subCategory", "address", "dateIssued", "validFrom", "validTo", "location"];
 
 /** The attributes the form shows but never writes, and why. */
 export const READ_ONLY: Array<[string, string]> = [
@@ -14,7 +14,6 @@ export const READ_ONLY: Array<[string, string]> = [
   ["type", "every record here is an Alert"],
   ["observedAt", "set by the feed that observed it"],
   ["source", "where Fintraffic published it; a steward's own record has none"],
-  ["name, description", "per-language text, which this form cannot write without dropping the other languages"],
 ];
 
 /** A record a steward added: Fintraffic's always name their source, and only these may be removed. */

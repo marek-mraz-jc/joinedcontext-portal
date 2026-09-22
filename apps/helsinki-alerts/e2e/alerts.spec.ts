@@ -7,6 +7,7 @@ import { stubTransport } from "@joinedcontext/sdk/testing";
 import type { AccessDocument } from "@joinedcontext/sdk";
 import { ALERTS } from "../src/fixtures/alerts";
 import { STEWARD, VIEWER } from "../src/fixtures/access";
+import { SCHEMA } from "../src/fixtures/schema";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const APP = "/apps/helsinki-alerts/";
@@ -21,7 +22,7 @@ interface Call {
 
 /** Serves the built bundle as the static host does, `#jc-config` filled for `role`, and the endpoint from the SDK's stub. */
 async function serve(page: Page, role: "viewer" | "steward", access: AccessDocument) {
-  const transport = stubTransport({ entities: ALERTS, access });
+  const transport = stubTransport({ entities: ALERTS, schema: SCHEMA, access });
   const config = {
     slug: SLUG,
     orgDomain: "hel.fi",
