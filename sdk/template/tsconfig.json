@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "functions", "test-setup.ts"]
+  "include": ["src", "functions", "map-worker.ts", "test-setup.ts"]
 }

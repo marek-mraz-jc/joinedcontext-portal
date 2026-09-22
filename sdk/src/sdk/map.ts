@@ -33,7 +33,8 @@ export function styleFor(basemap?: string): string | StyleSpecification {
  * that imports it, so a `data:` URL alone never reaches `new Worker`. The wrapper below hands
  * the library the `data:` URL at that moment instead. A browser that refuses `data:` workers
  * (the probe says) gets a `blob:` URL, which the library uses as it is. Without the element
- * (vite dev, the published app) the library finds the worker beside its own script. Resolves
+ * (vite dev, the built application) the library finds its worker on its own: in vite dev
+ * beside its script, in a build through the template's `map-worker.ts`, which bundles it. Resolves
  * once the choice is made, the first call making it; the map is built after it. The library is
  * imported only here and only when there is a worker to hand it, so an application without a map
  * never loads it.
