@@ -1599,6 +1599,25 @@
       "hint": "This opens a merge request. The source and its builds stay in the forge.",
       "confirm": "Open the merge request",
       "cancel": "Cancel"
+    },
+    "roles": {
+      "title": "Roly a členovia",
+      "lead": "Kto smie čo v tejto aplikácii. Pridanie alebo odobratie člena navrhne zmenu aplikácie, ktorú posúdi schvaľovateľ.",
+      "count": "Členovia: {count}",
+      "nobody": "Túto rolu zatiaľ nemá nikto.",
+      "groupMember": "Skupina {group}",
+      "remove": "Odobrať",
+      "removeLabel": "Odobrať {member} z roly {role}",
+      "kind": "Pridať",
+      "kindUser": "Osobu",
+      "kindGroup": "Skupinu",
+      "email": "E-mail",
+      "group": "Skupina",
+      "pickGroup": "Vyberte skupinu",
+      "add": "Pridať člena",
+      "needEmail": "Zadajte e-mailovú adresu osoby.",
+      "needGroup": "Vyberte skupinu.",
+      "already": "Túto rolu už má."
     }
   },
   "appLifecycle": {

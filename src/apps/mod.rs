@@ -10,4 +10,6 @@ pub mod kube;
 /// An App name is unique in the organization (AP-14a).
 pub mod names;
 pub mod reconciler;
+/// A person's roles in an application (ADR-N-027).
+pub mod roles;
 pub mod static_host;

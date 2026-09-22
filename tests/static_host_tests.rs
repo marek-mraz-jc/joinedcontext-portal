@@ -696,3 +696,132 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
     let held = format!("{session}; jc_csrf=already-held");
     assert_eq!(csrf_cookie(Some(&held)).await, None, "a held token is kept");
 }
+
+/// One request for the app as `identity`, or anonymously.
+async fn get_as(
+    root: &std::path::Path,
+    mirror: Arc<Mirror>,
+    identity: Option<joinedcontext_portal::auth::session::Identity>,
+    uri: &str,
+) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let config = Config {
+        apps_dir: Some(root.to_string_lossy().into_owned()),
+        ..Config::for_tests()
+    };
+    let mut request = Request::builder()
+        .uri(uri)
+        .header(header::ACCEPT_LANGUAGE, "en");
+    if let Some(identity) = identity {
+        request = request.header(header::COOKIE, common::cookie(&config, identity));
+    }
+    let app = server::app(AppState::new(config, None).with_mirror(mirror));
+    let response = app
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, body.to_vec())
+}
+
+/// A `visibility: roles` app reading one space, with a viewer group and one steward.
+fn roles_app() -> Arc<Mirror> {
+    let mut spec = app_spec("published");
+    spec["visibility"] = serde_json::json!("roles");
+    spec["roles"] = serde_json::json!([
+        { "name": "viewer", "title": { "en": "Viewer" } },
+        { "name": "steward", "title": { "en": "Steward" } }
+    ]);
+    spec["access"] = serde_json::json!([
+        { "role": "viewer", "subjects": [{ "group": "ovzdusie-operations" }] },
+        { "role": "steward", "subjects": [{ "user": "jana" }] }
+    ]);
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+        "types": ["AirQualityObserved"],
+        "operations": ["queryEntity"]
+    }]);
+    let mirror = mirror_with_app(spec);
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "app-air-quality",
+        serde_json::json!({ "contextSpaceRef": "ovzdusie", "slug": "appslug" }),
+    ));
+    mirror
+}
+
+/// AP-93: a signed-in person holding no role of a `visibility: roles` app gets the 403 page that
+/// names the roles and no member; an anonymous visitor gets it too, and neither sees a byte of
+/// the bundle, the index or an asset.
+#[tokio::test]
+async fn a_person_without_a_role_is_refused_with_the_roles_and_no_member() {
+    let dir = app_root(
+        "roles-refused",
+        &[("index.html", INDEX), ("app.js", BUNDLE_JS)],
+    );
+    for (who, uri) in [
+        (Some(common::person("petra")), "/apps/air-quality/"),
+        (Some(common::person("petra")), "/apps/air-quality/app.js"),
+        (None, "/apps/air-quality/"),
+    ] {
+        let (status, headers, body) = get_as(dir.path(), roles_app(), who, uri).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{uri}");
+        assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+        let page = String::from_utf8(body).expect("html");
+        assert!(
+            page.contains("<li>Viewer</li>") && page.contains("<li>Steward</li>"),
+            "{page}"
+        );
+        assert!(page.contains("project ovzdusie"), "{page}");
+        assert!(
+            !page.contains("jana") && !page.contains("ovzdusie-operations"),
+            "{page}"
+        );
+        assert!(
+            !page.contains("air quality</title>") && !page.contains("console.log"),
+            "{page}"
+        );
+    }
+}
+
+/// AP-95, SDK-35: a member is served the index with their roles in this app, the platform's never,
+/// and an index that carries a person is kept by no cache.
+#[tokio::test]
+async fn a_member_is_served_the_index_with_their_roles_and_no_store() {
+    let dir = app_root("roles-served", &[("index.html", INDEX)]);
+    let mut jana = common::person("jana");
+    jana.roles = vec!["platform-admin".into()];
+    jana.groups = vec!["ovzdusie-operations".into()];
+    let (status, headers, body) =
+        get_as(dir.path(), roles_app(), Some(jana), "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(
+        served_config(&body)["user"],
+        serde_json::json!({
+            "id": "sub-jana",
+            "name": "jana",
+            "email": "jana@hel.fi",
+            "roles": ["viewer", "steward"]
+        })
+    );
+}
+
+/// AP-95: an anonymous visitor of a public app is served `user: null`, and the index stays
+/// revalidated rather than private, since it carries nobody.
+#[tokio::test]
+async fn an_anonymous_visitor_is_served_no_user() {
+    let dir = app_root("roles-anonymous", &[("index.html", INDEX)]);
+    let mirror = roles_app();
+    let mut envelope = mirror
+        .get("ovzdusie", "App", "air-quality")
+        .expect("the app");
+    envelope.spec["visibility"] = serde_json::json!("public");
+    mirror.upsert(envelope);
+    let (status, headers, body) = get_as(dir.path(), mirror, None, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    assert_eq!(served_config(&body)["user"], serde_json::Value::Null);
+}

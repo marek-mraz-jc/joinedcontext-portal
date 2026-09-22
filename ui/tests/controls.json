@@ -630,6 +630,14 @@
         "question_options.test.tsx"
       ]
     },
+    "src/pages/apps/RolesAndMembers.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "app_roles_members.test.tsx"
+      ]
+    },
     "src/pages/apps/RunPublication.tsx": {
       "controls": {
         "Button": 1

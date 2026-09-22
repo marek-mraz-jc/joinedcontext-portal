@@ -8,6 +8,7 @@ import { AgentRunPage } from "./AgentRunPage";
 import { AppBuildPanel } from "./AppBuildPanel";
 import { AppGenerator } from "./AppGenerator";
 import { appDisplayName } from "./appTitle";
+import { RolesAndMembers } from "./RolesAndMembers";
 import type { AgentRun } from "./useAgentRun";
 
 /**
@@ -70,11 +71,13 @@ export function AppPage({ project, name }: { project: string; name: string }): J
   const items = (data?.items ?? []) as unknown as AgentRun[];
   const newest = items[0];
 
-  // Where the published application is built, above its runs (AP-103).
+  // Where the published application is built and who holds its roles, above its runs (AP-103,
+  // AP-99).
   if (newest) {
     return (
       <div className="space-y-3">
         <AppBuildPanel project={project} name={name} />
+        <RolesAndMembers project={project} name={name} />
         <AgentRunPage project={project} runId={newest.id} onClose={back} />
       </div>
     );
@@ -84,6 +87,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
     <div className="space-y-3">
       <Button onClick={back}>{t("apps.back")}</Button>
       <AppBuildPanel project={project} name={name} />
+      <RolesAndMembers project={project} name={name} />
       <AppGenerator project={project} initialName={name} />
     </div>
   );

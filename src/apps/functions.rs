@@ -17,8 +17,8 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use super::static_host::{
-    app_root, integrity_of, is_origin, may_read, published_app, served_config, sri_sha384,
-    to_apps_origin, OptionalUser,
+    app_root, integrity_of, is_origin, published_app, served_config, sri_sha384, to_apps_origin,
+    OptionalUser,
 };
 use crate::api::agent_runs::{invoke, is_function_name, InvokeError, RefusedStatus};
 use crate::auth::session::EDGE_TOKEN_HEADER;
@@ -54,7 +54,8 @@ pub(super) async fn call(
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
-    if !may_read(&spec, user.is_some()) {
+    let identity = user.as_ref().map(|user| &user.0.identity);
+    if !super::roles::may_open(&spec, identity) {
         return not_found();
     }
     let token = edge_token(&state, &headers);
@@ -95,17 +96,13 @@ pub(super) async fn call(
     let domain = crate::api::assistant::org_domain(&state, &project);
     let config = served_config(&state.mirror, &project, &name, &spec, &domain)
         .unwrap_or_else(|| serde_json::json!({ "orgDomain": domain, "appName": name }));
-    let identity = user.as_ref().map(|user| &user.0.identity);
+    // The person the page was served, with their roles in this app and never the platform's:
+    // set here, never from the caller's body or headers (SDK-37, AP-95).
     let request = serde_json::json!({
         "method": "POST",
         "query": query,
         "body": input,
-        "user": identity.map(|identity| serde_json::json!({
-            "id": identity.subject,
-            "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
-            "email": identity.email,
-            "roles": identity.roles,
-        })),
+        "user": super::roles::app_user(&spec, identity),
     });
     let modules = BTreeMap::from([
         ("@app/functions.js".to_owned(), bundle),

@@ -15,7 +15,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use base64::Engine;
-use jc_core::kinds::{AppLifecycle, AppSpec};
+use jc_core::kinds::{AppLifecycle, AppSpec, AppVisibility};
 use sha2::{Digest, Sha384};
 
 use crate::error::ApiError;
@@ -81,8 +81,18 @@ async fn serve(
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
-    if !may_read(&spec, user.is_some()) {
-        return not_found();
+    let identity = user.as_ref().map(|user| &user.0.identity);
+    if !super::roles::may_open(&spec, identity) {
+        if spec.visibility != AppVisibility::Roles {
+            return not_found();
+        }
+        // A published app with roles says who grants them instead of pretending it is not there,
+        // and names none of its members (AP-93).
+        let title = state
+            .mirror
+            .get(&project, "App", &name)
+            .and_then(|env| env.metadata.title);
+        return super::roles::refusal(&spec, &name, title.as_ref(), &project, &headers);
     }
     let Some(app_root) = app_root(
         state.config.apps_dir.as_deref().map(FsPath::new),
@@ -115,11 +125,17 @@ async fn serve(
     // The index is the one file that is not served as built: the SDK starts from the
     // `#jc-config` the host writes into it (SDK-02), after the digest was checked on the bytes
     // CI recorded (AP-12). An app that reads nothing is served as it was built.
+    // It carries the person and their roles in this app, computed now, so no shared cache keeps
+    // it and nobody else is served it (AP-95).
+    let personal = path == "index.html" && identity.is_some();
     let bytes = if path == "index.html" {
         let domain = crate::api::assistant::org_domain(&state, &project);
         match served_config(&state.mirror, &project, &name, &spec, &domain) {
-            Some(config) => match String::from_utf8(bytes) {
-                Ok(html) => with_config(&html, &config).into_bytes(),
+            Some(mut config) => match String::from_utf8(bytes) {
+                Ok(html) => {
+                    config["user"] = super::roles::app_user(&spec, identity);
+                    with_config(&html, &config).into_bytes()
+                }
                 Err(raw) => raw.into_bytes(),
             },
             None => bytes,
@@ -134,7 +150,14 @@ async fn serve(
         .header(header::CONTENT_TYPE, mime.as_ref())
         // The bundle is immutable per publish, but a republish reuses the path, so assets are
         // revalidated rather than pinned for a year.
-        .header(header::CACHE_CONTROL, "no-cache")
+        .header(
+            header::CACHE_CONTROL,
+            if personal {
+                "private, no-store"
+            } else {
+                "no-cache"
+            },
+        )
         .body(Body::from(bytes))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
 
@@ -397,12 +420,6 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
     missing
 }
 
-/// Who may read a published app. `visibility` beyond "is there a session" is the endpoint
-/// authorization's job; the host only refuses to serve a non-public app to an anonymous caller.
-pub(super) fn may_read(spec: &AppSpec, authenticated: bool) -> bool {
-    matches!(spec.visibility, jc_core::kinds::AppVisibility::Public) || authenticated
-}
-
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
 /// plus whatever the manifest adds; `frame-ancestors` is `'none'` unless the app is embeddable.
 pub fn content_security_policy(spec: &AppSpec) -> String {
@@ -500,7 +517,7 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jc_core::kinds::{AppVisibility, ContentSecurityPolicy};
+    use jc_core::kinds::ContentSecurityPolicy;
 
     fn spec() -> AppSpec {
         serde_json::from_value(serde_json::json!({
@@ -550,15 +567,6 @@ mod tests {
             frame_ancestors: vec!["https://elsewhere.example".into()],
         });
         assert!(content_security_policy(&spec).contains("frame-ancestors 'none'"));
-    }
-
-    #[test]
-    fn a_public_app_needs_no_session_and_a_project_app_does() {
-        assert!(may_read(&spec(), false));
-        let mut private = spec();
-        private.visibility = AppVisibility::Project;
-        assert!(!may_read(&private, false));
-        assert!(may_read(&private, true));
     }
 
     #[test]

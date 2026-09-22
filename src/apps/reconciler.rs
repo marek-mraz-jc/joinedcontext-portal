@@ -227,7 +227,7 @@ pub fn render(
             .data_needs
             .iter()
             .enumerate()
-            .map(|(index, need)| policy(name, project, index, need, &spec, settings))
+            .flat_map(|(index, need)| policies(name, project, index, need, &spec, settings))
             .collect(),
     })
 }
@@ -554,6 +554,26 @@ fn endpoint(
     if !allowed_projects.is_empty() {
         endpoint_spec["allowedProjects"] = json!(allowed_projects);
     }
+    // The app's grants are held on this endpoint and nowhere else of the space: every caller it
+    // admits holds its caller role, and the members of an app role that role (AP-96, AP-97).
+    endpoint_spec["callerRole"] = json!(true);
+    let roles: Vec<Value> = spec
+        .roles
+        .iter()
+        .filter_map(|role| {
+            let subjects: Vec<&jc_core::kinds::Subject> = spec
+                .access
+                .iter()
+                .filter(|access| access.role == role.name)
+                .flat_map(|access| &access.subjects)
+                .collect();
+            // A role nobody holds gives nobody anything, and an Endpoint role needs a subject.
+            (!subjects.is_empty()).then(|| json!({ "name": role.name, "subjects": subjects }))
+        })
+        .collect();
+    if !roles.is_empty() {
+        endpoint_spec["roles"] = json!(roles);
+    }
     if let Some(rate) = spec.limits.as_ref().and_then(|l| l.requests_per_minute) {
         endpoint_spec["rateLimits"] = json!({ "requestsPerMinute": rate });
     }
@@ -566,13 +586,48 @@ fn endpoint(
     generated(format!("app-{name}"), project, "Endpoint", endpoint_spec)
 }
 
-/// One data need, compiled into the grant that carries it (AP-05).
-fn policy(
+/// One data need, compiled into the grants that carry it (AP-05, AP-96): one Policy to the
+/// endpoint's caller role, or, for a need that names roles, one per role to that role's endpoint
+/// role, each exactly the need and never more (AP-06).
+fn policies(
     name: &str,
     project: &str,
     index: usize,
     need: &DataNeed,
     spec: &AppSpec,
+    settings: &Settings,
+) -> Vec<RawManifest> {
+    // 1-based and in declaration order: stable across runs, so a second reconcile of an
+    // unchanged app writes the same names and changes nothing.
+    let base = format!("app-{name}-{}", index + 1);
+    if need.roles.is_empty() {
+        return vec![policy(
+            base,
+            project,
+            need,
+            assignee(name, project, spec, None),
+            settings,
+        )];
+    }
+    need.roles
+        .iter()
+        .map(|role| {
+            policy(
+                format!("{base}-{role}"),
+                project,
+                need,
+                assignee(name, project, spec, Some(role)),
+                settings,
+            )
+        })
+        .collect()
+}
+
+fn policy(
+    policy_name: String,
+    project: &str,
+    need: &DataNeed,
+    assignee: Value,
     settings: &Settings,
 ) -> RawManifest {
     let mut information = json!({
@@ -594,7 +649,7 @@ fn policy(
     let mut policy_spec = json!({
         "contextSpaceRef": { "kind": "ContextSpace", "name": need.context_space_ref.name() },
         "assigner": format!("did:web:{}", settings.org_domain),
-        "assignee": assignee(name, spec),
+        "assignee": assignee,
         "operations": need.operations,
         "information": [information],
     });
@@ -608,28 +663,23 @@ fn policy(
         policy_spec["temporalQ"] = json!(temporal_q);
     }
 
-    // 1-based and in declaration order: stable across runs, so a second reconcile of an
-    // unchanged app writes the same names and changes nothing.
-    generated(
-        format!("app-{name}-{}", index + 1),
-        project,
-        "Policy",
-        policy_spec,
-    )
+    generated(policy_name, project, "Policy", policy_spec)
 }
 
-/// Who the grant is made to (AP-07, AP-08, AP-28, GW22).
-fn assignee(name: &str, spec: &AppSpec) -> Value {
-    match (spec.visibility, spec.class) {
-        // Anonymous callers act under the synthetic public role, so that is who is granted.
-        (AppVisibility::Public, _) => json!({ "kind": "role", "id": "public" }),
+/// Who the grant is made to (AP-07, AP-08, AP-96).
+fn assignee(name: &str, project: &str, spec: &AppSpec, role: Option<&str>) -> Value {
+    if spec.class == AppClass::Service && role.is_none() {
         // A service app calls with its own account and nobody else's (AP-08).
-        (_, AppClass::Service) => json!({ "kind": "serviceAccount", "id": format!("app-{name}") }),
-        // Everyone else reaches the data with the caller's own token through the app's endpoint;
-        // the grant belongs to the role the endpoint carries, and the effective permission is
-        // still the intersection with what the caller holds (AP-07, AP-28, GW10).
-        _ => json!({ "kind": "role", "id": format!("app-{name}") }),
+        return json!({ "kind": "serviceAccount", "id": format!("app-{name}") });
     }
+    // Everyone else reaches the data with their own token through the app's endpoint, anonymous
+    // callers of a public app included, and holds the grant there alone: the endpoint's caller
+    // role, or the role of the app they hold (AP-07, AP-96, AP-97, GW22).
+    let endpoint = format!("app-{name}");
+    json!({
+        "kind": "role",
+        "id": jc_core::kinds::endpoint_role(project, &endpoint, role),
+    })
 }
 
 /// The scope narrowing of a need: its own scope query and its geographic confinement are both

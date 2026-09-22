@@ -250,11 +250,12 @@ export function useAccess(endpoint?: string): {
       });
   }, [client, endpoint]);
 
+  const roles = client.me()?.roles;
   const can = useCallback(
     (operation: string, type: string, attr?: string): Decision => {
-      return evalCan(access, operation, type, attr);
+      return evalCan(access, operation, type, attr, roles);
     },
-    [access],
+    [access, roles],
   );
 
   return { access, error, can };
