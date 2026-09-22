@@ -42,7 +42,10 @@ RUN CARGO_HOME=/opt/cargo cargo fetch --locked
 # template for the interface, the crate store, and the same lane and runner as the Node one.
 # Built with `--target rust`; the last stage stays the Node runner.
 FROM rust:1.90-slim-bookworm AS rust
-RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
+# The tag pins the toolchain, not its Debian: upgrade the base's packages so the image carries
+# the security fixes bookworm has shipped since the tag was cut (the image lane's trivy gate).
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
     && rustup target add x86_64-unknown-linux-musl
 COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
