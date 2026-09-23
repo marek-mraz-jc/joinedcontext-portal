@@ -138,13 +138,13 @@ test("a viewer of the alerts reads them and their summary and is refused a write
     expect(summary.status(), await summary.text()).toBe(200);
 
     const listed = await page.request.get(
-      `${APPS_URL}/api/endpoint/${config.slug}/ngsi-ld/v1/entities?type=Alert&limit=1`,
+      `${APPS_URL}/apps/helsinki-alerts/api/endpoint/${config.slug}/ngsi-ld/v1/entities?type=Alert&limit=1`,
     );
     expect(listed.status()).toBe(200);
     const [first] = (await listed.json()) as { id: string }[];
     expect(first?.id, "the space holds an alert to try").toMatch(/^urn:ngsi-ld:Alert:/);
     const write = await page.request.patch(
-      `${APPS_URL}/api/endpoint/${config.slug}/ngsi-ld/v1/entities/${encodeURIComponent(first.id)}/attrs`,
+      `${APPS_URL}/apps/helsinki-alerts/api/endpoint/${config.slug}/ngsi-ld/v1/entities/${encodeURIComponent(first.id)}/attrs`,
       {
         headers: { "x-csrf-token": csrf, "content-type": "application/json" },
         data: { address: { type: "Property", value: "written by a viewer" } },
@@ -192,7 +192,7 @@ test("a steward of the alerts adds one through the form and removes it", async (
     const config = await servedConfig(page).catch(() => null);
     if (config?.slug) {
       await page.request.delete(
-        `${APPS_URL}/api/endpoint/${config.slug}/ngsi-ld/v1/entities/${encodeURIComponent(`urn:ngsi-ld:Alert:${config.orgDomain}:${config.space}:${LOCAL_ID}`)}`,
+        `${APPS_URL}/apps/helsinki-alerts/api/endpoint/${config.slug}/ngsi-ld/v1/entities/${encodeURIComponent(`urn:ngsi-ld:Alert:${config.orgDomain}:${config.space}:${LOCAL_ID}`)}`,
         { headers: { "x-csrf-token": await appsCsrf(steward.context).catch(() => "") } },
       );
     }
