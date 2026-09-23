@@ -701,9 +701,11 @@ async fn asked(runner: &MockServer, verb: &str) -> Vec<String> {
 /// runner, and the first finishes and removes its stream.
 #[tokio::test]
 async fn a_second_test_of_the_same_project_while_one_is_running_is_409() {
+    // The runner holds its answer, so the first test is still running when the second arrives;
+    // an instant answer let the first finish and free the slot first on a slow CI host (T-2673).
     let (runner, state) = world_of(
         "t2520-one",
-        ResponseTemplate::new(200),
+        ResponseTemplate::new(200).set_delay(Duration::from_secs(1)),
         ResponseTemplate::new(200),
     )
     .await;
