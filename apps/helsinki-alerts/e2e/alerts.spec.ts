@@ -44,11 +44,14 @@ async function serve(page: Page, role: "viewer" | "steward", access: AccessDocum
       outside.push(url.href);
       return route.abort();
     }
-    if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
+    // A published app calls its endpoint under its own path, where the edge sets the session as
+    // the bearer and strips the prefix (T-2670); the stub answers the gateway's path.
+    if (url.pathname.startsWith(`${APP}api/endpoint/${SLUG}/`)) {
       const raw = request.postData();
       const body = raw ? JSON.parse(raw) : undefined;
-      if (request.method() !== "GET") writes.push({ method: request.method(), path: url.pathname, body });
-      const answer = await transport({ method: request.method() as "GET", path: url.pathname + url.search, body });
+      const path = url.pathname.slice(APP.length - 1);
+      if (request.method() !== "GET") writes.push({ method: request.method(), path, body });
+      const answer = await transport({ method: request.method() as "GET", path: path + url.search, body });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
     if (!url.pathname.startsWith(APP)) return route.fulfill({ status: 404, body: "" });

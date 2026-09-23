@@ -81,9 +81,12 @@ test("each sample application is built from its own repository and the catalog s
 test("the bikes application opens after the login with the stations of the space", async ({ browser }) => {
   const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
   try {
+    // The app opens on its Overview, whose counts are read from the space (T-2670); the station
+    // table is the Stations page.
     await goSignedIn(viewer.page, VIEWER, `${APPS_URL}/apps/helsinki-bikes/`, (page) =>
-      page.getByRole("region", { name: "Stations" }),
+      page.getByRole("region", { name: "Overview" }),
     );
+    await viewer.page.getByRole("navigation", { name: "Pages" }).getByRole("button", { name: "Stations" }).click();
     const rows = viewer.page.getByRole("region", { name: "Stations" }).locator("table tbody tr");
     await expect(rows.first()).toBeVisible({ timeout: 120_000 });
   } finally {

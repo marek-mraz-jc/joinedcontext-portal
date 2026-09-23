@@ -28,9 +28,12 @@ test("the stations page shows the five stations and the filter hides the empty o
       outside.push(url.href);
       return route.abort();
     }
-    if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
+    // A published app calls its endpoint under its own path, where the edge sets the session as
+    // the bearer and strips the prefix (T-2670); the stub answers the gateway's path.
+    if (url.pathname.startsWith(`/apps/helsinki-bikes/api/endpoint/${SLUG}/`)) {
       const body = route.request().postData();
-      const answer = await transport({ method: route.request().method() as "GET", path: url.pathname + url.search, body: body ? JSON.parse(body) : undefined });
+      const path = url.pathname.slice("/apps/helsinki-bikes".length) + url.search;
+      const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
     if (!url.pathname.startsWith("/apps/helsinki-bikes/")) return route.fulfill({ status: 404, body: "" });

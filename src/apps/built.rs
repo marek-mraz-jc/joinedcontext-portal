@@ -5,7 +5,7 @@
 //! that proposal can say: the commit is the head of the default branch of the App's own
 //! repository, that repository holds an artifact `bundle-{commit}` of a run of that commit, and
 //! its bytes hash to the digest. Only then does the Portal write the generic package
-//! `app-{name}`, version `{commit}-{digest12}` ([`version`]), with its own token: no credential that writes a package is
+//! `app-{name}`, version `{commit}-{digest12}` (see `version`), with its own token: no credential that writes a package is
 //! ever on the runner (AP-101).
 //!
 //! A `fullstack` App's build is an image (AP-105, AP-107): the artifact `image-{commit}` is an OCI

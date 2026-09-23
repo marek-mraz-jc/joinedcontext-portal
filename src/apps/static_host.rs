@@ -356,6 +356,13 @@ fn with_config(html: &str, config: &serde_json::Value) -> String {
         "<script id=\"jc-config\" type=\"application/json\">{}</script>",
         crate::agents::preview::script_json(config)
     );
+    // The template's index carries the empty element for the Portal to fill (SDK-06); the filled
+    // one goes first in the head and the empty one goes, so the page holds one `#jc-config`.
+    let html = html.replacen(
+        "<script id=\"jc-config\" type=\"application/json\"></script>",
+        "",
+        1,
+    );
     let lower = html.to_ascii_lowercase();
     let at = lower
         .find("<head>")
@@ -615,6 +622,19 @@ mod tests {
         // A document with no head at all still gets it, before anything else.
         let bare = with_config("<p>x</p>", &config);
         assert!(bare.starts_with("<script id=\"jc-config\""), "{bare}");
+    }
+
+    /// SDK-06: the template's index carries the empty element the Portal fills; the served page
+    /// holds one `#jc-config`, the filled one, and never a second the app might read instead.
+    #[test]
+    fn the_templates_empty_configuration_is_replaced_not_doubled() {
+        let config = serde_json::json!({ "appName": "alerts" });
+        let html = with_config(
+            "<html><head><title>x</title>\n    <script id=\"jc-config\" type=\"application/json\"></script>\n</head><body></body></html>",
+            &config,
+        );
+        assert_eq!(html.matches("id=\"jc-config\"").count(), 1, "{html}");
+        assert!(html.contains("{\"appName\":\"alerts\"}</script>"), "{html}");
     }
 
     #[test]
