@@ -35,6 +35,28 @@ describe("originTransport", () => {
 
   // AP-84, SDK-23: a published app's function call rides on the edge's token, so the host refuses
   // it without the double-submit token; the call carries it the same way a data write does.
+  it("sends a published app's endpoint calls under the app's path, and nothing else there", async () => {
+    const urls: string[] = [];
+    const fakeFetch = vi.fn(async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fakeFetch);
+    try {
+      const send = transportFor({ slug: "demo", orgDomain: "example.org", space: "demo", transport: "origin", appName: "bikes" });
+      await send({ method: "GET", path: "/api/endpoint/demo/ngsi-ld/v1/entities?type=A" });
+      await send({ method: "PATCH", path: "/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Ax/attrs", body: {} });
+      await send({ method: "POST", path: "/apps/bikes/api/functions/sum", body: {} });
+      expect(urls).toEqual([
+        "/apps/bikes/api/endpoint/demo/ngsi-ld/v1/entities?type=A",
+        "/apps/bikes/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Ax/attrs",
+        "/apps/bikes/api/functions/sum",
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("sends a published app's function call with the CSRF header, to the app's own route", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fakeFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
@@ -167,6 +189,9 @@ describe("bridgeTransport", () => {
         path: "/api/endpoint/demo/access",
       });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+      // T-2670: under the app's own path, where the apps session cookie reaches and the edge
+      // sets it as the bearer; at /api/endpoint/ the call would go out anonymous.
+      expect(fetchSpy).toHaveBeenCalledWith("/apps/test-app/api/endpoint/demo/access", expect.anything());
       expect(postSpy).not.toHaveBeenCalled();
 
       vi.useFakeTimers();

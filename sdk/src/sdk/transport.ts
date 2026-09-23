@@ -173,5 +173,14 @@ export function bridgeTransport(options?: BridgeOptions): Transport {
 }
 
 export function transportFor(config: JcConfig): Transport {
-  return config.transport === "origin" ? originTransport() : bridgeTransport();
+  if (config.transport !== "origin") {
+    return bridgeTransport();
+  }
+  // The apps session cookie lives on /apps/ (AP-29): at /api/endpoint/ a call would go out
+  // anonymous, so a published app sends its endpoint calls under its own path, where the edge
+  // sets the session as the bearer and proxies the gateway's path (T-2670).
+  const send = originTransport();
+  const base = `/apps/${config.appName ?? ""}`;
+  return (request) =>
+    send(request.path.startsWith("/api/endpoint/") ? { ...request, path: `${base}${request.path}` } : request);
 }
