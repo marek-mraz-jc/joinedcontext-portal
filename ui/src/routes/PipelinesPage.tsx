@@ -210,7 +210,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         kind: pipeline.kind,
         metadata: pipeline.metadata,
         spec: { ...pipeline.spec, enabled: run },
-      } as never;
+      };
       // The gate wants a green check for exactly this manifest, whatever door it came through
       // (PF-57): a click that only wrote was answered with "The manifest has not been checked"
       // and changed nothing, on every strict installation (T-2264).
@@ -248,7 +248,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       draft?: { kind: string; name: string };
     }) => {
       setFormError(null);
-      const body = (draft ? { ...envelope, draft } : envelope) as never;
+      const body = (draft ? { ...envelope, draft } : envelope);
       return unwrap(
         name === null
           ? await api.POST("/api/v1/projects/{project}/{plural}", {

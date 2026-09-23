@@ -213,7 +213,7 @@ export function useAgentRun(project: string, runId: string | null) {
       unwrap(
         await api.POST("/api/v1/projects/{project}/agent-runs/{id}/answers", {
           params: { path: { project, id: runId ?? "" } },
-          body: body as never,
+          body: body,
         }),
       ),
   });

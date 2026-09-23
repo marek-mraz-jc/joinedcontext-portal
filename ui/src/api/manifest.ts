@@ -10,6 +10,8 @@ export type Manifest = Omit<components["schemas"]["ResourceEnvelope"], "spec"> &
 };
 
 export type Change = components["schemas"]["Change"];
+/** What a proposal of one resource sends: the manifest, and beside it a draft or its files (T-1488). */
+export type ResourceProposal = components["schemas"]["ResourceProposal"];
 
 /** The project segment of the organization's own manifests: roles, bindings, agent profiles, projects (PF-49). */
 export const ORG_NAMESPACE = "org";

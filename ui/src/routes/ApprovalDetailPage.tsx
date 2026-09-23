@@ -143,7 +143,7 @@ export function ApprovalDetailPage({
       const res = await api.POST("/api/v1/projects/{project}/changes/{id}/reject", {
         params: { path: { project, id } },
         // The reason goes into the merge request's closing comment, where the proposer reads it.
-        body: { reason: reason.trim() } as never,
+        body: { reason: reason.trim() },
       });
       return unwrap(res);
     },

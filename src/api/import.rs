@@ -1184,11 +1184,8 @@ async fn read_request(
         ("format" = Option<String>, Query, description = "'git': the archive of a format=git export, landing as the new project of the path (layout 2)"),
     ),
     request_body(
-        description = "A JSON body with `manifests` (and `targetNamespace`, `orgDomain`, \
-                       `conflictPolicy`, `spaceMapping`), or `multipart/form-data` with the bundle \
-                       under `file` and the same options as fields (MF-18, UI-07)",
         content(
-            (serde_json::Value = "application/json", example = json!({
+            (ImportOptions = "application/json", example = json!({
                 "manifests": [{
                     "apiVersion": "joinedcontext.com/v1alpha1",
                     "kind": "Group",
@@ -1197,9 +1194,10 @@ async fn read_request(
                 }],
                 "conflictPolicy": "fail"
             })),
-            // The parts are `file` (the bundle or the git archive) and the options as text.
-            (String = "multipart/form-data", example = json!("file=<bundle.zip>; conflictPolicy=fail")),
+            // The parts are `file` (the bundle or the git archive) and these options as text.
+            (ImportOptions = "multipart/form-data", example = json!({ "conflictPolicy": "fail" })),
         ),
+        description = "The manifests as JSON, or a bundle file beside these options as a form",
     ),
     responses(
         (status = 202, description = "One merge request for the whole bundle", body = Change),

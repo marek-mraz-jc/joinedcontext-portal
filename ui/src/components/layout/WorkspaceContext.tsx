@@ -86,11 +86,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): React.
 
   const enter = useCallback(
     (name: string) => {
-      // The Portal's routes declare no search schema; the search is the URL's own record.
-      void navigate({
-        to: ".",
-        search: ((prev: Record<string, unknown>) => ({ ...prev, workspace: name })) as never,
-      });
+      void navigate({ to: ".", search: (prev) => ({ ...prev, workspace: name }) });
     },
     [navigate],
   );
@@ -98,11 +94,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): React.
   const leave = useCallback(() => {
     void navigate({
       to: ".",
-      search: ((prev: Record<string, unknown>) => {
-        const rest = { ...prev };
-        delete rest.workspace;
-        return rest;
-      }) as never,
+      search: ({ workspace: _left, ...rest }) => rest,
     });
   }, [navigate]);
 

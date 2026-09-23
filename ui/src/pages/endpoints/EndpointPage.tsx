@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError, api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
-import type { Change } from "../../api/manifest";
+import type { Change, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import type { Manifest } from "../../api/manifest";
@@ -534,7 +534,7 @@ function FilterForm({
       if (Object.keys(filter).length === 0) {
         delete (body.spec as { filter?: unknown }).filter;
       }
-      return proposeChecked(project, "projections", body as { metadata: { name: string } }, false);
+      return proposeChecked(project, "projections", body as ResourceProposal, false);
     },
     onSuccess: (result) => {
       if (isChange(result)) {

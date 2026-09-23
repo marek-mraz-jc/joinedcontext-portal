@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, storedMetadata } from "../api/manifest";
-import type { Change, Manifest } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
@@ -221,7 +221,7 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
       return proposeChecked(
         project,
         PLURAL,
-        toRegistrationEnvelope(project, form) as { metadata: { name: string } },
+        toRegistrationEnvelope(project, form) as ResourceProposal,
         true,
       );
     },

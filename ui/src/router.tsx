@@ -175,7 +175,12 @@ const protectedRoute = createRoute({
       throw redirect({ to: "/login", search: { redirect_to: location.href } });
     }
   },
-  // `?workspace=` on any page reads and writes that copy (UI-61, CC-76).
+  // `?workspace=` on any page reads and writes that copy (UI-61, CC-76): declared here, so every
+  // page below carries it in its search type and a link into a copy needs no cast (T-1488).
+  validateSearch: (search: Record<string, unknown>): { workspace?: string } => ({
+    workspace:
+      typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
+  }),
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>

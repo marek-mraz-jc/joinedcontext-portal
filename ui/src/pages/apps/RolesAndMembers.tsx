@@ -116,7 +116,7 @@ export function RolesAndMembers({ project, name }: { project: string; name: stri
           kind: "App",
           metadata: { ...storedMetadata(app.data), name, namespace: project },
           spec,
-        } as { metadata: { name: string } },
+        },
         false,
       ),
     onMutate: () => {

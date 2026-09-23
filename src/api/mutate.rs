@@ -1456,6 +1456,23 @@ fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, St
     Ok(written)
 }
 
+/// What a proposal of one resource sends: the manifest, and beside it the draft the form holds
+/// (AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the
+/// body before it is read as an envelope; the type is what the OpenAPI document says, so the
+/// generated client sends them without a cast (T-1488).
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct ResourceProposal {
+    #[serde(flatten)]
+    pub manifest: ResourceEnvelope,
+    /// The draft this proposal is made from; the proposal then takes the draft's own manifest.
+    #[serde(default)]
+    pub draft: Option<crate::ops::DraftRef>,
+    /// Files beside the manifest, by path relative to its folder, each a text: at most 16 and
+    /// 256 KiB together.
+    #[serde(default)]
+    pub files: Option<std::collections::BTreeMap<String, String>>,
+}
+
 /// The `draft` member a form sends beside its manifest (AG-61), taken out of the body.
 fn take_draft(body: &mut Value) -> Option<Value> {
     body.as_object_mut().and_then(|map| map.remove("draft"))
@@ -1529,7 +1546,7 @@ async fn propose_draft(
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
         ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
-    request_body(content = ResourceEnvelope, example = json!({
+    request_body(content = ResourceProposal, example = json!({
             "apiVersion": "joinedcontext.com/v1alpha1",
             "kind": "Endpoint",
             "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
@@ -1602,7 +1619,7 @@ pub async fn create(
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
         ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
-    request_body(content = ResourceEnvelope, example = json!({
+    request_body(content = ResourceProposal, example = json!({
             "apiVersion": "joinedcontext.com/v1alpha1",
             "kind": "Endpoint",
             "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },

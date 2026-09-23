@@ -17,6 +17,7 @@
 //! external node is named after the registration that reaches it and not after its URL
 //! (UI-27, EP-71).
 
+use crate::resource::reference_name;
 use axum::extract::{Path, State};
 use axum::Json;
 use jc_core::Urn;
@@ -161,7 +162,11 @@ pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
 
     let mut catalogues = BTreeSet::new();
     for endpoint in of("Endpoint") {
-        if let Some(space) = reference_name(endpoint.spec.get("contextSpaceRef")) {
+        if let Some(space) = endpoint
+            .spec
+            .get("contextSpaceRef")
+            .and_then(reference_name)
+        {
             graph.edge(
                 id("Endpoint", &endpoint.metadata.name),
                 id("ContextSpace", space),
@@ -169,7 +174,11 @@ pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
                 id("Endpoint", &endpoint.metadata.name),
             );
         }
-        if let Some(instance) = reference_name(endpoint.spec.pointer("/publish/ckan/instanceRef")) {
+        if let Some(instance) = endpoint
+            .spec
+            .pointer("/publish/ckan/instanceRef")
+            .and_then(reference_name)
+        {
             graph.edge(
                 id("Endpoint", &endpoint.metadata.name),
                 id("CkanInstance", instance),
@@ -213,7 +222,7 @@ pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
             .map(Vec::as_slice)
             .unwrap_or_default()
         {
-            if let Some(space) = reference_name(need.get("contextSpaceRef")) {
+            if let Some(space) = need.get("contextSpaceRef").and_then(reference_name) {
                 graph.edge(
                     id("App", &app.metadata.name),
                     id("ContextSpace", space),
@@ -238,7 +247,7 @@ fn registration(graph: &mut Builder, csr: ResourceEnvelope) {
     let name = csr.metadata.name.clone();
     let node = id("ContextSourceRegistration", &name);
 
-    if let Some(space) = reference_name(csr.spec.get("contextSpaceRef")) {
+    if let Some(space) = csr.spec.get("contextSpaceRef").and_then(reference_name) {
         graph.edge(
             node.clone(),
             id("ContextSpace", space),
@@ -251,7 +260,7 @@ fn registration(graph: &mut Builder, csr: ResourceEnvelope) {
     // named after the registration, never after the URL — the same rule provenance follows, so
     // what a card shows and what an answer says a datum came from are one string (EP-71).
     let external = csr.spec.get("endpointRef").is_none();
-    let target = match reference_name(csr.spec.get("endpointRef")) {
+    let target = match csr.spec.get("endpointRef").and_then(reference_name) {
         Some(endpoint) => id("Endpoint", endpoint),
         None => {
             let target = id("ExternalSource", &name);
@@ -298,13 +307,6 @@ fn endpoint_of(spec: &Value) -> Option<String> {
 }
 
 /// A `Ref` is either a bare name or `{ kind, name }` (MF-09).
-fn reference_name(reference: Option<&Value>) -> Option<&str> {
-    let reference = reference?;
-    reference
-        .as_str()
-        .or_else(|| reference.get("name").and_then(Value::as_str))
-}
-
 fn text(value: &Value, key: &str, fallback: &str) -> String {
     value
         .get(key)

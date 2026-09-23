@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, readCsrfToken, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, overlay, plainTitle } from "../api/manifest";
-import type { Change, Manifest } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
 import { useProjects } from "../api/projects";
 import { takePrefill } from "../assistant/state";
@@ -759,7 +759,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       }
       const envelope = endpointOf(form);
       const draftRef = form.name ? { kind: "Endpoint", name: form.name } : undefined;
-      const body = (draftRef ? { ...envelope, draft: draftRef } : envelope) as never;
+      const body = (draftRef ? { ...envelope, draft: draftRef } : envelope);
       return unwrap(
         await api.POST("/api/v1/projects/{project}/{plural}", {
           params: { path: { project, plural: "endpoints" }, query: { dryRun: "All" } },
@@ -811,7 +811,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         return importBundle(form, false);
       }
       const envelope = endpointOf(form);
-      const body = (draftRef ? { ...envelope, draft: draftRef } : envelope) as never;
+      const body = (draftRef ? { ...envelope, draft: draftRef } : envelope);
       const result = create
         ? await api.POST("/api/v1/projects/{project}/{plural}", {
             params: { path: { project, plural: "endpoints" } },
@@ -849,7 +849,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       proposeChecked(
         project,
         "shared",
-        referenceManifest(project, source, endpoint) as { metadata: { name: string } },
+        referenceManifest(project, source, endpoint) as ResourceProposal,
         true,
       ),
     onSuccess: (result) => {

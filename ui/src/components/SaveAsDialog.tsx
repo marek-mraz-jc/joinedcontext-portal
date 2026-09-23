@@ -123,7 +123,7 @@ export function saveAsBundle(input: {
 
 async function importInto(
   project: string,
-  body: unknown,
+  body: components["schemas"]["ImportOptions"],
   dryRun: boolean,
 ): Promise<unknown> {
   // Through the typed client (UI-07): the route, the dry run and the csrf token are the client's.

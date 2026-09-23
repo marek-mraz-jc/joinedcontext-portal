@@ -8,7 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, refName, storedMetadata } from "../api/manifest";
-import type { Change, Manifest } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ResourceList } from "../components/ResourceList";
@@ -188,7 +188,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       return proposeChecked(
         project,
         "spaces",
-        toEnvelope(project, form) as { metadata: { name: string } },
+        toEnvelope(project, form) as ResourceProposal,
         true,
       );
     },

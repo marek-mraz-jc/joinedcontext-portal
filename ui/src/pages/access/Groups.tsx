@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
-import type { Change, Manifest } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
@@ -115,7 +115,7 @@ export function NewGroupDialog({
       proposeChecked(
         ORG_NAMESPACE,
         "groups",
-        toGroupEnvelope(group) as { metadata: { name: string } },
+        toGroupEnvelope(group) as ResourceProposal,
         true,
       ),
     onSuccess: (result) => {

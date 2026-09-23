@@ -6,7 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { api, ApiError, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { isChange, ORG_NAMESPACE } from "../../api/manifest";
-import type { Change, Manifest } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Alert } from "../../components/ui/Alert";
@@ -116,7 +116,7 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
       return proposeChecked(
         path.project,
         path.plural,
-        manifest as { metadata: { name: string } },
+        manifest as ResourceProposal,
         false,
       );
     },

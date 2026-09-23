@@ -6,8 +6,6 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine as _;
 use jc_core::kinds::{DataModelSpec, GeneratedArtifacts, SemVer};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -122,22 +120,6 @@ pub fn confine_linkml_path(linkml: &str) -> Result<String, ApiError> {
     Ok(trimmed.to_string())
 }
 
-/// Decodes base64 Gitea content if base64 encoded, or returns string verbatim.
-fn decode_content(raw: &str) -> String {
-    let trimmed = raw.trim();
-    if let Ok(bytes) = STANDARD.decode(trimmed.replace(['\n', '\r', ' '], "")) {
-        if let Ok(s) = String::from_utf8(bytes) {
-            if !s.is_empty()
-                && s.chars()
-                    .all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t')
-            {
-                return s;
-            }
-        }
-    }
-    raw.to_string()
-}
-
 /// Reads the LinkML source from the forge for a DataModel in a project.
 pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<String, ApiError> {
     let envelope = state
@@ -178,7 +160,9 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
             ApiError::NotFound(format!("source file '{repo_path}' not found in repository"))
         })?;
 
-    Ok(decode_content(&file.content))
+    // The forge client decodes the file once; a second decode would mangle a source that
+    // happens to be valid base64 (T-1483).
+    Ok(file.content)
 }
 
 /// Classifies changes between previous and next LinkML YAML documents.
