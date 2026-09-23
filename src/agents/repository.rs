@@ -227,6 +227,13 @@ mod tests {
             "Rebuild dispatches it (AP-103)"
         );
         assert!(WORKFLOW_TEXT.contains("branches: [main]"));
+        // AP-80, T-1707: the build, and the HOME build-app gives the application, live under the
+        // job's temp dir, which runner.sh wipes before the next job registers, so nothing the
+        // application's code writes there reaches a later job or the propose job's token.
+        assert!(
+            WORKFLOW_TEXT.contains("JC_BUILD_DIR: ${{ runner.temp }}/jc-build"),
+            "the build dir is per job"
+        );
         assert!(
             WORKFLOW_TEXT.matches("secrets.").count() == 1
                 && WORKFLOW_TEXT.contains("${{ secrets.JC_LANE_TOKEN }}"),
