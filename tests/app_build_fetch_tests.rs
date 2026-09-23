@@ -102,6 +102,52 @@ async fn a_replica_fetches_the_build_the_manifest_names_under_its_digest() {
     fetch_missing(&client, cache.path(), &mirror_naming(&named)).await;
 }
 
+/// AP-101, T-2671: a build is read from `{commit}-{digest12}`, beside an older build of the same
+/// commit under the bare commit, which is only read for a build published before that version.
+#[tokio::test]
+async fn a_replica_reads_the_version_of_the_digest_and_not_the_older_build_of_the_commit() {
+    let bytes = bundle(b"<!doctype html><title>rebuilt</title>");
+    let named = digest(&bytes);
+    let server = MockServer::start().await;
+    let package = "/api/packages/test-owner/generic/app-air-quality";
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "{package}/{COMMIT}-{}/bundle.tar.gz",
+            &named["sha256:".len().."sha256:".len() + 12]
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(bytes))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(BUNDLE))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_bytes(bundle(b"<html>the old build</html>")),
+        )
+        .expect(0)
+        .mount(&server)
+        .await;
+    let client = GiteaClient::new(
+        url::Url::parse(&server.uri()).expect("forge url"),
+        "test-owner",
+        "configuration",
+        "portal-read-token",
+    )
+    .expect("client");
+    let cache = tempdir::Dir::new("fetch-version");
+
+    fetch_missing(&client, cache.path(), &mirror_naming(&named)).await;
+
+    let dir = cache
+        .path()
+        .join("air-quality")
+        .join(named.trim_start_matches("sha256:"));
+    assert_eq!(
+        std::fs::read(dir.join("index.html")).expect("the fetched index"),
+        b"<!doctype html><title>rebuilt</title>"
+    );
+}
+
 /// AP-72, AP-102: a package whose bytes do not hash to the digest installs nothing.
 #[tokio::test]
 async fn a_package_that_does_not_match_the_digest_installs_nothing() {

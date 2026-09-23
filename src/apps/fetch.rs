@@ -13,7 +13,7 @@ use std::path::{Component, Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-use crate::apps::built::{package, MAX_BUNDLE_BYTES};
+use crate::apps::built::{package, version, MAX_BUNDLE_BYTES};
 use crate::git::{GitError, GiteaClient};
 use crate::store::Mirror;
 
@@ -72,9 +72,21 @@ async fn fetch(
     commit: &str,
     digest: &str,
 ) -> Result<(), FetchError> {
-    let bytes = gitea
-        .get_generic_file(&package(name), commit, "bundle.tar.gz", MAX_BUNDLE_BYTES)
-        .await?;
+    let package = package(name);
+    let read = |version: String| {
+        let package = package.clone();
+        async move {
+            gitea
+                .get_generic_file(&package, &version, "bundle.tar.gz", MAX_BUNDLE_BYTES)
+                .await
+        }
+    };
+    // A build published before T-2671 sits under the bare commit; the digest check below holds
+    // either way.
+    let bytes = match read(version(commit, digest)).await {
+        Err(GitError::NotFound) => read(commit.to_owned()).await?,
+        other => other?,
+    };
     let found = format!("sha256:{:x}", Sha256::digest(&bytes));
     if found != digest {
         return Err(FetchError::Mismatch {

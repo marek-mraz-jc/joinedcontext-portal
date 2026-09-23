@@ -134,10 +134,18 @@ pub async fn build(
             None
         }
     };
-    let package_url = app
-        .pointer("/status/build/commit")
-        .and_then(serde_json::Value::as_str)
-        .map(|commit| repo.package_page_url(&format!("app-{name}"), commit));
+    let build = |field: &str| {
+        app.pointer(&format!("/status/build/{field}"))
+            .and_then(serde_json::Value::as_str)
+    };
+    let package_url = build("commit")
+        .zip(build("digest"))
+        .map(|(commit, digest)| {
+            repo.package_page_url(
+                &crate::apps::built::package(&name),
+                &crate::apps::built::version(commit, digest),
+            )
+        });
     let refusal = rebuild_refusal(&state, &user, &project);
     Ok(Json(AppBuild {
         repository_url: Some(repo.repository_page_url()),

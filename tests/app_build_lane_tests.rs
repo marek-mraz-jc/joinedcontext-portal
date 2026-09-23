@@ -125,6 +125,14 @@ fn digest(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
+/// The package version of a build of `COMMIT` whose digest is `digest` (AP-101, T-2671).
+fn version(digest: &str) -> String {
+    format!(
+        "{COMMIT}-{}",
+        &digest["sha256:".len().."sha256:".len() + 12]
+    )
+}
+
 /// The forge after a run of `COMMIT` uploaded `bundle` and the SBOM as run 5's artifacts, and
 /// with the default branch at `head`. The artifact download redirects to the forge's public
 /// ROOT_URL, which the Portal cannot reach, as Gitea does.
@@ -282,8 +290,8 @@ async fn only_the_build_lane_writes_the_build_and_the_refusal_says_whose_field_i
     assert_eq!(
         published(&gitea).await,
         vec![
-            format!("/{COMMIT}/bundle.tar.gz"),
-            format!("/{COMMIT}/sbom.cdx.json")
+            format!("/{}/bundle.tar.gz", version(&digest(BUNDLE))),
+            format!("/{}/sbom.cdx.json", version(&digest(BUNDLE)))
         ],
         "the Portal publishes the package itself (AP-101)"
     );
@@ -376,13 +384,14 @@ async fn a_version_already_published_is_the_same_build_or_a_refusal() {
         let gitea = forge().await;
         built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
         package_takes(&gitea, 409).await;
+        let at = version(&digest(BUNDLE));
         Mock::given(method("GET"))
-            .and(path(format!("{PACKAGE}/{COMMIT}/bundle.tar.gz")))
+            .and(path(format!("{PACKAGE}/{at}/bundle.tar.gz")))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(held.to_vec()))
             .mount(&gitea)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("{PACKAGE}/{COMMIT}/sbom.cdx.json")))
+            .and(path(format!("{PACKAGE}/{at}/sbom.cdx.json")))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(SBOM.to_vec()))
             .mount(&gitea)
             .await;
@@ -403,6 +412,43 @@ async fn a_version_already_published_is_the_same_build_or_a_refusal() {
             assert!(committed(&gitea).await.is_empty());
         }
     }
+}
+
+/// AP-101, T-2671: a rebuild of the same commit on a newer platform release makes other bytes.
+/// The build published before under the bare commit stays as it is, and the new one is a version
+/// of its own instead of a refusal that would keep every platform fix from the App.
+#[tokio::test]
+async fn a_rebuild_of_the_same_commit_with_other_bytes_is_a_version_of_its_own() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    // The registry refuses a second file under the bare commit, where the old build sits.
+    Mock::given(method("PUT"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{PACKAGE}/{COMMIT}/.*"
+        )))
+        .respond_with(ResponseTemplate::new(409))
+        .mount(&gitea)
+        .await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{PACKAGE}/{COMMIT}/.*"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"the old build".to_vec()))
+        .mount(&gitea)
+        .await;
+    package_takes(&gitea, 201).await;
+    let state = state_with(&gitea);
+
+    let answer = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+    let at = version(&digest(BUNDLE));
+    assert_eq!(
+        published(&gitea).await,
+        vec![
+            format!("/{at}/bundle.tar.gz"),
+            format!("/{at}/sbom.cdx.json")
+        ]
+    );
 }
 
 #[tokio::test]
@@ -580,7 +626,7 @@ async fn a_fullstack_build_is_pushed_to_the_registry_as_checked_then_written() {
     assert_eq!(pushed.headers["authorization"], "Bearer registry-bearer");
     assert_eq!(
         published(&gitea).await,
-        vec![format!("/{COMMIT}/sbom.cdx.json")],
+        vec![format!("/{}/sbom.cdx.json", version(&image))],
         "the SBOM beside it; an image is no bundle"
     );
     assert!(committed(&gitea)

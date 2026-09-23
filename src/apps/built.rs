@@ -5,7 +5,7 @@
 //! that proposal can say: the commit is the head of the default branch of the App's own
 //! repository, that repository holds an artifact `bundle-{commit}` of a run of that commit, and
 //! its bytes hash to the digest. Only then does the Portal write the generic package
-//! `app-{name}`, version `{commit}`, with its own token: no credential that writes a package is
+//! `app-{name}`, version `{commit}-{digest12}` ([`version`]), with its own token: no credential that writes a package is
 //! ever on the runner (AP-101).
 //!
 //! A `fullstack` App's build is an image (AP-105, AP-107): the artifact `image-{commit}` is an OCI
@@ -134,6 +134,14 @@ pub fn package(name: &str) -> String {
     format!("app-{name}")
 }
 
+/// The version one build is published under (AP-101, T-2671): the commit and the first 12 hex
+/// digits of the digest. A rebuild of the same commit on a newer platform release makes other
+/// bytes, and the registry never replaces a file, so it gets a version of its own.
+pub fn version(commit: &str, digest: &str) -> String {
+    let hex = digest.strip_prefix("sha256:").unwrap_or(digest);
+    format!("{commit}-{}", hex.get(..12).unwrap_or(hex))
+}
+
 fn sha256(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
 }
@@ -256,8 +264,9 @@ pub async fn check_and_publish(
         }
         None => vec![("bundle.tar.gz", bytes), ("sbom.cdx.json", sbom)],
     };
+    let version = version(commit, digest);
     for (file, bytes) in files {
-        publish_once(gitea, &package, commit, file, bytes)
+        publish_once(gitea, &package, &version, file, bytes)
             .await
             .map_err(conflict)?;
     }
@@ -280,8 +289,8 @@ async fn newest_of(
 }
 
 /// Writes one file of the package version. The registry never replaces a file: one already
-/// there with the same bytes is the same build published again (a rebuild of the same commit is
-/// reproducible, AP-101), and one with other bytes is refused.
+/// there with the same bytes is the same build published again, and one with other bytes is
+/// refused (AP-101); the digest in the version keeps a rebuild on a newer release apart.
 async fn publish_once(
     gitea: &GiteaClient,
     package: &str,

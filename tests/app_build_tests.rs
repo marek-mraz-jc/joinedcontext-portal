@@ -140,7 +140,7 @@ async fn the_build_links_the_repository_the_run_and_the_package_behind_the_forge
     assert_eq!(
         build["packageUrl"],
         login(&format!(
-            "%2Ftest-owner%2F-%2Fpackages%2Fgeneric%2Fapp-bikes%2F{COMMIT}"
+            "%2Ftest-owner%2F-%2Fpackages%2Fgeneric%2Fapp-bikes%2F{COMMIT}-abababababab"
         ))
     );
     assert_eq!(build["rebuild"], json!({ "allowed": true }));
