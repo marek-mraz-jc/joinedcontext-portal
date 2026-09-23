@@ -18,10 +18,18 @@ interface Finding {
   detail: string;
 }
 
-/** A 4xx a person may meet without anything being wrong: a viewer refused a write or a grant. */
+/**
+ * A 4xx a person may meet without anything being wrong: a viewer or an approver refused a write or
+ * a grant (the seed gives neither a data Policy, only the steward), and the space page asking the
+ * space surface whether this person holds a grant at all, which a person with none is answered 404
+ * so the surface says nothing about the space (SP-06, SpaceInside's SpaceData).
+ */
 function expected(who: string, response: Response): boolean {
   const status = response.status();
-  if (status === 403 && who === "viewer") {
+  if (status === 403 && (who === "viewer" || who === "approver")) {
+    return true;
+  }
+  if (status === 404 && /\/cs\/[^/]+\/ngsi-ld\/v1\/entities\?/.test(response.url())) {
     return true;
   }
   // A feed or a run that has expired answers 404 or 410 on purpose; the pages say so in words.
@@ -58,15 +66,28 @@ for (const [who, person] of [
     test.setTimeout(900_000);
     const { context, page } = await signIn(browser, person, "/projects/helsinki/spaces?lang=en");
     const findings: Finding[] = [];
+    // The browser logs every refused fetch as a console error of its own; one the walk excuses
+    // below is the same answer said twice, so its echo is dropped once the walk is over.
+    const excused = new Set<string>();
+    const echoes: { finding: Finding; url: string }[] = [];
     let route = "";
     page.on("console", (message) => {
-      if (message.type() === "error") {
-        findings.push({ who, route, kind: "console", detail: message.text().slice(0, 300) });
+      if (message.type() !== "error") {
+        return;
+      }
+      const finding: Finding = { who, route, kind: "console", detail: message.text().slice(0, 300) };
+      if (message.text().startsWith("Failed to load resource")) {
+        echoes.push({ finding, url: message.location().url });
+      } else {
+        findings.push(finding);
       }
     });
     page.on("pageerror", (error) => findings.push({ who, route, kind: "pageerror", detail: error.message.slice(0, 300) }));
     page.on("response", (response) => {
       const status = response.status();
+      if (status >= 400 && expected(who, response)) {
+        excused.add(response.url());
+      }
       if (!response.url().includes("/api/") || status < 400 || expected(who, response)) {
         return;
       }
@@ -91,6 +112,7 @@ for (const [who, person] of [
       }
     }
 
+    findings.push(...echoes.filter(({ url }) => !excused.has(url)).map(({ finding }) => finding));
     await test.info().attach(`walk-${who}.json`, { body: JSON.stringify(findings, null, 2), contentType: "application/json" });
     await context.close();
     expect(findings).toEqual([]);
