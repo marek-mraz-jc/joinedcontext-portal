@@ -578,8 +578,8 @@ fn compiled_grants(yaml: &str, slug: &EndpointSlug) -> Option<Vec<(String, Strin
     )
 }
 
-/// `apps/{name}/grants/`, one file per manifest, named by its repository path with `/` as `__`:
-/// the forge bootstrap commits each beside the app's manifest (T-2667).
+/// `apps/{name}/grants/`, one file per manifest at its repository path below it: the forge
+/// bootstrap commits each beside the app's manifest (T-2667).
 fn grants_dir(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("apps")
@@ -587,14 +587,36 @@ fn grants_dir(name: &str) -> std::path::PathBuf {
         .join("grants")
 }
 
-/// The slug the app's committed Endpoint keeps, read back from its grants file.
+/// Every file below `dir`, as `(path relative to it, text)`, in path order.
+fn files_below(dir: &std::path::Path) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(at) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&at) else {
+            continue;
+        };
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let relative = path.strip_prefix(dir).expect("below the dir");
+                found.push((
+                    relative.to_string_lossy().into_owned(),
+                    std::fs::read_to_string(&path).expect("a readable grant"),
+                ));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+/// The slug the app's committed Endpoint keeps, read back from its grants.
 fn pinned_slug(name: &str) -> Option<EndpointSlug> {
-    let dir = grants_dir(name);
-    std::fs::read_dir(&dir)
-        .ok()?
-        .filter_map(Result::ok)
-        .find_map(|entry| {
-            let text = std::fs::read_to_string(entry.path()).ok()?;
+    files_below(&grants_dir(name))
+        .into_iter()
+        .find_map(|(_, text)| {
             let raw: RawManifest = serde_yaml_ng::from_str(&text).ok()?;
             (raw.kind == "Endpoint")
                 .then(|| {
@@ -607,21 +629,7 @@ fn pinned_slug(name: &str) -> Option<EndpointSlug> {
 }
 
 fn held_grants(name: &str) -> Vec<(String, String)> {
-    let mut held: Vec<(String, String)> = std::fs::read_dir(grants_dir(name))
-        .map(|entries| {
-            entries
-                .filter_map(Result::ok)
-                .map(|entry| {
-                    (
-                        entry.file_name().to_string_lossy().replace("__", "/"),
-                        std::fs::read_to_string(entry.path()).expect("a readable grant"),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    held.sort();
-    held
+    files_below(&grants_dir(name))
 }
 
 /// T-2667, CC-61, AP-96: a seeded app is committed by the forge bootstrap, not through the
@@ -659,9 +667,10 @@ fn write_sample_app_grants() {
         let Some(compiled) = compiled_grants(&yaml, &slug) else {
             continue;
         };
-        std::fs::create_dir_all(&dir).expect("grants dir");
         for (path, text) in compiled {
-            std::fs::write(dir.join(path.replace('/', "__")), text).expect("write a grant");
+            let file = dir.join(path);
+            std::fs::create_dir_all(file.parent().expect("a folder")).expect("grants dir");
+            std::fs::write(file, text).expect("write a grant");
         }
     }
 }
