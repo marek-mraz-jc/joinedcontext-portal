@@ -1285,6 +1285,7 @@ pub async fn approve_change_for(
     };
     let lane = crate::api::import::riskiest(lane, bundle_lane);
 
+    // PF-13: the explicit deletion protocol; a deletion is always Red (`change::classify`).
     if lane == Lane::Red && confirm != Some(&data.name) {
         return Err(ApiError::BadRequest(format!(
             "red lane change requires confirm to be '{}' (CC-19, CC-39)",
@@ -1810,6 +1811,8 @@ mod tests {
         assert!(matches!(err_self, ApiError::SelfApproval(_)));
     }
 
+    /// PF-13: a Red-lane change, every deletion among them, is approved only with its name typed
+    /// back; without it nothing is merged.
     #[tokio::test]
     async fn test_approve_red_lane_requires_confirm() {
         let server = MockServer::start().await;
