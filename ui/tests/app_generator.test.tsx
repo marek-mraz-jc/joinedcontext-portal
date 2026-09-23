@@ -357,6 +357,37 @@ describe("the app generator", () => {
     });
   });
 
+  it("keeps the write to one application role when the person names it (AP-96, T-2666)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderGenerator({
+      grant: {
+        ...GRANT,
+        permissions: [{ ...GRANT.permissions[0], actions: ["queryEntity", "retrieveEntity", "updateAttrs"] }],
+      },
+    });
+    await openGenerator(user);
+    await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
+    await fill(user);
+
+    await user.click(await screen.findByRole("checkbox", { name: /updateAttrs/ }));
+    const role = screen.getByLabelText(en.apps.generate.needs.writeRole, { exact: false });
+    await user.type(role, "Steward");
+    expect(await screen.findByText(en.apps.generate.needs.writeRoleInvalid)).toBeInTheDocument();
+    await user.clear(role);
+    await user.type(role, "steward");
+    expect(screen.queryByText(en.apps.generate.needs.writeRoleInvalid)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
+
+    await waitFor(async () => {
+      const body = await runBody(fetchMock);
+      const needs = body.dataNeeds as { operations: string[]; roles?: string[] }[];
+      expect(needs[0].operations).toEqual(["queryEntity", "retrieveEntity"]);
+      expect(needs[0].roles).toBeUndefined();
+      expect(needs[1].operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs"]);
+      expect(needs[1].roles).toEqual(["steward"]);
+    });
+  });
+
   it("has no update option where the grant is read-only", async () => {
     const user = userEvent.setup();
     renderGenerator();
@@ -587,6 +618,15 @@ describe("the derived grant", () => {
     expect(need.contextSpaceRef).toEqual({ kind: "ContextSpace", name: "ovzdusie" });
     expect(need.representations).toEqual(["ngsi-ld", "geojson"]);
     expect(need.operations).toEqual(["queryEntity", "retrieveEntity"]);
+  });
+
+  it("reads for everyone and writes for the named role only, as two needs", () => {
+    const [read, write] = dataNeeds(endpoint, types, [], true, "steward");
+    expect(read.operations).toEqual(["queryEntity", "retrieveEntity"]);
+    expect(read).not.toHaveProperty("roles");
+    expect(write.operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs"]);
+    expect(write.roles).toEqual(["steward"]);
+    expect(dataNeeds(endpoint, types, [], true)).toHaveLength(1);
   });
 
   it("drops a type whose every attribute the user unticked", () => {

@@ -125,6 +125,7 @@ export function dataNeeds(
   types: PublishedType[],
   dropped: string[],
   write = false,
+  writeRole = "",
 ): Record<string, unknown>[] {
   const spec = endpointSpec(endpoint);
   const kept = types
@@ -138,15 +139,23 @@ export function dataNeeds(
   }
   // Exactly the fields of jc-core's `DataNeed`: this value becomes `spec.dataNeeds` of the App
   // manifest the run publishes, and that kind refuses a field it does not know.
-  return [
-    {
-      contextSpaceRef: { kind: "ContextSpace", name: refName(spec.contextSpaceRef) },
-      types: kept.map((type) => type.name),
-      attrs: [...new Set(kept.flatMap((type) => type.attributes))].sort(),
-      operations: write ? [...OPERATIONS, WRITE_OPERATION] : OPERATIONS,
-      representations: spec.enabledRepresentations ?? [],
-    },
-  ];
+  const need = {
+    contextSpaceRef: { kind: "ContextSpace", name: refName(spec.contextSpaceRef) },
+    types: kept.map((type) => type.name),
+    attrs: [...new Set(kept.flatMap((type) => type.attributes))].sort(),
+    operations: write && writeRole === "" ? [...OPERATIONS, WRITE_OPERATION] : OPERATIONS,
+    representations: spec.enabledRepresentations ?? [],
+  };
+  // Everyone the app admits reads; only the named application role writes. Publishing declares
+  // the role in the App, and its members are added on the App page (AP-91, AP-96).
+  return write && writeRole !== ""
+    ? [need, { ...need, operations: [...OPERATIONS, WRITE_OPERATION], roles: [writeRole] }]
+    : [need];
+}
+
+/** `[a-z][a-z0-9-]{0,31}`, an application role name as the App kind takes it (AP-90). */
+export function isRoleName(name: string): boolean {
+  return /^[a-z][a-z0-9-]{0,31}$/.test(name);
 }
 
 /**
@@ -182,6 +191,8 @@ export function AppGenerator({
   const [addingEndpoint, setAddingEndpoint] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
   const [write, setWrite] = useState(false);
+  /** Empty: everyone the app admits may write. A name: only that application role (AP-96). */
+  const [writeRole, setWriteRole] = useState("");
   const [conflictApp, setConflictApp] = useState<string | null>(null);
   // Mounted twice at once — the dock renders one over the apps page's own (AssistantDock:448,
   // AppPage:67) — and the ids were the same string in both, so a label click focused the control
@@ -192,6 +203,7 @@ export function AppGenerator({
     prompt: `${base}-prompt`,
     name: `${base}-name`,
     kind: `${base}-kind`,
+    writeRole: `${base}-write-role`,
   };
   const starting = useRef(false);
   const [change, setChange] = useState<Change | null>(null);
@@ -255,7 +267,7 @@ export function AppGenerator({
   const types = concreteTypes(schema.data);
   const needs = endpoint
     ? [
-        ...dataNeeds(endpoint, types, dropped, write && writes.length > 0),
+        ...dataNeeds(endpoint, types, dropped, write && writes.length > 0, writeRole.trim()),
         ...extraEndpoints.flatMap((candidate, i) =>
           dataNeeds(candidate, concreteTypes(extraSchemas[i]?.data), []),
         ),
@@ -553,6 +565,9 @@ export function AppGenerator({
               writes={writes}
               write={write}
               onWrite={setWrite}
+              writeRole={writeRole}
+              writeRoleId={ids.writeRole}
+              onWriteRole={setWriteRole}
               state={schema.isPending ? "loading" : schema.isError ? "unavailable" : "ready"}
               onToggle={(attribute) => {
                 setDropped((current) =>
@@ -586,6 +601,9 @@ function NeedsChecklist({
   writes,
   write,
   onWrite,
+  writeRole,
+  writeRoleId,
+  onWriteRole,
   state,
   onToggle,
 }: {
@@ -595,6 +613,9 @@ function NeedsChecklist({
   writes: string[];
   write: boolean;
   onWrite: (write: boolean) => void;
+  writeRole: string;
+  writeRoleId: string;
+  onWriteRole: (role: string) => void;
   state: "loading" | "unavailable" | "ready";
   onToggle: (attribute: string) => void;
 }): JSX.Element {
@@ -617,6 +638,29 @@ function NeedsChecklist({
             onWrite(event.target.checked);
           }}
         />
+      )}
+      {writes.length > 0 && write && (
+        <Field
+          id={writeRoleId}
+          label={t("apps.generate.needs.writeRole")}
+          help={t("apps.generate.needs.writeRoleHelp")}
+          errors={
+            writeRole.trim() === "" || isRoleName(writeRole.trim())
+              ? undefined
+              : [t("apps.generate.needs.writeRoleInvalid")]
+          }
+        >
+          <Input
+            id={writeRoleId}
+            value={writeRole}
+            placeholder="steward"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => {
+              onWriteRole(event.target.value);
+            }}
+          />
+        </Field>
       )}
       {state === "loading" && <p role="status">{t("apps.generate.needs.loading")}</p>}
       {state === "unavailable" && (

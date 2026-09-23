@@ -1483,7 +1483,10 @@
         "unavailable": "The endpoint does not publish a model yet, so nothing can be derived from it.",
         "none": "This endpoint publishes no attributes, so there is nothing for an app to read.",
         "loginOnly": "However the endpoint is published, the generated app runs inside the platform and only a signed-in user can open it.",
-        "write": "The app may also update these entities ({actions}). Every save still passes the endpoint's write rules."
+        "write": "The app may also update these entities ({actions}). Every save still passes the endpoint's write rules.",
+        "writeRole": "Only this application role may write (optional)",
+        "writeRoleHelp": "Leave empty and everyone who can open the app may write. A role name, e.g. steward, keeps writing to the people you add to that role on the app's page after publishing.",
+        "writeRoleInvalid": "Use lowercase letters, digits and dashes, starting with a letter, at most 32 characters."
       },
       "preview": {
         "title": "What this endpoint gives you",

@@ -26,7 +26,7 @@ use tokio_stream::StreamExt;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::agents::kube;
-use crate::agents::needs::validate_data_needs;
+use crate::agents::needs::{declared_roles, validate_data_needs};
 use crate::agents::profile::Profile;
 use crate::agents::run::{
     digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunEvent, AgentRunStatus,
@@ -1948,7 +1948,7 @@ pub async fn merge_published_application(
 /// approved. `dataNeeds` is the list that was checked against the endpoint before the run
 /// started, so the manifest cannot widen what the application may reach.
 fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value {
-    serde_json::json!({
+    let mut manifest = serde_json::json!({
         "apiVersion": crate::resource::API_VERSION,
         "kind": "App",
         "metadata": {
@@ -1971,7 +1971,22 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
             "lifecycle": "published",
             "dataNeeds": run.data_needs,
         },
-    })
+    });
+    // A role a need names must be declared (AP-91); its title and members are added on the App
+    // page afterwards, each through a Change.
+    let roles = declared_roles(
+        run.data_needs
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+    );
+    if !roles.is_empty() {
+        manifest["spec"]["roles"] = roles
+            .into_iter()
+            .map(|name| serde_json::json!({ "name": name }))
+            .collect();
+    }
+    manifest
 }
 
 /// The toolchains CI pins for a generated application (AP-11). A `static` application is a Vite
@@ -2394,7 +2409,59 @@ pub fn preview_router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::{caller_token, is_function_name};
+    use super::{app_manifest, caller_token, is_function_name};
+
+    fn published(data_needs: serde_json::Value) -> serde_json::Value {
+        let mut run: super::AgentRun = serde_json::from_value(serde_json::json!({
+            "id": "e3b0c442", "project": "helsinki", "appName": "alerts-desk",
+            "endpointName": "helsinki-alerts", "endpointSlug": "si6epqkx",
+            "profile": "app-builder", "kind": "application", "appClass": "static",
+            "visibility": "project", "prompt": "a desk", "promptDigest": "sha256:abc",
+            "unattended": false, "dataNeeds": [], "allowsWrite": true,
+            "branch": "agent/app-alerts-desk/e3b0c442", "pathPrefix": "projects/helsinki/apps/alerts-desk/",
+            "ticketHash": "", "steps": 0, "tokensUsed": 0,
+            "status": "published", "createdBy": "demo.steward@hel.fi",
+            "createdAt": "2026-09-23T05:00:00Z", "expiresAt": "2026-09-23T05:20:00Z",
+        }))
+        .unwrap_or_else(|e| panic!("run fixture: {e}"));
+        run.data_needs = data_needs;
+        app_manifest(
+            &run,
+            serde_json::json!({ "git": { "url": "https://git.example/hel/alerts-desk.git", "ref": "0123456789abcdef0123456789abcdef01234567" } }),
+        )
+    }
+
+    fn need(roles: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
+            "types": ["Alert"],
+            "operations": ["queryEntity", "updateAttrs"],
+            "roles": roles,
+        })
+    }
+
+    #[test]
+    fn a_role_scoped_need_publishes_an_app_that_declares_the_role() {
+        // T-2666: before, publish wrote dataNeeds[].roles and no spec.roles, and the App kind
+        // refused the manifest (AP-91, AP-96).
+        let manifest = published(serde_json::json!([
+            need(&["steward"]),
+            need(&["steward", "editor"])
+        ]));
+        assert_eq!(
+            manifest["spec"]["roles"],
+            serde_json::json!([{ "name": "steward" }, { "name": "editor" }])
+        );
+        let checked = jc_core::registry::validate_yaml("App", &manifest.to_string())
+            .unwrap_or_else(|| panic!("App has a jc-core type"));
+        assert!(checked.is_ok(), "{checked:?}");
+    }
+
+    #[test]
+    fn needs_without_roles_publish_no_roles_field() {
+        let manifest = published(serde_json::json!([need(&[])]));
+        assert!(manifest["spec"].get("roles").is_none(), "{manifest}");
+    }
     use axum::http::{header, HeaderMap, HeaderValue};
 
     #[test]
