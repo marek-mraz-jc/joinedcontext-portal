@@ -42,6 +42,14 @@
         "form_activity_feed.test.tsx"
       ]
     },
+    "src/components/DeleteProjectDialog.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "organization_page.test.tsx"
+      ]
+    },
     "src/components/DeleteResourceDialog.tsx": {
       "controls": {
         "Button": 4
@@ -49,6 +57,14 @@
       "tests": [
         "form_delete_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
+      ]
+    },
+    "src/components/DuplicateProjectDialog.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "project_duplicate_import.test.tsx"
       ]
     },
     "src/components/EditResourceDialog.tsx": {
@@ -68,6 +84,15 @@
         "browser_security.test.tsx"
       ]
     },
+    "src/components/ImportProjectDialog.tsx": {
+      "controls": {
+        "Button": 4,
+        "FilePicker": 1
+      },
+      "tests": [
+        "project_duplicate_import.test.tsx"
+      ]
+    },
     "src/components/LanguageSwitcher.tsx": {
       "controls": {
         "Button": 1
@@ -83,8 +108,10 @@
       },
       "tests": [
         "draft_form.test.tsx",
+        "draft_form_defaults.test.tsx",
         "form_asks_the_assistant.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
+        "form_required_reference_check.test.tsx",
         "form_resource_form_dialog.test.tsx",
         "resource_form_dialog.test.tsx"
       ]
@@ -211,7 +238,7 @@
     },
     "src/components/layout/NewProject.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "form_new_project.test.tsx"
@@ -219,7 +246,7 @@
     },
     "src/components/layout/Shell.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": []
     },
@@ -467,6 +494,14 @@
         "edit_keeps_stored_metadata.test.ts"
       ]
     },
+    "src/pages/access/OrganizationDomain.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "access_domain.test.tsx"
+      ]
+    },
     "src/pages/access/RoleBindings.tsx": {
       "controls": {
         "Button": 4
@@ -481,7 +516,8 @@
       },
       "tests": [
         "access_forms.test.tsx",
-        "edit_keeps_stored_metadata.test.ts"
+        "edit_keeps_stored_metadata.test.ts",
+        "project_settings.test.tsx"
       ]
     },
     "src/pages/access/ServiceAccounts.tsx": {
@@ -510,6 +546,14 @@
         "page_agent_run_page.test.tsx"
       ]
     },
+    "src/pages/apps/AppBuildPanel.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "app_build_panel.test.tsx"
+      ]
+    },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
         "Button": 3,
@@ -532,7 +576,7 @@
     },
     "src/pages/apps/AppsCatalog.tsx": {
       "controls": {
-        "Button": 7
+        "Button": 6
       },
       "tests": [
         "apps_catalog.test.tsx"
@@ -603,6 +647,14 @@
       "tests": [
         "part_question_options.test.tsx",
         "question_options.test.tsx"
+      ]
+    },
+    "src/pages/apps/RolesAndMembers.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "app_roles_members.test.tsx"
       ]
     },
     "src/pages/apps/RunPublication.tsx": {
@@ -928,6 +980,7 @@
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",
+        "form_required_reference_check.test.tsx",
         "policy_form.test.tsx"
       ]
     },
@@ -954,6 +1007,7 @@
         "Button": 1
       },
       "tests": [
+        "form_required_reference_check.test.tsx",
         "subscription_form.test.tsx"
       ]
     },

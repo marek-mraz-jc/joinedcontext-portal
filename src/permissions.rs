@@ -3,6 +3,8 @@
 //! The token contributes identity only (`sub`, e-mail, username, groups); no permission is
 //! read from it. A caller without a binding reads and proposes nothing.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use jc_core::kinds::{
     Constraint, RoleBindingSpec, RoleScope, RoleSpec, Rule, ServiceAccountSpec, Verb,
@@ -137,6 +139,17 @@ impl Effective {
             })
     }
 
+    /// Whether some grant here lets the caller `verb` on `kind` at all, whatever the content:
+    /// the question asked before a manifest is read, so a caller without the right learns
+    /// nothing of the kind's schema (T-2576, PF-50). The content is judged by [`Self::check`].
+    pub fn may(&self, kind: &str, verb: Verb) -> bool {
+        self.bootstrap
+            || self
+                .grants
+                .iter()
+                .any(|grant| grant.rule.grants(kind, verb))
+    }
+
     /// Whether the caller may read `kind` here (PF-59). `propose` on a kind implies `read` on
     /// it, which is what keeps a role written before the verb working (jc-core `Rule::grants`).
     pub fn may_read(&self, kind: &str) -> bool {
@@ -194,6 +207,11 @@ impl Effective {
         for grant in &self.grants {
             let rule = &grant.rule;
             if !rule.kinds.iter().any(|k| k == kind) || !rule.verbs.contains(&verb) {
+                continue;
+            }
+            // The build lane's rule writes `status.build` and authorizes no other proposal: its
+            // one write is judged by `may_write_status_field` and the unchanged spec (AP-73).
+            if verb == Verb::Propose && writes_status_only(rule) {
                 continue;
             }
             if let Some(space) = &grant.space {
@@ -407,6 +425,123 @@ fn subjects_name_a_group(mirror: &Mirror, manifest: &Value) -> Result<(), ApiErr
     Ok(())
 }
 
+/// A change to the organization's access, as the PF-03 guard reads it: a manifest written, or
+/// one removed.
+pub enum AccessChange<'a> {
+    Write(&'a Value),
+    Remove {
+        kind: &'a str,
+        namespace: &'a str,
+        name: &'a str,
+    },
+}
+
+/// PF-03: the organization keeps at least one administrator. A change that would take the last
+/// one away is refused before anything is written or merged, on every door that writes or removes
+/// a `Role` or `RoleBinding`.
+///
+/// An administrator is who can hand access out and take it back: a binding at organization scope,
+/// in force and naming somebody, whose organization role grants `approve` and `delete` on
+/// `RoleBinding` with no constraint. The role is read by what it grants rather than by the name
+/// `org-admin`, because the taxonomy is a seed an organization extends (PF-56). An organization
+/// that has none yet (it runs on the bootstrap group) is not held to it: the guard stops the last
+/// one from going, it does not demand a first.
+pub fn keeps_an_administrator(mirror: &Mirror, change: AccessChange<'_>) -> Result<(), ApiError> {
+    let (kind, namespace, name, written) = match change {
+        AccessChange::Write(manifest) => (
+            manifest
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            manifest
+                .pointer("/metadata/namespace")
+                .and_then(Value::as_str)
+                .unwrap_or(ORG_NAMESPACE),
+            manifest
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            manifest.get("spec").cloned(),
+        ),
+        AccessChange::Remove {
+            kind,
+            namespace,
+            name,
+        } => (kind, namespace, name, None),
+    };
+    if !matches!(kind, "Role" | "RoleBinding") || !matches!(namespace, ORG_NAMESPACE | "") {
+        return Ok(());
+    }
+    let mut roles: BTreeMap<String, Value> = mirror
+        .list(ORG_NAMESPACE, "Role", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| (env.metadata.name, env.spec))
+        .collect();
+    let mut bindings: BTreeMap<String, Value> = mirror
+        .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| (env.metadata.name, env.spec))
+        .collect();
+    let now = Utc::now();
+    let before = administrators(&roles, &bindings, now);
+    if before.is_empty() {
+        return Ok(());
+    }
+    let table = if kind == "Role" {
+        &mut roles
+    } else {
+        &mut bindings
+    };
+    match written {
+        Some(spec) => table.insert(name.to_owned(), spec),
+        None => table.remove(name),
+    };
+    if administrators(&roles, &bindings, now).is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "this change would leave the organization without an administrator: after it, no \
+             binding at organization scope grants approve and delete on RoleBinding (today: {}). \
+             Bind another person to such a role first, then make this change (PF-03)",
+            before.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// The organization bindings that make somebody an administrator, by name (PF-03).
+fn administrators(
+    roles: &BTreeMap<String, Value>,
+    bindings: &BTreeMap<String, Value>,
+    now: DateTime<Utc>,
+) -> Vec<String> {
+    let administers = |role: &str| {
+        roles
+            .get(role)
+            .and_then(|spec| serde_json::from_value::<RoleSpec>(spec.clone()).ok())
+            .is_some_and(|spec| {
+                spec.rules.iter().any(|rule| {
+                    rule.constraints.is_empty()
+                        && rule.kinds.iter().any(|kind| kind == "RoleBinding")
+                        && rule.verbs.contains(&Verb::Approve)
+                        && rule.verbs.contains(&Verb::Delete)
+                })
+            })
+    };
+    bindings
+        .iter()
+        .filter_map(|(name, spec)| {
+            let binding: RoleBindingSpec = serde_json::from_value(spec.clone()).ok()?;
+            let in_force = binding.validity.as_ref().is_none_or(|v| v.contains(now));
+            (binding.scope.organization.is_some()
+                && !binding.subjects.is_empty()
+                && in_force
+                && administers(&binding.role))
+            .then(|| name.clone())
+        })
+        .collect()
+}
+
 /// Nobody grants above their own rights (PF-52, AG-77): every verb on every kind a proposed
 /// `Role` (on the organization), `RoleBinding` (on its scope) or `ServiceAccount` (through each of
 /// its roles the organization defines, on that role's scope) would grant must be one `identity`
@@ -423,6 +558,7 @@ pub fn within_own_rights(
     // is the gate every door to a `users/` manifest passes through — the resource route, an
     // import, a blueprint and an approval.
     subjects_name_a_group(mirror, manifest)?;
+    keeps_an_administrator(mirror, AccessChange::Write(manifest))?;
     let spec = manifest.get("spec").cloned().unwrap_or(Value::Null);
     let unreadable = |e: serde_json::Error| ApiError::BadRequest(format!("spec: {e}"));
     let no_scope = || {
@@ -520,6 +656,21 @@ fn in_group(identity: &Identity, group: &str) -> bool {
     identity.groups.iter().any(|g| g == group) || identity.roles.iter().any(|r| r == group)
 }
 
+/// The roles of an App this person holds, computed from the verified identity against
+/// `spec.access` and in the order `spec.roles` declares them (AP-92). Nothing the caller sends
+/// counts: no token claim of its own, no cookie, no query.
+pub fn app_roles(identity: &Identity, spec: &jc_core::kinds::AppSpec) -> Vec<String> {
+    spec.roles
+        .iter()
+        .filter(|role| {
+            spec.access.iter().any(|access| {
+                access.role == role.name && access.subjects.iter().any(|s| is_subject(identity, s))
+            })
+        })
+        .map(|role| role.name.clone())
+        .collect()
+}
+
 fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
     if let Some(user) = &subject.user {
         return identity
@@ -561,6 +712,12 @@ fn field_text(target: Option<&Value>, path: &str) -> Option<String> {
         Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
+}
+
+/// Whether `rule` is the build lane's: `propose` on `App` constrained to `status.build`, which
+/// names the field's writer and carries no operator (AP-73, jc-core `Rule::writes_status_only`).
+fn writes_status_only(rule: &Rule) -> bool {
+    rule.constraints.iter().any(|c| c.field == "status.build")
 }
 
 fn satisfied(constraint: &Constraint, target: Option<&Value>) -> bool {

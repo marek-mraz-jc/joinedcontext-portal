@@ -550,9 +550,62 @@ async fn the_namespace_the_typed_references_and_the_urns_all_move() {
         policy.contains(&format!("namespace: {PROJECT}")),
         "{policy}"
     );
-    // The policy's `assigner` still names the source organisation's DID after the move; that is
-    // today's behaviour, and T-2256 asks whether an imported grant may keep it.
-    assert!(policy.contains("did:web:hel.fi"), "{policy}");
+    // CC-82, R6, T-2256: the grant is this organisation's now, so its assigner is the placeholder
+    // the loader renders for whoever owns the file, and the source's DID is gone.
+    assert!(policy.contains("assigner: did:web:{orgDomain}"), "{policy}");
+    assert!(!policy.contains("did:web:hel.fi"), "{policy}");
+}
+
+/// R6, CC-82, T-2256: an assigner the bundle carried from another organisation is rewritten to
+/// `did:web:{orgDomain}`, and the plan a person approves lists each one it rewrote with the DID it
+/// carried; a Policy already naming the placeholder is not listed, and the Change body says it too.
+#[tokio::test]
+async fn an_imported_policy_is_signed_by_this_organisation_and_the_plan_says_so() {
+    let own = POLICY
+        .replace("name: public-air", "name: own-air")
+        .replace("assigner: did:web:hel.fi", "assigner: did:web:{orgDomain}");
+    let files = [
+        ("projects/helsinki/spaces/ovzdusie/space.yaml", SPACE),
+        ("projects/helsinki/endpoints/public-air.yaml", ENDPOINT),
+        (
+            "projects/helsinki/spaces/ovzdusie/policies/public-air.yaml",
+            POLICY,
+        ),
+        (
+            "projects/helsinki/spaces/ovzdusie/policies/own-air.yaml",
+            own.as_str(),
+        ),
+    ];
+
+    let server = forge().await;
+    let (checked, cookie) = state(&server, vec![]);
+    let (content_type, body) = multipart(&archive(&files), &[("dryRun", "true")]);
+    let (status, report) = post(checked, &cookie, &content_type, body).await;
+    assert_eq!(status, StatusCode::OK, "{report}");
+    assert_eq!(
+        report["reassigned"],
+        json!({ "Policy/public-air": "did:web:hel.fi" }),
+        "{report}"
+    );
+
+    let server = forge().await;
+    let (imported, cookie) = state(&server, vec![]);
+    let (content_type, body) = multipart(&archive(&files), &[]);
+    let (status, answer) = post(imported, &cookie, &content_type, body).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    let pull = server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .find(|request| request.method.as_str() == "POST" && request.url.path().ends_with("/pulls"))
+        .expect("a merge request");
+    let pull: Value = serde_json::from_slice(&pull.body).expect("json");
+    let body = pull["body"].as_str().unwrap_or_default();
+    assert!(
+        body.contains("Policy/public-air: assigner did:web:hel.fi is now did:web:{orgDomain}"),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -1139,6 +1192,60 @@ spec:
     );
     // Nothing of the bundle was written: a refusal is whole (MF-24).
     assert!(written(&server).await.is_empty());
+}
+
+/// AP-87 (T-2600): a bundle that publishes a static App on a folder of the configuration
+/// repository is refused whole, and so is one claiming a shipped bundle this Portal does not hold:
+/// the shipped mark of the instance it came from says nothing about this one.
+#[tokio::test]
+async fn a_bundle_publishing_a_static_app_nothing_can_build_is_refused_whole() {
+    let published = |annotation: &str| {
+        format!(
+            r#"apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: air-map
+  namespace: helsinki{annotation}
+spec:
+  kind: static
+  source:
+    path: apps/air-map
+  build:
+    node: "22"
+  visibility: project
+  lifecycle: published
+  dataNeeds:
+    - contextSpaceRef: ovzdusie
+      types: [AirQualityObserved]
+      operations: [queryEntity]
+"#
+        )
+    };
+    for (annotation, named) in [
+        ("", "spec.source.git"),
+        (
+            "\n  annotations:\n    joinedcontext.com/shipped-with: portal",
+            "joinedcontext.com/shipped-with",
+        ),
+    ] {
+        let server = forge().await;
+        let (state, cookie) = state(&server, vec![]);
+        let app = published(annotation);
+        let bundle = archive(&[
+            ("projects/helsinki/spaces/ovzdusie/space.yaml", SPACE),
+            ("projects/helsinki/apps/air-map.yaml", &app),
+        ]);
+        let (content_type, body) = multipart(&bundle, &[("conflictPolicy", "fail")]);
+        let (status, answer) = post(state, &cookie, &content_type, body).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{answer}");
+        let detail = answer["detail"].as_str().unwrap_or_default();
+        assert!(
+            detail.contains(named) && detail.contains("AP-87"),
+            "{detail}"
+        );
+        assert!(written(&server).await.is_empty());
+    }
 }
 
 /// PF-68, T-0872: a role the bundle wrote inside a project lands inside the destination project,

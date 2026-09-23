@@ -64,6 +64,8 @@ function renderCatalog(
   writeResponse: { body: unknown; status: number } = { body: CHANGE, status: 202 },
   runs: unknown[] = [],
   check: unknown = GREEN,
+  builds: Record<string, unknown> = {},
+  permissions?: unknown,
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -81,8 +83,17 @@ function renderCatalog(
     if (path.endsWith("/auth/me")) {
       return json(IDENTITY);
     }
+    if (path.endsWith("/permissions/me") && permissions) {
+      return json(permissions);
+    }
     if (path.endsWith("/apps") && request.method === "GET") {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: apps });
+    }
+    const build = /\/apps\/([^/]+)\/build$/.exec(path);
+    if (build && request.method === "GET") {
+      return build[1] in builds
+        ? json(builds[build[1]])
+        : json({ title: "Not Found", status: 404 }, 404);
     }
     if (path.endsWith("/agent-runs") && request.method === "GET") {
       return json({ items: runs });
@@ -107,6 +118,35 @@ function renderCatalog(
     </QueryClientProvider>,
   );
   return fetchMock;
+}
+
+/** The same app with a build the lane published (AP-13a). */
+function built(manifest: ReturnType<typeof app>) {
+  return {
+    ...manifest,
+    status: {
+      ...manifest.status,
+      build: {
+        digest: "sha256:4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c4f1b9c0e2d7a6b5c",
+        commit: "9f1c2ab",
+        sdkVersion: "0.4.0",
+        builtAt: "2026-09-21T10:00:00Z",
+      },
+    },
+  };
+}
+
+/** The card's one menu button, named after the app (UI-26). */
+const more = (title: string) => en.rowActions.more.replace("{name}", title);
+
+async function cardOf(title: string): Promise<HTMLElement> {
+  return (await screen.findByText(title)).closest("li") as HTMLElement;
+}
+
+/** Opens a card's ⋯ menu and chooses one of its items. */
+async function choose(user: ReturnType<typeof userEvent.setup>, title: string, item: string) {
+  await user.click(within(await cardOf(title)).getByRole("button", { name: more(title) }));
+  await user.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`) }));
 }
 
 function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
@@ -141,32 +181,245 @@ describe("apps catalog", () => {
     expect(card.closest("ul")?.className).toContain("grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]");
     expect(card.closest("ul")?.className).not.toMatch(/\b(sm|lg|xl):grid-cols-/);
 
-    // AP-24: the prompt history and the branch live with the source, so the card links there.
-    expect(within(card).getByRole("link", { name: en.apps.history })).toHaveAttribute(
-      "href",
-      "https://git.example.sk/city/config/src/branch/app/mapa-ovzdusia",
+  });
+
+  // T-2618: the owner reads a card by its footer, so it is always the same two controls.
+  it("a served app's card has exactly one Open and one menu, nothing else (T-2618, AP-14)", async () => {
+    renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
+
+    const card = await cardOf("Noise");
+    const open = within(card).getByRole("link", { name: en.apps.openAction });
+    expect(open).toHaveAttribute("href", "/apps/hluk/");
+    expect(open).toHaveAttribute("target", "_blank");
+    expect(within(card).getByRole("button", { name: more("Noise") })).toBeInTheDocument();
+    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(2);
+  });
+
+  it("a preview keeps Open disabled with its reason, and its menu offers preview and publish (T-2618, UI-44)", async () => {
+    const user = userEvent.setup();
+    renderCatalog([app()]);
+
+    const card = await cardOf("Air quality map");
+    const open = within(card).getByRole("button", { name: new RegExp(`^${en.apps.openAction}`) });
+    expect(open).toHaveAttribute("aria-disabled", "true");
+    expect(card).toHaveTextContent(en.apps.openDisabled.preview);
+    expect(within(card).queryByRole("link", { name: en.apps.openAction })).toBeNull();
+
+    // Opened with the keyboard: Tab order is the title, Open, then the menu.
+    within(card).getByRole("button", { name: more("Air quality map") }).focus();
+    await user.keyboard("{Enter}");
+    const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent ?? "");
+    expect(items.slice(0, 4).map((text) => text.split(" — ")[0])).toEqual([
+      en.apps.previewAction,
+      en.apps.publishAction,
+      en.apps.rebuildAction,
+      en.apps.retireAction,
+    ]);
+    const item = (label: string) => screen.getByRole("menuitem", { name: new RegExp(`^${label}`) });
+    expect(item(en.apps.previewAction)).not.toHaveAttribute("aria-disabled", "true");
+    expect(item(en.apps.publishAction)).not.toHaveAttribute("aria-disabled", "true");
+    expect(item(en.apps.rebuildAction)).toHaveAttribute("aria-disabled", "true");
+    expect(item(en.apps.rebuildAction)).toHaveTextContent(en.apps.rebuildOnlyPublished);
+    expect(item(en.apps.retireAction)).toHaveTextContent(en.apps.retireOnlyPublished);
+    // The manifest's own four follow in the same menu: one menu per card.
+    expect(item(en.resourceEdit.button)).toBeInTheDocument();
+    expect(item(en.resourceDelete.button)).toBeInTheDocument();
+    expect(screen.getAllByRole("menu")).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
+  it("lists the source, the latest run and the package only when each exists, as new-tab links (T-2618, AP-103)", async () => {
+    const user = userEvent.setup();
+    const FORGE = "https://forge.example/joinedcontext";
+    renderCatalog(
+      [
+        built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+        built(
+          app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }),
+        ),
+      ],
+      undefined,
+      [],
+      GREEN,
+      {
+        bikes: {
+          repositoryUrl: `${FORGE}/helsinki_bikes`,
+          run: { status: "completed", conclusion: "success", commit: "9f1c2ab", url: `${FORGE}/helsinki_bikes/actions/runs/7` },
+          packageUrl: `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`,
+          rebuild: { allowed: true },
+        },
+      },
+    );
+
+    await user.click(within(await cardOf("Bikes")).getByRole("button", { name: more("Bikes") }));
+    const link = (label: string) => screen.getByRole("menuitem", { name: label });
+    for (const [label, href] of [
+      [en.apps.history, "https://git.example.sk/city/config/src/branch/app/mapa-ovzdusia"],
+      [en.apps.latestRun, `${FORGE}/helsinki_bikes/actions/runs/7`],
+      [en.apps.package, `${FORGE}/-/packages/generic/app-bikes/9f1c2ab`],
+    ]) {
+      expect(link(label).tagName).toBe("A");
+      expect(link(label)).toHaveAttribute("href", href);
+      expect(link(label)).toHaveAttribute("target", "_blank");
+      expect(link(label)).toHaveAttribute("rel", "noreferrer noopener");
+    }
+    expect(screen.getByRole("menuitem", { name: en.apps.rebuildAction })).not.toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Escape}");
+
+    // No build of its own on the forge: no run, no package, and Rebuild says why.
+    await user.click(within(await cardOf("Noise")).getByRole("button", { name: more("Noise") }));
+    expect(await screen.findByRole("menuitem", { name: en.apps.history })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: en.apps.latestRun })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: en.apps.package })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: new RegExp(`^${en.apps.rebuildAction}`) })).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
   });
 
-  it("offers preview and publish only while the app is in preview (AP-18, AP-19)", async () => {
-    renderCatalog([app(), app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" })]);
+  it("a person who may only read sees publish, retire and edit disabled with the permission sentence (T-2618, UI-44)", async () => {
+    const user = userEvent.setup();
+    renderCatalog([app()], undefined, [], GREEN, {}, {
+      grants: [{ rule: { kinds: ["App"], verbs: ["read"] } }],
+      bootstrap: false,
+    });
 
-    const preview = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    expect(within(preview).getByRole("button", { name: en.apps.previewAction })).toBeInTheDocument();
-    expect(within(preview).getByRole("button", { name: en.apps.publishAction })).toBeInTheDocument();
+    await user.click(within(await cardOf("Air quality map")).getByRole("button", { name: more("Air quality map") }));
+    const denied = i18n.t("permissions.denied", { verb: "propose", kind: "App" });
+    for (const label of [en.apps.publishAction, en.resourceEdit.button, en.saveAs.button]) {
+      const item = await screen.findByRole("menuitem", { name: new RegExp(`^${label}`) });
+      expect(item).toHaveAttribute("aria-disabled", "true");
+      expect(item).toHaveTextContent(denied);
+    }
+  });
 
-    // A published app is reached by its own audience, and there is nothing left to publish.
-    const published = screen.getByText("Noise").closest("li") as HTMLElement;
-    expect(within(published).queryByRole("button", { name: en.apps.previewAction })).toBeNull();
-    expect(within(published).queryByRole("button", { name: en.apps.publishAction })).toBeNull();
+  it("rebuild dispatches the workflow and says so (T-2618, AP-103)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderCatalog(
+      [built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" }))],
+      { body: { dispatched: true }, status: 202 },
+      [],
+      GREEN,
+      { bikes: { repositoryUrl: "https://forge.example/r", run: null, rebuild: { allowed: true } } },
+    );
+
+    await choose(user, "Bikes", en.apps.rebuildAction);
+
+    await waitFor(() => {
+      expect(writes(fetchMock).map((request) => new URL(request.url).pathname)).toContain(
+        "/api/v1/projects/banskabystrica/apps/bikes/rebuild",
+      );
+    });
+    expect(await screen.findByText(en.apps.build.started)).toBeInTheDocument();
+  });
+
+  it("retiring asks first, then proposes lifecycle retired (T-2618, AP-18)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = renderCatalog([built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" }))]);
+
+    await choose(user, "Bikes", en.apps.retireAction);
+    const dialog = await screen.findByRole("dialog");
+    expect(writes(fetchMock)).toHaveLength(0);
+    await user.click(within(dialog).getByRole("button", { name: en.apps.retire.confirm }));
+
+    await waitFor(() => {
+      expect(writes(fetchMock)).toHaveLength(2);
+    });
+    const body = JSON.parse(await writes(fetchMock)[1].text()) as { spec: Record<string, unknown> };
+    expect(body.spec.lifecycle).toBe("retired");
+  });
+
+  // AP-86, AP-87: the host serves a published App only from a build the lane published or the
+  // bundle the Portal image ships; one with neither answers 404, so its card offers no Open.
+  it("offers Open only on a published app something serves (AP-86, AP-87)", async () => {
+    renderCatalog([
+      app({ name: "allerts", title: { en: "Alerts" } }, { lifecycle: "published" }),
+      app(
+        {
+          name: "ukazovatele",
+          title: { en: "Indicators" },
+          annotations: { "joinedcontext.com/shipped-with": "portal" },
+        },
+        { lifecycle: "published" },
+      ),
+      app(
+        {
+          name: "unshipped",
+          title: { en: "Claims" },
+          annotations: { "joinedcontext.com/shipped-with": "gitea" },
+        },
+        { lifecycle: "published" },
+      ),
+      built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+    ]);
+
+    const openOn = async (title: string) =>
+      within((await screen.findByText(title)).closest("li") as HTMLElement).queryByRole("link", {
+        name: en.apps.openAction,
+      });
+    expect(await openOn("Alerts")).toBeNull();
+    expect(await openOn("Claims")).toBeNull();
+    expect(await openOn("Indicators")).toHaveAttribute("href", "/apps/ukazovatele/");
+    expect(await openOn("Bikes")).toHaveAttribute("href", "/apps/bikes/");
+  });
+
+  // AP-86, AP-87: a published card says whether its newest run is building, failed or served,
+  // and one with no repository of its own that nothing ships says why it has no Open.
+  it("shows each published app's build state from the forge's runs (AP-86)", async () => {
+    const FORGE = "https://forge.example/user/login?redirect_to=";
+    const run = (status: string, conclusion: string | null, commit: string) => ({
+      status,
+      conclusion,
+      commit,
+      url: `${FORGE}%2Fjoinedcontext%2Fruns%2F${commit}`,
+    });
+    const onForge = (runState: unknown) => ({
+      repositoryUrl: `${FORGE}%2Fjoinedcontext%2Frepo`,
+      run: runState,
+      rebuild: { allowed: true },
+    });
+    renderCatalog(
+      [
+        app({ name: "building", title: { en: "Building one" } }, { lifecycle: "published" }),
+        built(app({ name: "failing", title: { en: "Failing one" } }, { lifecycle: "published" })),
+        built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" })),
+        app({ name: "allerts", title: { en: "Alerts" } }, { lifecycle: "published" }),
+      ],
+      undefined,
+      [],
+      GREEN,
+      {
+        building: onForge(run("running", null, "abcdef0123")),
+        failing: onForge(run("completed", "failure", "0123456789")),
+        bikes: onForge(run("completed", "success", "9f1c2ab")),
+        allerts: { repositoryUrl: null, run: null, rebuild: { allowed: false } },
+      },
+    );
+
+    const card = async (title: string) => (await screen.findByText(title)).closest("li") as HTMLElement;
+    expect(
+      await within(await card("Building one")).findByText(en.apps.build.state.building.replace("{commit}", "abcdef0")),
+    ).toBeInTheDocument();
+    const failing = await card("Failing one");
+    expect(await within(failing).findByText(en.apps.build.state.failed)).toBeInTheDocument();
+    expect(within(failing).getByRole("link", { name: new RegExp(en.apps.build.state.failedLink) })).toHaveAttribute(
+      "href",
+      `${FORGE}%2Fjoinedcontext%2Fruns%2F0123456789`,
+    );
+    expect(
+      await within(await card("Bikes")).findByText(en.apps.build.state.served.replace("{commit}", "9f1c2ab")),
+    ).toBeInTheDocument();
+    expect(await within(await card("Alerts")).findByText(en.apps.build.state.noRepository)).toBeInTheDocument();
   });
 
   it("frames the preview in an opaque origin, never same-origin with the Portal (AP-19)", async () => {
     const user = userEvent.setup();
     renderCatalog([app()]);
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.previewAction }));
+    await choose(user, "Air quality map", en.apps.previewAction);
 
     const frame = await screen.findByTitle("Preview of Air quality map");
     // An app is served from the Portal's own origin (AP-14), so `allow-same-origin` would let
@@ -183,8 +436,7 @@ describe("apps catalog", () => {
     const user = userEvent.setup();
     renderCatalog([app({}, { embeddable: false })]);
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.previewAction }));
+    await choose(user, "Air quality map", en.apps.previewAction);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(en.apps.preview.notEmbeddable);
     expect(screen.queryByTitle("Preview of Air quality map")).toBeNull();
@@ -194,8 +446,7 @@ describe("apps catalog", () => {
     const user = userEvent.setup();
     const fetchMock = renderCatalog([app()]);
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.publishAction }));
+    await choose(user, "Air quality map", en.apps.publishAction);
 
     // The confirmation says what publishing does, and nothing has been sent yet.
     const dialog = await screen.findByRole("dialog");
@@ -230,8 +481,7 @@ describe("apps catalog", () => {
     const user = userEvent.setup();
     const fetchMock = renderCatalog([app()]);
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.publishAction }));
+    await choose(user, "Air quality map", en.apps.publishAction);
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: en.apps.publish.cancel }));
 
@@ -253,8 +503,7 @@ describe("apps catalog", () => {
       },
     });
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.publishAction }));
+    await choose(user, "Air quality map", en.apps.publishAction);
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: en.apps.publish.confirm }));
 
@@ -365,8 +614,7 @@ describe("apps catalog", () => {
       verdict: { ok: false, findings: [{ message: "the endpoint it reads is not public yet" }] },
     });
 
-    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
-    await user.click(within(card).getByRole("button", { name: en.apps.publishAction }));
+    await choose(user, "Air quality map", en.apps.publishAction);
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: en.apps.publish.confirm }));
 

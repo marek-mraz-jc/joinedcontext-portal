@@ -178,11 +178,11 @@ export function ModelFileDrop({
     const form = inferForm(file);
     setBusy(file.name);
     try {
-      // Through the typed client (UI-07). The document types a multipart body as a string;
+      // Through the typed client (UI-07). The document types this multipart body as an object;
       // the route reads a form with one `file` part, and the client passes a FormData through
       // untouched so the browser writes the boundary.
       const { data, error, response } = await api.POST("/api/v1/tools/infer-schema", {
-        body: form as unknown as string,
+        body: form as unknown as Record<string, undefined>,
       });
       if (data === undefined) {
         const detail = record(error).detail;

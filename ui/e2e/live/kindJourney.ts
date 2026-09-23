@@ -45,14 +45,22 @@ export interface KindJourney {
   page: string;
   /**
    * Opens the create form on `page`, fills it for `name` and submits it; the page then shows the
-   * change it opened, which the journey reads.
+   * change it opened, which the journey reads. A kind whose page names the resource itself (a
+   * shared reference is named after its source) returns the name it made.
    */
-  create: (page: Page, name: string) => Promise<void>;
-  /** Changes one field of `name` and submits; `value` is what the stored resource then holds. */
-  change: { apply: (page: Page, name: string) => Promise<void>; value: (name: string) => string };
+  create: (page: Page, name: string) => Promise<string | void>;
+  /**
+   * Changes one field of `name` and submits; `value` is what the stored resource then holds. Left
+   * out only for a kind whose page offers no edit at all, and the spec then says which task that is.
+   */
+  change?: { apply: (page: Page, name: string) => Promise<void>; value: (name: string) => string };
   /** What the steward asks the assistant, and what shows that it opened the kind's form. */
   assistant: { ask: (name: string) => string; opened: (page: Page) => Locator };
+  /** The page's write controls by name, where they are not New, Edit, Remove, Delete or Propose. */
+  writeControls?: RegExp;
 }
+
+const WRITE_CONTROLS = /^(New|Edit|Remove|Delete|Propose)(\b|$)/i;
 
 /** A name nobody has used, recognisable as this journey's. */
 export function journeyName(task: string): string {
@@ -67,6 +75,22 @@ export async function proposeFrom(form: Locator): Promise<void> {
   }
   await expect(propose).toBeEnabled({ timeout: 120_000 });
   await propose.click();
+}
+
+/** The form a create or an edit opened: a page of its own on a routed list, a dialog elsewhere (T-2474). */
+export async function openedForm(page: Page): Promise<Locator> {
+  const form = page.getByTestId("form-page").or(page.getByRole("dialog")).first();
+  await expect(form).toBeVisible({ timeout: 30_000 });
+  return form;
+}
+
+/** A reference field is a select when the project has something to offer, and a text box when not. */
+export async function reference(field: Locator, fallback: string): Promise<void> {
+  if ((await field.evaluate((element) => element.tagName)) === "SELECT") {
+    await pickFirst(field);
+  } else {
+    await field.fill(fallback);
+  }
 }
 
 /** Chooses the first real option of a select: the one a person would take when any will do. */
@@ -108,13 +132,21 @@ export async function editAsYaml(
   };
   edit(manifest.spec);
   await open();
-  const dialog = page.getByRole("dialog", { name: `Edit ${name}` });
+  // A routed list draws the edit form as a page of its own, a region named like the dialog (T-2474).
+  const dialog = page
+    .getByRole("region", { name: `Edit ${name}` })
+    .or(page.getByRole("dialog", { name: `Edit ${name}` }))
+    .first();
   const editor = dialog.locator(".monaco-editor .view-lines").first();
   await expect(editor).toBeVisible({ timeout: 60_000 });
+  // Pasted, as `parity` and `secrets` do and as a person brings a whole document in: typed with
+  // `keyboard.insertText`, Monaco indented every line again and closed the first brace itself, so
+  // the text ended in one `}` too many and did not parse (T-2624).
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate((text) => navigator.clipboard.writeText(text), JSON.stringify(manifest, null, 2));
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.press("Delete");
-  await page.keyboard.insertText(JSON.stringify(manifest, null, 2));
+  await page.keyboard.press("ControlOrMeta+V");
   await dialog.getByRole("button", { name: "Propose change" }).click();
 }
 
@@ -143,10 +175,10 @@ export function kindJourney(journey: KindJourney): void {
 
   test(`${kind}: created, changed and removed through the page by a person`, async ({ browser }) => {
     const steward = await signIn(browser, STEWARD, `${journey.page}?lang=en`);
-    const name = journeyName(task);
+    let name = journeyName(task);
     let created = false;
     try {
-      await journey.create(steward.page, name);
+      name = (await journey.create(steward.page, name)) || name;
       const change = await proposedChange(steward.page);
       created = true;
       const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
@@ -154,18 +186,21 @@ export function kindJourney(journey: KindJourney): void {
         await approve(approver.page, PROJECT, change, name);
         await settled(steward.page, plural, name);
 
-        await steward.page.goto(`${journey.page}?lang=en`, { waitUntil: "load" });
-        await journey.change.apply(steward.page, name);
-        await approve(approver.page, PROJECT, await proposedChange(steward.page), name);
-        await expect
-          .poll(
-            async () =>
-              JSON.stringify(
-                await (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).json(),
-              ),
-            { timeout: 120_000, message: `the change reached ${plural}/${name}` },
-          )
-          .toContain(journey.change.value(name));
+        const { change: edit } = journey;
+        if (edit) {
+          await steward.page.goto(`${journey.page}?lang=en`, { waitUntil: "load" });
+          await edit.apply(steward.page, name);
+          await approve(approver.page, PROJECT, await proposedChange(steward.page), name);
+          await expect
+            .poll(
+              async () =>
+                JSON.stringify(
+                  await (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).json(),
+                ),
+              { timeout: 120_000, message: `the change reached ${plural}/${name}` },
+            )
+            .toContain(edit.value(name));
+        }
       } finally {
         await approver.context.close();
       }
@@ -205,7 +240,7 @@ export function kindJourney(journey: KindJourney): void {
     try {
       const controls = viewer.page
         .getByRole("main")
-        .getByRole("button", { name: /^(New|Edit|Remove|Delete|Propose)(\b|$)/i });
+        .getByRole("button", { name: journey.writeControls ?? WRITE_CONTROLS });
       let seen = 0;
       for (const control of await controls.all()) {
         if (!(await control.isVisible())) {

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use crate::resource::selector::{FieldSelector, LabelSelector};
-use crate::resource::{is_dns1123, ResourceEnvelope, ResourceKey};
+use crate::resource::{is_dns1123, is_manifest_name, ResourceEnvelope, ResourceKey};
 
 #[derive(Debug, Default)]
 pub struct ListOptions {
@@ -42,16 +42,55 @@ pub enum MirrorError {
 #[derive(Default)]
 pub struct Mirror {
     resources: RwLock<BTreeMap<ResourceKey, ResourceEnvelope>>,
+    /// Layout 2: each registered project's own repository in the forge, by slug (PF-86). Empty
+    /// in layout 1, where every project lives in the organization repository.
+    repositories: RwLock<BTreeMap<String, String>>,
+    /// The organization's `.jc/layout` (CC-85): 2 when every project lives in a repository of
+    /// its own; 0 until the first sync says, which reads as 1.
+    layout: std::sync::atomic::AtomicU32,
 }
 
 impl Mirror {
     pub fn new() -> Self {
-        Self {
-            resources: RwLock::new(BTreeMap::new()),
-        }
+        Self::default()
     }
 
-    /// Holds one resource, unless its namespace is not a namespace (T-2298, MF-02).
+    /// The forge repository `project`'s own kinds are written to (CC-87), or `None` when they
+    /// live in the organization repository (layout 1, or a project outside the forge).
+    pub fn repository_of(&self, project: &str) -> Option<String> {
+        let lock = self.repositories.read().unwrap_or_else(|p| p.into_inner());
+        lock.get(project).cloned()
+    }
+
+    /// The layout of the organization repository the mirror was read from (CC-85).
+    pub fn layout(&self) -> u32 {
+        self.layout
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .max(1)
+    }
+
+    /// Records the layout the sync read.
+    pub fn set_layout(&self, layout: u32) {
+        self.layout
+            .store(layout, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Every registered project's own repository, by slug.
+    pub fn repositories(&self) -> BTreeMap<String, String> {
+        self.repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Records where each registered project lives, replacing what was recorded.
+    pub fn set_repositories(&self, repositories: BTreeMap<String, String>) {
+        let mut lock = self.repositories.write().unwrap_or_else(|p| p.into_inner());
+        *lock = repositories;
+    }
+
+    /// Holds one resource, unless its namespace is not a namespace (T-2298, MF-02) or its name is
+    /// not a name of its kind (T-2544).
     ///
     /// The mirror's key is the namespace as the manifest spells it, and the reconciler builds a
     /// runner URL by putting that string into an operator's template: a manifest committed with
@@ -59,16 +98,21 @@ impl Mirror {
     /// A namespace that is not a DNS-1123 label names no project the Portal can serve, so nothing
     /// is lost by leaving it out — and every consumer of the mirror is closed at once rather than
     /// each one being taught to check.
+    ///
+    /// The name is held to its kind's rule for the same reason: the assistant's prompt joins
+    /// names into its prose, and a name with lines of its own would add a heading or a turn to
+    /// it; neither a prompt, a URL nor a log line ever gets a name outside that form.
     pub fn upsert(&self, env: ResourceEnvelope) {
         let key = env.key();
-        if !is_dns1123(&key.namespace) {
+        if !is_dns1123(&key.namespace) || !is_manifest_name(&key.kind, &key.name) {
             // Loud in the log and silent towards callers: a dropped manifest is an operator's
-            // problem to find, never a 500 on somebody's page.
+            // problem to find, never a 500 on somebody's page. Debug-quoted, so a newline in
+            // either is written as `\n` and not as a line of the log.
             tracing::warn!(
-                namespace = %key.namespace,
-                kind = %key.kind,
-                name = %key.name,
-                "a manifest whose namespace is not a DNS-1123 label is left out of the mirror"
+                namespace = ?key.namespace,
+                kind = ?key.kind,
+                name = ?key.name,
+                "a manifest whose namespace or name is not a name of its kind is left out of the mirror"
             );
             return;
         }
@@ -115,6 +159,14 @@ impl Mirror {
             .clone();
         let mut lock = self.resources.write().unwrap_or_else(|p| p.into_inner());
         *lock = new_resources;
+        drop(lock);
+        let repositories = other
+            .repositories
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        self.set_repositories(repositories);
+        self.set_layout(other.layout());
     }
 
     /// Every resource matching a predicate, in no particular order.
@@ -334,6 +386,33 @@ mod tests {
             spec: serde_json::json!({}),
             status: None,
         }
+    }
+
+    /// T-2544, MF-02: a name that is not a name of its kind is left out, like a bad namespace;
+    /// a space keeps its own, looser form.
+    #[test]
+    fn a_name_outside_its_kinds_form_is_left_out_of_the_mirror() {
+        let mirror = Mirror::new();
+        for name in [
+            "a\nb",
+            "open\n\n## THIS TURN",
+            "Upper",
+            "a.b",
+            "",
+            &"a".repeat(64),
+        ] {
+            mirror.upsert(sample("helsinki", "Endpoint", name, &[]));
+            assert!(
+                mirror.get("helsinki", "Endpoint", name).is_none(),
+                "{name:?}"
+            );
+        }
+        mirror.upsert(sample("helsinki", "Endpoint", "bikes-open", &[]));
+        assert!(mirror.get("helsinki", "Endpoint", "bikes-open").is_some());
+        mirror.upsert(sample("helsinki", "ContextSpace", "air-", &[]));
+        assert!(mirror.get("helsinki", "ContextSpace", "air-").is_some());
+        mirror.upsert(sample("helsinki", "ContextSpace", "air\n", &[]));
+        assert!(mirror.get("helsinki", "ContextSpace", "air\n").is_none());
     }
 
     #[test]

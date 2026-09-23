@@ -82,6 +82,8 @@ fn sse_draft_event(event: &DraftEvent) -> Event {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/drafts",
+    summary = "List Drafts",
+    description = "Lists the shared drafts of a project, or of one copy of it (AG-61, CC-76).",
     tag = "drafts",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -123,6 +125,8 @@ pub async fn list_drafts(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/drafts/{kind}/{name}",
+    summary = "Get Draft",
+    description = "Reads one shared draft with its verdict (AG-61).",
     tag = "drafts",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -169,6 +173,8 @@ pub async fn get_draft(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/drafts/{kind}/{name}",
+    summary = "Put Draft",
+    description = "Writes the shared draft of a manifest every window, assistant run and MCP client sees (AG-61).",
     tag = "drafts",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -176,7 +182,20 @@ pub async fn get_draft(
         ("name" = String, Path, description = "Draft name"),
         ("workspace" = Option<String>, Query, description = "The copy the draft belongs to (CC-76)"),
     ),
-    request_body = PutDraftRequest,
+    request_body(
+        content = PutDraftRequest,
+        example = json!({ "expectedVersion": 3, "manifest": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+                "spec": {
+                    "contextSpaceRef": "air",
+                    "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                    "audience": "organization",
+                    "enabledRepresentations": ["ngsi-ld", "geojson"]
+                }
+            } })
+    ),
     responses(
         (status = 200, description = "The saved draft", body = Draft),
         (status = 400, description = "Bad request, e.g. literal secret", body = ProblemDetails),
@@ -223,6 +242,8 @@ pub async fn put_draft(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/drafts/{kind}/{name}",
+    summary = "Drop Draft",
+    description = "Discards a shared draft (AG-61).",
     tag = "drafts",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -269,6 +290,8 @@ pub async fn drop_draft(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/drafts/events",
+    summary = "Follow Drafts",
+    description = "The project's shared drafts as Server-Sent Events: a draft written, checked or dropped, by any window, assistant run or MCP client. Readers of the project only.",
     tag = "drafts",
     params(
         ("project" = String, Path, description = "Project name"),

@@ -206,9 +206,47 @@ fn page<'a>(kind: &str, plural: &'a str) -> &'a str {
         "ContextSpace" => "spaces",
         "DataModel" => "models",
         "Dashboard" | "Layer" => "dashboards",
-        "ServiceAccount" | "Role" | "RoleBinding" => "access",
+        // Project settings holds them since T-2606, one tab each (Architecture/09 §14.3).
+        "ServiceAccount" => "settings/service-accounts",
+        "Role" => "settings/roles",
+        "RoleBinding" => "settings/members",
         "CkanInstance" => "ckan",
         _ => plural,
+    }
+}
+
+/// The sections whose page opens a kind's empty create form at `/{section}/new` (T-2474): the
+/// list pages that host a routed form (`useCreateForm`, `useOpenFromAddress`, `useFormRoute` in
+/// the UI). Any other section answers `/new` with "this form cannot be opened" (T-2582).
+const NEW_FORMS: [&str; 9] = [
+    "spaces",
+    "endpoints",
+    "pipelines",
+    "policies",
+    "subscriptions",
+    "csrs",
+    "datasources",
+    "syncsources",
+    "settings/service-accounts",
+];
+
+/// The section a kind's create form opens in, from its plural or its kind as the model spells
+/// it: `/projects/{project}/{section}/new` (T-2577, T-2582, AG-73). What is no kind, or a kind
+/// whose page has no create form of its own, is refused in words the model acts on.
+pub fn section(plural_or_kind: &str) -> Result<&'static str, String> {
+    let info = crate::resource::by_plural(plural_or_kind)
+        .or_else(|| crate::resource::by_kind(plural_or_kind))
+        .ok_or_else(|| format!("'{plural_or_kind}' is not a kind of the Portal"))?;
+    let section = page(info.kind, info.plural);
+    if NEW_FORMS.contains(&section) {
+        Ok(section)
+    } else {
+        Err(format!(
+            "a new {} has no create form to open empty; open its page ('{section}') with \
+             `resource`, `spaces`, `models` or the page that shows it, and tell the person which \
+             button there creates one",
+            info.kind
+        ))
     }
 }
 

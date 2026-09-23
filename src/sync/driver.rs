@@ -496,6 +496,7 @@ mod tests {
             author_email: None,
             mergeable: Some(true),
             merged,
+            repository: "config".to_owned(),
         }
     }
 

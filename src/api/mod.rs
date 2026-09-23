@@ -1,5 +1,7 @@
 pub mod activity;
 pub mod agent_runs;
+pub mod app_build;
+pub mod app_me;
 pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
@@ -12,10 +14,13 @@ pub mod drafts;
 pub mod drift;
 pub mod dry_run;
 pub mod export;
+pub mod export_git;
 pub mod federation;
 pub mod forms;
 pub mod health;
 pub mod import;
+pub mod import_git;
+pub mod internal;
 pub mod mutate;
 pub mod ops;
 pub mod permissions;
@@ -44,6 +49,8 @@ pub fn router() -> Router<AppState> {
         .merge(health::router())
         .merge(auth::oidc::router())
         .merge(agent_runs::router())
+        .merge(app_build::router())
+        .merge(app_me::router())
         .merge(assistant::router())
         .merge(pipeline_test::router())
         .merge(blueprints::router())

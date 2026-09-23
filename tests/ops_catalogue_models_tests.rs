@@ -279,13 +279,15 @@ async fn inference_answers_a_reader_and_refuses_an_oversized_sample() {
         json!({ "sample": oversized }),
     )
     .await;
+    // T-1659: the door enforces the declared bound before the operation runs, so an oversized
+    // sample is an invalid input at `/sample` and never reaches Model Tools.
     assert_eq!(
-        StatusCode::BAD_REQUEST,
+        StatusCode::UNPROCESSABLE_ENTITY,
         refused.status,
         "{}",
-        refused.status
+        refused.text()
     );
-    assert!(refused.text().contains("byte limit"), "{}", refused.text());
+    assert!(refused.text().contains("sample"), "{}", refused.text());
     assert_eq!(
         asked,
         tool_calls(&world.tools).await,

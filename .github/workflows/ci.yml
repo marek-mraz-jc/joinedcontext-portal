@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
 permissions: { contents: read }
-concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
+# On main a run is never cancelled: merges land minutes apart, and each one used to cancel the
+# run before it, so main went without a finished run. One run finishes, the newest push waits
+# behind it (GitHub keeps one pending run per group). Branches still cancel.
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: "${{ github.ref != 'refs/heads/main' }}" }
 jobs:
   rust:
     runs-on: ubuntu-latest
@@ -22,6 +25,9 @@ jobs:
       # The UI's types are generated from the committed spec, so a stale one is a compile the
       # fast lane can catch in two seconds instead of leaving to the hourly full run (T-1210).
       - run: cargo test --test openapi_tests
+      # Every route is an operation or says why not (AG-59). It left the lib tests with the table
+      # (T-1499), so it runs here by name to stay in the gate it was in.
+      - run: cargo test --test route_coverage_tests
       # A doc link to a private item passed every fast check and broke the hourly lane (T-1453);
       # rustdoc reuses clippy's metadata, so it costs seconds here.
       - run: cargo doc --workspace --no-deps
@@ -67,6 +73,26 @@ jobs:
         run: cd ui && pnpm lint && pnpm test -- --run && pnpm build
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
+  # The applications, beside the UI rather than after it: each app installs, tests and builds on
+  # its own, and after the UI suite they ran past the ui job's budget (d40934c, run 35714368871).
+  # Same steps as before, in their own job; nothing is skipped or sharded.
+  apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: has
+        run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ui == 'yes'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - if: steps.has.outputs.ui == 'yes'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
+      # The apps link the SDK's sources, and the lane test needs its Vite.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the SDK's dependencies, which the apps link
+        run: cd sdk && pnpm install --frozen-lockfile
       # The reference apps of AP-34 carry their own bundle; the Rust half is covered by the
       # workspace lanes above, this is its screens.
       - if: steps.has.outputs.ui == 'yes'
@@ -77,6 +103,29 @@ jobs:
             [ -f "$app/package.json" ] || continue
             (cd "$app" && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build)
           done
+      # An application kept in its own forge repository sits at the root of apps/<name>/ (AP-75,
+      # T-2596). It is tested as that tree, copied out, with only `@joinedcontext/sdk` pointed at
+      # this checkout: the build lane resolves the same name from the SDK tarball it bakes (AP-82).
+      - if: steps.has.outputs.ui == 'yes'
+        name: the applications in their own repository build and their screens pass
+        run: |
+          set -eu
+          for app in apps/*/; do
+            [ -f "$app/package.json" ] || continue
+            work=$(mktemp -d)
+            cp -r "$app". "$work"
+            (cd "$work" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
+              && pnpm install --no-frozen-lockfile && pnpm typecheck && pnpm test && pnpm build)
+          done
       # The digest map the static host checks before it serves a file (AP-12, T-2457).
       - name: the integrity manifest a static app ships with
         run: node --test scripts/app-integrity.test.mjs
+      # The build lane's package check and functions bundle (AP-82, AP-84, ADR-N-026); the bundle
+      # test needs Vite, which the SDK step above installed.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the build lane refuses foreign packages and bundles functions
+        run: ln -s ../sdk/node_modules builder/node_modules && node --test builder/lane.test.mjs
+      # A static app with no build step (AP-83) has no package.json for the loop above: its pure
+      # functions are checked with node's own runner, and its page by ui/e2e (T-2597).
+      - name: the plain-HTML apps' own tests
+        run: node --test apps/*/test/*.test.mjs

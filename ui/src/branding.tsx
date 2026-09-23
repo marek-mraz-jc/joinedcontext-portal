@@ -34,6 +34,8 @@ export const NEUTRAL_BRANDING: Branding = {
   fonts: { heading: "system-ui, sans-serif", body: "system-ui, sans-serif" },
   languages: { default: "en", offered: ["en"] },
   primaryForeground: "#ffffff",
+  primaryDark: "#5985e7",
+  primaryForegroundDark: "#0f172a",
   validation: "strict",
   // An installation that serves no User Guide; no form offers a link (UI-02).
   documentationBaseUrl: "",
@@ -119,6 +121,11 @@ export function applyBranding(branding: Branding, doc: Document = document): voi
   const colours: Record<string, string | undefined> = {
     "--portal-color-primary": branding.colours?.primary,
     "--portal-color-primary-fg": branding.primaryForeground,
+    // The dark theme's pair. Both are computed by the API against the colour a dark page
+    // actually paints, because a label chosen for the configured colour is not readable on the
+    // lightened one — a near-black brand left it at 2.31:1 (T-2324, UI-30).
+    "--portal-color-primary-dark": branding.primaryDark,
+    "--portal-color-primary-fg-dark": branding.primaryForegroundDark,
     "--portal-color-secondary": branding.colours?.secondary,
     "--portal-color-accent": branding.colours?.accent,
     "--portal-color-surface": branding.colours?.background,

@@ -7,6 +7,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import type { Change } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../ChangeNotice";
+import { ImportProjectDialog } from "../ImportProjectDialog";
 import { Alert, Button, Dialog, Field, Icon, Input } from "../ui";
 
 /** A DNS-1123 label, which is what a project slug is (PF-67). */
@@ -34,9 +35,12 @@ export function nameProblem(name: string): "empty" | "label" | "reserved" | null
 export function NewProjectDialog({
   open,
   onOpenChange,
+  onImport,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Starts the project from a git export instead: one entry point for both ways in (PF-89). */
+  onImport?: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const ids = useId();
@@ -171,6 +175,19 @@ export function NewProjectDialog({
               onChange={(event) => setDescription(event.target.value)}
             />
           </Field>
+          {onImport ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => {
+                close(false);
+                onImport();
+              }}
+            >
+              {t("projectImport.button")}
+            </Button>
+          ) : null}
         </div>
       )}
     </Dialog>
@@ -186,6 +203,7 @@ export function NewProjectButton({ project }: { project: string }): JSX.Element 
   const { t } = useTranslation();
   const permissions = usePermissions(project);
   const [writing, setWriting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const creation = permissions.data?.projects?.creation;
   const allowed = creation?.allowed !== false;
   const reason = creation?.reason ?? t("projects.notAllowed");
@@ -209,7 +227,12 @@ export function NewProjectButton({ project }: { project: string }): JSX.Element 
       >
         {t("projects.new")}
       </Button>
-      <NewProjectDialog open={writing} onOpenChange={setWriting} />
+      <NewProjectDialog
+        open={writing}
+        onOpenChange={setWriting}
+        onImport={() => setImporting(true)}
+      />
+      <ImportProjectDialog open={importing} onOpenChange={setImporting} />
     </>
   );
 }

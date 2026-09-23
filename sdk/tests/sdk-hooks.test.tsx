@@ -1,6 +1,6 @@
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JcProvider, useAccess, useEntities, useFunction, useSave } from "../src/sdk/hooks";
+import { JcProvider, useAccess, useEntities, useFunction, useMe, useSave } from "../src/sdk/hooks";
 import { stubClient } from "../src/sdk/testing";
 import type { Query } from "../src/sdk/client";
 
@@ -140,6 +140,42 @@ describe("sdk hooks", () => {
 
     expect(result.current.can("queryEntity", "Station")).toEqual({ ok: true });
     expect(result.current.can("deleteEntity", "Station").ok).toBe(false);
+  });
+
+  // SDK-35, SDK-36: useMe() is the person the host served, roles included, and a refusal to a
+  // person with roles names them so a disabled control says which role falls short.
+  it("useMe returns the served person and useAccess names their roles in a refusal", async () => {
+    const client = stubClient(
+      {
+        access: {
+          permissions: [{ resource: { type: "Alert" }, actions: ["queryEntity"], attributes: "*" }],
+          prohibitions: [],
+        },
+      },
+      { user: { id: "5f0c", name: "Jana", email: "jana@hel.fi", roles: ["viewer"] } },
+    );
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <JcProvider client={client}>{children}</JcProvider>
+    );
+    const { result } = renderHook(() => ({ me: useMe(), access: useAccess() }), { wrapper });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+
+    expect(result.current.me).toEqual({ id: "5f0c", name: "Jana", email: "jana@hel.fi", roles: ["viewer"] });
+    expect(result.current.access.can("queryEntity", "Alert")).toEqual({ ok: true });
+    expect(result.current.access.can("updateAttrs", "Alert")).toEqual({
+      ok: false,
+      reason: "Your role viewer does not permit updateAttrs on Alert.",
+    });
+  });
+
+  // SDK-35: an anonymous visitor is null, never an empty person.
+  it("useMe is null for an anonymous visitor", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <JcProvider client={stubClient({}, { user: null })}>{children}</JcProvider>
+    );
+    expect(renderHook(() => useMe(), { wrapper }).result.current).toBeNull();
   });
 
   it("useFunction returns data and handles errors", async () => {

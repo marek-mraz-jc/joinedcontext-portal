@@ -587,16 +587,16 @@ describe("pipeline editor", () => {
     await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), "wasm");
     expect(within(dialog).queryByText(en.pipelines.bloblangHint)).not.toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-index");
-    // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
+    // wasm needs module and function (PL-33): Check names both required fields on the compute
+    // group and sends nothing, so no verdict opens Propose (AG-62, T-0779, T-2634).
     await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
-    );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
-    // wasm needs module and function (PL-33): two required errors on the compute group.
     const alerts = await within(dialog).findAllByRole("alert");
     expect(alerts.filter((alert) => alert.textContent?.includes(en.form.required)).length)
       .toBeGreaterThanOrEqual(2);
+    expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
 it("tells a feed from a space and reads the attributes of a class from an inline model", () => {

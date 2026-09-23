@@ -42,10 +42,31 @@ function matchesAttr(grant: Grant, attr?: string): boolean {
   return Array.isArray(grant.attributes) && grant.attributes.includes(attr);
 }
 
-export function can(access: AccessDocument | null, operation: string, type: string, attr?: string): Decision {
+/**
+ * Whether the endpoint's access document allows `operation` on `type` (and `attr`). A refusal to a
+ * person who holds roles in the application names them (SDK-36), so a control disabled with the
+ * reason tells them which role falls short rather than blaming "your role".
+ */
+export function can(
+  access: AccessDocument | null,
+  operation: string,
+  type: string,
+  attr?: string,
+  roles?: readonly string[],
+): Decision {
   if (access === null) {
     return { ok: false, reason: "Checking your permissions…" };
   }
+  const decision = decide(access, operation, type, attr);
+  if (decision.ok || roles === undefined || roles.length === 0) {
+    return decision;
+  }
+  const held = roles.length === 1 ? `Your role ${roles[0]} does not` : `Your roles ${roles.join(", ")} do not`;
+  const what = attr === undefined ? type : `${attr} of ${type}`;
+  return { ok: false, reason: `${held} permit ${operation} on ${what}.` };
+}
+
+function decide(access: AccessDocument, operation: string, type: string, attr?: string): Decision {
 
   for (const prohibition of access.prohibitions) {
     if (matchesType(prohibition, type) && matchesAction(prohibition, operation) && matchesAttr(prohibition, attr)) {

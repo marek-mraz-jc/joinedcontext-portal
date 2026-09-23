@@ -53,7 +53,9 @@
     "import": "Import",
     "workspaces": "Kópie",
     "policies": "Politiky",
-    "subscriptions": "Odbery"
+    "subscriptions": "Odbery",
+    "organization": "Organizácia",
+    "settings": "Nastavenia projektu"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -123,6 +125,7 @@
     "lane": "Úroveň rizika",
     "phase": "Fáza",
     "mergeRequest": "Požiadavka na zlúčenie",
+    "repository": "Repozitár",
     "approve": "Schváliť",
     "reject": "Zamietnuť",
     "approving": "Schvaľuje sa...",
@@ -247,7 +250,11 @@
   },
   "changes": {
     "accepted": "Navrhnuté ako zmena:",
-    "review": "Otvoriť v Schvaľovaní"
+    "review": "Otvoriť v Schvaľovaní",
+    "approvedOnPropose": "Po navrhnutí sa schváli: {kind} môžete schvaľovať aj mazať.",
+    "approveNotDelete": "Počká na schvaľovateľa: {kind} môžete schvaľovať, ale nie mazať.",
+    "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
+    "open": "Otvoriť zmenu"
   },
   "resourceDelete": {
     "title": "Odstrániť {name}",
@@ -506,7 +513,13 @@
       "alias": "alias",
       "gone": "Endpoint už nie je zdieľaný",
       "goneSource": "Zdroj nedostupný",
-      "emptyHint": "Iný projekt môže tomuto dovoliť čítať svoj endpoint bez kopírovania údajov. S tímto projektom zatiaľ nikto nič nezdieľa."
+      "emptyHint": "Iný projekt môže tomuto dovoliť čítať svoj endpoint bez kopírovania údajov. S tímto projektom zatiaľ nikto nič nezdieľa.",
+      "edit": {
+        "alias": "Alias",
+        "aliasHelp": "Názov, pod ktorým tento projekt číta zdieľaný priestor; používajú ho tunajšie dopyty a pipeliny.",
+        "interval": "Interval zrkadlenia",
+        "intervalHelp": "Ako často sa sem zrkadlí schéma zdroja, napríklad 6h alebo 1d; prázdne znamená raz denne."
+      }
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -1147,6 +1160,25 @@
         "RealmRefused": "Nezapísané"
       },
       "emptyHint": "Skupina je názov pre viac ľudí, takže rolu dáte raz namiesto človeka po človeku. Skupiny prichádzajú z poskytovateľa identity alebo sa deklarujú tu."
+    },
+    "domain": {
+      "title": "Doména",
+      "lead": "Či je preukázané, že doména organizácie patrí jej. Kým nie je, zverejnite záznam nižšie v DNS domény; portál ho overí znova pri ďalšej synchronizácii.",
+      "state": {
+        "pending": "Zatiaľ neoverená",
+        "verified": "Overená",
+        "failed": "Overenie zlyhalo"
+      },
+      "unchecked": "Zatiaľ nekontrolovaná",
+      "method": {
+        "dns-txt": "záznamu DNS TXT",
+        "did-web": "dokumentu did:web"
+      },
+      "checkedBy": "Overená pomocou {method}, skontrolované {when}.",
+      "checked": "Naposledy skontrolované {when}.",
+      "publish": "Zverejnite tento záznam TXT v DNS domény:",
+      "copy": "Kopírovať záznam",
+      "copied": "Záznam skopírovaný"
     }
   },
   "flows": {
@@ -1191,7 +1223,9 @@
       "json": "Zoznam JSON",
       "jsonHelp": "Objekt List s tými istými manifestmi; celý projekt pridáva vedľa nich schémy.",
       "zip": "Archív ZIP",
-      "zipHelp": "Manifesty, súbory vedľa nich a index; dá sa naspäť importovať ako balík."
+      "zipHelp": "Manifesty, súbory vedľa nich a index; dá sa naspäť importovať ako balík.",
+      "git": "Git repozitáre (na presun alebo kópiu projektu)",
+      "gitHelp": "Jeden git bundle na repozitár, projektu aj každej aplikácie, s celou históriou, značkami a commitom, na ktorom končí, pripravený na import ako nový projekt inde. Prenáša sa iba predvolená vetva."
     },
     "otherFormats": "Iné formáty",
     "revision": "Revízia",
@@ -1401,6 +1435,7 @@
     "dataNeeds": "Číta {types} v {spaces}",
     "previewAction": "Otvoriť náhľad",
     "publishAction": "Publikovať",
+    "openAction": "Otvoriť aplikáciu",
     "history": "Zdroj a história",
     "back": "Späť na aplikácie",
     "preview": {
@@ -1449,7 +1484,10 @@
         "unavailable": "Endpoint zatiaľ nepublikuje model, takže z neho nemožno nič odvodiť.",
         "none": "Tento endpoint nepublikuje žiadne atribúty, takže aplikácia nemá čo čítať.",
         "loginOnly": "Bez ohľadu na to, ako je endpoint publikovaný, vygenerovaná aplikácia beží v platforme a otvoriť ju môže len prihlásený používateľ.",
-        "write": "Aplikácia smie tieto entity aj upravovať ({actions}). Každé uloženie prejde pravidlami zápisu rozhrania."
+        "write": "Aplikácia smie tieto entity aj upravovať ({actions}). Každé uloženie prejde pravidlami zápisu rozhrania.",
+        "writeRole": "Zapisovať smie len táto rola aplikácie (nepovinné)",
+        "writeRoleHelp": "Nechajte prázdne a zapisovať smie každý, kto aplikáciu otvorí. S názvom roly, napr. steward, zapisujú len ľudia, ktorých po zverejnení pridáte do tejto roly na stránke aplikácie.",
+        "writeRoleInvalid": "Použite malé písmená, číslice a pomlčky, na začiatku písmeno, najviac 32 znakov."
       },
       "preview": {
         "title": "Čo vám tento endpoint dáva",
@@ -1524,6 +1562,73 @@
       "limits": "Limity",
       "requestsPerMinute": "Požiadavky za minútu",
       "maxFileRows": "Riadky na stiahnutie súboru"
+    },
+    "build": {
+      "title": "Zostavenie vo forge",
+      "rebuild": "Zostaviť znova",
+      "repository": "Repozitár",
+      "runLink": "Posledný beh",
+      "package": "Balík",
+      "started": "Forge dostal pokyn znova zostaviť predvolenú vetvu; beh sa tu čoskoro objaví.",
+      "unreadable": "Kde sa táto aplikácia zostavuje, sa teraz nepodarilo z forge prečítať.",
+      "notOnForge": "Táto aplikácia sa nezostavuje vo forge: nemá vlastný repozitár.",
+      "run": {
+        "none": "Zatiaľ neprebehlo žiadne zostavenie.",
+        "building": "Zostavuje sa {commit}…",
+        "succeeded": "Zostavené {commit}.",
+        "failed": "Zostavenie {commit} zlyhalo; posledný beh hovorí prečo.",
+        "cancelled": "Zostavenie {commit} bolo zrušené."
+      },
+      "state": {
+        "building": "Zostavuje sa {commit}",
+        "failed": "Zostavenie zlyhalo",
+        "failedLink": "Prečo zlyhalo",
+        "served": "Podáva sa {commit}",
+        "noRepository": "Nemá vlastný repozitár: aplikácia vznikla pred repozitárom pre každú aplikáciu, preto ju nič nezostavuje ani nepodáva."
+      }
+    },
+    "rebuildAction": "Rebuild",
+    "retireAction": "Retire",
+    "latestRun": "Latest build run",
+    "package": "Package",
+    "previewOnlyPreview": "Only a preview can be previewed here",
+    "publishOnlyPreview": "Only a preview can be published",
+    "rebuildOnlyPublished": "Only a published application is built",
+    "rebuildRunning": "A build is running",
+    "retireOnlyPublished": "Only a published application can be retired",
+    "openDisabled": {
+      "draft": "Nothing published yet",
+      "preview": "A preview opens from the menu",
+      "retired": "This application is retired",
+      "building": "Building…",
+      "failed": "Build failed",
+      "notBuilt": "No build is served yet"
+    },
+    "retire": {
+      "title": "Retire {name}",
+      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
+      "hint": "This opens a merge request. The source and its builds stay in the forge.",
+      "confirm": "Open the merge request",
+      "cancel": "Cancel"
+    },
+    "roles": {
+      "title": "Roly a členovia",
+      "lead": "Kto smie čo v tejto aplikácii. Pridanie alebo odobratie člena navrhne zmenu aplikácie, ktorú posúdi schvaľovateľ.",
+      "count": "Členovia: {count}",
+      "nobody": "Túto rolu zatiaľ nemá nikto.",
+      "groupMember": "Skupina {group}",
+      "remove": "Odobrať",
+      "removeLabel": "Odobrať {member} z roly {role}",
+      "kind": "Pridať",
+      "kindUser": "Osobu",
+      "kindGroup": "Skupinu",
+      "email": "E-mail",
+      "group": "Skupina",
+      "pickGroup": "Vyberte skupinu",
+      "add": "Pridať člena",
+      "needEmail": "Zadajte e-mailovú adresu osoby.",
+      "needGroup": "Vyberte skupinu.",
+      "already": "Túto rolu už má."
     }
   },
   "appLifecycle": {
@@ -2140,7 +2245,8 @@
     "laxWarning": "Mierne overenie: kontrola neprebehla alebo neuspela.",
     "findings": "Zistenia",
     "strict": "prísne overenie",
-    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená."
+    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená.",
+    "saveRefused": "Koncept sa neuložil: {reason}"
   },
   "assistantPage": {
     "title": "Asistent",
@@ -2597,5 +2703,167 @@
       "interval": "Interval zrkadlenia schém",
       "expiresAt": "Platí do"
     }
+  },
+  "organization": {
+    "field": {
+      "domain": "Doména",
+      "locales": "Jazyky",
+      "defaultLocale": "Predvolený jazyk",
+      "contacts": "Kontakty",
+      "contactRole": "Zodpovedá za",
+      "contactName": "Meno",
+      "contactEmail": "E-mail",
+      "contactPhone": "Telefón",
+      "projects": "Pravidlá projektov",
+      "creation": "Kto smie otvoriť projekt",
+      "visibility": "Kto číta projekty",
+      "nameCooldownDays": "Dni rezervácie názvu zmazaného projektu",
+      "quota": {
+        "title": "Kvóta nového projektu",
+        "contextSpaces": "Kontextové priestory",
+        "residentPipelines": "Stále pipeline",
+        "publicEndpoints": "Verejné koncové body",
+        "ingestEventsPerSecond": "Aktualizácie za sekundu",
+        "apps": "Aplikácie",
+        "agentRunsPerDay": "Behy asistenta za deň",
+        "entitiesPerSpace": "Entity v priestore",
+        "requestsPerMinute": "Požiadavky za minútu na koncový bod"
+      }
+    },
+    "contactRole": {
+      "administrative": "Administratíva",
+      "technical": "Technika",
+      "data-protection": "Ochrana osobných údajov",
+      "security": "Bezpečnosť"
+    },
+    "visibility": {
+      "organization": "Každý prihlásený človek organizácie",
+      "members": "Iba ľudia, ktorých menuje väzba"
+    },
+    "title": "Organizácia",
+    "lead": "Čo je rovnaké v každom projekte: nastavenia organizácie, jej členovia, roly, skupiny a servisné účty a jej projekty. Každá zmena sa tu navrhuje a schvaľuje.",
+    "tabsLabel": "Časti organizácie",
+    "tab": {
+      "settings": "Nastavenia",
+      "members": "Členovia",
+      "roles": "Roly",
+      "groups": "Skupiny",
+      "service-accounts": "Servisné účty",
+      "projects": "Projekty"
+    },
+    "settings": {
+      "title": "Nastavenia",
+      "lead": "Doména, jazyky a kontakty organizácie a pravidlá, ktorými sa riadi každý projekt. Úprava navrhne zmenu, ktorú schváli administrátor.",
+      "empty": "Organizácia ešte nemá manifest",
+      "emptyHint": "Inštalácia zapíše org.yaml do konfiguračného repozitára; kým tam nie je, na tejto karte sa nedá nič upraviť.",
+      "locales": "{locales}; v jazyku {fallback}, keď jazyk osoby nie je v ponuke",
+      "noContacts": "Zatiaľ nie je uvedený žiadny kontakt.",
+      "creationAnyone": "Projekt smie otvoriť ktokoľvek prihlásený.",
+      "creationGroup": "Projekty otvárajú členovia skupiny {group}.",
+      "creationAdmin": "Projekty otvára iba administrátor organizácie.",
+      "cooldown": "{days} dní",
+      "noQuota": "Pre nový projekt nie je stanovený žiadny limit."
+    },
+    "members": {
+      "title": "Členovia",
+      "hidden": "Nevidíte, kto patrí do tejto organizácie; administrátor organizácie to vidí.",
+      "caption": "Kto má rolu v celej organizácii"
+    },
+    "roles": {
+      "seeded": "základná"
+    },
+    "projects": {
+      "title": "Projekty",
+      "lead": "Každý projekt, ktorý smiete čítať. Kto projekt otvorí, stáva sa jeho správcom; zmazanie je zmena v červenom pruhu s opísaným názvom.",
+      "caption": "Projekty organizácie",
+      "name": "Projekt",
+      "people": "Priradení ľudia a skupiny",
+      "peopleHidden": "Nezobrazuje sa vám",
+      "empty": "Zatiaľ žiadny projekt",
+      "emptyHint": "Prvý otvoríte tlačidlom Nový projekt."
+    }
+  },
+  "projectDelete": {
+    "title": "Zmazať projekt {name}",
+    "lead": "Navrhne sa jedna zmena v červenom pruhu. Schváli ju administrátor organizácie a dovtedy sa nič neodstráni.",
+    "propose": "Navrhnúť zmazanie projektu",
+    "cascadeTitle": "Čo odíde s ním",
+    "cascadeFailed": "Obsah projektu sa nepodarilo spočítať; zmena aj tak vypíše každý súbor, ktorý odstráni.",
+    "count": "{count} × {what}",
+    "everythingElse": "každý ďalší manifest napísaný preň: zdroje dát, pipeline, servisné účty a roly",
+    "bindings": "každá väzba roly organizácie, ktorá menuje projekt alebo niektorý z jeho priestorov",
+    "cooldown": "Názov {name} zostane po zlúčení zmazania rezervovaný {days} dní.",
+    "action": "Zmazať projekt {name}",
+    "button": "Zmazať"
+  },
+  "projectSettings": {
+    "title": "Nastavenia projektu",
+    "lead": "Všetko, čo patrí projektu {project}: jeho názov a kvóty, kto je doň priradený, jeho vlastné roly, servisné účty a jeho zmazanie. Každá zmena sa navrhuje a schvaľuje.",
+    "tabsLabel": "Časti nastavení projektu",
+    "tab": {
+      "general": "Všeobecné",
+      "members": "Členovia",
+      "roles": "Roly",
+      "service-accounts": "Servisné účty",
+      "access": "Váš prístup",
+      "danger": "Zmazať projekt"
+    },
+    "field": {
+      "title": "Názov",
+      "description": "Popis",
+      "quotas": "Kvóty tohto projektu"
+    },
+    "general": {
+      "title": "Všeobecné",
+      "lead": "Ako sa projekt volá a opisuje a čo smie obsahovať. Úprava navrhne zmenu súboru project.yaml.",
+      "noDescription": "Zatiaľ bez popisu.",
+      "organization": "Organizácia",
+      "unknown": "Pre vás nečitateľné"
+    },
+    "access": {
+      "title": "Váš prístup tu",
+      "lead": "Čo vám vaše väzby dovoľujú v tomto projekte čítať, navrhovať, schvaľovať a mazať, a odkiaľ každé oprávnenie pochádza.",
+      "bootstrap": "Ste v zakladajúcej skupine: smiete všetko, kým nebude priradený prvý administrátor.",
+      "caption": "Vaše oprávnenia v {project}",
+      "role": "Rola",
+      "allows": "Dovoľuje",
+      "from": "Odkiaľ",
+      "none": "Žiadna väzba vám tu nič nedáva.",
+      "binding": "väzba {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Zmazať projekt",
+      "lead": "Zmazanie projektu odstráni všetko napísané preň jednou zmenou v červenom pruhu, ktorú schváli administrátor. Dialóg pred potvrdením vypíše, čo odíde s ním."
+    },
+    "roles": {
+      "organizationKinds": "Rola projektu nesmie menovať {kinds}: tie patria vlastným rolám organizácie."
+    }
+  },
+  "projectDuplicate": {
+    "title": "Duplikovať {name}",
+    "lead": "Skopíruje repozitár projektu s celou históriou a navrhne záznam kópie v registri.",
+    "propose": "Navrhnúť kópiu",
+    "sameName": "Zvoľte iný názov, než má pôvodný projekt.",
+    "note": "Koncové body kópie odpovedajú na vlastných identifikátoroch; dáta v brokeri sa nekopírujú.",
+    "button": "Duplikovať",
+    "needsRepository": "Duplikovať možno len projekt vo vlastnom repozitári."
+  },
+  "projectImport": {
+    "title": "Importovať projekt",
+    "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",
+    "button": "Importovať projekt",
+    "file": "Vyberte archív exportu",
+    "fileHint": "Súbor .zip, ktorý zapísal Export vo formáte git.",
+    "chosen": "Vybraný: {name}",
+    "noFile": "Najprv vyberte archív exportu.",
+    "check": "Skontrolovať archív",
+    "import": "Importovať",
+    "repositories": "Repozitáre na vytvorenie",
+    "repository": "{repository} na {head}",
+    "parameters": "Parametre",
+    "noParameters": "Projekt nedeklaruje žiadne parametre.",
+    "secretHint": "Zadajte názov tajomstva, nikdy jeho hodnotu.",
+    "default": "Predvolené: {value}.",
+    "useDefault": "Použiť predvolené"
   }
 }

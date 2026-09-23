@@ -19,6 +19,8 @@ import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { askAbout, standingIn } from "../assistant/state";
+import type { Effective } from "../api/permissions";
+import { proposeStanding } from "../api/approval";
 import type { Draft, Verdict } from "../api/drafts";
 
 // Monaco is loaded when the YAML view is opened and not before: it is the heaviest thing in
@@ -267,7 +269,8 @@ export function ResourceFormDialog<T>({
   const isLax = (branding as { validation?: string })?.validation === "lax";
   // The base comes from the installation's branding, which an administrator writes, so a
   // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
-  // in `ExternalLink`, which is where every link out of the Portal is checked.
+  // in `ExternalLink`, which is where every link out of the Portal is checked — and which keeps
+  // the words when the address is not a place, instead of dropping the sentence.
   const guideHref = guideUrl(branding, arranged?.guide);
   const isStrict = !isLax;
 
@@ -298,6 +301,8 @@ export function ResourceFormDialog<T>({
     [currentManifest],
   );
   const [conflict, setConflict] = useState<string | null>(null);
+  /** Why the server would not save the draft (MF-24, T-2626), in its own words. */
+  const [saveRefused, setSaveRefused] = useState<string | null>(null);
   const lastVersionRef = useRef<number | undefined>(undefined);
   const lastTypedRef = useRef<number>(0);
   /** The digest of the manifest the draft last held: an unchanged form writes nothing. */
@@ -317,9 +322,32 @@ export function ResourceFormDialog<T>({
     };
   }, [open, kind, activeName]);
 
+  /** The verdict on screen, for the answers below that arrive after a newer one (T-2624). */
+  const heldVerdictRef = useRef<Verdict | null>(null);
   const updateVerdict = (v: Verdict | null) => {
+    heldVerdictRef.current = v;
     setInternalVerdict(v);
     onVerdictChange?.(v);
+  };
+  /**
+   * The verdict a save or a reload of the draft carries. The store keeps a draft's verdict
+   * across a save, so a save that crosses a check in flight answers with the verdict from before
+   * that check (none, or the one another hand ran on its own manifest). Taken as it came, it
+   * replaced the fresh one and Propose stayed refused (T-2624). The newer check wins; the digest
+   * still decides whether it is fresh for what the form holds (PF-57).
+   */
+  const adoptVerdict = (incoming: Verdict | null | undefined) => {
+    if (incoming === undefined) {
+      return;
+    }
+    const held = heldVerdictRef.current;
+    if (
+      held !== null &&
+      (incoming === null || Date.parse(incoming.checkedAt) < Date.parse(held.checkedAt))
+    ) {
+      return;
+    }
+    updateVerdict(incoming);
   };
 
   /** A dialog opens on its form again, whatever view it was closed from. */
@@ -397,25 +425,25 @@ export function ResourceFormDialog<T>({
           syncedDigestRef.current = digest;
           setCurrentDraft(d);
           lastVersionRef.current = d.version;
-          if (d.verdict !== undefined) {
-            updateVerdict(d.verdict ?? null);
-          }
+          adoptVerdict(d.verdict);
           setConflict(null);
+          setSaveRefused(null);
         })
         .catch((err: unknown) => {
           const isConflict =
             typeof err === "object" &&
             err !== null &&
             (err as { status?: number }).status === 409;
+          if (!isConflict) {
+            setSaveRefused(refusalOf(err));
+          }
           if (isConflict) {
             setConflict(t("drafts.conflict"));
             void getDraft(project, draftKind, activeName).then((reloaded) => {
               if (reloaded) {
                 setCurrentDraft(reloaded);
                 lastVersionRef.current = reloaded.version;
-                if (reloaded.verdict !== undefined) {
-                  updateVerdict(reloaded.verdict ?? null);
-                }
+                adoptVerdict(reloaded.verdict);
                 if (reloaded.manifest) {
                   const loaded = source
                     ? source.fromManifest(reloaded.manifest)
@@ -452,7 +480,7 @@ export function ResourceFormDialog<T>({
           void getDraft(project, draftKind, activeName).then((d) => {
             if (d) {
               setCurrentDraft(d);
-              updateVerdict(d.verdict ?? null);
+              adoptVerdict(d.verdict ?? null);
             }
           });
           return;
@@ -465,9 +493,7 @@ export function ResourceFormDialog<T>({
             if (reloaded) {
               setCurrentDraft(reloaded);
               lastVersionRef.current = reloaded.version;
-              if (reloaded.verdict !== undefined) {
-                updateVerdict(reloaded.verdict ?? null);
-              }
+              adoptVerdict(reloaded.verdict);
               if (reloaded.manifest) {
                 const loaded = source
                   ? source.fromManifest(reloaded.manifest)
@@ -522,6 +548,13 @@ export function ResourceFormDialog<T>({
   const effectiveSubmitDisabledReason = isLax
     ? submitDisabledReason
     : submitDisabledReason || proposeReason;
+
+  /** The server's own sentence for a refused save, else what the request failed with. */
+  function refusalOf(err: unknown): string {
+    const detail = (err as { detail?: unknown } | null)?.detail;
+    if (typeof detail === "string" && detail) return detail;
+    return err instanceof Error ? err.message : t("app.error.generic");
+  }
 
   /** The form the YAML describes, or `null` with the reason on screen. */
   function readYaml(): T | null {
@@ -583,15 +616,15 @@ export function ResourceFormDialog<T>({
         syncedDigestRef.current = digest;
         lastVersionRef.current = saved.version;
         setCurrentDraft(saved);
-        if (saved.verdict !== undefined) {
-          updateVerdict(saved.verdict ?? null);
-        }
+        adoptVerdict(saved.verdict);
+        setSaveRefused(null);
       } catch (err) {
         // Another window changed the draft: the person sees it before anything is proposed. Any
         // other failure leaves the proposal to the server's check, which says what to do.
         if ((err as { status?: number }).status === 409) {
           throw err;
         }
+        setSaveRefused(refusalOf(err));
       }
     }
     return { kind: draftKind, name: active };
@@ -675,7 +708,9 @@ export function ResourceFormDialog<T>({
    * expression, or nothing at all — and no field was marked, which left a person and a screen
    * reader with no idea where (T-1491, UI-44, UI-45). The browser knows this much already.
    */
-  function schemaRefusals(form: T): { marked: ErrorSchema; sentences: string[] } | null {
+  function schemaRefusals(
+    form: T,
+  ): { marked: ErrorSchema; sentences: string[]; missing: boolean } | null {
     const { errors } = validator.validateFormData(form, schema);
     if (errors.length === 0) {
       return null;
@@ -687,7 +722,10 @@ export function ResourceFormDialog<T>({
       sentences.push(`${issue.property ?? ""} ${sentence}`.trim());
       atPath(marked, (issue.property ?? "").split(".")).push(sentence);
     }
-    return { marked, sentences };
+    // A required field left empty is a manifest the server cannot even read: a reference with no
+    // name answers "does not parse: untagged enum Ref" instead of anything a person can act on
+    // (T-2634).
+    return { marked, sentences, missing: errors.some((issue) => issue.name === "required") };
   }
 
   /**
@@ -718,9 +756,14 @@ export function ResourceFormDialog<T>({
       if (formData) {
         // What the browser already knows goes onto the fields at once, in words (T-1491); the
         // server is still asked, because its check sees what the schema cannot — a reference that
-        // does not resolve, a name already taken, a grant the proposer does not have.
-        setSchemaErrors(schemaRefusals(formData)?.marked);
-        check(formData);
+        // does not resolve, a name already taken, a grant the proposer does not have. Not while a
+        // required field is empty: that manifest does not parse, and the field already says what
+        // it needs (T-2634).
+        const refused = schemaRefusals(formData);
+        setSchemaErrors(refused?.marked);
+        if (!refused?.missing) {
+          check(formData);
+        }
       }
       return;
     }
@@ -870,7 +913,7 @@ export function ResourceFormDialog<T>({
             <ExternalLink
               data-testid="form-guide"
               href={guideHref}
-              className="text-accent underline-offset-2"
+              className="text-primary-soft-fg underline-offset-2"
             >
               {t("form.guideLink", { kind })}
             </ExternalLink>
@@ -882,6 +925,13 @@ export function ResourceFormDialog<T>({
             {conflict}
           </Alert>
         ) : null}
+        {saveRefused ? (
+          <Alert role="alert" tone="danger">
+            {t("drafts.saveRefused", { reason: saveRefused })}
+          </Alert>
+        ) : null}
+
+        {draftKind && project ? <ProposeStandingNote project={project} kind={draftKind} /> : null}
 
         {draftKind && (currentDraft || isStrict) ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -1084,5 +1134,22 @@ export function ResourceFormDialog<T>({
         )}
       </div>
     </FormFrame>
+  );
+}
+
+/**
+ * Before the click, what proposing leads to: approved at once, or waiting for another approver
+ * and why (PF-58, PF-70). It reads the permissions the page already holds and fetches nothing, so
+ * opening a form never races its draft's load with a request of its own.
+ */
+function ProposeStandingNote({ project, kind }: { project: string; kind: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const { data } = useQuery<Effective>({ queryKey: queryKeys.permissions(project), enabled: false });
+  const standing = proposeStanding(data, kind);
+  if (!standing) return null;
+  return (
+    <p role="status" data-testid="propose-standing" className="text-caption text-fg-muted">
+      {t(`changes.${standing}`, { kind })}
+    </p>
   );
 }

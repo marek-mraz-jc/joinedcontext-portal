@@ -8,11 +8,13 @@ import { prune } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { useCreateForm } from "../../components/forms/FormRoute";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { SYNC_ORIGINS, syncSourceSchema } from "../../schemas/kinds";
 import type { SyncOriginKind } from "../../schemas/kinds";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { ResourceRowActions } from "../../components/ResourceRowActions";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -113,7 +115,8 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
 
   // A source is added here or nowhere: MF-27 has no other door into the Portal (T-0790).
   const [origin, setOrigin] = useState<SyncOriginKind>("git");
-  const [adding, setAdding] = useState(false);
+  // `/syncsources/new` opens the form too: the assistant's hand-off and a shared link (T-2582).
+  const [adding, setAdding] = useCreateForm();
   const [change, setChange] = useState<Change | null>(null);
   const proposal = useProposal(project, "syncsources", (proposed) => {
     setChange(proposed);
@@ -142,9 +145,13 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
                 ))}
               </Select>
             </Field>
-            <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
-              {t("syncSources.add")}
-            </Button>
+            {/* Each button asks for the verb its route checks (UI-44): a viewer reads why it is
+                closed instead of meeting a 403 after filling the form. */}
+            <PermissionGuard project={project} kind="SyncSource" verb="propose">
+              <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
+                {t("syncSources.add")}
+              </Button>
+            </PermissionGuard>
           </div>
         }
       />
@@ -356,30 +363,36 @@ function SyncSourceCard({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          disabled={busy || paused}
-          onClick={() => syncNow.mutate()}
-        >
-          {t("syncSources.syncNow")}
-        </Button>
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={() => pause.mutate(!paused)}
-        >
-          {paused ? t("syncSources.resume") : t("syncSources.pause")}
-        </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          disabled={busy}
-          onClick={() => {
-            setDetaching(true);
-          }}
-        >
-          {t("syncSources.detach")}
-        </Button>
+        <PermissionGuard project={project} kind="SyncSource" verb="propose">
+          <Button
+            size="sm"
+            disabled={busy || paused}
+            onClick={() => syncNow.mutate()}
+          >
+            {t("syncSources.syncNow")}
+          </Button>
+        </PermissionGuard>
+        <PermissionGuard project={project} kind="SyncSource" verb="propose">
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() => pause.mutate(!paused)}
+          >
+            {paused ? t("syncSources.resume") : t("syncSources.pause")}
+          </Button>
+        </PermissionGuard>
+        <PermissionGuard project={project} kind="SyncSource" verb="delete">
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              setDetaching(true);
+            }}
+          >
+            {t("syncSources.detach")}
+          </Button>
+        </PermissionGuard>
       </div>
       <ConfirmDialog
         open={detaching}

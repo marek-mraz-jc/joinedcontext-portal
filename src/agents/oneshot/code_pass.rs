@@ -791,7 +791,8 @@ impl Driver {
         committed: &mut BTreeMap<String, String>,
         message: &str,
     ) -> Result<(), String> {
-        let Some(gitea) = self.state.gitea.clone() else {
+        // A workspace run's folder is in the project's own repository in layout 2 (CC-87).
+        let Some(gitea) = self.state.forge_for(&self.project) else {
             return Ok(());
         };
         if self.branch.is_empty() {
@@ -816,6 +817,13 @@ impl Driver {
             return Ok(());
         }
         let own = self.repository.is_some();
+        if own {
+            if let Some(refusal) = repository::build_refusal(files, committed) {
+                return self
+                    .thought(&format!("The commit did not land in the forge: {refusal}"))
+                    .await;
+            }
+        }
         let readme = if own && first && !files.contains_key(repository::README) {
             let title = match self.state.agents.get_run(&self.run_id).await {
                 Ok(Some(run)) => run.title,
@@ -1282,6 +1290,58 @@ mod repository_tests {
                 .iter()
                 .all(|request| !request.url.path().contains("/git/trees")),
             "a later pass read the whole tree"
+        );
+    }
+
+    /// AP-100: a pass that would add, change or delete anything under `.gitea/` reaches the
+    /// forge not at all, and the run is told why, so only a workflow a reviewer merged runs.
+    #[tokio::test]
+    async fn a_pass_that_would_change_the_build_commits_nothing() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(format!("{REPO}/contents")))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let (state, driver) = driver(&server);
+        let mut committed = files();
+        committed.insert(
+            repository::WORKFLOW.into(),
+            repository::WORKFLOW_TEXT.into(),
+        );
+        let mut next = committed.clone();
+        next.insert(
+            repository::WORKFLOW.into(),
+            "on: [push]\njobs: { x: { runs-on: node-22, steps: [ { run: env } ] } }\n".into(),
+        );
+        next.insert("src/App.tsx".into(), "export default 2".into());
+        let before = committed.clone();
+        driver
+            .commit_files(&next, &mut committed, "Second version")
+            .await
+            .expect("the pass goes on");
+
+        assert!(
+            server
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .is_empty(),
+            "the forge was asked for something"
+        );
+        assert_eq!(committed, before, "nothing counts as committed");
+        let events = state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events");
+        assert!(
+            events
+                .iter()
+                .any(|event| event.payload.to_string().contains("AP-100")),
+            "the run says why: {events:?}"
         );
     }
 

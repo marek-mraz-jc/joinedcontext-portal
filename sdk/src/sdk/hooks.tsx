@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Cell, Row } from "../ngsi";
+import type { Cell, LanguageMap, Row } from "../ngsi";
 import type { Schema, TypeSchema } from "../write";
 import type { AccessDocument, Decision } from "./access";
 import { can as evalCan } from "./access";
@@ -143,8 +143,8 @@ export function useEntity<T extends Row = Row>(
 }
 
 export function useSave(): {
-  create(type: string, attrs: Record<string, Cell>, localId?: string): Promise<string | null>;
-  update(id: string, patch: Record<string, Cell>): Promise<boolean>;
+  create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string): Promise<string | null>;
+  update(id: string, patch: Record<string, Cell | LanguageMap>): Promise<boolean>;
   remove(id: string): Promise<boolean>;
   saving: boolean;
   problem: ProblemError | null;
@@ -250,11 +250,12 @@ export function useAccess(endpoint?: string): {
       });
   }, [client, endpoint]);
 
+  const roles = client.me()?.roles;
   const can = useCallback(
     (operation: string, type: string, attr?: string): Decision => {
-      return evalCan(access, operation, type, attr);
+      return evalCan(access, operation, type, attr, roles);
     },
-    [access],
+    [access, roles],
   );
 
   return { access, error, can };

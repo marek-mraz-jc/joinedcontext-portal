@@ -29,7 +29,7 @@ export interface TypeSchema {
 
 export type Schema = Record<string, TypeSchema>;
 
-export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo";
+export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo" | "language";
 
 export interface Field {
   name: string;
@@ -59,7 +59,11 @@ export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Colu
   if (types.includes("boolean")) {
     return { name, input: "checkbox", required };
   }
-  // A LanguageProperty is an object in the schema too, and its row cell is text.
+  // A LanguageProperty is an object in the schema too, and its row cell is one language of it:
+  // written back as that text it would replace every other language (SDK-07).
+  if (ngsiKind === "LanguageProperty") {
+    return { name, input: "language", required };
+  }
   if (ngsiKind === "GeoProperty" || (ngsiKind === undefined && types.includes("object")) || kind === "geo") {
     return { name, input: "geo", required };
   }

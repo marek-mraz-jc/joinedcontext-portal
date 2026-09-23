@@ -22,6 +22,10 @@ pub struct GiteaClient {
     pub public_base: Url,
     pub owner: String,
     pub repo: String,
+    /// `projects/{slug}/` for a project repository of layout 2 (CC-87): the render path its
+    /// root sits at. Every path this client reads comes back under it and every path it writes
+    /// is taken out of it, so a caller speaks render paths whichever repository it talks to.
+    mount: Option<String>,
     token: String,
     pub http: reqwest::Client,
 }
@@ -32,6 +36,7 @@ impl std::fmt::Debug for GiteaClient {
             .field("base", &self.base.as_str())
             .field("owner", &self.owner)
             .field("repo", &self.repo)
+            .field("mount", &self.mount)
             .field("token", &"[redacted]")
             .finish()
     }
@@ -67,6 +72,93 @@ impl From<GitError> for ApiError {
     }
 }
 
+/// A workflow run of an application's repository, as the App page links it (AP-86, AP-103).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRun {
+    /// `queued`, `in_progress`, `waiting` or `completed`, as the forge says it.
+    pub status: String,
+    /// `success`, `failure`, `cancelled`… once the run is completed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conclusion: Option<String>,
+    /// The commit the run built.
+    pub commit: String,
+    /// The run's page, behind the forge's sign-in (PF-81).
+    pub url: String,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunsResponse {
+    #[serde(default)]
+    workflow_runs: Vec<WorkflowRunResponse>,
+}
+
+#[derive(Deserialize)]
+struct WorkflowRunResponse {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    conclusion: Option<String>,
+    #[serde(default)]
+    head_sha: String,
+    #[serde(default)]
+    run_number: Option<u64>,
+}
+
+/// An Actions artifact of a repository and the commit its run built (AP-104).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Artifact {
+    pub id: u64,
+    pub size: u64,
+    /// The workflow run that uploaded it.
+    pub run: u64,
+    pub commit: String,
+}
+
+#[derive(Deserialize)]
+struct ArtifactsResponse {
+    #[serde(default)]
+    artifacts: Vec<ArtifactResponse>,
+}
+
+#[derive(Deserialize)]
+struct ArtifactResponse {
+    id: u64,
+    name: String,
+    #[serde(default)]
+    size_in_bytes: u64,
+    workflow_run: ArtifactRunResponse,
+}
+
+#[derive(Deserialize)]
+struct ArtifactRunResponse {
+    id: u64,
+    #[serde(default)]
+    head_sha: String,
+}
+
+/// A body read to its end, refused once it passes `limit` bytes rather than held in memory.
+async fn read_capped(
+    mut res: reqwest::Response,
+    limit: u64,
+    what: &str,
+) -> Result<Vec<u8>, GitError> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = res
+        .chunk()
+        .await
+        .map_err(|e| GitError::Transport(e.to_string()))?
+    {
+        if (bytes.len() + chunk.len()) as u64 > limit {
+            return Err(GitError::Transport(format!(
+                "{what} is larger than {limit} bytes"
+            )));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+
 /// Human author attributed on commits (CC-44).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Author<'a> {
@@ -79,6 +171,45 @@ pub struct Author<'a> {
 pub struct RepoFile {
     pub sha: String,
     pub content: String,
+}
+
+/// What `git-receive-pack` reported with `report-status`: `unpack ok`, then `ok {ref}` or
+/// `ng {ref} {reason}` per ref, in pkt-lines. Answers the refused refs.
+fn receive_pack_status(answer: &[u8]) -> Result<Vec<String>, GitError> {
+    let mut rest = answer;
+    let mut unpacked = false;
+    let mut refused = Vec::new();
+    while rest.len() >= 4 {
+        let size = std::str::from_utf8(&rest[..4])
+            .ok()
+            .and_then(|hex| usize::from_str_radix(hex, 16).ok())
+            .ok_or_else(|| GitError::Transport("the push answer is not pkt-lines".into()))?;
+        if size == 0 {
+            rest = &rest[4..];
+            continue;
+        }
+        if size < 4 || size > rest.len() {
+            return Err(GitError::Transport("the push answer is cut short".into()));
+        }
+        let text = String::from_utf8_lossy(&rest[4..size]);
+        let text = text.trim_end();
+        if text == "unpack ok" {
+            unpacked = true;
+        } else if let Some(reason) = text.strip_prefix("unpack ") {
+            return Err(GitError::Conflict(format!(
+                "the forge did not unpack the bundle: {reason}"
+            )));
+        } else if let Some(ng) = text.strip_prefix("ng ") {
+            refused.push(ng.to_owned());
+        }
+        rest = &rest[size..];
+    }
+    if !unpacked {
+        return Err(GitError::Transport(
+            "the push answer reported no unpack".into(),
+        ));
+    }
+    Ok(refused)
 }
 
 /// One file a pull request changes; `deleted` when it is gone from the head branch.
@@ -139,6 +270,8 @@ pub struct PullRequest {
     pub author_email: Option<String>,
     pub mergeable: Option<bool>,
     pub merged: bool,
+    /// The repository the pull request is in, as the client that read it names it (CC-87).
+    pub repository: String,
 }
 
 impl PullRequest {
@@ -371,6 +504,7 @@ impl From<GiteaPullResponse> for PullRequest {
             author_email,
             mergeable: raw.mergeable,
             merged: raw.merged,
+            repository: String::new(),
         }
     }
 }
@@ -437,6 +571,7 @@ impl GiteaClient {
             base,
             owner: owner.into(),
             repo: repo.into(),
+            mount: None,
             token: token.into(),
             http,
         })
@@ -484,7 +619,8 @@ impl GiteaClient {
             self.owner,
             self.repo,
             git_ref,
-            path.trim_start_matches('/'),
+            self.local_path(path)
+                .unwrap_or_else(|| path.trim_start_matches('/').to_owned()),
         ))
     }
 
@@ -526,6 +662,7 @@ impl GiteaClient {
     /// the public one; without, Gitea's own `html_url` is the best there is.
     fn pull(&self, raw: GiteaPullResponse) -> PullRequest {
         let mut pull = PullRequest::from(raw);
+        pull.repository = self.repo.clone();
         if self.public_base != self.base {
             pull.url = self.pull_url(pull.number);
         }
@@ -582,7 +719,56 @@ impl GiteaClient {
     pub fn for_repository(&self, repo: impl Into<String>) -> Self {
         Self {
             repo: repo.into(),
+            mount: None,
             ..self.clone()
+        }
+    }
+
+    /// The project repository `repo` of layout 2, which holds what the render has under
+    /// `projects/{slug}/` at its root (CC-85, CC-87).
+    pub fn for_project(&self, repo: impl Into<String>, slug: &str) -> Self {
+        Self {
+            repo: repo.into(),
+            mount: Some(format!("projects/{slug}/")),
+            ..self.clone()
+        }
+    }
+
+    /// Whether this is a project repository of layout 2.
+    pub fn is_project_repository(&self) -> bool {
+        self.mount.is_some()
+    }
+
+    /// A render path as this repository spells it, or `None` when it is not one of its files.
+    fn local_path(&self, path: &str) -> Option<String> {
+        let clean = path.trim_start_matches('/');
+        match &self.mount {
+            None => Some(clean.to_owned()),
+            Some(mount) => clean
+                .strip_prefix(mount.as_str())
+                .filter(|rest| !rest.is_empty())
+                .map(str::to_owned),
+        }
+    }
+
+    /// [`Self::local_path`] for a write: a path outside the project repository is refused,
+    /// so nothing meant for the organization repository lands in a project's (CC-87).
+    fn write_path(&self, path: &str) -> Result<String, GitError> {
+        self.local_path(path).ok_or_else(|| {
+            GitError::Conflict(format!(
+                "{} is not a file of the project repository {}; the organization's files are \
+                 changed in the organization repository",
+                path.trim_start_matches('/'),
+                self.repo
+            ))
+        })
+    }
+
+    /// A path of this repository as the render spells it.
+    fn render_path(&self, path: String) -> String {
+        match &self.mount {
+            None => path,
+            Some(mount) => format!("{mount}{path}"),
         }
     }
 
@@ -629,6 +815,136 @@ impl GiteaClient {
             Err(GitError::Conflict(_)) => Ok(false),
             Err(err) => Err(err),
         }
+    }
+
+    /// Creates this repository as a copy of `origin` with its whole history, through the
+    /// forge's migration from its own address (PF-89): the forge refuses a fork into the owner
+    /// that holds the origin. Private, without the origin's issues, pull requests, wiki or
+    /// releases. Answers `false`, and copies nothing, when a repository of this name is already
+    /// there.
+    pub async fn migrate_repository(&self, origin: &GiteaClient) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let base = self.base.as_str().trim_end_matches('/');
+        let full = format!("{base}/api/v1/repos/migrate");
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "clone_addr": format!("{base}/{}/{}.git", origin.owner, origin.repo),
+            "service": "gitea",
+            "auth_token": self.token,
+            "repo_owner": self.owner,
+            "repo_name": self.repo,
+            "private": true,
+            "mirror": false,
+            "issues": false,
+            "pull_requests": false,
+            "wiki": false,
+            "releases": false,
+            "labels": false,
+            "milestones": false,
+            "lfs": false,
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Creates the repository in the organization, private and empty, for a push to fill (MF-45);
+    /// answers `false`, and creates nothing, when a repository of this name is already there.
+    pub async fn create_empty_repository(&self, description: &str) -> Result<bool, GitError> {
+        let res = self.send(self.http.get(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => return Ok(false),
+            Err(GitError::NotFound) => {}
+            Err(err) => return Err(err),
+        }
+        let full = format!(
+            "{}/api/v1/orgs/{}/repos",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let payload = serde_json::json!({
+            "name": self.repo,
+            "description": description,
+            "private": true,
+            "auto_init": false,
+            "default_branch": "main",
+        });
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        match Self::check_status(res).await {
+            Ok(_) => Ok(true),
+            Err(GitError::Conflict(_)) => Ok(false),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Pushes the pack of a `git bundle` into this repository and sets `refs` to the commits
+    /// given, `(commit, refname)`, with one `git-receive-pack` request (MF-45): the Portal
+    /// holds no git, and a bundle is a header and the very pack a push sends. Every ref is
+    /// created, so the repository is empty or the forge refuses it. A pack the forge does not
+    /// unpack is the error; each ref it refuses on its own (`ng`, a tag whose commit the pack
+    /// does not hold) is answered as `ref reason`, and the others are set.
+    pub async fn push_bundle(
+        &self,
+        bundle: &[u8],
+        refs: &[(String, String)],
+    ) -> Result<Vec<String>, GitError> {
+        const ZERO: &str = "0000000000000000000000000000000000000000";
+        let pack = bundle
+            .windows(2)
+            .position(|pair| pair == b"\n\n")
+            .map(|end| &bundle[end + 2..])
+            .filter(|pack| pack.starts_with(b"PACK"))
+            .ok_or_else(|| GitError::Conflict("the bundle carries no pack".into()))?;
+        let Some(((first_commit, first_ref), rest)) = refs.split_first() else {
+            return Err(GitError::Conflict("a push sets at least one ref".into()));
+        };
+        let line = |text: String| format!("{:04x}{text}", text.len() + 4);
+        let mut body = line(format!(
+            "{ZERO} {first_commit} {first_ref}\0 report-status\n"
+        ))
+        .into_bytes();
+        for (commit, name) in rest {
+            body.extend_from_slice(line(format!("{ZERO} {commit} {name}\n")).as_bytes());
+        }
+        body.extend_from_slice(b"0000");
+        body.extend_from_slice(pack);
+
+        let full = format!(
+            "{}/{}/{}.git/git-receive-pack",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        );
+        let url = Url::parse(&full)
+            .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+        let res = self
+            .send(
+                self.http
+                    .post(url)
+                    .header(
+                        reqwest::header::CONTENT_TYPE,
+                        "application/x-git-receive-pack-request",
+                    )
+                    .body(body),
+            )
+            .await?;
+        let res = Self::check_status(res).await?;
+        let answer = res
+            .bytes()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to read the push answer: {e}")))?;
+        receive_pack_status(&answer)
     }
 
     /// The push mirrors of the repository: where each one pushes, and what its last sync said
@@ -695,6 +1011,318 @@ impl GiteaClient {
         Ok(repo.default_branch)
     }
 
+    /// The repository's page, behind the forge's sign-in (AP-103, PF-81).
+    pub fn repository_page_url(&self) -> String {
+        self.signed_in(&format!(
+            "{}/{}/{}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+            self.repo
+        ))
+    }
+
+    /// The page of one version of a generic package of the organization (AP-101, AP-103).
+    pub fn package_page_url(&self, package: &str, version: &str) -> String {
+        self.signed_in(&format!(
+            "{}/{}/-/packages/generic/{package}/{version}",
+            self.public_base.as_str().trim_end_matches('/'),
+            self.owner,
+        ))
+    }
+
+    /// `GET /actions/runs?limit=1` — the newest workflow run of the repository, `None` before
+    /// the first one. The link is built from the public URL, never Gitea's own `html_url`,
+    /// which carries the cluster-internal ROOT_URL (PF-81).
+    pub async fn latest_run(&self) -> Result<Option<WorkflowRun>, GitError> {
+        let mut url = self.repo_url("actions/runs")?;
+        url.query_pairs_mut().append_pair("limit", "1");
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        let runs: WorkflowRunsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the workflow runs: {e}")))?;
+        Ok(runs.workflow_runs.into_iter().next().map(|run| {
+            let page = format!(
+                "{}/{}/{}/actions",
+                self.public_base.as_str().trim_end_matches('/'),
+                self.owner,
+                self.repo
+            );
+            WorkflowRun {
+                url: self.signed_in(&match run.run_number {
+                    Some(number) => format!("{page}/runs/{number}"),
+                    None => page,
+                }),
+                status: run.status,
+                conclusion: run.conclusion.filter(|c| !c.is_empty()),
+                commit: run.head_sha,
+            }
+        }))
+    }
+
+    /// `POST /actions/workflows/{file}/dispatches` — runs the workflow `file` on `git_ref`
+    /// (AP-103). A refusal keeps the forge's own words, which is what a person acts on.
+    pub async fn dispatch_workflow(&self, file: &str, git_ref: &str) -> Result<(), GitError> {
+        let url = self.repo_url(&format!("actions/workflows/{file}/dispatches"))?;
+        let res = self
+            .send(
+                self.http
+                    .post(url)
+                    .json(&serde_json::json!({ "ref": git_ref })),
+            )
+            .await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// `GET /actions/artifacts?name={name}` — the repository's artifacts of that exact name, each
+    /// with the commit its run built (AP-104).
+    pub async fn artifacts_named(&self, name: &str) -> Result<Vec<Artifact>, GitError> {
+        let mut url = self.repo_url("actions/artifacts")?;
+        url.query_pairs_mut().append_pair("name", name);
+        let res = Self::check_status(self.send(self.http.get(url)).await?).await?;
+        let listed: ArtifactsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the artifacts: {e}")))?;
+        Ok(listed
+            .artifacts
+            .into_iter()
+            .filter(|artifact| artifact.name == name)
+            .map(|artifact| Artifact {
+                id: artifact.id,
+                size: artifact.size_in_bytes,
+                run: artifact.workflow_run.id,
+                commit: artifact.workflow_run.head_sha,
+            })
+            .collect())
+    }
+
+    /// `GET /actions/artifacts/{id}/zip` — the bytes the run uploaded, at most `limit` of them.
+    ///
+    /// The forge answers with a redirect to a signed address on its ROOT_URL, the public host the
+    /// cluster may not reach, so the signed path is fetched from the API base the Portal dials;
+    /// the signature is the grant and no token goes with it. The path is kept from `/api/v1/` on:
+    /// a ROOT_URL with a path (`https://host/git/`) signs `/git/api/v1/…`, which only the public
+    /// proxy strips, and the forge itself answers 404 (T-2633).
+    pub async fn download_artifact(&self, id: u64, limit: u64) -> Result<Vec<u8>, GitError> {
+        let url = self.repo_url(&format!("actions/artifacts/{id}/zip"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = if res.status().is_redirection() {
+            let signed = res
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| Url::parse(value).ok())
+                .ok_or_else(|| GitError::Transport("the forge redirected nowhere".into()))?;
+            let path = signed.path();
+            let api = path.find("/api/v1/").map_or(path, |at| &path[at..]);
+            let full = format!("{}{api}", self.base.as_str().trim_end_matches('/'));
+            let mut here = Url::parse(&full)
+                .map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))?;
+            here.set_query(signed.query());
+            self.http
+                .get(here)
+                .timeout(Duration::from_secs(120))
+                .send()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))?
+        } else {
+            res
+        };
+        read_capped(
+            Self::check_status(res).await?,
+            limit,
+            &format!("artifact {id}"),
+        )
+        .await
+    }
+
+    fn generic_package_url(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+    ) -> Result<Url, GitError> {
+        let full = format!(
+            "{}/api/packages/{}/generic/{package}/{version}/{file}",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        Url::parse(&full).map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))
+    }
+
+    /// `PUT /api/packages/{owner}/generic/{package}/{version}/{file}` — one file of a generic
+    /// package of the organization (AP-101). A file the version already holds is a
+    /// `GitError::Conflict`: the registry never replaces one.
+    pub async fn put_generic_file(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), GitError> {
+        let url = self.generic_package_url(package, version, file)?;
+        let res = self
+            .send(
+                self.http
+                    .put(url)
+                    .timeout(Duration::from_secs(120))
+                    .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+                    .body(bytes),
+            )
+            .await?;
+        Self::check_status(res).await?;
+        Ok(())
+    }
+
+    /// `GET /api/packages/{owner}/generic/{package}/{version}/{file}`, at most `limit` bytes.
+    pub async fn get_generic_file(
+        &self,
+        package: &str,
+        version: &str,
+        file: &str,
+        limit: u64,
+    ) -> Result<Vec<u8>, GitError> {
+        let url = self.generic_package_url(package, version, file)?;
+        let res = self
+            .send(self.http.get(url).timeout(Duration::from_secs(120)))
+            .await?;
+        read_capped(
+            Self::check_status(res).await?,
+            limit,
+            &format!("{package}/{version}/{file}"),
+        )
+        .await
+    }
+
+    /// A registry token for pushing to `{owner}/{image}` of the forge's container registry,
+    /// asked of `/v2/token` with this client's own token (AP-107). The token realm the registry
+    /// names carries ROOT_URL, the public host the cluster may not reach, so the token is asked
+    /// of the API base the Portal dials.
+    async fn registry_token(&self, image: &str) -> Result<String, GitError> {
+        let mut url = Url::parse(&format!(
+            "{}/v2/token",
+            self.base.as_str().trim_end_matches('/')
+        ))
+        .map_err(|e| GitError::Config(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("service", "container_registry")
+            .append_pair(
+                "scope",
+                &format!("repository:{}/{image}:push,pull", self.owner),
+            );
+        let res = self
+            .http
+            .get(url)
+            .basic_auth(&self.owner, Some(&self.token))
+            .send()
+            .await
+            .map_err(|e| GitError::Transport(e.to_string()))?;
+        #[derive(Deserialize)]
+        struct Token {
+            token: String,
+        }
+        let token: Token =
+            Self::check_status(res).await?.json().await.map_err(|e| {
+                GitError::Transport(format!("failed to parse the registry token: {e}"))
+            })?;
+        Ok(token.token)
+    }
+
+    /// Pushes an image to `{owner}/{image}:{tag}` of the forge's container registry: every blob
+    /// it does not hold yet, then the manifest's bytes as they are, and answers the digest the
+    /// registry says it stored (AP-107). A blob goes up in one request with its digest, so the
+    /// registry checks each one itself.
+    pub async fn push_image(
+        &self,
+        image: &str,
+        tag: &str,
+        blobs: &[(&str, &[u8])],
+        manifest_type: &str,
+        manifest: &[u8],
+    ) -> Result<String, GitError> {
+        let bearer = self.registry_token(image).await?;
+        let base = format!(
+            "{}/v2/{}/{image}",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        );
+        let parse = |url: String| Url::parse(&url).map_err(|e| GitError::Config(e.to_string()));
+        let send = |builder: reqwest::RequestBuilder| async {
+            builder
+                .bearer_auth(&bearer)
+                .timeout(Duration::from_secs(300))
+                .send()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))
+        };
+        for (digest, bytes) in blobs {
+            let held = send(self.http.head(parse(format!("{base}/blobs/{digest}"))?)).await?;
+            if held.status().is_success() {
+                continue;
+            }
+            let mut upload = parse(format!("{base}/blobs/uploads/"))?;
+            upload.query_pairs_mut().append_pair("digest", digest);
+            let res = send(
+                self.http
+                    .post(upload)
+                    .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+                    .body(bytes.to_vec()),
+            )
+            .await?;
+            Self::check_status(res).await?;
+        }
+        let res = send(
+            self.http
+                .put(parse(format!("{base}/manifests/{tag}"))?)
+                .header(reqwest::header::CONTENT_TYPE, manifest_type)
+                .body(manifest.to_vec()),
+        )
+        .await?;
+        let res = Self::check_status(res).await?;
+        res.headers()
+            .get("docker-content-digest")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+            .ok_or_else(|| GitError::Transport("the registry answered no digest".into()))
+    }
+
+    /// `DELETE /repos/{owner}/{repo}` — removes a repository the Portal created in the same
+    /// operation, when the rest of it failed (both or neither, CC-85).
+    pub async fn delete_repository(&self) -> Result<(), GitError> {
+        let res = self.send(self.http.delete(self.repo_url("")?)).await?;
+        match Self::check_status(res).await {
+            Ok(_) | Err(GitError::NotFound) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// `PATCH /repos/{owner}/{repo}` with `archived: true` — a deleted project's repository is
+    /// kept read-only with its history, never deleted (PF-77).
+    pub async fn archive_repository(&self) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "archived": true });
+        let res = self
+            .send(self.http.patch(self.repo_url("")?).json(&payload))
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
+    /// `POST /branch_protections` — `branch` takes no direct push: every change reaches it
+    /// through a merged pull request (PF-87).
+    pub async fn protect_branch(&self, branch: &str) -> Result<(), GitError> {
+        let payload = serde_json::json!({ "rule_name": branch, "enable_push": false });
+        let res = self
+            .send(
+                self.http
+                    .post(self.repo_url("branch_protections")?)
+                    .json(&payload),
+            )
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
     /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.
     pub async fn list_tree(&self, git_ref: &str) -> Result<Vec<String>, GitError> {
         Ok(self
@@ -742,7 +1370,7 @@ impl GiteaClient {
             .tree
             .into_iter()
             .filter(|entry| entry.entry_type == "blob")
-            .map(|entry| (entry.path, entry.sha))
+            .map(|entry| (self.render_path(entry.path), entry.sha))
             .collect();
 
         Ok(paths)
@@ -784,7 +1412,11 @@ impl GiteaClient {
 
     /// `GET /contents/{path}?ref={git_ref}` — reads a file and decodes its base64 content.
     pub async fn get_file(&self, path: &str, git_ref: &str) -> Result<Option<RepoFile>, GitError> {
-        let mut url = self.repo_url(&format!("contents/{}", path.trim_start_matches('/')))?;
+        // Not a file of this repository, so this repository does not have it.
+        let Some(path) = self.local_path(path) else {
+            return Ok(None);
+        };
+        let mut url = self.repo_url(&format!("contents/{path}"))?;
         url.query_pairs_mut().append_pair("ref", git_ref);
 
         let res = self.send(self.http.get(url)).await?;
@@ -812,7 +1444,7 @@ impl GiteaClient {
 
     /// `PUT /contents/{path}` — creates or replaces a file with human commit attribution.
     pub async fn put_file(&self, req: &FileWrite<'_>) -> Result<String, GitError> {
-        let url = self.repo_url(&format!("contents/{}", req.path.trim_start_matches('/')))?;
+        let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
         let encoded = STANDARD.encode(req.content.as_bytes());
         let payload = PutFilePayload {
             content: encoded,
@@ -849,22 +1481,25 @@ impl GiteaClient {
         deletes: &[(String, String)],
     ) -> Result<String, GitError> {
         let url = self.repo_url("contents")?;
+        let mut files = Vec::with_capacity(uploads.len() + deletes.len());
+        for (path, content) in uploads {
+            files.push(ChangeFileDto {
+                operation: "upload",
+                path: self.write_path(path)?,
+                content: Some(STANDARD.encode(content.as_bytes())),
+                sha: None,
+            });
+        }
+        for (path, sha) in deletes {
+            files.push(ChangeFileDto {
+                operation: "delete",
+                path: self.write_path(path)?,
+                content: None,
+                sha: Some(sha.clone()),
+            });
+        }
         let payload = ChangeFilesPayload {
-            files: uploads
-                .iter()
-                .map(|(path, content)| ChangeFileDto {
-                    operation: "upload",
-                    path: path.trim_start_matches('/').to_owned(),
-                    content: Some(STANDARD.encode(content.as_bytes())),
-                    sha: None,
-                })
-                .chain(deletes.iter().map(|(path, sha)| ChangeFileDto {
-                    operation: "delete",
-                    path: path.trim_start_matches('/').to_owned(),
-                    content: None,
-                    sha: Some(sha.clone()),
-                }))
-                .collect(),
+            files,
             message,
             branch,
             author,
@@ -883,7 +1518,7 @@ impl GiteaClient {
 
     /// `DELETE /contents/{path}` — deletes a file with human commit attribution.
     pub async fn delete_file(&self, req: &FileDelete<'_>) -> Result<String, GitError> {
-        let url = self.repo_url(&format!("contents/{}", req.path.trim_start_matches('/')))?;
+        let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
         let payload = DeleteFilePayload {
             message: req.message,
             branch: req.branch,
@@ -911,10 +1546,25 @@ impl GiteaClient {
         path: &str,
         limit: usize,
     ) -> Result<Vec<Commit>, GitError> {
+        // The project's own root in a project repository is the whole repository (CC-87).
+        let root = self
+            .mount
+            .as_deref()
+            .is_some_and(|mount| path.trim_matches('/') == mount.trim_end_matches('/'));
+        let path = if root {
+            String::new()
+        } else {
+            let Some(path) = self.local_path(path) else {
+                return Ok(Vec::new());
+            };
+            path
+        };
         let mut url = self.repo_url("commits")?;
+        url.query_pairs_mut().append_pair("sha", git_ref);
+        if !path.is_empty() {
+            url.query_pairs_mut().append_pair("path", &path);
+        }
         url.query_pairs_mut()
-            .append_pair("sha", git_ref)
-            .append_pair("path", path)
             .append_pair("limit", &limit.to_string())
             .append_pair("stat", "false")
             .append_pair("verification", "false")
@@ -1014,13 +1664,59 @@ impl GiteaClient {
             files.extend(raw.into_iter().map(|dto| ChangedFile {
                 deleted: dto.status == "deleted",
                 added: dto.status == "added",
-                path: dto.filename,
+                path: self.render_path(dto.filename),
             }));
             if count < PAGE {
                 break;
             }
         }
         Ok(files)
+    }
+
+    /// `GET /archive/{git_ref}.bundle` — the history of `git_ref` as one `git bundle` (MF-45).
+    /// The forge bundles that ref alone, as `refs/heads/bundle` and `HEAD`: no other branch and
+    /// no tag.
+    pub async fn bundle(&self, git_ref: &str) -> Result<Vec<u8>, GitError> {
+        let url = self.repo_url(&format!("archive/{git_ref}.bundle"))?;
+        let res = self.send(self.http.get(url)).await?;
+        let res = Self::check_status(res).await?;
+        res.bytes()
+            .await
+            .map(|bytes| bytes.to_vec())
+            .map_err(|e| GitError::Transport(format!("failed to read the bundle: {e}")))
+    }
+
+    /// `GET /tags` — every tag of the repository and the commit it names, all pages.
+    pub async fn list_tags(&self) -> Result<Vec<(String, String)>, GitError> {
+        #[derive(Deserialize)]
+        struct TagDto {
+            name: String,
+            commit: TagCommitDto,
+        }
+        #[derive(Deserialize)]
+        struct TagCommitDto {
+            sha: String,
+        }
+        const PAGE: usize = 50;
+        let mut tags = Vec::new();
+        for page in 1.. {
+            let mut url = self.repo_url("tags")?;
+            url.query_pairs_mut()
+                .append_pair("page", &page.to_string())
+                .append_pair("limit", &PAGE.to_string());
+            let res = self.send(self.http.get(url)).await?;
+            let res = Self::check_status(res).await?;
+            let raw: Vec<TagDto> = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(format!("failed to parse tags: {e}")))?;
+            let count = raw.len();
+            tags.extend(raw.into_iter().map(|tag| (tag.name, tag.commit.sha)));
+            if count < PAGE {
+                break;
+            }
+        }
+        Ok(tags)
     }
 
     /// `GET /pulls/{number}` — retrieves an existing pull request.
@@ -1148,5 +1844,131 @@ mod browse_url_tests {
     #[test]
     fn an_invalid_public_url_is_a_config_error() {
         assert!(GiteaClient::from_env(env(Some("not a url"))).is_err());
+    }
+}
+
+#[cfg(test)]
+mod project_repository_tests {
+    use super::{Author, GiteaClient};
+
+    fn project() -> GiteaClient {
+        GiteaClient::new(
+            "http://127.0.0.1:9".parse().expect("url"),
+            "joinedcontext",
+            "configuration",
+            "t",
+        )
+        .expect("client")
+        .for_project("ovzdusie-repo", "ovzdusie")
+    }
+
+    /// CC-87: a project repository is spoken to in render paths; one outside the project is not
+    /// its file on a read and is refused on a write, before anything reaches the forge (the
+    /// address above answers nothing).
+    #[tokio::test]
+    async fn a_path_outside_the_project_is_neither_read_nor_written() {
+        let client = project();
+        assert!(client.is_project_repository());
+        assert_eq!(
+            client
+                .local_path("projects/ovzdusie/spaces/air/space.yaml")
+                .as_deref(),
+            Some("spaces/air/space.yaml")
+        );
+        assert_eq!(
+            client.render_path("project.yaml".into()),
+            "projects/ovzdusie/project.yaml"
+        );
+        for outside in [
+            "org.yaml",
+            "projects/doprava/project.yaml",
+            "projects/ovzdusie/",
+            "users/roles/r.yaml",
+        ] {
+            assert_eq!(client.local_path(outside), None, "{outside}");
+            assert_eq!(
+                client.get_file(outside, "main").await.expect("no request"),
+                None
+            );
+        }
+        let author = Author {
+            name: "Jana",
+            email: "jana@hel.fi",
+        };
+        let refused = client
+            .change_files(
+                "portal/x",
+                "m",
+                author,
+                &[
+                    ("projects/ovzdusie/project.yaml".into(), "a".into()),
+                    ("org.yaml".into(), "b".into()),
+                ],
+                &[],
+            )
+            .await
+            .expect_err("org.yaml is not a file of the project repository");
+        assert!(refused.to_string().contains("org.yaml"), "{refused}");
+
+        let organization = client.for_repository("configuration");
+        assert!(!organization.is_project_repository());
+        assert_eq!(
+            organization.local_path("org.yaml").as_deref(),
+            Some("org.yaml")
+        );
+    }
+}
+
+#[cfg(test)]
+mod receive_pack_tests {
+    use super::receive_pack_status;
+
+    fn lines(texts: &[&str]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for text in texts {
+            out.extend_from_slice(format!("{:04x}{text}\n", text.len() + 5).as_bytes());
+        }
+        out.extend_from_slice(b"0000");
+        out
+    }
+
+    #[test]
+    fn an_unpacked_push_with_every_ref_taken_is_ok() {
+        // What Gitea 1.27 answered to a bundle pushed into an empty repository.
+        let none: Vec<String> = Vec::new();
+        assert_eq!(
+            receive_pack_status(b"000eunpack ok\n0017ok refs/heads/main\n0000").expect("ok"),
+            none
+        );
+        assert_eq!(
+            receive_pack_status(&lines(&[
+                "unpack ok",
+                "ok refs/heads/main",
+                "ok refs/tags/v1"
+            ]))
+            .expect("ok"),
+            none
+        );
+    }
+
+    #[test]
+    fn a_refused_ref_is_answered_and_a_failed_unpack_is_the_error() {
+        let refused = receive_pack_status(&lines(&[
+            "unpack ok",
+            "ok refs/heads/main",
+            "ng refs/tags/v1 missing necessary objects",
+        ]))
+        .expect("the other refs are set");
+        assert_eq!(refused, ["refs/tags/v1 missing necessary objects"]);
+        let unpack = receive_pack_status(&lines(&["unpack index-pack abnormal exit"]))
+            .expect_err("not unpacked");
+        assert!(unpack.to_string().contains("index-pack"), "{unpack}");
+    }
+
+    #[test]
+    fn an_answer_that_is_not_a_report_is_an_error() {
+        for answer in [&b""[..], b"0000", b"zzzz", b"00ffunpack ok"] {
+            assert!(receive_pack_status(answer).is_err(), "{answer:?}");
+        }
     }
 }

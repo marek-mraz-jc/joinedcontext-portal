@@ -15,8 +15,11 @@ use serde_json::{json, Value};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
+/// What the build lane proposes and the Portal checked on push: the image's manifest digest.
+const DIGEST: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+/// The reference the reconciler composes from its registry setting and that digest (AP-108).
 const APP_IMAGE: &str =
-    "ghcr.io/bb/apps/air-quality@sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    "forge.bb.example.com/joinedcontext/app-air-quality-today@sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const NAMESPACE: &str = "joinedcontext";
 const SLUG: &str = "abcdefghijklmnopqrstuvwxyz";
 const TOKEN: &str = "the-projected-service-account-token-of-the-portal";
@@ -26,6 +29,9 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         namespace: NAMESPACE.into(),
         org_domain: "banskabystrica.sk".into(),
+        apisix_namespace: "apisix".into(),
+        image_repository: Some("forge.bb.example.com/joinedcontext".into()),
+        pull_secret: Some("app-registry".into()),
     }
 }
 
@@ -144,7 +150,7 @@ async fn a_published_app_becomes_its_four_objects_on_the_cluster_and_nothing_on_
     }
 
     let outcome = converger(&api)
-        .converge_one(&app("published", Some(APP_IMAGE)))
+        .converge_one(&app("published", Some(DIGEST)))
         .await
         .expect("the app converges");
     assert_eq!(outcome, Outcome::Applied);
@@ -163,8 +169,9 @@ async fn a_published_app_becomes_its_four_objects_on_the_cluster_and_nothing_on_
         json!("NetworkPolicy")
     );
 
-    // AP-13, AP-26: the digest the annotation carries is the one that ends up in the pod, and
-    // the pod is that one container on port 8080, with no sidecar beside it.
+    // AP-13, AP-26, AP-108: the digest status.build carries, under this installation's registry,
+    // is the image of the pod, and the pod is that one container on port 8080, pulled with the
+    // configured Secret, with no sidecar beside it.
     let deployment = body_of(applied(&requests, DEPLOYMENT));
     assert_eq!(deployment["kind"], json!("Deployment"));
     let containers = deployment["spec"]["template"]["spec"]["containers"]
@@ -173,6 +180,10 @@ async fn a_published_app_becomes_its_four_objects_on_the_cluster_and_nothing_on_
     assert_eq!(containers.len(), 1, "{containers:?}");
     assert_eq!(containers[0]["name"], json!("app"));
     assert_eq!(containers[0]["image"], json!(APP_IMAGE));
+    assert_eq!(
+        deployment["spec"]["template"]["spec"]["imagePullSecrets"],
+        json!([{ "name": "app-registry" }])
+    );
     assert_eq!(containers[0]["ports"][0]["containerPort"], json!(8080));
     assert_eq!(
         body_of(applied(&requests, SERVICE))["spec"]["ports"][0]["port"],
@@ -218,7 +229,7 @@ async fn a_second_run_reuses_the_slug_the_app_already_has() {
     }
 
     converger(&api)
-        .converge_one(&app("published", Some(APP_IMAGE)))
+        .converge_one(&app("published", Some(DIGEST)))
         .await
         .expect("the app converges");
 
@@ -252,7 +263,7 @@ async fn a_secret_without_the_slug_is_not_this_reconcilers_and_stops_the_app() {
         .await;
 
     let refused = converger(&api)
-        .converge_one(&app("published", Some(APP_IMAGE)))
+        .converge_one(&app("published", Some(DIGEST)))
         .await
         .expect_err("a foreign secret was taken over");
     assert!(refused.to_string().contains("endpoint-slug"), "{refused}");
@@ -280,7 +291,7 @@ async fn a_retired_app_has_its_objects_deleted() {
     }
 
     let outcome = converger(&api)
-        .converge_one(&app("retired", Some(APP_IMAGE)))
+        .converge_one(&app("retired", Some(DIGEST)))
         .await
         .expect("the app converges");
     assert_eq!(outcome, Outcome::Deleted);
@@ -325,7 +336,7 @@ async fn a_draft_app_deploys_nothing_and_asks_the_cluster_nothing() {
     let api = MockServer::start().await;
 
     let outcome = converger(&api)
-        .converge_one(&app("draft", Some(APP_IMAGE)))
+        .converge_one(&app("draft", Some(DIGEST)))
         .await
         .expect("a draft is not an error");
     assert!(matches!(outcome, Outcome::Skipped(_)), "{outcome:?}");
@@ -347,6 +358,33 @@ async fn an_app_whose_build_published_nothing_yet_waits_for_it() {
         .expect("a missing image is not an error");
     match outcome {
         Outcome::Skipped(reason) => assert!(reason.contains("status.build"), "{reason}"),
+        other => panic!("{other:?}"),
+    }
+    assert!(api
+        .received_requests()
+        .await
+        .is_some_and(|requests| requests.is_empty()));
+}
+
+/// AP-108: without a registry setting no image reference can be composed, so the app waits and
+/// the cluster is asked nothing; a manifest never supplies the registry.
+#[tokio::test]
+async fn an_installation_without_a_registry_deploys_no_pod() {
+    let api = MockServer::start().await;
+    let mut settings = settings();
+    settings.image_repository = None;
+    let converger = Converger::new(
+        KubeClient::with_token(&api.uri(), TOKEN).expect("a client"),
+        settings,
+    );
+
+    match converger
+        .converge_one(&app("published", Some(DIGEST)))
+        .await
+    {
+        Ok(Outcome::Skipped(reason)) => {
+            assert!(reason.contains("JC_PORTAL_APPS_REGISTRY"), "{reason}")
+        }
         other => panic!("{other:?}"),
     }
     assert!(api
@@ -394,4 +432,73 @@ async fn a_name_that_is_not_a_dns_label_never_becomes_a_path() {
         .received_requests()
         .await
         .is_some_and(|requests| requests.is_empty()));
+}
+
+/// T-2632: the slug the door committed in the App's Endpoint is the one the gateway routes, so
+/// the pod is deployed on it even where an older Secret holds another.
+#[tokio::test]
+async fn the_pod_calls_the_slug_its_committed_endpoint_carries() {
+    let api = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(SECRET))
+        .respond_with(ResponseTemplate::new(200).set_body_json(stored_secret()))
+        .mount(&api)
+        .await;
+    for api_path in [DEPLOYMENT, SERVICE, SECRET, POLICY] {
+        accepts_apply(&api, api_path).await;
+    }
+
+    let root =
+        std::env::temp_dir().join(format!("jc-app-converge-committed-{}", std::process::id()));
+    let space = root.join("projects/ovzdusie/spaces/ovzdusie");
+    std::fs::create_dir_all(space.join("endpoints")).expect("a scratch repository");
+    let endpoint = |name: &str, annotations: &str| {
+        format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: {name}\n  namespace: ovzdusie\n{annotations}spec:\n  slug: committedslugofthegeneratedendpoint\n"
+        )
+    };
+    std::fs::write(
+        space.join("endpoints/app-air-quality-today.yaml"),
+        endpoint(
+            "app-air-quality-today",
+            "  annotations:\n    joinedcontext.com/generated-by: portal/app-reconciler\n",
+        ),
+    )
+    .expect("the committed endpoint");
+    // An Endpoint somebody wrote by hand under another App's name is not that App's.
+    std::fs::write(
+        space.join("endpoints/app-other.yaml"),
+        endpoint("app-other", ""),
+    )
+    .expect("a hand-written endpoint");
+    let repository = jcctl::loader::Repository::load(&root).expect("the repository loads");
+    let mut other = app("published", Some(DIGEST));
+    other.metadata.name = "other".to_owned();
+    assert_eq!(
+        joinedcontext_portal::apps::converge::committed_slug(&repository, &other),
+        None
+    );
+    let committed = joinedcontext_portal::apps::converge::committed_slug(
+        &repository,
+        &app("published", Some(DIGEST)),
+    )
+    .expect("the committed endpoint's slug");
+    let _ = std::fs::remove_dir_all(&root);
+
+    converger(&api)
+        .converge_with(&app("published", Some(DIGEST)), Some(&committed))
+        .await
+        .expect("the app converges");
+    let requests = api.received_requests().await.expect("recorded");
+    let secret = body_of(applied(&requests, SECRET));
+    assert_eq!(
+        secret["stringData"]["endpoint-slug"],
+        json!("committedslugofthegeneratedendpoint")
+    );
+    let deployment = body_of(applied(&requests, DEPLOYMENT)).to_string();
+    assert!(
+        deployment.contains("committedslugofthegeneratedendpoint"),
+        "{deployment}"
+    );
+    assert!(!deployment.contains(SLUG), "not the Secret's older slug");
 }

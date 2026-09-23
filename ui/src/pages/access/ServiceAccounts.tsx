@@ -9,6 +9,7 @@ import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { useCreateForm } from "../../components/forms/FormRoute";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { proposeChecked } from "../../api/proposal";
@@ -464,7 +465,17 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const [minted, setMinted] = useState<MintedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useCreateForm();
+  // A new account starts owned by the person creating it, which is who answers for it until
+  // somebody else is named (PF-34); a grant on this project is the usual first one. The form
+  // opened by its address (`/access/new`, T-2577) starts from the same.
+  const newAccount = (): ServiceAccountForm => ({
+    name: "",
+    purpose: "",
+    owner: { user: identity?.email ?? identity?.username ?? "" },
+    roles: [{ role: "", scope: { level: "project", name: project } }],
+    credentials: [{ kind: "oauth-client", name: "" }],
+  });
   const [form, setForm] = useState<ServiceAccountForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
@@ -510,15 +521,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
         icon={<Icon name="plus" className="size-4" />}
         onClick={() => {
           setFormError(null);
-          // A new account starts owned by the person creating it, which is who answers for it
-          // until somebody else is named (PF-34); a grant on this project is the usual first one.
-          setForm({
-            name: "",
-            purpose: "",
-            owner: { user: identity?.email ?? identity?.username ?? "" },
-            roles: [{ role: "", scope: { level: "project", name: project } }],
-            credentials: [{ kind: "oauth-client", name: "" }],
-          });
+          setForm(newAccount());
           setDialogOpen(true);
         }}
       >
@@ -676,7 +679,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
         description={t("access.accounts.addHint")}
         schema={schema}
         uiSchema={serviceAccountUiSchema}
-        formData={form}
+        formData={form ?? newAccount()}
         onChange={setForm}
         project={project}
         draftKind="ServiceAccount"

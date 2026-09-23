@@ -64,3 +64,21 @@ dd {
 [role="alert"] {
   color: #b3261e;
 }
+
+.note label,
+.note input {
+  display: block;
+}
+
+.note input {
+  width: 100%;
+  font: inherit;
+  margin-bottom: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

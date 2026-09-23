@@ -227,8 +227,13 @@ async fn compile(
 #[utoipa::path(
     post,
     path = "/api/v1/tools/generate",
+    summary = "Generate Model Artifacts",
+    description = "Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing.",
     tag = "tools",
-    request_body = GenerateRequest,
+    request_body(
+        content = GenerateRequest,
+        example = json!({ "source": "id: https://hel.fi/models/air\nname: air\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n" })
+    ),
     responses(
         (status = 200, description = "Compiled artifacts, or the messages of a source that does not compile", body = Artifacts),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -247,8 +252,10 @@ pub async fn generate(
 #[utoipa::path(
     post,
     path = "/api/v1/tools/import-sdm",
+    summary = "Import A Smart Data Model",
+    description = "Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change.",
     tag = "tools",
-    request_body = ImportSdmRequest,
+    request_body(content = ImportSdmRequest, example = json!({ "model": "AirQualityObserved" })),
     responses(
         (status = 200, description = "Compiled artifacts of the catalogue model", body = Artifacts),
         (status = 400, description = "Not a Smart Data Models catalogue identifier", body = ProblemDetails),
@@ -274,6 +281,8 @@ pub async fn import_sdm(
 #[utoipa::path(
     get,
     path = "/api/v1/tools/sdm-catalog",
+    summary = "List Smart Data Models",
+    description = "The Smart Data Models catalogue index, from the cache when a refresh did not reach the catalogue.",
     tag = "tools",
     params(("refresh" = Option<bool>, Query, description = "Refresh the cached index now instead of waiting for the daily run")),
     responses(
@@ -319,10 +328,11 @@ pub async fn sdm_catalog(
     path = "/api/v1/tools/infer-schema",
     tag = "tools",
     request_body(
-        content = String,
+        content = Object,
         description = "`multipart/form-data`: the sample under `file`, and an optional `format` \
                        (`csv`, `xlsx`, `json`, `pdf`) when the file name does not say",
-        content_type = "multipart/form-data"
+        content_type = "multipart/form-data",
+        example = json!({ "file": "station_id,pm10\n01,18.2\n", "format": "csv" })
     ),
     responses(
         (status = 200, description = "The draft model as Model Tools wrote it: `linkml`, \

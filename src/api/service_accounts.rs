@@ -37,7 +37,7 @@ const MAX_OVERLAP_HOURS: i64 = 168;
 const KEY_ID_BYTES: usize = 8;
 const SECRET_BYTES: usize = 32;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct MintRequest {
     /// Name of the `api-key` credential in the manifest this key belongs to.
@@ -47,7 +47,7 @@ pub struct MintRequest {
     pub expires_at: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RotateRequest {
     /// How long the rotated key keeps working beside its successor, in hours (PF-38).
@@ -252,6 +252,8 @@ fn mint(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys",
+    summary = "List Service Account Keys",
+    description = "Every key of one ServiceAccount, with no token in the answer.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -281,8 +283,13 @@ pub async fn list_keys(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys",
+    summary = "Mint A Service Account Key",
+    description = "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
     tag = "access",
-    request_body = inline(serde_json::Value),
+    request_body(
+        content = MintRequest,
+        example = json!({ "credential": "ingest", "expiresAt": "2027-01-01T00:00:00Z" })
+    ),
     params(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "ServiceAccount name"),
@@ -347,8 +354,10 @@ pub async fn create_key(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate",
+    summary = "Rotate A Service Account Key",
+    description = "Replaces one key with a successor; the old one stops working when its overlap ends.",
     tag = "access",
-    request_body = inline(serde_json::Value),
+    request_body(content = RotateRequest, example = json!({ "overlapHours": 24 })),
     params(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "ServiceAccount name"),
@@ -419,6 +428,8 @@ pub async fn rotate_key(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}",
+    summary = "Revoke A Service Account Key",
+    description = "Stops one key at once; nothing that used it works afterwards.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),

@@ -145,9 +145,9 @@ fn files_under(root: &Path) -> BTreeMap<String, String> {
 /// applies for this installation (CC-73); unset renders the manifests as they are written.
 async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, ApiError> {
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(&workspace.project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let head = match gitea.branch_head(&workspace.branch()).await {
         Ok(head) => head,
         Err(crate::git::GitError::NotFound) => {
@@ -161,53 +161,95 @@ async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, 
     if let Some(render) = state.previews.get(&workspace.name, &head) {
         return Ok(render);
     }
-    let scratch = crate::reconciler::daemon::stage(gitea, &head)
-        .await
-        .map_err(|err| ApiError::Unavailable(format!("the branch did not stage: {err}")))?;
-    if let Ok(projects) = std::fs::read_dir(scratch.path().join("projects")) {
-        for project in projects.flatten() {
-            if project.file_name().to_string_lossy() != workspace.project {
-                let _ = std::fs::remove_dir_all(project.path());
+    let staged = match state.mirror.repository_of(&workspace.project) {
+        Some(repository) => assembled(state, workspace, &head, &repository).await?,
+        None => {
+            let scratch = crate::reconciler::daemon::stage(gitea, &head)
+                .await
+                .map_err(|err| ApiError::Unavailable(format!("the branch did not stage: {err}")))?;
+            if let Ok(projects) = std::fs::read_dir(scratch.path().join("projects")) {
+                for project in projects.flatten() {
+                    if project.file_name().to_string_lossy() != workspace.project {
+                        let _ = std::fs::remove_dir_all(project.path());
+                    }
+                }
             }
+            let root = scratch.path().to_path_buf();
+            (vec![scratch], root)
         }
-    }
+    };
+    let root = staged.1.as_path();
     let prefix = prefix_of(&workspace.name);
     let environment = std::env::var("JC_ENVIRONMENT")
         .ok()
         .filter(|value| !value.trim().is_empty());
     let namespace = format!("{prefix}{}", workspace.project);
-    let outcome =
-        jcctl::loader::Repository::load_preview(scratch.path(), environment.as_deref(), &prefix)
-            .map(|repository| {
-                let mut endpoints = Vec::new();
-                let mut pipelines = Vec::new();
-                for (id, loaded) in repository.iter() {
-                    if id.namespace.as_deref() != Some(namespace.as_str()) {
-                        continue;
-                    }
-                    match id.kind.as_str() {
-                        "Endpoint" => endpoints.push((
-                            id.name.clone(),
-                            loaded.manifest.spec["slug"]
-                                .as_str()
-                                .unwrap_or_default()
-                                .to_owned(),
-                        )),
-                        "Pipeline" => pipelines.push(id.name.clone()),
-                        _ => {}
-                    }
+    let outcome = jcctl::loader::Repository::load_preview(root, environment.as_deref(), &prefix)
+        .map(|repository| {
+            let mut endpoints = Vec::new();
+            let mut pipelines = Vec::new();
+            for (id, loaded) in repository.iter() {
+                if id.namespace.as_deref() != Some(namespace.as_str()) {
+                    continue;
                 }
-                (endpoints, pipelines)
-            })
-            .map_err(|err| err.to_string());
+                match id.kind.as_str() {
+                    "Endpoint" => endpoints.push((
+                        id.name.clone(),
+                        loaded.manifest.spec["slug"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    )),
+                    "Pipeline" => pipelines.push(id.name.clone()),
+                    _ => {}
+                }
+            }
+            (endpoints, pipelines)
+        })
+        .map_err(|err| err.to_string());
     let render = Arc::new(Render {
-        files: files_under(scratch.path()),
+        files: files_under(root),
         outcome,
     });
     state
         .previews
         .put(&workspace.name, head, Arc::clone(&render));
     Ok(render)
+}
+
+/// Layout 2 (CC-86, CC-87): the organization at its default branch with this project's own
+/// repository mounted at the workspace branch head, assembled as the mirror is; no other
+/// project travels. The staged checkouts are held until the render is read.
+async fn assembled(
+    state: &AppState,
+    workspace: &Workspace,
+    head: &str,
+    repository: &str,
+) -> Result<(Vec<crate::reconciler::daemon::Scratch>, std::path::PathBuf), ApiError> {
+    use crate::reconciler::daemon::{stage, stage_project, Scratch};
+    let unstaged = |err: crate::reconciler::SyncError| {
+        ApiError::Unavailable(format!("the branch did not stage: {err}"))
+    };
+    let organization = state
+        .gitea
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let main = organization.default_branch().await?;
+    let main_head = organization.branch_head(&main).await?;
+    let org = stage(organization, &main_head).await.map_err(unstaged)?;
+    let project = stage_project(&organization.for_repository(repository), head)
+        .await
+        .map_err(unstaged)?;
+    let into = Scratch::new(head).map_err(unstaged)?;
+    let root = into.path().join("render");
+    let checkouts = jcctl::assemble::Directories(std::collections::BTreeMap::from([(
+        workspace.project.clone(),
+        project.path().to_path_buf(),
+    )]));
+    // The other projects have no checkout here, so the assembly leaves them out.
+    jcctl::assemble::assemble(org.path(), &checkouts, &root, None)
+        .map_err(|err| ApiError::Unavailable(format!("the workspace does not assemble: {err}")))?;
+    Ok((vec![org, project, into], root))
 }
 
 fn view(state: &AppState, workspace: &Workspace, render: Option<&Render>) -> Preview {

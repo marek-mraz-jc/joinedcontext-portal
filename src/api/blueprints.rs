@@ -23,9 +23,7 @@ use crate::api::mutate::{
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::auth::session::CurrentUser;
-use crate::change::{
-    self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary,
-};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::plan;
@@ -157,6 +155,8 @@ fn accept_rendered(
 #[utoipa::path(
     get,
     path = "/api/v1/blueprints",
+    summary = "List Blueprints",
+    description = "The organization's Blueprints this caller may run, for the flow gallery. A Blueprint is started in a project with POST /projects/{project}/flows.",
     tag = "blueprints",
     responses(
         (status = 200, description = "The blueprints this caller may run", body = ResourceList),
@@ -205,9 +205,14 @@ pub struct FlowRequest {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/flows",
+    summary = "Run A Blueprint",
+    description = "Expands one of the organisation's blueprints with the parameters given, as a change a person approves.",
     tag = "blueprints",
     params(("project" = String, Path, description = "Project the flow creates resources in")),
-    request_body = FlowRequest,
+    request_body(
+        content = FlowRequest,
+        example = json!({ "blueprint": "cross-city-sharing", "version": "1.2.0", "parameters": {} })
+    ),
     responses(
         (status = 202, description = "Change proposal opened", body = Change),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -386,8 +391,10 @@ pub async fn start_flow(
         .await?;
 
     let change = Change::new(
-        ChangeMeta::from_merge_request(pr.number, &project),
-        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary).with_merge_request(pr.url),
+        crate::api::changes::change_meta(&state, gitea, pr.number, &project),
+        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
+            .in_repository(&pr.repository)
+            .with_merge_request(pr.url),
     );
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }

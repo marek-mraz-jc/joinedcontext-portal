@@ -1,4 +1,4 @@
-import { useCreateForm } from "../components/forms/FormRoute";
+import { useCreateFormFromDraft } from "../components/forms/FormRoute";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -192,7 +192,7 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const queryClient = useQueryClient();
   // The create form is a page at `/{plural}/new` on a routed list (T-2474).
-  const [dialogOpen, setDialogOpen] = useCreateForm();
+  const [dialogOpen, setDialogOpen, handedDraft] = useCreateFormFromDraft();
   const [target, setTarget] = useState<RegistrationTarget>("endpointRef");
   const [form, setForm] = useState<RegistrationForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
@@ -358,7 +358,7 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
         }}
         project={project}
         draftKind={KIND}
-        draftName={edit}
+        draftName={edit ?? handedDraft}
         plural={PLURAL}
         source={{
           toManifest: (form) => toRegistrationEnvelope(project, form),

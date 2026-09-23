@@ -101,10 +101,17 @@ Call it with its arguments:
 
 Two more tools are the conversation itself. Open the page you are talking about, so the person
 sees what you mean — the page is one of `spaces`, `space`, `models`, `model`, `endpoints`,
-`endpoint`, `policies`, `shared`, `draft`, with the name of the one to open:
+`endpoint`, `policies`, `shared`, `draft`, with the name of the one to open. A kind you do not draft
+yourself (a ServiceAccount, a Subscription, a context source registration, a policy…) is created
+by the person in its own form: open it empty with `new` and the kind's plural, say what the form
+asks for, and propose nothing:
 
 ```json
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "space", "name": "helsinki" }} }}
+```
+
+```json
+{{ "tool": "jc_ui_navigate", "arguments": {{ "page": "new", "plural": "serviceaccounts" }} }}
 ```
 
 To show the data itself, open `entities` with the endpoint and the entity type, and a `q` when the
@@ -282,7 +289,7 @@ impl Driver {
 
 /// The pages the assistant may open, and what each one needs (UI-59). The route is built here,
 /// so a page the enum does not name cannot be reached however the model spells it.
-const PAGES: [(&str, &str); 19] = [
+const PAGES: [(&str, &str); 20] = [
     ("spaces", "/projects/{project}/spaces"),
     ("space", "/projects/{project}/spaces/{name}"),
     ("models", "/projects/{project}/models"),
@@ -313,6 +320,9 @@ const PAGES: [(&str, &str); 19] = [
     ("app", "/projects/{project}/apps/{name}"),
     // A resource of any kind, the way `model` and `endpoint` open one of theirs.
     ("resource", "/projects/{project}/{plural}?name={name}"),
+    // A kind's empty create form, in the section a person creates one in (T-2577, AG-73): what
+    // "create a ServiceAccount" opens for a kind the chat does not draft itself.
+    ("new", "/projects/{project}/{section}/new"),
 ];
 
 /// One `jc_ui_navigate` call.
@@ -402,8 +412,13 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         .find(|(name, _)| *name == call.page)
         .map(|(_, template)| *template)
         .ok_or_else(|| format!("'{}' is not a page of the Portal", call.page))?;
+    let section = match (call.page.as_str(), call.plural.as_deref()) {
+        ("new", Some(plural)) => Some(crate::agents::change::section(plural.trim())?),
+        _ => None,
+    };
     let filled = [
         ("project", Some(project)),
+        ("section", section),
         ("name", call.name.as_deref()),
         ("plural", call.plural.as_deref().or(Some("models"))),
         ("endpoint", call.endpoint.as_deref()),
@@ -422,11 +437,23 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
                 "name" => "the name of what to open",
                 "endpoint" => "the endpoint whose data to open",
                 "type" => "the entity type to show",
+                "section" => "the plural of the kind to create",
                 other => other,
             };
             return Err(format!("the page '{}' needs {what}", call.page));
         }
-        route = route.replace(&hole, &urlencoding(value));
+        // A section may be a page inside another (`settings/service-accounts`, T-2606): it comes
+        // from the Portal's own table, and each of its segments is still encoded on its own.
+        let filled = if placeholder == "section" {
+            value
+                .split('/')
+                .map(urlencoding)
+                .collect::<Vec<_>>()
+                .join("/")
+        } else {
+            urlencoding(value)
+        };
+        route = route.replace(&hole, &filled);
     }
     Ok(without_empty_pairs(&route))
 }
@@ -1060,7 +1087,7 @@ mod tests {
                 assert!(
                     matches!(
                         placeholder,
-                        "project" | "name" | "plural" | "endpoint" | "type" | "q"
+                        "project" | "name" | "plural" | "section" | "endpoint" | "type" | "q"
                     ),
                     "{page}: {template} names {placeholder}, which no call fills"
                 );
@@ -1116,6 +1143,48 @@ mod tests {
                 "q = {q:?}"
             );
         }
+    }
+
+    /// T-2577, AG-73: "create a ServiceAccount" opens the kind's empty form in the section a
+    /// person creates one in; the kind may be named by plural or by kind, and what is no kind is
+    /// refused rather than opening a page with nothing on it.
+    #[test]
+    fn the_new_page_opens_a_kinds_create_form_in_its_section() {
+        let new = |plural: Option<&str>| NavigateCall {
+            page: "new".to_owned(),
+            name: None,
+            plural: plural.map(str::to_owned),
+            endpoint: None,
+            entity_type: None,
+            q: None,
+        };
+        for (plural, route) in [
+            (
+                "serviceaccounts",
+                "/projects/helsinki/settings/service-accounts/new",
+            ),
+            (
+                "ServiceAccount",
+                "/projects/helsinki/settings/service-accounts/new",
+            ),
+            ("subscriptions", "/projects/helsinki/subscriptions/new"),
+            ("csrs", "/projects/helsinki/csrs/new"),
+            ("syncsources", "/projects/helsinki/syncsources/new"),
+        ] {
+            assert_eq!(
+                route_of("helsinki", &new(Some(plural))).expect("a route"),
+                route,
+                "{plural}"
+            );
+        }
+        let unknown = route_of("helsinki", &new(Some("widgets"))).expect_err("no kind");
+        assert!(unknown.contains("widgets"), "{unknown}");
+        // T-2582: a kind whose page has no routed create form is not sent to a `/new` that
+        // answers "this form cannot be opened".
+        let formless = route_of("helsinki", &new(Some("mappings"))).expect_err("no form");
+        assert!(formless.contains("Mapping"), "{formless}");
+        let none = route_of("helsinki", &new(None)).expect_err("no plural");
+        assert!(none.contains("plural"), "{none}");
     }
 
     /// A grid without an endpoint or without a type is refused: the explorer would open on

@@ -43,7 +43,7 @@ function renderPage(failing: Failing | null, healAfterFirst = false, runs: unkno
           status,
           headers: { "Content-Type": "application/json" },
         });
-      if (path.endsWith("/auth/me")) return json({ subject: "s", username: "reader", roles: [] });
+      if (path.endsWith("/auth/me")) return json({ subject: "s", username: "reader", roles: [], groups: [PROJECT] });
       if (path.endsWith("/projects")) return json([PROJECT]);
 
       const fails =

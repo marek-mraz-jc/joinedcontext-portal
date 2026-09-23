@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { Button, Dialog, DialogClose, Field, RadioGroup, Select } from "../ui";
 
-export type ExportFormat = "yaml" | "json" | "zip";
+/** `git` is one bundle per repository of a project in its own repository (MF-45). */
+export type ExportFormat = "yaml" | "json" | "zip" | "git";
 
 export interface ExportTarget {
   /** Plural of a single kind, or absent for the whole project. */
@@ -48,7 +49,7 @@ function filenameOf(
   if (quoted?.[1]) {
     return decodeURIComponent(quoted[1]);
   }
-  const extension = format === "zip" ? "zip" : format;
+  const extension = format === "zip" || format === "git" ? "zip" : format;
   return `${target.name ?? target.plural ?? project}.${extension}`;
 }
 
@@ -84,9 +85,10 @@ export function ExportModal({
     setRefused(null);
     setPreparing(true);
     try {
-      // Through the typed client (UI-07): the route and its query are the API's own.
+      // Through the typed client (UI-07): the route and its query are the API's own. A git
+      // export is the repository at its default branch: it takes no revision (MF-45).
       const { data: blob, error, response: answer } = await api.GET("/api/v1/projects/{project}/export", {
-        params: { path: { project }, query: exportQuery(format, target, revision || undefined) },
+        params: { path: { project }, query: exportQuery(format, target, format === "git" ? undefined : revision || undefined) },
         parseAs: "blob",
       });
       if (blob === undefined) {
@@ -122,10 +124,23 @@ export function ExportModal({
   });
 
   const whole = !target.name && !target.plural;
+  // A project in a repository of its own (its registry entry names one, CC-85) also exports as
+  // git, the form a move or a copy imports (MF-45).
+  const detail = useQuery({
+    queryKey: ["project", project],
+    enabled: open && whole,
+    retry: false,
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/projects/{project}", { params: { path: { project } } })),
+  });
+  const spec = detail.data?.spec as { repository?: unknown } | null | undefined;
+  const ownRepository = whole && Boolean(spec?.repository);
   // The whole project reads best as one archive, a single resource as one file; either way all
   // three are on screen. They used to be one visible radio and two behind a `details` nobody
   // opened, which is also how the arrow keys stopped walking the group.
-  const formats: ExportFormat[] = whole ? ["zip", "yaml", "json"] : ["yaml", "json", "zip"];
+  const formats: ExportFormat[] = whole
+    ? ["zip", "yaml", "json", ...(ownRepository ? (["git"] as const) : [])]
+    : ["yaml", "json", "zip"];
 
   return (
     <Dialog
@@ -172,32 +187,34 @@ export function ExportModal({
           }))}
         />
 
-        <Field
-          id="export-revision"
-          label={t("export.revision")}
-          help={
-            revisions.isError
-              ? revisions.error instanceof ApiError && revisions.error.status === 503
-                ? t("export.noForge")
-                : t("export.noHistory")
-              : undefined
-          }
-        >
-          <Select
+        {format === "git" ? null : (
+          <Field
             id="export-revision"
-            value={revision}
-            onChange={(event) => setRevision(event.target.value)}
+            label={t("export.revision")}
+            help={
+              revisions.isError
+                ? revisions.error instanceof ApiError && revisions.error.status === 503
+                  ? t("export.noForge")
+                  : t("export.noHistory")
+                : undefined
+            }
           >
-            <option value="">{t("export.currentRevision")}</option>
-            {(revisions.data?.items ?? []).map((commit) => (
-              <option key={commit.sha} value={commit.sha}>
-                {`${commit.sha.slice(0, 7)} · ${commit.message} · ${
-                  commit.date ? new Date(commit.date).toLocaleDateString(locale) : ""
-                }`}
-              </option>
-            ))}
-          </Select>
-        </Field>
+            <Select
+              id="export-revision"
+              value={revision}
+              onChange={(event) => setRevision(event.target.value)}
+            >
+              <option value="">{t("export.currentRevision")}</option>
+              {(revisions.data?.items ?? []).map((commit) => (
+                <option key={commit.sha} value={commit.sha}>
+                  {`${commit.sha.slice(0, 7)} · ${commit.message} · ${
+                    commit.date ? new Date(commit.date).toLocaleDateString(locale) : ""
+                  }`}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         <p className="text-caption text-fg-muted">{t("export.secretsNote")}</p>
         {refused ? (

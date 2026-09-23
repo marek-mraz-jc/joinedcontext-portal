@@ -14,7 +14,9 @@ import { approvalStanding } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { logoUrl, useBranding } from "../../branding";
 import {
+  Alert,
   Button,
+  buttonClass,
   Icon,
   Menu,
   MenuContent,
@@ -26,6 +28,7 @@ import {
 } from "../ui";
 import type { IconName } from "../ui";
 import { NAV_SECTIONS, sameSection } from "./navigation";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
 
@@ -195,6 +198,59 @@ function PendingBadge({ project }: { project: string }) {
   );
 }
 
+/**
+ * What one page that threw leaves behind, inside the chrome rather than instead of it (T-2426).
+ *
+ * Not `PageFailed` from `components/ui`, which is the answer to a request that failed and offers
+ * the retry that repeats it: this one is a render error, so it also carries the reference tying
+ * it to the console line and the way to a page that still works.
+ *
+ * The router renders the shell and the page as one component, so before this an error anywhere
+ * in a page replaced the header, the sidebar and the project switcher with a panel — and the
+ * person had the browser's Back button and nothing else. The chrome stays; this sits where the
+ * page was, says what happened, and offers the two things that help: draw this page again, or
+ * go to the project's start. What threw is on the console and nowhere near the DOM (PF-50).
+ */
+function PageStopped({
+  project,
+  reference,
+  retry,
+}: {
+  project: string;
+  reference: string;
+  retry: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Alert
+      tone="danger"
+      title={t("app.error.crashTitle")}
+      actions={
+        <>
+          <Button variant="primary" size="sm" onClick={retry}>
+            {t("app.error.retry")}
+          </Button>
+          <Link
+            to="/projects/$project/$plural"
+            params={{ project, plural: NAV_SECTIONS[0].plural }}
+            className={buttonClass("secondary", "sm")}
+          >
+            {t("app.error.crashHome")}
+          </Link>
+        </>
+      }
+    >
+      <p>{t("app.error.crashBody")}</p>
+      <p className="mt-2 text-caption">
+        {t("app.error.crashReference")}{" "}
+        <code data-testid="error-reference" className="font-mono">
+          {reference}
+        </code>
+      </p>
+    </Alert>
+  );
+}
+
 export function Shell({
   project,
   children,
@@ -205,6 +261,9 @@ export function Shell({
   const { t } = useTranslation();
   const branding = useBranding();
   const matchRoute = useMatchRoute();
+  // Which page is in hand, so a panel left by a page that threw is cleared by walking away
+  // from it (T-2426).
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
   const closeNav = () => setNavOpen(false);
@@ -238,17 +297,25 @@ export function Shell({
   );
 
   const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
+  const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
+
+  // Project settings is one entry over six tab addresses (T-2606).
+  const onSettings = Boolean(
+    matchRoute({ to: "/projects/$project/settings/$tab", params: { project }, fuzzy: true }),
+  );
 
   const activeSection = NAV_SECTIONS.find((section) =>
     section.plural === "approvals"
       ? onApprovals
       : section.plural === "assistant"
         ? onAssistant
-        : Boolean(
+        : section.plural === "settings"
+          ? onSettings
+          : Boolean(
             matchRoute({
               to: "/projects/$project/$plural",
               params: { project, plural: section.plural },
@@ -330,6 +397,17 @@ export function Shell({
             {/* Opening a project is a setting of the organization, so the control is always
                 here, disabled with the reason when this caller may not (UI-44, PF-65). */}
             <NewProjectButton project={project} />
+            {/* What is the same in every project lives outside any of them, beside the project
+                switcher (T-2605, Architecture/09 §14.1). */}
+            <Link
+              to="/organization/$tab"
+              params={{ tab: "settings" }}
+              onClick={closeNav}
+              aria-current={organizationActive ? "page" : undefined}
+              className={navLinkClass(organizationActive)}
+            >
+              <NavLabel icon="user" label={t("nav.organization")} />
+            </Link>
           </div>
           <ul className="flex flex-col gap-0.5">
             {NAV_SECTIONS.map((section) => {
@@ -475,7 +553,17 @@ export function Shell({
               </ol>
             </nav>
             <WorkspaceBar project={project} />
-            {children}
+            {/* The page, and the panel that takes its place when it throws. `resetKey` is the
+                path, so walking away from a failed page with the sidebar that is still there
+                shows the next page rather than the panel again (T-2426). */}
+            <ErrorBoundary
+              resetKey={pathname}
+              fallback={(reference, retry) => (
+                <PageStopped project={project} reference={reference} retry={retry} />
+              )}
+            >
+              {children}
+            </ErrorBoundary>
           </div>
         </main>
         {/* The assistant is on the right of every page a run is remembered: a column beside

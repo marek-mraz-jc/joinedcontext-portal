@@ -126,18 +126,28 @@ describe("the card headers that still carried a loose pair", () => {
     expect(within(header).getByRole("button", { name: MENU })).toBeInTheDocument();
   });
 
-  it("keeps the app card's own actions in the open and the manifest's four in the menu", async () => {
+  it("keeps one Open in the app card's open and every other action in its one menu (T-2618)", async () => {
     await renderRoute({ path: `/projects/${PROJECT}/apps`, answer });
     const card = (await screen.findByRole("heading", { name: "Air map" })).closest(
       "li",
     ) as HTMLElement;
 
-    expect(within(card).getByRole("button", { name: en.apps.previewAction })).toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: new RegExp(`^${en.apps.openAction}`) }),
+    ).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: en.apps.previewAction })).toBeNull();
     expect(within(card).queryByRole("button", { name: en.resourceEdit.button })).toBeNull();
     const menu = await openMenu(card);
-    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual(
-      MENU_ITEMS,
-    );
+    // The app's own actions first, then the manifest's four in the same menu.
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .slice(-MENU_ITEMS.length)
+        .map((item) => item.textContent?.trim()),
+    ).toEqual(MENU_ITEMS);
+    expect(
+      within(menu).getByRole("menuitem", { name: new RegExp(`^${en.apps.previewAction}`) }),
+    ).toBeInTheDocument();
   });
 
   it("tells a role that may not propose or delete why, rather than dropping the item", async () => {
@@ -162,7 +172,7 @@ describe("the card headers that still carried a loose pair", () => {
     }
   });
 
-  it("names the menu and its four actions in every locale the organisation offers", async () => {
+  it("names the menu and the manifest's four actions in every locale the organisation offers", async () => {
     for (const locale of LOCALES) {
       const view = await renderRoute({ path: `/projects/${PROJECT}/apps`, answer, locale });
       const card = (await screen.findByRole("heading", { name: "Air map" })).closest("li") as HTMLElement;
@@ -171,8 +181,13 @@ describe("the card headers that still carried a loose pair", () => {
       });
       await userEvent.click(trigger);
       const menu = await screen.findByRole("menu");
-      expect(within(menu).getAllByRole("menuitem")).toHaveLength(4);
-      expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      // The app's own actions come first (T-2618); the manifest's four close the menu.
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .slice(-4)
+          .map((item) => item.textContent?.trim()),
+      ).toEqual([
         i18n.t("resourceEdit.button"),
         i18n.t("saveAs.button"),
         i18n.t("workspaces.open.action"),

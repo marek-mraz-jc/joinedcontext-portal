@@ -28,9 +28,9 @@ use utoipa::ToSchema;
 use crate::api::mutate::{author_credentials, create_or_reuse_branch, find_literal_secret};
 use crate::apps::reconciler::generate_slug;
 use crate::auth::CurrentUser;
-use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation};
 use crate::error::{ApiError, ProblemDetails};
-use crate::git::{Author, FileWrite, GiteaClient};
+use crate::git::{Author, FileWrite};
 use crate::resource::{self, ResourceEnvelope};
 use crate::state::AppState;
 
@@ -137,6 +137,9 @@ pub struct SpaceMapping {
 pub struct ImportQuery {
     #[serde(default)]
     pub dry_run: Option<String>,
+    /// `git`: the archive of a `format=git` export, landing as a new project (MF-45).
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 /// What one import would do, answered on a dry run and echoed in the merge request body.
@@ -151,6 +154,10 @@ pub struct ImportReport {
     pub skipped: Vec<String>,
     /// Resources imported under a new name, `old -> new` (`rename`).
     pub renamed: BTreeMap<String, String>,
+    /// Policies whose `assigner` the import rewrote to `did:web:{orgDomain}`, as `Policy/{name}`
+    /// to the DID the bundle carried: the grant is this organisation's now (CC-82, R6).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub reassigned: BTreeMap<String, String>,
     /// Files carried through untouched: `bento.yaml`, LinkML sources, schema artifacts.
     pub native_files: usize,
     /// The lane the whole bundle lands in: the riskiest of everything it carries (CC-63).
@@ -173,7 +180,7 @@ pub struct ImportReport {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Need {
-    /// `secret`, `person`, `host` or `credential`.
+    /// `secret`, `person` or `host`.
     pub kind: String,
     /// The manifest and the path inside it, `Kind/name spec.path`.
     #[serde(rename = "where")]
@@ -191,16 +198,39 @@ pub struct Need {
 /// hosts and certificates are the origin's; a DataSource's `authorization` is a feed
 /// credential. Each is reported where it is, and nothing here blocks the import.
 pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
+    /// Every field a jc-core kind types as a `SecretRef`, or a list of them (MF-35, T-2564):
+    /// `secretRef`/`previousSecretRef` (Subscription, SyncSource), `secretRefs` (Pipeline),
+    /// `secrets` (DataSource), `passwordRef`, `headerRef` and `caCertRef` (DataSource),
+    /// `apiTokenRef` (CkanInstance), `tokenSecretRef` (DataspaceConnector) and
+    /// `cachedTokenSecretRef` (Endpoint). A new one in jc-core is added here.
+    const SECRET_FIELDS: [&str; 9] = [
+        "secretRef",
+        "previousSecretRef",
+        "secretRefs",
+        "passwordRef",
+        "headerRef",
+        "caCertRef",
+        "apiTokenRef",
+        "tokenSecretRef",
+        "cachedTokenSecretRef",
+    ];
     fn walk(value: &Value, path: &str, found: &mut Vec<String>) {
         match value {
             Value::Object(map) => {
                 for (key, child) in map {
                     let here = format!("{path}.{key}");
-                    if key == "secretRef" || (key == "secrets" && child.is_array()) {
+                    // One need per field, a list included: the report names where to set the
+                    // value, never the secret's name, key or value (CC-06).
+                    if SECRET_FIELDS.contains(&key.as_str())
+                        && (child.is_object() || child.is_array())
+                    {
+                        found.push(here);
+                        continue;
+                    }
+                    // A `secrets` list is a need of its own, and each entry is still walked: an
+                    // entry names its `secretRef`, which is one more (MF-35).
+                    if key == "secrets" && child.is_array() {
                         found.push(here.clone());
-                        if key == "secretRef" {
-                            continue;
-                        }
                     }
                     walk(child, &here, found);
                 }
@@ -233,17 +263,6 @@ pub fn needs_of(manifests: &[ResourceEnvelope], project: &str) -> Vec<Need> {
                 "the value behind this reference stays in the origin's secret store; set it here"
                     .into(),
             ));
-        }
-        if envelope.kind == "DataSource" {
-            if let Some(authorization) = envelope.spec.get("authorization") {
-                if !authorization.is_null() {
-                    needs.push(need(
-                        "credential",
-                        "spec.authorization",
-                        "the feed's credential is the origin's; give this project its own".into(),
-                    ));
-                }
-            }
         }
         let mut users = Vec::new();
         match envelope.kind.as_str() {
@@ -327,6 +346,15 @@ impl ImportReport {
         }
         let equal = self.verified.iter().filter(|file| file.equal).count();
         Some(format!("{equal} of {} files equal", self.verified.len()))
+    }
+
+    /// One line per Policy whose assigner the import rewrote, for the `Change` body: the person
+    /// who approves sees that the grant is signed by this organisation now (R6, T-2256).
+    fn reassignment_lines(&self) -> Vec<String> {
+        self.reassigned
+            .iter()
+            .map(|(policy, carried)| format!("{policy}: assigner {carried} is now {OWN_ASSIGNER}"))
+            .collect()
     }
 }
 
@@ -797,6 +825,39 @@ fn remap(
     }
 }
 
+/// The assigner every Policy of this repository writes: the loader renders it for the
+/// organisation that owns the file (CC-82).
+const OWN_ASSIGNER: &str = "did:web:{orgDomain}";
+
+/// Rewrites every Policy's `assigner` that is not [`OWN_ASSIGNER`] to it, and answers what each
+/// carried, keyed `Policy/{name}` by the name it lands under.
+///
+/// A Policy grants over a space of the project it lands in, so the organisation that may give
+/// that data away is this one (R6); a DID from the bundle would read as another organisation's
+/// decision. Rewritten rather than refused, so a migration keeps its grants, and reported, so the
+/// person who approves the Change sees it (T-2256).
+fn reassign_policies(manifests: &mut [ResourceEnvelope]) -> BTreeMap<String, String> {
+    let mut reassigned = BTreeMap::new();
+    for envelope in manifests
+        .iter_mut()
+        .filter(|envelope| envelope.kind == "Policy")
+    {
+        let Some(assigner) = envelope.spec.get_mut("assigner") else {
+            continue;
+        };
+        if assigner.as_str() == Some(OWN_ASSIGNER) {
+            continue;
+        }
+        let carried = match &*assigner {
+            Value::String(text) => text.clone(),
+            other => other.to_string(),
+        };
+        *assigner = Value::String(OWN_ASSIGNER.to_owned());
+        reassigned.insert(format!("Policy/{}", envelope.metadata.name), carried);
+    }
+    reassigned
+}
+
 /// The namespace a kind is stored in: `org` for an organization-scoped kind, the project
 /// otherwise. A kind that lives in either — `Role` — keeps `org` when the bundle wrote it
 /// there and lands in the project when the bundle wrote it in one (PF-68, T-0820).
@@ -981,6 +1042,62 @@ fn renamed(name: &str, origin: &str) -> String {
 /// One extractor consumes the body, so the dispatch is here rather than in the signature: a
 /// wizard posts `multipart/form-data` with the file and the option fields beside it, and
 /// `jcctl` posts JSON.
+/// The multipart body of a git import: the archive as `file`, `parameters` as a JSON object,
+/// `displayName` and `dryRun` (MF-45, CC-88).
+async fn read_git_request(
+    state: &AppState,
+    request: Request,
+) -> Result<(Vec<u8>, crate::api::import_git::GitImport), ApiError> {
+    let mut multipart = Multipart::from_request(request, state)
+        .await
+        .map_err(|err| {
+            ApiError::BadRequest(format!(
+                "a git import is multipart/form-data with the archive as 'file': {err}"
+            ))
+        })?;
+    let mut bytes = Vec::new();
+    let mut input = crate::api::import_git::GitImport::default();
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|err| ApiError::BadRequest(format!("the upload did not parse: {err}")))?
+    {
+        let name = field.name().unwrap_or_default().to_owned();
+        let data = field
+            .bytes()
+            .await
+            .map_err(|err| ApiError::BadRequest(format!("field '{name}': {err}")))?;
+        match name.as_str() {
+            "file" | "bundle" => bytes = data.to_vec(),
+            "parameters" => {
+                input.parameters = serde_json::from_slice(&data).map_err(|err| {
+                    ApiError::BadRequest(format!(
+                        "parameters is a JSON object of values (CC-88): {err}"
+                    ))
+                })?
+            }
+            "displayName" => {
+                input.display_name = Some(String::from_utf8_lossy(&data).trim().to_owned())
+                    .filter(|name| !name.is_empty())
+            }
+            "dryRun" => {
+                input.dry_run = matches!(String::from_utf8_lossy(&data).trim(), "true" | "All")
+            }
+            other => {
+                return Err(ApiError::BadRequest(format!(
+                    "a git import takes file, parameters, displayName and dryRun, not '{other}'"
+                )))
+            }
+        }
+    }
+    if bytes.is_empty() {
+        return Err(ApiError::BadRequest(
+            "a git import carries the archive as 'file'".into(),
+        ));
+    }
+    Ok((bytes, input))
+}
+
 async fn read_request(
     state: &AppState,
     request: Request,
@@ -1058,18 +1175,30 @@ async fn read_request(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/import",
+    summary = "Import A Bundle",
+    description = "Imports a bundle into the project as one change a person approves, or answers the plan alone.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project the bundle is imported into"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' to validate and plan without proposing"),
+        ("format" = Option<String>, Query, description = "'git': the archive of a format=git export, landing as the new project of the path (layout 2)"),
     ),
     request_body(
         description = "A JSON body with `manifests` (and `targetNamespace`, `orgDomain`, \
                        `conflictPolicy`, `spaceMapping`), or `multipart/form-data` with the bundle \
                        under `file` and the same options as fields (MF-18, UI-07)",
         content(
-            (serde_json::Value = "application/json"),
-            (String = "multipart/form-data"),
+            (serde_json::Value = "application/json", example = json!({
+                "manifests": [{
+                    "apiVersion": "joinedcontext.com/v1alpha1",
+                    "kind": "Group",
+                    "metadata": { "name": "stewards", "namespace": "org" },
+                    "spec": { "members": [] }
+                }],
+                "conflictPolicy": "fail"
+            })),
+            // The parts are `file` (the bundle or the git archive) and the options as text.
+            (String = "multipart/form-data", example = json!("file=<bundle.zip>; conflictPolicy=fail")),
         ),
     ),
     responses(
@@ -1091,6 +1220,24 @@ pub async fn import(
 ) -> Result<Response, ApiError> {
     if !resource::is_dns1123(&project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    match query.format.as_deref() {
+        None => {}
+        Some("git") => {
+            // Before the body: who may not open a project learns that and nothing else (PF-65).
+            crate::api::projects::may_open(&state, &user.0.identity)?;
+            let (bytes, mut input) = read_git_request(&state, request).await?;
+            input.dry_run |= query.dry_run.as_deref() == Some("All");
+            let (status, body) =
+                crate::api::import_git::import(&state, &user.0.identity, &project, &bytes, input)
+                    .await?;
+            return Ok((status, Json(body)).into_response());
+        }
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!(
+                "format '{other}' is not git; a bundle or manifests import without one"
+            )))
+        }
     }
     let (bytes, mut options) = read_request(&state, request).await?;
     if query.dry_run.as_deref() == Some("All") {
@@ -1124,7 +1271,7 @@ pub async fn import_bundle(
 
     let incoming = parse(bytes)?;
     authorize(state, identity, &project, &incoming)?;
-    well_formed(&incoming)?;
+    well_formed(&incoming, state.config.apps_dir.as_deref())?;
     let target = options
         .target_namespace
         .clone()
@@ -1267,10 +1414,10 @@ pub async fn propose_bundle(
     files: Vec<(String, String)>,
     headline: Option<(&str, &str)>,
 ) -> Result<Change, ApiError> {
-    let gitea: &GiteaClient = state
-        .gitea
-        .as_deref()
+    let gitea = state
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
     let default_branch = gitea.default_branch().await?;
     let hash = digest(&files);
     let branch = match headline {
@@ -1310,9 +1457,15 @@ pub async fn propose_bundle(
     let detail = serde_json::to_string_pretty(&report).unwrap_or_else(|_| "imported bundle".into());
     // The one line an approver reads before the report: whether the transfer arrived whole
     // (MF-42). A bundle without checksums has no such line rather than a reassuring one.
-    let body = match report.verification_summary() {
-        Some(summary) => format!("{summary}\n\n{detail}"),
-        None => detail,
+    let lead: Vec<String> = report
+        .verification_summary()
+        .into_iter()
+        .chain(report.reassignment_lines())
+        .collect();
+    let body = if lead.is_empty() {
+        detail
+    } else {
+        format!("{}\n\n{detail}", lead.join("\n"))
     };
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
@@ -1324,8 +1477,9 @@ pub async fn propose_bundle(
         0,
     );
     let change = Change::new(
-        ChangeMeta::from_merge_request(pull.number, project),
+        crate::api::changes::change_meta(state, gitea, pull.number, project),
         ChangeStatus::new(report.lane, ChangePhase::PendingApproval, summary)
+            .in_repository(&pull.repository)
             .with_merge_request(pull.url),
     );
     Ok(change)
@@ -1496,6 +1650,7 @@ fn plan_import(
         replaced: Vec::new(),
         skipped: Vec::new(),
         renamed: BTreeMap::new(),
+        reassigned: BTreeMap::new(),
         native_files: natives.len(),
         lane: Lane::Green,
         source,
@@ -1605,6 +1760,7 @@ fn plan_import(
         }
     }
 
+    report.reassigned = reassign_policies(&mut keep);
     report.needs = needs_of(&keep, project);
 
     let missing = unresolved(&keep, state, project);
@@ -1680,6 +1836,22 @@ fn authorize(
                     .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
                 effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
                 crate::permissions::within_own_rights(state, identity, &raw, "proposer")?;
+                // PF-84, AP-14a: the same refusals as the single-manifest door.
+                crate::spaces::check(
+                    state,
+                    identity,
+                    project,
+                    &envelope.kind,
+                    &envelope.metadata.name,
+                    &envelope.spec,
+                )?;
+                crate::apps::names::check(
+                    state,
+                    identity,
+                    project,
+                    &envelope.kind,
+                    &envelope.metadata.name,
+                )?;
             }
             None => {
                 let Some(path) = &item.path else { continue };
@@ -1706,13 +1878,18 @@ fn authorize(
 /// 2026-09-18: the approver read an ordinary plan, and the reconciler has refused the file on every
 /// tick since (DM-22). Checked before anything is planned, so a dry run says the same thing as the
 /// proposal, and the file it came from is named — a bundle holds many manifests.
-fn well_formed(incoming: &[Incoming]) -> Result<(), ApiError> {
+fn well_formed(incoming: &[Incoming], apps_dir: Option<&str>) -> Result<(), ApiError> {
     for item in incoming {
         let Some(envelope) = &item.envelope else {
             continue;
         };
         if envelope.kind == BUNDLE_KIND {
             continue;
+        }
+        // The shipped bundle a published static App may stand on instead of a repository has
+        // to be on this Portal, not on the one the bundle was exported from (AP-87).
+        if let Some(refusal) = crate::apps::static_host::unshipped_claim(apps_dir, envelope) {
+            return Err(ApiError::BadRequest(refusal));
         }
         let Some(checked) = jc_core::registry::validate_yaml(
             &envelope.kind,
@@ -1837,7 +2014,14 @@ fn digest(files: &[(String, String)]) -> u64 {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/projects/{project}/import", axum::routing::post(import))
+    // axum reads 2 MiB by default; the import's own limit, plus the multipart framing, is the
+    // one that holds (MF-45).
+    Router::new().route(
+        "/projects/{project}/import",
+        axum::routing::post(import).layer(axum::extract::DefaultBodyLimit::max(
+            MAX_UPLOAD_BYTES + 64 * 1024,
+        )),
+    )
 }
 
 #[cfg(test)]
@@ -1851,6 +2035,7 @@ mod verification_tests {
             replaced: Vec::new(),
             skipped: Vec::new(),
             renamed: std::collections::BTreeMap::new(),
+            reassigned: std::collections::BTreeMap::new(),
             native_files: 0,
             lane: Lane::Green,
             source: None,
@@ -1884,8 +2069,10 @@ mod verification_tests {
                 "feed",
                 serde_json::json!({
                     "type": "http",
-                    "connection": { "url": "https://example.invalid/feed" },
-                    "authorization": { "type": "bearer", "secretRef": { "name": "feed", "key": "token" } },
+                    "http": {
+                        "url": "https://example.invalid/feed",
+                        "authorization": { "headerRef": { "name": "feed", "key": "token" } }
+                    },
                     "secrets": [{ "name": "feed", "key": "password", "envVar": "PASSWORD" }],
                 }),
             ),
@@ -1902,21 +2089,17 @@ mod verification_tests {
         ];
         let needs = super::needs_of(&bundle, "espoo");
         let kinds: Vec<&str> = needs.iter().map(|need| need.kind.as_str()).collect();
-        assert_eq!(
-            kinds,
-            ["secret", "secret", "credential", "person"],
-            "{needs:?}"
-        );
+        assert_eq!(kinds, ["secret", "secret", "person"], "{needs:?}");
         assert_eq!(
             needs[0].location,
-            "DataSource/feed spec.authorization.secretRef"
+            "DataSource/feed spec.http.authorization.headerRef"
         );
         assert_eq!(needs[1].location, "DataSource/feed spec.secrets");
         assert_eq!(
-            needs[3].location,
+            needs[2].location,
             "RoleBinding/stewards spec.subjects[0].user"
         );
-        assert!(needs[3].why.contains("demo.steward@hel.fi"));
+        assert!(needs[2].why.contains("demo.steward@hel.fi"));
         assert!(needs
             .iter()
             .all(|need| need.link.starts_with("/projects/espoo/")));

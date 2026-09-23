@@ -8,9 +8,9 @@ use crate::api::dry_run::{self, DryRunQuery, DryRunResult};
 use crate::api::mutate::{
     author_credentials, branch_name, create_or_reuse_branch, open_change_on, resolve_repo_path,
 };
-use crate::auth::session::Identity;
+use crate::auth::session::{Front, Identity};
 use crate::auth::CurrentUser;
-use crate::change::{self, Change, ChangeMeta, ChangePhase, ChangeStatus, Operation};
+use crate::change::{self, Change, ChangePhase, ChangeStatus, Operation};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::Author;
 use crate::plan;
@@ -151,12 +151,15 @@ impl DeleteOutcome {
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Delete Resource",
+    description = "Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
@@ -170,6 +173,7 @@ impl DeleteOutcome {
 )]
 pub async fn delete_resource(
     user: CurrentUser,
+    front: Front,
     State(state): State<AppState>,
     Path((project, plural, name)): Path<(String, String, String)>,
     Query(dry_run_q): Query<DryRunQuery>,
@@ -188,6 +192,21 @@ pub async fn delete_resource(
     {
         DeleteOutcome::DryRun(result) => Ok((StatusCode::OK, Json(result)).into_response()),
         DeleteOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
+        // Removed at once, the name typed back, when the person administers the kind (PF-58);
+        // a bearer caller's removal always waits (AG-11).
+        DeleteOutcome::Proposed(change) if front != Front::Bearer => {
+            let kind = resource::by_plural(&plural).map_or("", |info| info.kind);
+            let change = crate::api::changes::approve_as_proposed(
+                &state,
+                &user.0.identity,
+                &project,
+                kind,
+                change,
+                dry_run_q.confirm.as_deref(),
+            )
+            .await;
+            Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+        }
         DeleteOutcome::Proposed(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         DeleteOutcome::Referenced { here, elsewhere } => Err(ApiError::Conflict(
             DeleteOutcome::conflict_message(&here, elsewhere),
@@ -215,11 +234,18 @@ pub async fn delete_with_identity(
 
     // 1. Resolve plural catalogue entry and resource from mirror
     let kind_info = resource::by_plural(plural).ok_or_else(not_found)?;
+    // What a caller may not read is not there (R20, PF-59): the same 404 for a resource that
+    // exists as for one that does not, before anything is looked up (T-2563). A caller who reads
+    // it and lacks `delete` still gets the 403 that names the missing grant, below.
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read(kind_info.kind) {
+        return Err(not_found());
+    }
     // Inside a workspace the resource and what references it are read on its branch (CC-76).
     let mirror = match workspace {
-        Some(workspace) => {
-            std::sync::Arc::new(crate::ops::workspaces::mirror_of(state, workspace, project).await?)
-        }
+        Some(workspace) => std::sync::Arc::new(
+            crate::ops::workspaces::mirror_of(state, identity, workspace, project).await?,
+        ),
         None => state.mirror.clone(),
     };
     let envelope = mirror
@@ -228,10 +254,18 @@ pub async fn delete_with_identity(
 
     // 1b. Deletion needs `delete` in a binding that covers the project (T-0526, PF-50).
     let target = serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
-    crate::permissions::for_request(state, identity, project).check(
-        kind_info.kind,
-        jc_core::kinds::Verb::Delete,
-        Some(&target),
+    if !effective.may_read_manifest(kind_info.kind, &target) {
+        return Err(not_found());
+    }
+    effective.check(kind_info.kind, jc_core::kinds::Verb::Delete, Some(&target))?;
+    // PF-03: the last administrator of the organization is not removed by any door.
+    crate::permissions::keeps_an_administrator(
+        &mirror,
+        crate::permissions::AccessChange::Remove {
+            kind: kind_info.kind,
+            namespace: project,
+            name,
+        },
     )?;
 
     // 2. Every resource in the mirror that still references the target (MF-07, R20)
@@ -282,9 +316,9 @@ pub async fn delete_with_identity(
 
     // 5. Commit deletion to Git merge request via Gitea client
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let repo_path = resolve_repo_path(&envelope, kind_info, project)?;
@@ -321,7 +355,7 @@ pub async fn delete_with_identity(
         None => {
             let branch = branch_name(project, kind_info.kind, name, Operation::Delete);
             // One open change per resource (CC-34, T-0883): the pending removal is decided first.
-            if let Some(pending) = open_change_on(gitea, &branch, project).await? {
+            if let Some(pending) = open_change_on(state, gitea, &branch, project).await? {
                 return Err(ApiError::Conflict(format!(
                     "a change for {} '{name}' is already open: {}; approve or reject it first",
                     kind_info.kind, pending.name
@@ -343,6 +377,20 @@ pub async fn delete_with_identity(
         }
         if let Some(file) = gitea.get_file(&path, &read_from).await? {
             removals.push((path, file.sha));
+        }
+    }
+
+    // An App's Endpoint and Policies were committed with it and leave with it, or the gateway
+    // keeps serving a removed App's grants (T-2632, AP-21).
+    if kind_info.kind == "App" {
+        for grant in crate::api::mutate::held_grants(state, project, name) {
+            let info = crate::resource::by_kind(&grant.kind).ok_or_else(|| {
+                ApiError::Internal(format!("no catalogue entry for {}", grant.kind))
+            })?;
+            let path = resolve_repo_path(&grant, info, project)?;
+            if let Some(file) = gitea.get_file(&path, &read_from).await? {
+                removals.push((path, file.sha));
+            }
         }
     }
 
@@ -385,8 +433,9 @@ pub async fn delete_with_identity(
         .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
         .await?;
 
-    let change_meta = ChangeMeta::from_merge_request(pr.number, project);
+    let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
+        .in_repository(&pr.repository)
         .with_merge_request(pr.url);
     Ok(DeleteOutcome::Proposed(Change::new(
         change_meta,
@@ -541,6 +590,7 @@ mod tests {
 
         let err_plural = delete_resource(
             user.clone(),
+            Front::Portal,
             State(state.clone()),
             Path(("ovzdusie".into(), "unknownplural".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -554,6 +604,7 @@ mod tests {
 
         let err_name = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "nonexistent".into())),
             Query(DryRunQuery::default()),
@@ -589,11 +640,13 @@ mod tests {
         let user = dummy_user();
         let resp = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                confirm: None,
             }),
         )
         .await
@@ -641,6 +694,7 @@ mod tests {
         let user = dummy_user();
         let err1 = delete_resource(
             user.clone(),
+            Front::Portal,
             State(state.clone()),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -677,6 +731,7 @@ mod tests {
 
         let err2 = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -713,6 +768,7 @@ mod tests {
         let user = dummy_user();
         let err = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -805,6 +861,7 @@ mod tests {
         let user = dummy_user();
         let resp = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
@@ -869,6 +926,7 @@ mod tests {
         let user = dummy_user();
         let err = delete_resource(
             user,
+            Front::Portal,
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),

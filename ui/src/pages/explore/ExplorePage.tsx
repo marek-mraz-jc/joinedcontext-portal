@@ -15,6 +15,7 @@ import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
+import { useIdentity } from "../../auth/AuthProvider";
 
 const PAGE_SIZE = 50;
 
@@ -64,6 +65,7 @@ export function ExplorePage({
   initialQ?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const identity = useIdentity();
   const locale = i18n.language;
   const spaces = useProjectList(project, "spaces");
   const endpoints = useProjectList(project, "endpoints");
@@ -97,7 +99,7 @@ export function ExplorePage({
   const spaceEndpoints = (endpoints.data ?? []).filter((e) => spaceOf(e) === space);
   const endpoint =
     spaceEndpoints.find((e) => e.metadata.name === endpointChoice) ??
-    pickReadEndpoint(spaceEndpoints);
+    pickReadEndpoint(spaceEndpoints, identity ? (identity.groups ?? []) : null, project);
   const slug = typeof endpoint?.spec.slug === "string" ? String(endpoint.spec.slug) : undefined;
   const spaceManifest = (spaces.data ?? []).find((s) => s.metadata.name === space);
   const model = (models.data ?? []).find(
@@ -185,7 +187,7 @@ export function ExplorePage({
         <Button
           variant="ghost"
           size="xs"
-          className="px-0 font-mono text-primary underline-offset-2 hover:bg-transparent hover:underline"
+          className="px-0 font-mono text-primary-soft-fg underline-offset-2 hover:bg-transparent hover:underline"
           onClick={() => setSelected(row.id)}
         >
           {row.id}

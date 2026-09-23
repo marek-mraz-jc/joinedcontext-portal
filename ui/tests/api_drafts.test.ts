@@ -88,6 +88,15 @@ describe("drafts through the typed client", () => {
     );
   });
 
+  // MF-24, T-2626: the refusal keeps its status and the server's sentence, so the dialog can say it.
+  it("keeps the status and the server's sentence of a refused write", async () => {
+    answer(400, { detail: "literal secret in field 'password' is forbidden; use secretRef instead (MF-24)" });
+    await expect(putDraft("helsinki", "DataSource", "feed", {})).rejects.toMatchObject({
+      status: 400,
+      detail: "literal secret in field 'password' is forbidden; use secretRef instead (MF-24)",
+    });
+  });
+
   it("carries the double-submit token on the write", async () => {
     document.cookie = "jc_csrf=t0k";
     answer(200, draft);

@@ -57,6 +57,15 @@ impl ChangeMeta {
         }
     }
 
+    /// A merge request of the organization repository listed under a project of layout 2:
+    /// `chg-org-` and its number, since the project repository numbers its own apart (CC-87).
+    pub fn from_organization_merge_request(mr_number: u64, namespace: impl Into<String>) -> Self {
+        Self {
+            name: format!("chg-org-{:08x}", mr_number),
+            namespace: namespace.into(),
+        }
+    }
+
     /// Derives the change metadata deterministically from a merge request string identifier or URL.
     pub fn from_mr_str(mr: &str, namespace: impl Into<String>) -> Self {
         let parsed_num: Option<u64> = mr
@@ -90,6 +99,10 @@ impl ChangeMeta {
 #[serde(rename_all = "camelCase")]
 pub struct ChangeStatus {
     pub lane: Lane,
+    /// The one repository the Change targets (CC-87): the organization's, or in layout 2 a
+    /// project's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub merge_request: Option<String>,
     pub plan: PlanSummary,
@@ -100,10 +113,17 @@ impl ChangeStatus {
     pub fn new(lane: Lane, phase: ChangePhase, plan: PlanSummary) -> Self {
         Self {
             lane,
+            repository: None,
             merge_request: None,
             plan,
             phase,
         }
+    }
+
+    /// The repository the Change's merge request is in; an empty name leaves it unsaid.
+    pub fn in_repository(mut self, repository: &str) -> Self {
+        self.repository = (!repository.is_empty()).then(|| repository.to_owned());
+        self
     }
 
     pub fn with_merge_request(mut self, mr: impl Into<String>) -> Self {

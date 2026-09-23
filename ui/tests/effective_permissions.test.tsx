@@ -117,7 +117,7 @@ const rowOf = async (type: string) =>
 describe("effective permissions", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/access");
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/access");
   });
 
   afterEach(() => {

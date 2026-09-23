@@ -180,7 +180,7 @@ test("a person without the role is refused an approval, in the page and at the d
  * `RoleBinding` at all, so every grant is above their rights.
  */
 test("nobody grants above their own rights, and the page gives the reason", async ({ browser }) => {
-  const { context, page } = await signIn(browser, VIEWER, `/projects/${PROJECT}/access?lang=en`);
+  const { context, page } = await signIn(browser, VIEWER, `/projects/${PROJECT}/settings/members?lang=en`);
   try {
     const grant = page.getByRole("button", { name: "Grant a role" }).first();
     await expect(grant).toBeVisible({ timeout: 60_000 });
@@ -276,7 +276,7 @@ test("a person who proposes and does not administer cannot approve their own cha
 test("a grant wider than the proposer's own rights is refused, and a narrower control is not", async ({
   browser,
 }) => {
-  const { context, page } = await signIn(browser, EDITOR, `/projects/${PROJECT}/access?lang=en`);
+  const { context, page } = await signIn(browser, EDITOR, `/projects/${PROJECT}/settings/members?lang=en`);
   try {
     // Unlike the viewer, this person reaches the form: the refusal below is about the grant.
     const grant = page.getByRole("button", { name: "Grant a role" }).first();
@@ -302,7 +302,8 @@ test("a grant wider than the proposer's own rights is refused, and a narrower co
     // The reason names the rule and the verb that is missing, not a bare code (UI-44); the
     // wording is the one `tests/access_escalation_tests.rs` pins server-side.
     expect(refusal).toMatch(/may not grant more than its proposer holds/i);
-    expect(refusal).toMatch(/missing delete on/i);
+    // The missing verbs are listed kind by kind, Organization first (PF-52); `delete` is among them.
+    expect(refusal).toMatch(/missing .*\bdelete on /i);
   } finally {
     await context.close();
   }

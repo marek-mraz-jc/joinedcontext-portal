@@ -39,6 +39,7 @@ use crate::apps::converge::{Converger, Outcome};
 use crate::git::{Author, FileWrite, GitError, GiteaClient};
 use crate::resource::ResourceEnvelope;
 use crate::store::Mirror;
+use jcctl::loader::Repository;
 
 /// The resident runner's Deployment, which mounts the Secret this reconciler writes (T-0927).
 /// One name, because a deployment that runs a second runner gives it the same chart and the
@@ -75,6 +76,10 @@ pub enum SyncError {
     /// not fit its kind (T-0527).
     #[error("roles do not compile: {0}")]
     Roles(String),
+    /// A layout 2 organization does not assemble: its registry, a layout file, or a name two
+    /// projects claim (CC-85, CC-86).
+    #[error("the organization does not assemble: {0}")]
+    Assemble(#[from] jcctl::assemble::AssembleError),
     /// The scratch directory the loader reads from could not be written.
     #[error("cannot stage the repository at {path}: {source}")]
     Scratch {
@@ -90,6 +95,10 @@ pub struct Syncer {
     mirror: Arc<Mirror>,
     status: Arc<RwLock<SyncStatus>>,
     running: Arc<Mutex<()>>,
+    /// Where a layout 2 organization is assembled, kept between syncs so a project that does
+    /// not stage renders as the last assembly left it (CC-86). One per syncer; its syncs run
+    /// one at a time behind `running`.
+    assembly: PathBuf,
     /// `None` when the Portal has no database: a single replica needs no election.
     leadership: Option<Arc<Leadership>>,
     /// `None` when this Portal applies no app objects: outside a cluster, or without the
@@ -108,9 +117,9 @@ pub struct Syncer {
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
-    /// Where the static host reads app bundles from, when this Portal serves any (AP-14): the
-    /// run checks that the build each manifest names is actually there (AP-72).
-    apps_dir: Option<String>,
+    /// Where this replica fetches the builds the manifests name (AP-102): the run fetches the
+    /// missing ones and checks that each named build is actually there (AP-72).
+    apps_cache_dir: Option<String>,
     /// The artifact store's admin API, held with the root credential. `None` leaves every
     /// organization without a scoped credential and the store untouched (PF-32).
     artifact_store: Option<Arc<crate::artifact_store::Client>>,
@@ -129,6 +138,10 @@ pub struct Syncer {
     /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
     /// gateway host configured can honestly do.
     ckan: Option<Arc<super::ckan::CkanSync>>,
+    /// Whether each Organization owns the domain it declares (PF-41, T-2377). `None` without a
+    /// database: a challenge that did not outlive a restart would fail every published record.
+    domains:
+        Option<Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>>,
 }
 
 impl Syncer {
@@ -141,6 +154,11 @@ impl Syncer {
                 ..SyncStatus::default()
             })),
             running: Arc::new(Mutex::new(())),
+            assembly: {
+                static SYNCERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                let n = SYNCERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                std::env::temp_dir().join(format!("jc-portal-assembly-{}-{n}", std::process::id()))
+            },
             leadership: None,
             converger: None,
             streams: None,
@@ -149,13 +167,24 @@ impl Syncer {
             subscriptions: None,
             groups: None,
             activity: None,
-            apps_dir: None,
+            apps_cache_dir: None,
             artifact_store: None,
             credentials: None,
             pipeline_secrets: None,
             webhook_secrets: None,
             ckan: None,
+            domains: None,
         }
+    }
+
+    /// Makes each run record whether every Organization owns its declared domain (PF-41). The
+    /// state is reported on the Organization; nothing here refuses a write.
+    pub fn with_domain_verification(
+        mut self,
+        verifier: Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>,
+    ) -> Self {
+        self.domains = Some(verifier);
+        self
     }
 
     /// Makes each run mint the scoped artifact-store credentials of every Organization it reads
@@ -202,10 +231,10 @@ impl Syncer {
         self
     }
 
-    /// Where the static host reads app bundles from, so each run can say which app names a
-    /// build that never arrived (AP-72).
-    pub fn with_apps_dir(mut self, apps_dir: Option<String>) -> Self {
-        self.apps_dir = apps_dir;
+    /// Where this replica keeps the builds it fetched, so each run fetches what the mirror
+    /// names and says which app names a build that never arrived (AP-72, AP-102).
+    pub fn with_apps_cache_dir(mut self, apps_cache_dir: Option<String>) -> Self {
+        self.apps_cache_dir = apps_cache_dir;
         self
     }
 
@@ -540,16 +569,82 @@ impl Syncer {
         self.status().last_sync.is_some()
     }
 
+    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
+    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
+    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
+    /// the rest of the organization renders.
+    async fn render(&self, org: Scratch) -> Result<(Render, Repository), SyncError> {
+        use jc_core::project::RepositoryRole;
+        use jcctl::assemble::{assemble, layout_at, read_registry, Directories};
+        if layout_at(org.path(), RepositoryRole::Organization)? == 1 {
+            let repository = Repository::load(org.path())?;
+            return Ok((
+                Render {
+                    layout: 1,
+                    root: org.path().to_path_buf(),
+                    _staged: vec![org],
+                    projects: BTreeMap::new(),
+                },
+                repository,
+            ));
+        }
+        let mut staged = Vec::new();
+        let mut directories = BTreeMap::new();
+        let mut projects = BTreeMap::new();
+        for (slug, entry) in read_registry(org.path())? {
+            let git_ref = entry.spec.git_ref.clone().unwrap_or_default();
+            let Some(name) = entry.spec.repository.and_then(|repository| repository.name) else {
+                // ponytail: a repository outside the forge (CC-89) is fetched with git by the
+                // checkouts sidecar; the Portal reads the forge API, so it keeps the last render.
+                tracing::warn!(project = %slug, "a repository outside the forge is not read by the Portal yet");
+                continue;
+            };
+            let client = self.gitea.for_repository(name);
+            match stage_project(&client, &git_ref).await {
+                Ok(scratch) => {
+                    directories.insert(slug.clone(), scratch.path().to_path_buf());
+                    staged.push(scratch);
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %git_ref, %error, "the project's repository did not stage; its last render stays");
+                }
+            }
+            projects.insert(slug, (client, git_ref));
+        }
+        let into = self.assembly.clone();
+        let environment = std::env::var("JC_ENVIRONMENT")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
+        let assembly = assemble(
+            org.path(),
+            &Directories(directories),
+            &into,
+            environment.as_deref(),
+        )?;
+        for finding in &assembly.findings {
+            tracing::warn!(project = %finding.slug, path = %finding.path.display(), message = %finding.message, "a project repository's finding");
+        }
+        staged.push(org);
+        Ok((
+            Render {
+                layout: 2,
+                root: into,
+                _staged: staged,
+                projects,
+            },
+            assembly.repository,
+        ))
+    }
+
     async fn do_sync(&self, leader: bool) -> Result<(usize, String), SyncError> {
         // 1. Resolve default branch and its commit revision
         let default_branch = self.gitea.default_branch().await?;
         let revision = self.gitea.branch_head(&default_branch).await?;
 
-        // 2, 3. The repository as files on disk, this run's own.
-        let scratch = stage(&self.gitea, &revision).await?;
-
+        // 2, 3. The repository as files on disk, this run's own; in layout 2 the organization
+        //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
-        let repository = jcctl::loader::Repository::load(scratch.path())?;
+        let (scratch, repository) = self.render(stage(&self.gitea, &revision).await?).await?;
         for (id, path, expected) in repository.misplaced() {
             tracing::warn!(resource = %id, path = %path.display(), %expected, "manifest is not at the path its kind declares");
         }
@@ -577,6 +672,14 @@ impl Syncer {
         // 5. Compile the live status of every resource and swap the mirror in one step, so a
         //    reader never sees a half-built repository (MF-04).
         let fresh_mirror = Mirror::new();
+        fresh_mirror.set_layout(scratch.layout);
+        fresh_mirror.set_repositories(
+            scratch
+                .projects
+                .iter()
+                .map(|(slug, (client, _))| (slug.clone(), client.repo.clone()))
+                .collect(),
+        );
         let mut loaded = 0usize;
         for (_, resource) in repository.iter() {
             let path = resource.path.to_string_lossy().to_string();
@@ -625,9 +728,10 @@ impl Syncer {
                 observed_revision: Some(revision.clone()),
                 // The branch, not the revision: a Source link should keep working after the
                 // next commit, and the observed revision is right there beside it.
-                source_url: Some(self.gitea.browse_url(&path, &default_branch)),
+                source_url: Some(scratch.browse_url(&self.gitea, &path, &default_branch)),
                 conditions: Vec::new(),
                 build,
+                domain_verification: None,
             });
 
             fresh_mirror.upsert(envelope);
@@ -646,6 +750,12 @@ impl Syncer {
         self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
             .await;
 
+        // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
+        //     the new mirror names before anything is leader-only (AP-102).
+        if let Some(cache) = self.apps_cache_dir.as_deref() {
+            crate::apps::fetch::fetch_missing(&self.gitea, Path::new(cache), &fresh_mirror).await;
+        }
+
         // A follower stops here: what the runner accepted, what the cluster runs and what the
         //    forge enforces are the leader's to converge, so its stream pipelines say so.
         if !leader {
@@ -656,6 +766,31 @@ impl Syncer {
             );
             self.mirror.replace_all(&fresh_mirror);
             return Ok((loaded, revision));
+        }
+
+        // 5a''. A project whose registry entry is gone was deleted (PF-77): its repository is
+        //       archived, read-only with its history, never removed. The entry is what the
+        //       reviewed Change took away, so nothing else can make a repository go.
+        //       ponytail: compares with the last sync of this process; a deletion merged while
+        //       the Portal was down leaves its repository open until an operator archives it.
+        let registered = fresh_mirror.repositories();
+        for (slug, repository) in self.mirror.repositories() {
+            if registered.contains_key(&slug) || registered.values().any(|r| *r == repository) {
+                continue;
+            }
+            match self
+                .gitea
+                .for_repository(repository.as_str())
+                .archive_repository()
+                .await
+            {
+                Ok(()) => {
+                    tracing::info!(project = %slug, %repository, "a deleted project's repository is archived")
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %repository, %error, "a deleted project's repository did not archive")
+                }
+            }
         }
 
         // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
@@ -901,7 +1036,8 @@ impl Syncer {
 
         // 6b. An app whose `status.build` names a build this host does not hold keeps the
         //     previous one serving, and says so on the App rather than looking healthy (AP-72).
-        for name in crate::apps::static_host::build_missing(self.apps_dir.as_deref(), &self.mirror)
+        for name in
+            crate::apps::static_host::build_missing(self.apps_cache_dir.as_deref(), &self.mirror)
         {
             let Some(mut envelope) = self
                 .mirror
@@ -960,6 +1096,33 @@ impl Syncer {
                             )];
                         }
                         self.mirror.upsert(envelope);
+                    }
+                }
+            }
+        }
+
+        // 6d. Whether each Organization owns the domain it declares (PF-41, T-2377): minted,
+        //     checked when due and stored, then reported on the Organization's status. A lookup
+        //     that fails is a recorded state; a database that fails is a log line, and the
+        //     Organization shows no state rather than a stale one.
+        if let Some(domains) = self.domains.as_ref() {
+            for mut envelope in self
+                .mirror
+                .matching(|envelope| envelope.kind == "Organization")
+            {
+                let Some(domain) = envelope.spec["domain"].as_str().map(str::to_owned) else {
+                    continue;
+                };
+                let name = envelope.metadata.name.clone();
+                match domains.verify(&name, &domain, chrono::Utc::now()).await {
+                    Ok(verification) => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.domain_verification = Some(verification);
+                        }
+                        self.mirror.upsert(envelope);
+                    }
+                    Err(err) => {
+                        tracing::warn!(organization = %name, error = %err, "the domain verification was not stored")
                     }
                 }
             }
@@ -1039,11 +1202,20 @@ impl Syncer {
         }
 
         if !runner.is_empty() {
-            match self.credentials.as_ref() {
+            let written = match self.credentials.as_ref() {
                 Some((kube, namespace)) => self.write_runner_secret(kube, namespace, &runner).await,
-                None => tracing::info!(
-                    "no cluster: a pipeline's credentials resolve and reach no runner"
-                ),
+                None => {
+                    tracing::info!(
+                        "no cluster: a pipeline's credentials resolve and reach no runner"
+                    );
+                    false
+                }
+            };
+            if !written {
+                runner.refuse_resolved(
+                    "the credential resolved, but the pipeline runner's Secret could not be \
+                     written, so the stream would start without it; the Portal's log says why",
+                );
             }
         }
 
@@ -1120,15 +1292,18 @@ impl Syncer {
     /// An environment variable is read once, when the pod starts, so a rotated credential
     /// reaches a running pipeline only with a restart. The annotation carries the fingerprint of
     /// the values, so an unchanged environment patches the same bytes and rolls nothing.
+    ///
+    /// Whether the Secret was written. A roll that fails only delays a rotation, so it is logged
+    /// and still counts as written.
     async fn write_runner_secret(
         &self,
         kube: &crate::apps::kube::KubeClient,
         namespace: &str,
         runner: &crate::pipeline_secrets::RunnerEnvironment,
-    ) {
+    ) -> bool {
         if let Err(err) = kube.apply(&runner.secret(namespace)).await {
             tracing::warn!(error = %err, "the pipeline runner's secrets were not written");
-            return;
+            return false;
         }
         tracing::info!(
             variables = runner.variables().count(),
@@ -1145,6 +1320,7 @@ impl Syncer {
         if let Err(err) = kube.apply(&rollout).await {
             tracing::warn!(error = %err, "the pipeline runner was not rolled, so a rotated credential is not in its environment yet");
         }
+        true
     }
 
     /// Writes one organization's reader credential into the namespace its serving workloads
@@ -1306,9 +1482,10 @@ fn is_encrypted_secrets_file(path: &str) -> bool {
 /// Prepares one fetched file for the loader, or leaves it out (MF-04, MF-05).
 ///
 /// Two judgements are made here and nowhere else, because the loader is right to refuse both
-/// and the Portal is right to survive them. A `status:` block somebody committed is dropped:
-/// status is computed by the server and never read from Git, so a manifest carrying one is
-/// sanitised rather than refused. A document of a kind the Portal does not serve is left out:
+/// and the Portal is right to survive them. A `status:` block somebody committed is dropped,
+/// all but `status.build`, the one member the build lane writes back (AP-13a): status is
+/// computed by the server and never read from Git, so a manifest carrying one is sanitised
+/// rather than refused. A document of a kind the Portal does not serve is left out:
 /// one unknown kind in the repository must not cost every other resource its place in the
 /// mirror. Everything past this point is the loader's judgement, including which two files
 /// claim one identity and which path a kind belongs at.
@@ -1322,11 +1499,21 @@ fn stageable(content: &str) -> Result<Option<String>, serde_yaml_ng::Error> {
         let Some(mapping) = value.as_mapping_mut() else {
             continue;
         };
-        mapping.remove("status");
-        let kind = mapping
-            .get("kind")
-            .and_then(serde_yaml_ng::Value::as_str)
-            .unwrap_or_default();
+        // Dropping `status.build` too left every published App without a build to serve (T-2633).
+        let build = mapping
+            .remove("status")
+            .and_then(|mut status| status.as_mapping_mut()?.remove("build"));
+        if let Some(build) = build {
+            let mut status = serde_yaml_ng::Mapping::new();
+            status.insert("build".into(), build);
+            mapping.insert("status".into(), status.into());
+        }
+        // A document without a `kind` is not a manifest (a LinkML source beside its DataModel,
+        // a note): nothing for an operator to act on. A kind the catalogue lacks is (OPS-27).
+        let Some(kind) = mapping.get("kind").and_then(serde_yaml_ng::Value::as_str) else {
+            tracing::debug!("a document without a kind, skipped");
+            continue;
+        };
         if crate::resource::by_kind(kind).is_none() {
             tracing::warn!(kind = %kind, "manifest of an unknown kind, skipped");
             continue;
@@ -1360,10 +1547,36 @@ fn namespace_of(path: &str) -> String {
 /// foreign-model mirror that proposes a peer's schema. A second copy of this loop would be a
 /// second answer to "which files in the repository are manifests".
 pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch, SyncError> {
+    stage_repository(gitea, revision, false).await
+}
+
+/// One project repository of layout 2 at `revision`, staged as its own root (CC-85): the files
+/// that would be manifests under `projects/{slug}/` of layout 1, and its `.jc/layout`.
+pub(crate) async fn stage_project(
+    gitea: &GiteaClient,
+    revision: &str,
+) -> Result<Scratch, SyncError> {
+    stage_repository(gitea, revision, true).await
+}
+
+async fn stage_repository(
+    gitea: &GiteaClient,
+    revision: &str,
+    project: bool,
+) -> Result<Scratch, SyncError> {
     let tree_paths = gitea.list_tree(revision).await?;
     let candidate_paths: Vec<String> = tree_paths
         .into_iter()
-        .filter(|p| is_candidate_manifest(p))
+        .filter(|p| {
+            p == jc_core::project::LAYOUT_FILE
+                || if project {
+                    // The project's own tree is what lay under `projects/{slug}/`; the slug
+                    // is the registry's, so any one stands in for it here.
+                    is_candidate_manifest(&format!("projects/_/{}", p.trim_start_matches('/')))
+                } else {
+                    is_candidate_manifest(p)
+                }
+        })
         .collect();
 
     if candidate_paths.is_empty() {
@@ -1387,6 +1600,11 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
             }
             Err(err) => return Err(SyncError::Git(err)),
         };
+        if path == jc_core::project::LAYOUT_FILE {
+            // Which layout the repository follows (CC-85): read by the assembly, not a manifest.
+            scratch.write(path, &file.content)?;
+            continue;
+        }
         if path.ends_with("/bento.yaml") {
             // Not a manifest: the author's Bento mapping beside a Pipeline (PL-03), staged as
             // written so the streams can render it; the loader skips it by name.
@@ -1407,8 +1625,9 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
                 scratch.write(path, &text)?;
                 staged += 1;
             }
+            // Each unknown kind has said so above; a file of none is not a manifest.
             Ok(None) => {
-                tracing::warn!(path = %path, "no document of a kind the Portal serves, skipped")
+                tracing::debug!(path = %path, "no document of a kind the Portal serves, skipped")
             }
             Err(err) => {
                 tracing::warn!(path = %path, error = %err, "not YAML, skipped")
@@ -1423,6 +1642,39 @@ pub(crate) async fn stage(gitea: &GiteaClient, revision: &str) -> Result<Scratch
         )));
     }
     Ok(scratch)
+}
+
+/// The tree one sync loads: the staged organization in layout 1, the assembly in layout 2, with
+/// the repository each project is read from.
+struct Render {
+    /// The organization's `.jc/layout` (CC-85).
+    layout: u32,
+    root: PathBuf,
+    /// The staged checkouts, held so they are removed when the sync that fetched them ends.
+    _staged: Vec<Scratch>,
+    /// Slug → the project's repository and the ref it renders at.
+    projects: BTreeMap<String, (GiteaClient, String)>,
+}
+
+impl Render {
+    fn path(&self) -> &Path {
+        &self.root
+    }
+
+    /// Where a person reads the file at `path` of the render: in its project's repository at
+    /// the entry's ref for a mounted project, in the organization's otherwise.
+    fn browse_url(&self, organization: &GiteaClient, path: &str, branch: &str) -> String {
+        let clean = path.trim_start_matches('/');
+        if let Some((slug, rest)) = clean
+            .strip_prefix("projects/")
+            .and_then(|tail| tail.split_once('/'))
+        {
+            if let Some((client, git_ref)) = self.projects.get(slug) {
+                return client.browse_url(rest, git_ref);
+            }
+        }
+        organization.browse_url(clean, branch)
+    }
 }
 
 pub(crate) struct Scratch(PathBuf);
@@ -1546,6 +1798,70 @@ output_error{stream="kpi"} 6
         assert_eq!(failing(RUNNING_STREAM, "aq"), None);
         // A runner that exports no error counter for a stream says nothing about it either.
         assert_eq!(failing(RUNNING_STREAM, "nothing-of-that-name"), None);
+    }
+
+    /// What `stageable` logs at `warn`, captured on this thread.
+    fn warnings_of(content: &str) -> (Option<String>, String) {
+        #[derive(Clone, Default)]
+        struct Log(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for Log {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .map_err(|_| std::io::Error::other("poisoned"))?
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let log = Log::default();
+        let writer = log.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::WARN)
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let staged =
+            tracing::subscriber::with_default(subscriber, || stageable(content).expect("YAML"));
+        let said = String::from_utf8_lossy(&log.0.lock().expect("log")).into_owned();
+        (staged, said)
+    }
+
+    /// T-2633, AP-13a: the build lane's `status.build` reaches the loader; the rest of status
+    /// does not.
+    #[test]
+    fn staging_keeps_status_build_and_drops_the_rest_of_status() {
+        let app = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: a\nspec: {}\nstatus:\n  phase: Pending\n  build:\n    commit: abc\n";
+        let staged = stageable(app).expect("YAML").expect("an App");
+        let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&staged).expect("YAML");
+        assert_eq!(value["status"]["build"]["commit"].as_str(), Some("abc"));
+        assert!(value["status"].get("phase").is_none());
+        let bare = stageable(&app.replace("  build:\n    commit: abc\n", "")).expect("YAML");
+        assert!(!bare.expect("an App").contains("status"));
+    }
+
+    /// T-2254, OPS-27: a LinkML source beside its DataModel is not a manifest and says nothing at
+    /// `warn`; a manifest of a kind the catalogue lacks still does, and names the kind.
+    #[test]
+    fn a_document_without_a_kind_is_skipped_quietly_and_an_unknown_kind_is_named() {
+        let linkml = "id: https://hel.fi/models/bikes\nname: bikes\nclasses:\n  Station:\n    slots: [name]\n";
+        let (staged, said) = warnings_of(linkml);
+        assert_eq!(staged, None);
+        assert_eq!(said, "");
+
+        let (staged, said) = warnings_of(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Nonsense\nmetadata:\n  name: x\n",
+        );
+        assert_eq!(staged, None);
+        assert!(said.contains("WARN"), "{said}");
+        assert!(said.contains("kind=Nonsense"), "{said}");
+
+        // A known manifest beside a kindless document in one file keeps its place, quietly.
+        let (staged, said) = warnings_of("note: not a manifest\n---\napiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n");
+        assert!(staged.is_some_and(|text| text.contains("ContextSpace")));
+        assert_eq!(said, "");
     }
 
     use base64::Engine as _;

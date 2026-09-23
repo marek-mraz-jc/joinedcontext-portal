@@ -20,6 +20,9 @@ fn settings() -> Settings {
         host: "bb.example.com".into(),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
+        apisix_namespace: "apisix".into(),
+        image_repository: None,
+        pull_secret: None,
     }
 }
 
@@ -194,8 +197,10 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
         json!({ "matchLabels": { "app.kubernetes.io/name": "app-air-quality-today" } })
     );
 
-    let ingress = policy["spec"]["ingress"].as_array().expect("one hole in");
-    assert_eq!(ingress.len(), 1, "APISIX is the only source admitted");
+    // In: APISIX alone, on the app port and on the Linkerd inbound port its meshed traffic
+    // lands on; the second rule is the proxy's admin ports, which carry no request.
+    let ingress = policy["spec"]["ingress"].as_array().expect("holes in");
+    assert_eq!(ingress.len(), 2);
     assert_eq!(
         ingress[0]["from"],
         json!([{
@@ -206,27 +211,53 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
     );
     assert_eq!(
         ingress[0]["ports"],
-        json!([{ "protocol": "TCP", "port": APP_PORT }]),
-        "the app port, no other"
+        json!([
+            { "protocol": "TCP", "port": APP_PORT },
+            { "protocol": "TCP", "port": 4143 },
+        ]),
+        "the app port and the mesh's inbound port, no other"
+    );
+    assert!(ingress[1].get("from").is_none());
+    assert_eq!(
+        ingress[1]["ports"],
+        json!([
+            { "protocol": "TCP", "port": 4190 },
+            { "protocol": "TCP", "port": 4191 },
+        ]),
+        "an open rule names the proxy's admin ports and nothing an app serves"
     );
 
-    // Out: DNS, and the platform host for the endpoint (443 and the controller's port), which
-    // is where both APISIX and Keycloak are reached from a pod.
-    let egress = policy["spec"]["egress"].as_array().expect("two holes out");
-    assert_eq!(egress.len(), 2);
+    // Out: the Linkerd control plane, DNS, and the platform host for the endpoint (443, the
+    // controller's port, and 4143 when the controller is meshed).
+    let egress = policy["spec"]["egress"]
+        .as_array()
+        .expect("three holes out");
+    assert_eq!(egress.len(), 3);
     assert_eq!(
-        egress[0]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
+        egress[0],
+        json!({
+            "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+            "ports": [
+                { "protocol": "TCP", "port": 8080 },
+                { "protocol": "TCP", "port": 8086 },
+                { "protocol": "TCP", "port": 8090 },
+            ],
+        })
+    );
+    assert_eq!(
+        egress[1]["to"][0]["podSelector"]["matchLabels"]["k8s-app"],
         "kube-dns"
     );
     assert_eq!(
-        egress[1]["to"],
+        egress[2]["to"],
         json!([{ "ipBlock": { "cidr": "0.0.0.0/0" } }])
     );
     assert_eq!(
-        egress[1]["ports"],
+        egress[2]["ports"],
         json!([
             { "protocol": "TCP", "port": 443 },
             { "protocol": "TCP", "port": 8443 },
+            { "protocol": "TCP", "port": 4143 },
         ])
     );
 }
@@ -367,8 +398,8 @@ fn a_public_app_tells_its_container_that_anonymous_callers_are_normal() {
     assert_eq!(rendered.endpoint.spec["audience"], "public");
     assert_eq!(
         rendered.policies[0].spec["assignee"],
-        json!({ "kind": "role", "id": "public" }),
-        "anonymous callers act under the synthetic public role (GW22)"
+        json!({ "kind": "role", "id": "endpoint:ovzdusie/app-air-quality-today" }),
+        "anonymous callers the endpoint admits hold its caller role there alone (AP-96, GW22)"
     );
 
     // A project app has no such flag: an absent token there is the edge's `unauth_action: auth`
@@ -440,7 +471,8 @@ fn the_secret_holds_the_slug_alone_and_the_pod_does_not_reference_it() {
 #[test]
 fn a_static_app_gets_its_grants_and_no_pod() {
     let rendered = render(
-        &app(json!({ "kind": "static", "visibility": "organization" })),
+        // A static bundle is built by node, never by rust (AP-83).
+        &app(json!({ "kind": "static", "visibility": "organization", "build": { "node": "22" } })),
         None,
         &generate_slug(),
         &settings(),
@@ -562,5 +594,173 @@ fn a_generated_slug_is_unguessable_and_never_the_same_twice() {
     assert!(
         EndpointSlug::new("ovzdusie").is_err(),
         "a readable slug is not a slug (EP-02, EP-03)"
+    );
+}
+
+/// AP-108: APISIX is admitted from the namespace the installation runs it in, a setting; the
+/// literal `apisix` never matched `dev`, where APISIX runs in `dev`.
+#[test]
+fn ingress_admits_apisix_from_the_namespace_the_installation_names() {
+    let mut on_dev = settings();
+    on_dev.apisix_namespace = "dev".into();
+    let rendered = render(&app(json!({})), Some(APP_IMAGE), &generate_slug(), &on_dev)
+        .expect("the app renders");
+    let policy = rendered.workload.expect("a pod").network_policy;
+    assert_eq!(
+        policy["spec"]["ingress"][0]["from"][0]["namespaceSelector"],
+        json!({ "matchLabels": { "kubernetes.io/metadata.name": "dev" } })
+    );
+}
+
+/// AP-105, AP-108, AP-109: a fullstack pod pulls with the configured Secret, starts the binary at
+/// `/app` as a numeric non-root user, and is told where to ask for the caller's roles.
+#[test]
+fn a_fullstack_pod_pulls_with_the_secret_and_runs_the_binary_as_a_numeric_user() {
+    let mut with_registry = settings();
+    with_registry.pull_secret = Some("app-registry".into());
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &with_registry,
+    )
+    .expect("the app renders");
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let pod = &deployment["spec"]["template"]["spec"];
+    assert_eq!(pod["imagePullSecrets"], json!([{ "name": "app-registry" }]));
+    assert_eq!(pod["securityContext"]["runAsNonRoot"], true);
+    assert_eq!(pod["securityContext"]["runAsUser"], 65532);
+    let binary = container(&deployment, "app");
+    assert_eq!(binary["command"], json!(["/app"]));
+    assert_eq!(
+        env(binary, "JC_ME_URL")["value"],
+        "https://bb.example.com/api/v1/projects/ovzdusie/apps/air-quality-today/me"
+    );
+
+    let without = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders")
+    .workload
+    .expect("a pod")
+    .deployment;
+    assert_eq!(
+        without["spec"]["template"]["spec"]["imagePullSecrets"],
+        json!([]),
+        "no Secret configured, none named"
+    );
+}
+
+/// AP-96: the app's grants are held on its own endpoint alone. A need without roles goes to the
+/// endpoint's caller role, a need with roles to one Policy per role, each exactly the need, and
+/// the endpoint carries the roles with their subjects so the gateway can hand them out (AP-97).
+#[test]
+fn a_role_gated_need_is_granted_to_that_role_on_the_apps_endpoint_alone() {
+    let rendered = render(
+        &app(json!({
+            "kind": "static",
+            "source": { "path": "." },
+            "build": { "node": "22" },
+            "visibility": "roles",
+            "roles": [
+                { "name": "viewer" },
+                { "name": "steward" },
+                { "name": "auditor" }
+            ],
+            "access": [
+                { "role": "viewer", "subjects": [{ "group": "bb-operations" }] },
+                { "role": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+            ],
+            "dataNeeds": [
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+                    "types": ["AirQualityObserved"],
+                    "operations": ["queryEntity"]
+                },
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+                    "types": ["AirQualityObserved"],
+                    "attrs": ["stewardNote"],
+                    "operations": ["updateAttrs"],
+                    "roles": ["steward", "auditor"]
+                }
+            ]
+        })),
+        None,
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("a static app with roles renders");
+
+    let endpoint = &rendered.endpoint.spec;
+    assert_eq!(endpoint["callerRole"], true);
+    assert_eq!(endpoint["audience"], "project-list");
+    assert_eq!(endpoint["allowedProjects"], json!(["ovzdusie"]));
+    assert_eq!(
+        endpoint["roles"],
+        json!([
+            { "name": "viewer", "subjects": [{ "group": "bb-operations" }] },
+            { "name": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+        ]),
+        "a role nobody holds gives nobody anything and is left out"
+    );
+    let parsed: EndpointSpec =
+        serde_json::from_value(endpoint.clone()).expect("the endpoint parses");
+    parsed.validate().expect("the endpoint is valid");
+
+    let granted: Vec<(&str, &Value)> = rendered
+        .policies
+        .iter()
+        .map(|p| (p.metadata.name.as_str(), &p.spec["assignee"]["id"]))
+        .collect();
+    assert_eq!(
+        granted,
+        [
+            (
+                "app-air-quality-today-1",
+                &json!("endpoint:ovzdusie/app-air-quality-today")
+            ),
+            (
+                "app-air-quality-today-2-steward",
+                &json!("endpoint:ovzdusie/app-air-quality-today/steward")
+            ),
+            (
+                "app-air-quality-today-2-auditor",
+                &json!("endpoint:ovzdusie/app-air-quality-today/auditor")
+            ),
+        ]
+    );
+    for policy in &rendered.policies[1..] {
+        assert_eq!(policy.spec["operations"], json!(["updateAttrs"]));
+        assert_eq!(
+            policy.spec["information"][0]["propertyNames"],
+            json!(["stewardNote"]),
+            "a role's grant is the need and never more (AP-06)"
+        );
+        let parsed: PolicySpec =
+            serde_json::from_value(policy.spec.clone()).expect("a rendered policy parses");
+        parsed.validate().expect("a rendered policy is valid");
+    }
+}
+
+/// AP-96: before roles the grant named `app-{name}`, a role no token carries, so a project app
+/// read nothing; now every caller the endpoint admits holds the caller role it is granted to.
+#[test]
+fn a_project_app_is_granted_to_the_endpoints_caller_role() {
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders");
+    assert_eq!(rendered.endpoint.spec["callerRole"], true);
+    assert!(rendered.endpoint.spec.get("roles").is_none());
+    assert_eq!(
+        rendered.policies[0].spec["assignee"],
+        json!({ "kind": "role", "id": "endpoint:ovzdusie/app-air-quality-today" })
     );
 }

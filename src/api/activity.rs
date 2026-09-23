@@ -125,6 +125,8 @@ fn member_of(state: &AppState, user: &CurrentUser, project: &str) -> Result<(), 
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/activity",
+    summary = "List Activity",
+    description = "What happened in the project: the same events, filters and paging the activity page reads.",
     tag = "activity",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -161,6 +163,8 @@ pub async fn list_activity(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/activity/stream",
+    summary = "Follow Activity",
+    description = "The project's activity as Server-Sent Events, with the same filters as the list. Readers of the project only; the stream carries what the list would.",
     tag = "activity",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -337,6 +341,22 @@ pub const COLLECTOR_CLIENT: &str = "activity-ingest";
     post,
     path = "/api/v1/activity",
     tag = "activity",
+    request_body(
+        content = Object,
+        description = "An OTLP/HTTP JSON `ExportLogsServiceRequest`: one log record per event, \
+                       its fields as attributes",
+        content_type = "application/json",
+        example = json!({ "resourceLogs": [{ "scopeLogs": [{ "logRecords": [{
+            "timeUnixNano": "1789314063000000000",
+            "attributes": [
+                { "key": "project", "value": { "stringValue": "helsinki" } },
+                { "key": "kind", "value": { "stringValue": "access.denied" } },
+                { "key": "source", "value": { "stringValue": "gateway" } },
+                { "key": "severity", "value": { "stringValue": "warning" } },
+                { "key": "summary", "value": { "stringValue": "An anonymous caller was refused a write." } }
+            ]
+        }] }] }] })
+    ),
     responses(
         (status = 200, description = "The OTLP export response, naming what was rejected", body = ExportLogsServiceResponse),
         (status = 401, description = "Unauthorized", body = ProblemDetails),

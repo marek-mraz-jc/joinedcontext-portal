@@ -15,7 +15,7 @@ use utoipa::ToSchema;
 
 use crate::api::mutate::{author_credentials, branch_name, create_or_reuse_branch};
 use crate::auth::CurrentUser;
-use crate::change::{Change, ChangeMeta, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
+use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
 use crate::state::AppState;
@@ -164,9 +164,9 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
     let confined = confine_linkml_path(linkml)?;
 
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let repo_path = format!("projects/{project}/spaces/{space}/datamodels/{confined}");
@@ -495,6 +495,8 @@ pub(crate) async fn check_source(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Read Model Source",
+    description = "One DataModel's LinkML, as the repository holds it.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -533,6 +535,8 @@ pub async fn get_source(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/datamodels/{name}/source",
+    summary = "Write Model Source",
+    description = "Writes one DataModel's LinkML and its generated artifacts as a change a person approves.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -545,6 +549,7 @@ pub async fn get_source(
         content = String,
         description = "LinkML source in YAML format",
         content_type = "text/yaml",
+        example = json!("id: https://hel.fi/models/air\nname: air\nprefixes:\n  linkml: https://w3id.org/linkml/\nimports: [linkml:types]\nclasses:\n  AirQualityObserved:\n    attributes:\n      pm10: { range: float }\n"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
@@ -685,9 +690,9 @@ pub async fn put_source(
             .map_err(|e| ApiError::Internal(format!("serialize example: {e}")))?;
 
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(&project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
     let operation = if creating {
@@ -770,7 +775,7 @@ pub async fn put_source(
         .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
         .await?;
 
-    let change_meta = ChangeMeta::from_merge_request(pr.number, &project);
+    let change_meta = crate::api::changes::change_meta(&state, gitea, pr.number, &project);
     let change_status = ChangeStatus::new(
         lane,
         ChangePhase::PendingApproval,
@@ -788,6 +793,7 @@ pub async fn put_source(
             }
         },
     )
+    .in_repository(&pr.repository)
     .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 

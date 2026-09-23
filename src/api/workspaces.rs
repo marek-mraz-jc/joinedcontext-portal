@@ -2,7 +2,7 @@
 //! `crate::ops::workspaces`, which the operations of the registry and MCP call too.
 
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -11,7 +11,7 @@ use crate::auth::session::Front;
 use crate::auth::CurrentUser;
 use crate::change::Change;
 use crate::error::{ApiError, ProblemDetails};
-use crate::ops::previews::{self, Preview, ServedList};
+use crate::ops::previews::{self, Preview};
 use crate::ops::workspaces::{
     self, Comparison, OpenRequest, UpdateReport, UpdateRequest, WorkspaceList, WorkspaceView,
 };
@@ -31,9 +31,14 @@ fn caller(user: CurrentUser, front: Front) -> Caller {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces",
+    summary = "Open A Workspace",
+    description = "Opens a named branch of the project to change several resources in, brought back later as one Change.",
     tag = "workspaces",
     params(("project" = String, Path, description = "Project name")),
-    request_body = OpenRequest,
+    request_body(
+        content = OpenRequest,
+        example = json!({ "name": "bike-lanes", "title": "Bike lanes", "ttlDays": 7, "scope": { "kind": "space", "name": "mobility" } })
+    ),
     responses(
         (status = 201, description = "The workspace, opened", body = WorkspaceView),
         (status = 400, description = "A name, title, scope or TTL out of bounds", body = ProblemDetails),
@@ -55,6 +60,8 @@ pub async fn open_workspace(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces",
+    summary = "List Workspaces",
+    description = "The open workspaces of the project, oldest first.",
     tag = "workspaces",
     params(("project" = String, Path, description = "Project name")),
     responses(
@@ -75,6 +82,8 @@ pub async fn list_workspaces(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}",
+    summary = "Read A Workspace",
+    description = "One workspace: whose it is, what it covers, when it expires and how many files it changes.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -98,6 +107,8 @@ pub async fn get_workspace(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}/compare",
+    summary = "Compare A Workspace",
+    description = "Every file the workspace changes with its fields and lane, and every field main changed too.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -121,12 +132,17 @@ pub async fn compare_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/update",
+    summary = "Update A Workspace From Main",
+    description = "Takes what main changed into the workspace; a field both changed needs a resolution, ours or theirs.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "Workspace name"),
     ),
-    request_body = UpdateRequest,
+    request_body(
+        content = UpdateRequest,
+        example = json!({ "resolutions": [{ "path": "projects/helsinki/endpoints/helsinki-air.yaml", "field": "spec.audience", "keep": "ours" }] })
+    ),
     responses(
         (status = 200, description = "Main merged into the workspace", body = UpdateReport),
         (status = 403, description = "Not the owner", body = ProblemDetails),
@@ -147,6 +163,8 @@ pub async fn update_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/propose",
+    summary = "Bring A Workspace Back",
+    description = "Proposes the workspace as one Change a person approves; never for an agent (AG-82).",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -171,6 +189,8 @@ pub async fn propose_workspace(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/workspaces/{name}",
+    summary = "Discard A Workspace",
+    description = "Removes the workspace and its branch; nothing in it reaches main.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -194,6 +214,8 @@ pub async fn discard_workspace(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Start A Workspace Preview",
+    description = "Renders the workspace with its prefix and serves its Endpoints on slugs of their own; every pipeline stays paused (CC-78, PF-83).",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -218,6 +240,8 @@ pub async fn start_workspace_preview(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Read A Workspace Preview",
+    description = "Whether the preview runs, the addresses of its Endpoints, its paused pipelines, and why it failed when it did.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -241,6 +265,8 @@ pub async fn get_workspace_preview(
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{project}/workspaces/{name}/preview",
+    summary = "Stop A Workspace Preview",
+    description = "Stops the preview; its Endpoints stop answering. Stopping one that does not run changes nothing.",
     tag = "workspaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -259,25 +285,6 @@ pub async fn stop_workspace_preview(
 ) -> Result<StatusCode, ApiError> {
     previews::stop(&user.0.identity, &state, &project, &name).await?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-/// Every running preview for the gateway, on the internal listener only (Architecture/06 §7.2,
-/// Architecture/13 §6).
-///
-/// Manifests hold `secretRef`s and no secret, but they are a project's configuration, so the
-/// gateway's own ServiceAccount token is what opens this route (PF-46, AG-52, T-1500). The
-/// NetworkPolicy that admits the gateway to this port is the second control and not the only one:
-/// a pod that reaches the port through a policy mistake presents no such token and reads nothing.
-pub async fn served_previews(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<ServedList>, ApiError> {
-    crate::auth::internal::authenticate_gateway(&state, &headers).await?;
-    Ok(Json(previews::served(&state).await?))
-}
-
-pub fn internal_router() -> Router<AppState> {
-    Router::new().route("/internal/previews", get(served_previews))
 }
 
 pub fn router() -> Router<AppState> {

@@ -26,7 +26,7 @@ use tokio_stream::StreamExt;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::agents::kube;
-use crate::agents::needs::validate_data_needs;
+use crate::agents::needs::{declared_roles, validate_data_needs};
 use crate::agents::profile::Profile;
 use crate::agents::run::{
     digest_prompt, mint_run_id, mint_ticket, AgentRun, AgentRunEvent, AgentRunStatus,
@@ -61,9 +61,9 @@ const MAX_OBSERVED_ENTRIES: usize = 50;
 /// How long the workspace's inbox call waits for something new before answering empty. Short
 /// enough to sit inside every proxy's read timeout, long enough that an idle agent is not a
 /// request per second.
-const INBOX_WAIT_SECS: u64 = 25;
+pub(crate) const INBOX_WAIT_SECS: u64 = 25;
 /// The kinds a workspace reads from its inbox: what the person answered, and what they said.
-const INBOX_KINDS: [&str; 2] = ["answer", "message"];
+pub(crate) const INBOX_KINDS: [&str; 2] = ["answer", "message"];
 /// The run one application came out of, on the `App` manifest a publish opens (AP-51).
 const AGENT_RUN_ANNOTATION: &str = "joinedcontext.com/agent-run";
 /// The digest of the prompt that run was started from.
@@ -259,7 +259,12 @@ pub struct RunContext {
     pub endpoint_slugs: Vec<String>,
     pub allows_write: bool,
     pub branch: String,
+    /// The folder the run writes, as its repository spells it.
     pub path_prefix: String,
+    /// The project's own repository in layout 2, the one repository the proxy's forge route
+    /// reaches for this run (CC-87, AG-86); absent, the configuration repository.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
     pub status: String,
     pub ticket_hash: String,
     pub max_tokens: u64,
@@ -295,9 +300,26 @@ pub struct CreatedRun {
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs",
+    summary = "Start Unattended Work",
+    description = "Starts an application, dashboard or analysis run, which waits for a person's approval at the end.",
     tag = "agents",
     params(("project" = String, Path, description = "Project name")),
-    request_body = CreateRunRequest,
+    request_body(
+        content = CreateRunRequest,
+        example = json!({
+            "appName": "city-bikes-overview",
+            "endpointName": "helsinki-bikes",
+            "appClass": "fullstack",
+            "visibility": "project",
+            "prompt": "A live bike availability dashboard with station filtering",
+            "dataNeeds": [{
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "mobility" },
+                "types": ["BikeHireDockingStation"],
+                "attrs": ["name", "location"],
+                "operations": ["queryEntity", "retrieveEntity"]
+            }]
+        })
+    ),
     responses(
         (status = 202, description = "The run, queued", body = CreatedRun),
         (status = 400, description = "A request the endpoint or the policy does not allow", body = ProblemDetails),
@@ -589,6 +611,8 @@ pub async fn create_run(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs",
+    summary = "List Runs",
+    description = "The project's agent runs, newest first, narrowed by app, kind or status.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -644,6 +668,8 @@ pub async fn list_runs(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs/{id}",
+    summary = "Read One Run",
+    description = "One of this caller's runs: what it is building, what it asks and where it stands.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -680,7 +706,11 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
                     .for_repository(repository::name(&run.project, &run.app_name))
                     .browse_url("", &run.branch)
             } else {
-                gitea.browse_url(&run.path_prefix, &run.branch)
+                // The project's own repository in layout 2 (CC-87).
+                state.forge_for(&run.project).map_or_else(
+                    || gitea.browse_url(&run.path_prefix, &run.branch),
+                    |forge| forge.browse_url(&run.path_prefix, &run.branch),
+                )
             });
             if run.in_own_repository() {
                 run.mirror_url = state.github_mirror.as_deref().map(|mirror| {
@@ -695,6 +725,8 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/agent-runs/{id}/events",
+    summary = "Follow A Run",
+    description = "One run's events as Server-Sent Events: its status, what it said, the tools it used and the questions it asks. The caller's own runs, or any run for an approver of the project.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -773,12 +805,17 @@ pub async fn stream_events(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/answers",
+    summary = "Answer A Run's Question",
+    description = "Answers one question a run asked, so it carries on; a person answers, never another run.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = AnswerRequest,
+    request_body(
+        content = AnswerRequest,
+        example = json!({ "questionId": "layout", "answers": ["A map beside the table"] })
+    ),
     responses(
         (status = 204, description = "The answer is on the run's log"),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -924,12 +961,17 @@ async fn record_answer(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/messages",
+    summary = "Send A Run A Message",
+    description = "Sends text to one of this caller's running conversations or applications.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = MessageRequest,
+    request_body(
+        content = MessageRequest,
+        example = json!({ "text": "Show only stations with fewer than three bikes" })
+    ),
     responses(
         (status = 204, description = "The instruction is on the run's log and in its inbox"),
         (status = 400, description = "An empty or over-long instruction", body = ProblemDetails),
@@ -1022,7 +1064,10 @@ pub async fn post_message(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = PreviewErrorRequest,
+    request_body(
+        content = PreviewErrorRequest,
+        example = json!({ "message": "TypeError: rows is undefined", "file": "src/App.tsx", "line": 42 })
+    ),
     responses(
         (status = 204, description = "The error is on the run's log as a preview_error event"),
         (status = 400, description = "A blank or over-long message, an over-long file, or line 0", body = ProblemDetails),
@@ -1087,7 +1132,14 @@ pub async fn post_preview_error(
         ("project" = String, Path, description = "Project name"),
         ("id" = String, Path, description = "Run id"),
     ),
-    request_body = PreviewObservationRequest,
+    request_body(
+        content = PreviewObservationRequest,
+        example = json!({
+            "version": 2,
+            "pages": [{ "label": "Overview", "text": "12 stations, 3 without a bike", "rows": [12] }],
+            "failedRequests": [{ "path": "/ngsi-ld/v1/entities", "status": 403 }]
+        })
+    ),
     responses(
         (status = 204, description = "The observation is on the run's log as a preview_observation event"),
         (status = 400, description = "A value outside the bounds of API/04 §5", body = ProblemDetails),
@@ -1219,7 +1271,7 @@ pub(crate) async fn within_runs_per_day(state: &AppState, project: &str) -> Resu
 }
 
 /// `[a-z][a-z0-9-]{0,39}`: the name of a function file (Architecture/20 §3).
-fn is_function_name(name: &str) -> bool {
+pub(crate) fn is_function_name(name: &str) -> bool {
     name.len() <= 40
         && name.starts_with(|c: char| c.is_ascii_lowercase())
         && name
@@ -1251,7 +1303,12 @@ fn caller_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
         ("id" = String, Path, description = "Run id"),
         ("fn" = String, Path, description = "The function: `functions/{fn}.ts` of the run"),
     ),
-    request_body(content = serde_json::Value, description = "The function's JSON body; an empty body is null", content_type = "application/json"),
+    request_body(
+        content = serde_json::Value,
+        description = "The function's JSON body; an empty body is null",
+        content_type = "application/json",
+        example = json!({ "station": "001" })
+    ),
     responses(
         (status = 200, description = "The function's own status and JSON body, whatever status it returned", body = serde_json::Value),
         (status = 400, description = "A body that is not JSON, or function files that do not build: every problem with file and line", body = ProblemDetails),
@@ -1465,6 +1522,54 @@ pub(crate) async fn invoke_function(
     if !problems.is_empty() {
         return Err(InvokeError::DoesNotBuild(problems));
     }
+    let space = state
+        .mirror
+        .get(&run.project, "Endpoint", &run.endpoint_name)
+        .and_then(|env| crate::api::assistant::ref_name(&env.spec["contextSpaceRef"]))
+        .unwrap_or_else(|| run.project.clone());
+    let request = serde_json::json!({
+        "method": "POST",
+        "query": query,
+        "body": input,
+        "user": {
+            "id": identity.subject,
+            "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
+            "email": identity.email,
+            "roles": identity.roles,
+        },
+    });
+    let mut config = serde_json::json!({
+        "slug": run.endpoint_slug,
+        "orgDomain": crate::api::assistant::org_domain(state, &run.project),
+        "space": space,
+    });
+    let run_endpoints = crate::agents::endpoints::of_run(run);
+    if run_endpoints.len() > 1 {
+        config["endpoints"] = crate::agents::endpoints::config(&run_endpoints, &run.data_needs);
+    }
+    invoke(
+        state,
+        built.functions,
+        format!("{}{entry}", transpile::APP),
+        request,
+        config,
+        caller_token,
+    )
+    .await
+}
+
+/// Sends one invocation to `jc-functions` with the Portal's audience-bound token: `modules` by
+/// import name, the `entry` whose default export runs, the request, the SDK's configuration and
+/// the caller's own token, which is the only credential the function's data calls carry
+/// (SDK-18, SDK-23, AP-84). The preview and the published route share it.
+pub(crate) async fn invoke(
+    state: &AppState,
+    mut modules: BTreeMap<String, String>,
+    entry: String,
+    request: serde_json::Value,
+    config: serde_json::Value,
+    caller_token: Option<String>,
+) -> Result<Invocation, InvokeError> {
     let runtime = state.config.functions_url.as_deref().ok_or_else(|| {
         InvokeError::Unavailable(
             "this Portal has no jc-functions address (JC_FUNCTIONS_URL)".into(),
@@ -1485,40 +1590,14 @@ pub(crate) async fn invoke_function(
         .service_token()
         .await
         .map_err(|err| InvokeError::Unavailable(format!("no token for jc-functions: {err}")))?;
-
-    let space = state
-        .mirror
-        .get(&run.project, "Endpoint", &run.endpoint_name)
-        .and_then(|env| crate::api::assistant::ref_name(&env.spec["contextSpaceRef"]))
-        .unwrap_or_else(|| run.project.clone());
-    let mut modules = built.functions;
     modules.insert("@joinedcontext/sdk/server".to_owned(), server);
-    let mut invocation = serde_json::json!({
+    let invocation = serde_json::json!({
         "files": modules,
-        "entry": format!("{}{entry}", transpile::APP),
-        "request": {
-            "method": "POST",
-            "query": query,
-            "body": input,
-            "user": {
-                "id": identity.subject,
-                "name": identity.name.clone().unwrap_or_else(|| identity.username.clone()),
-                "email": identity.email,
-                "roles": identity.roles,
-            },
-        },
-        "config": {
-            "slug": run.endpoint_slug,
-            "orgDomain": crate::api::assistant::org_domain(state, &run.project),
-            "space": space,
-        },
+        "entry": entry,
+        "request": request,
+        "config": config,
         "token": caller_token,
     });
-    let run_endpoints = crate::agents::endpoints::of_run(run);
-    if run_endpoints.len() > 1 {
-        invocation["config"]["endpoints"] =
-            crate::agents::endpoints::config(&run_endpoints, &run.data_needs);
-    }
 
     let started = std::time::Instant::now();
     let answer = functions_http()
@@ -1592,23 +1671,26 @@ pub(crate) async fn end_run(
     status: AgentRunStatus,
     reason: &str,
 ) -> Result<AgentRun, ApiError> {
-    let ended = state
-        .agents
-        .set_status(&run.id, status, Some(reason))
-        .await
-        .map_err(status_error)?;
-
-    // The ticket first, the pod second: between the two calls the workspace is already
-    // refused by the proxy, where the other order would leave a live credential for a moment
-    // after the user asked for it to stop (AG-46).
+    // The ticket first, then the status, then the pod: from the first call on, the workspace
+    // is refused by the proxy (AG-46). Clearing a ticket is safe to repeat, so an end that
+    // failed after it is finished by the next one; with the status first, a store error between
+    // the two left a run that says it is over with a live ticket, and every later end a 409
+    // (T-2560).
+    let ticket_was_live = !run.ticket_hash.is_empty();
     state
         .agents
         .invalidate_ticket(&run.id)
         .await
         .map_err(unavailable)?;
-    if let Some(settings) = state.config.agent_settings.as_ref() {
-        kube::delete_workspace_job(state.kube.as_deref(), &settings.namespace, &run.id).await;
+    let ended = state.agents.set_status(&run.id, status, Some(reason)).await;
+    // A run whose ticket this call killed also loses its pod, even when its status could not
+    // move: the pod has nothing left to work with, and nothing else would delete it.
+    if ended.is_ok() || ticket_was_live {
+        if let Some(settings) = state.config.agent_settings.as_ref() {
+            kube::delete_workspace_job(state.kube.as_deref(), &settings.namespace, &run.id).await;
+        }
     }
+    let ended = ended.map_err(status_error)?;
     publish_event(state, &run.id, "status", status_payload(status)).await?;
     Ok(ended)
 }
@@ -1616,6 +1698,8 @@ pub(crate) async fn end_run(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/cancel",
+    summary = "Cancel Run",
+    description = "Stops one of this caller's runs; what it had not finished is not published.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1643,6 +1727,8 @@ pub async fn cancel_run(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/agent-runs/{id}/publish",
+    summary = "Publish What A Run Built",
+    description = "Proposes the application a finished run built; a person approves the change.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1761,6 +1847,16 @@ async fn publish_source(state: &AppState, run: &AgentRun) -> Result<serde_json::
         }
         Err(err) => return Err(err.into()),
     };
+    // What the approval merges into `main` is this commit; a tree without the application would
+    // leave the repository README-only and the published application serving nothing (T-2603).
+    if !repository::holds_application(&repo, &sha).await? {
+        return Err(ApiError::Conflict(format!(
+            "run '{}' has committed no file of the application to its branch '{}' yet, so \
+             publishing it would leave main with the README alone: publish once a version has \
+             been committed (AP-77)",
+            run.id, run.branch
+        )));
+    }
     repository::open_merge_request(&repo, run).await?;
     Ok(serde_json::json!({ "git": { "url": repo.clone_url(), "ref": sha } }))
 }
@@ -1852,7 +1948,7 @@ pub async fn merge_published_application(
 /// approved. `dataNeeds` is the list that was checked against the endpoint before the run
 /// started, so the manifest cannot widen what the application may reach.
 fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value {
-    serde_json::json!({
+    let mut manifest = serde_json::json!({
         "apiVersion": crate::resource::API_VERSION,
         "kind": "App",
         "metadata": {
@@ -1875,7 +1971,22 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
             "lifecycle": "published",
             "dataNeeds": run.data_needs,
         },
-    })
+    });
+    // A role a need names must be declared (AP-91); its title and members are added on the App
+    // page afterwards, each through a Change.
+    let roles = declared_roles(
+        run.data_needs
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+    );
+    if !roles.is_empty() {
+        manifest["spec"]["roles"] = roles
+            .into_iter()
+            .map(|name| serde_json::json!({ "name": name }))
+            .collect();
+    }
+    manifest
 }
 
 /// The toolchains CI pins for a generated application (AP-11). A `static` application is a Vite
@@ -1886,297 +1997,6 @@ fn build_toolchains(app_class: &str) -> serde_json::Value {
     } else {
         serde_json::json!({ "rust": RUST_TOOLCHAIN, "node": NODE_TOOLCHAIN })
     }
-}
-
-// ---------------------------------------------------------------------------------------------
-// The internal listener (AG-52). No session, no CSRF, one bearer: the proxy's own token.
-// ---------------------------------------------------------------------------------------------
-
-pub async fn internal_get_run(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-) -> Result<Json<RunContext>, ApiError> {
-    authenticate_proxy(&state, &headers).await?;
-    let run = state
-        .agents
-        .get_run(&id)
-        .await
-        .map_err(unavailable)?
-        .ok_or_else(|| ApiError::NotFound(format!("run '{id}' not found")))?;
-    let profile = Profile::load(&state.mirror, &run.profile)?;
-    let endpoint_slugs = crate::agents::endpoints::of_run(&run)
-        .into_iter()
-        .map(|endpoint| endpoint.slug)
-        .collect();
-    Ok(Json(RunContext {
-        id: run.id,
-        project: run.project,
-        app_name: run.app_name,
-        endpoint_slug: run.endpoint_slug,
-        endpoint_slugs,
-        allows_write: run.allows_write,
-        branch: run.branch,
-        path_prefix: run.path_prefix,
-        status: run.status,
-        ticket_hash: run.ticket_hash,
-        max_tokens: profile.max_tokens_per_run,
-        allowed_hosts: profile.allowed_hosts,
-        requests_per_minute: profile.requests_per_minute,
-        steps_per_run: profile.steps_per_run,
-        max_response_bytes: profile.max_response_bytes,
-        max_egress_bytes_per_run: profile.max_egress_bytes_per_run,
-        created_by: run.created_by,
-        model_name: profile.model_name,
-        reasoning_effort: profile.reasoning_effort,
-    }))
-}
-
-/// What a run may read about a resource of its own project when a step failed (AG-57).
-///
-/// The proxy has already refused an unknown component and an id that is not a name; here the
-/// run's project is the only project asked, so a run learns nothing about another project's
-/// pipelines or changes, not even that they exist.
-pub async fn internal_diagnostics(
-    State(state): State<AppState>,
-    Path((id, component, name)): Path<(String, String, String)>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    authenticate_proxy(&state, &headers).await?;
-    let run = state
-        .agents
-        .get_run(&id)
-        .await
-        .map_err(unavailable)?
-        .ok_or_else(|| ApiError::NotFound(format!("run '{id}' not found")))?;
-    let body = match component.as_str() {
-        "pipeline" => serde_json::to_value(
-            crate::api::pipelines::metrics_for(&state, &run.project, &name).await?,
-        ),
-        "change" => serde_json::to_value(
-            crate::api::changes::change_for(&state, &run.project, &name).await?,
-        ),
-        other => {
-            return Err(ApiError::BadRequest(format!(
-                "the diagnostics door knows no component '{other}'"
-            )))
-        }
-    }
-    .map_err(|err| ApiError::Internal(err.to_string()))?;
-    Ok(Json(body))
-}
-
-/// What the person said, for the workspace to act on (AG-45, AG-52).
-///
-/// One call, one channel: an agent that wants to know whether a question was answered and
-/// whether it was told to change course asks here and nowhere else. The call waits rather than
-/// answering empty immediately, because the alternative is a workspace polling in a loop and
-/// spending its request budget on nothing.
-pub async fn internal_inbox(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Query(query): Query<InboxQuery>,
-    headers: HeaderMap,
-) -> Result<Json<Inbox>, ApiError> {
-    authenticate_proxy(&state, &headers).await?;
-    let run = state
-        .agents
-        .get_run(&id)
-        .await
-        .map_err(unavailable)?
-        .ok_or_else(|| ApiError::NotFound(format!("run '{id}' not found")))?;
-
-    // Subscribed before the store is read, so an event that lands between the two is waited
-    // for rather than missed.
-    let mut live = state.agent_events.subscribe(&run.id).await;
-    let items = inbox_items(&state, &run.id, query.after).await?;
-    if !items.is_empty() || terminal(&run) {
-        return Ok(Json(Inbox { items }));
-    }
-
-    let wait = query.wait.unwrap_or(INBOX_WAIT_SECS).min(INBOX_WAIT_SECS);
-    if wait == 0 {
-        return Ok(Json(Inbox { items }));
-    }
-    let _ = tokio::time::timeout(Duration::from_secs(wait), async {
-        loop {
-            match live.recv().await {
-                Ok(event)
-                    if event.seq > query.after && INBOX_KINDS.contains(&event.kind.as_str()) =>
-                {
-                    return;
-                }
-                // A lagged receiver missed something; the store below is the truth either way.
-                Ok(_) => continue,
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => return,
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
-            }
-        }
-    })
-    .await;
-
-    Ok(Json(Inbox {
-        items: inbox_items(&state, &run.id, query.after).await?,
-    }))
-}
-
-async fn inbox_items(
-    state: &AppState,
-    run_id: &str,
-    after: i64,
-) -> Result<Vec<RelayedInbound>, ApiError> {
-    Ok(state
-        .agents
-        .events_since(run_id, after)
-        .await
-        .map_err(unavailable)?
-        .into_iter()
-        .filter(|event| INBOX_KINDS.contains(&event.kind.as_str()))
-        .map(|event| RelayedInbound {
-            seq: event.seq,
-            kind: event.kind,
-            payload: event.payload,
-        })
-        .collect())
-}
-
-/// The body arrives as bytes and is parsed after the caller is known (T-2271): an extractor runs
-/// before the handler does, so `Json<RelayedEvent>` answered 422 to a call carrying no identity at
-/// all, which tells whoever reaches the port what shape the route wants.
-pub async fn internal_post_event(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: axum::body::Bytes,
-) -> Result<(StatusCode, Json<EventReceipt>), ApiError> {
-    authenticate_proxy(&state, &headers).await?;
-    let relayed: RelayedEvent = serde_json::from_slice(&body)
-        .map_err(|error| ApiError::BadRequest(format!("this is not a relayed event: {error}")))?;
-    let run = state
-        .agents
-        .get_run(&relayed.run_id)
-        .await
-        .map_err(unavailable)?
-        .ok_or_else(|| ApiError::NotFound(format!("run '{}' not found", relayed.run_id)))?;
-    if terminal(&run) {
-        return Err(ApiError::Conflict(format!(
-            "run '{}' is '{}' and takes no more events",
-            run.id, run.status
-        )));
-    }
-
-    // A navigate event is checked before it is recorded: a route that is not a path inside the
-    // Portal never reaches the log, let alone a browser (UI-45).
-    if relayed.kind == "navigate" {
-        navigate_route(&relayed.payload)?;
-    }
-    // An event is a record first. The three kinds that also move something are applied after
-    // it is recorded, so a stream never shows a state the log does not explain.
-    let event = publish_event(&state, &run.id, &relayed.kind, relayed.payload.clone()).await?;
-
-    match relayed.kind.as_str() {
-        "usage" => {
-            let tokens = relayed
-                .payload
-                .get("tokensThisStep")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
-            state
-                .agents
-                .record_usage(&run.id, tokens, 1)
-                .await
-                .map_err(unavailable)?;
-        }
-        "preview" => {
-            if let Some(url) = relayed
-                .payload
-                .get("previewUrl")
-                .and_then(serde_json::Value::as_str)
-            {
-                state
-                    .agents
-                    .set_preview_url(&run.id, url)
-                    .await
-                    .map_err(unavailable)?;
-                // The first frame is counted once: `set_preview_url` keeps the first value.
-                if run.first_frame_ms.is_none() {
-                    if let Ok(Some(updated)) = state.agents.get_run(&run.id).await {
-                        if let Some(ms) = updated.first_frame_ms {
-                            crate::telemetry::record_run_timing(
-                                "first_frame",
-                                &updated.profile,
-                                ms,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        "status" => {
-            let next = relayed
-                .payload
-                .get("status")
-                .and_then(serde_json::Value::as_str)
-                .and_then(AgentRunStatus::parse)
-                .ok_or_else(|| {
-                    ApiError::BadRequest("a status event names no state of a run".into())
-                })?;
-            let error = relayed
-                .payload
-                .get("error")
-                .and_then(serde_json::Value::as_str);
-            state
-                .agents
-                .set_status(&run.id, next, error)
-                .await
-                .map_err(status_error)?;
-        }
-        _ => {}
-    }
-
-    Ok((StatusCode::CREATED, Json(EventReceipt { seq: event.seq })))
-}
-
-/// The longest route a `navigate` event may name (UI-45).
-const MAX_ROUTE_CHARS: usize = 512;
-
-/// The route of a `navigate` event, or why it is refused (UI-45, API/04 §4).
-///
-/// Only a path inside the Portal passes: one leading `/`, no scheme, no `//` (a
-/// protocol-relative URL), no `#`, no control character, at most 512 characters. The prefill,
-/// when present, is an object; its values are the form's problem, not this gate's.
-fn navigate_route(payload: &serde_json::Value) -> Result<&str, ApiError> {
-    let route = payload
-        .get("route")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| ApiError::BadRequest("a navigate event names no route".into()))?;
-    let inside = route.starts_with('/')
-        && !route.starts_with("//")
-        && route.len() <= MAX_ROUTE_CHARS
-        && !route.contains('#')
-        && !route.contains(':')
-        && !route.chars().any(char::is_control);
-    if !inside {
-        return Err(ApiError::BadRequest(
-            "a navigate route must be a path inside the Portal".into(),
-        ));
-    }
-    match payload.get("prefill") {
-        None | Some(serde_json::Value::Null) | Some(serde_json::Value::Object(_)) => Ok(route),
-        Some(_) => Err(ApiError::BadRequest(
-            "a navigate prefill must be an object".into(),
-        )),
-    }
-}
-
-/// The credential proxy's own ServiceAccount token, audience-bound to this listener and matched by
-/// the client it was issued to (AG-52, T-2271).
-///
-/// It was a string both sides held, read from `JC_AGENT_PROXY_TOKEN` and compared in constant time.
-/// Constant time was the least of it: a shared secret between two services never rotates, appears in
-/// two configurations, and gives whoever reads either of them every callback of every run. The token
-/// is minted per proxy from the realm now and expires by itself.
-async fn authenticate_proxy(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
-    crate::auth::internal::authenticate_agent_proxy(state, headers).await
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2266,7 +2086,7 @@ pub(crate) fn status_payload(status: AgentRunStatus) -> serde_json::Value {
     serde_json::json!({ "status": status.as_str(), "timestamp": now_rfc3339() })
 }
 
-fn terminal(run: &AgentRun) -> bool {
+pub(crate) fn terminal(run: &AgentRun) -> bool {
     AgentRunStatus::parse(&run.status).is_some_and(|status| status.is_terminal())
 }
 
@@ -2286,7 +2106,7 @@ pub(crate) fn unavailable(err: StoreError) -> ApiError {
     ApiError::Unavailable(err.to_string())
 }
 
-fn status_error(err: StatusChangeError) -> ApiError {
+pub(crate) fn status_error(err: StatusChangeError) -> ApiError {
     match err {
         StatusChangeError::Unknown => ApiError::NotFound("no such run".into()),
         StatusChangeError::Refused { .. } => ApiError::Conflict(err.to_string()),
@@ -2587,74 +2407,62 @@ pub fn preview_router() -> Router<AppState> {
     )
 }
 
-/// What the Portal accepts on one relayed event: the proxy's 64 KiB ceiling
-/// (`Architecture/19 §4`) plus the envelope the proxy wraps it in — the run id and the kind.
-///
-/// The proxy already refuses a larger event, and this is the same ceiling on the door behind it,
-/// so a caller that reaches the internal listener another way is held to what the documented
-/// route promises rather than to axum's default (AG-45, AG-46).
-const MAX_RELAYED_EVENT_BYTES: usize = 64 * 1024 + 1024;
-
-/// The operations registry, reached by an agent run through the proxy (AG-64, AG-70).
-///
-/// One registry behind every door: this is the same dispatcher a person's MCP client speaks to,
-/// entered as the person who started the run and narrowed by the run's profile. The two halves
-/// are the point — a profile may take away and never add, and `Via::Agent` keeps AG-11 whatever
-/// the profile says, so no agent approves a change through this door either.
-pub async fn internal_mcp(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    body: axum::body::Bytes,
-) -> Result<axum::response::Response, ApiError> {
-    authenticate_proxy(&state, &headers).await?;
-    let run = state
-        .agents
-        .get_run(&id)
-        .await
-        .map_err(unavailable)?
-        .ok_or_else(|| ApiError::NotFound(format!("run '{id}' not found")))?;
-    if terminal(&run) {
-        return Err(ApiError::Conflict(format!(
-            "run '{}' is '{}' and calls nothing more",
-            run.id, run.status
-        )));
-    }
-    let identity: crate::auth::session::Identity = serde_json::from_value(run.starter.clone())
-        .map_err(|_| {
-            ApiError::Denied(format!(
-                "run '{}' carries no starter, so there is nobody to run its calls as",
-                run.id
-            ))
-        })?;
-    let profile = Profile::load(&state.mirror, &run.profile)?;
-    let caller = crate::ops::Caller::for_run(identity, profile.access.clone());
-    Ok(crate::mcp::dispatch_for(state, caller, body).await)
-}
-
-/// The two routes the credential proxy calls, served on the internal listener alone (AG-52).
-pub fn internal_router() -> Router<AppState> {
-    Router::new()
-        .route("/internal/agent-runs/{id}/mcp", post(internal_mcp))
-        .route(
-            "/internal/agent-runs/events",
-            post(internal_post_event).layer(axum::extract::DefaultBodyLimit::max(
-                MAX_RELAYED_EVENT_BYTES,
-            )),
-        )
-        .route("/internal/agent-runs/{id}", get(internal_get_run))
-        .route("/internal/agent-runs/{id}/inbox", get(internal_inbox))
-        .route(
-            "/internal/agent-runs/{id}/diagnostics/{component}/{name}",
-            get(internal_diagnostics),
-        )
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{caller_token, is_function_name, navigate_route};
+    use super::{app_manifest, caller_token, is_function_name};
+
+    fn published(data_needs: serde_json::Value) -> serde_json::Value {
+        let mut run: super::AgentRun = serde_json::from_value(serde_json::json!({
+            "id": "e3b0c442", "project": "helsinki", "appName": "alerts-desk",
+            "endpointName": "helsinki-alerts", "endpointSlug": "si6epqkx",
+            "profile": "app-builder", "kind": "application", "appClass": "static",
+            "visibility": "project", "prompt": "a desk", "promptDigest": "sha256:abc",
+            "unattended": false, "dataNeeds": [], "allowsWrite": true,
+            "branch": "agent/app-alerts-desk/e3b0c442", "pathPrefix": "projects/helsinki/apps/alerts-desk/",
+            "ticketHash": "", "steps": 0, "tokensUsed": 0,
+            "status": "published", "createdBy": "demo.steward@hel.fi",
+            "createdAt": "2026-09-23T05:00:00Z", "expiresAt": "2026-09-23T05:20:00Z",
+        }))
+        .unwrap_or_else(|e| panic!("run fixture: {e}"));
+        run.data_needs = data_needs;
+        app_manifest(
+            &run,
+            serde_json::json!({ "git": { "url": "https://git.example/hel/alerts-desk.git", "ref": "0123456789abcdef0123456789abcdef01234567" } }),
+        )
+    }
+
+    fn need(roles: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
+            "types": ["Alert"],
+            "operations": ["queryEntity", "updateAttrs"],
+            "roles": roles,
+        })
+    }
+
+    #[test]
+    fn a_role_scoped_need_publishes_an_app_that_declares_the_role() {
+        // T-2666: before, publish wrote dataNeeds[].roles and no spec.roles, and the App kind
+        // refused the manifest (AP-91, AP-96).
+        let manifest = published(serde_json::json!([
+            need(&["steward"]),
+            need(&["steward", "editor"])
+        ]));
+        assert_eq!(
+            manifest["spec"]["roles"],
+            serde_json::json!([{ "name": "steward" }, { "name": "editor" }])
+        );
+        let checked = jc_core::registry::validate_yaml("App", &manifest.to_string())
+            .unwrap_or_else(|| panic!("App has a jc-core type"));
+        assert!(checked.is_ok(), "{checked:?}");
+    }
+
+    #[test]
+    fn needs_without_roles_publish_no_roles_field() {
+        let manifest = published(serde_json::json!([need(&[])]));
+        assert!(manifest["spec"].get("roles").is_none(), "{manifest}");
+    }
     use axum::http::{header, HeaderMap, HeaderValue};
-    use serde_json::json;
 
     #[test]
     fn a_function_name_is_lowercase_letters_digits_and_dashes() {
@@ -2711,42 +2519,5 @@ mod tests {
             caller_token(&state, &edge(&[("x-access-token", "edge")])).as_deref(),
             Some("edge")
         );
-    }
-
-    #[test]
-    fn a_portal_path_with_a_prefill_passes() {
-        let payload = json!({
-            "route": "/projects/helsinki/endpoints?tab=all",
-            "prefill": {"name": "air-quality-public"}
-        });
-        assert_eq!(
-            navigate_route(&payload).unwrap(),
-            "/projects/helsinki/endpoints?tab=all"
-        );
-        assert!(navigate_route(&json!({"route": "/"})).is_ok());
-        assert!(navigate_route(&json!({"route": "/x", "prefill": null})).is_ok());
-    }
-
-    #[test]
-    fn anything_that_is_not_a_path_inside_the_portal_is_refused() {
-        for route in [
-            "https://evil.example/",
-            "//evil.example/projects",
-            "javascript:alert(1)",
-            "projects/helsinki",
-            "/projects/helsinki#/x",
-            "/projects/hel\nsinki",
-            "",
-        ] {
-            assert!(
-                navigate_route(&json!({ "route": route })).is_err(),
-                "{route:?}"
-            );
-        }
-        let long = format!("/{}", "a".repeat(512));
-        assert!(navigate_route(&json!({ "route": long })).is_err());
-        assert!(navigate_route(&json!({ "prefill": {} })).is_err());
-        assert!(navigate_route(&json!({ "route": "/x", "prefill": "name=x" })).is_err());
-        assert!(navigate_route(&json!({ "route": "/x", "prefill": [1] })).is_err());
     }
 }

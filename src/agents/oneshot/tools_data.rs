@@ -350,3 +350,304 @@ impl Driver {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! `open_endpoint` and `openable_endpoints` (T-2515; AG-58, AG-70, AG-76): an endpoint a
+    //! conversation opens mid-run.
+
+    use super::*;
+    use crate::agents::access::Access;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+    use crate::state::AppState;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn endpoint(state: &AppState, name: &str, spec: Value) {
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "Endpoint".into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some("helsinki".into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        });
+    }
+
+    fn open(slug: &str, audience: &str) -> Value {
+        json!({ "slug": slug, "audience": audience, "contextSpaceRef": "bikes" })
+    }
+
+    /// A project of seven endpoints: five open to it, one shut to it by its audience, one that
+    /// has no slug yet. The proxy answers every `tools/list` with one read tool named by slug.
+    async fn world() -> (Driver, AppState, MockServer) {
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(wiremock::matchers::path_regex(
+                "^/v1/data(/endpoints/[a-z0-9-]+)?/mcp$",
+            ))
+            .respond_with(|request: &wiremock::Request| {
+                let slug = request
+                    .url
+                    .path()
+                    .split('/')
+                    .nth(4)
+                    .unwrap_or("primary")
+                    .to_owned();
+                ResponseTemplate::new(200).set_body_json(
+                    json!({ "jsonrpc": "2.0", "id": 1, "result": { "tools": [
+                    { "name": format!("read-{slug}"), "annotations": { "readOnlyHint": true } },
+                    { "name": "write", "annotations": { "readOnlyHint": false } },
+                ] } }),
+                )
+            })
+            .mount(&proxy)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        for (name, spec) in [
+            ("a", open("slug-a", "public")),
+            ("b", open("slug-b", "organization")),
+            ("c", open("slug-c", "public")),
+            ("d", open("slug-d", "public")),
+            ("e", open("slug-e", "public")),
+            ("f", open("slug-f", "public")),
+            (
+                "shut",
+                json!({ "slug": "slug-shut", "audience": "project-list", "allowedProjects": ["espoo"] }),
+            ),
+            ("odd", open("slug-odd", "friends")),
+            ("unslugged", json!({ "slug": "", "audience": "public" })),
+            ("slugless", json!({ "audience": "public" })),
+        ] {
+            endpoint(&state, name, spec);
+        }
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.proxy_base = proxy.uri();
+        (driver, state, proxy)
+    }
+
+    fn names(openable: &[data_query::Openable]) -> Vec<&str> {
+        openable.iter().map(|o| o.name.as_str()).collect()
+    }
+
+    fn run_endpoint(name: &str) -> endpoints::RunEndpoint {
+        endpoints::RunEndpoint {
+            name: name.into(),
+            slug: format!("slug-{name}"),
+            space: "bikes".into(),
+        }
+    }
+
+    async fn logged(state: &AppState, kind: &str) -> Vec<Value> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == kind)
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    /// T-2515, AG-58: an endpoint whose audience does not admit the project is refused, and the
+    /// refusal lists only what may be opened.
+    #[tokio::test]
+    async fn an_endpoint_the_person_may_not_read_is_refused_and_lists_only_what_they_may_open() {
+        let (driver, state, proxy) = world().await;
+        for name in ["shut", "odd", "unslugged"] {
+            let (mut chosen, mut tools) = (Vec::new(), Vec::new());
+            let refused = driver
+                .open_endpoint(&mut chosen, &mut tools, name)
+                .await
+                .expect_err(name);
+            assert_eq!(
+                refused,
+                format!("'{name}' is not an endpoint the person may read in this project; they may open: a, b, c, d, e, f")
+            );
+            assert!(chosen.is_empty() && tools.is_empty(), "{name}");
+        }
+        assert!(logged(&state, "endpoints").await.is_empty());
+        assert!(proxy
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    /// T-2515, AG-70: a profile that lists its endpoints narrows the person's: an endpoint it
+    /// leaves out is neither offered nor opened, and a profile granting only `write` grants none.
+    #[tokio::test]
+    async fn an_endpoint_the_profile_narrows_out_is_absent_from_openable_even_if_the_person_may_read_it(
+    ) {
+        let (mut driver, _state, _proxy) = world().await;
+        driver.access = Access::from_spec(&json!({ "access": { "operations": [], "endpoints": [
+            { "name": "a", "verbs": ["read"] },
+            { "name": "b", "verbs": ["write"] },
+        ] } }));
+        assert_eq!(names(&driver.openable_endpoints(&[])), vec!["a"]);
+        for name in ["b", "c"] {
+            let refused = driver
+                .open_endpoint(&mut Vec::new(), &mut Vec::new(), name)
+                .await
+                .expect_err(name);
+            assert!(refused.ends_with("they may open: a"), "{refused}");
+        }
+    }
+
+    /// T-2515: a name nobody published answers exactly like one the person may not read, so the
+    /// answer never tells the two apart.
+    #[tokio::test]
+    async fn a_name_that_does_not_exist_is_refused_the_same_as_one_the_person_cannot_read() {
+        let (driver, _state, _proxy) = world().await;
+        let mut answers = Vec::new();
+        for name in ["shut", "no-such-endpoint", "", "A", "a ", "../a"] {
+            let refused = driver
+                .open_endpoint(&mut Vec::new(), &mut Vec::new(), name)
+                .await
+                .expect_err(name);
+            answers.push(refused.replacen(&format!("'{name}'"), "'…'", 1));
+        }
+        assert!(
+            answers.windows(2).all(|pair| pair[0] == pair[1]),
+            "{answers:#?}"
+        );
+    }
+
+    /// T-2515, AG-76: at most `MAX_ENDPOINTS`; the refusal names the set the conversation reads.
+    #[tokio::test]
+    async fn the_open_past_max_endpoints_is_refused_naming_the_current_set() {
+        let (driver, state, _proxy) = world().await;
+        let (mut chosen, mut tools) = (Vec::new(), Vec::new());
+        for name in ["a", "b", "c", "d", "e"] {
+            driver
+                .open_endpoint(&mut chosen, &mut tools, name)
+                .await
+                .expect(name);
+        }
+        assert_eq!(chosen.len(), endpoints::MAX_ENDPOINTS);
+        let refused = driver
+            .open_endpoint(&mut chosen, &mut tools, "f")
+            .await
+            .expect_err("a sixth");
+        assert_eq!(
+            refused,
+            "a conversation reads at most 5 endpoints: a, b, c, d, e"
+        );
+        assert_eq!(chosen.len(), 5);
+        assert_eq!(tools.len(), 5);
+        assert_eq!(logged(&state, "endpoints").await.len(), 5);
+    }
+
+    /// T-2515: an endpoint the conversation already reads is its index again: nothing stored,
+    /// logged or asked of the proxy. Two opens at once cannot race: `chosen` is `&mut`, so the
+    /// borrow checker serialises them (the `two_concurrent_opens…` case is struck).
+    #[tokio::test]
+    async fn an_endpoint_already_chosen_is_a_no_op_returning_its_existing_index() {
+        let (driver, state, proxy) = world().await;
+        // Already chosen when the run started, so even a name the audience now shuts is its index.
+        let mut chosen = vec![run_endpoint("a"), run_endpoint("shut")];
+        let mut tools = vec![vec![json!({ "name": "kept" })], Vec::new()];
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "shut").await,
+            Ok(1)
+        );
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "a").await,
+            Ok(0)
+        );
+        assert_eq!(chosen.len(), 2);
+        assert_eq!(tools, vec![vec![json!({ "name": "kept" })], Vec::new()]);
+        assert!(logged(&state, "endpoints").await.is_empty());
+        assert!(proxy
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    /// T-2515, EP-02: the gateway addresses an endpoint by its slug; one without a slug is never
+    /// offered, and neither is one already chosen.
+    #[tokio::test]
+    async fn an_endpoint_with_an_empty_slug_is_never_offered() {
+        let (driver, _state, _proxy) = world().await;
+        let offered = driver.openable_endpoints(&[run_endpoint("c")]);
+        assert_eq!(names(&offered), vec!["a", "b", "d", "e", "f"]);
+        assert!(offered.iter().all(|o| o.space == "bikes"));
+    }
+
+    /// T-2515, AG-76: each open stores the run's endpoints and logs every name the conversation
+    /// now reads, in order, as the data bar shows them.
+    #[tokio::test]
+    async fn opening_records_an_endpoints_event_with_every_chosen_name() {
+        let (driver, state, _proxy) = world().await;
+        let mut chosen = vec![run_endpoint("a")];
+        let mut tools = vec![Vec::new()];
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "c").await,
+            Ok(1)
+        );
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "b").await,
+            Ok(2)
+        );
+        assert_eq!(
+            logged(&state, "endpoints").await,
+            vec![
+                json!({ "names": ["a", "c"] }),
+                json!({ "names": ["a", "c", "b"] })
+            ]
+        );
+        assert_eq!(chosen[2], run_endpoint("b"));
+    }
+
+    /// T-2515, AG-75: the new endpoint's read tools land in its own slot, after the earlier
+    /// endpoints' tools, which stay as they were; a list shorter than the endpoints is padded.
+    #[tokio::test]
+    async fn tools_of_the_newly_opened_endpoint_are_appended_not_replacing_earlier_slots() {
+        let (driver, _state, _proxy) = world().await;
+        let earlier = vec![json!({ "name": "read-first" })];
+        let mut chosen = vec![run_endpoint("a"), run_endpoint("b")];
+        let mut tools = vec![earlier.clone()];
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "d").await,
+            Ok(2)
+        );
+        assert_eq!(tools.len(), 3);
+        assert_eq!(tools[0], earlier);
+        assert_eq!(tools[1], Vec::<Value>::new());
+        let offered: Vec<&str> = tools[2].iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(
+            offered,
+            vec!["read-slug-d"],
+            "only the read tools, of that endpoint"
+        );
+    }
+
+    /// T-2515: `resolve` reads the same mirror, with no await in between, for the two things
+    /// `openable_endpoints` already required (the Endpoint exists, its slug is not empty), so a
+    /// resolve failure after the check is struck. What can fail after the check is the store or
+    /// the log, and that is an error, never an index.
+    #[tokio::test]
+    async fn resolve_failing_after_the_grant_check_passed_returns_an_error_not_a_partial_open() {
+        let (mut driver, _state, _proxy) = world().await;
+        let mut chosen = Vec::new();
+        let mut tools = Vec::new();
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "a").await,
+            Ok(0)
+        );
+        assert_eq!(chosen, vec![run_endpoint("a")]);
+        assert_eq!(tools.len(), chosen.len());
+        driver.proxy_base = "http://127.0.0.1:9".into();
+        // A proxy that does not answer tools/list opens the endpoint with no tools, not an error.
+        assert_eq!(
+            driver.open_endpoint(&mut chosen, &mut tools, "b").await,
+            Ok(1)
+        );
+        assert_eq!(tools[1], Vec::<Value>::new());
+    }
+}

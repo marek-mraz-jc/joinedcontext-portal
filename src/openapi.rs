@@ -29,7 +29,7 @@ use crate::api::ops::{OperationAnnotations, OperationSummary};
 use crate::api::pipelines::PipelineMetrics;
 use crate::api::preferences::Preferences;
 use crate::api::projects::{
-    OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
+    DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::api::service_accounts::{KeyInfo, KeyList, MintedKey};
@@ -68,6 +68,7 @@ use crate::tools::model_tools::{
         crate::api::projects::open_project,
         crate::api::projects::get_project,
         crate::api::projects::delete_project,
+        crate::api::projects::duplicate_project,
         crate::api::resources::list,
         crate::api::resources::list_endpoints_everywhere,
         crate::api::blueprints::list_blueprints,
@@ -97,6 +98,9 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::call_function,
         crate::api::agent_runs::cancel_run,
         crate::api::agent_runs::publish_run,
+        crate::api::app_build::build,
+        crate::api::app_build::rebuild,
+        crate::api::app_me::me,
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
@@ -155,6 +159,10 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::app_build::AppBuild,
+        crate::api::app_build::Rebuild,
+        crate::api::app_me::AppMe,
+        crate::git::WorkflowRun,
         AgentRun,
         AgentRunEvent,
         AgentRunStatus,
@@ -204,6 +212,7 @@ use crate::tools::model_tools::{
         Status,
         ResourceList,
         ListMeta,
+        DuplicateProject,
         OpenProject,
         ProjectDetail,
         ProjectStatus,

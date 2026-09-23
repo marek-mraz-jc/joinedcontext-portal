@@ -86,6 +86,19 @@ describe("the change notice against the UI contract", () => {
     expect(status.querySelectorAll("span").length).toBeGreaterThan(2);
   });
 
+  // PF-58: an administrator's change was approved as it was proposed; the notice says so and
+  // opens the change instead of sending them to review it.
+  it("says an approved-as-proposed change is applying and links to it", () => {
+    show({ ...CHANGE, status: { ...CHANGE.status, phase: "Deploying" } } as Change);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(i18n.t("changes.approvedAsProposed"));
+    expect(status).not.toHaveTextContent(i18n.t("changes.accepted"));
+    expect(screen.getByRole("link", { name: i18n.t("changes.open") })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/approvals/chg-11aa22bb",
+    );
+  });
+
   it.each(SUPPORTED_LOCALES)("writes the notice in %s", async (locale) => {
     await i18n.changeLanguage(locale);
     const { container } = show();

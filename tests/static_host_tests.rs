@@ -1,6 +1,8 @@
 //! The static apps host: what it serves, what it refuses, and the headers every app carries
 //! (AP-12, AP-14, AP-17).
 
+mod common;
+
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -84,6 +86,7 @@ fn mirror_with_build(spec: serde_json::Value, commit: &str) -> Arc<Mirror> {
             sdk_version: "0.4.1".to_owned(),
             built_at: chrono::Utc::now(),
         }),
+        domain_verification: None,
     });
     mirror.upsert(envelope);
     mirror
@@ -335,10 +338,18 @@ async fn without_an_apps_directory_the_host_answers_not_found() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
-/// One build directory of an app: `{apps_dir}/{name}/{commit}/` with its own integrity manifest
-/// (AP-74), beside the previous publish at `{apps_dir}/{name}/`.
-fn build_dir(dir: &tempdir::Dir, commit: &str, files: &[(&str, &[u8])]) {
-    let app = dir.path().join("air-quality").join(commit);
+/// The digest `mirror_with_build` names, as the directory the host fetches it into.
+const BUILD_HEX: &str = "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4";
+
+/// The cache a replica fetches builds into (AP-102), beside the bundles the image ships.
+fn cache_of(dir: &tempdir::Dir) -> std::path::PathBuf {
+    dir.path().join("cache")
+}
+
+/// One fetched build of an app: `{apps_cache_dir}/{name}/{hex}/` with its own integrity manifest
+/// (AP-102), beside the bundle the image ships at `{apps_dir}/{name}/`.
+fn build_dir(dir: &tempdir::Dir, files: &[(&str, &[u8])]) {
+    let app = cache_of(dir).join("air-quality").join(BUILD_HEX);
     std::fs::create_dir_all(&app).expect("build dir");
     let mut digests = serde_json::Map::new();
     for (name, bytes) in files {
@@ -355,6 +366,7 @@ fn build_dir(dir: &tempdir::Dir, commit: &str, files: &[(&str, &[u8])]) {
 async fn get_with(root: &std::path::Path, mirror: Arc<Mirror>, uri: &str) -> (StatusCode, Vec<u8>) {
     let config = Config {
         apps_dir: Some(root.to_string_lossy().into_owned()),
+        apps_cache_dir: Some(root.join("cache").to_string_lossy().into_owned()),
         ..Config::for_tests()
     };
     let app = server::app(AppState::new(config, None).with_mirror(mirror));
@@ -369,12 +381,12 @@ async fn get_with(root: &std::path::Path, mirror: Arc<Mirror>, uri: &str) -> (St
 
 const NEXT_INDEX: &[u8] = b"<!doctype html><title>air quality, next build</title>";
 
-/// AP-72, AP-74: the host serves the build the manifest names, not whatever sits in the app's
-/// directory.
+/// AP-72, AP-102: the host serves the build the manifest names, fetched under its digest, not
+/// the bundle the image ships.
 #[tokio::test]
 async fn the_host_serves_the_build_the_manifest_names() {
     let dir = app_root("named-build", &[("index.html", INDEX)]);
-    build_dir(&dir, "8c56954a1f0e", &[("index.html", NEXT_INDEX)]);
+    build_dir(&dir, &[("index.html", NEXT_INDEX)]);
 
     let (status, body) = get_with(
         dir.path(),
@@ -397,7 +409,7 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, INDEX, "the previous publish keeps serving");
 
-    let apps_dir = dir.path().to_string_lossy().into_owned();
+    let apps_dir = cache_of(&dir).to_string_lossy().into_owned();
     assert_eq!(
         joinedcontext_portal::apps::static_host::build_missing(Some(&apps_dir), &mirror),
         vec!["air-quality".to_owned()],
@@ -405,7 +417,7 @@ async fn a_build_the_host_does_not_hold_keeps_the_previous_one_serving_and_is_re
     );
 
     // The build arrives: nothing else changes and the host follows it.
-    build_dir(&dir, "0000000feed", &[("index.html", NEXT_INDEX)]);
+    build_dir(&dir, &[("index.html", NEXT_INDEX)]);
     let (status, body) = get_with(dir.path(), mirror.clone(), "/apps/air-quality/").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, NEXT_INDEX);
@@ -626,4 +638,190 @@ async fn an_app_is_served_on_the_apps_origin() {
         StatusCode::PERMANENT_REDIRECT,
         "another port is another origin"
     );
+}
+
+/// AP-84: a signed-in person's first index on the apps origin brings the double-submit CSRF
+/// cookie a function call needs there; the Portal's own is host-only on the Portal host. An
+/// anonymous visitor gets none, and one who already holds it keeps the one they have.
+#[tokio::test]
+async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
+    let dir = app_root("csrf-cookie", &[("index.html", INDEX)]);
+    let config = Config {
+        apps_dir: Some(dir.path().to_string_lossy().into_owned()),
+        ..Config::for_tests()
+    };
+    let session: String = common::cookie(&config, common::person("jana"))
+        .split("; ")
+        .filter(|part| !part.starts_with("jc_csrf="))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let app = server::app(
+        AppState::new(config, None).with_mirror(mirror_with_app(app_spec("published"))),
+    );
+    let csrf_cookie = |cookie: Option<&str>| {
+        let app = app.clone();
+        let cookie = cookie.map(str::to_owned);
+        async move {
+            let mut request = Request::builder().uri("/apps/air-quality/");
+            if let Some(cookie) = cookie {
+                request = request.header(header::COOKIE, cookie);
+            }
+            let response = app
+                .oneshot(request.body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            response
+                .headers()
+                .get_all(header::SET_COOKIE)
+                .iter()
+                .filter_map(|value| value.to_str().ok())
+                .find(|value| value.starts_with("jc_csrf="))
+                .map(str::to_owned)
+        }
+    };
+
+    let issued = csrf_cookie(Some(&session))
+        .await
+        .expect("a CSRF cookie for the signed-in person");
+    assert!(
+        issued.contains("Secure") && issued.contains("SameSite=Lax"),
+        "{issued}"
+    );
+    assert_eq!(
+        csrf_cookie(None).await,
+        None,
+        "nothing for an anonymous visitor"
+    );
+    let held = format!("{session}; jc_csrf=already-held");
+    assert_eq!(csrf_cookie(Some(&held)).await, None, "a held token is kept");
+}
+
+/// One request for the app as `identity`, or anonymously.
+async fn get_as(
+    root: &std::path::Path,
+    mirror: Arc<Mirror>,
+    identity: Option<joinedcontext_portal::auth::session::Identity>,
+    uri: &str,
+) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let config = Config {
+        apps_dir: Some(root.to_string_lossy().into_owned()),
+        ..Config::for_tests()
+    };
+    let mut request = Request::builder()
+        .uri(uri)
+        .header(header::ACCEPT_LANGUAGE, "en");
+    if let Some(identity) = identity {
+        request = request.header(header::COOKIE, common::cookie(&config, identity));
+    }
+    let app = server::app(AppState::new(config, None).with_mirror(mirror));
+    let response = app
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, body.to_vec())
+}
+
+/// A `visibility: roles` app reading one space, with a viewer group and one steward.
+fn roles_app() -> Arc<Mirror> {
+    let mut spec = app_spec("published");
+    spec["visibility"] = serde_json::json!("roles");
+    spec["roles"] = serde_json::json!([
+        { "name": "viewer", "title": { "en": "Viewer" } },
+        { "name": "steward", "title": { "en": "Steward" } }
+    ]);
+    spec["access"] = serde_json::json!([
+        { "role": "viewer", "subjects": [{ "group": "ovzdusie-operations" }] },
+        { "role": "steward", "subjects": [{ "user": "jana" }] }
+    ]);
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+        "types": ["AirQualityObserved"],
+        "operations": ["queryEntity"]
+    }]);
+    let mirror = mirror_with_app(spec);
+    mirror.upsert(envelope(
+        "Endpoint",
+        "ovzdusie",
+        "app-air-quality",
+        serde_json::json!({ "contextSpaceRef": "ovzdusie", "slug": "appslug" }),
+    ));
+    mirror
+}
+
+/// AP-93: a signed-in person holding no role of a `visibility: roles` app gets the 403 page that
+/// names the roles and no member; an anonymous visitor gets it too, and neither sees a byte of
+/// the bundle, the index or an asset.
+#[tokio::test]
+async fn a_person_without_a_role_is_refused_with_the_roles_and_no_member() {
+    let dir = app_root(
+        "roles-refused",
+        &[("index.html", INDEX), ("app.js", BUNDLE_JS)],
+    );
+    for (who, uri) in [
+        (Some(common::person("petra")), "/apps/air-quality/"),
+        (Some(common::person("petra")), "/apps/air-quality/app.js"),
+        (None, "/apps/air-quality/"),
+    ] {
+        let (status, headers, body) = get_as(dir.path(), roles_app(), who, uri).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{uri}");
+        assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+        let page = String::from_utf8(body).expect("html");
+        assert!(
+            page.contains("<li>Viewer</li>") && page.contains("<li>Steward</li>"),
+            "{page}"
+        );
+        assert!(page.contains("project ovzdusie"), "{page}");
+        assert!(
+            !page.contains("jana") && !page.contains("ovzdusie-operations"),
+            "{page}"
+        );
+        assert!(
+            !page.contains("air quality</title>") && !page.contains("console.log"),
+            "{page}"
+        );
+    }
+}
+
+/// AP-95, SDK-35: a member is served the index with their roles in this app, the platform's never,
+/// and an index that carries a person is kept by no cache.
+#[tokio::test]
+async fn a_member_is_served_the_index_with_their_roles_and_no_store() {
+    let dir = app_root("roles-served", &[("index.html", INDEX)]);
+    let mut jana = common::person("jana");
+    jana.roles = vec!["platform-admin".into()];
+    jana.groups = vec!["ovzdusie-operations".into()];
+    let (status, headers, body) =
+        get_as(dir.path(), roles_app(), Some(jana), "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(
+        served_config(&body)["user"],
+        serde_json::json!({
+            "id": "sub-jana",
+            "name": "jana",
+            "email": "jana@hel.fi",
+            "roles": ["viewer", "steward"]
+        })
+    );
+}
+
+/// AP-95: an anonymous visitor of a public app is served `user: null`, and the index stays
+/// revalidated rather than private, since it carries nobody.
+#[tokio::test]
+async fn an_anonymous_visitor_is_served_no_user() {
+    let dir = app_root("roles-anonymous", &[("index.html", INDEX)]);
+    let mirror = roles_app();
+    let mut envelope = mirror
+        .get("ovzdusie", "App", "air-quality")
+        .expect("the app");
+    envelope.spec["visibility"] = serde_json::json!("public");
+    mirror.upsert(envelope);
+    let (status, headers, body) = get_as(dir.path(), mirror, None, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    assert_eq!(served_config(&body)["user"], serde_json::Value::Null);
 }

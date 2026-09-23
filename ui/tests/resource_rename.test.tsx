@@ -131,9 +131,15 @@ describe("renaming a resource that exists", () => {
         "",
       ].join("\n"),
     );
+    // A person pauses before Propose, long enough for the form's draft to be saved (600 ms after
+    // the last edit). On a loaded CI runner that pause happened by itself and the draft save was
+    // counted as a proposal (T-2575); here it always happens, so both paths are held every run.
+    await new Promise((resolve) => setTimeout(resolve, 900));
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
 
     expect(await within(dialog).findByText(/Keep the name bikes/)).toBeInTheDocument();
-    expect(writes).toHaveLength(0);
+    // The only write is the draft, under the name the resource keeps; nothing is proposed.
+    const written = writes.map((w) => `${w.method} ${new URL(w.url).pathname}`);
+    expect(written).toEqual(["PUT /api/v1/projects/helsinki/drafts/Dashboard/bikes"]);
   }, 20_000);
 });

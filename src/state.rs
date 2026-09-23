@@ -96,6 +96,17 @@ pub struct AppState {
 const REVOCATION_TTL_SECS: i64 = 48 * 3600;
 
 impl AppState {
+    /// The forge client for `project`'s own files (CC-87): in layout 2 its own repository,
+    /// spoken to in render paths (`projects/{project}/…`); the organization repository
+    /// otherwise. `None` when no forge is configured.
+    pub fn forge_for(&self, project: &str) -> Option<Arc<GiteaClient>> {
+        let organization = self.gitea.as_ref()?;
+        Some(match self.mirror.repository_of(project) {
+            Some(repository) => Arc::new(organization.for_project(repository, project)),
+            None => Arc::clone(organization),
+        })
+    }
+
     pub fn new(config: Config, oidc: Option<OidcClient>) -> Self {
         let bearer = config
             .oidc
@@ -160,6 +171,7 @@ impl AppState {
     pub fn with_db(mut self, db: sqlx::PgPool) -> Self {
         self.agents = Arc::new(AgentStore::new(Some(db.clone())));
         self.drafts = DraftStore::new(Some(db.clone())).with_hub(self.draft_events.clone());
+        self.draft_events.connect(db.clone());
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
@@ -200,6 +212,9 @@ impl AppState {
             );
         }
         state.drafts = DraftStore::new(db.clone()).with_hub(state.draft_events.clone());
+        if let Some(db) = &db {
+            state.draft_events.connect(db.clone());
+        }
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
@@ -233,7 +248,7 @@ impl AppState {
             let mut syncer = Syncer::new(Arc::clone(&client), Arc::clone(&state.mirror))
                 .with_webhook_secrets(Arc::clone(&state.webhook_secrets))
                 .with_activity(state.activity.clone())
-                .with_apps_dir(state.config.apps_dir.clone());
+                .with_apps_cache_dir(state.config.apps_cache_dir.clone());
             // The root credential of the artifact store reaches this one object and no other,
             // and no workload gets it: every organization is served a derived, scoped pair
             // instead (PF-32, ADR-N-015).
@@ -272,6 +287,21 @@ impl AppState {
             // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
             if let Some(pool) = state.db.as_ref() {
                 syncer = syncer.with_leadership(Arc::new(Leadership::reconciler(pool.clone())));
+                // PF-41: the challenge lives in the database, so the check runs only with one.
+                let host = state.config.public_base_url.host_str().map(str::to_owned);
+                match (crate::domain_verification::NetLookup::new(), host) {
+                    (Ok(lookup), Some(host)) => {
+                        syncer = syncer.with_domain_verification(Arc::new(
+                            crate::domain_verification::Verifier::new(pool.clone(), lookup, host),
+                        ));
+                    }
+                    (Err(err), _) => {
+                        tracing::warn!(error = %err, "no domain is verified: the resolver did not start")
+                    }
+                    (_, None) => {
+                        tracing::warn!("no domain is verified: the public URL names no host")
+                    }
+                }
             }
             // Applying an app's objects needs two halves: a cluster to write into and the
             // settings that say where. Either missing leaves the reconciler reading apps and

@@ -71,6 +71,31 @@ export function useCreateForm(): [boolean, (open: boolean) => void] {
 }
 
 /**
+ * The create form as `useCreateForm` gives it, opened as well on the draft the assistant handed
+ * the page (`?draft=`, AG-61, AG-73): the form loads that draft by the name returned here. The
+ * address is read once, as the page mounts; closing the form lets the draft go.
+ */
+export function useCreateFormFromDraft(): [boolean, (open: boolean) => void, string | undefined] {
+  const [routedOpen, setRoutedOpen] = useCreateForm();
+  const [handed] = useState(() =>
+    typeof window === "undefined"
+      ? undefined
+      : (new URLSearchParams(window.location.search).get("draft") || undefined),
+  );
+  const [fromDraft, setFromDraft] = useState(handed !== undefined);
+  return [
+    routedOpen || fromDraft,
+    (open) => {
+      if (!open) {
+        setFromDraft(false);
+      }
+      setRoutedOpen(open);
+    },
+    fromDraft ? handed : undefined,
+  ];
+}
+
+/**
  * The edit form of one named resource: open when the address names it. `null` outside a routed
  * page, where the caller keeps its own state.
  */
@@ -275,11 +300,17 @@ export function FormRouteHost({
   project,
   plural,
   form,
+  base,
   children,
 }: {
   project: string;
   plural: string;
   form: FormTarget | null;
+  /**
+   * The list's own address when it is not `/projects/{project}/{plural}`: a tab of Project
+   * settings hosts its forms at `{base}/new` and `{base}/{name}/edit` (T-2606).
+   */
+  base?: string;
   children: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -302,17 +333,29 @@ export function FormRouteHost({
       openNew: () => {
         remember();
         setNotice(null);
+        if (base) {
+          void navigate({ href: `${base}/new` });
+          return;
+        }
         void navigate({ to: "/projects/$project/$plural/new", params: { project, plural } });
       },
       openEdit: (name) => {
         remember();
         setNotice(null);
+        if (base) {
+          void navigate({ href: `${base}/${encodeURIComponent(name)}/edit` });
+          return;
+        }
         void navigate({
           to: "/projects/$project/$plural/$name/edit",
           params: { project, plural, name },
         });
       },
       close: () => {
+        if (base) {
+          void navigate({ href: base });
+          return;
+        }
         void navigate({ to: "/projects/$project/$plural", params: { project, plural } });
       },
       leave: setNotice,
@@ -322,7 +365,7 @@ export function FormRouteHost({
         return () => setOpen((count) => count - 1);
       },
     }),
-    [form, navigate, project, plural, slot],
+    [form, navigate, project, plural, base, slot],
   );
 
   const showing = open > 0;

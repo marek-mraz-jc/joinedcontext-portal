@@ -101,15 +101,22 @@ fn should_sync(headers: &HeaderMap, payload: &Value) -> bool {
 #[utoipa::path(
     post,
     path = "/api/v1/webhooks/gitea",
+    summary = "Forge Webhook",
+    description = "Called by the forge on a push: a signed payload makes the mirror synchronize. An unsigned or wrongly signed call is refused with 401.",
     tag = "system",
     params(
         ("x-gitea-signature" = String, Header, description = "HMAC-SHA256 signature of request body"),
         ("x-gitea-event" = Option<String>, Header, description = "Gitea event type (e.g. push, pull_request)"),
     ),
     request_body(
-        content = String,
+        content = Object,
         description = "Gitea webhook event payload",
         content_type = "application/json",
+        example = json!({
+            "ref": "refs/heads/main",
+            "after": "4f2a9c1d0e8b7a6f5e4d3c2b1a0f9e8d7c6b5a49",
+            "repository": { "full_name": "hel/config" }
+        }),
     ),
     responses(
         (status = 202, description = "Webhook accepted and synchronization triggered"),

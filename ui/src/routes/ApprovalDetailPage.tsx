@@ -256,13 +256,21 @@ export function ApprovalDetailPage({
             </dd>
           </div>
         ) : null}
+        {proposal.status.repository ? (
+          <div>
+            <dt className="text-xs font-medium text-surface-fg/70">
+              {t("approvals.repository")}
+            </dt>
+            <dd className="mt-1 text-sm text-surface-fg">{proposal.status.repository}</dd>
+          </div>
+        ) : null}
         {proposal.status.mergeRequest ? (
           <div>
             <dt className="text-xs font-medium text-surface-fg/70">
               {t("approvals.mergeRequest")}
             </dt>
             <dd className="mt-1 text-sm font-medium">
-              <ExternalLink href={proposal.status.mergeRequest} className="text-primary">
+              <ExternalLink href={proposal.status.mergeRequest} className="text-primary-soft-fg">
                 {proposal.status.mergeRequest}
               </ExternalLink>
             </dd>
@@ -293,7 +301,7 @@ export function ApprovalDetailPage({
                     size="sm"
                     aria-pressed={selected?.path === file.path}
                     onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
-                    className="px-1 font-mono text-caption text-primary hover:underline"
+                    className="px-1 font-mono text-caption text-primary-soft-fg hover:underline"
                   >
                     {file.path}
                   </Button>
@@ -327,7 +335,7 @@ export function ApprovalDetailPage({
             <Link
               to="/projects/$project/$plural"
               params={{ project, plural: pluralOf(proposal) as string }}
-              className="ml-2 font-medium text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+              className="ml-2 font-medium text-primary-soft-fg hover:underline focus:outline-none focus:ring-2 focus:ring-border-focus"
             >
               {t("approvals.openResource", { kind: changedKind(proposal) })}
             </Link>

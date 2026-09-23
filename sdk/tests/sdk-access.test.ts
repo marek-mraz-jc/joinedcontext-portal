@@ -64,4 +64,27 @@ describe("sdk access", () => {
     expect(parseAccess({})).toEqual({ permissions: [], prohibitions: [] });
     expect(parseAccess({ permissions: "invalid" })).toEqual({ permissions: [], prohibitions: [] });
   });
+
+  // SDK-36: a refusal to a person holding roles names them; an allowed call and the loading state
+  // are unchanged.
+  it("names the person's roles in a refusal", () => {
+    const access: AccessDocument = {
+      permissions: [{ resource: { type: "Alert" }, actions: ["updateAttrs"], attributes: ["status"] }],
+      prohibitions: [],
+    };
+    expect(can(access, "updateAttrs", "Alert", "status", ["viewer"])).toEqual({ ok: true });
+    expect(can(access, "deleteEntity", "Alert", undefined, ["viewer"])).toEqual({
+      ok: false,
+      reason: "Your role viewer does not permit deleteEntity on Alert.",
+    });
+    expect(can(access, "updateAttrs", "Alert", "stewardNote", ["viewer", "auditor"])).toEqual({
+      ok: false,
+      reason: "Your roles viewer, auditor do not permit updateAttrs on stewardNote of Alert.",
+    });
+    expect(can(access, "deleteEntity", "Alert", undefined, [])).toEqual({
+      ok: false,
+      reason: "Your role may not deleteEntity Alert.",
+    });
+    expect(can(null, "queryEntity", "Alert", undefined, ["viewer"]).reason).toBe("Checking your permissions…");
+  });
 });

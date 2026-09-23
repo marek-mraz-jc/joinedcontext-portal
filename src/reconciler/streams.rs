@@ -684,70 +684,92 @@ fn bento_processors(bento: &str) -> Result<Vec<Value>, RenderError> {
     if config.get("input").is_some() {
         return Err(RenderError::BentoInput);
     }
-    Ok(config
+    let processors = config
         .pointer("/pipeline/processors")
         .and_then(Value::as_array)
         .cloned()
-        .unwrap_or_default())
+        .unwrap_or_default();
+    // The author's processors pass the check a manifest's steps pass (PL-16, PL-50, PL-52): a
+    // name the platform runs, no refused processor nested inside, no read of the runner's
+    // environment. This is where an author's file meets the runner, which holds every
+    // project's credentials.
+    for processor in &processors {
+        jc_core::kinds::pipeline::validate_processor("pipeline.processors", processor)
+            .map_err(|e| RenderError::Bento(e.to_string()))?;
+    }
+    Ok(processors)
 }
 
+/// One query component, percent-encoded: the unreserved characters and `:` (every URN is full of
+/// them) stay, every other UTF-8 byte becomes `%XX`. The runner reads `${...}` inside a URL as
+/// its own interpolation, so `$`, `{`, `}` and `!` must never reach it as written (T-2542).
 fn percent_encode(val: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
     let mut out = String::with_capacity(val.len());
     for b in val.bytes() {
-        match b {
-            b' ' => out.push_str("%20"),
-            b'&' => out.push_str("%26"),
-            b'=' => out.push_str("%3D"),
-            b'#' => out.push_str("%23"),
-            b'%' => out.push_str("%25"),
-            _ => out.push(b as char),
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~' | b':') {
+            out.push(char::from(b));
+        } else {
+            out.push('%');
+            out.push(char::from(HEX[usize::from(b >> 4)]));
+            out.push(char::from(HEX[usize::from(b & 0x0F)]));
         }
     }
     out
 }
 
 /// Builds the Context Gateway entity query URL for an endpoint-sourced pipeline (PL-31).
+///
+/// Every value is encoded on its own; the commas between ids and between attribute names are
+/// the list separators the gateway splits on, so an attribute name that holds one is refused.
 pub fn endpoint_source_url(
     source_slug: &str,
     query: &jc_core::kinds::pipeline::SourceQuery,
-) -> String {
+) -> Result<String, RenderError> {
+    fn list<'a>(values: impl Iterator<Item = &'a str>) -> String {
+        values.map(percent_encode).collect::<Vec<_>>().join(",")
+    }
+
     let mut params = Vec::new();
     if !query.ids.is_empty() {
-        let ids_str = query
+        let ids = query
             .ids
             .iter()
-            .map(|u| u.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        params.push(format!("id={}", percent_encode(&ids_str)));
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        params.push(format!("id={}", list(ids.iter().map(String::as_str))));
     } else if let Some(entity_type) = &query.entity_type {
         params.push(format!("type={}", percent_encode(entity_type)));
     }
 
+    if let Some(attr) = query.attrs.iter().find(|a| a.contains(',')) {
+        return Err(RenderError::Custom(format!(
+            "spec.source.query.attrs names {attr:?}, and a comma separates attribute names, so it would be read as two"
+        )));
+    }
     if !query.attrs.is_empty() {
-        params.push(format!("attrs={}", query.attrs.join(",")));
+        params.push(format!(
+            "attrs={}",
+            list(query.attrs.iter().map(String::as_str))
+        ));
     }
 
     params.push("limit=1000".to_string());
 
-    if let Some(q) = &query.q {
-        if !q.is_empty() {
-            params.push(format!("q={}", percent_encode(q)));
-        }
-    }
-    if let Some(scope_q) = &query.scope_q {
-        if !scope_q.is_empty() {
-            params.push(format!("scopeQ={}", percent_encode(scope_q)));
-        }
-    }
-    if let Some(geo_q) = &query.geo_q {
-        if !geo_q.is_empty() {
-            params.push(format!("geoQ={}", percent_encode(geo_q)));
+    for (name, value) in [
+        ("q", &query.q),
+        ("scopeQ", &query.scope_q),
+        ("geoQ", &query.geo_q),
+    ] {
+        if let Some(value) = value.as_deref().filter(|v| !v.is_empty()) {
+            params.push(format!("{name}={}", percent_encode(value)));
         }
     }
 
     let query_str = params.join("&");
-    format!("${{JC_GATEWAY_URL}}/api/endpoint/{source_slug}/ngsi-ld/v1/entities?{query_str}")
+    Ok(format!(
+        "${{JC_GATEWAY_URL}}/api/endpoint/{source_slug}/ngsi-ld/v1/entities?{query_str}"
+    ))
 }
 
 /// The runner's shared cache in which an on-change stream keeps the hash of the last page it
@@ -990,7 +1012,7 @@ fn endpoint_input(
             }
         }
     }
-    let source_url = endpoint_source_url(source_slug, &query);
+    let source_url = endpoint_source_url(source_slug, &query)?;
 
     let input = serde_json::json!({
         "generate": {
@@ -1837,6 +1859,92 @@ mod tests {
         }
     }
 
+    fn source_query(v: serde_json::Value) -> jc_core::kinds::pipeline::SourceQuery {
+        serde_json::from_value(v).expect("source query")
+    }
+
+    /// The query parameters of a rendered source URL, decoded the way the gateway reads them.
+    fn source_parameters(query: serde_json::Value) -> Vec<(String, String)> {
+        let rendered = endpoint_source_url("slug", &source_query(query)).expect("rendered");
+        let url = url::Url::parse(&rendered.replace("${JC_GATEWAY_URL}", "http://gw"))
+            .expect("the rendered URL parses");
+        url.query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect()
+    }
+
+    // T-2542, PL-31: a filter value is one parameter value, whatever characters it holds.
+    #[test]
+    fn endpoint_source_query_values_arrive_as_written() {
+        let q = "name==\"a&b=c #d+e%f?g\";refPlace==\"Töölö\"";
+        let params = source_parameters(serde_json::json!({
+            "type": "Bike",
+            "q": q,
+            "scopeQ": "/hel+sinki/#",
+            "geoQ": "georel=near;maxDistance==100&x=1",
+        }));
+        assert_eq!(
+            params,
+            vec![
+                ("type".to_string(), "Bike".to_string()),
+                ("limit".to_string(), "1000".to_string()),
+                ("q".to_string(), q.to_string()),
+                ("scopeQ".to_string(), "/hel+sinki/#".to_string()),
+                (
+                    "geoQ".to_string(),
+                    "georel=near;maxDistance==100&x=1".to_string()
+                ),
+            ]
+        );
+    }
+
+    // T-2542: the runner reads `${...}` in a URL as its own interpolation, so a value that holds
+    // one must leave the renderer as plain escaped text.
+    #[test]
+    fn endpoint_source_values_carry_no_runner_interpolation() {
+        let rendered = endpoint_source_url(
+            "slug",
+            &source_query(serde_json::json!({
+                "type": "Bike",
+                "attrs": ["a${!env(\"X\")}"],
+                "q": "name==\"${JC_TOKEN}\"",
+            })),
+        )
+        .expect("rendered");
+        let tail = rendered.trim_start_matches("${JC_GATEWAY_URL}");
+        assert!(!tail.contains("${"), "{rendered}");
+        assert!(!tail.contains('!'), "{rendered}");
+    }
+
+    // T-2542: every attribute name is encoded on its own; the comma between them stays the
+    // separator the gateway splits on.
+    #[test]
+    fn endpoint_source_attrs_are_encoded_one_by_one() {
+        let params = source_parameters(serde_json::json!({
+            "type": "Bike",
+            "attrs": ["speed&limit=1", "https://example.org/ns#weight"],
+        }));
+        assert_eq!(
+            params[1],
+            (
+                "attrs".to_string(),
+                "speed&limit=1,https://example.org/ns#weight".to_string()
+            )
+        );
+        assert_eq!(params.iter().filter(|(k, _)| k == "limit").count(), 1);
+    }
+
+    // T-2542: a comma inside one attribute name would be read as two names, so it is refused.
+    #[test]
+    fn endpoint_source_refuses_a_comma_inside_an_attribute_name() {
+        let err = endpoint_source_url(
+            "slug",
+            &source_query(serde_json::json!({"type": "Bike", "attrs": ["a,b"]})),
+        )
+        .expect_err("a comma in a name is refused");
+        assert!(err.to_string().contains("\"a,b\""), "{err}");
+    }
+
     #[test]
     fn endpoint_source_ids_renders_id_param() {
         let urn: jc_core::urn::Urn = "urn:ngsi-ld:BikeHireDockingStation:hel.fi:h:station-1"
@@ -1958,6 +2066,33 @@ output:
         ));
         // An empty file is an author who has not written the mapping yet: the stream still renders.
         assert!(render("").is_ok());
+    }
+
+    /// PL-16, PL-50, PL-52 (T-2557): the author's `bento.yaml` processors pass the same check as a
+    /// manifest's steps: a processor the platform does not run, at the top or nested inside
+    /// another, or a Bloblang read of the runner's environment, and no stream is rendered.
+    #[test]
+    fn a_bento_processor_the_platform_refuses_does_not_render() {
+        let mut spec = helsinki_pipeline_spec();
+        spec.compute = None;
+        let ds = helsinki_datasource_spec();
+        let render =
+            |bento: &str| render_stream(&spec, "p", "helsinki", &ds, "src", "abc123", Some(bento));
+        for bento in [
+            "pipeline:\n  processors:\n    - command: { name: sh }\n",
+            "pipeline:\n  processors:\n    - subprocess: { name: sh }\n",
+            "pipeline:\n  processors:\n    - try:\n        - file: { path: /etc/passwd }\n",
+            "pipeline:\n  processors:\n    - switch:\n        - processors:\n            - wasm: { module_path: /tmp/x.wasm }\n",
+            "pipeline:\n  processors:\n    - no_such_processor: {}\n",
+            "pipeline:\n  processors:\n    - mapping: 'root.s = env(\"JC_CLIENT_SECRET\")'\n",
+            "pipeline:\n  processors:\n    - branch:\n        processors:\n          - mapping: 'root = env(\"JC_CLIENT_SECRET\")'\n",
+        ] {
+            let refused = render(bento).expect_err(bento);
+            assert!(matches!(refused, RenderError::Bento(_)), "{bento}: {refused:?}");
+        }
+        // The same names as configuration of an allowed processor are not processors.
+        assert!(render("pipeline:\n  processors:\n    - redis: { url: redis://cache:6379, command: get, args_mapping: 'root = [this.id]' }\n").is_ok());
+        assert!(render(BENTO).is_ok());
     }
 
     #[tokio::test]

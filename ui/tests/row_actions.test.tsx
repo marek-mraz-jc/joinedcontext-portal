@@ -117,4 +117,23 @@ describe("the actions of a row", () => {
     await screen.findByRole("menuitem", { name: /Edit the endpoint/ });
     await expectNoAxeViolations(document.body);
   });
+
+  it("opens a link item in a new tab without leaking the opener, and separates groups (T-2618)", async () => {
+    const { baseElement } = show([
+      { key: "source", label: "Source", href: "https://forge.example/r", separatorAfter: true },
+      { key: "later", label: "Not yet", href: "https://forge.example/x", disabledReason: "No run yet." },
+      { key: "delete", label: "Delete", onSelect: vi.fn() },
+    ]);
+    await open();
+    const link = await screen.findByRole("menuitem", { name: "Source" });
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "https://forge.example/r");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noreferrer noopener");
+    // A disabled link is no link: nothing to follow, and it says why.
+    const later = screen.getByRole("menuitem", { name: /^Not yet/ });
+    expect(later.tagName).not.toBe("A");
+    expect(later).toHaveAttribute("aria-disabled", "true");
+    expect(baseElement.querySelectorAll('[role="separator"]')).toHaveLength(1);
+  });
 });

@@ -114,6 +114,9 @@ export async function approve(page: Page, project: string, change: string, confi
   // and this types it when the page asks; a Yellow change has no such field, and waiting for one
   // would fail on a change that needed no confirmation.
   const input = page.locator("#confirm-resource-name");
+  // The lane arrives with the change's plan, after the load: wait until the page has either
+  // enabled Approve (Yellow) or rendered the name field (Red), then answer the field if it is there.
+  await expect(button.and(page.locator(":enabled")).or(input).first()).toBeVisible({ timeout: 60_000 });
   if (confirm && (await input.count())) {
     await expect(input).toBeEnabled({ timeout: 60_000 });
     await input.pressSequentially(confirm, { delay: 60 });
@@ -233,6 +236,33 @@ export async function csrf(context: BrowserContext): Promise<string> {
     throw new Error("no jc_csrf cookie in this context: the session did not complete");
   }
   return cookie.value;
+}
+
+/**
+ * The check a manifest proposed without a draft needs first (PF-57, T-0956): the verdict gate
+ * refuses an unchecked one on every door with `verdict_required`. The check records its verdict
+ * under the manifest's own kind and name, fresh for these exact bytes; a proposal that became a
+ * Change forgets it, so each door checks again (T-2631).
+ */
+export async function checkManifest(page: Page, context: BrowserContext, project: string, manifest: { kind: string } & Record<string, unknown>): Promise<void> {
+  const [op, field] =
+    manifest.kind === "Pipeline"
+      ? ["jc_pipeline_test", "pipeline"]
+      : manifest.kind === "DataSource"
+        ? ["jc_datasource_check", "manifest"]
+        : ["jc_manifest_dry_run", "manifest"];
+  const answer = await page.request.post(`/api/v1/projects/${project}/ops/${op}`, {
+    headers: { "x-csrf-token": await csrf(context), "content-type": "application/json" },
+    data: { [field]: manifest },
+  });
+  const text = await answer.text();
+  if (!answer.ok()) {
+    throw new Error(`${op} of ${manifest.kind}: ${answer.status()} ${text}`);
+  }
+  const verdict = (JSON.parse(text) as { verdict?: { ok?: boolean } }).verdict;
+  if (verdict?.ok !== true) {
+    throw new Error(`${op} of ${manifest.kind} is not green: ${text.slice(0, 500)}`);
+  }
 }
 
 /**

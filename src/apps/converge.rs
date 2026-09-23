@@ -9,8 +9,9 @@
 //!
 //! Two properties make a second run cheap and safe. Server-side apply is idempotent by
 //! construction, so an unchanged app converges to no change at the API server. And the one
-//! value the reconciler owns and Git never sees — the endpoint slug — is read back from the
-//! Secret before rendering, so a second run does not move the app's endpoint (EP-02).
+//! endpoint slug is the one the App's committed Endpoint carries (T-2632), or, for an App
+//! committed before its grants were, the one read back from the Secret, so a second run does not
+//! move the app's endpoint (EP-02).
 //!
 //! One app's failure never stops another's: the loop reports per app and keeps going, because a
 //! single broken manifest should not freeze every other app on the cluster.
@@ -34,6 +35,29 @@ pub const IMAGE_ANNOTATION: &str = BUILT_ANNOTATIONS[0];
 
 /// The same for a compiled module.
 pub const MODULE_ANNOTATION: &str = BUILT_ANNOTATIONS[1];
+
+/// The slug of the Endpoint the door committed with this App (T-2632): `app-{name}` in the App's
+/// project, written by the reconciler. A hand-written Endpoint of that name is not the App's.
+pub fn committed_slug(repository: &Repository, app: &RawManifest) -> Option<EndpointSlug> {
+    let endpoint = format!("app-{}", app.metadata.name);
+    repository
+        .iter()
+        .map(|(_, resource)| &resource.manifest)
+        .find(|manifest| {
+            manifest.kind == "Endpoint"
+                && manifest.metadata.name == endpoint
+                && manifest.metadata.namespace == app.metadata.namespace
+                && manifest
+                    .metadata
+                    .rest
+                    .get("annotations")
+                    .and_then(|annotations| annotations.get(jc_core::annotations::GENERATED_BY))
+                    .and_then(Value::as_str)
+                    == Some(super::reconciler::GENERATOR)
+        })
+        .and_then(|manifest| manifest.spec["slug"].as_str())
+        .and_then(|slug| EndpointSlug::new(slug).ok())
+}
 
 /// The four objects an app owns, as the client addresses them.
 const OBJECTS: [(&str, &str); 4] = [
@@ -118,7 +142,10 @@ impl Converger {
                 ));
                 continue;
             }
-            let outcome = self.converge_one(&resource.manifest).await;
+            let committed = committed_slug(repository, &resource.manifest);
+            let outcome = self
+                .converge_with(&resource.manifest, committed.as_ref())
+                .await;
             report.push((id.to_string(), outcome));
         }
         report
@@ -126,6 +153,16 @@ impl Converger {
 
     /// Converges one App manifest.
     pub async fn converge_one(&self, manifest: &RawManifest) -> ConvergeResult {
+        self.converge_with(manifest, None).await
+    }
+
+    /// Converges one App manifest on the slug its committed Endpoint carries, when it has one:
+    /// the gateway routes that slug, so the pod must call it (T-2632).
+    pub async fn converge_with(
+        &self,
+        manifest: &RawManifest,
+        committed: Option<&EndpointSlug>,
+    ) -> ConvergeResult {
         let name = manifest.metadata.name.clone();
         let spec: AppSpec = match serde_json::from_value(manifest.spec.clone()) {
             Ok(spec) => spec,
@@ -154,26 +191,34 @@ impl Converger {
 
         // A static app is served by the Portal's own static host, so it has no objects at all
         // and its absence here is the design, not a gap (AP-14).
+        if spec.class == jc_core::kinds::AppClass::Static {
+            return Ok(Outcome::Skipped(
+                "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
+            ));
+        }
         // The digest the build lane wrote back in the commit that published the artifact, and
         // the only place one is read from: an annotation naming an image is refused at every
         // door now, so a manifest that still carries one deploys nothing (AP-13a, AP-72).
-        let image = match built_digest(manifest) {
-            Some(image) => image,
-            None if spec.class == jc_core::kinds::AppClass::Static => {
-                return Ok(Outcome::Skipped(
-                    "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
-                ))
-            }
-            None => {
-                return Ok(Outcome::Skipped(
-                    "no status.build yet, so the build lane has not published an artifact \
-                     (AP-13a)"
-                        .to_owned(),
-                ))
-            }
+        let Some(digest) = built_digest(manifest) else {
+            return Ok(Outcome::Skipped(
+                "no status.build yet, so the build lane has not published an artifact (AP-13a)"
+                    .to_owned(),
+            ));
+        };
+        // The reference is composed from this installation's registry and the digest the
+        // Portal checked on push, never read from the manifest (AP-107, AP-108).
+        let Some(image) = self.settings.image_of(&name, &digest) else {
+            return Ok(Outcome::Skipped(
+                "no registry is configured (JC_PORTAL_APPS_REGISTRY), so no image reference can \
+                 be composed (AP-108)"
+                    .to_owned(),
+            ));
         };
 
-        let slug = self.slug_of(&name).await?;
+        let slug = match committed {
+            Some(slug) => slug.clone(),
+            None => self.slug_of(&name).await?,
+        };
         let rendered = render(manifest, Some(&image), &slug, &self.settings)?;
         let Some(workload) = rendered.workload else {
             return Ok(Outcome::Skipped(

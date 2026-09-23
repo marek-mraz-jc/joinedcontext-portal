@@ -90,6 +90,19 @@ describe("a kind's forms at their own addresses", () => {
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
   });
 
+  // T-2577, AG-73: the assistant opens a kind it does not draft at its /new address; a
+  // ServiceAccount is created on the access page, and that address opens its form too.
+  it("opens the service account form at /settings/service-accounts/new", async () => {
+    await open("/projects/helsinki/settings/service-accounts/new");
+    expect(await findFormPage(en.access.accounts.add)).toBeInTheDocument();
+  });
+
+  // T-2582: a SyncSource is created in the Sync page's dialog, and its /new address opens it.
+  it("opens the sync source form at /syncsources/new", async () => {
+    await open("/projects/helsinki/syncsources/new");
+    expect(await findFormPage(en.syncSources.dialog.title)).toBeInTheDocument();
+  });
+
   it("moves the address when the list's own button opens the form, and the back button leaves it", async () => {
     await open(LIST);
 

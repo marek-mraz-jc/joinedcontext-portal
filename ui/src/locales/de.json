@@ -53,7 +53,9 @@
     "import": "Import",
     "workspaces": "Kopien",
     "policies": "Richtlinien",
-    "subscriptions": "Abonnements"
+    "subscriptions": "Abonnements",
+    "organization": "Organisation",
+    "settings": "Projekteinstellungen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -123,6 +125,7 @@
     "lane": "Risikostufe",
     "phase": "Phase",
     "mergeRequest": "Merge-Request",
+    "repository": "Repository",
     "approve": "Freigeben",
     "reject": "Ablehnen",
     "approving": "Wird freigegeben...",
@@ -247,7 +250,11 @@
   },
   "changes": {
     "accepted": "Als Änderung vorgeschlagen:",
-    "review": "In Freigaben öffnen"
+    "review": "In Freigaben öffnen",
+    "approvedOnPropose": "Wird beim Vorschlagen genehmigt: Sie dürfen {kind} genehmigen und löschen.",
+    "approveNotDelete": "Wartet auf eine Genehmigung: Sie dürfen {kind} genehmigen, aber nicht löschen.",
+    "approvedAsProposed": "Beim Vorschlagen genehmigt, wird angewendet:",
+    "open": "Änderung öffnen"
   },
   "resourceDelete": {
     "title": "{name} entfernen",
@@ -486,7 +493,13 @@
       "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
-      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt."
+      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt.",
+      "edit": {
+        "alias": "Alias",
+        "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
+        "interval": "Spiegelintervall",
+        "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
+      }
     },
     "slugHint": "The address is created for you and never changes, even when the endpoint is renamed.",
     "picker": {
@@ -1147,6 +1160,25 @@
         "RealmRefused": "Nicht geschrieben"
       },
       "emptyHint": "Eine Gruppe ist ein Name für mehrere Personen, damit eine Rolle einmal vergeben wird statt Person für Person. Gruppen kommen vom Identitätsanbieter oder werden hier erklärt."
+    },
+    "domain": {
+      "title": "Domain",
+      "lead": "Ob nachgewiesen ist, dass die Domain der Organisation ihr gehört. Solange nicht, veröffentlichen Sie den folgenden Eintrag im DNS der Domain; das Portal prüft ihn bei der nächsten Synchronisierung erneut.",
+      "state": {
+        "pending": "Noch nicht verifiziert",
+        "verified": "Verifiziert",
+        "failed": "Verifizierung fehlgeschlagen"
+      },
+      "unchecked": "Noch nicht geprüft",
+      "method": {
+        "dns-txt": "einen DNS-TXT-Eintrag",
+        "did-web": "ihr did:web-Dokument"
+      },
+      "checkedBy": "Verifiziert über {method}, geprüft {when}.",
+      "checked": "Zuletzt geprüft {when}.",
+      "publish": "Veröffentlichen Sie diesen TXT-Eintrag im DNS der Domain:",
+      "copy": "Eintrag kopieren",
+      "copied": "Eintrag kopiert"
     }
   },
   "flows": {
@@ -1191,7 +1223,9 @@
       "json": "JSON-Liste",
       "jsonHelp": "Ein List-Objekt mit denselben Manifesten; ein ganzes Projekt fügt die Schemas daneben hinzu.",
       "zip": "ZIP-Archiv",
-      "zipHelp": "Manifeste, die Dateien daneben und ein Index, als Bündel reimportierbar."
+      "zipHelp": "Manifeste, die Dateien daneben und ein Index, als Bündel reimportierbar.",
+      "git": "Git-Repositories (zum Umziehen oder Kopieren des Projekts)",
+      "gitHelp": "Ein Git-Bundle pro Repository, das des Projekts und jeder Anwendung, mit der ganzen Geschichte, den Tags und dem Commit, auf dem es endet, bereit zum Import als neues Projekt anderswo. Nur der Standard-Branch reist mit."
     },
     "otherFormats": "Andere Formate",
     "revision": "Revision",
@@ -1401,6 +1435,7 @@
     "dataNeeds": "Liest {types} in {spaces}",
     "previewAction": "Vorschau öffnen",
     "publishAction": "Veröffentlichen",
+    "openAction": "App öffnen",
     "history": "Quelle und Verlauf",
     "back": "Zurück zu den Anwendungen",
     "preview": {
@@ -1449,7 +1484,10 @@
         "unavailable": "Der Endpoint veröffentlicht noch kein Modell, daraus lässt sich nichts ableiten.",
         "none": "Dieser Endpoint veröffentlicht keine Attribute, es gibt nichts zu lesen.",
         "loginOnly": "Unabhängig davon, wie der Endpoint veröffentlicht ist, läuft die erzeugte Anwendung in der Plattform und nur eine angemeldete Person kann sie öffnen.",
-        "write": "Die Anwendung darf diese Entitäten auch ändern ({actions}). Jedes Speichern durchläuft die Schreibregeln des Endpunkts."
+        "write": "Die Anwendung darf diese Entitäten auch ändern ({actions}). Jedes Speichern durchläuft die Schreibregeln des Endpunkts.",
+        "writeRole": "Nur diese Anwendungsrolle darf schreiben (optional)",
+        "writeRoleHelp": "Leer lassen, dann darf jede Person schreiben, die die App öffnen kann. Mit einem Rollennamen, z. B. steward, schreiben nur die Personen, die Sie nach dem Veröffentlichen auf der Seite der App dieser Rolle hinzufügen.",
+        "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen."
       },
       "preview": {
         "title": "Was dieser Endpoint Ihnen gibt",
@@ -1524,6 +1562,73 @@
       "limits": "Grenzen",
       "requestsPerMinute": "Anfragen pro Minute",
       "maxFileRows": "Zeilen pro Datei-Download"
+    },
+    "build": {
+      "title": "Build in der Forge",
+      "rebuild": "Neu bauen",
+      "repository": "Repository",
+      "runLink": "Letzter Lauf",
+      "package": "Paket",
+      "started": "Die Forge wurde gebeten, den Standardzweig erneut zu bauen; der Lauf erscheint hier in Kürze.",
+      "unreadable": "Wo diese Anwendung gebaut wird, konnte gerade nicht aus der Forge gelesen werden.",
+      "notOnForge": "Diese Anwendung wird nicht in der Forge gebaut: Sie hat kein eigenes Repository.",
+      "run": {
+        "none": "Es lief noch kein Build.",
+        "building": "{commit} wird gebaut …",
+        "succeeded": "{commit} gebaut.",
+        "failed": "Der Build von {commit} ist fehlgeschlagen; der letzte Lauf sagt, warum.",
+        "cancelled": "Der Build von {commit} wurde abgebrochen."
+      },
+      "state": {
+        "building": "Wird gebaut: {commit}",
+        "failed": "Build fehlgeschlagen",
+        "failedLink": "Warum er fehlschlug",
+        "served": "Ausgeliefert: {commit}",
+        "noRepository": "Kein eigenes Repository: Diese Anwendung ist älter als das Repository pro Anwendung, daher wird sie weder gebaut noch ausgeliefert."
+      }
+    },
+    "rebuildAction": "Rebuild",
+    "retireAction": "Retire",
+    "latestRun": "Latest build run",
+    "package": "Package",
+    "previewOnlyPreview": "Only a preview can be previewed here",
+    "publishOnlyPreview": "Only a preview can be published",
+    "rebuildOnlyPublished": "Only a published application is built",
+    "rebuildRunning": "A build is running",
+    "retireOnlyPublished": "Only a published application can be retired",
+    "openDisabled": {
+      "draft": "Nothing published yet",
+      "preview": "A preview opens from the menu",
+      "retired": "This application is retired",
+      "building": "Building…",
+      "failed": "Build failed",
+      "notBuilt": "No build is served yet"
+    },
+    "retire": {
+      "title": "Retire {name}",
+      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
+      "hint": "This opens a merge request. The source and its builds stay in the forge.",
+      "confirm": "Open the merge request",
+      "cancel": "Cancel"
+    },
+    "roles": {
+      "title": "Rollen und Mitglieder",
+      "lead": "Wer in dieser Anwendung was darf. Ein Mitglied hinzuzufügen oder zu entfernen schlägt eine Änderung der Anwendung vor, die eine freigebende Person prüft.",
+      "count": "Mitglieder: {count}",
+      "nobody": "Diese Rolle hat noch niemand.",
+      "groupMember": "Gruppe {group}",
+      "remove": "Entfernen",
+      "removeLabel": "{member} aus {role} entfernen",
+      "kind": "Hinzufügen",
+      "kindUser": "Person",
+      "kindGroup": "Gruppe",
+      "email": "E-Mail",
+      "group": "Gruppe",
+      "pickGroup": "Gruppe wählen",
+      "add": "Mitglied hinzufügen",
+      "needEmail": "Geben Sie die E-Mail-Adresse der Person ein.",
+      "needGroup": "Wählen Sie eine Gruppe.",
+      "already": "Hat diese Rolle bereits."
     }
   },
   "appLifecycle": {
@@ -2140,7 +2245,8 @@
     "laxWarning": "Verhaltene Validierung: Prüfung wurde nicht ausgeführt oder ist fehlgeschlagen.",
     "findings": "Befunde",
     "strict": "strikte Validierung",
-    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist."
+    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist.",
+    "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}"
   },
   "assistantPage": {
     "title": "Assistent",
@@ -2597,5 +2703,167 @@
       "interval": "Intervall der Schemaspiegelung",
       "expiresAt": "Läuft ab am"
     }
+  },
+  "organization": {
+    "field": {
+      "domain": "Domain",
+      "locales": "Sprachen",
+      "defaultLocale": "Standardsprache",
+      "contacts": "Kontakte",
+      "contactRole": "Zuständig für",
+      "contactName": "Name",
+      "contactEmail": "E-Mail",
+      "contactPhone": "Telefon",
+      "projects": "Regeln für Projekte",
+      "creation": "Wer ein Projekt eröffnen darf",
+      "visibility": "Wer die Projekte liest",
+      "nameCooldownDays": "Tage, die der Name eines gelöschten Projekts reserviert bleibt",
+      "quota": {
+        "title": "Kontingent eines neuen Projekts",
+        "contextSpaces": "Kontexträume",
+        "residentPipelines": "Dauerhafte Pipelines",
+        "publicEndpoints": "Öffentliche Endpunkte",
+        "ingestEventsPerSecond": "Aktualisierungen pro Sekunde",
+        "apps": "Apps",
+        "agentRunsPerDay": "Assistentenläufe pro Tag",
+        "entitiesPerSpace": "Entitäten pro Raum",
+        "requestsPerMinute": "Anfragen pro Minute je Endpunkt"
+      }
+    },
+    "contactRole": {
+      "administrative": "Verwaltung",
+      "technical": "Technik",
+      "data-protection": "Datenschutz",
+      "security": "Sicherheit"
+    },
+    "visibility": {
+      "organization": "Jede angemeldete Person der Organisation",
+      "members": "Nur, wen eine Bindung nennt"
+    },
+    "title": "Organisation",
+    "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
+    "tabsLabel": "Bereiche der Organisation",
+    "tab": {
+      "settings": "Einstellungen",
+      "members": "Mitglieder",
+      "roles": "Rollen",
+      "groups": "Gruppen",
+      "service-accounts": "Dienstkonten",
+      "projects": "Projekte"
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "lead": "Domain, Sprachen und Kontakte der Organisation und die Regeln, denen jedes Projekt folgt. Bearbeiten schlägt eine Änderung vor, die eine Verwaltung genehmigt.",
+      "empty": "Die Organisation hat noch kein Manifest",
+      "emptyHint": "Die Installation schreibt org.yaml in das Konfigurations-Repository; bis dahin lässt sich auf diesem Reiter nichts bearbeiten.",
+      "locales": "{locales}; auf {fallback}, wenn die eigene Sprache nicht angeboten wird",
+      "noContacts": "Noch kein Kontakt eingetragen.",
+      "creationAnyone": "Alle Angemeldeten dürfen ein Projekt eröffnen.",
+      "creationGroup": "Die Mitglieder der Gruppe {group} eröffnen Projekte.",
+      "creationAdmin": "Nur die Organisationsverwaltung eröffnet Projekte.",
+      "cooldown": "{days} Tage",
+      "noQuota": "Für ein neues Projekt ist keine Grenze gesetzt."
+    },
+    "members": {
+      "title": "Mitglieder",
+      "hidden": "Sie sehen nicht, wer zu dieser Organisation gehört; die Organisationsverwaltung sieht es.",
+      "caption": "Wer eine Rolle in der ganzen Organisation hat"
+    },
+    "roles": {
+      "seeded": "mitgeliefert"
+    },
+    "projects": {
+      "title": "Projekte",
+      "lead": "Jedes Projekt, das Sie lesen dürfen. Wer eines eröffnet, wird seine Verantwortliche; Löschen ist eine Änderung der roten Spur mit wieder eingetipptem Namen.",
+      "caption": "Die Projekte der Organisation",
+      "name": "Projekt",
+      "people": "Gebundene Personen und Gruppen",
+      "peopleHidden": "Für Sie nicht sichtbar",
+      "empty": "Noch kein Projekt",
+      "emptyHint": "Das erste eröffnen Sie mit Neues Projekt."
+    }
+  },
+  "projectDelete": {
+    "title": "Projekt {name} löschen",
+    "lead": "Das schlägt eine Änderung der roten Spur vor. Die Organisationsverwaltung genehmigt sie, bis dahin wird nichts entfernt.",
+    "propose": "Löschen des Projekts vorschlagen",
+    "cascadeTitle": "Was mit ihm geht",
+    "cascadeFailed": "Der Inhalt des Projekts ließ sich nicht zählen; die Änderung nennt trotzdem jede Datei, die sie entfernt.",
+    "count": "{count} × {what}",
+    "everythingElse": "jedes weitere Manifest für das Projekt: Datenquellen, Pipelines, Dienstkonten und Rollen",
+    "bindings": "jede Rollenbindung der Organisation, die das Projekt oder einen seiner Räume nennt",
+    "cooldown": "Der Name {name} bleibt nach dem Zusammenführen der Löschung {days} Tage reserviert.",
+    "action": "Projekt {name} löschen",
+    "button": "Löschen"
+  },
+  "projectSettings": {
+    "title": "Projekteinstellungen",
+    "lead": "Alles, was zum Projekt {project} gehört: Titel und Kontingente, wer daran gebunden ist, seine eigenen Rollen, seine Dienstkonten und seine Löschung. Jede Änderung wird vorgeschlagen und genehmigt.",
+    "tabsLabel": "Bereiche der Projekteinstellungen",
+    "tab": {
+      "general": "Allgemein",
+      "members": "Mitglieder",
+      "roles": "Rollen",
+      "service-accounts": "Dienstkonten",
+      "access": "Ihr Zugriff",
+      "danger": "Projekt löschen"
+    },
+    "field": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "quotas": "Kontingente dieses Projekts"
+    },
+    "general": {
+      "title": "Allgemein",
+      "lead": "Wie das Projekt heißt und beschrieben wird und was es enthalten darf. Bearbeiten schlägt eine Änderung von project.yaml vor.",
+      "noDescription": "Noch keine Beschreibung.",
+      "organization": "Organisation",
+      "unknown": "Für Sie nicht lesbar"
+    },
+    "access": {
+      "title": "Ihr Zugriff hier",
+      "lead": "Was Ihre Bindungen Ihnen in diesem Projekt zu lesen, vorzuschlagen, zu genehmigen und zu löschen erlauben, und woher jede Berechtigung kommt.",
+      "bootstrap": "Sie sind in der Gründungsgruppe: Sie dürfen alles, bis die erste Verwaltung gebunden ist.",
+      "caption": "Ihre Berechtigungen in {project}",
+      "role": "Rolle",
+      "allows": "Erlaubt",
+      "from": "Woher",
+      "none": "Keine Bindung gibt Ihnen hier etwas.",
+      "binding": "Bindung {binding}, {scope}"
+    },
+    "danger": {
+      "title": "Projekt löschen",
+      "lead": "Das Löschen entfernt alles, was für das Projekt geschrieben wurde, in einer Änderung der roten Spur, die eine Verwaltung genehmigt. Der Dialog nennt vor der Bestätigung, was mitgeht."
+    },
+    "roles": {
+      "organizationKinds": "Eine Rolle eines Projekts darf {kinds} nicht nennen: das gehört zu den eigenen Rollen der Organisation."
+    }
+  },
+  "projectDuplicate": {
+    "title": "{name} duplizieren",
+    "lead": "Kopiert das Repository des Projekts mit seiner ganzen Historie und schlägt den Registereintrag der Kopie vor.",
+    "propose": "Kopie vorschlagen",
+    "sameName": "Wählen Sie einen anderen Namen als den des Originals.",
+    "note": "Die Endpunkte der Kopie antworten unter eigenen Kennungen; Daten im Broker werden nicht kopiert.",
+    "button": "Duplizieren",
+    "needsRepository": "Nur ein Projekt in einem eigenen Repository kann dupliziert werden."
+  },
+  "projectImport": {
+    "title": "Projekt importieren",
+    "lead": "Legt die Repositories des Projekts aus einem Git-Export an und schlägt dann seinen Registereintrag vor.",
+    "button": "Projekt importieren",
+    "file": "Exportarchiv wählen",
+    "fileHint": "Eine .zip-Datei, die der Export im Git-Format geschrieben hat.",
+    "chosen": "Gewählt: {name}",
+    "noFile": "Wählen Sie zuerst ein Exportarchiv.",
+    "check": "Archiv prüfen",
+    "import": "Importieren",
+    "repositories": "Anzulegende Repositories",
+    "repository": "{repository} bei {head}",
+    "parameters": "Parameter",
+    "noParameters": "Das Projekt deklariert keine Parameter.",
+    "secretHint": "Geben Sie den Namen eines Secrets ein, nie seinen Wert.",
+    "default": "Standard: {value}.",
+    "useDefault": "Standard verwenden"
   }
 }

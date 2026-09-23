@@ -17,7 +17,8 @@ import {
   endpointUrl,
   REPRESENTATION_PATHS,
 } from "../../components/endpoints/links";
-import { SharedWithBadge } from "../../components/endpoints/sharing";
+import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
+import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import {
   Badge,
@@ -50,11 +51,22 @@ export function spaceOf(manifest: Manifest): string | undefined {
 /**
  * The endpoint the portal reads a space through: one without a policy narrows nothing, so it
  * shows everything the space holds; failing that the first public one is at least readable.
+ * Given the person's `groups`, only an endpoint whose audience admits them is picked, and `null`
+ * (the identity not known yet) picks none: a page does not fetch what the gateway will refuse
+ * (T-2631).
  */
-export function pickReadEndpoint(endpoints: Manifest[]): Manifest | undefined {
+export function pickReadEndpoint(
+  endpoints: Manifest[],
+  groups?: readonly string[] | null,
+  project = "",
+): Manifest | undefined {
+  if (groups === null) {
+    return undefined;
+  }
+  const readable = groups === undefined ? endpoints : endpoints.filter((endpoint) => admitsPerson(endpoint, groups, project));
   return (
-    endpoints.find((endpoint) => endpoint.spec.policyRef === undefined) ??
-    endpoints.find((endpoint) => endpoint.spec.audience === "public")
+    readable.find((endpoint) => endpoint.spec.policyRef === undefined) ??
+    readable.find((endpoint) => endpoint.spec.audience === "public")
   );
 }
 
@@ -411,6 +423,7 @@ function Section({ title, children }: { title: ReactNode; children: ReactNode })
 /** What a Context Space holds: its entity types with live counts, its endpoints and policies. */
 export function SpaceInside({ project, name }: { project: string; name: string }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const identity = useIdentity();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
 
   const space = useQuery({
@@ -458,7 +471,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const spaceEndpoints = asManifests(endpoints.data?.items ?? []).filter(
     (endpoint) => spaceOf(endpoint) === name,
   );
-  const readEndpoint = pickReadEndpoint(spaceEndpoints);
+  const readEndpoint = pickReadEndpoint(spaceEndpoints, identity ? (identity.groups ?? []) : null, project);
   const slug =
     typeof readEndpoint?.spec.slug === "string" ? (readEndpoint.spec.slug as string) : undefined;
   const spacePolicies = asManifests(policies.data?.items ?? []).filter(
@@ -472,7 +485,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
-            className="focus-ring text-body text-primary underline hover:no-underline"
+            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
           >
             {t("spaces.inside.back")}
           </Link>

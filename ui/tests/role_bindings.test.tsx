@@ -42,7 +42,8 @@ const BINDINGS = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "List",
   items: [
-    binding("admins", { user: "demo.steward@hel.fi" }, "org-admin", { organization: "hel" }),
+    binding("admins", { user: "someone@hel.fi" }, "org-admin", { organization: "hel" }),
+    binding("stewards", { user: "demo.steward@hel.fi" }, "steward", { project: PROJECT }),
     binding("bikes-team", { group: "bikes" }, "pipeline-editor", { contextSpace: "citybikes" }),
     binding("espoo-stewards", { user: "someone@espoo.fi" }, "steward", { project: "espoo" }),
   ],
@@ -130,7 +131,7 @@ describe("people and roles", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     document.cookie = "jc_csrf=csrf-token-value";
-    window.history.pushState({}, "", `/projects/${PROJECT}/access`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/settings/members`);
   });
 
   afterEach(() => {
@@ -138,12 +139,14 @@ describe("people and roles", () => {
     window.history.pushState({}, "", "/");
   });
 
-  it("lists the roles held over the organization, this project and its spaces, not another project's", async () => {
+  // The organization's grants are on Organization → Members (Architecture/09 §14.3, T-2606).
+  it("lists the roles held over this project and its spaces, not the organization's or another project's", async () => {
     renderAccess({ grants: ADMIN });
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
     const table = roles();
-    expect(within(table).getByText(en.access.roles.organization)).toBeInTheDocument();
+    expect(within(table).getByText(en.access.roles.project.replace("{name}", PROJECT))).toBeInTheDocument();
+    expect(within(table).queryByText("someone@hel.fi")).not.toBeInTheDocument();
     expect(within(table).getByText("Group bikes")).toBeInTheDocument();
     expect(within(table).getByText("Context space citybikes")).toBeInTheDocument();
     expect(within(table).queryByText("someone@espoo.fi")).not.toBeInTheDocument();
@@ -203,8 +206,8 @@ describe("people and roles", () => {
 
   it("opens the grant the assistant drafted, filled in, and shows a refusal in the API's words", async () => {
     const refusal = "a binding may not grant more than its proposer holds: missing delete on Endpoint (PF-52)";
-    window.history.pushState({}, "", `/projects/${PROJECT}/access?grant=jana-kovacova-org-admin-helsinki`);
-    rememberPrefill(`/projects/${PROJECT}/access?grant=jana-kovacova-org-admin-helsinki`, {
+    window.history.pushState({}, "", `/projects/${PROJECT}/settings/members?grant=jana-kovacova-org-admin-helsinki`);
+    rememberPrefill(`/projects/${PROJECT}/settings/members?grant=jana-kovacova-org-admin-helsinki`, {
       ...binding("jana-kovacova-org-admin-helsinki", { user: "jana.kovacova" }, "org-admin", { project: PROJECT }),
     });
     renderAccess({ grants: ADMIN, refusal });
@@ -224,7 +227,7 @@ describe("people and roles", () => {
     expect(queryFormPage()).not.toBeInTheDocument();
 
     // What the dock does with a navigate event: the form in hand, then the route with the draft.
-    const route = `/projects/${PROJECT}/access?grant=jana-kovacova-steward-helsinki`;
+    const route = `/projects/${PROJECT}/settings/members?grant=jana-kovacova-steward-helsinki`;
     rememberPrefill(route, binding("jana-kovacova-steward-helsinki", { user: "jana.kovacova" }, "steward", { project: PROJECT }));
     act(() => {
       window.history.pushState({}, "", `${route}&draft=jana-kovacova-steward-helsinki`);
@@ -244,15 +247,15 @@ describe("people and roles", () => {
     await userEvent.click(remove);
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: en.resourceDelete.propose });
-    await userEvent.type(within(dialog).getByRole("textbox"), "admin");
+    await userEvent.type(within(dialog).getByRole("textbox"), "steward");
     // `aria-disabled`, not `disabled`: a refusal that carries a reason keeps the button in the
     // tab order so the reason can be reached and read (T-1830, T-1743, UI-44). `expectDenied` is
     // that property in one call — the attribute, the tab order, and the reason it names.
-    expectDenied(confirm, en.resourceDelete.needName.replace("{name}", "admins"));
+    expectDenied(confirm, en.resourceDelete.needName.replace("{name}", "stewards"));
     await userEvent.type(within(dialog).getByRole("textbox"), "s");
     await userEvent.click(confirm);
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
-    expect(new URL(writes(fetchMock)[0].url).pathname).toBe("/api/v1/projects/org/rolebindings/admins");
+    expect(new URL(writes(fetchMock)[0].url).pathname).toBe("/api/v1/projects/org/rolebindings/stewards");
   });
 });

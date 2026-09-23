@@ -516,7 +516,7 @@ async fn invalid_change_id_returns_400() {
             .detail
             .as_deref()
             .unwrap()
-            .contains("expected 'chg-' followed by 8 lowercase hex digits"));
+            .contains("expected 'chg-' or 'chg-org-' followed by 8 lowercase hex digits"));
     }
 }
 

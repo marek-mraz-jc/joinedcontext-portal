@@ -130,22 +130,21 @@ async function fillTheRole(
 describe("the roles of a project on the Access page", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/access");
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/roles");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("lists the project's own roles beside the organization's, saying where each one lives", async () => {
+  // The organization's roles are on Organization → Roles (Architecture/09 §14.3, T-2606).
+  it("lists the project's own roles, and not the organization's", async () => {
     renderAccess();
 
     const own = (await screen.findByText("air-analyst")).closest("tr") as HTMLElement;
     expect(within(own).getByText("Project banskabystrica")).toBeTruthy();
     expect(within(own).getByText(/propose on DataSource/)).toBeTruthy();
-
-    const shared = screen.getByText("org-admin").closest("tr") as HTMLElement;
-    expect(within(shared).getByText("The whole organization")).toBeTruthy();
+    expect(screen.queryByText("org-admin")).toBeNull();
   });
 
   it("opens this project's role form and posts nothing until it is valid", async () => {

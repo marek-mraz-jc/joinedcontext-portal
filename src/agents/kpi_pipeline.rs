@@ -875,4 +875,242 @@ mod tests {
         assert!(mapping(Agg::Avg).contains("\"unitCode\": \"GQ\""));
         assert!(mapping(Agg::Avg).contains("PT1H"));
     }
+
+    fn write_policy(name: &str, space: &str, assignee: Value) -> Value {
+        json!({
+            "kind": "Policy",
+            "metadata": { "name": name },
+            "spec": {
+                "contextSpaceRef": { "kind": "ContextSpace", "name": space },
+                "assignee": assignee,
+                "operations": ["upsertBatch"],
+            }
+        })
+    }
+
+    fn base_call() -> Value {
+        json!({ "name": "bikes-avg", "type": "BikeHireDockingStation", "attribute": "availableBikeNumber", "agg": "avg", "every": "15m" })
+    }
+
+    fn drafted<'a>(plan: &'a Plan, kind: &str) -> Vec<&'a Drafted> {
+        plan.space_drafts
+            .iter()
+            .filter(|d| d.kind == kind)
+            .collect()
+    }
+
+    /// AG-74, PF-54, T-2511: an indicator is never written into the space it reads, whichever way
+    /// the target is spelled.
+    #[test]
+    fn target_equal_to_source_space_is_refused() {
+        let endpoints = [endpoint("bikes-kpi-feed", "bikes-kpi", "feedslug")];
+        let spaces = ["bikes-kpi".to_owned()];
+        for target in ["bikes-kpi", "bikes", "Bikes-KPIS"] {
+            let mut value = base_call();
+            value["sourceEndpoint"] = json!("bikes-kpi-feed");
+            value["targetSpace"] = json!(target);
+            let refused = plan(&call(value), &world(&endpoints, &spaces, &[]))
+                .map(|_| ())
+                .unwrap_err();
+            assert!(
+                refused.contains("is the space the indicator reads"),
+                "{target}: {refused}"
+            );
+        }
+    }
+
+    /// PF-50, T-2511: with no write grant on any indicator space, the one drafted names the
+    /// platform's pipelines account; nobody the model named.
+    #[test]
+    fn no_existing_write_policy_on_the_target_falls_back_to_the_pipelines_service_account() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned()];
+        let policies = [write_policy(
+            "helsinki-edit",
+            "helsinki",
+            json!({ "kind": "user", "id": "jana" }),
+        )];
+        let plan =
+            plan(&call(base_call()), &world(&endpoints, &spaces, &policies)).expect("a plan");
+        let writes = drafted(&plan, "Policy")
+            .into_iter()
+            .find(|d| d.name.ends_with("-pipelines-write"))
+            .expect("a write grant");
+        assert_eq!(
+            writes.manifest["spec"]["assignee"],
+            json!({ "kind": "serviceAccount", "id": "pipelines" })
+        );
+        assert_eq!(writes.manifest["spec"]["assigner"], "did:web:{orgDomain}");
+    }
+
+    /// PF-50, T-2511: the write grant of an existing indicator space is what a new one copies, so
+    /// the account that writes indicators today writes these too; a write grant on a space that is
+    /// not an indicator space is never copied.
+    #[test]
+    fn an_existing_kpi_space_write_grant_is_copied_as_the_new_spaces_assignee() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned(), "mobility-kpi".to_owned()];
+        let runner = json!({ "kind": "serviceAccount", "id": "kpi-runner" });
+        let policies = [
+            write_policy(
+                "data-edit",
+                "helsinki",
+                json!({ "kind": "user", "id": "jana" }),
+            ),
+            write_policy("mobility-kpi-write", "mobility-kpi", runner.clone()),
+        ];
+        let plan =
+            plan(&call(base_call()), &world(&endpoints, &spaces, &policies)).expect("a plan");
+        assert_eq!(plan.target_space, "helsinki-kpi");
+        let writes = drafted(&plan, "Policy")
+            .into_iter()
+            .find(|d| d.name == "helsinki-kpi-pipelines-write")
+            .expect("a write grant");
+        assert_eq!(writes.manifest["spec"]["assignee"], runner);
+    }
+
+    /// PL-45, T-2511: the model's strings reach the mapping only as JSON string literals, and the
+    /// indicator's name, which is spliced into a format string, is refused unless it is DNS-1123.
+    #[test]
+    fn bloblang_name_interpolation_never_breaks_out_of_the_format_string() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned()];
+        for name in ["x\".format(env(\"SECRET\"))", "a b", "x\\", "x:y", ""] {
+            let mut value = base_call();
+            value["name"] = json!(name);
+            assert!(
+                plan(&call(value), &world(&endpoints, &spaces, &[])).is_err(),
+                "{name:?} was accepted"
+            );
+        }
+        let mut value = base_call();
+        value["attribute"] = json!("pm10\") + env(\"SECRET\") + (\"");
+        value["unit"] = json!("GQ\" }\nroot = deleted()\n#");
+        let plan = plan(&call(value), &world(&endpoints, &spaces, &[])).expect("a plan");
+        let mapping = plan.pipeline["spec"]["compute"]["bloblang"]
+            .as_str()
+            .expect("mapping");
+        assert!(
+            mapping.contains(r#"s.get("pm10\") + env(\"SECRET\") + (\".value")"#),
+            "{mapping}"
+        );
+        assert!(!mapping.contains("\nroot = deleted()"), "{mapping}");
+        assert!(!mapping.contains("env(\"SECRET\")\n"), "{mapping}");
+    }
+
+    /// AG-74, T-2511: the named cases of `what_the_project_does_not_have_is_named_back`, one each.
+    #[test]
+    fn a_name_an_endpoint_or_a_run_endpoint_that_is_missing_is_named_back() {
+        let endpoints = [
+            endpoint("helsinki-all", "helsinki", "allslug"),
+            endpoint("helsinki-parking", "parking", "parkslug"),
+        ];
+        let spaces = ["helsinki".to_owned()];
+        // a_name_that_is_not_dns1123_is_refused
+        let mut value = base_call();
+        value["name"] = json!("Bikes_Avg");
+        assert!(plan(&call(value), &world(&endpoints, &spaces, &[]))
+            .map(|_| ())
+            .unwrap_err()
+            .contains("not an indicator name"));
+        // unknown_source_endpoint_names_back_the_projects_endpoints
+        let mut value = base_call();
+        value["sourceEndpoint"] = json!("nowhere");
+        let refused = plan(&call(value), &world(&endpoints, &spaces, &[]))
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            refused.contains("'nowhere'") && refused.contains("helsinki-all, helsinki-parking"),
+            "{refused}"
+        );
+        // no_run_endpoint_and_no_named_source_is_refused
+        let mut alone = world(&endpoints, &spaces, &[]);
+        alone.run_endpoint = None;
+        assert!(plan(&call(base_call()), &alone)
+            .map(|_| ())
+            .unwrap_err()
+            .contains("sourceEndpoint"));
+    }
+
+    /// AG-74, T-2511: an Endpoint that already carries the indicator space's name in another space
+    /// is left alone, and the drafted one takes `-writer`.
+    #[test]
+    fn an_endpoint_name_already_taken_by_the_target_gets_a_writer_suffix() {
+        let endpoints = [
+            endpoint("helsinki-all", "helsinki", "allslug"),
+            endpoint("helsinki-kpi", "helsinki", "oddslug"),
+        ];
+        let spaces = ["helsinki".to_owned()];
+        let plan = plan(&call(base_call()), &world(&endpoints, &spaces, &[])).expect("a plan");
+        assert_eq!(plan.target_endpoint, "helsinki-kpi-writer");
+        let endpoint = drafted(&plan, "Endpoint");
+        assert_eq!(endpoint.len(), 1);
+        assert_eq!(endpoint[0].name, "helsinki-kpi-writer");
+        assert_eq!(
+            endpoint[0].manifest["spec"]["contextSpaceRef"],
+            "helsinki-kpi"
+        );
+    }
+
+    /// AG-74, T-2511: `count` needs no attribute and asks for none; every other fold needs one.
+    #[test]
+    fn count_agg_needs_no_attribute_but_every_other_agg_does() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned()];
+        let mut counted = base_call();
+        counted["agg"] = json!("count");
+        counted["attribute"] = json!("");
+        let plan_of_count = plan(&call(counted), &world(&endpoints, &spaces, &[])).expect("count");
+        assert_eq!(
+            plan_of_count.pipeline["spec"]["source"]["query"],
+            json!({ "type": "BikeHireDockingStation" })
+        );
+        for agg in ["sum", "avg", "min", "max"] {
+            let mut value = base_call();
+            value["agg"] = json!(agg);
+            value["attribute"] = json!("  ");
+            assert!(
+                plan(&call(value), &world(&endpoints, &spaces, &[])).is_err(),
+                "{agg} took no attribute"
+            );
+        }
+    }
+
+    /// PL-51, T-2511: a change trigger subscribes to the watched attributes and carries no period.
+    #[test]
+    fn on_change_trigger_writes_a_subscription_not_a_period() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned()];
+        let mut value = base_call();
+        value.as_object_mut().expect("object").remove("every");
+        value["onChange"] = json!(true);
+        let plan = plan(&call(value), &world(&endpoints, &spaces, &[])).expect("a plan");
+        let spec = &plan.pipeline["spec"];
+        assert!(spec.get("period").is_none(), "{spec}");
+        assert_eq!(
+            spec["source"]["trigger"]["subscription"],
+            json!({ "type": "BikeHireDockingStation", "watchedAttributes": ["availableBikeNumber"] })
+        );
+    }
+
+    /// AG-74, T-2511: an indicator space the project holds is not drafted again, nor its read
+    /// grant; only what it lacks (its endpoint, its write grant) is.
+    #[test]
+    fn an_existing_target_space_drafts_no_contextspace_or_read_policy() {
+        let endpoints = [endpoint("helsinki-all", "helsinki", "allslug")];
+        let spaces = ["helsinki".to_owned(), "helsinki-kpi".to_owned()];
+        let plan = plan(&call(base_call()), &world(&endpoints, &spaces, &[])).expect("a plan");
+        assert!(
+            drafted(&plan, "ContextSpace").is_empty(),
+            "{:?}",
+            plan.space_drafts
+        );
+        let names: Vec<&str> = plan.space_drafts.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["helsinki-kpi", "helsinki-kpi-pipelines-write"],
+            "{names:?}"
+        );
+        assert_eq!(drafted(&plan, "Endpoint").len(), 1);
+    }
 }

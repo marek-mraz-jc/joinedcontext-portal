@@ -25,6 +25,24 @@ export function allows(effective: Effective | undefined, kind: string, verb: Ver
 }
 
 /**
+ * Whether a grant lets the caller read `kind` (PF-59): `read`, or `propose`, which implies it
+ * (jc-core `Rule::grants`). `undefined` while no document has arrived: a page that must not
+ * fetch a list for a caller who may not read it waits instead of guessing (T-2605).
+ */
+export function mayRead(effective: Effective | undefined, kind: string): boolean | undefined {
+  if (!effective || !Array.isArray(effective.grants)) {
+    return undefined;
+  }
+  if (effective.bootstrap === true) {
+    return true;
+  }
+  return effective.grants.some((grant) => {
+    const rule = grant.rule as Rule;
+    return Boolean(rule.kinds?.includes(kind)) && Boolean(rule.verbs?.includes("read") || rule.verbs?.includes("propose"));
+  });
+}
+
+/**
  * The caller's effective permissions in `project` (T-0526). A convenience for the UI: a
  * control renders only when the API would honour it, and the API decides on its own.
  */

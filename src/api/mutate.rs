@@ -178,6 +178,7 @@ pub(crate) fn within_workspace(
 
 /// The open change whose pull request still uses `branch`, if any (T-0883, T-0886).
 pub(crate) async fn open_change_on(
+    state: &AppState,
     gitea: &crate::git::GiteaClient,
     branch: &str,
     project: &str,
@@ -193,7 +194,7 @@ pub(crate) async fn open_change_on(
     Ok(pulls
         .into_iter()
         .find(|pr| pr.head_branch == branch || pr.head_branch.starts_with(&suffixed))
-        .map(|pr| ChangeMeta::from_merge_request(pr.number, project)))
+        .map(|pr| crate::api::changes::change_meta(state, gitea, pr.number, project)))
 }
 
 /// The branch a proposal is written on, starting from the default branch. A branch left by
@@ -276,6 +277,32 @@ fn build_lane_write(
              (AP-13a, AP-73)"
                 .to_owned(),
         ));
+    }
+    // The lane writes the build of an App on `main` and nothing else of it (AP-73): a stolen
+    // lane token can neither create an App nor change what one reads, shows or who opens it.
+    let name = body
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(current) = state.mirror.get(project, "App", name) else {
+        return Err(ApiError::Denied(format!(
+            "status.build is written back to an App on main; project {project} holds no App \
+             '{name}' (AP-73)"
+        )));
+    };
+    let map_at = |pointer: &str| -> std::collections::BTreeMap<String, String> {
+        body.pointer(pointer)
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default()
+    };
+    if body.get("spec") != Some(&current.spec)
+        || map_at("/metadata/labels") != current.metadata.labels
+        || map_at("/metadata/annotations") != current.metadata.annotations
+    {
+        return Err(ApiError::Denied(format!(
+            "the build lane writes status.build and nothing else: the spec, labels and \
+             annotations of App '{name}' must stay as they are on main (AP-73)"
+        )));
     }
     Ok(())
 }
@@ -436,6 +463,7 @@ async fn propose_checked(
     dry_run: bool,
     body_val: Value,
     workspace: Option<&str>,
+    confirm: Option<&str>,
 ) -> Result<Response, ApiError> {
     let manifest = body_val.clone();
     if dry_run {
@@ -507,6 +535,24 @@ async fn propose_checked(
     crate::ops::forget_check(state, project, &manifest).await;
     match outcome {
         ProposeOutcome::DryRun(res) => Ok((StatusCode::OK, Json(res)).into_response()),
+        // A person at the Portal who administers every kind of it has it approved now (PF-58);
+        // a bearer caller never does (AG-11).
+        ProposeOutcome::Change(change) if front != Front::Bearer => {
+            let kind = manifest
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let change = crate::api::changes::approve_as_proposed(
+                state,
+                &user.0.identity,
+                project,
+                kind,
+                change,
+                confirm,
+            )
+            .await;
+            Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+        }
         ProposeOutcome::Change(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         ProposeOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
     }
@@ -631,6 +677,19 @@ async fn propose_engine(
         ))
     })?;
 
+    // 1a. Whether the caller may propose this kind here at all, before anything of the
+    //     manifest is read: a viewer's create is a 403 whatever it sends, never a validation
+    //     answer that teaches the kind's schema (T-2576, PF-50, PF-51). What the content may
+    //     be is step 4c's.
+    if !crate::permissions::for_request(state, identity, project)
+        .may(kind_info.kind, jc_core::kinds::Verb::Propose)
+    {
+        return Err(ApiError::Denied(format!(
+            "no role grants propose on {} in project {project} (PF-50)",
+            kind_info.kind
+        )));
+    }
+
     // 2. Deserialize envelope and validate apiVersion, kind and path name
     let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
         .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
@@ -704,6 +763,17 @@ async fn propose_engine(
         )));
     }
 
+    // A published static App names its repository, unless the Portal image ships its bundle
+    // (AP-87). jc-core believes the annotation; this door checks the bundle is really here, so
+    // the annotation cannot publish an application nothing serves.
+    if operation != Operation::Delete {
+        if let Some(refusal) =
+            crate::apps::static_host::unshipped_claim(state.config.apps_dir.as_deref(), &envelope)
+        {
+            return Err(ApiError::BadRequest(refusal));
+        }
+    }
+
     // 4a'. A kind jc-core does not define is a kind no loader can read: `jcctl`, the Portal's
     //       own sync and the gateway's store all refuse an unknown kind and refuse the whole
     //       repository with it, so one such file stops configuration reaching every endpoint.
@@ -729,6 +799,14 @@ async fn propose_engine(
         checked.map_err(|e| {
             ApiError::BadRequest(format!("spec is not a valid {}: {e}", kind_info.kind))
         })?;
+    }
+
+    // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
+    //     `jcctl validate` runs, so the two cannot disagree about what is stale, and every stale
+    //     name is listed at once. The model is looked up in this project only, so a model of
+    //     another project is absent and nothing of it is named (R20).
+    if kind_info.kind == "ModelProjection" && operation != Operation::Delete {
+        check_projection(state, project, &envelope.spec).await?;
     }
 
     // 4c. A ServiceAccount's Keycloak client id is derived, `{project}-{name}`, and the hyphen
@@ -807,11 +885,15 @@ async fn propose_engine(
 
     // 4c. Who may propose this kind here, with this content (T-0526, PF-50): the bindings of
     //     the organization repository, before a Change exists. 403 names the verb or the field.
-    crate::permissions::for_request(state, identity, project).check(
-        kind_info.kind,
-        jc_core::kinds::Verb::Propose,
-        Some(&body_val),
-    )?;
+    //     A build write was judged by `build_lane_write`: the lane's rule, the App on main and
+    //     nothing of it changed (AP-73).
+    if !build_write {
+        crate::permissions::for_request(state, identity, project).check(
+            kind_info.kind,
+            jc_core::kinds::Verb::Propose,
+            Some(&body_val),
+        )?;
+    }
     // 4d. Nobody grants above their own rights (PF-52, AG-77).
     crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
 
@@ -827,6 +909,18 @@ async fn propose_engine(
             kind_info.kind,
             &envelope.metadata.name,
             &envelope.spec,
+        )?;
+    }
+
+    // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
+    //     project, so another project's App of the same name is refused before a Change exists.
+    if operation != Operation::Delete {
+        crate::apps::names::check(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
         )?;
     }
 
@@ -852,6 +946,17 @@ async fn propose_engine(
             to: Some(Value::from(content.len())),
         });
     }
+
+    // 5a. What an App grants rides in the same change as the App (CC-61, AP-96, T-2632): the
+    //     gateway reads endpoints and policies from the repository alone, so a grant nobody
+    //     commits is a grant it never enforces. The reviewer reads each one in the plan.
+    // A build write leaves the App as it is on main (AP-73), so it carries no grant either.
+    let grants = if kind_info.kind == "App" && operation != Operation::Delete && !build_write {
+        app_grants(state, project, &envelope)?
+    } else {
+        AppGrants::default()
+    };
+    plan.fields.extend(grants.review.iter().cloned());
 
     // 6. Risk-classified approval lane
     let lane = change::classify(kind_info.kind, operation, &envelope.spec);
@@ -893,9 +998,23 @@ async fn propose_engine(
 
     // 8. Commit to Git merge request via Gitea client
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+
+    // 8a. A lane's build is checked against the App's repository and published by the Portal
+    //     before anything is written: the lane's token names a build, it never makes one
+    //     (AP-101, AP-104).
+    if build_write {
+        crate::apps::built::check_and_publish(
+            gitea,
+            project,
+            &envelope.metadata.name,
+            &envelope.spec,
+            body_val.pointer("/status/build").unwrap_or(&Value::Null),
+        )
+        .await?;
+    }
 
     let default_branch = gitea.default_branch().await?;
 
@@ -934,7 +1053,7 @@ async fn propose_engine(
             // operation, so a second proposal while one is pending would rewrite the open pull
             // request under its approver. Refused before anything is written, naming the change
             // to decide first (T-0883).
-            if let Some(pending) = open_change_on(gitea, &branch, project).await? {
+            if let Some(pending) = open_change_on(state, gitea, &branch, project).await? {
                 return Err(ApiError::Conflict(format!(
                     "a change for {} '{}' is already open: {}; approve or reject it first",
                     kind_info.kind, envelope.metadata.name, pending.name
@@ -1001,6 +1120,27 @@ async fn propose_engine(
             .await?;
     }
 
+    if !grants.uploads.is_empty() || !grants.removed.is_empty() {
+        let mut deletes = Vec::new();
+        for path in &grants.removed {
+            if let Some(file) = gitea.get_file(path, &branch).await? {
+                deletes.push((path.clone(), file.sha));
+            }
+        }
+        gitea
+            .change_files(
+                &branch,
+                &commit_msg,
+                Author {
+                    name: &author_name,
+                    email: &author_email,
+                },
+                &grants.uploads,
+                &deletes,
+            )
+            .await?;
+    }
+
     gitea.put_file(&file_write).await?;
 
     if let Some(name) = workspace {
@@ -1023,12 +1163,197 @@ async fn propose_engine(
         .await?;
 
     // 9. Answer 202 Accepted with Change resource
-    let change_meta = ChangeMeta::from_merge_request(pr.number, project);
+    let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
+        .in_repository(&pr.repository)
         .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 
     Ok(ProposeOutcome::Change(change))
+}
+
+/// The grants one App proposal commits and removes (CC-61, AP-96).
+#[derive(Default)]
+struct AppGrants {
+    /// `(path, yaml)` of the App's Endpoint and every Policy it compiles to.
+    uploads: Vec<(String, String)>,
+    /// Paths of generated grants of this App that it no longer compiles to: a role taken away,
+    /// a need removed, or the App leaving `preview`/`published`, where it grants nothing.
+    removed: Vec<String>,
+    /// One line per grant, so the review names who may do what (AP-98).
+    review: Vec<plan::FieldChange>,
+}
+
+/// Compiles an App's Endpoint and Policies for the change that proposes it (T-2632).
+///
+/// The slug is the App's Endpoint's own once it has one, and a fresh one (EP-02) the first time,
+/// so republishing never moves the endpoint under its readers. Only what the reconciler generated
+/// is replaced or removed: an Endpoint or Policy of the same name somebody wrote by hand is
+/// refused, never overwritten.
+fn app_grants(
+    state: &AppState,
+    project: &str,
+    envelope: &ResourceEnvelope,
+) -> Result<AppGrants, ApiError> {
+    use crate::apps::reconciler::{generate_slug, grants, RenderError, GENERATOR};
+    use jc_core::annotations::GENERATED_BY;
+
+    let name = &envelope.metadata.name;
+    let endpoint_name = format!("app-{name}");
+    let generated = |env: &ResourceEnvelope| {
+        env.metadata
+            .annotations
+            .get(GENERATED_BY)
+            .map(String::as_str)
+            == Some(GENERATOR)
+    };
+    let current_endpoint = state.mirror.get(project, "Endpoint", &endpoint_name);
+    if let Some(endpoint) = current_endpoint.as_ref().filter(|env| !generated(env)) {
+        return Err(ApiError::Conflict(format!(
+            "Endpoint '{}' in project '{project}' was not generated for App '{name}', and the \
+             App's own endpoint has that name: rename one of them (AP-04, T-2632)",
+            endpoint.metadata.name
+        )));
+    }
+    let slug = current_endpoint
+        .as_ref()
+        .and_then(|env| env.spec.get("slug").and_then(Value::as_str))
+        .and_then(|slug| jc_core::kinds::EndpointSlug::new(slug).ok())
+        .unwrap_or_else(generate_slug);
+
+    let manifest: jcctl::loader::RawManifest = serde_json::from_value(
+        serde_json::to_value(envelope).map_err(|e| ApiError::Internal(e.to_string()))?,
+    )
+    .map_err(|e| ApiError::Internal(format!("the App as a manifest: {e}")))?;
+    let domain = crate::api::assistant::org_domain(state, project);
+    let compiled = match grants(&manifest, &slug, &domain) {
+        Ok((endpoint, policies)) => std::iter::once(endpoint).chain(policies).collect(),
+        // A draft or a retired App grants nothing (AP-18, AP-21).
+        Err(RenderError::NotDeployable { .. }) => Vec::new(),
+        Err(err) => return Err(ApiError::BadRequest(err.to_string())),
+    };
+
+    let mut out = AppGrants::default();
+    let mut kept = std::collections::BTreeSet::new();
+    for raw in compiled {
+        let env: ResourceEnvelope = serde_json::from_value(
+            serde_json::to_value(&raw).map_err(|e| ApiError::Internal(e.to_string()))?,
+        )
+        .map_err(|e| ApiError::Internal(format!("a generated {}: {e}", raw.kind)))?;
+        if raw.kind == "Policy" {
+            if let Some(held) = state
+                .mirror
+                .get(project, "Policy", &env.metadata.name)
+                .filter(|held| !generated(held))
+            {
+                return Err(ApiError::Conflict(format!(
+                    "Policy '{}' in project '{project}' was not generated for App '{name}' and \
+                     has the name its grant needs: rename it (AP-05, T-2632)",
+                    held.metadata.name
+                )));
+            }
+            out.review.push(plan::FieldChange {
+                path: format!("grants.{}", env.metadata.name),
+                from: None,
+                to: Some(Value::from(review_line(name, &env.spec))),
+            });
+        }
+        // The same check the App itself passed: a grant the gateway's loader would refuse
+        // fails here, as a form error, not after the approval.
+        if let Some(checked) = jc_core::registry::validate_yaml(
+            &raw.kind,
+            &serde_json::to_string(&env).map_err(|e| ApiError::Internal(e.to_string()))?,
+        ) {
+            checked.map_err(|e| {
+                ApiError::BadRequest(format!("the App's {} is not valid: {e}", raw.kind))
+            })?;
+        }
+        let info = resource::by_kind(&raw.kind)
+            .ok_or_else(|| ApiError::Internal(format!("no catalogue entry for {}", raw.kind)))?;
+        let path = resolve_repo_path(&env, info, project)?;
+        kept.insert((raw.kind.clone(), env.metadata.name.clone()));
+        let yaml = serde_yaml_ng::to_string(&env)
+            .map_err(|e| ApiError::Internal(format!("serialize {}: {e}", raw.kind)))?;
+        out.uploads.push((path, yaml));
+    }
+
+    for held in held_grants(state, project, name) {
+        if kept.contains(&(held.kind.clone(), held.metadata.name.clone())) {
+            continue;
+        }
+        let info = resource::by_kind(&held.kind)
+            .ok_or_else(|| ApiError::Internal(format!("no catalogue entry for {}", held.kind)))?;
+        out.removed.push(resolve_repo_path(&held, info, project)?);
+        out.review.push(plan::FieldChange {
+            path: format!("grants.{}", held.metadata.name),
+            from: Some(Value::from(held.kind.clone())),
+            to: None,
+        });
+    }
+    Ok(out)
+}
+
+/// The Endpoint and Policies the reconciler generated for App `app` of `project` (T-2632).
+///
+/// A generated Policy is the App's when it is granted to the App's endpoint, one of its roles, or
+/// its service account: by name alone, `app-bikes-2-1` could be App `bikes-2`'s.
+pub(crate) fn held_grants(state: &AppState, project: &str, app: &str) -> Vec<ResourceEnvelope> {
+    use jc_core::annotations::GENERATED_BY;
+    let endpoint_name = format!("app-{app}");
+    let caller = jc_core::kinds::endpoint_role(project, &endpoint_name, None);
+    let role_of_app = format!("{caller}/");
+    let this_apps = |assignee: &Value| {
+        let id = assignee["id"].as_str().unwrap_or_default();
+        match assignee["kind"].as_str() {
+            Some("role") => id == caller || id.starts_with(&role_of_app),
+            Some("serviceAccount") => id == endpoint_name,
+            _ => false,
+        }
+    };
+    state.mirror.matching(|env| {
+        env.metadata.namespace.as_deref() == Some(project)
+            && env
+                .metadata
+                .annotations
+                .get(GENERATED_BY)
+                .map(String::as_str)
+                == Some(crate::apps::reconciler::GENERATOR)
+            && ((env.kind == "Endpoint" && env.metadata.name == endpoint_name)
+                || (env.kind == "Policy" && this_apps(&env.spec["assignee"])))
+    })
+}
+
+/// One grant as a reviewer reads it: who, which operations, on which types (AP-98).
+fn review_line(app: &str, policy: &Value) -> String {
+    let join = |value: &Value, key: &str| {
+        value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        if key.is_empty() {
+                            item.as_str().map(str::to_owned)
+                        } else {
+                            item.get(key).and_then(Value::as_str).map(str::to_owned)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default()
+    };
+    let operations = join(&policy["operations"], "");
+    let types = join(&policy["information"][0]["entities"], "type");
+    let who = policy["assignee"]["id"]
+        .as_str()
+        .and_then(|id| id.rsplit_once('/'))
+        .map(|(_, last)| last.to_owned())
+        .filter(|last| last != &format!("app-{app}"));
+    match who {
+        Some(role) => format!("role {role} of {app} can {operations} {types}"),
+        None => format!("everyone who can open {app} can {operations} {types}"),
+    }
 }
 
 /// What a body's `files` member commits beside the manifest, each path resolved against the
@@ -1042,6 +1367,36 @@ async fn propose_engine(
 /// the propose permission of a different kind.
 const MAX_SIDECARS: usize = 16;
 const MAX_SIDECAR_BYTES: usize = 256 * 1024;
+
+/// A `ModelProjection` against the LinkML of the DataModel version it references (MP-01).
+async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
+    use jc_core::kinds::{DataModelSpec, ModelProjectionSpec};
+    // The kind's own parse ran above; a spec it accepted parses here too.
+    let projection: ModelProjectionSpec = serde_json::from_value(spec.clone())
+        .map_err(|e| ApiError::BadRequest(format!("spec is not a valid ModelProjection: {e}")))?;
+    let wanted = &projection.data_model_ref;
+    let model = state
+        .mirror
+        .get(project, "DataModel", &wanted.name)
+        .and_then(|model| serde_json::from_value::<DataModelSpec>(model.spec).ok())
+        .ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "spec.dataModelRef names DataModel '{}', which this project does not declare \
+                 (MP-01)",
+                wanted.name
+            ))
+        })?;
+    if model.version.major().to_string() != wanted.version {
+        return Err(ApiError::BadRequest(format!(
+            "spec.dataModelRef names version {} of DataModel '{}', which is at {} (MP-01)",
+            wanted.version, wanted.name, model.version
+        )));
+    }
+    let linkml = crate::api::datamodels::read_source(state, project, &wanted.name).await?;
+    projection
+        .check_against_linkml(&linkml)
+        .map_err(|e| ApiError::BadRequest(format!("spec is not a valid ModelProjection: {e}")))
+}
 
 fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, String)>, ApiError> {
     let Some(files) = files else {
@@ -1162,13 +1517,26 @@ async fn propose_draft(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/{plural}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1213,6 +1581,7 @@ pub async fn create(
         is_dry,
         body_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -1220,14 +1589,27 @@ pub async fn create(
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
-    request_body = ResourceEnvelope,
+    request_body(content = ResourceEnvelope, example = json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
+            "spec": {
+                "contextSpaceRef": "air",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
+                "audience": "organization",
+                "enabledRepresentations": ["ngsi-ld", "geojson"]
+            }
+        })),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
         (status = 200, description = "Dry run validation result", body = DryRunResult),
@@ -1272,6 +1654,7 @@ pub async fn replace(
         is_dry,
         body_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -1279,19 +1662,23 @@ pub async fn replace(
 #[utoipa::path(
     patch,
     path = "/api/v1/projects/{project}/{plural}/{name}",
+    summary = "Propose Resource",
+    description = "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
+        ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
     ),
     // Declared by hand: the handler takes the raw `Bytes` because the media type decides how the
     // body is parsed, and utoipa cannot derive a schema from that extractor.
     request_body(
-        content = String,
+        content = Object,
         description = "RFC 7386 merge patch, as JSON or as the YAML apply-patch document",
         content_type = "application/merge-patch+json",
+        example = json!({ "spec": { "audience": "organization" } }),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
@@ -1336,7 +1723,8 @@ pub async fn patch(
 
     let mirror = match dry_run_q.workspace.as_deref() {
         Some(workspace) => std::sync::Arc::new(
-            crate::ops::workspaces::mirror_of(&state, workspace, &project).await?,
+            crate::ops::workspaces::mirror_of(&state, &user.0.identity, workspace, &project)
+                .await?,
         ),
         None => state.mirror.clone(),
     };
@@ -1365,6 +1753,7 @@ pub async fn patch(
         is_dry,
         desired_val,
         dry_run_q.workspace.as_deref(),
+        dry_run_q.confirm.as_deref(),
     )
     .await
 }
@@ -1838,6 +2227,7 @@ mod tests {
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                confirm: None,
             }),
             headers,
             patch_body,

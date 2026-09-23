@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import type { JsonSchema } from "../forms/types";
+import type { EditableForm } from "../EditResourceDialog";
 import { DNS1123, SLUG_PATTERN } from "../../schemas/kinds";
 import { Badge } from "../ui";
 import type { BadgeTone } from "../ui";
@@ -53,6 +54,22 @@ export function admits(endpoint: Manifest, owner: string, project: string): bool
     default:
       return false;
   }
+}
+
+/**
+ * Whether the gateway admits a person with `groups` to this endpoint at all (EP-14, T-2631): its
+ * own rule for a human — `public` and `organization` admit anyone signed in, `project-list` a
+ * member of the owning project or of one it lists. A page reads only through an endpoint that
+ * admits the person, instead of fetching and meeting a 403.
+ */
+export function admitsPerson(endpoint: Manifest, groups: readonly string[], project: string): boolean {
+  const { audience, allowedProjects } = sharingOf(endpoint);
+  if (audience === "public" || audience === "organization") {
+    return true;
+  }
+  // A project lists its own endpoints; a manifest that omits its namespace is the page's project's.
+  const owner = endpoint.metadata.namespace ?? project;
+  return audience === "project-list" && [owner, ...allowedProjects].some((project) => project !== "" && groups.includes(project));
 }
 
 /** The audience as a chip, and for `project-list` the projects it names, so the owner sees who. */
@@ -111,6 +128,65 @@ export const sharedSpaceReferenceSchema: JsonSchema = {
     alias: { type: "string", pattern: DNS1123, maxLength: 63 },
   },
 };
+
+/** How often a peer's schema surface is mirrored: jc-core's `Schedule.interval` (DM-49). */
+const INTERVAL_PATTERN = "^[1-9][0-9]*[smhd]$";
+
+/**
+ * The part of a reference its project changes in place (T-2570, EP-15, DM-49): the alias the space
+ * is read by here and how often the peer's schema is mirrored. The source stays as it is, because
+ * another source is another reference; whatever else the stored manifest holds is kept.
+ */
+export function sharedReferenceForm(t: (key: string) => string): EditableForm {
+  return {
+    schema: {
+      type: "object",
+      required: ["alias"],
+      additionalProperties: false,
+      properties: {
+        alias: { type: "string", pattern: DNS1123, maxLength: 63 },
+        interval: { type: "string", pattern: INTERVAL_PATTERN },
+      },
+    },
+    uiSchema: {
+      alias: {
+        "ui:title": t("endpoints.shared.edit.alias"),
+        "ui:description": t("endpoints.shared.edit.aliasHelp"),
+        "ui:placeholder": "helsinki-liikenne",
+      },
+      interval: {
+        "ui:title": t("endpoints.shared.edit.interval"),
+        "ui:description": t("endpoints.shared.edit.intervalHelp"),
+        "ui:placeholder": "6h",
+      },
+    },
+    fromManifest: (manifest) => {
+      const spec = ((manifest as Manifest).spec ?? {}) as {
+        alias?: string;
+        schedule?: { interval?: string };
+      };
+      return {
+        alias: spec.alias ?? "",
+        ...(spec.schedule?.interval ? { interval: spec.schedule.interval } : {}),
+      };
+    },
+    toManifest: (form, stored) => {
+      const manifest = stored as Manifest;
+      const { schedule, ...rest } = (manifest.spec ?? {}) as { schedule?: Record<string, unknown> };
+      const interval = typeof form.interval === "string" ? form.interval.trim() : "";
+      // A new interval replaces the schedule; none keeps whatever else it held, or drops it for
+      // the 24-hour default.
+      const { interval: _dropped, ...kept } = schedule ?? {};
+      const nextSchedule = interval ? { interval } : Object.keys(kept).length ? kept : undefined;
+      return {
+        apiVersion: manifest.apiVersion,
+        kind: manifest.kind,
+        metadata: manifest.metadata,
+        spec: { ...rest, alias: form.alias, ...(nextSchedule ? { schedule: nextSchedule } : {}) },
+      };
+    },
+  };
+}
 
 /**
  * The manifest "Use in this project" proposes: one `SharedSpaceReference` in the consumer

@@ -155,13 +155,26 @@ pub fn redact(fields: Vec<FieldChange>) -> Vec<FieldChange> {
 
 /// Validates and parses `{id}` formatted as `chg-` plus eight lowercase hex digits.
 pub fn parse_change_id(id: &str) -> Result<u64, ApiError> {
-    let invalid = || {
-        ApiError::BadRequest(format!(
-            "invalid change id '{id}'; expected 'chg-' followed by 8 lowercase hex digits"
-        ))
-    };
-    let Some(hex) = id.strip_prefix("chg-") else {
-        return Err(invalid());
+    match parse_change_ref(id)? {
+        (false, number) => Ok(number),
+        (true, _) => Err(invalid_change_id(id)),
+    }
+}
+
+fn invalid_change_id(id: &str) -> ApiError {
+    ApiError::BadRequest(format!(
+        "invalid change id '{id}'; expected 'chg-' or 'chg-org-' followed by 8 lowercase hex digits"
+    ))
+}
+
+/// A Change id as `(organization, number)`: `chg-org-{hex}` is a merge request of the
+/// organization repository, `chg-{hex}` one of the repository the project's own kinds live in
+/// (CC-87).
+pub fn parse_change_ref(id: &str) -> Result<(bool, u64), ApiError> {
+    let invalid = || invalid_change_id(id);
+    let (organization, hex) = match id.strip_prefix("chg-org-") {
+        Some(hex) => (true, hex),
+        None => (false, id.strip_prefix("chg-").ok_or_else(invalid)?),
     };
     if hex.len() != 8
         || !hex
@@ -170,7 +183,42 @@ pub fn parse_change_id(id: &str) -> Result<u64, ApiError> {
     {
         return Err(invalid());
     }
-    u64::from_str_radix(hex, 16).map_err(|_| invalid())
+    u64::from_str_radix(hex, 16)
+        .map(|number| (organization, number))
+        .map_err(|_| invalid())
+}
+
+/// The forge a Change id is read, approved and rejected in, and its merge request number: the
+/// organization repository for `chg-org-`, the project's own otherwise (CC-87).
+pub fn resolve_change(
+    state: &AppState,
+    project: &str,
+    id: &str,
+) -> Result<(std::sync::Arc<GiteaClient>, u64), ApiError> {
+    let (organization, number) = parse_change_ref(id)?;
+    let forge = if organization {
+        state.gitea.clone()
+    } else {
+        state.forge_for(project)
+    };
+    let forge = forge.ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    Ok((forge, number))
+}
+
+/// The id merge request `number` of `forge` is known by under `project`: `chg-org-` for the
+/// organization repository in layout 2, where a project repository numbers its own apart;
+/// `chg-` otherwise (CC-87).
+pub fn change_meta(
+    state: &AppState,
+    forge: &GiteaClient,
+    number: u64,
+    project: &str,
+) -> ChangeMeta {
+    if state.mirror.layout() == 2 && !forge.is_project_repository() {
+        ChangeMeta::from_organization_merge_request(number, project)
+    } else {
+        ChangeMeta::from_merge_request(number, project)
+    }
 }
 
 /// Parsed components from a `portal/{op}-{kind}-{name}-{hash}` branch.
@@ -655,8 +703,9 @@ fn build_proposal(
     };
 
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
-    let change_status =
-        ChangeStatus::new(lane, phase, plan.summary).with_merge_request(pr.url.clone());
+    let change_status = ChangeStatus::new(lane, phase, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url.clone());
 
     ChangeProposal {
         api_version: crate::resource::API_VERSION.to_string(),
@@ -681,6 +730,8 @@ fn build_proposal(
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes",
+    summary = "List Changes",
+    description = "Lists open change proposals and merge requests for review.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -762,9 +813,9 @@ fn kind_of(proposal: &ChangeProposal) -> Option<&str> {
 /// Core proposal listing reusable by the REST route, operations registry and MCP.
 pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList, ApiError> {
     let gitea = state
-        .gitea
-        .as_deref()
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let prs = gitea.list_pull_requests("open").await?;
     let mut proposals = Vec::new();
@@ -784,6 +835,7 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
         // detail page contradicts.
         let carried = gitea.pull_request_files(pr.number).await?;
         let mut proposal = build_proposal(&pr, project, &data, plan, None, lane_of_paths(&carried));
+        proposal.metadata = change_meta(state, gitea, pr.number, project);
         proposal.author = human_author(gitea, &pr).await;
         // The count only: a listing that read every file of every open change to render
         // "+3 files" would pay for the detail page on the way past it (T-0861).
@@ -798,10 +850,12 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/changes/{id}",
+    summary = "Read One Change",
+    description = "One proposed change: what it does, who wrote it, its lane and where it stands.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("id" = String, Path, description = "Change proposal ID (chg- + 8 hex digits)"),
+        ("id" = String, Path, description = "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)"),
     ),
     responses(
         (status = 200, description = "Change proposal with plan diff", body = ChangeProposal),
@@ -828,11 +882,8 @@ pub async fn change_for(
     project: &str,
     id: &str,
 ) -> Result<ChangeProposal, ApiError> {
-    let pr_number = parse_change_id(id)?;
-    let gitea = state
-        .gitea
-        .as_deref()
-        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let (gitea, pr_number) = resolve_change(state, project, id)?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     if !is_change_branch(&pr.head_branch) {
@@ -859,6 +910,7 @@ pub async fn change_for(
         crate::api::import::riskiest(lane, file.lane)
     });
     Ok(ChangeProposal {
+        metadata: change_meta(state, gitea, pr_number, project),
         author,
         file_count: Some(files.len()),
         files: Some(files),
@@ -869,15 +921,19 @@ pub async fn change_for(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/approve",
+    summary = "Approve Change",
+    description = "Approves and merges a change proposal.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("id" = String, Path, description = "Change proposal ID (chg- + 8 hex digits)"),
+        ("id" = String, Path, description = "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)"),
     ),
     request_body(
         content = Option<ApproveBody>,
-        description = "Optional approval confirmation for red-lane changes",
-        content_type = "application/json"
+        description = "Optional approval confirmation for red-lane changes: `confirm` repeats \
+                       the resource's name",
+        content_type = "application/json",
+        example = json!({ "confirm": "helsinki-air" })
     ),
     responses(
         (status = 202, description = "Change proposal approved and deploying", body = Change),
@@ -1020,9 +1076,11 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
     Ok(listed)
 }
 
-/// The approval checks of every file the merge request changes, and the strictest lane among
-/// them (T-0832). The headline manifest is among them and passes the same checks twice, which
-/// costs nothing and keeps this loop free of a special case.
+/// The approval checks of every file the merge request changes, the strictest lane among them
+/// (T-0832), and whether the caller may also delete every kind they touch: an author approves
+/// their own change only as an administrator of every kind in it (PF-58). The headline manifest
+/// is among them and passes the same checks twice, which costs nothing and keeps this loop free
+/// of a special case.
 /// ponytail: one `get_file` per changed file; a bundle is a handful, the tree diff is the upgrade.
 async fn approve_every_file(
     state: &AppState,
@@ -1030,7 +1088,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<Lane, ApiError> {
+) -> Result<(Lane, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -1039,6 +1097,7 @@ async fn approve_every_file(
     let mut grants: std::collections::HashMap<String, crate::permissions::Effective> =
         std::collections::HashMap::new();
     let mut lane = Lane::Green;
+    let mut deletes_every_kind = true;
     for file in gitea.pull_request_files(pr.number).await? {
         // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
         // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
@@ -1078,6 +1137,9 @@ async fn approve_every_file(
             if file.deleted {
                 effective.check(kind, jc_core::kinds::Verb::Delete, target.as_ref())?;
             }
+            deletes_every_kind &= effective
+                .check(kind, jc_core::kinds::Verb::Delete, target.as_ref())
+                .is_ok();
             continue;
         };
         let manifest =
@@ -1087,6 +1149,13 @@ async fn approve_every_file(
             jc_core::kinds::Verb::Approve,
             Some(&manifest),
         )?;
+        deletes_every_kind &= effective
+            .check(
+                &envelope.kind,
+                jc_core::kinds::Verb::Delete,
+                Some(&manifest),
+            )
+            .is_ok();
         let access = matches!(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
@@ -1113,7 +1182,7 @@ async fn approve_every_file(
             change::classify(&envelope.kind, Operation::Create, &envelope.spec),
         );
     }
-    Ok(lane)
+    Ok((lane, deletes_every_kind))
 }
 
 /// Core approval function factored out for reuse by both the REST route and the operations registry.
@@ -1126,11 +1195,8 @@ pub async fn approve_change_for(
     by: ApprovedBy,
 ) -> Result<Change, ApiError> {
     may_approve_anything(state, identity, project)?;
-    let pr_number = parse_change_id(id)?;
-    let gitea = state
-        .gitea
-        .as_deref()
-        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let (gitea, pr_number) = resolve_change(state, project, id)?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     let data = load_manifest_data(gitea, &pr, project)
@@ -1158,7 +1224,18 @@ pub async fn approve_change_for(
                     &data.kind,
                     jc_core::kinds::Verb::Delete,
                     base.as_ref(),
-                )?
+                )?;
+                // PF-03: what was fine when proposed may be the last administrator by now.
+                if let Some(base) = &data.base_envelope {
+                    crate::permissions::keeps_an_administrator(
+                        &state.mirror,
+                        crate::permissions::AccessChange::Remove {
+                            kind: &data.kind,
+                            namespace: base.metadata.namespace.as_deref().unwrap_or(project),
+                            name: &base.metadata.name,
+                        },
+                    )?;
+                }
             }
             (_, Some(head)) => {
                 let manifest =
@@ -1172,7 +1249,8 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let bundle_lane = approve_every_file(state, identity, project, gitea, &pr).await?;
+    let (bundle_lane, deletes_every_kind) =
+        approve_every_file(state, identity, project, gitea, &pr).await?;
 
     let author = human_author(gitea, &pr).await;
     let is_author = match (&author.email, &identity.email) {
@@ -1186,9 +1264,13 @@ pub async fn approve_change_for(
         }
     };
 
-    // An author approves their own change only at the button and only as an administrator of its
-    // kind (PF-58); an agent never does (AG-11).
-    if is_author && !(by == ApprovedBy::Person && administers(state, identity, project, &data)) {
+    // An author's own change is approved only by a person, and only as an administrator of every
+    // kind in it (PF-58); an agent never does (AG-11).
+    if is_author
+        && !(by == ApprovedBy::Person
+            && deletes_every_kind
+            && administers(state, identity, project, &data))
+    {
         return Err(ApiError::SelfApproval(
             "proposal author cannot approve their own change (AG-11); an administrator of its kind may, in the Portal (PF-58)".to_string(),
         ));
@@ -1278,26 +1360,70 @@ pub async fn approve_change_for(
     }
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
-    let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary).with_merge_request(pr.url);
+    let change_meta = change_meta(state, gitea, pr_number, project);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 
     Ok(change)
 }
 
+/// A change a person just proposed with their own session, approved in the same call when they
+/// administer every kind it touches (PF-58): the button's one approval path, so the checks, the
+/// merge and its commit message are the same. Anyone else's change comes back as it was, waiting
+/// for an approver (PF-70), and so does an administrator's red-lane change without its typed
+/// name (CC-39). Only the Portal's session doors call this; an agent run, a bearer caller and MCP
+/// never do (AG-11, AG-82).
+pub async fn approve_as_proposed(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    kind: &str,
+    change: Change,
+    confirm: Option<&str>,
+) -> Change {
+    let effective = crate::permissions::for_request(state, identity, project);
+    // The bootstrap group is not a binding and administers nothing (PF-58).
+    let administers = !effective.bootstrap
+        && effective.may(kind, jc_core::kinds::Verb::Approve)
+        && effective.may(kind, jc_core::kinds::Verb::Delete);
+    if !administers || (change.status.lane == Lane::Red && confirm.is_none()) {
+        return change;
+    }
+    match approve_change_for(
+        state,
+        identity,
+        project,
+        &change.metadata.name,
+        confirm,
+        ApprovedBy::Person,
+    )
+    .await
+    {
+        Ok(approved) => approved,
+        Err(err) => {
+            tracing::info!(change = %change.metadata.name, error = %err, "the proposer's own change waits for an approver");
+            change
+        }
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/changes/{id}/reject",
+    summary = "Reject Change",
+    description = "Rejects a change proposal with a reason and closes its merge request.",
     tag = "changes",
     params(
         ("project" = String, Path, description = "Project name"),
-        ("id" = String, Path, description = "Change proposal ID (chg- + 8 hex digits)"),
+        ("id" = String, Path, description = "Change proposal ID: chg- + 8 hex digits, or chg-org- + 8 hex digits for the organization repository in layout 2 (CC-87)"),
     ),
     request_body(
         content = Option<ApproveBody>,
         description = "Optional reject payload",
-        content_type = "application/json"
+        content_type = "application/json",
+        example = json!({ "reason": "The endpoint would publish the stations' maintenance notes" })
     ),
     responses(
         (status = 202, description = "Change proposal rejected", body = Change),
@@ -1342,11 +1468,8 @@ pub async fn reject_change_for(
     reason: Option<&str>,
 ) -> Result<Change, ApiError> {
     may_approve_anything(state, identity, project)?;
-    let pr_number = parse_change_id(id)?;
-    let gitea = state
-        .gitea
-        .as_deref()
-        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let (gitea, pr_number) = resolve_change(state, project, id)?;
+    let gitea: &crate::git::GiteaClient = &gitea;
 
     let pr = gitea.pull_request(pr_number).await?;
     let data = load_manifest_data(gitea, &pr, project)
@@ -1382,9 +1505,10 @@ pub async fn reject_change_for(
         Lane::Yellow
     };
 
-    let change_meta = ChangeMeta::from_merge_request(pr_number, project);
-    let change_status =
-        ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary).with_merge_request(pr.url);
+    let change_meta = change_meta(state, gitea, pr_number, project);
+    let change_status = ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary)
+        .in_repository(&pr.repository)
+        .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
 }
 
@@ -1449,6 +1573,13 @@ mod tests {
         assert!(parse_change_id("chg-000000001").is_err());
         assert!(parse_change_id("chg-0000001A").is_err());
         assert!(parse_change_id("chg-0000000z").is_err());
+        // CC-87: the organization repository's merge requests under a project of layout 2.
+        assert_eq!(parse_change_ref("chg-org-0000002a").unwrap(), (true, 42));
+        assert_eq!(parse_change_ref("chg-0000002a").unwrap(), (false, 42));
+        assert!(parse_change_id("chg-org-0000002a").is_err());
+        assert!(parse_change_ref("chg-org-2a").is_err());
+        assert!(parse_change_ref("chg-org-").is_err());
+        assert!(parse_change_ref("chg-ORG-0000002a").is_err());
     }
 
     #[test]

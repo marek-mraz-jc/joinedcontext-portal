@@ -17,6 +17,24 @@ export interface Geo {
 
 export type Cell = string | number | boolean | Geo | null;
 
+/**
+ * A LanguageProperty as a write carries it: every language of the map, since the broker replaces
+ * the attribute whole (SDK-07). A row holds one language only, so a form reads the map first.
+ */
+export interface LanguageMap {
+  languageMap: Record<string, string>;
+}
+
+export function isLanguageMap(value: unknown): value is LanguageMap {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "languageMap" in value &&
+    typeof (value as LanguageMap).languageMap === "object" &&
+    (value as LanguageMap).languageMap !== null
+  );
+}
+
 /** One entity with every attribute reduced to a cell. `id` and `type` are always present. */
 export type Row = { id: string; type: string } & Record<string, Cell>;
 

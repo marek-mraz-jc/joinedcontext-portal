@@ -1,8 +1,13 @@
 # air-quality
 
 The reference app of AP-34: the stations of one Context Space, their latest values, a day of
-history and a note box for the people the gateway lets write. Architecture in
-[Apps on Demand §6](https://github.com/marek-mraz-jc/joinedcontext-docs/blob/main/Architecture/16-apps-on-demand.md).
+history, and a record form for a steward: add a station, correct its name, position and note,
+remove a station a steward added. The measured values stay read-only. Architecture in
+[Apps on Demand §6 and §13](https://github.com/marek-mraz-jc/joinedcontext-docs/blob/main/Architecture/16-apps-on-demand.md).
+
+The roles come from the Portal's `GET {JC_ME_URL}`, asked with the edge's token (AP-109); they
+decide what the page offers. What a person may write is decided by the gateway against the
+App's per-role grants, and its refusal reaches the page word for word (AP-40).
 
 It reaches exactly one thing, the Endpoint whose URL it is handed, and it holds no credential
 of its own. The login in front of it is the platform edge (APISIX `openid-connect`), which
@@ -15,11 +20,13 @@ login, session or token code of its own, and a write without `X-Access-Token` is
 ```bash
 JC_ENDPOINT_URL=https://{host}/api/endpoint/{slug}/ \
 JC_BASE_PATH=/apps/air-quality/ \
+JC_ME_URL=https://{host}/api/v1/projects/{project}/apps/air-quality/me \
 JC_BIND_ADDRESS=127.0.0.1:8080 \
 cargo run -p air-quality
 ```
 
-`JC_ENDPOINT_URL` is the only required variable; in the pod the reconciler sets
+`JC_ENDPOINT_URL` is the only required variable (without `JC_ME_URL` nobody holds a role, so
+nobody gets the form); in the pod the reconciler sets
 `JC_BIND_ADDRESS=0.0.0.0:8080` and the readiness probe reads `/healthz`. Build the UI first with `pnpm install &&
 pnpm build` in `ui/`; a debug build reads `ui/dist` from disk, a release build embeds it.
 

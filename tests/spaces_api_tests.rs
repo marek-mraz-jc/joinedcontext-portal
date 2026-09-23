@@ -7,7 +7,8 @@ mod common;
 
 use axum::http::StatusCode;
 use serde_json::{json, Value};
-use wiremock::MockServer;
+use wiremock::matchers::{method, path_regex};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{envelope, forge, person, send};
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
@@ -140,4 +141,38 @@ async fn a_project_may_still_update_its_own_space_of_that_name() {
     )
     .await;
     assert_eq!(own.status, StatusCode::OK, "{}", own.text);
+}
+
+/// PF-84: an import is refused a space whose segment another project pins, in the same words as
+/// the single-manifest door (T-2561).
+#[tokio::test]
+async fn an_import_carrying_a_taken_segment_is_refused_the_same_way() {
+    let gitea = forge().await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{}/git/trees/.*", common::REPO)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "tree": [], "truncated": false,
+        })))
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+    let import = "/api/v1/projects/doprava/import?dryRun=All";
+
+    let taken = send(&state, person("narrow"), "POST", import, Some(space("mhd"))).await;
+    assert_eq!(taken.status, StatusCode::FORBIDDEN, "{}", taken.text);
+    let said = detail(&taken.text);
+    assert!(
+        said.contains("is taken") && !said.contains("helsinki"),
+        "{said}"
+    );
+
+    let free = send(
+        &state,
+        person("narrow"),
+        "POST",
+        import,
+        Some(space("parkovanie")),
+    )
+    .await;
+    assert_ne!(free.status, StatusCode::FORBIDDEN, "{}", free.text);
 }

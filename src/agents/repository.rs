@@ -15,6 +15,50 @@ pub const MAX_NAME: usize = 100;
 /// The file the Portal writes beside the application's own files, saying how to run it.
 pub const README: &str = "README.md";
 
+/// The application's build, the Portal's and never the run's (AP-100, ADR-N-028 §3.2).
+pub const WORKFLOW: &str = ".gitea/workflows/build.yml";
+/// The folder the forge reads workflows from; a run commit never touches it.
+const BUILD_FOLDER: &str = ".gitea/";
+
+/// The workflow every application repository carries, as the SDK template holds it.
+pub const WORKFLOW_TEXT: &str = include_str!("../../sdk/template/.gitea/workflows/build.yml");
+
+/// Why a run commit cannot land, when it would touch the application's build (AP-100); `None`
+/// when it may. The first commit of a run carries the template's workflow and nothing else under
+/// `.gitea/`; every later commit leaves the folder as the first one wrote it, so only a workflow
+/// a reviewer merged ever runs, and a run cannot reach the lane's secret.
+pub fn build_refusal(
+    files: &std::collections::BTreeMap<String, String>,
+    committed: &std::collections::BTreeMap<String, String>,
+) -> Option<String> {
+    let under = |path: &&String| path.starts_with(BUILD_FOLDER);
+    let refused = |path: &str| {
+        Some(format!(
+            "{path}: the application's build is written by the Portal in the first commit and \
+             a run never changes it (AP-100)"
+        ))
+    };
+    if committed.is_empty() {
+        if let Some(path) = files
+            .keys()
+            .filter(under)
+            .find(|path| path.as_str() != WORKFLOW)
+        {
+            return refused(path);
+        }
+        return match files.get(WORKFLOW) {
+            Some(text) if text != WORKFLOW_TEXT => refused(WORKFLOW),
+            _ => None,
+        };
+    }
+    files
+        .keys()
+        .chain(committed.keys())
+        .filter(under)
+        .find(|path| files.get(*path) != committed.get(*path))
+        .and_then(|path| refused(path))
+}
+
 /// `{project}_{app}`: no project or application name holds a `_` (both are DNS-1123 labels),
 /// so two projects can never land on one repository (AP-75).
 pub fn name(project: &str, app: &str) -> String {
@@ -109,6 +153,18 @@ pub async fn open_merge_request(
         .await
 }
 
+/// Whether the tree at `sha` holds the application: a file that is neither the Portal's README
+/// nor the build folder (AP-77). A run that never committed a version has a branch that is `main`
+/// as the repository was created, and merging it would leave `main` with the README alone, which
+/// is how a published application once served nothing (T-2603).
+pub async fn holds_application(repo: &GiteaClient, sha: &str) -> Result<bool, GitError> {
+    Ok(repo
+        .list_tree(sha)
+        .await?
+        .iter()
+        .any(|path| path != README && !path.starts_with(BUILD_FOLDER)))
+}
+
 /// Merges the run's merge request once its `App` Change is approved, pinned to `sha`, the commit
 /// the approved manifest names: a branch that moved after publish is refused, never merged
 /// unread (AP-77, PF-57). A merge commit keeps `sha` in `main`'s history.
@@ -148,6 +204,88 @@ pub async fn merge_published(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+
+    fn tree(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+        entries
+            .iter()
+            .map(|(path, text)| ((*path).to_owned(), (*text).to_owned()))
+            .collect()
+    }
+
+    /// AP-100: the template every run starts from carries the workflow, byte for byte the file
+    /// the Portal commits, so a new repository builds itself on its first push.
+    #[test]
+    fn the_template_carries_the_workflow_the_first_commit_writes() {
+        let template = super::super::preview::template_files();
+        assert_eq!(
+            template.get(WORKFLOW).map(String::as_str),
+            Some(WORKFLOW_TEXT)
+        );
+        assert!(
+            WORKFLOW_TEXT.contains("workflow_dispatch"),
+            "Rebuild dispatches it (AP-103)"
+        );
+        assert!(WORKFLOW_TEXT.contains("branches: [main]"));
+        assert!(
+            WORKFLOW_TEXT.matches("secrets.").count() == 1
+                && WORKFLOW_TEXT.contains("${{ secrets.JC_LANE_TOKEN }}"),
+            "the lane's secret is in one step's environment and no other secret is (AP-80)"
+        );
+        let (build, propose) = WORKFLOW_TEXT
+            .split_once("\n  propose:\n")
+            .expect("a propose job after the build job");
+        assert!(
+            propose.contains("needs: build")
+                && propose.contains("secrets.JC_LANE_TOKEN")
+                && !propose.contains("build-app")
+                && !build.contains("secrets."),
+            "the job that runs the application's code never sees the lane's secret (AP-80)"
+        );
+        assert_eq!(build_refusal(&template, &BTreeMap::new()), None);
+    }
+
+    /// AP-100: a first commit carries the template's workflow and nothing else under `.gitea/`,
+    /// and every later commit that adds, changes or deletes anything there is refused.
+    #[test]
+    fn a_run_commit_never_changes_the_build() {
+        let first = tree(&[(WORKFLOW, WORKFLOW_TEXT), ("src/App.tsx", "a")]);
+        assert_eq!(build_refusal(&first, &BTreeMap::new()), None);
+        for bad in [
+            tree(&[(WORKFLOW, "on: push\n"), ("src/App.tsx", "a")]),
+            tree(&[
+                (WORKFLOW, WORKFLOW_TEXT),
+                (".gitea/workflows/steal.yml", "x"),
+            ]),
+        ] {
+            let refusal = build_refusal(&bad, &BTreeMap::new()).expect("refused");
+            assert!(
+                refusal.contains("AP-100") && refusal.contains(".gitea/"),
+                "{refusal}"
+            );
+        }
+
+        let committed = first.clone();
+        let edited = tree(&[(WORKFLOW, WORKFLOW_TEXT), ("src/App.tsx", "b")]);
+        assert_eq!(
+            build_refusal(&edited, &committed),
+            None,
+            "the app changes, the build does not"
+        );
+        let mut changed = edited.clone();
+        changed.insert(WORKFLOW.to_owned(), "on: [push]\n".to_owned());
+        let mut added = edited.clone();
+        added.insert(".gitea/actions/x.yml".to_owned(), "x".to_owned());
+        let mut deleted = edited.clone();
+        deleted.remove(WORKFLOW);
+        for bad in [changed, added, deleted] {
+            assert!(
+                build_refusal(&bad, &committed).is_some(),
+                "{:?}",
+                bad.keys()
+            );
+        }
+    }
 
     /// AP-75: the name joins project and application with the one character neither can hold.
     #[test]
@@ -373,5 +511,38 @@ mod tests {
             merge_published(&repo, &other, "abc", "approver@hel.fi").await,
             Err(GitError::NotFound)
         );
+    }
+
+    fn tree_of(paths: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "sha": "abc",
+            "truncated": false,
+            "tree": paths.iter().map(|p| serde_json::json!({ "path": p, "type": "blob", "sha": "b" })).collect::<Vec<_>>(),
+        })
+    }
+
+    /// AP-77, T-2603: a branch holding only the README and the build workflow is no application,
+    /// so publishing it would leave `main` README-only; one file of its own is enough.
+    #[tokio::test]
+    async fn a_branch_with_only_the_readme_and_the_workflow_holds_no_application() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, ResponseTemplate};
+        let (server, repo) = forge().await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/empty")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(tree_of(&[README, WORKFLOW])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/git/trees/built")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(tree_of(&[
+                README,
+                WORKFLOW,
+                "src/App.tsx",
+            ])))
+            .mount(&server)
+            .await;
+        assert!(!holds_application(&repo, "empty").await.expect("read"));
+        assert!(holds_application(&repo, "built").await.expect("read"));
     }
 }
