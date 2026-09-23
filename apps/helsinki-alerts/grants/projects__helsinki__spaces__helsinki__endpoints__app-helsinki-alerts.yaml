@@ -1,0 +1,26 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-helsinki-alerts
+  namespace: helsinki
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  allowedProjects:
+  - helsinki
+  audience: project-list
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: helsinki
+  enabledRepresentations:
+  - ngsi-ld
+  - geojson
+  roles:
+  - name: viewer
+    subjects:
+    - user: demo.viewer@hel.fi
+  - name: steward
+    subjects:
+    - user: demo.steward@hel.fi
+  slug: i6iifp45hfz5ukwtnkn3pgdchg

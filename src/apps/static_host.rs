@@ -244,9 +244,10 @@ pub(super) fn published_app(
 
 /// The configuration a static app starts from (SDK-02), `None` when it reads no endpoint.
 ///
-/// A static app has no pod and no rendered Endpoint of its own (AP-14), so its endpoints are the
-/// ones already there: every Endpoint of the project on a context space its `dataNeeds` name,
-/// then every Endpoint the project's `SharedSpaceReference`s point at (EP-15). The first is the
+/// A static app has no pod (AP-14). Its endpoints are, for each context space its `dataNeeds`
+/// name, the App's own generated `app-{name}` when its grants are committed, or else every
+/// Endpoint of the project on that space; then every Endpoint the project's
+/// `SharedSpaceReference`s point at (EP-15). The first is the
 /// primary. Slugs and spaces only, never a token: the reader's own session is what reaches each
 /// endpoint, and the gateway's Policy decides what it may read (AP-07).
 pub(super) fn served_config(
@@ -275,9 +276,29 @@ pub(super) fn served_config(
         env.kind == kind && env.metadata.namespace.as_deref() == Some(project)
     };
 
+    // The App's own endpoint, once its grants are committed (T-2632): the one it reads through
+    // (AP-04). Every other endpoint of that space is left out; offering them made the SDK refuse a
+    // type several of them serve, so the app read nothing (T-2667).
+    let own = mirror
+        .get(project, "Endpoint", &format!("app-{name}"))
+        .filter(|env| {
+            env.metadata
+                .annotations
+                .get(jc_core::annotations::GENERATED_BY)
+                .map(String::as_str)
+                == Some(crate::apps::reconciler::GENERATOR)
+        });
     let mut found: Vec<RunEndpoint> = Vec::new();
     for need in &spec.data_needs {
         let space = need.context_space_ref.name();
+        if let Some(endpoint) = own
+            .as_ref()
+            .filter(|env| ref_name(&env.spec["contextSpaceRef"]).as_deref() == Some(space))
+            .and_then(of)
+        {
+            found.push(endpoint);
+            continue;
+        }
         let serving = mirror.matching(|env| {
             in_project(env, "Endpoint")
                 && ref_name(&env.spec["contextSpaceRef"]).as_deref() == Some(space)

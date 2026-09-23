@@ -1,0 +1,20 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-bbsk-zaznamy
+  namespace: bbsk
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  allowedProjects:
+  - bbsk
+  audience: project-list
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: bbsk-kraj
+  enabledRepresentations:
+  - ngsi-ld
+  rateLimits:
+    requestsPerMinute: 300
+  slug: 66kkv3xr4lau6pjg2i5ef5lonc

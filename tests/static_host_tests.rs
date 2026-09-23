@@ -455,6 +455,65 @@ fn served_config(body: &[u8]) -> serde_json::Value {
     serde_json::from_str(&html[start..end]).expect("the configuration is JSON")
 }
 
+/// T-2667, AP-04: once the App's grants are committed it reads through its own endpoint alone.
+/// Offering every endpoint of the space made the SDK refuse a type several of them serve
+/// ("served by more than one endpoint"), and the bikes sample showed no station on dev.
+#[tokio::test]
+async fn an_app_with_its_own_endpoint_is_served_that_endpoint_alone() {
+    let index: &[u8] = b"<!doctype html><html><head><title>kpi</title></head><body></body></html>";
+    let dir = app_root("config", &[("index.html", index)]);
+    let mut spec = app_spec("published");
+    spec["dataNeeds"] = serde_json::json!([{
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "bbsk-kpi" },
+        "types": ["KeyPerformanceIndicator"],
+        "operations": ["queryEntity"]
+    }]);
+    let mirror = mirror_with_app(spec);
+    let endpoint =
+        |space: &str, slug: &str| serde_json::json!({ "contextSpaceRef": space, "slug": slug });
+    for (name, slug) in [
+        ("bbsk-kpi", "regionslug"),
+        ("bbsk-kpi-public", "publicslug"),
+    ] {
+        mirror.upsert(envelope(
+            "Endpoint",
+            "ovzdusie",
+            name,
+            endpoint("bbsk-kpi", slug),
+        ));
+    }
+    // A hand-written endpoint with the app's endpoint name is not the app's (T-2632).
+    let (_, body) = get_with(dir.path(), mirror.clone(), "/apps/air-quality/").await;
+    assert_eq!(
+        served_config(&body)["endpoints"].as_array().map(Vec::len),
+        Some(2)
+    );
+
+    let mut own = envelope(
+        "Endpoint",
+        "ovzdusie",
+        "app-air-quality",
+        endpoint("bbsk-kpi", "ownslug"),
+    );
+    own.metadata.annotations.insert(
+        "joinedcontext.com/generated-by".into(),
+        joinedcontext_portal::apps::reconciler::GENERATOR.into(),
+    );
+    mirror.upsert(own);
+    let (status, body) = get_with(dir.path(), mirror, "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK);
+    let config = served_config(&body);
+    assert_eq!(config["slug"], "ownslug");
+    assert_eq!(config["endpointName"], "app-air-quality");
+    let slugs: Vec<&str> = config["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .filter_map(|e| e["slug"].as_str())
+        .collect();
+    assert_eq!(slugs, ["ownslug"]);
+}
+
 /// T-2457: the region's application reads its own indicators and the city's through the shared
 /// reference, so the index it is served names both endpoints, by space, and never a token.
 #[tokio::test]

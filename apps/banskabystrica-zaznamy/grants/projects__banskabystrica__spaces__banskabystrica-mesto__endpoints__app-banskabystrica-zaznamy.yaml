@@ -1,0 +1,20 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-banskabystrica-zaznamy
+  namespace: banskabystrica
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  allowedProjects:
+  - banskabystrica
+  audience: project-list
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: banskabystrica-mesto
+  enabledRepresentations:
+  - ngsi-ld
+  rateLimits:
+    requestsPerMinute: 300
+  slug: i4sngyhtq6ifgjt4nwv5eacvhw

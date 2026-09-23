@@ -1,0 +1,19 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-banskabystrica-ovzdusie
+  namespace: banskabystrica
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  audience: public
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: ovzdusie
+  enabledRepresentations:
+  - ngsi-ld
+  - geojson
+  rateLimits:
+    requestsPerMinute: 600
+  slug: 32ea6ze7db7g6u7qnlgezpwp75

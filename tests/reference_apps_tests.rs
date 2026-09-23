@@ -7,7 +7,10 @@
 //! instead of in CI. The Portal already owns the reconciler and the contract, so the check
 //! lives here.
 
-use jc_core::kinds::App;
+use jc_core::kinds::{App, EndpointSlug};
+use jcctl::loader::RawManifest;
+use joinedcontext_portal::apps::reconciler::{generate_slug, grants, RenderError};
+use joinedcontext_portal::resource::{by_kind, repository_path};
 
 /// Reads every `apps/*/app.yaml` beside the Portal, in path order so a failure names the same
 /// app on every machine.
@@ -533,4 +536,132 @@ fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
         seen, 2,
         "hsl-transport and air-quality are the fullstack samples"
     );
+}
+
+/// The one Organization of the dev seed, whose domain every seeded project's ids carry.
+const SEED_ORG_DOMAIN: &str = "hel.fi";
+
+/// The Endpoint and Policies each sample app compiles to, as `(repository path, yaml)` in the
+/// layout-1 tree (`projects/{project}/…`), with `slug` for its Endpoint. `None` for an app that
+/// runs nowhere (a draft or a retired one grants nothing).
+fn compiled_grants(yaml: &str, slug: &EndpointSlug) -> Option<Vec<(String, String)>> {
+    let manifest: RawManifest = serde_yaml_ng::from_str(yaml).expect("a manifest");
+    let (endpoint, policies) = match grants(&manifest, slug, SEED_ORG_DOMAIN) {
+        Ok(compiled) => compiled,
+        Err(RenderError::NotDeployable { .. }) => return None,
+        Err(error) => panic!("{}: {error}", manifest.metadata.name),
+    };
+    let project = manifest
+        .metadata
+        .namespace
+        .clone()
+        .expect("an app names its project");
+    Some(
+        std::iter::once(endpoint)
+            .chain(policies)
+            .map(|raw| {
+                // Where the Portal's door files it (mutate.rs `resolve_repo_path`): an Endpoint
+                // under the space it serves, a Policy under the project's own.
+                let space = match raw.kind.as_str() {
+                    "Endpoint" => raw.spec["contextSpaceRef"]["name"]
+                        .as_str()
+                        .map(str::to_owned),
+                    _ => None,
+                }
+                .unwrap_or_else(|| project.clone());
+                let info = by_kind(&raw.kind).expect("a catalogued kind");
+                let path = repository_path(info, &project, Some(&space), &raw.metadata.name)
+                    .expect("a repository path");
+                (path, serde_yaml_ng::to_string(&raw).expect("yaml"))
+            })
+            .collect(),
+    )
+}
+
+/// `apps/{name}/grants/`, one file per manifest, named by its repository path with `/` as `__`:
+/// the forge bootstrap commits each beside the app's manifest (T-2667).
+fn grants_dir(name: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("apps")
+        .join(name)
+        .join("grants")
+}
+
+/// The slug the app's committed Endpoint keeps, read back from its grants file.
+fn pinned_slug(name: &str) -> Option<EndpointSlug> {
+    let dir = grants_dir(name);
+    std::fs::read_dir(&dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .find_map(|entry| {
+            let text = std::fs::read_to_string(entry.path()).ok()?;
+            let raw: RawManifest = serde_yaml_ng::from_str(&text).ok()?;
+            (raw.kind == "Endpoint")
+                .then(|| {
+                    raw.spec["slug"]
+                        .as_str()
+                        .and_then(|s| EndpointSlug::new(s).ok())
+                })
+                .flatten()
+        })
+}
+
+fn held_grants(name: &str) -> Vec<(String, String)> {
+    let mut held: Vec<(String, String)> = std::fs::read_dir(grants_dir(name))
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| {
+                    (
+                        entry.file_name().to_string_lossy().replace("__", "/"),
+                        std::fs::read_to_string(entry.path()).expect("a readable grant"),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    held.sort();
+    held
+}
+
+/// T-2667, CC-61, AP-96: a seeded app is committed by the forge bootstrap, not through the
+/// Portal's door, so the Endpoint and Policies the door would commit beside it travel with it.
+/// Without them the gateway knows no endpoint for the app and every read answers 404. A change to
+/// an app's needs, roles or visibility that is not written back here is red: rerun
+/// `cargo test --test reference_apps_tests -- --ignored write_sample_app_grants`.
+#[test]
+fn every_sample_app_carries_the_grants_the_reconciler_compiles_for_it() {
+    for (name, yaml) in reference_apps() {
+        let slug = pinned_slug(&name);
+        let compiled = compiled_grants(&yaml, slug.as_ref().unwrap_or(&generate_slug()));
+        match (compiled, slug) {
+            (None, _) => assert!(
+                held_grants(&name).is_empty(),
+                "apps/{name} grants nothing, yet carries grants"
+            ),
+            (Some(_), None) => panic!("apps/{name} has no grants/ with its Endpoint"),
+            (Some(mut compiled), Some(_)) => {
+                compiled.sort();
+                assert_eq!(held_grants(&name), compiled, "apps/{name}/grants is stale");
+            }
+        }
+    }
+}
+
+/// Writes `apps/*/grants/`, keeping each app's slug once it has one (EP-02).
+#[test]
+#[ignore = "writes apps/*/grants; run after changing a sample app's needs, roles or visibility"]
+fn write_sample_app_grants() {
+    for (name, yaml) in reference_apps() {
+        let dir = grants_dir(&name);
+        let slug = pinned_slug(&name).unwrap_or_else(generate_slug);
+        let _ = std::fs::remove_dir_all(&dir);
+        let Some(compiled) = compiled_grants(&yaml, &slug) else {
+            continue;
+        };
+        std::fs::create_dir_all(&dir).expect("grants dir");
+        for (path, text) in compiled {
+            std::fs::write(dir.join(path.replace('/', "__")), text).expect("write a grant");
+        }
+    }
 }

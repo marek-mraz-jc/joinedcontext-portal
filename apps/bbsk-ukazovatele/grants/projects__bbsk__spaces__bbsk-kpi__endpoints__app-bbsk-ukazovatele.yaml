@@ -1,0 +1,20 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Endpoint
+metadata:
+  name: app-bbsk-ukazovatele
+  namespace: bbsk
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  allowedProjects:
+  - bbsk
+  audience: project-list
+  callerRole: true
+  contextSpaceRef:
+    kind: ContextSpace
+    name: bbsk-kpi
+  enabledRepresentations:
+  - ngsi-ld
+  rateLimits:
+    requestsPerMinute: 120
+  slug: lzeplkk2ymndc6s5ktxa5doe6z

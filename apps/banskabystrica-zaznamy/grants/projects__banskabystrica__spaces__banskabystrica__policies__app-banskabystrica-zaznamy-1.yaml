@@ -1,0 +1,38 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Policy
+metadata:
+  name: app-banskabystrica-zaznamy-1
+  namespace: banskabystrica
+  annotations:
+    joinedcontext.com/generated-by: portal/app-reconciler
+spec:
+  assignee:
+    id: endpoint:banskabystrica/app-banskabystrica-zaznamy
+    kind: role
+  assigner: did:web:hel.fi
+  contextSpaceRef:
+    kind: ContextSpace
+    name: banskabystrica-mesto
+  information:
+  - entities:
+    - type: StatisticalObservation
+    propertyNames:
+    - indicator
+    - refArea
+    - refPeriod
+    - value
+    - unitText
+    - dateObserved
+    - stewardNote
+    relationshipNames:
+    - indicator
+    - refArea
+    - refPeriod
+    - value
+    - unitText
+    - dateObserved
+    - stewardNote
+  operations:
+  - queryEntity
+  - retrieveEntity
+  - updateAttrs
