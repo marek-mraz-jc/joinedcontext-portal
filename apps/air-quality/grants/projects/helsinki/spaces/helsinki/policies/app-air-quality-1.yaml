@@ -37,5 +37,3 @@ spec:
   operations:
   - queryEntity
   - retrieveEntity
-  - queryTemporal
-  temporalQ: timerel=after;timeAt=P-1D

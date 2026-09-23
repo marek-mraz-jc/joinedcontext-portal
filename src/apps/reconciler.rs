@@ -19,7 +19,8 @@ use std::collections::BTreeSet;
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use jc_core::annotations::GENERATED_BY;
 use jc_core::kinds::{
-    AppClass, AppLifecycle, AppSpec, AppVisibility, DataNeed, EndpointSlug, Representation,
+    AppClass, AppLifecycle, AppSpec, AppVisibility, DataNeed, EndpointSlug, Operation,
+    OperationRef, Representation,
 };
 use jc_core::API_VERSION;
 use jcctl::loader::{RawManifest, RawMetadata};
@@ -626,33 +627,74 @@ fn policies(
     // 1-based and in declaration order: stable across runs, so a second reconcile of an
     // unchanged app writes the same names and changes nothing.
     let base = format!("app-{name}-{}", index + 1);
-    if need.roles.is_empty() {
-        return vec![policy(
-            base,
-            project,
-            need,
-            assignee(name, project, spec, None),
-            org_domain,
-        )];
-    }
-    need.roles
+    let holders: Vec<(String, Option<&str>)> = if need.roles.is_empty() {
+        vec![(base, None)]
+    } else {
+        need.roles
+            .iter()
+            .map(|role| (format!("{base}-{role}"), Some(role.as_str())))
+            .collect()
+    };
+    let parts = by_window(need);
+    holders
         .iter()
-        .map(|role| {
-            policy(
-                format!("{base}-{role}"),
-                project,
-                need,
-                assignee(name, project, spec, Some(role)),
-                org_domain,
-            )
+        .flat_map(|(holder, role)| {
+            parts.iter().map(move |(suffix, operations, temporal_q)| {
+                policy(
+                    format!("{holder}{suffix}"),
+                    project,
+                    need,
+                    operations,
+                    temporal_q.as_deref(),
+                    assignee(name, project, spec, *role),
+                    org_domain,
+                )
+            })
         })
         .collect()
+}
+
+/// A need's time window bounds its history reads alone: CIM 009 has no `timerel` on a
+/// current-state query, so one Policy holding the window beside `queryEntity` made every read of
+/// the app a broker `400` (T-2672). With a window, the history reads get a Policy of their own,
+/// `-history`, that carries it, and every other operation one without it; a window on a need with
+/// no history read has nothing to bound.
+fn by_window(need: &DataNeed) -> Vec<(&'static str, Vec<OperationRef>, Option<String>)> {
+    let Some(window) = temporal_query(need) else {
+        return vec![("", need.operations.clone(), None)];
+    };
+    let history =
+        |op: &Operation| matches!(op, Operation::QueryTemporal | Operation::RetrieveTemporal);
+    let every: Vec<Operation> = need
+        .operations
+        .iter()
+        .flat_map(|op| match op {
+            OperationRef::Single(single) => vec![*single],
+            OperationRef::Group(group) => group.operations().to_vec(),
+        })
+        .collect();
+    let (past, present): (Vec<Operation>, Vec<Operation>) = every.into_iter().partition(history);
+    let refs = |ops: Vec<Operation>| {
+        ops.into_iter()
+            .map(OperationRef::Single)
+            .collect::<Vec<_>>()
+    };
+    let mut parts = Vec::new();
+    if !present.is_empty() {
+        parts.push(("", refs(present), None));
+    }
+    if !past.is_empty() {
+        parts.push(("-history", refs(past), Some(window)));
+    }
+    parts
 }
 
 fn policy(
     policy_name: String,
     project: &str,
     need: &DataNeed,
+    operations: &[OperationRef],
+    temporal_q: Option<&str>,
     assignee: Value,
     org_domain: &str,
 ) -> RawManifest {
@@ -676,7 +718,7 @@ fn policy(
         "contextSpaceRef": { "kind": "ContextSpace", "name": need.context_space_ref.name() },
         "assigner": format!("did:web:{org_domain}"),
         "assignee": assignee,
-        "operations": need.operations,
+        "operations": operations,
         "information": [information],
     });
     if let Some(q) = &need.q {
@@ -685,7 +727,7 @@ fn policy(
     if let Some(scope_q) = scope_query(need) {
         policy_spec["scopeQ"] = json!(scope_q);
     }
-    if let Some(temporal_q) = temporal_query(need) {
+    if let Some(temporal_q) = temporal_q {
         policy_spec["temporalQ"] = json!(temporal_q);
     }
 

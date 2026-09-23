@@ -293,8 +293,8 @@ fn every_data_need_becomes_one_policy_that_grants_no_more_than_it_asked() {
 
     assert_eq!(
         rendered.policies.len(),
-        2,
-        "one policy per data need (AP-05)"
+        3,
+        "one policy per data need (AP-05), and the history reads of the windowed one apart"
     );
 
     let first = &rendered.policies[0];
@@ -304,8 +304,8 @@ fn every_data_need_becomes_one_policy_that_grants_no_more_than_it_asked() {
     assert_eq!(first.spec["assigner"], "did:web:banskabystrica.sk");
     assert_eq!(
         first.spec["operations"],
-        json!(["queryEntity", "queryTemporal"]),
-        "the grant is the operations the need names, in its own order (R8)"
+        json!(["queryEntity"]),
+        "the current-state reads the need names (R8)"
     );
     assert_eq!(
         first.spec["information"][0]["entities"],
@@ -321,9 +321,29 @@ fn every_data_need_becomes_one_policy_that_grants_no_more_than_it_asked() {
         first.spec["scopeQ"], "/geo/SK/BB",
         "a geographic confinement is a scope narrowing (ADR-N-005)"
     );
-    assert_eq!(first.spec["temporalQ"], "timerel=after;timeAt=P-1D");
+    // T-2672: CIM 009 has no `timerel` on a current-state query; the window on the Policy that
+    // grants `queryEntity` made every read of the app a broker 400.
+    assert!(first.spec.get("temporalQ").is_none(), "{}", first.spec);
 
-    let second = &rendered.policies[1];
+    let history = &rendered.policies[1];
+    assert_eq!(history.metadata.name, "app-air-quality-today-1-history");
+    assert_eq!(history.spec["operations"], json!(["queryTemporal"]));
+    assert_eq!(history.spec["temporalQ"], "timerel=after;timeAt=P-1D");
+    assert_eq!(
+        (
+            &history.spec["q"],
+            &history.spec["scopeQ"],
+            &history.spec["information"]
+        ),
+        (
+            &first.spec["q"],
+            &first.spec["scopeQ"],
+            &first.spec["information"]
+        ),
+        "the history reads are the same need, bounded in time as well"
+    );
+
+    let second = &rendered.policies[2];
     assert_eq!(second.metadata.name, "app-air-quality-today-2");
     assert_eq!(second.spec["operations"], json!(["retrieveEntity"]));
     assert!(

@@ -1,7 +1,7 @@
 apiVersion: joinedcontext.com/v1alpha1
 kind: Policy
 metadata:
-  name: app-banskabystrica-ovzdusie-1
+  name: app-banskabystrica-ovzdusie-1-history
   namespace: banskabystrica
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
@@ -29,5 +29,5 @@ spec:
     - pm10
     - pm25
   operations:
-  - queryEntity
-  - retrieveEntity
+  - queryTemporal
+  temporalQ: timerel=after;timeAt=P-1D
