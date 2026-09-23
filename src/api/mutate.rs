@@ -204,6 +204,29 @@ pub(crate) async fn open_change_on(
 /// an earlier attempt is recreated, never reused: it may hold that attempt's writes (a file
 /// already deleted, another content), which turned a delete into a forge 404 (T-0886). One a
 /// live pull request still uses is left alone and the caller told (CC-34).
+/// Whether main holds the resource the checks read from the mirror otherwise, at the path the
+/// change writes (T-2674): another spec, labels, annotations, title or description. Only what both
+/// say for certain counts: a resource the mirror does not hold yet (the branch read covers that),
+/// no file at that path (a manifest kept under another path) or one the envelope cannot read is no
+/// evidence, and the namespace is left out, which a file may leave to its path.
+fn moved_on_main(
+    judged: Option<&ResourceEnvelope>,
+    on_main: Option<&crate::git::RepoFile>,
+) -> bool {
+    let (Some(judged), Some(Ok(main))) = (
+        judged,
+        on_main.map(|file| serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content)),
+    ) else {
+        return false;
+    };
+    let (a, b) = (&judged.metadata, &main.metadata);
+    judged.spec != main.spec
+        || a.labels != b.labels
+        || a.annotations != b.annotations
+        || a.title != b.title
+        || a.description != b.description
+}
+
 pub(crate) async fn create_or_reuse_branch(
     gitea: &crate::git::GiteaClient,
     branch: &str,
@@ -1005,7 +1028,24 @@ async fn propose_engine(
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &crate::git::GiteaClient = &gitea;
 
-    // 8a. A lane's build is checked against the App's repository and published by the Portal
+    let default_branch = gitea.default_branch().await?;
+
+    // 8a. Every check above judged the body against the mirror, and a fresh branch starts at
+    //     main. A mirror that has not caught up with main on this resource would put the body
+    //     over a newer main, and whatever the checks took for unchanged would revert what main
+    //     moved to: the build lane's status write once undid the bootstrap's new pin (T-2674).
+    if workspace.is_none() {
+        let on_main = gitea.get_file(&manifest_path, &default_branch).await?;
+        if moved_on_main(current.as_ref(), on_main.as_ref()) {
+            return Err(ApiError::Conflict(format!(
+                "{} '{}' changed on {default_branch} after the Portal last read it; read it \
+                 again and send the change once more",
+                kind_info.kind, envelope.metadata.name
+            )));
+        }
+    }
+
+    // 8b. A lane's build is checked against the App's repository and published by the Portal
     //     before anything is written: the lane's token names a build, it never makes one
     //     (AP-101, AP-104).
     if build_write {
@@ -1018,8 +1058,6 @@ async fn propose_engine(
         )
         .await?;
     }
-
-    let default_branch = gitea.default_branch().await?;
 
     let op_str = match operation {
         Operation::Create => "create",

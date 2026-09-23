@@ -192,6 +192,28 @@ test("propose reads the App, checks it and writes it back once with the lane's b
   assert.ok(!calls.some((c) => c.url.includes("lane-token")));
 });
 
+// T-2674: a 409 is main moving past the Portal's copy of the App; the lane reads the App again and
+// proposes on what it reads now, and gives up with the Portal's reason after five tries.
+test("a write main moved past is read again and proposed on the newer App", async () => {
+  const newer = { ...manifest, spec: { ...manifest.spec, source: { git: { ref: "b".repeat(40) } } } };
+  const moved = [409, { detail: "App 'city-bikes' changed on main after the Portal last read it; read it again" }];
+  const waits = [];
+  const { calls, fetchImpl } = portal([[200, manifest], green, moved, [200, newer], green, [202, { metadata: { name: "chg-00000043" } }]]);
+  const change = await propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, fetchImpl, async (ms) => waits.push(ms));
+  assert.equal(change.metadata.name, "chg-00000043");
+  assert.deepEqual(waits, [10_000]);
+  assert.deepEqual(JSON.parse(calls[5].body).spec, newer.spec, "the second proposal is the App as main holds it now");
+
+  const answers = [];
+  for (let i = 0; i < 5; i += 1) answers.push([200, manifest], green, moved);
+  const stuck = portal(answers);
+  await assert.rejects(
+    propose("https://portal.example", "lane-token", "joinedcontext/helsinki_city-bikes", build, stuck.fetchImpl, async () => {}),
+    /answered 409 App 'city-bikes' changed on main/,
+  );
+  assert.equal(stuck.calls.length, 15, "five reads, five checks, five writes and no more");
+});
+
 test("a refusal names the App and the Portal's reason, never the token", async () => {
   const { fetchImpl } = portal([[200, manifest], green, [403, { detail: "status.build is written by the build lane" }]]);
   await assert.rejects(

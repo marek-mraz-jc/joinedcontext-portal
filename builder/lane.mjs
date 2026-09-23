@@ -286,7 +286,15 @@ export function outputsOf(build) {
  * answers. The REST door takes a proposal only after a green check of the same manifest
  * (PF-57), so the check is a call of its own, not a formality (T-2636).
  */
-export async function propose(api, token, repository, build, fetchImpl = fetch) {
+/**
+ * A write the Portal answers 409 met a main that moved past the Portal's copy of the App, as when
+ * the forge bootstrap pins a new commit while the build runs (T-2674): the App is read again and
+ * the build proposed on it, at most this often, this far apart.
+ */
+const ATTEMPTS = 5;
+const APART_MS = 10_000;
+
+export async function propose(api, token, repository, build, fetchImpl = fetch, wait = (ms) => new Promise((done) => setTimeout(done, ms))) {
   const { project, app } = appOf(repository);
   const url = `${api.replace(/\/+$/, "")}/api/v1/projects/${project}/apps/${app}`;
   const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
@@ -299,27 +307,33 @@ export async function propose(api, token, repository, build, fetchImpl = fetch) 
     }
     return new Error(`${what} ${project}/${app}: the Portal answered ${response.status} ${detail}`.trim());
   };
-  const read = await fetchImpl(url, { headers });
-  if (!read.ok) throw await refused("cannot read the App", read);
-  const body = withBuild(await read.json(), build);
-  const checked = await fetchImpl(`${url}?dryRun=All`, {
-    method: "PUT",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!checked.ok) throw await refused("status.build was refused for", checked);
-  const verdict = (await checked.json())?.verdict;
-  if (verdict?.ok !== true) {
-    const findings = (verdict?.findings ?? []).map((f) => f?.message ?? f?.code ?? "").filter(Boolean).join("; ");
-    throw new Error(`the check of status.build for ${project}/${app} is not green${findings ? `: ${findings}` : ""}`);
+  for (let attempt = 1; ; attempt += 1) {
+    const read = await fetchImpl(url, { headers });
+    if (!read.ok) throw await refused("cannot read the App", read);
+    const body = withBuild(await read.json(), build);
+    const checked = await fetchImpl(`${url}?dryRun=All`, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!checked.ok) throw await refused("status.build was refused for", checked);
+    const verdict = (await checked.json())?.verdict;
+    if (verdict?.ok !== true) {
+      const findings = (verdict?.findings ?? []).map((f) => f?.message ?? f?.code ?? "").filter(Boolean).join("; ");
+      throw new Error(`the check of status.build for ${project}/${app} is not green${findings ? `: ${findings}` : ""}`);
+    }
+    const written = await fetchImpl(url, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (written.status === 409 && attempt < ATTEMPTS) {
+      await wait(APART_MS);
+      continue;
+    }
+    if (!written.ok) throw await refused("status.build was refused for", written);
+    return written.json();
   }
-  const written = await fetchImpl(url, {
-    method: "PUT",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!written.ok) throw await refused("status.build was refused for", written);
-  return written.json();
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

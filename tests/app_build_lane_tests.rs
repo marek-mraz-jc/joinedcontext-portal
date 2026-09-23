@@ -451,6 +451,45 @@ async fn a_rebuild_of_the_same_commit_with_other_bytes_is_a_version_of_its_own()
     );
 }
 
+/// T-2674, AP-73: the lane's rule is judged against the mirror, and the change is cut from main.
+/// When main already holds the App at another commit (the forge bootstrap pinned a new one and
+/// the mirror has not read it yet), the write is a 409 to read again: never a change that would
+/// set the pin back, and nothing published for it.
+#[tokio::test]
+async fn a_build_judged_against_a_mirror_behind_main_is_refused_and_nothing_written() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    let mut pinned = app(None, None);
+    pinned["spec"]["source"]["git"]["ref"] = json!("2222222222222222222222222222222222222222");
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{}/contents/.*air-quality.*",
+            common::REPO
+        )))
+        .and(query_param("ref", "main"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-on-main",
+            "content": common::encode(&serde_yaml_ng::to_string(&pinned).expect("yaml")),
+        })))
+        .with_priority(1)
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+
+    let refused = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.text);
+    assert!(refused.text.contains("read it again"), "{}", refused.text);
+    assert!(
+        published(&gitea).await.is_empty(),
+        "a package was published"
+    );
+    assert!(
+        committed(&gitea).await.is_empty(),
+        "the stale App was written"
+    );
+}
+
 #[tokio::test]
 async fn every_other_part_of_status_is_refused_even_from_the_build_lane() {
     let gitea = forge().await;
