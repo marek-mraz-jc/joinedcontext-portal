@@ -267,7 +267,7 @@ function RoleRow({
               type="email"
               autoComplete="off"
               value={typed}
-              placeholder="jana.kovacova@example.sk"
+              placeholder="firstname.lastname@example.org"
               onChange={(event) => setTyped(event.target.value)}
             />
           </Field>

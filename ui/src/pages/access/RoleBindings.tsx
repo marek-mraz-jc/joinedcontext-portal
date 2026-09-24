@@ -315,7 +315,7 @@ export function GrantRoleDialog({
               value={form.subject}
               autoComplete="off"
               spellCheck={false}
-              placeholder={form.subjectKind === "user" ? "jana.kovacova@example.sk" : "vedenie-mesta"}
+              placeholder={form.subjectKind === "user" ? "firstname.lastname@example.org" : "city-leadership"}
               onChange={(event) => set({ subject: event.target.value })}
             />
           </Field>
