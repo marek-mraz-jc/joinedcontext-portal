@@ -114,6 +114,13 @@ pub struct Syncer {
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
     /// and served, and the realm is written by nobody (PF-63).
     groups: Option<Arc<GroupSync>>,
+    /// The Keycloak client of every published App (ADR-N-030, AP-111). `None` without an admin
+    /// client or an apps host: the Apps are served, and nobody's client is written.
+    app_clients: Option<Arc<super::app_clients::AppClientSync>>,
+    /// The secret of every App whose client is in place, by App name, as the last run left it:
+    /// what the edge file is composed with (AP-112). Never logged.
+    app_client_secrets:
+        Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -166,6 +173,8 @@ impl Syncer {
             drift: None,
             subscriptions: None,
             groups: None,
+            app_clients: None,
+            app_client_secrets: Arc::default(),
             activity: None,
             apps_cache_dir: None,
             artifact_store: None,
@@ -249,6 +258,19 @@ impl Syncer {
     pub fn with_groups(mut self, groups: Arc<GroupSync>) -> Self {
         self.groups = Some(groups);
         self
+    }
+
+    /// Makes each run bring every published App's Keycloak client to what the App says (AP-111).
+    pub fn with_app_clients(mut self, clients: Arc<super::app_clients::AppClientSync>) -> Self {
+        self.app_clients = Some(clients);
+        self
+    }
+
+    /// The App client secrets the last run read back, by App name (AP-112).
+    pub fn app_client_secrets(
+        &self,
+    ) -> Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>> {
+        Arc::clone(&self.app_client_secrets)
     }
 
     pub fn with_streams(mut self, deployer: Arc<StreamDeployer>) -> Self {
@@ -992,6 +1014,35 @@ impl Syncer {
             }
             super::groups::record(&fresh_mirror, &outcomes);
             self.say_group_drift(&outcomes).await;
+        }
+
+        // 5d. Every published App's own Keycloak client (ADR-N-030, AP-111). The secrets it reads
+        //     back replace the last run's, so a retired App's secret is gone with its client.
+        if let Some(clients) = self.app_clients.as_ref() {
+            let run = clients.converge(&fresh_mirror).await;
+            for outcome in &run.outcomes {
+                match (&outcome.error, outcome.drift.is_empty()) {
+                    (Some(err), _) => {
+                        tracing::warn!(app = %outcome.app, error = %err, "app client did not converge")
+                    }
+                    (None, false) => {
+                        tracing::info!(app = %outcome.app, drift = %outcome.drift.join("; "), "app client brought back to the App")
+                    }
+                    (None, true) => {}
+                }
+            }
+            // A run that failed as a whole (no token, no list) keeps the last secrets, so a
+            // realm that is down for a minute does not take every App off the edge.
+            if !run
+                .outcomes
+                .iter()
+                .any(|o| o.app == "*" && o.error.is_some())
+            {
+                *self
+                    .app_client_secrets
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = run.secrets;
+            }
         }
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror

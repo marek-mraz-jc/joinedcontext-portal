@@ -343,6 +343,32 @@ impl AppState {
                     "no Keycloak admin client: Group manifests are read, the realm is not written"
                 ),
             }
+            // Every published App's own client (ADR-N-030, AP-111). It is written as the Portal
+            // client's own service account, the one identity the realm gives `manage-clients`;
+            // the group credential above stays limited to group memberships (T-0411, T-0866).
+            match (
+                state.config.oidc.as_ref(),
+                state
+                    .config
+                    .app_settings
+                    .as_ref()
+                    .map(|settings| settings.host.clone()),
+            ) {
+                (Some(oidc), Some(host)) => {
+                    match crate::reconciler::app_clients::AppClientSync::new(
+                        oidc.issuer.as_str(),
+                        oidc.client_id.clone(),
+                        oidc.client_secret().to_owned(),
+                        host,
+                    ) {
+                        Some(clients) => syncer = syncer.with_app_clients(Arc::new(clients)),
+                        None => tracing::warn!(
+                            "the issuer is not a realm URL, so no App client is managed"
+                        ),
+                    }
+                }
+                _ => tracing::info!("no login client or no apps host: no App client is managed"),
+            }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 syncer = syncer.with_streams(Arc::new(StreamDeployer::new(url)));
             } else {

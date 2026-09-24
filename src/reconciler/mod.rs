@@ -7,6 +7,7 @@
 //! One replica reconciles. [`leader`] elects it with a PostgreSQL advisory lock, and
 //! [`daemon`] is the loop that reads the repository and refreshes the live-state mirror.
 
+pub mod app_clients;
 pub mod ckan;
 pub mod daemon;
 pub mod drift;
