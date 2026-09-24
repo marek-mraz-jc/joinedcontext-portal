@@ -7,7 +7,7 @@ import en from "./locales/en.json";
 import de from "./locales/de.json";
 import cs from "./locales/cs.json";
 
-export const SUPPORTED_LOCALES = ["sk", "en", "de", "cs"] as const;
+export const SUPPORTED_LOCALES = ["en", "sk", "de", "cs"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 void i18n
@@ -22,9 +22,9 @@ void i18n
       cs: { translation: cs },
     },
     supportedLngs: SUPPORTED_LOCALES,
-    fallbackLng: "sk",
+    fallbackLng: "en",
     detection: {
-      order: ["querystring", "localStorage", "navigator"],
+      order: ["querystring", "localStorage"],
       lookupQuerystring: "lang",
       lookupLocalStorage: "jc-lang",
       caches: ["localStorage"],
@@ -36,7 +36,7 @@ void i18n
   });
 
 // WCAG 3.1.1: the document language has to follow the chosen locale, not stay at the
-// `lang="sk"` baked into index.html.
+// `lang="en"` baked into index.html.
 i18n.on("languageChanged", (lng) => {
   if (typeof document !== "undefined") {
     document.documentElement.lang = lng;
