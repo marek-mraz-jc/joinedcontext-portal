@@ -27,7 +27,14 @@ import type { components } from "../api/schema";
 
 type WorkspaceView = components["schemas"]["WorkspaceView"];
 
-export function WorkspacesPage({ project }: { project: string }): JSX.Element {
+export function WorkspacesPage({
+  project,
+  creating = false,
+}: {
+  project: string;
+  /** `/workspaces/new`: the "Work on a copy" dialog is open on the list (T-2749). */
+  creating?: boolean;
+}): JSX.Element {
   const { t } = useTranslation();
   const { identity } = useAuth();
   const navigate = useNavigate();
@@ -102,6 +109,12 @@ export function WorkspacesPage({ project }: { project: string }): JSX.Element {
             scope={{ kind: "project" }}
             label={t("workspaces.new")}
             variant="primary"
+            open={creating}
+            onOpenChange={(open) => {
+              if (!open && creating) {
+                void navigate({ to: "/projects/$project/workspaces", params: { project } });
+              }
+            }}
           />
         }
       />

@@ -2,7 +2,8 @@ import type { JSX } from "react";
 import { ResourceList } from "../components/ResourceList";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap, whilePending } from "../api/client";
+import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
+import { NotFoundState } from "../components/NotFoundState";
 import { asManifests, localized } from "../api/manifest";
 import { humanizeName } from "../pages/apps/appTitle";
 import { ResourceRowActions } from "../components/ResourceRowActions";
@@ -117,6 +118,11 @@ function GenericListPage({
       ),
   });
 
+  // The API is what knows the project's kinds: a plural it does not serve is an address with no
+  // page, not a list that failed and could be tried again (T-2749, UI-15).
+  if (list.error instanceof ApiError && list.error.status === 404) {
+    return <NotFoundState />;
+  }
   const items = asManifests(list.data?.items ?? []);
   // A kind with no page of its own still opens under a heading that names it, in the person's
   // own language where the navigation already has a word for it, and read as words where it

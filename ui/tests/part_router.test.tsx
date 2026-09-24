@@ -17,6 +17,7 @@ import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import en from "../src/locales/en.json";
 import { expectNoRawKeys, expectNoViolations } from "./checks";
 import { createPortalRouter } from "../src/router";
+import { problem, renderRoute } from "./pageHarness";
 import type { AuthState } from "../src/auth/AuthProvider";
 
 const AUTH: AuthState = {
@@ -136,5 +137,35 @@ describe("the router's own pages", () => {
       vi.unstubAllGlobals();
     }
     await i18n.changeLanguage("en");
+  });
+});
+
+// T-2749: a section the project does not have showed its guessed heading over the API's raw
+// "plural '...' not found" and a Retry that could never succeed.
+describe("a section the API does not serve", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.pushState({}, "", "/");
+  });
+
+  it("is the Portal's not-found page, not a raw API error with a Retry", async () => {
+    await renderRoute({
+      path: "/projects/helsinki/nonexistent-section",
+      answer: (path) =>
+        path === "/api/v1/projects/helsinki/nonexistent-section"
+          ? problem(404, "plural 'nonexistent-section' not found in project 'helsinki'")
+          : undefined,
+    });
+    expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+    expect(screen.getByText(/nonexistent-section/)).toBeInTheDocument();
+    expect(screen.queryByText(/plural '/)).toBeNull();
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    expect(screen.getByRole("link", { name: en.app.notFound.home })).toHaveAttribute("href", "/");
+  });
+
+  it("still lists a kind the API does serve under its own heading", async () => {
+    await renderRoute({ path: "/projects/helsinki/mappings" });
+    expect(await screen.findByText(en.resourceList.empty)).toBeInTheDocument();
+    expect(screen.queryByText(en.app.notFound.title)).toBeNull();
   });
 });

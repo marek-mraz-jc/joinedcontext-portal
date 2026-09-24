@@ -151,6 +151,19 @@ test.describe("the copy bar and the conflict chooser", () => {
     expect(await axeViolations(page)).toEqual([]);
   });
 
+  test("the new address opens the dialog over the list, and Escape goes back to it", async ({ page }) => {
+    // T-2749: `/workspaces/new` crashed on 'reading title' as a kind's create form.
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/workspaces/new?lang=en`);
+    const dialog = page.getByRole("dialog", { name: "Work on a copy" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel(/^Name/)).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/workspaces(\\?|$)`));
+  });
+
   test("the copy that is gone is announced, not only shown", async ({ page }) => {
     // A copy discarded by its owner while somebody else is reading a page of it: the line that
     // replaces the bar is a live region, so a screen reader says it without being asked

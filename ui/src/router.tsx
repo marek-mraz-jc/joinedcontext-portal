@@ -2,19 +2,18 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
-  Link,
   Navigate,
   notFound,
   Outlet,
   redirect,
   useChildMatches,
-  useRouterState,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
-import { buttonClass, EmptyState, PageFailed } from "./components/ui";
+import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
+import { NotFoundState } from "./components/NotFoundState";
 import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
@@ -118,20 +117,9 @@ function NoProject({
  * an outdated link led to.
  */
 function NotFound(): React.JSX.Element {
-  const { t } = useTranslation();
-  const path = useRouterState({ select: (state) => state.location.pathname });
   return (
     <Bare>
-      <EmptyState
-        icon="search"
-        title={t("app.notFound.title")}
-        description={t("app.notFound.description", { path })}
-        action={
-          <Link to="/" className={buttonClass("primary", "md")}>
-            {t("app.notFound.home")}
-          </Link>
-        }
-      />
+      <NotFoundState />
     </Bare>
   );
 }
@@ -198,6 +186,20 @@ const workspacesRoute = createRoute({
     return (
       <Shell project={project}>
         <WorkspacesPage project={project} />
+      </Shell>
+    );
+  },
+});
+
+/** The "Work on a copy" dialog over the list, so the address a "new" link takes works (T-2749). */
+const workspacesNewRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/workspaces/new",
+  component: function WorkspacesNewRoute() {
+    const { project } = workspacesNewRoute.useParams();
+    return (
+      <Shell project={project}>
+        <WorkspacesPage project={project} creating />
       </Shell>
     );
   },
@@ -775,6 +777,7 @@ export const routeTree = rootRoute.addChildren([
     assistantRoute,
     sharedRedirectRoute,
     workspacesRoute,
+    workspacesNewRoute,
     workspaceTryItRoute,
     workspaceCompareRoute,
     workspaceBringBackRoute,

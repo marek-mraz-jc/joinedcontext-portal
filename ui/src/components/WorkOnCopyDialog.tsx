@@ -220,7 +220,9 @@ export function WorkOnCopyAction({
   // The row may open this, and so may the URL (`?edit=`/`?delete=`) or the assistant's hand-off: both
   // are honoured, and closing clears both, so a page opened on one resource still opens its dialog
   // when the row owns the trigger (T-2287).
-  const open = ownOpen || (openedByRow ?? false);
+  // An address that asks for the dialog (`/workspaces/new`) opens it only for a role that may
+  // use it; anyone else sees the list with the disabled button and its reason (T-2749).
+  const open = ownOpen || ((openedByRow ?? false) && mayOpen);
   const setOpen = (next: boolean) => {
     setOwnOpen(next);
     onOpenChange?.(next);

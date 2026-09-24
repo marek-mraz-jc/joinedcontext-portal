@@ -184,4 +184,28 @@ describe("the workspaces page", () => {
     );
     expect(literal.map((element) => element.outerHTML.slice(0, 120))).toEqual([]);
   });
+
+  // T-2749: the address the sidebar's "new" pattern suggests crashed on 'reading title'.
+  it("its_new_address_opens_the_work_on_a_copy_dialog_and_closing_returns_to_the_list", async () => {
+    const user = userEvent.setup();
+    await renderRoute({ path: `${PATH}/new`, answer: answering([workspace()]) });
+    const dialog = await screen.findByRole("dialog", { name: en.workspaces.open.title });
+    expect(within(dialog).getByText(en.workspaces.open.scopeProject)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(window.location.pathname).toBe(PATH));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The list was under the dialog all along, not a page of its own.
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("its_new_address_opens_no_dialog_for_a_role_that_may_not_propose", async () => {
+    await renderRoute({
+      path: `${PATH}/new`,
+      answer: answering([workspace()]),
+      permissions: { project: "helsinki", bootstrap: false, grants: [] },
+    });
+    await screen.findByRole("table");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: en.workspaces.new })).toHaveAttribute("aria-disabled", "true");
+  });
 });
