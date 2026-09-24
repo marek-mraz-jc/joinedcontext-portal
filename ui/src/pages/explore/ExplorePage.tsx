@@ -241,7 +241,9 @@ export function ExplorePage({
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={t("explore.title")} description={t("explore.description")} />
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Two pickers, not a row of the whole screen: at 2560 px each select was 1100 px wide
+          (T-2755). The grid below takes the width. */}
+      <div className="grid max-w-5xl gap-3 sm:grid-cols-2">
         <Field id="explore-space" label={t("explore.space")}>
           <Select
             id="explore-space"
@@ -340,6 +342,32 @@ export function ExplorePage({
           title={t("explore.noType")}
           description={t("explore.noTypeHint")}
           icon="explore"
+        />
+      ) : (spaces.data ?? []).length > 0 ? (
+        // The first pick, one click away: an empty page under two empty selects said nothing
+        // about where to start (T-2755).
+        <EmptyState
+          title={t("explore.noSpace")}
+          description={t("explore.noSpaceHint")}
+          icon="explore"
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              {(spaces.data ?? []).map((s) => (
+                <Button
+                  key={s.metadata.name}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setSpace(s.metadata.name);
+                    setEndpointChoice("");
+                    changeQuery({});
+                  }}
+                >
+                  {localized(s.metadata.title, locale, s.metadata.name)}
+                </Button>
+              ))}
+            </div>
+          }
         />
       ) : null}
 

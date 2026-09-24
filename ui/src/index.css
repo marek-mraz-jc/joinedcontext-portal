@@ -8,6 +8,10 @@
  * the tokens at runtime rewrites every component with them (UI-01, UI-30).
  */
 @theme {
+  /* The big screen (T-2713) as a named breakpoint: Tailwind sorts named breakpoints by size, but
+     put an arbitrary `min-[1800px]` before `md` in the stylesheet, so `md:grid-cols-2` won at
+     2560 px and no form ever showed three columns (T-2755). */
+  --breakpoint-3xl: 112.5rem;
   /* Colour: the names the existing pages use, kept, and the fuller set the components use. */
   --color-bg: var(--portal-bg);
   --color-surface: var(--portal-surface);

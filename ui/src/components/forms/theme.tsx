@@ -245,7 +245,8 @@ function groupsOf(uiSchema: ObjectFieldTemplateProps["uiSchema"]): RenderedGroup
 }
 
 /** The fields of one object laid out in cells: one column on a phone, two on a wide screen, three
- * on a big one; a field that is not a scalar takes the whole row. */
+ * on a big one; a field that is not a scalar takes the whole row, and so does a field alone in
+ * its group, which otherwise sat in a third of it (T-2755). */
 function Cells({
   properties,
   schema,
@@ -256,11 +257,14 @@ function Cells({
   uiSchema: ObjectFieldTemplateProps["uiSchema"];
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 min-[1800px]:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 3xl:grid-cols-3">
       {properties.map((prop) => (
         <div
           key={prop.name}
-          className={clsx("min-w-0", !scalar(schema, uiSchema, prop.name) && "md:col-span-full")}
+          className={clsx(
+            "min-w-0",
+            (properties.length === 1 || !scalar(schema, uiSchema, prop.name)) && "md:col-span-full",
+          )}
         >
           {prop.content}
         </div>

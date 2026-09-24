@@ -243,6 +243,35 @@ describe("the explorer", () => {
   });
 });
 
+describe("the first pick (T-2755)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers the project's spaces when none is chosen, and one click chooses it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: unknown) => {
+        const url = urlOf(input);
+        const body = url.includes("/spaces") ? SPACES : url.includes("/endpoints") ? ENDPOINTS : url.includes("/datamodels") ? MODELS : list([]);
+        return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <ExplorePage project="helsinki" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(en.explore.noSpace)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "helsinki" }));
+    expect(screen.getByLabelText(en.explore.space)).toHaveValue("helsinki");
+    expect(screen.queryByText(en.explore.noSpace)).not.toBeInTheDocument();
+  });
+});
+
 describe("removing an entity from the explorer (UI-60, T-0912)", () => {
   it("shows the endpoint's refusal and keeps the entity", async () => {
     await i18n.changeLanguage("en");

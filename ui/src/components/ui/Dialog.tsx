@@ -9,9 +9,9 @@ export type DialogSize = "sm" | "md" | "lg" | "xl";
 const SIZES: Record<DialogSize, string> = {
   sm: "w-[min(28rem,92vw)]",
   md: "w-[min(40rem,92vw)]",
-  lg: "w-[min(56rem,94vw)] min-[1800px]:w-[min(80rem,90vw)]",
+  lg: "w-[min(56rem,94vw)] 3xl:w-[min(80rem,90vw)]",
   /** A manifest form: wide enough for two columns of fields and the panels beside them. */
-  xl: "w-[min(72rem,94vw)] min-[1800px]:w-[min(110rem,90vw)]",
+  xl: "w-[min(72rem,94vw)] 3xl:w-[min(110rem,90vw)]",
 };
 
 export interface DialogProps {

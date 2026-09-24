@@ -1952,7 +1952,9 @@
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
     "export": "Export this page",
-    "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above."
+    "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
+    "noSpace": "Choose a context space to read",
+    "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:"
   },
   "agentRun": {
     "title": "Application run",

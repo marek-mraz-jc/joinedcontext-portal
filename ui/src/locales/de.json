@@ -1952,7 +1952,9 @@
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
     "export": "Diese Seite exportieren",
-    "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein."
+    "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
+    "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
+    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:"
   },
   "agentRun": {
     "title": "Anwendungslauf",

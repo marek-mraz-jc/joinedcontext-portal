@@ -1952,7 +1952,9 @@
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "deleteDenied": "Grant tejto koncovky ti nedovoľuje mazať {type}",
     "export": "Exportovať túto stranu",
-    "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie."
+    "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
+    "noSpace": "Vyberte kontextový priestor na čítanie",
+    "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:"
   },
   "agentRun": {
     "title": "Beh aplikácie",
