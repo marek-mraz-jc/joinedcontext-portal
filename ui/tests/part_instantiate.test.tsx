@@ -16,7 +16,7 @@ import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import { Instantiate } from "../src/pages/flows/Instantiate";
 import { expectNoRawKeys } from "./checks";
-import { expectNoAxeViolations, inEveryLocale, json, problem, renderPage } from "./page_contract";
+import { expectNoAxeViolations, inEveryLocale, json, list, problem, renderPage } from "./page_contract";
 
 const PROJECT = "helsinki";
 
@@ -68,6 +68,18 @@ function form(manifest: Manifest, { post }: Flows = {}) {
           sent.push(JSON.parse((await request.clone().text()) || "{}") as Record<string, unknown>);
           return post ? post() : json(CHANGE);
         }
+        if (request.method === "GET" && url.pathname.endsWith("/endpoints")) {
+          return json(
+            list([
+              {
+                apiVersion: "joinedcontext.com/v1alpha1",
+                kind: "Endpoint",
+                metadata: { name: "public-air", namespace: PROJECT, title: { en: "Public air quality" } },
+                spec: {},
+              },
+            ]),
+          );
+        }
         return undefined;
       },
     },
@@ -114,6 +126,49 @@ describe("a blueprint that asks for parameters", () => {
       blueprint: "air-quality",
       version: "1.2.0",
       parameters: { spaceName: "helsinki-air" },
+    });
+  });
+
+  // T-2757: the app builder's card read "Set up An application from a prompt", took an endpoint's
+  // name typed from memory, squeezed a paragraph into one line and said "Create" where every
+  // other form proposes a change.
+  it("reads like the other forms: heading, endpoint picker, prose box, Propose change", async () => {
+    const user = userEvent.setup();
+    const { sent } = form({
+      ...blueprint({
+        parameterSchema: {
+          type: "object",
+          required: ["prompt", "endpoint"],
+          properties: {
+            prompt: { type: "string", title: "What should the app do", "x-jc-widget": "textarea" },
+            endpoint: {
+              type: "string",
+              title: "Endpoint it reads",
+              "x-jc-widget": "resourcePicker",
+              "x-jc-options": { plural: "endpoints" },
+            },
+          },
+        },
+      }),
+      metadata: { name: "app-from-prompt", title: { en: "An application from a prompt" } },
+    } as Manifest);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Set up: An application from a prompt" }),
+    ).toBeInTheDocument();
+    const prompt = screen.getByRole("textbox", { name: /What should the app do/ });
+    expect(prompt.tagName).toBe("TEXTAREA");
+    const endpoint = screen.getByRole("combobox", { name: /Endpoint it reads/ });
+    await screen.findByRole("option", { name: "Public air quality" });
+    // No error before anybody reached the field (T-2757, UI-16).
+    expect(endpoint).not.toHaveAttribute("aria-invalid", "true");
+
+    await user.type(prompt, "Show the air quality of every district.");
+    await user.selectOptions(endpoint, "public-air");
+    await user.click(screen.getByRole("button", { name: "Propose change" }));
+    await waitFor(() => expect(sent.length).toBe(1));
+    expect(sent[0]).toMatchObject({
+      parameters: { prompt: "Show the air quality of every district.", endpoint: "public-air" },
     });
   });
 

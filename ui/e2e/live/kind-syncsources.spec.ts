@@ -35,7 +35,7 @@ kindJourney({
   },
   assistant: {
     ask: (name) => `Create a SyncSource called ${name}`,
-    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "A new sync source" })),
+    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New sync source" })),
   },
   writeControls: /^(Add source|Sync now|Pause|Resume|Detach)$/,
 });

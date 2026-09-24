@@ -9,6 +9,7 @@ import {
   groupOf,
 } from "../../endpoints/operationGroups";
 import { Badge, Checkbox } from "../../ui";
+import { useShownErrors } from "../touched";
 
 /**
  * What a `Policy` grants or a `ContextSourceRegistration` is registered for, picked by the five CIM 009 names first (R8, GW34, UI-01, T-2326).
@@ -26,6 +27,7 @@ import { Badge, Checkbox } from "../../ui";
 export function OperationsPicker(props: WidgetProps): JSX.Element {
   const { id, value, disabled, readonly, onChange, rawErrors, options } = props;
   const { t } = useTranslation();
+  const errors = useShownErrors(id, rawErrors);
   // What an empty choice means is the kind's to say: nothing on a policy, the specification's
   // default operations on a registration (T-2345).
   const none = typeof options.none === "string" ? options.none : t("policies.operations.none");
@@ -124,8 +126,8 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
           ? none
           : t("policies.operations.total", { count: covered.length })}
       </p>
-      {rawErrors && rawErrors.length > 0 ? (
-        <p className="text-caption text-danger">{rawErrors[0]}</p>
+      {errors && errors.length > 0 ? (
+        <p className="text-caption text-danger">{errors[0]}</p>
       ) : null}
     </div>
   );

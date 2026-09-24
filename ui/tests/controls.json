@@ -894,6 +894,7 @@
         "Button": 4
       },
       "tests": [
+        "form_errors_after_touch.test.tsx",
         "page_sync_sources_page.test.tsx"
       ]
     },

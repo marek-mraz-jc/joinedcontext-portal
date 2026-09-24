@@ -1057,7 +1057,7 @@
         "verbs": "Verben"
       },
       "beyondRights": "Eine Rolle gewährt nicht mehr, als Sie hier selbst halten: fehlt {missing}.",
-      "propose": "Rolle vorschlagen",
+      "propose": "Änderung vorschlagen",
       "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
     },
     "accounts": {
@@ -1173,7 +1173,7 @@
         "members": "Mitglieder",
         "memberUser": "Adresse"
       },
-      "propose": "Gruppe vorschlagen",
+      "propose": "Änderung vorschlagen",
       "reason": {
         "DriftCorrected": "Korrigiert",
         "MemberUnknown": "Wartet auf erste Anmeldung",
@@ -1221,10 +1221,10 @@
     "back": "Zurück zur Übersicht",
     "instantiate": {
       "title": "{name} einrichten",
-      "submit": "Erstellen",
+      "submit": "Änderung vorschlagen",
       "hint": "Beim Speichern wird eine Änderung vorgeschlagen; sie wirkt nach der Freigabe.",
       "noSchema": "Diese Vorlage hat keine Parameter.",
-      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und erstellen Sie erneut."
+      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und schlagen Sie erneut vor."
     },
     "emptyHint": "Ein Blueprint richtet einen ganzen Anwendungsfall in einem Schritt ein: den Raum, die Quelle, die Pipeline und den Endpunkt zusammen. In diesem Projekt steht Ihnen noch keiner zur Verfügung."
   },
@@ -1373,7 +1373,7 @@
       "identity": "id und type gehören zu jeder Entität und bleiben angekreuzt."
     },
     "create": {
-      "title": "Ein neues Modell",
+      "title": "Neues Modell",
       "name": "Name",
       "space": "Raum",
       "chooseSpace": "Raum wählen",
@@ -1726,7 +1726,7 @@
       "alignment": "SSSOM-Abgleich",
       "manual": "von Ihnen gewählt"
     },
-    "propose": "Mapping vorschlagen",
+    "propose": "Änderung vorschlagen",
     "sameModel": "Ein Mapping braucht zwei verschiedene Modelle.",
     "noSpace": "Kein Raum bedient dieses Modell, das Mapping hat also keinen Ort.",
     "goldenHint": "Der Vorschlag öffnet eine Änderung mit dem Mapping. Sein Golden Test liest ./tests/<name>.input.json und ./tests/<name>.expect.json, die daneben committet werden.",
@@ -1768,9 +1768,9 @@
     "byWebhook": "Läuft, wenn die Quelle es meldet",
     "everyInterval": "Alle {interval}",
     "add": "Quelle hinzufügen",
-    "propose": "Quelle vorschlagen",
+    "propose": "Änderung vorschlagen",
     "dialog": {
-      "title": "Eine neue Sync-Quelle",
+      "title": "Neue Sync-Quelle",
       "description": "Woher dieses Projekt Ressourcen kopiert oder spiegelt und was ein Lauf mit dem Gefundenen tut."
     },
     "originKind": {

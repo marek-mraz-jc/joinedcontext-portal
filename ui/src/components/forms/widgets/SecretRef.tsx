@@ -5,6 +5,7 @@ import type { WidgetProps } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import React from "react";
 import { Input } from "../../ui";
+import { useShownErrors } from "../touched";
 
 export interface SecretRefValue {
   name: string;
@@ -113,7 +114,7 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
     updateValue(secretName, next);
   };
 
-  const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
+  const hasErrors = Boolean(useShownErrors(id, rawErrors));
   const datalistId = `${id}__secrets_list`;
 
   return (

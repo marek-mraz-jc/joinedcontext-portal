@@ -8,6 +8,7 @@ import { clsx } from "clsx";
 import { searchEntities } from "../../../api/gateway";
 import type { GatewayEntity } from "../../../api/gateway";
 import { Input } from "../../ui";
+import { useShownErrors } from "../touched";
 
 /** An NGSI-LD entity id, as a person pastes one. */
 const URN = /^urn:ngsi-ld:\S+$/;
@@ -37,7 +38,7 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
   // Set by the entity selector field (UI-03): the space and the type come from the form and may
   // simply not be chosen yet, which is a step still to take, not a misconfigured field.
   const dependent = options?.dependent === true;
-  const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
+  const hasErrors = Boolean(useShownErrors(id, rawErrors));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);

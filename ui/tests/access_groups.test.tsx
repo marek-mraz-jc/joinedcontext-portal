@@ -143,7 +143,7 @@ describe("the groups of the organization on Organization → Groups", () => {
     // longer read out of a skeleton — it is what the POST goes to, asserted below. An untouched
     // form is refused at the field now rather than on the button, so what stays here is the
     // property: nothing is posted until the form is filled.
-    const proposeButton = within(dialog).getByRole("button", { name: "Propose the group" });
+    const proposeButton = within(dialog).getByRole("button", { name: "Propose change" });
     await user.click(proposeButton);
     expect(posted, "an empty form does not post").toHaveLength(0);
 

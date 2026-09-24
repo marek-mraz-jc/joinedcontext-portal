@@ -37,6 +37,7 @@ import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { Button, Checkbox, CONTROL, Field, Icon, Select, Textarea } from "../ui";
 import { askAbout, formContext, inField } from "../../assistant/state";
+import { useShownErrors } from "./touched";
 
 /** What the form renders beside its submit: a cancel, a secondary action. */
 export const FormActionsContext = createContext<ReactNode>(null);
@@ -70,7 +71,7 @@ const DefaultBaseInput = getDefaultRegistry().templates.BaseInputTemplate;
  * `${id}__error`, which is the id the Field gives its error line.
  */
 export function BaseInputTemplate(props: WidgetProps): React.JSX.Element {
-  const hasErrors = Boolean(props.rawErrors && props.rawErrors.length > 0);
+  const hasErrors = Boolean(useShownErrors(props.id, props.rawErrors));
   const isRange = props.type === "range";
   const input = <Input {...props} hasErrors={hasErrors} isRange={isRange} />;
   // The placeholder is an example the field accepts (Architecture/09 §2, T-1604), so the person
@@ -181,6 +182,7 @@ function AskAboutField({ path, label }: { path: string; label: string }): React.
 export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   const { id, label, children, rawErrors, rawDescription, description, rawHelp, displayLabel, required, hidden, schema, fieldPathId } =
     props;
+  const errors = useShownErrors(id, rawErrors);
 
   if (hidden) {
     // `hidden` rather than an inline `display: none`: the attribute is what the platform has for
@@ -208,7 +210,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       required={required}
       description={descText}
       help={inWidget ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
-      errors={rawErrors}
+      errors={errors}
       aside={
         ownHeading ? undefined : (
           <AskAboutField path={pathOf(fieldPathId)} label={typeof label === "string" ? label : ""} />
@@ -556,7 +558,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
   const { enumOptions, enumDisabled, emptyValue: optEmptyVal } = options;
   const emptyValue = multiple ? [] : "";
   const optionValueFormat = getOptionValueFormat(options);
-  const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
+  const hasErrors = Boolean(useShownErrors(id, rawErrors));
 
   const handleFocus = useCallback(
     (event: FocusEvent<HTMLSelectElement>) =>
@@ -613,7 +615,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
 export function TextareaWidget(props: WidgetProps): React.JSX.Element {
   const { id, options, placeholder, value, required, disabled, readonly, onChange, onBlur, onFocus, htmlName, rawErrors } =
     props;
-  const hasErrors = Boolean(rawErrors && rawErrors.length > 0);
+  const hasErrors = Boolean(useShownErrors(id, rawErrors));
   return (
     <Textarea
       id={id}

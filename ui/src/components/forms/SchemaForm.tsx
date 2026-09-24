@@ -14,6 +14,7 @@ import {
   portalThemeWidgets,
 } from "./theme";
 import { FormDataContext, portalFields, portalWidgets } from "./widgets";
+import { TouchedContext, hasAnyError } from "./touched";
 import { DNS1123, ENTITY_TYPE_PATTERN } from "../../schemas/kinds";
 
 /** The theme's widgets and the Portal's own (`secretRef`, `entityPicker`), which a uiSchema names. */
@@ -138,6 +139,19 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   // What the form still wants, beside its buttons (T-1607): a long form with a folded group has to
   // say how much of the required work is done, or folding it away hides the reason Propose is off.
   const [held, setHeld] = React.useState<unknown>(formData);
+  // What a person has reached (T-2757): a field shows its errors once changed or left, and every
+  // field once the form was checked (the page's errors arrive) or a submit was refused.
+  const [touchedIds, setTouchedIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const [checked, setChecked] = React.useState(false);
+  if (!checked && hasAnyError(extraErrors)) {
+    setChecked(true);
+  }
+  const touched = React.useMemo(() => ({ all: checked, ids: touchedIds }), [checked, touchedIds]);
+  const touch = React.useCallback((id: string | undefined) => {
+    if (id) {
+      setTouchedIds((seen) => (seen.has(id) ? seen : new Set(seen).add(id)));
+    }
+  }, []);
   const progress = requiredProgress(
     schema as Parameters<typeof requiredProgress>[0],
     held ?? formData,
@@ -199,6 +213,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
       <FormAfterFieldsContext.Provider value={afterFields ?? null}>
         <FormSubmitStateContext.Provider value={submitState}>
           <FormDataContext.Provider value={held ?? formData}>
+          <TouchedContext.Provider value={touched}>
           <Form<T>
             validator={validator}
             schema={schema}
@@ -217,11 +232,17 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
             onSubmit={(data) => {
               onSubmit(data.formData as T);
             }}
-            onChange={(data) => {
+            onBlur={touch}
+            onError={() => {
+              setChecked(true);
+            }}
+            onChange={(data, id) => {
+              touch(id);
               setHeld(data.formData);
               onChange?.(data.formData as T | undefined);
             }}
           />
+          </TouchedContext.Provider>
           </FormDataContext.Provider>
         </FormSubmitStateContext.Provider>
       </FormAfterFieldsContext.Provider>

@@ -155,7 +155,7 @@ function renderWizard(flowResponse: { body: unknown; status: number } = { body: 
 async function openWizard(user: ReturnType<typeof userEvent.setup>, title = "Threshold Alert") {
   const card = (await screen.findByText(title)).closest("li") as HTMLElement;
   await user.click(within(card).getByRole("button", { name: en.flows.run }));
-  await screen.findByRole("heading", { name: `Set up ${title}` });
+  await screen.findByRole("heading", { name: `Set up: ${title}` });
 }
 
 function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {

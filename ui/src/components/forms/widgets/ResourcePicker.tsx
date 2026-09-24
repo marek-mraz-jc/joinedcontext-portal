@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
 import { Button, Select } from "../../ui";
+import { useShownErrors } from "../touched";
 
 /**
  * A parameter whose choices are the project's own manifests of one kind (CC-24).
@@ -20,6 +21,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   const { id, value, required, disabled, readonly, onChange, onBlur, onFocus, options, rawErrors } =
     props;
   const { t, i18n } = useTranslation();
+  const errors = useShownErrors(id, rawErrors);
 
   const plural = typeof options?.plural === "string" ? options.plural : undefined;
   // Written into the uiSchema by the page that renders the form: a widget has no route of
@@ -69,7 +71,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       required={required}
       disabled={disabled || readonly}
       aria-describedby={ariaDescribedByIds(id)}
-      aria-invalid={rawErrors && rawErrors.length > 0 ? "true" : undefined}
+      aria-invalid={errors && errors.length > 0 ? "true" : undefined}
       value={typeof value === "string" ? value : ""}
       onChange={(event: ChangeEvent<HTMLSelectElement>) =>
         onChange(event.target.value === "" ? undefined : event.target.value)

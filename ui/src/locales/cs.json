@@ -1057,7 +1057,7 @@
         "verbs": "Operace"
       },
       "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
-      "propose": "Navrhnout roli",
+      "propose": "Navrhnout změnu",
       "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
     },
     "accounts": {
@@ -1173,7 +1173,7 @@
         "members": "Členové",
         "memberUser": "Adresa"
       },
-      "propose": "Navrhnout skupinu",
+      "propose": "Navrhnout změnu",
       "reason": {
         "DriftCorrected": "Opraveno",
         "MemberUnknown": "Čeká na první přihlášení",
@@ -1221,10 +1221,10 @@
     "back": "Zpět na přehled",
     "instantiate": {
       "title": "Nastavení: {name}",
-      "submit": "Vytvořit",
+      "submit": "Navrhnout změnu",
       "hint": "Uložením navrhnete změnu; projeví se po jejím schválení.",
       "noSchema": "Tato šablona nemá žádné parametry.",
-      "failed": "Parametry nebyly přijaty. Opravte označená pole a vytvořte znovu."
+      "failed": "Parametry nebyly přijaty. Opravte označená pole a navrhněte znovu."
     },
     "emptyHint": "Blueprint připraví celý případ použití jedním krokem: prostor, zdroj, pipeline a endpoint spolu. V tomto projektu vám zatím žádný není dostupný."
   },
@@ -1726,7 +1726,7 @@
       "alignment": "zarovnání SSSOM",
       "manual": "zvoleno vámi"
     },
-    "propose": "Navrhnout mapování",
+    "propose": "Navrhnout změnu",
     "sameModel": "Mapování potřebuje dva různé modely.",
     "noSpace": "Tento model neobsluhuje žádný prostor, mapování tedy nemá kam patřit.",
     "goldenHint": "Návrh otevře změnu s mapováním. Jeho zlatý test čte ./tests/<name>.input.json a ./tests/<name>.expect.json, které se commitují vedle něj.",
@@ -1768,7 +1768,7 @@
     "byWebhook": "Běží, když to zdroj oznámí",
     "everyInterval": "Každých {interval}",
     "add": "Přidat zdroj",
-    "propose": "Navrhnout zdroj",
+    "propose": "Navrhnout změnu",
     "dialog": {
       "title": "Nový zdroj synchronizace",
       "description": "Odkud tento projekt kopíruje nebo zrcadlí zdroje a co běh udělá s tím, co najde."

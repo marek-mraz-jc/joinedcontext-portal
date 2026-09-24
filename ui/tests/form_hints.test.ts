@@ -27,6 +27,14 @@ describe("the pickers a schema asks for", () => {
     });
   });
 
+  it("writes a prose parameter in a multi-line box, with no options (T-2757)", () => {
+    expect(
+      pickers(schema({ prompt: { type: "string", "x-jc-widget": "textarea", "x-jc-options": { rows: 99 } } }), {
+        project: "helsinki",
+      }),
+    ).toEqual({ prompt: { "ui:widget": "textarea" } });
+  });
+
   it("leaves a property that asks for no widget alone", () => {
     // Everything else about the form still comes from the schema: a property with no hint is
     // rendered by RJSF's own input, and an empty entry would override that with nothing.

@@ -14,6 +14,8 @@ import { portalWidgets } from "./widgets";
 /** What a property may carry beside the JSON Schema keywords. */
 const WIDGET = "x-jc-widget";
 const OPTIONS = "x-jc-options";
+/** rjsf's own multi-line box, for a parameter written as prose (T-2757); it takes no options. */
+const TEXTAREA = "textarea";
 
 function properties(schema: unknown): Record<string, JsonSchema> | undefined {
   const declared = (schema as { properties?: unknown } | null)?.properties;
@@ -51,6 +53,9 @@ export function pickers(
         ...shared,
         ...(named ? (own as Record<string, unknown>) : {}),
       };
+    }
+    if (widget === TEXTAREA) {
+      entry["ui:widget"] = TEXTAREA;
     }
     // An object parameter arranges its own properties under its name, the way RJSF nests them.
     Object.assign(entry, pickers(property, shared));

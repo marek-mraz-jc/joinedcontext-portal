@@ -27,6 +27,7 @@ import {
   unfilledRequired,
 } from "../src/pages/models/mapping";
 import type { Derivation } from "../src/pages/models/mapping";
+import en from "../src/locales/en.json";
 import {
   answeringChecks,
   checksSoFar,
@@ -373,7 +374,7 @@ describe("the editor on screen", () => {
 
     // The unfilled required slot is what stands between the alignment and a proposal.
     await user.selectOptions(screen.getByLabelText("Source slot for quality"), "band");
-    await user.click(screen.getByRole("button", { name: "Propose the mapping" }));
+    await user.click(screen.getByRole("button", { name: en.mappings.propose }));
 
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0].url).toContain("/api/v1/projects/banskabystrica/mappings");
@@ -418,7 +419,7 @@ describe("the editor on screen", () => {
     const user = userEvent.setup();
     render(<Harness project="banskabystrica" spaceOf={() => "ovzdusie"} />);
     await user.selectOptions(screen.getByLabelText("Source slot for quality"), "band");
-    const propose = screen.getByRole("button", { name: "Propose the mapping" });
+    const propose = screen.getByRole("button", { name: en.mappings.propose });
     expect(propose).toBeEnabled();
 
     const example = screen.getByLabelText("Input example (JSON)");
@@ -431,7 +432,7 @@ describe("the editor on screen", () => {
   it("will not propose a model onto itself or into no space", async () => {
     render(<Harness project="banskabystrica" spaceOf={() => undefined} />);
     expectDenied(
-      screen.getByRole("button", { name: "Propose the mapping" }),
+      screen.getByRole("button", { name: en.mappings.propose }),
       /Required target slots nothing fills/,
     );
   });
@@ -494,7 +495,7 @@ describe("the mappings editor against the UI contract", () => {
 
     // Nothing fills the required target slot yet, which is why it cannot be proposed.
     expectDenied(
-      screen.getByRole("button", { name: "Propose the mapping" }),
+      screen.getByRole("button", { name: en.mappings.propose }),
       /Required target slots nothing fills/,
     );
   });

@@ -1057,7 +1057,7 @@
         "verbs": "Verbs"
       },
       "beyondRights": "A role may not grant more than you hold here: missing {missing}.",
-      "propose": "Propose the role",
+      "propose": "Propose change",
       "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project."
     },
     "accounts": {
@@ -1173,7 +1173,7 @@
         "members": "Members",
         "memberUser": "Address"
       },
-      "propose": "Propose the group",
+      "propose": "Propose change",
       "reason": {
         "DriftCorrected": "Corrected",
         "MemberUnknown": "Waiting for a first login",
@@ -1220,11 +1220,11 @@
     "run": "Set up",
     "back": "Back to the gallery",
     "instantiate": {
-      "title": "Set up {name}",
-      "submit": "Create",
+      "title": "Set up: {name}",
+      "submit": "Propose change",
       "hint": "Saving proposes a change; it takes effect once the change is approved.",
       "noSchema": "This blueprint declares no parameters.",
-      "failed": "The parameters were not accepted. Correct the marked fields and create again."
+      "failed": "The parameters were not accepted. Correct the marked fields and propose again."
     },
     "emptyHint": "A blueprint sets up a whole use case in one step: the space, the source, the pipeline and the endpoint together. None is available to you in this project yet."
   },
@@ -1387,7 +1387,7 @@
       "identity": "id and type are part of every entity and stay ticked."
     },
     "create": {
-      "title": "A new model",
+      "title": "New model",
       "name": "Name",
       "space": "Space",
       "chooseSpace": "Choose a space",
@@ -1726,7 +1726,7 @@
       "alignment": "SSSOM alignment",
       "manual": "chosen by you"
     },
-    "propose": "Propose the mapping",
+    "propose": "Propose change",
     "sameModel": "A mapping needs two different models.",
     "noSpace": "No space serves this model, so the mapping has nowhere to belong.",
     "goldenHint": "Proposing opens a change with the mapping. Its golden test reads ./tests/<name>.input.json and ./tests/<name>.expect.json, which are committed beside it.",
@@ -1768,9 +1768,9 @@
     "byWebhook": "Runs when the source says so",
     "everyInterval": "Every {interval}",
     "add": "Add source",
-    "propose": "Propose the source",
+    "propose": "Propose change",
     "dialog": {
-      "title": "A new sync source",
+      "title": "New sync source",
       "description": "Where this project copies or mirrors resources from, and what a run does with what it finds."
     },
     "originKind": {

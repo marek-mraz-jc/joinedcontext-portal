@@ -149,7 +149,7 @@ describe("flow gallery", () => {
     await user.click(within(card).getByRole("button", { name: en.flows.run }));
 
     expect(
-      screen.getByRole("heading", { name: "Set up Threshold Alert" }),
+      screen.getByRole("heading", { name: "Set up: Threshold Alert" }),
     ).toBeInTheDocument();
     // The form is generated from the blueprint's own parameter schema (CC-24, CC-31).
     expect(screen.getByLabelText(/Notification target URL/)).toBeInTheDocument();
