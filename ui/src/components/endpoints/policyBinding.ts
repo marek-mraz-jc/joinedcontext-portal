@@ -6,7 +6,10 @@
  * which manifest it stood for. The gateway does know, and its rule is short enough to hold in
  * one function (`context-gateway/src/store.rs`, `bound_policy`):
  *
- * - without `spec.policyRef`, every Policy of the endpoint's space applies;
+ * - without `spec.policyRef`, every Policy of the endpoint's space applies — except one assigned
+ *   to another Endpoint's role (`endpoint:{project}/{name}[/{role}]`): the gateway drops such a
+ *   role from every token and gives a caller only the roles of the Endpoint it came through
+ *   (`jc_core::kinds::endpoint_role`, AP-96, AP-97), so another App's grant never applies here;
  * - with one, the Policy of that space whose **manifest name** equals the URN's local id, and
  *   only when the URN's space segment is the endpoint's own space segment;
  * - a URN that matches none binds nothing at all — the endpoint grants nothing — which the page
@@ -43,6 +46,19 @@ export function parsePolicyUrn(urn: string): PolicyUrn | undefined {
   return orgDomain && space && localId ? { orgDomain, space, localId } : undefined;
 }
 
+/** What every role an Endpoint gives starts with (`jc_core::kinds::ENDPOINT_ROLE_PREFIX`). */
+const ENDPOINT_ROLE_PREFIX = "endpoint:";
+
+/** Whether a caller of this Endpoint can ever hold the role a policy is assigned to. */
+function reachable(policy: Manifest, project: string, endpoint: string): boolean {
+  const id = (policy.spec as { assignee?: { id?: unknown } }).assignee?.id;
+  if (typeof id !== "string" || !id.startsWith(ENDPOINT_ROLE_PREFIX)) {
+    return true;
+  }
+  const own = `${ENDPOINT_ROLE_PREFIX}${project}/${endpoint}`;
+  return id === own || id.startsWith(`${own}/`);
+}
+
 export type Binding =
   | { kind: "all"; policies: Manifest[] }
   | { kind: "bound"; policies: Manifest[] }
@@ -63,7 +79,9 @@ export function bindingOf(
   spaces: Manifest[],
 ): Binding {
   const ofSpace = policies.filter(
-    (policy) => (refName(policy.spec.contextSpaceRef) || undefined) === space,
+    (policy) =>
+      (refName(policy.spec.contextSpaceRef) || undefined) === space &&
+      reachable(policy, project, endpoint.metadata.name),
   );
   const reference = (endpoint.spec as { policyRef?: unknown }).policyRef;
   if (typeof reference !== "string" || reference === "") {

@@ -249,6 +249,21 @@ describe("which policies decide an endpoint's calls", () => {
     expect(all).toEqual({ kind: "all", policies: [READERS, WRITERS] });
   });
 
+  // T-2751: the gateway drops every `endpoint:` role a token asserts and gives a caller only the
+  // roles of the Endpoint it came through (AP-96, AP-97), so another App's grant never applies here.
+  it("leaves out a policy assigned to another endpoint's role, as the gateway does", () => {
+    const app = (name: string, id: string) =>
+      manifest("Policy", name, { contextSpaceRef: "ovzdusie", assignee: { kind: "role", id }, operations: ["queryEntity"] });
+    const own = app("own", `endpoint:${PROJECT}/${NAME}`);
+    const ownRole = app("own-steward", `endpoint:${PROJECT}/${NAME}/steward`);
+    const other = app("other", `endpoint:${PROJECT}/app-hsl-transport`);
+    const otherRole = app("other-steward", `endpoint:${PROJECT}/app-hsl-transport/steward`);
+    const prefix = app("prefix", `endpoint:${PROJECT}/${NAME}-v2`);
+    const noRef = manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG });
+    const all = bindingOf(noRef, PROJECT, "ovzdusie", [READERS, own, ownRole, other, otherRole, prefix], [SPACE]);
+    expect(all).toEqual({ kind: "all", policies: [READERS, own, ownRole] });
+  });
+
   it("binds nothing when the reference names a policy of another space, as the gateway does", () => {
     // Same manifest name, another space: `bound_policy` requires the URN's space segment to be
     // the endpoint's own, so this endpoint grants nothing at all.
@@ -288,6 +303,32 @@ describe("what the endpoint page says about who may call it", () => {
     expect(within(section).getByText(en.endpoints.page.policyWrites)).toBeInTheDocument();
     expect(within(section).queryByText(en.endpoints.page.policyReads)).toBeNull();
     expect(within(section).getByText("updateEntity, updateAttrs, replaceEntity, replaceAttrs")).toBeInTheDocument();
+  });
+
+  // T-2751: a single operation was printed twice, as a chip and again as text beside it.
+  it("names a single operation once", async () => {
+    const single = manifest("Policy", "readers", {
+      contextSpaceRef: "ovzdusie",
+      assignee: { kind: "role", id: "public" },
+      operations: ["queryEntity"],
+    });
+    show({ policies: [single] });
+    const section = await grants();
+    expect(within(section).getAllByText("queryEntity")).toHaveLength(1);
+    expect(within(section).getByText(en.endpoints.page.operationSingle)).toBeInTheDocument();
+  });
+
+  it("does not list another App's grant among who may call this endpoint", async () => {
+    const noRef = manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG });
+    const other = manifest("Policy", "app-hsl-transport-1", {
+      contextSpaceRef: "ovzdusie",
+      assignee: { kind: "role", id: `endpoint:${PROJECT}/app-hsl-transport` },
+      operations: ["queryEntity"],
+    });
+    show({ endpoint: noRef, policies: [READERS, other] });
+    const section = await grants();
+    expect(within(section).getByRole("link", { name: "readers" })).toBeInTheDocument();
+    expect(within(section).queryByRole("link", { name: "app-hsl-transport-1" })).toBeNull();
   });
 
   it("says an endpoint grants nothing when its reference resolves to no policy", async () => {

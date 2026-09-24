@@ -1118,11 +1118,11 @@ function Grant({ name }: { name: string }): JSX.Element {
         <Badge mono tone={group?.writes ? "warning" : "info"}>
           {name}
         </Badge>
-        <span className="text-caption text-fg-muted">
-          {group
-            ? t("endpoints.page.groupMembers", { count: group.operations.length })
-            : t("endpoints.page.operationSingle")}
-        </span>
+        {group ? (
+          <span className="text-caption text-fg-muted">
+            {t("endpoints.page.groupMembers", { count: group.operations.length })}
+          </span>
+        ) : null}
       </dt>
       <dd className="text-caption text-fg-muted">
         {group ? (
@@ -1133,7 +1133,9 @@ function Grant({ name }: { name: string }): JSX.Element {
             <span className="font-mono text-fg">{group.operations.join(", ")}</span>
           </>
         ) : (
-          <span className="font-mono text-fg">{name}</span>
+          // A single operation is its own chip above; naming it again beside it said it twice
+          // (T-2751).
+          t("endpoints.page.operationSingle")
         )}
       </dd>
     </div>
