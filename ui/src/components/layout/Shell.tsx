@@ -7,7 +7,7 @@ import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ExportButton } from "../export/ExportButton";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { useAuth } from "../../auth/AuthProvider";
-import { useProjects } from "../../api/projects";
+import { rememberProject, useProjects } from "../../api/projects";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding } from "../../api/approval";
@@ -305,6 +305,10 @@ export function Shell({
   const { t } = useTranslation();
   const branding = useBranding();
   const matchRoute = useMatchRoute();
+  // The organization's tabs, every endpoint and `/` open on this project next (T-2753).
+  useEffect(() => {
+    rememberProject(project);
+  }, [project]);
   // Which page is in hand, so a panel left by a page that threw is cleared by walking away
   // from it (T-2426).
   const pathname = useRouterState({ select: (state) => state.location.pathname });

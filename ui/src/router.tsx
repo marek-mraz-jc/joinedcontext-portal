@@ -9,7 +9,7 @@ import {
   useChildMatches,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useProjects } from "./api/projects";
+import { preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
 import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
@@ -124,20 +124,20 @@ function NotFound(): React.JSX.Element {
   );
 }
 
-/** The shell around a page that belongs to no single project: it opens on the first one. */
+/** The shell around a page that belongs to no single project: it opens on the one last worked in (T-2753). */
 function AnyProjectShell({ children }: { children: React.ReactNode }): React.JSX.Element {
   const projects = useProjects();
-  const first = projects.data?.[0];
+  const first = preferredProject(projects.data);
   if (!first) {
     return <NoProject projects={projects} />;
   }
   return <Shell project={first}>{children}</Shell>;
 }
 
-/** `/` goes to the first visible project's spaces; with no project there is nowhere to go. */
+/** `/` goes to the spaces of the project last worked in, else the first visible one (T-2753). */
 function IndexRedirect(): React.JSX.Element {
   const projects = useProjects();
-  const first = projects.data?.[0];
+  const first = preferredProject(projects.data);
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -419,7 +419,7 @@ function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null 
   if (!isOrganizationTab(tab)) {
     return <NotFound />;
   }
-  const first = projects.data?.[0];
+  const first = preferredProject(projects.data);
   if (!first) {
     return <NoProject projects={projects} />;
   }
