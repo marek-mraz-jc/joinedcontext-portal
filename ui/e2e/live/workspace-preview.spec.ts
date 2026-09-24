@@ -11,9 +11,11 @@ const COPY = `try-${SUFFIX}`;
  * discarded at the end, whichever way the journey goes.
  */
 test("a copy's preview answers on its own addresses and stops answering when stopped", async ({ browser }) => {
-  // The dialog's own address (T-2749): what the button opens, a link and a reload open too.
-  const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/workspaces/new?lang=en`);
+  const { page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/workspaces?lang=en`);
   try {
+    // The dialog's own address (T-2749): what the button opens, a link and a reload open too.
+    // Signed in first: the open dialog hides the navigation `signIn` waits for.
+    await page.goto(`/projects/${PROJECT}/workspaces/new?lang=en`);
     const dialog = page.getByRole("dialog", { name: "Work on a copy" });
     await dialog.getByLabel(/^Name/).fill(COPY);
     await dialog.getByRole("button", { name: "Start the copy" }).click();
