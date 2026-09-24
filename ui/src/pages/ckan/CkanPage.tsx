@@ -265,7 +265,7 @@ function Instances({
               fields.current.name = node;
             }}
             value={draft.name}
-            placeholder="opendata-bb"
+            placeholder="open-data"
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
           />
         </Field>
@@ -283,7 +283,7 @@ function Instances({
             }}
             type="url"
             value={draft.url}
-            placeholder="https://opendata.example.sk"
+            placeholder="https://opendata.example.org"
             onChange={(event) => setDraft({ ...draft, url: event.target.value })}
           />
         </Field>
@@ -295,7 +295,7 @@ function Instances({
           <Input
             id="ckan-instance-org"
             value={draft.organizationDefault}
-            placeholder="mesto-banska-bystrica"
+            placeholder="city-office"
             onChange={(event) => setDraft({ ...draft, organizationDefault: event.target.value })}
           />
         </Field>

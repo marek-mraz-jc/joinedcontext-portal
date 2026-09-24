@@ -85,14 +85,14 @@ spec:
       fields: [publish]
   fields:
     name:
-      placeholder: helsinki-parking
+      placeholder: "parking-public"
       help:
         en: Internal identifier for this endpoint; lowercase letters, digits and hyphens only.
         sk: Interný identifikátor tohto rozhrania; iba malé písmená, číslice a spojovníky.
         cs: Interní identifikátor tohoto rozhraní; pouze malá písmena, číslice a spojovníky.
         de: Interne Kennung dieses Endpunkts; nur Kleinbuchstaben, Ziffern und Bindestriche.
     title:
-      placeholder: Helsinki city bike stations
+      placeholder: "Parking places"
       help:
         en: The name people read in the catalogue when they look for this data.
         sk: Názov, ktorý ľudia čítajú v katalógu, keď hľadajú tieto údaje.
@@ -147,21 +147,21 @@ spec:
         cs: Jak dlouho brána uchovává odpovědi ve vyrovnávací paměti; nula ukládání vypne.
         de: Wie lange das Gateway Antworten zwischenspeichert; Null schaltet den Cache ab.
     publish.ckan.instanceRef:
-      placeholder: hel-fi
+      placeholder: "open-data"
       help:
         en: The catalogue this endpoint is published to; naming one is what publishes it.
         sk: Katalóg, do ktorého sa rozhranie publikuje; jeho uvedením sa publikovanie zapne.
         cs: Katalog, do kterého se rozhraní publikuje; jeho uvedením se publikování zapne.
         de: Der Katalog, in dem der Endpunkt erscheint; ihn zu nennen schaltet das Publizieren ein.
     publish.ckan.organization:
-      placeholder: hel-fi
+      placeholder: "city-office"
       help:
         en: The catalogue folder the dataset lands in; the catalogue's own default when empty.
         sk: Priečinok katalógu, do ktorého dataset patrí; ak je prázdny, použije sa predvolený.
         cs: Složka katalogu, do níž dataset patří; je-li prázdná, použije se výchozí.
         de: Der Katalogordner des Datensatzes; leer bedeutet den Standard des Katalogs.
     publish.ckan.name:
-      placeholder: ilmanlaatu
+      placeholder: "air-quality"
       help:
         en: The dataset name in the catalogue, which its address shows; this endpoint's name when empty.
         sk: Názov datasetu v katalógu, ktorý sa zobrazí v jeho adrese; ak je prázdny, názov rozhrania.

@@ -66,7 +66,7 @@ spec:
       fields: [tls]
   fields:
     name:
-      placeholder: hsl-citybikes-gbfs
+      placeholder: "bike-stations-gbfs"
       help:
         en: Identifier for this data source used by pipelines to refer to it.
         sk: Identifikátor tohto zdroja údajov, na ktorý sa odkazujú pipelines.
@@ -80,14 +80,14 @@ spec:
         cs: Název tohoto zdroje, jak jej lidé čtou v seznamech a při stavbě pipeline.
         de: Der Name dieses Feeds in Listen und beim Bauen einer Pipeline.
     mqtt.urls:
-      placeholder: ["wss://mqtt.hsl.fi:443/"]
+      placeholder: ["wss://mqtt.example.org:443/"]
       help:
         en: Network addresses of the message brokers to connect to.
         sk: Sieťové adresy brokerov správ, ku ktorým sa má pripojiť.
         cs: Síťové adresy brokerů zpráv, ke kterým se má připojit.
         de: Netzwerkadressen der Message-Broker, zu denen verbunden werden soll.
     mqtt.topics:
-      placeholder: ["/hfp/v2/journey/ongoing/vp/bus/+/+/2510/#"]
+      placeholder: ["/vehicles/+/position"]
       help:
         en: Message topics to subscribe to on the broker.
         sk: Témy správ, ktoré sa majú odoberať na brokeri.
@@ -107,14 +107,14 @@ spec:
         cs: Zahodit předchozí stav a začít čistou relaci při každém připojení.
         de: Vorherigen Zustand verwerfen und bei jeder Verbindung eine neue Sitzung starten.
     mqtt.username:
-      placeholder: hsl-subscriber
+      placeholder: "subscriber"
       help:
         en: Username used to authenticate with the message broker.
         sk: Používateľské meno použité na overenie voči brokeru správ.
         cs: Uživatelské jméno použité pro ověření vůči brokeru zpráv.
         de: Benutzername zur Authentifizierung beim Message-Broker.
     mqtt.passwordRef.name:
-      placeholder: hsl-mqtt-credentials
+      placeholder: "mqtt-credentials"
       help:
         en: Name of the stored secret holding the broker password.
         sk: Názov uloženého tajomstva obsahujúceho heslo k brokeru.
@@ -128,7 +128,7 @@ spec:
         cs: Klíč v tajemství, pod kterým je uloženo heslo k brokeru.
         de: Schlüssel innerhalb des Secrets, unter dem das Broker-Passwort hinterlegt ist.
     http.url:
-      placeholder: "https://tie.digitraffic.fi/api/weather/v1/stations/data"
+      placeholder: "https://api.example.org/weather/stations"
       help:
         en: Web address of the external JSON, XML, or binary feed to poll.
         sk: Webová adresa externého JSON, XML alebo binárneho zdroja na načítanie.
@@ -155,7 +155,7 @@ spec:
         cs: Prefix ověření v hlavičce, při prázdném poli se použije Bearer.
         de: Authentifizierungs-Präfix im Header, standardmäßig Bearer wenn leer gelassen.
     http.authorization.headerRef.name:
-      placeholder: digitraffic-credentials
+      placeholder: "api-credentials"
       help:
         en: Name of the stored secret holding the API token or credentials.
         sk: Názov uloženého tajomstva obsahujúceho API token alebo prihlasovacie údaje.
@@ -169,7 +169,7 @@ spec:
         cs: Klíč vlastnosti v tajemství, kde je uložena hodnota tokenu.
         de: Schlüssel innerhalb des Secrets, unter dem der Token-Wert hinterlegt ist.
     webSocket.url:
-      placeholder: "wss://mqtt.hsl.fi:443/"
+      placeholder: "wss://stream.example.org/vehicles"
       help:
         en: Web address of the WebSocket server to stream messages from.
         sk: Webová adresa servera WebSocket, z ktorého sa majú prúdiť správy.
@@ -184,7 +184,7 @@ spec:
         cs: Úvodní zpráva odeslaná na server bezprostředně po připojení.
         de: Erste Nachricht, die unmittelbar nach dem Verbindungsaufbau an den Server gesendet wird.
     gtfsRt.url:
-      placeholder: "https://api.digitransit.fi/realtime/vehicle-positions/v2/hsl"
+      placeholder: "https://api.example.org/gtfs-rt/vehicle-positions"
       help:
         en: Web address of the remote GTFS-realtime protobuf feed.
         sk: Webová adresa vzdialeného zdroja protobuf vo formáte GTFS-realtime.

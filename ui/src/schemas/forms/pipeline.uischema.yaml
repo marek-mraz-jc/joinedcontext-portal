@@ -138,7 +138,7 @@ spec:
         cs: Seznam názvů atributů entit k načtení namísto stahování všech atributů.
         de: Liste der abzurufenden Attributnamen anstelle aller Attribute.
     source.query.ids:
-      placeholder: ["urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:001"]
+      placeholder: ["urn:ngsi-ld:ParkingSpot:{orgDomain}:{project}:001"]
       help:
         en: Specific entity URNs to process instead of all entities of the type.
         sk: Konkrétne URN identifikátory entít, ktoré sa majú spracovať namiesto celého typu.
@@ -222,7 +222,6 @@ spec:
         cs: Vložený transformační skript, který mapuje příchozí záznamy na standardní atributy entit.
         de: Direktes Transformationsskript, das eingehende Daten auf Standard-Entitätsattribute abbildet.
     targetEndpoint:
-      placeholder: "urn:ngsi-ld:Endpoint:hel.fi:helsinki:helsinki-all"
       help:
         en: Endpoint URN that receives and stores the transformed entities.
         sk: URN identifikátor cieľového rozhrania, ktoré prijíma a ukladá transformované entity.

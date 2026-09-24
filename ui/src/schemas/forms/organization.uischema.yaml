@@ -1,6 +1,6 @@
 # Default form arrangement for Organization (UI-02, T-2605).
 # The one manifest of the organization: its domain, languages, contacts and the rules its projects
-# follow. The examples are Banská Bystrica's.
+# follow. The examples are neutral (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -62,7 +62,7 @@ spec:
       fields: [projects]
   fields:
     domain:
-      placeholder: banskabystrica.sk
+      placeholder: "city.example"
       help:
         en: The internet domain the organization proves it owns; every entity identifier carries it.
         sk: Internetová doména, ktorú organizácia preukázateľne vlastní; nesie ju každý identifikátor entity.
@@ -95,21 +95,21 @@ spec:
         cs: Za co tento kontakt odpovídá, například ochrana osobních údajů nebo bezpečnost.
         de: Wofür dieser Kontakt zuständig ist, etwa Datenschutz oder Sicherheit.
     contacts[].name:
-      placeholder: Oddelenie informatiky
+      placeholder: "IT department"
       help:
         en: The person or the department behind the address, as a reader should address them.
         sk: Osoba alebo oddelenie za adresou, tak ako ich má čitateľ osloviť.
         cs: Osoba nebo oddělení za adresou, tak jak je má čtenář oslovit.
         de: Die Person oder Abteilung hinter der Adresse, so wie Lesende sie ansprechen sollen.
     contacts[].email:
-      placeholder: it@banskabystrica.sk
+      placeholder: "it@{orgDomain}"
       help:
         en: The address that reaches this contact; a shared mailbox outlives a person's.
         sk: Adresa, na ktorej je kontakt k zastihnutiu; spoločná schránka prežije osobnú.
         cs: Adresa, na které je kontakt k zastižení; společná schránka přežije osobní.
         de: Die Adresse, unter der der Kontakt erreichbar ist; ein Sammelpostfach überdauert Personen.
     contacts[].phone:
-      placeholder: +421 48 4330 111
+      placeholder: "+1 555 0100"
       help:
         en: A telephone number in international form, when the contact takes calls.
         sk: Telefónne číslo v medzinárodnom tvare, ak kontakt prijíma hovory.

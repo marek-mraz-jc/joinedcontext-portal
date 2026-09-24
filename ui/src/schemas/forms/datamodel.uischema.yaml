@@ -1,5 +1,5 @@
 # Default form arrangement for DataModel (UI-02, T-2357).
-# What a steward decides about a model version by hand; examples are Banská Bystrica's air quality.
+# What a steward decides about a model version by hand; examples are a neutral air-quality feed (T-2752).
 # The source, version and classes are written in the LinkML editor on the Models page.
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
@@ -51,14 +51,14 @@ spec:
       fields: [lifecycle, openWorld]
   fields:
     name:
-      placeholder: ovzdusie-senzory
+      placeholder: "sensor-readings"
       help:
         en: The short name this model is filed under; it cannot change once the model exists.
         sk: Krátky názov, pod ktorým je model uložený; keď model existuje, nemení sa.
         cs: Krátký název, pod nímž je model uložen; jakmile model existuje, nemění se.
         de: Der kurze Name des Modells; er ändert sich nicht mehr, sobald das Modell besteht.
     contextSpaceRef:
-      placeholder: ovzdusie
+      placeholder: "{project}"
       help:
         en: The context space that owns the model; with the project it is the model's address.
         sk: Kontextový priestor, ktorý model vlastní; spolu s projektom je to adresa modelu.
@@ -72,7 +72,7 @@ spec:
         cs: Sémantická verze, pod kterou byl zdroj uložen; hlavní číslo je obsluhovaná verze schématu.
         de: Die semantische Version der gespeicherten Quelle; die Hauptversion ist die bereitgestellte.
     linkml:
-      placeholder: ovzdusie-senzory.linkml.yaml
+      placeholder: "sensor-readings.linkml.yaml"
       help:
         en: The LinkML file beside the manifest that this version was generated from.
         sk: Súbor LinkML vedľa manifestu, z ktorého bola táto verzia vytvorená.

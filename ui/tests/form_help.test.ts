@@ -142,6 +142,24 @@ function manifestFor(kind: string): UiSchemaManifest {
   return manifest as UiSchemaManifest;
 }
 
+/** What `{project}` and `{orgDomain}` stand for while the examples are held against the schema. */
+const EXAMPLE_VALUES = { project: "helsinki", orgDomain: "hel.fi" };
+
+/** The demo organizations' own names, spaces, domains and people (T-2752). */
+const ORGANIZATION_DATA =
+  /banskabystrica|bystric|ovzdu[sš]|bbsk|zvolen|senzor|mest|brana|prekro|dispe[cč]ing|spravcov|oddelen|hel\.fi|hel-fi|helsinki|ilmanlaatu|hsl|digitransit|digitraffic|praha|jana\.|\.sk\b|\/SK\/|\+421|opendata-bb|\bbb-/i;
+
+/** A field that draws its values as a list to pick from. */
+function offersChoices(definition: Record<string, unknown>): boolean {
+  const items = definition.items as { enum?: unknown; oneOf?: unknown } | undefined;
+  return (
+    definition.enum !== undefined ||
+    definition.oneOf !== undefined ||
+    items?.enum !== undefined ||
+    items?.oneOf !== undefined
+  );
+}
+
 /** A field whose choices or default already tell the person what a value looks like. */
 function showsItsOwnValue(definition: Record<string, unknown>): boolean {
   const items = definition.items as
@@ -231,6 +249,7 @@ describe("the help and the example beside every form field", () => {
       it("offers an example the field accepts, wherever the field does not show its own values", () => {
         const { uiSchema } = arrange(manifestFor(kind), {
           properties: allPaths,
+          examples: EXAMPLE_VALUES,
         });
         const missing: string[] = [];
         const refused: string[] = [];
@@ -264,6 +283,37 @@ describe("the help and the example beside every form field", () => {
         }
         expect(missing, "fields a person faces with a blank input").toEqual([]);
         expect(refused, "examples the field itself would refuse").toEqual([]);
+      });
+
+      // T-2752: a select drew its example as the empty choice, which read as a value already
+      // chosen ("ovzdusie" in a Helsinki form); a field that lists its values needs none.
+      it("puts no example on a field that offers its own choices", () => {
+        const { uiSchema } = arrange(manifestFor(kind), {
+          properties: allPaths,
+          examples: EXAMPLE_VALUES,
+        });
+        const onChoices = allLeaves
+          .filter(({ definition }) => offersChoices(definition))
+          .filter(({ path, definition }) => {
+            const where = definition.type === "array" ? `${path}[]` : path;
+            return entryAt(uiSchema as Record<string, unknown>, where)["ui:placeholder"] !== undefined;
+          })
+          .map(({ path }) => path);
+        expect(onChoices, "an example on a list of choices reads as a choice").toEqual([]);
+      });
+
+      // T-2752: the examples were Banská Bystrica's in every organization's forms, and "Use
+      // example" filled a space or a domain that does not exist there.
+      it("names no organization's own data in an example", () => {
+        const fields = manifestFor(kind).spec.fields ?? {};
+        const foreign = Object.entries(fields).flatMap(([path, arrangement]) =>
+          [arrangement.placeholder ?? []]
+            .flat()
+            .map(String)
+            .filter((example) => ORGANIZATION_DATA.test(example))
+            .map((example) => `${path}: ${example}`),
+        );
+        expect(foreign, "use {project}, {orgDomain} or a neutral word").toEqual([]);
       });
 
       it("shows what a first-time person needs and folds what they do not (T-1607)", () => {

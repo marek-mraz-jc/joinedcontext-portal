@@ -596,3 +596,60 @@ describe("portal/forms is read as a whole", () => {
     expect(problems).toEqual([]);
   });
 });
+
+// T-2752: the examples were one organization's in every organization's forms, and a select drew
+// its example as the empty choice, which read as a value already picked.
+describe("an example is this project's and a select never shows one", () => {
+  const manifest = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "UiSchema",
+    metadata: { name: "example" },
+    spec: {
+      for: "Example",
+      fields: {
+        space: { placeholder: "{project}" },
+        entity: { placeholder: "urn:ngsi-ld:Thing:{orgDomain}:{project}:001" },
+        tags: { placeholder: ["{project}-tag"] },
+        plain: { placeholder: "air-quality" },
+        audience: { placeholder: "public" },
+      },
+    },
+  } as UiSchemaManifest;
+  const properties = ["space", "entity", "tags", "plain", "audience"];
+
+  it("fills {project} and {orgDomain} from the form's own project and organization", () => {
+    const { uiSchema } = arrange(manifest, { properties, examples: { project: "helsinki", orgDomain: "hel.fi" } });
+    const ui = uiSchema as Record<string, Record<string, unknown>>;
+    expect(ui.space["ui:placeholder"]).toBe("helsinki");
+    expect(ui.entity["ui:placeholder"]).toBe("urn:ngsi-ld:Thing:hel.fi:helsinki:001");
+    expect((ui.tags.items as Record<string, unknown>)["ui:placeholder"]).toBe("helsinki-tag");
+    expect(ui.plain["ui:placeholder"]).toBe("air-quality");
+  });
+
+  it("leaves out an example whose value is not known, rather than showing its braces", () => {
+    const { uiSchema } = arrange(manifest, { properties, examples: { project: "helsinki" } });
+    const ui = uiSchema as Record<string, Record<string, unknown>>;
+    expect(ui.space["ui:placeholder"]).toBe("helsinki");
+    expect(ui.entity?.["ui:placeholder"]).toBeUndefined();
+    const none = arrange(manifest, { properties }).uiSchema as Record<string, Record<string, unknown>>;
+    expect(none.space?.["ui:placeholder"]).toBeUndefined();
+    expect(JSON.stringify(none)).not.toContain("{project}");
+  });
+
+  it("opens a select on Choose…, not on the field's example", () => {
+    const schema = {
+      type: "object",
+      properties: { audience: { type: "string", title: "Audience", enum: ["public", "project"] } },
+    } as JsonSchema;
+    const { uiSchema } = arrange(manifest, { properties: ["audience"] });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SchemaForm schema={schema} uiSchema={{ ...uiSchema, audience: { "ui:placeholder": "public" } }} onSubmit={() => {}} />
+      </I18nextProvider>,
+    );
+    const select = screen.getByRole("combobox", { name: /Audience/ });
+    const first = within(select).getAllByRole("option")[0];
+    expect(first).toHaveTextContent(en.form.choose);
+    expect(first).toHaveValue("");
+  });
+});

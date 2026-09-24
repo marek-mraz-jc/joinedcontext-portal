@@ -527,10 +527,10 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
     onChange,
     onBlur,
     onFocus,
-    placeholder,
     htmlName,
     rawErrors,
   } = props;
+  const { t } = useTranslation();
   const { enumOptions, enumDisabled, emptyValue: optEmptyVal } = options;
   const emptyValue = multiple ? [] : "";
   const optionValueFormat = getOptionValueFormat(options);
@@ -570,7 +570,9 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
       onFocus={handleFocus}
       onChange={handleChange}
     >
-      {showPlaceholder ? <option value="">{placeholder}</option> : null}
+      {/* The empty choice says to choose, never the field's example: an example here read as a
+          value already chosen (T-2752), and a select shows its own values anyway. */}
+      {showPlaceholder ? <option value="">{t("form.choose")}</option> : null}
       {Array.isArray(enumOptions)
         ? enumOptions.map(({ value: enumValue, label }, index) => (
             <option

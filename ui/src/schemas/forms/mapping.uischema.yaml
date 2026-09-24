@@ -1,5 +1,5 @@
 # Default form arrangement for Mapping (UI-02, T-2354).
-# How rows of one data model become entities of another; examples are Banská Bystrica's air quality.
+# How rows of one data model become entities of another; examples are a neutral air-quality feed (T-2752).
 # The transformation itself is written on the Models page's Mappings tab and kept as it is here.
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
@@ -63,21 +63,21 @@ spec:
       fields: [native, artifacts]
   fields:
     name:
-      placeholder: ovzdusie-to-airqualityobserved
+      placeholder: "readings-to-airqualityobserved"
       help:
         en: The short name this mapping is filed under; it cannot change once the mapping exists.
         sk: Krátky názov, pod ktorým je mapovanie uložené; keď mapovanie existuje, nemení sa.
         cs: Krátký název, pod nímž je mapování uloženo; jakmile mapování existuje, nemění se.
         de: Der kurze Name des Mappings; er ändert sich nicht mehr, sobald das Mapping besteht.
     contextSpaceRef:
-      placeholder: ovzdusie
+      placeholder: "{project}"
       help:
         en: The context space the mapping belongs to; the same space that serves its target model.
         sk: Kontextový priestor, do ktorého mapovanie patrí; ten istý, ktorý slúži cieľový model.
         cs: Kontextový prostor, do něhož mapování patří; tentýž, který slouží cílový model.
         de: Der Kontextraum des Mappings; derselbe Raum, der sein Zielmodell bereitstellt.
     source.name:
-      placeholder: ovzdusie-senzory
+      placeholder: "sensor-readings"
       help:
         en: The data model whose entities the mapping reads, by the name it is published under.
         sk: Dátový model, ktorého entity mapovanie číta, podľa názvu, pod ktorým je zverejnený.
@@ -105,14 +105,14 @@ spec:
         cs: Obsluhovaná hlavní verze cílového modelu, celé číslo jako 1 nebo 2.
         de: Die bereitgestellte Hauptversion des Zielmodells, eine ganze Zahl wie 1 oder 2.
     tests[].input:
-      placeholder: ./tests/ovzdusie-to-airqualityobserved.input.json
+      placeholder: "./tests/readings-to-airqualityobserved.input.json"
       help:
         en: The input example beside the manifest, a path relative to it without any .. segment.
         sk: Vstupný príklad vedľa manifestu, cesta relatívna k nemu bez segmentu .. v ceste.
         cs: Vstupní příklad vedle manifestu, cesta relativní k němu bez segmentu .. v cestě.
         de: Das Eingabebeispiel neben dem Manifest, ein relativer Pfad ohne ein ..-Segment.
     tests[].expect:
-      placeholder: ./tests/ovzdusie-to-airqualityobserved.expect.json
+      placeholder: "./tests/readings-to-airqualityobserved.expect.json"
       help:
         en: The output that input has to produce, beside the manifest; CI compares the two.
         sk: Výstup, ktorý musí ten vstup vytvoriť, vedľa manifestu; CI ich porovná.
@@ -139,14 +139,14 @@ spec:
         cs: Samotný kód; zvyšuje kontrolní dráhu o jednu, protože jej zde žádná kontrola nepřečte.
         de: Der Code selbst; er hebt die Prüfspur um eine Stufe, weil keine Prüfung hier ihn liest.
     artifacts.bloblang:
-      placeholder: generated/ovzdusie-to-airqualityobserved.blobl
+      placeholder: "generated/readings-to-airqualityobserved.blobl"
       help:
         en: The compiled Bloblang Bento runs, beside the manifest; the compiler writes it for you.
         sk: Skompilovaný Bloblang, ktorý spúšťa Bento, vedľa manifestu; zapíše ho kompilátor.
         cs: Zkompilovaný Bloblang, který spouští Bento, vedle manifestu; zapíše jej kompilátor.
         de: Das kompilierte Bloblang, das Bento ausführt, neben dem Manifest; der Compiler schreibt es.
     artifacts.gatewayIr:
-      placeholder: generated/ovzdusie-to-airqualityobserved.ir.json
+      placeholder: "generated/readings-to-airqualityobserved.ir.json"
       help:
         en: The mapping the gateway interprets for live translation and view endpoints.
         sk: Mapovanie, ktoré brána interpretuje pre živý preklad a pohľadové endpointy.

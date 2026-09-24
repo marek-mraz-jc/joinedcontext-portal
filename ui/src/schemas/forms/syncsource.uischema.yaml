@@ -77,7 +77,7 @@ spec:
       fields: [interval, mode, conflictPolicy, prune, autoMerge]
   fields:
     name:
-      placeholder: upstream-helsinki
+      placeholder: "upstream-{project}"
       help:
         en: Unique identifier for this synchronization job; cannot be changed later.
         sk: Jedinečný identifikátor tejto synchronizačnej úlohy; neskôr ho nemožno zmeniť.
@@ -91,7 +91,7 @@ spec:
         cs: Název v seznamu zdrojů, který řekne, odkud a co se synchronizuje.
         de: Der Name in der Liste der Quellen, der sagt, woher und was synchronisiert wird.
     git.url:
-      placeholder: "https://github.com/joinedcontext/helsinki.git"
+      placeholder: "https://git.example.org/city/context.git"
       help:
         en: Clone web address or SSH connection string of the remote Git repository.
         sk: Webová adresa na klonovanie alebo pripojenie SSH vzdialeného repozitára Git.
@@ -104,7 +104,7 @@ spec:
         cs: Název větve, značka nebo konkrétní kontrolní součet verze z repozitáře.
         de: Name des Zweigs, Schlagwort oder bestimmter Versionsstand des Repositorys.
     git.path:
-      placeholder: components/context-gateway/seed/helsinki
+      placeholder: "projects/{project}"
       help:
         en: Optional relative directory path to synchronize only a subtree of the repository.
         sk: Voliteľná relatívna cesta k priečinku na synchronizáciu iba časti repozitára.
@@ -125,7 +125,7 @@ spec:
         cs: Klíč vlastnosti v tajemství, kde je uložena hodnota přihlašovacího údaje.
         de: Schlüssel innerhalb des Secrets, unter dem die Zugangsdaten hinterlegt sind.
     bundle.url:
-      placeholder: "https://example.org/bundles/helsinki-transit.zip"
+      placeholder: "https://example.org/bundles/transit.zip"
       help:
         en: Web address of the published bundle archive to download and import.
         sk: Webová adresa zverejneného archívu balíka na stiahnutie a import.
@@ -153,7 +153,7 @@ spec:
         cs: Základní webová adresa vzdálené instance platformy poskytující rozhraní API.
         de: Basiswebadresse der entfernten Plattforminstanz, die die API bereitstellt.
     platformApi.project:
-      placeholder: helsinki
+      placeholder: "{project}"
       help:
         en: Project identifier on the remote instance to copy resources from.
         sk: Identifikátor projektu na vzdialenej inštancii, z ktorého sa kopírujú prostriedky.

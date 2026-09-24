@@ -57,7 +57,7 @@ spec:
         cs: Krátký název v adrese této nástěnky. Malá písmena, číslice a spojovníky.
         de: Der kurze Name in der Adresse dieses Dashboards. Kleinbuchstaben, Ziffern und Bindestriche.
     title:
-      placeholder: Helsinki city bikes
+      placeholder: "City bikes"
       help:
         en: The name shown at the top of the dashboard and in the menu.
         sk: Názov zobrazený v hlavičke nástenky a v menu.
@@ -90,21 +90,20 @@ spec:
         cs: Mapové vrstvy, které se mají zobrazit společně na mapě této stránky.
         de: Kartenebenen, die gemeinsam auf der Karte dieser Seite angezeigt werden.
     pages[].widgets[].widgetType:
-      placeholder: temporalChart
       help:
         en: Type of informational component to render, such as a time chart.
         sk: Typ informačného prvku na zobrazenie, napríklad graf vývoja v čase.
         cs: Typ informačního prvku k zobrazení, například graf vývoje v čase.
         de: Typ der anzuzeigenden Komponente, beispielsweise ein Zeitverlaufsdiagramm.
     pages[].widgets[].endpointRef:
-      placeholder: helsinki-bikes
+      placeholder: "bike-stations"
       help:
         en: Endpoint providing the live entities and readings for this widget.
         sk: Rozhranie poskytujúce živé entity a merania pre tento prvok.
         cs: Rozhraní poskytující živé entity a měření pro tento prvek.
         de: Endpunkt, der die aktuellen Entitäten und Messwerte für dieses Widget liefert.
     pages[].widgets[].entityId:
-      placeholder: "urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:001"
+      placeholder: "urn:ngsi-ld:BikeHireDockingStation:{orgDomain}:{project}:001"
       help:
         en: Identifier of the specific entity whose historical values are plotted.
         sk: Identifikátor konkrétnej entity, ktorej historické hodnoty sa vykresľujú.
@@ -228,7 +227,7 @@ spec:
         cs: Regulární výraz, kterému musí identifikátory entit vyhovět, aby se vypsaly.
         de: Ein regulärer Ausdruck, dem die Kennungen entsprechen müssen.
     pages[].widgets[].grid.filters.preset.scopeQ:
-      placeholder: /Helsinki/Kallio
+      placeholder: "/district/centre"
       help:
         en: The scope the listed entities must sit in, written as a scope expression.
         sk: Rozsah, v ktorom musia vypísané entity ležať, zapísaný ako výraz rozsahu.

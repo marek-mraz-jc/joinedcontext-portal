@@ -1,6 +1,6 @@
 # Default form arrangement for Project (UI-02, T-2606).
 # What Project settings → General edits of project.yaml: its title, its description and its own
-# quotas. The examples are Banská Bystrica's.
+# quotas. The examples are neutral; {project} and {orgDomain} are the form's own (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -51,14 +51,14 @@ spec:
       fields: [quotas]
   fields:
     title:
-      placeholder: Kvalita ovzdušia Banská Bystrica
+      placeholder: "Air quality"
       help:
         en: The name people read in the project switcher and at the top of every page of it.
         sk: Názov, ktorý ľudia čítajú v prepínači projektov a navrchu každej jeho stránky.
         cs: Název, který lidé čtou v přepínači projektů a nahoře na každé jeho stránce.
         de: Der Name im Projektwechsler und oben auf jeder Seite des Projekts.
     description:
-      placeholder: Meranie kvality ovzdušia v meste a jeho zverejnenie
+      placeholder: Measures the city's air quality and publishes it
       help:
         en: One or two sentences on what the project is for, for whoever is deciding whether to join it.
         sk: Jedna či dve vety o tom, načo projekt je, pre toho, kto sa rozhoduje, či sa pridá.

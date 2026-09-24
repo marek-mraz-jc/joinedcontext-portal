@@ -1,5 +1,5 @@
 # Default form arrangement for Policy (UI-02, T-2326).
-# The manifest that decides who reads a city's context data; examples are Banská Bystrica's.
+# The manifest that decides who reads a city's context data; examples are neutral (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -76,14 +76,13 @@ spec:
       fields: [q, scopeQ, geoQ, temporalQ, validity]
   fields:
     name:
-      placeholder: ovzdusie-verejne-citanie
+      placeholder: "air-quality-public-read"
       help:
         en: The short name this policy is filed under; two policies of a project cannot share one.
         sk: Krátky názov, pod ktorým je politika uložená; dve politiky projektu ho nemôžu zdieľať.
         cs: Krátký název, pod nímž je politika uložena; dvě politiky projektu jej nemohou sdílet.
         de: Der kurze Name, unter dem die Richtlinie abgelegt ist; zwei Richtlinien teilen ihn nicht.
     contextSpaceRef:
-      placeholder: ovzdusie
       help:
         en: The context space whose data this policy decides about; a policy covers exactly one.
         sk: Kontextový priestor, o ktorého údajoch politika rozhoduje; politika pokrýva práve jeden.
@@ -122,7 +121,7 @@ spec:
         cs: Jeden typ entity, kterého se oprávnění týká; oprávnění bez typu nepokrývá nic.
         de: Ein Entitätstyp dieser Berechtigung; ohne Typ umfasst eine Berechtigung nichts.
     information[].entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:banskabystrica\\.sk:ovzdusie:.*$"
+      placeholder: "^urn:ngsi-ld:AirQualityObserved:.*$"
       help:
         en: An anchored expression narrowing the grant to the identifiers that match it.
         sk: Ukotvený výraz, ktorý zužuje oprávnenie na identifikátory, ktoré mu zodpovedajú.
@@ -150,7 +149,7 @@ spec:
         cs: Podmínka na atributy; entita, která ji nesplní, do oprávnění nepatří.
         de: Eine Bedingung an die Attribute; eine Entität, die sie verfehlt, fällt heraus.
     scopeQ:
-      placeholder: /geo/SK/BB
+      placeholder: "/district/centre"
       help:
         en: The branch of the scope tree the grant covers, and everything under it.
         sk: Vetva stromu rozsahov, ktorú oprávnenie pokrýva, a všetko pod ňou.

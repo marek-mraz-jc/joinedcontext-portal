@@ -77,7 +77,7 @@ spec:
       fields: [csp, limits]
   fields:
     name:
-      placeholder: ovzdusie-mapa
+      placeholder: "air-quality-map"
       help:
         en: The short name of the app; its address and its endpoint are named after it.
         sk: Krátky názov aplikácie; podľa neho sa pomenuje jej adresa aj endpoint.
@@ -108,14 +108,14 @@ spec:
         cs: Složka vedle manifestu v tomto repozitáři, nebo repozitář ve forge organizace.
         de: Ein Ordner neben dem Manifest in diesem Repository oder ein Repository der Organisation.
     source.path:
-      placeholder: apps/ovzdusie-mapa
+      placeholder: "apps/air-quality-map"
       help:
         en: For a folder source, the folder relative to the repository root, without a leading slash.
         sk: Pri zdroji v priečinku cesta k nemu od koreňa repozitára, bez lomky na začiatku.
         cs: U zdroje ve složce cesta k ní od kořene repozitáře, bez lomítka na začátku.
         de: Bei einem Ordner der Pfad ab der Repository-Wurzel, ohne führenden Schrägstrich.
     source.url:
-      placeholder: https://git.banskabystrica.sk/mesto/ovzdusie-mapa.git
+      placeholder: "https://git.example.org/city/air-quality-map.git"
       help:
         en: For a repository source, its https clone address on the organization's forge.
         sk: Pri zdroji v repozitári jeho adresa na klonovanie cez https vo forge organizácie.
@@ -150,7 +150,7 @@ spec:
         cs: Přesná verze, na kterou je připnutá, aby dvě sestavení jednoho commitu byla stejná.
         de: Die genaue Version, damit zwei Builds eines Commits derselbe Build sind.
     dataNeeds[].contextSpaceRef:
-      placeholder: ovzdusie
+      placeholder: "{project}"
       help:
         en: The context space this need reads or writes; one entry per space.
         sk: Kontextový priestor, ktorý táto potreba číta alebo zapisuje; jeden záznam na priestor.
@@ -190,14 +190,14 @@ spec:
         cs: Podmínka, která zužuje, co smí aplikace číst, v dotazovacím jazyce NGSI-LD.
         de: Eine Bedingung, die das Lesbare einschränkt, in der NGSI-LD-Abfragesprache.
     dataNeeds[].scopeQ:
-      placeholder: /geo/SK/BB/#
+      placeholder: "/district/centre/#"
       help:
         en: A scope query that narrows what the app may read to part of the scope tree.
         sk: Dopyt na rozsah, ktorý zužuje čitateľné údaje na časť stromu rozsahov.
         cs: Dotaz na rozsah, který zužuje čitelná data na část stromu rozsahů.
         de: Eine Scope-Abfrage, die das Lesbare auf einen Teil des Scope-Baums begrenzt.
     dataNeeds[].within:
-      placeholder: /geo/SK/BB
+      placeholder: "/district/centre"
       help:
         en: The scope the app may read inside, as an absolute scope string.
         sk: Rozsah, v ktorom smie aplikácia čítať, ako absolútny reťazec rozsahu.
@@ -211,7 +211,7 @@ spec:
         cs: Jak daleko do minulosti smí aplikace číst, jako trvání podle ISO 8601.
         de: Wie weit zurück die App lesen darf, als ISO-8601-Dauer.
     csp.connectSrc:
-      placeholder: [self, https://tiles.banskabystrica.sk]
+      placeholder: [self, https://tiles.example.org]
       help:
         en: The origins the app may call besides its endpoint; self, none or https without a wildcard.
         sk: Pôvody, ktoré smie aplikácia volať okrem endpointu; self, none alebo https bez zástupných znakov.

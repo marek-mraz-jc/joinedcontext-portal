@@ -1,5 +1,5 @@
 # Default form arrangement for ContextSourceRegistration (UI-02, T-2345).
-# A hub space's broker answers with a member's data; the examples are Banská Bystrica's air hub.
+# A hub space's broker answers with a member's data; the examples are a neutral air hub (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -75,28 +75,27 @@ spec:
       fields: [interval, expiresAt]
   fields:
     name:
-      placeholder: zvolen-ovzdusie
+      placeholder: "neighbour-air-quality"
       help:
         en: The short name this registration is filed under; two registrations of a project cannot share one.
         sk: Krátky názov, pod ktorým je registrácia uložená; dve registrácie projektu ho nemôžu zdieľať.
         cs: Krátký název, pod nímž je registrace uložena; dvě registrace projektu jej nemohou sdílet.
         de: Der kurze Name, unter dem die Registrierung abgelegt ist; zwei Registrierungen teilen ihn nicht.
     contextSpaceRef:
-      placeholder: ovzdusie
       help:
         en: The space whose broker answers with the source's data; the registration is written into this space alone.
         sk: Priestor, ktorého broker odpovedá údajmi zdroja; registrácia sa zapíše len do tohto priestoru.
         cs: Prostor, jehož broker odpovídá daty zdroje; registrace se zapíše jen do tohoto prostoru.
         de: Der Raum, dessen Broker mit den Daten der Quelle antwortet; die Registrierung gilt nur für ihn.
     endpointRef:
-      placeholder: zvolen-ovzdusie
+      placeholder: "neighbour-air-quality"
       help:
         en: The Endpoint of this project the data is read through; its own policies still apply to every answer.
         sk: Endpoint tohto projektu, cez ktorý sa údaje čítajú; na každú odpoveď sa stále vzťahujú jeho politiky.
         cs: Endpoint tohoto projektu, přes který se data čtou; na každou odpověď se stále vztahují jeho politiky.
         de: Der Endpoint dieses Projekts, über den gelesen wird; seine Richtlinien gelten weiter für jede Antwort.
     endpoint:
-      placeholder: https://ngsi.zvolen.sk
+      placeholder: "https://ngsi.neighbour.example"
       help:
         en: The base URL of the other broker's NGSI-LD API, without /ngsi-ld/v1, which the broker adds itself.
         sk: Základná URL NGSI-LD API iného brokera, bez /ngsi-ld/v1, ktoré broker pridá sám.
@@ -109,7 +108,7 @@ spec:
         cs: Přeposílat jako servisní účet této platformy, nebo předat vlastní token volajícího přepsaný pro zdroj.
         de: Als Dienstkonto dieser Plattform weiterleiten oder das eigene Token des Aufrufers für die Quelle umschreiben.
     federation.serviceAccountRef:
-      placeholder: ovzdusie-hub
+      placeholder: "air-quality-hub"
       help:
         en: The service account the platform forwards as; required when forwarding as a service account.
         sk: Servisný účet, ako ktorý platforma preposiela; povinný pri preposielaní ako servisný účet.
@@ -123,14 +122,14 @@ spec:
         cs: Jeden typ entity, který zdroj drží; dotaz na tento typ se pošle i zdroji.
         de: Ein Entitätstyp, den die Quelle hält; eine Anfrage nach diesem Typ geht auch an die Quelle.
     information[].entities[].id:
-      placeholder: "urn:ngsi-ld:AirQualityObserved:zvolen.sk:ovzdusie:station-01"
+      placeholder: "urn:ngsi-ld:AirQualityObserved:neighbour.example:air-quality:station-01"
       help:
         en: One entity the source holds, when the claim is about a single entity rather than a whole type.
         sk: Jedna entita, ktorú zdroj drží, ak sa nárok týka jednej entity a nie celého typu.
         cs: Jedna entita, kterou zdroj drží, pokud se nárok týká jedné entity, a ne celého typu.
         de: Eine Entität der Quelle, wenn der Anspruch eine einzelne Entität und nicht den ganzen Typ betrifft.
     information[].entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:zvolen\\.sk:.*$"
+      placeholder: "^urn:ngsi-ld:AirQualityObserved:neighbour\\.example:.*$"
       help:
         en: An anchored expression for the identifiers the source holds, narrowing the type to those.
         sk: Ukotvený výraz pre identifikátory, ktoré zdroj drží, ktorý zužuje typ na ne.

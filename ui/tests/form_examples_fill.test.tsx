@@ -77,7 +77,7 @@ describe("a form filled from its own examples", () => {
     // The item holds the example, and nothing holds the list's own JSON.
     const urls = screen.getAllByRole("textbox").map((field) => (field as HTMLInputElement).value);
     expect(
-      urls.some((value) => value === "wss://mqtt.hsl.fi:443/"),
+      urls.some((value) => value === "wss://mqtt.example.org:443/"),
       `an item of Broker URLs holds the example: ${JSON.stringify(urls)}`,
     ).toBe(true);
     expect(

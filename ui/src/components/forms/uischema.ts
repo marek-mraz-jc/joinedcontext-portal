@@ -119,6 +119,30 @@ export interface ArrangeOptions {
   widgets?: string[];
   /** The fields the schema requires: one of them in a group keeps that group unfolded (T-1607). */
   required?: string[];
+  /**
+   * What `{project}` and `{orgDomain}` in an example stand for: the project the form writes into
+   * and the organization's own domain, so an example reads as this organization's and "Use
+   * example" fills a value that exists here (T-2752). An example naming a value that is not
+   * given is left out rather than shown with its braces.
+   */
+  examples?: { project?: string; orgDomain?: string };
+}
+
+/** An example with its `{project}` and `{orgDomain}` filled in, or nothing when one is not known. */
+export function exampleOf(
+  written: string,
+  values: { project?: string; orgDomain?: string } = {},
+): string | undefined {
+  let unknown = false;
+  const filled = written.replace(/\{(project|orgDomain)\}/g, (_, name: "project" | "orgDomain") => {
+    const value = values[name];
+    if (value === undefined || value === "") {
+      unknown = true;
+      return "";
+    }
+    return value;
+  });
+  return unknown ? undefined : filled;
 }
 
 /** What one arrangement produced, and what it could not use. */
@@ -338,11 +362,15 @@ export function arrange(manifest: UiSchemaManifest, options: ArrangeOptions = {}
       // The example of one item, on the item: filling the first empty one is what the person
       // wants, and an array whose items each carry the example needs no example of its own.
       const [first] = arrangement.placeholder;
-      if (first !== undefined) {
-        at(uiSchema, `${field}[]`, { "ui:placeholder": String(first) });
+      const example = first === undefined ? undefined : exampleOf(String(first), options.examples);
+      if (example !== undefined) {
+        at(uiSchema, `${field}[]`, { "ui:placeholder": example });
       }
     } else if (arrangement.placeholder !== undefined) {
-      entry["ui:placeholder"] = arrangement.placeholder;
+      const example = exampleOf(String(arrangement.placeholder), options.examples);
+      if (example !== undefined) {
+        entry["ui:placeholder"] = example;
+      }
     }
     if (arrangement.readOnly !== undefined) {
       entry["ui:readonly"] = arrangement.readOnly;

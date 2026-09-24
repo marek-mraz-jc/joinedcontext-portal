@@ -229,6 +229,8 @@ export function ResourceFormDialog<T>({
       required: schema.required,
       widgets: [...Object.keys(portalThemeWidgets), ...Object.keys(portalWidgets)],
       advanced,
+      // An example reads as this project's and this organization's own (T-2752).
+      examples: { project, orgDomain: branding.orgDomain },
     });
     const advancedFields = Object.values(manifest.spec.fields ?? {}).some((field) => field.advanced === true);
     return {
@@ -238,7 +240,7 @@ export function ResourceFormDialog<T>({
       problems: answered ? [...indexed.problems, ...result.problems] : [],
       advancedFields,
     };
-  }, [kind, forms.data, forms.isPending, arrangeable, i18n.language, advanced]);
+  }, [kind, forms.data, forms.isPending, arrangeable, i18n.language, advanced, project, branding.orgDomain]);
 
   // The manifest arranges what it names; the caller's literal still covers what a manifest
   // cannot know, such as a name that is read-only once the resource exists.

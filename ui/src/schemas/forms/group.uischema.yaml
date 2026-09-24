@@ -1,5 +1,5 @@
 # Default form arrangement for Group (UI-02, T-2400).
-# A group is a name for several people; the examples are Banská Bystrica's.
+# A group is a name for several people; the examples are neutral (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -50,7 +50,7 @@ spec:
       fields: [members]
   fields:
     name:
-      placeholder: mestski-spravcovia
+      placeholder: project-leads
       help:
         en: The short name a role binding gives this group by; it cannot be renamed later.
         sk: Krátky názov, ktorým skupinu pomenuje väzba roly; neskôr sa nedá premenovať.
@@ -64,7 +64,7 @@ spec:
         cs: Co je tato skupina, pro toho, kdo posuzuje vazbu, jež ji jmenuje.
         de: Was diese Gruppe ist, für alle, die eine Bindung darauf prüfen.
     members[].user:
-      placeholder: jana.mrazova@banskabystrica.sk
+      placeholder: "name.surname@{orgDomain}"
       help:
         en: One person's address, as the identity provider spells it; nobody is listed twice.
         sk: Adresa jednej osoby tak, ako ju píše poskytovateľ identity; nikto nie je uvedený dvakrát.

@@ -53,21 +53,21 @@ spec:
       fields: [isSandbox, ttlDays]
   fields:
     name:
-      placeholder: helsinki
+      placeholder: "air-quality"
       help:
         en: The short name of the space. It becomes part of every entity kept here, so it stays as it is.
         sk: Krátky názov priestoru. Stane sa časťou označenia každej entity v ňom, preto sa už nemení.
         cs: Krátký název prostoru. Stane se částí označení každé entity v něm, proto se už nemění.
         de: Der kurze Name des Raums. Er wird Teil der Kennung jeder Entität darin und bleibt daher so.
     title:
-      placeholder: Helsinki city context
+      placeholder: "Air quality"
       help:
         en: The name people read in menus and lists, in your own language.
         sk: Názov, ktorý ľudia čítajú v menu a zoznamoch, vo vašom jazyku.
         cs: Název, který lidé čtou v menu a seznamech, ve vašem jazyce.
         de: Der Name, den Menschen in Menüs und Listen lesen, in Ihrer Sprache.
     dataModelRef:
-      placeholder: helsinki
+      placeholder: "air-quality"
       help:
         en: The data model that defines entity types and attributes allowed in this space.
         sk: Dátový model, ktorý určuje povolené typy entít a atribúty v tomto priestore.

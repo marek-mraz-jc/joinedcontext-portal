@@ -1,5 +1,5 @@
 # Default form arrangement for Subscription (UI-02, T-2344).
-# A standing query of one space, reconciled into its broker (CC-72, DS-16); examples are Banská Bystrica's.
+# A standing query of one space, reconciled into its broker (CC-72, DS-16); examples are neutral (T-2752).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -76,28 +76,27 @@ spec:
       fields: [q, geoQ, throttling, expiresAt, isActive]
   fields:
     name:
-      placeholder: ovzdusie-prekrocenia
+      placeholder: "air-quality-alerts"
       help:
         en: The short name this subscription is filed under; two subscriptions of a project cannot share one.
         sk: Krátky názov, pod ktorým je odber uložený; dva odbery projektu ho nemôžu zdieľať.
         cs: Krátký název, pod nímž je odběr uložen; dva odběry projektu jej nemohou sdílet.
         de: Der kurze Name, unter dem das Abonnement abgelegt ist; zwei Abonnements teilen ihn nicht.
     contextSpaceRef:
-      placeholder: ovzdusie
       help:
         en: The context space whose broker holds the subscription; it watches that space and no other.
         sk: Kontextový priestor, ktorého broker odber drží; sleduje tento priestor a žiadny iný.
         cs: Kontextový prostor, jehož broker odběr drží; sleduje tento prostor a žádný jiný.
         de: Der Kontextraum, dessen Broker das Abonnement hält; es beobachtet nur diesen Raum.
     subscriptionName:
-      placeholder: Prekročenia PM10 v Banskej Bystrici
+      placeholder: "PM10 above the limit"
       help:
         en: What people call this subscription in the Portal; the manifest name stays as it is.
         sk: Ako ľudia tento odber volajú v Portáli; názov manifestu zostáva, aký je.
         cs: Jak lidé tento odběr nazývají v Portálu; název manifestu zůstává, jaký je.
         de: Wie Menschen das Abonnement im Portal nennen; der Manifestname bleibt, wie er ist.
     description:
-      placeholder: Upozorní dispečing, keď stanica nameria PM10 nad limit.
+      placeholder: Tells the operations desk when a station measures PM10 above the limit.
       help:
         en: Why the subscription exists, for whoever reads the repository later.
         sk: Prečo odber existuje, pre toho, kto bude repozitár čítať neskôr.
@@ -111,14 +110,14 @@ spec:
         cs: Sleduje se každá entita tohoto typu, tak jak typ pojmenovává datový model.
         de: Jede Entität dieses Typs wird beobachtet, so wie das Datenmodell den Typ nennt.
     entities[].id:
-      placeholder: urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:nam-snp
+      placeholder: "urn:ngsi-ld:AirQualityObserved:{orgDomain}:{project}:station-01"
       help:
         en: One entity by its identifier, when a single station or vehicle is all that matters.
         sk: Jedna entita podľa identifikátora, keď záleží len na jednej stanici alebo vozidle.
         cs: Jedna entita podle identifikátoru, když záleží jen na jedné stanici nebo vozidle.
         de: Eine Entität nach Kennung, wenn nur eine Station oder ein Fahrzeug zählt.
     entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:.*$"
+      placeholder: "^urn:ngsi-ld:AirQualityObserved:.*$"
       help:
         en: Every entity whose identifier matches this anchored regular expression.
         sk: Každá entita, ktorej identifikátor zodpovedá tomuto ukotvenému regulárnemu výrazu.
@@ -146,7 +145,7 @@ spec:
         cs: Oblast, ve které musí entita být, jako georel, geometrie a její souřadnice.
         de: Das Gebiet, in dem die Entität liegen muss, als georel, Geometrie und Koordinaten.
     notification.endpoint.uri:
-      placeholder: https://dispecing.banskabystrica.sk/hooks/ovzdusie
+      placeholder: "https://hooks.example.org/air-quality"
       help:
         en: The address the broker posts to; https outside the cluster, and no password or token in it.
         sk: Adresa, na ktorú broker posiela; mimo klastra https a bez hesla či tokenu v nej.
@@ -159,21 +158,21 @@ spec:
         cs: Typ média, který příjemce chce; zůstane-li prázdný, broker pošle svůj výchozí.
         de: Der Medientyp, den der Empfänger will; leer sendet der Broker seinen Standard.
     notification.endpoint.receiverInfo[].key:
-      placeholder: X-Dispecing-Zdroj
+      placeholder: "X-Source"
       help:
         en: A header the receiver needs; Authorization and Cookie belong in the credential below.
         sk: Hlavička, ktorú príjemca potrebuje; Authorization a Cookie patria do údaja nižšie.
         cs: Hlavička, kterou příjemce potřebuje; Authorization a Cookie patří do údaje níže.
         de: Ein Header, den der Empfänger braucht; Authorization und Cookie gehören in die Zugangsdaten.
     notification.endpoint.receiverInfo[].value:
-      placeholder: jc-ovzdusie
+      placeholder: "joinedcontext-air-quality"
       help:
         en: The value of that header, written into the manifest as it is, so never a secret.
         sk: Hodnota tej hlavičky, zapísaná do manifestu tak, ako je, preto nikdy tajomstvo.
         cs: Hodnota té hlavičky, zapsaná do manifestu tak, jak je, proto nikdy tajemství.
         de: Der Wert dieses Headers, wie er ist im Manifest, daher nie ein Geheimnis.
     notification.endpoint.secretRef.name:
-      placeholder: dispecing-hook
+      placeholder: "alerts-hook"
       help:
         en: The secret the credential is read from; the reconciler resolves it and Git never holds it.
         sk: Tajomstvo, z ktorého sa údaj číta; rekonciliátor ho vyrieši a Git ho nikdy nedrží.
