@@ -58,6 +58,7 @@ const PAGES = [
   `/projects/${PROJECT}/assistant`,
   `/projects/${PROJECT}/shared`,
   `/projects/${PROJECT}/workspaces`,
+  `/projects/${PROJECT}/workspaces/new`,
   `/projects/${PROJECT}/workspaces/kopia/compare`,
   `/projects/${PROJECT}/workspaces/kopia/try-it`,
   `/projects/${PROJECT}/workspaces/kopia/bring-back`,
@@ -189,6 +190,12 @@ describe("the buttons of every page", () => {
     for (const button of of("bg-danger")) {
       if (button.closest('[role="dialog"], [role="alertdialog"]')) {
         // Already the confirmation itself.
+        continue;
+      }
+      // A page whose address opens a dialog (`/workspaces/new`, T-2749): the list under it cannot
+      // be pressed while the dialog is up, and the same list is checked at its own address.
+      const modal = document.querySelector('[role="dialog"]');
+      if (modal && !modal.contains(button)) {
         continue;
       }
       await user.click(button);
