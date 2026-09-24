@@ -77,6 +77,7 @@
     "backToList": "Zpět na seznam",
     "opening": "Otevírá se formulář…",
     "notOpen": "Tento formulář nelze otevřít: nic s názvem {name} tu není, nebo to nesmíte měnit.",
+    "notOpenNew": "Na této adrese není formulář pro vytvoření, nebo tu nesmíte nic vytvářet.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",

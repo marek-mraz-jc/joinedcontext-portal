@@ -77,6 +77,7 @@
     "backToList": "Back to the list",
     "opening": "Opening the form…",
     "notOpen": "This form cannot be opened: there is nothing called {name} here, or you may not change it.",
+    "notOpenNew": "This page has no create form at this address, or you may not create anything here.",
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",

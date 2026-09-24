@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -8,6 +8,7 @@ import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { useFormRoute } from "../../components/forms/FormRoute";
 import { ResourceRowActions } from "../../components/ResourceRowActions";
 import type { RowAction } from "../../components/ui/RowActions";
 import { usePermissions } from "../../api/permissions";
@@ -169,6 +170,29 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   const [notice, setNotice] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // `/apps/new` is what "New app" does: the assistant's builder over this list (T-2750). A role
+  // that may not propose an App keeps the address's own "no create form here" instead.
+  const formRoute = useFormRoute();
+  const permissions = usePermissions(project);
+  const asksNew = formRoute?.form?.mode === "new";
+  const mayBuild = permissions.can("App", "propose");
+  const closeRoute = formRoute?.close;
+  // Once per arrival at the address: the effect runs again while the way back to the list is
+  // still under way, and asking twice would navigate against itself.
+  const handedToBuilder = useRef(false);
+  useEffect(() => {
+    if (!asksNew) {
+      handedToBuilder.current = false;
+      return;
+    }
+    if (handedToBuilder.current || permissions.isLoading || !mayBuild || !closeRoute) {
+      return;
+    }
+    handedToBuilder.current = true;
+    requestOpen("build");
+    closeRoute();
+  }, [asksNew, permissions.isLoading, mayBuild, closeRoute]);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "apps"),

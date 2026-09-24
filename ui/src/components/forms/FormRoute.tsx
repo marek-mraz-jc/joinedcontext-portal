@@ -405,7 +405,9 @@ export function FormRouteHost({
           ) : (
             <div className="flex flex-col gap-4">
               <Alert tone="warning" role="alert">
-                {t("form.notOpen", { name: form.mode === "edit" ? form.name : plural })}
+                {/* A create address names no resource, and the list's plural is an API word, not
+                    one a person reads (T-2750). */}
+                {form.mode === "edit" ? t("form.notOpen", { name: form.name }) : t("form.notOpenNew")}
               </Alert>
               <div>
                 <Button onClick={value.close}>{t("form.backToList")}</Button>

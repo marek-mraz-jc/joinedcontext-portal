@@ -253,7 +253,14 @@ export function takeEditRequest(
 /** What the panel opens on: the chat, or the app builder (`build`). */
 export type OpenIntent = "chat" | "build";
 
+/** Nobody listens yet: a request made while the page mounts, before the dock has (T-2750). */
+let openListeners = 0;
+let unheardOpen: OpenIntent | null = null;
+
 export function requestOpen(intent: OpenIntent = "chat"): void {
+  if (openListeners === 0) {
+    unheardOpen = intent;
+  }
   window.dispatchEvent(
     new CustomEvent<OpenIntent>(OPEN_REQUEST, { detail: intent }),
   );
@@ -268,8 +275,17 @@ export function onOpenRequest(
     );
   };
   window.addEventListener(OPEN_REQUEST, handler);
+  openListeners += 1;
+  // A page effect runs before the dock's (the dock is drawn after the page), so an address that
+  // opens the dock — `/apps/new` — asks before anyone listens; the first listener gets it.
+  if (unheardOpen !== null) {
+    const intent = unheardOpen;
+    unheardOpen = null;
+    listener(intent);
+  }
   return () => {
     window.removeEventListener(OPEN_REQUEST, handler);
+    openListeners -= 1;
   };
 }
 

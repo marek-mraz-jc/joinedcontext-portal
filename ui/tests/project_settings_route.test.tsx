@@ -85,6 +85,19 @@ describe("the addresses of Project settings (T-2606)", () => {
     expect(await screen.findByRole("heading", { name: en.access.accounts.add })).toBeInTheDocument();
   });
 
+  // T-2750: Members and Roles kept the create dialog in their own state, so the address the
+  // assistant and a shared link use said "there is nothing called rolebindings here".
+  it("opens Members' grant form at settings/members/new", async () => {
+    renderAt("/projects/helsinki/settings/members/new");
+    expect(await screen.findByRole("heading", { name: en.access.roles.grantTitle })).toBeInTheDocument();
+    expect(screen.queryByText(/rolebindings/)).toBeNull();
+  });
+
+  it("opens Roles' new-role form at settings/roles/new", async () => {
+    renderAt("/projects/helsinki/settings/roles/new");
+    expect(await screen.findByRole("heading", { name: en.access.projectRoles.newTitle })).toBeInTheDocument();
+  });
+
   it("answers an address that names no tab, or no form, with the not-found page", async () => {
     renderAt("/projects/helsinki/settings/billing");
     expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();

@@ -7,6 +7,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { draftState } from "../src/pages/apps/AppsCatalog";
+import { renderRoute } from "./pageHarness";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -622,5 +623,32 @@ describe("apps catalog", () => {
     // The check alone was sent: a red check publishes nothing.
     expect(writes(fetchMock)).toHaveLength(1);
     expect(new URL(writes(fetchMock)[0].url).searchParams.get("dryRun")).toBe("All");
+  });
+});
+
+// T-2750: `/apps/new` said "there is nothing called apps here"; it is what "New app" does.
+describe("the apps page's create address", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.pushState({}, "", "/");
+  });
+
+  it("opens the assistant's builder over the list and leaves the address for the list", async () => {
+    await renderRoute({ path: "/projects/helsinki/apps/new" });
+    // The dock opened on its builder: the way back to the chat is what only that view shows.
+    const dock = await screen.findByRole("complementary", { name: en.agentRun.conversation.title });
+    expect(await within(dock).findByRole("button", { name: en.assistant.backToChat })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/apps"));
+    expect(screen.queryByText(en.form.notOpenNew)).toBeNull();
+  });
+
+  it("opens nothing for a role that may not propose an App, and says so without an API word", async () => {
+    await renderRoute({
+      path: "/projects/helsinki/apps/new",
+      permissions: { project: "helsinki", bootstrap: false, grants: [] },
+    });
+    expect(await screen.findByText(en.form.notOpenNew)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.assistant.backToChat })).toBeNull();
+    expect(screen.queryByText(/called apps/)).toBeNull();
   });
 });

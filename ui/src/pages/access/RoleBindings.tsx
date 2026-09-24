@@ -11,7 +11,7 @@ import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
-import { FormFrame, useFormRoute } from "../../components/forms/FormRoute";
+import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { dns1123 } from "../../components/endpoints/sharing";
 import {
   Alert,
@@ -428,7 +428,17 @@ export function RoleBindings({
       ? takePrefill(window.location.pathname)
       : null,
   );
-  const [granting, setGranting] = useState(prefill !== null);
+  // The routed `…/members/new` opens the same form the button does (T-2750, T-2474); a `?grant=`
+  // hand-off opens it on its draft without an address of its own.
+  const [routedOpen, setRoutedOpen] = useCreateForm();
+  const [fromGrant, setFromGrant] = useState(prefill !== null);
+  const granting = routedOpen || fromGrant;
+  const setGranting = (open: boolean) => {
+    if (!open) {
+      setFromGrant(false);
+    }
+    setRoutedOpen(open);
+  };
 
   const spaceNames = new Set(asManifests(spaces.data?.items ?? []).map((space) => space.metadata.name));
   // Every space-scoped grant is filtered against this set, so while the space list is missing

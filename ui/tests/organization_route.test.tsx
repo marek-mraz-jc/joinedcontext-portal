@@ -15,7 +15,7 @@ const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", roles: ["port
 const EMPTY_LIST = { apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] };
 const PROJECTS = { apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [{ name: "helsinki" }] };
 
-function renderAt(path: string) {
+function renderAt(path: string, permissions: unknown = EMPTY_LIST) {
   window.history.pushState({}, "", path);
   vi.stubGlobal(
     "fetch",
@@ -25,7 +25,9 @@ function renderAt(path: string) {
         ? IDENTITY
         : url.endsWith("/api/v1/projects")
           ? PROJECTS
-          : EMPTY_LIST;
+          : url.includes("/permissions/me")
+            ? permissions
+            : EMPTY_LIST;
       return Promise.resolve(
         new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
       );
@@ -94,6 +96,20 @@ describe("the Organization page's addresses (T-2605)", () => {
   it("opens a tab's create form as a page of its own, the assistant's `…/new` address", async () => {
     renderAt("/organization/groups/new");
     expect(await screen.findByRole("heading", { name: en.access.groups.newTitle })).toBeInTheDocument();
+  });
+
+  // T-2750: the organization's Members and Roles answered their `…/new` with "nothing called
+  // rolebindings/roles here".
+  it("opens Members' grant form at /organization/members/new", async () => {
+    // Only a person who reads the organization's bindings sees Members at all (PF-59).
+    renderAt("/organization/members/new", { project: "org", bootstrap: true, grants: [] });
+    expect(await screen.findByRole("heading", { name: en.access.roles.grantTitle })).toBeInTheDocument();
+    expect(screen.queryByText(/rolebindings/)).toBeNull();
+  });
+
+  it("opens Roles' new-role form at /organization/roles/new", async () => {
+    renderAt("/organization/roles/new");
+    expect(await screen.findByRole("heading", { name: en.access.projectRoles.newTitle })).toBeInTheDocument();
   });
 
   it("answers a tab address with something that is no form with the not-found page", async () => {
