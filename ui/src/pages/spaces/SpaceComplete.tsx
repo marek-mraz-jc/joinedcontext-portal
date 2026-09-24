@@ -10,7 +10,7 @@ import { refName } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import type { Verdict } from "../../api/drafts";
 import { parse as parseYaml } from "yaml";
-import { Alert, Badge, Button, Card, Field, Icon, Input, PageHeader } from "../../components/ui";
+import { Alert, Badge, Button, Card, Field, FileDropZone, Icon, Input, PageHeader } from "../../components/ui";
 import type { IconName } from "../../components/ui";
 
 interface CompletedDraft {
@@ -141,16 +141,8 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     setResult(handed.result);
   }, []);
 
-  const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files;
-    if (!selected) return;
-    const loaded: { name: string; content: string }[] = [];
-    for (let i = 0; i < selected.length; i++) {
-      const f = selected[i];
-      const text = await f.text();
-      loaded.push({ name: f.name, content: text });
-    }
-    setFiles(loaded);
+  const takeFiles = async (selected: File[]) => {
+    setFiles(await Promise.all(selected.map(async (f) => ({ name: f.name, content: await f.text() }))));
   };
 
   const executeComplete = async (propose: boolean) => {
@@ -234,18 +226,18 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           />
         </Field>
 
-        <Field id="complete-files" label={t("spaces.complete.files")}>
-          <input
-            type="file"
-            multiple
-            id="complete-files"
-            onChange={handleFilesChange}
-            className="text-sm"
-          />
+        <FileDropZone
+          label={t("spaces.complete.files")}
+          button={t("form.dropMany")}
+          multiple
+          onFiles={(selected) => void takeFiles(selected)}
+        >
           {files.length > 0 ? (
-            <p className="mt-1 text-caption text-fg-muted">{files.map((f) => f.name).join(", ")}</p>
+            <p className="text-caption text-fg">
+              {t("form.chosenFiles", { names: files.map((f) => f.name).join(", ") })}
+            </p>
           ) : null}
-        </Field>
+        </FileDropZone>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button

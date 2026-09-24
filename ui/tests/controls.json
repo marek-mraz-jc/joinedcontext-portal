@@ -326,6 +326,28 @@
         "ui_tabs_checkbox.test.tsx"
       ]
     },
+    "src/components/ui/FileDropZone.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "browser_security.test.tsx",
+        "contract_alert_badge_button.test.tsx",
+        "contract_card_dialog_menu_table.test.tsx",
+        "contract_field.test.tsx",
+        "contract_widget_describedby.test.tsx",
+        "dialog_focus.test.tsx",
+        "edge_card_dialog_menu_table.test.tsx",
+        "page_header_route.test.tsx",
+        "part_resource_list.test.tsx",
+        "permission_guard.test.tsx",
+        "resource_list.test.tsx",
+        "term.test.tsx",
+        "ui_components.test.tsx",
+        "ui_shared_controls.test.tsx",
+        "ui_tabs_checkbox.test.tsx"
+      ]
+    },
     "src/components/ui/FilePicker.tsx": {
       "controls": {
         "input": 1
@@ -770,8 +792,7 @@
     "src/pages/import/ImportPage.tsx": {
       "controls": {
         "Button": 2,
-        "Checkbox": 1,
-        "input": 1
+        "Checkbox": 1
       },
       "tests": [
         "import_wizard.test.tsx"
@@ -882,8 +903,7 @@
     },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
-        "Button": 3,
-        "input": 1
+        "Button": 3
       },
       "tests": [
         "space_complete.test.tsx"

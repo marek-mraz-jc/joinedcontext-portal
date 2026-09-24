@@ -95,11 +95,13 @@ describe("the data sources page", () => {
   });
 
   // The type of the next source is a labelled control, not a bare select under a line of text.
-  it("labels the type of the source it is about to create", async () => {
+  it("labels the type of the source it is about to create, inside its form (T-2758)", async () => {
     renderSources();
-    const type = await screen.findByLabelText(en.datasources.field.type);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await screen.findByRole("dialog");
+    const type = within(dialog).getByLabelText(en.datasources.field.type);
     expect(type.tagName).toBe("SELECT");
-    expect(screen.getByRole("button", { name: en.datasources.add })).toBeInTheDocument();
   });
 
   it("says the list is loading rather than showing it empty", async () => {
@@ -188,13 +190,10 @@ describe("the data sources page", () => {
   // focus on arrival.
   it("is reachable by keyboard and takes no focus on arrival", async () => {
     const { container } = renderSources({ rows: 2 });
-    await screen.findByLabelText(en.datasources.field.type);
+    const add = (await screen.findAllByRole("button", { name: en.datasources.add }))[0];
     expect(document.activeElement).toBe(document.body);
     const reached = await tabOrder(container, 60);
-    expect(reached).toContain(screen.getByLabelText(en.datasources.field.type));
-    expect(reached.indexOf(screen.getByLabelText(en.datasources.field.type))).toBeLessThan(
-      reached.indexOf(screen.getAllByRole("button", { name: en.datasources.add })[0]),
-    );
+    expect(reached).toContain(add);
   });
 
   // The page's one primary action opens the same form the assistant's draft opens.

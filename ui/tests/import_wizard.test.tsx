@@ -4,7 +4,7 @@
  * The page's whole argument is that nothing is proposed before a person has read what the import
  * would do, and that a credential written in the open never leaves the browser.
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -117,6 +117,15 @@ function renderPage(options: { refusal?: string; status?: number } = {}) {
 }
 
 describe("the import upload (MF-20)", () => {
+  // T-2758: the bundle is dropped on the shared zone, not the browser's own file control.
+  it("takes a bundle dropped on the zone and names it", async () => {
+    renderPage();
+    const zone = await screen.findByTestId("file-drop-zone");
+    fireEvent.drop(zone, { dataTransfer: { files: [bundle()] } });
+    expect(await within(zone).findByText(/^Chosen: /)).toBeInTheDocument();
+    expect(document.querySelector("input[type=file]:not(.sr-only)")).toBeNull();
+  });
+
   it("carries the chosen bundle under `file` and the options as fields", () => {
     const file = bundle();
     const form = importForm(file, " zvolen ", "zvolen.sk", "rename");

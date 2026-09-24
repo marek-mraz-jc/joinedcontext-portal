@@ -1885,6 +1885,7 @@ export function serviceAccountSchema(
   t: (key: string) => string,
   spaces: string[] = [],
   granted: string[] = [],
+  roles: { name: string; title: string }[] = [],
 ): JsonSchema {
   return {
     type: "object",
@@ -1926,8 +1927,10 @@ export function serviceAccountSchema(
             role: {
               type: "string",
               title: t("access.accounts.field.role"),
-              pattern: DNS1123,
-              maxLength: 63,
+              // The roles there are, when the page could read them (T-2758); a name otherwise.
+              ...(roles.length > 0
+                ? { oneOf: roles.map((role) => ({ const: role.name, title: role.title })) }
+                : { pattern: DNS1123, maxLength: 63 }),
             },
             scope: {
               type: "object",

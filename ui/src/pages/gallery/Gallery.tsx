@@ -26,6 +26,7 @@ import {
   EmptyState,
   ExternalLink,
   Field,
+  FileDropZone,
   FilePicker,
   Icon,
   Input,
@@ -430,7 +431,7 @@ export function Gallery(): JSX.Element {
         </State>
       </Specimen>
 
-      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, PermissionGuard">
+      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, FileDropZone, PermissionGuard">
         <State is="decorative and named">
           <span className="flex items-center gap-2">
             <Icon name="spaces" className="size-5" />
@@ -452,6 +453,15 @@ export function Gallery(): JSX.Element {
           <FilePicker label="Choose a model file" accept=".yaml" onFile={() => undefined}>
             <span className="text-body">Drop a .yaml here</span>
           </FilePicker>
+        </State>
+        <State is="a zone to drop files on">
+          <FileDropZone
+            label="Files to read"
+            button="Drop files here or choose them"
+            hint="CSV, JSON or YAML"
+            multiple
+            onFiles={() => undefined}
+          />
         </State>
         <State is="a control the role may not use">
           <PermissionGuard project="helsinki" kind="Endpoint" verb="propose">

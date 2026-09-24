@@ -471,6 +471,61 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     edit: openEdit,
   });
 
+  // The type is the form's first question (T-2758): it decides every field below it, and it used to
+  // be chosen on the list page, above a button, before the form it shaped was even open. A stored
+  // source keeps its type; changing it would be a different source.
+  const typePicker = (
+    <div className="flex flex-col gap-1">
+      <Field id="datasource-type" label={t("datasources.field.type")}>
+        <Select
+          id="datasource-type"
+          value={type}
+          disabled={editing !== null}
+          onChange={(event) => {
+            setType(event.target.value as DataSourceType);
+            // What the person already named stays; the connection fields belong to the old type.
+            setDraft((held) => (held ? { name: held.name, title: held.title } : undefined));
+            setPlan(null);
+            setProbe(null);
+            setCollectedSecrets({});
+          }}
+        >
+          <optgroup label={t("datasources.group.typed", { defaultValue: "Common connections" })}>
+            {DATA_SOURCE_TYPES.map((option) => (
+              <option key={option} value={option}>
+                {t(`datasources.type.${option}`, { defaultValue: option })}
+              </option>
+            ))}
+          </optgroup>
+          {catalog &&
+            RUNNER_GROUPS.map((group) => {
+              const items = catalog.inputs.filter((i) => i.group === group);
+              if (items.length === 0) return null;
+              return (
+                <optgroup
+                  key={group}
+                  label={t(`datasources.group.${group}`, {
+                    defaultValue: group.charAt(0).toUpperCase() + group.slice(1),
+                  })}
+                >
+                  {items.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {inputLabel(item.name)}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+        </Select>
+      </Field>
+      {selectedSummary ? (
+        <p data-testid="input-summary" className="text-caption text-fg-muted">
+          {selectedSummary}
+        </p>
+      ) : null}
+    </div>
+  );
+
   // The same control in the header and in the empty list (T-1381).
   const addButton = (
     <PermissionGuard project={project} kind="DataSource" verb="propose">
@@ -485,53 +540,6 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageHeader title={t("datasources.title")} description={t("datasources.lead")} />
         <div className="flex flex-wrap items-end gap-3">
-          {/* The shared Field, not a hand-made label: one place ties the label to the control
-              and carries the description and errors a choice may grow (UI-01, UI-04). */}
-          <Field id="datasource-type" label={t("datasources.field.type")}>
-            <Select
-              id="datasource-type"
-              value={type}
-              onChange={(event) => {
-                setType(event.target.value as DataSourceType);
-                setDraft(undefined);
-                setPlan(null);
-                setProbe(null);
-                setCollectedSecrets({});
-              }}
-            >
-              <optgroup label={t("datasources.group.typed", { defaultValue: "Common connections" })}>
-                {DATA_SOURCE_TYPES.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`datasources.type.${option}`, { defaultValue: option })}
-                  </option>
-                ))}
-              </optgroup>
-              {catalog &&
-                RUNNER_GROUPS.map((group) => {
-                  const items = catalog.inputs.filter((i) => i.group === group);
-                  if (items.length === 0) return null;
-                  return (
-                    <optgroup
-                      key={group}
-                      label={t(`datasources.group.${group}`, {
-                        defaultValue: group.charAt(0).toUpperCase() + group.slice(1),
-                      })}
-                    >
-                      {items.map((item) => (
-                        <option key={item.name} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-            </Select>
-          </Field>
-          {selectedSummary ? (
-            <p data-testid="input-summary" className="max-w-xs text-caption text-fg-muted">
-              {selectedSummary}
-            </p>
-          ) : null}
           {addButton}
         </div>
       </div>
@@ -696,6 +704,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
             });
           }}
         >
+          {typePicker}
           <div className="space-y-2">
             <p className="text-body text-surface-fg/70">{t("datasources.secretHint")}</p>
           {plan ? (

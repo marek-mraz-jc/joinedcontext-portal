@@ -21,7 +21,7 @@ test("complete a space from sample file and propose change", async ({ browser })
   const page = steward.page;
 
   await page.locator("#complete-space").fill(`bikes-${Date.now().toString().slice(-4)}`);
-  await page.locator("#complete-files").setInputFiles(samplePath);
+  await page.getByLabel("Files", { exact: true }).setInputFiles(samplePath);
 
   const completeBtn = page.locator("#complete-btn");
   await expect(completeBtn).toBeEnabled();

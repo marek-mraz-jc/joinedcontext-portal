@@ -63,18 +63,9 @@
       "group": "ui-parts",
       "reason": "T-1839: the choice chip is a roving-tabindex radio (single answer) or toggle (several) whose body is a title over a description. The shared Button fixes a height (h-6..h-11) and centres one line of content; a class passed to override that would win or lose by CSS source order rather than by being written last, so the chip stays hand-made and keeps the Portal ring from the global :focus-visible rule."
     },
-    "src/pages/import/ImportPage.tsx": {
-      "lines": 1,
-      "group": "ui-forms",
-      "reason": "a native file input: the browser owns the file picker, and no shared control wraps it"
-    },
     "src/pages/models/SmartDataModelsImport.tsx": {
       "lines": 1,
       "group": "ui-parts"
-    },
-    "src/pages/spaces/SpaceComplete.tsx": {
-      "lines": 1,
-      "group": "ui-forms"
     }
   },
   "size_is_on_the_scale": {

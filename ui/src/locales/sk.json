@@ -118,7 +118,10 @@
     "fillFromSentence": "Vyplniť z jednej vety",
     "fillFromSentenceQuestion": "Vyplň otvorený formulár {kind} z tohto: ",
     "guideLink": "Prečítajte si o {kind} v používateľskej príručke",
-    "entry": "Položka {number}"
+    "entry": "Položka {number}",
+    "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
+    "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
+    "chosenFiles": "Vybrané: {names}"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",

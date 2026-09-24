@@ -186,16 +186,47 @@ describe("data sources view", () => {
   it("swaps the form to the HTTP connection when the type selector changes", async () => {
     renderDataSources();
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText(en.datasources.field.type),
-      "http",
-    );
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http");
 
     expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Timeout/)).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Broker URLs/)).not.toBeInTheDocument();
+  });
+
+  // T-2758: the type decides every field of the form, so it is the form's first question, not a
+  // select on the list page above the button that opens it.
+  it("asks for the type first, inside the form, and keeps the name when it changes", async () => {
+    renderDataSources();
+
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    const type = within(dialog).getByLabelText(en.datasources.field.type);
+    const name = within(dialog).getByLabelText(/Name/);
+    expect(type.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await userEvent.type(name, "free-bikes");
+    await userEvent.selectOptions(type, "http");
+    expect(within(dialog).getByLabelText(/Method/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/Name/)).toHaveValue("free-bikes");
+  });
+
+  it("writes the clean session sentence once, under its checkbox", async () => {
+    renderDataSources();
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "mqtt");
+    const box = within(dialog).getByRole("checkbox", { name: /Clean session/ });
+    const sentences = within(dialog).getAllByText(/start a fresh session on each connection/);
+    expect(sentences).toHaveLength(1);
+    expect(box.compareDocumentPosition(sentences[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("puts no type select on the list page", async () => {
+    renderDataSources();
+    await screen.findByRole("button", { name: en.datasources.add });
+    expect(screen.queryByLabelText(en.datasources.field.type)).toBeNull();
   });
 
   /** The value of a credential is never a field; only the reference to it is (CC-06, MF-35). */
@@ -235,12 +266,9 @@ describe("data sources view", () => {
   it("proposes a change carrying the manifest the form describes", async () => {
     const fetchMock = renderDataSources();
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText(en.datasources.field.type),
-      "websocket",
-    );
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "websocket");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "aq-stream");
     await userEvent.type(
       within(dialog).getByLabelText(/URL/),
@@ -269,9 +297,9 @@ describe("data sources view", () => {
   it("names no authorization for an HTTP source with no credential (T-0626)", async () => {
     const fetchMock = renderDataSources();
 
-    await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "http");
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "free-bikes");
     await userEvent.type(within(dialog).getByLabelText(/URL/), "https://gbfs.example.org/free_bike_status.json");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
@@ -285,9 +313,9 @@ describe("data sources view", () => {
   /** MF-13: the plan is a dry run against the same route, not a second endpoint. */
   it("shows what one fetch of the feed returned beside the plan (MF-39)", async () => {
     renderDataSources();
-    await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "http");
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http");
     await userEvent.type(within(dialog).getByLabelText(/Name/), "free-bikes");
     await userEvent.type(within(dialog).getByLabelText(/URL/), "https://gbfs.example.org/free_bike_status.json");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
@@ -475,9 +503,9 @@ describe("the manifest a data source form describes", () => {
   it("renders a runner input whose fields include a secret as a reference picker", async () => {
     renderDataSources();
 
-    await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "nats");
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "nats");
 
     expect((await within(dialog).findAllByPlaceholderText(/Secret name/)).length).toBeGreaterThan(0);
   });
@@ -485,9 +513,9 @@ describe("the manifest a data source form describes", () => {
   it("describes a list field once, under its own heading", async () => {
     renderDataSources();
 
-    await userEvent.selectOptions(await screen.findByLabelText(en.datasources.field.type), "csv");
-    await userEvent.click(screen.getByRole("button", { name: en.datasources.add }));
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
+    await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "csv");
 
     expect(await within(dialog).findAllByText(/^A list of file paths to read from/)).toHaveLength(1);
   });
@@ -495,7 +523,9 @@ describe("the manifest a data source form describes", () => {
   it("renders grouped select with an optgroup 'Message brokers' containing 'kafka'", async () => {
     renderDataSources();
 
-    const typeSelect = (await screen.findByLabelText(en.datasources.field.type)) as HTMLSelectElement;
+    await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
+    const dialog = await findFormPage();
+    const typeSelect = within(dialog).getByLabelText(en.datasources.field.type) as HTMLSelectElement;
     expect(typeSelect).toBeInTheDocument();
 
     await waitFor(() => {
@@ -503,7 +533,7 @@ describe("the manifest a data source form describes", () => {
       expect(brokerGroup).not.toBeNull();
       const kafkaOption = brokerGroup?.querySelector('option[value="kafka"]');
       expect(kafkaOption).not.toBeNull();
-      expect(kafkaOption?.textContent).toBe("kafka");
+      expect(kafkaOption?.textContent).toBe("Kafka");
     });
   });
 

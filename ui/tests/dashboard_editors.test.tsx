@@ -225,6 +225,14 @@ describe("dashboard editors", () => {
     vi.restoreAllMocks();
   });
 
+  // T-2758: the layer form showed no hint under any field; its arrangement is found by its kind.
+  it("says under the layer's fields what each one is for", async () => {
+    renderDashboards();
+    const dialog = await openLayerEditor();
+    expect(within(dialog).getByText(/The short name of this layer/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/^Name/)).toHaveAccessibleDescription(/The short name of this layer/);
+  });
+
   it("writes spec.filter.q from a filter row of the layer editor (UI-18, UI-33)", async () => {
     const fetchMock = renderDashboards();
     const dialog = await openLayerEditor();

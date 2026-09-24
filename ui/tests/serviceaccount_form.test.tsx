@@ -112,6 +112,22 @@ describe("the ServiceAccount form", () => {
     expect(manifest.spec.workload).toEqual(FILLED.workload);
   });
 
+  it("offers the roles there are, and refuses one that is not (T-2758)", () => {
+    const picked = serviceAccountSchema(t, [PROJECT], [], [
+      { name: "viewer", title: "Viewer" },
+      { name: "data-writer", title: "Data writer" },
+    ]);
+    const role = (picked.properties?.roles as { items: { properties: { role: Record<string, unknown> } } })
+      .items.properties.role;
+    expect(role.oneOf).toEqual([
+      { const: "viewer", title: "Viewer" },
+      { const: "data-writer", title: "Data writer" },
+    ]);
+    expect(validator.validateFormData(FILLED, picked).errors).toEqual([]);
+    const unknown = { ...FILLED, roles: [{ ...FILLED.roles[0], role: "root" }] };
+    expect(validator.validateFormData(unknown, picked).errors.length).toBeGreaterThan(0);
+  });
+
   it("has no field a secret could be typed into", () => {
     // PF-36: the kind's security property is the absence of secret fields; the form keeps it.
     const credential = (schema().properties?.credentials as { items: { properties: object } })

@@ -286,6 +286,28 @@ describe("context spaces view", () => {
     );
   });
 
+  // T-2758: `/spaces/new` or a draft opens the form without the disabled button, and a full
+  // project used to take a whole filled form before the server said no.
+  it("says the project is full inside a form opened by its address", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/new");
+    renderSpaces({ quota: 2 });
+
+    const dialog = await findFormPage();
+    const said = await within(dialog).findAllByText(/quota of 2 Context Spaces is used up/);
+    expect(said.some((node) => !node.className.includes("sr-only")), "a visible warning").toBe(true);
+    const propose = within(dialog).getByRole("button", { name: en.spaces.propose });
+    await waitFor(() => expect(propose).toHaveAttribute("aria-disabled", "true"));
+  });
+
+  it("warns of nothing inside the form while the project has room", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/new");
+    renderSpaces({ quota: 3 });
+
+    const dialog = await findFormPage();
+    await within(dialog).findByLabelText(/Name/);
+    expect(within(dialog).queryByText(/Context Spaces is used up/)).toBeNull();
+  });
+
   it("proposes a change instead of writing the space directly", async () => {
     const fetchMock = renderSpaces();
 

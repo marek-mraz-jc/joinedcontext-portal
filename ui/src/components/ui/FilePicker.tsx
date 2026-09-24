@@ -7,7 +7,10 @@ export interface FilePickerProps {
   /** Which file types the browser's dialog offers, as an `accept` attribute. */
   accept?: string;
   /** The chosen file. The input is cleared first, so the same file can be chosen twice. */
-  onFile: (file: File) => void;
+  onFile?: (file: File) => void;
+  /** Every chosen file, for an input that takes several (`multiple`). */
+  onFiles?: (files: File[]) => void;
+  multiple?: boolean;
   /** A tooltip on the trigger, for the icon-only form where the label is not on screen. */
   title?: string;
   className?: string;
@@ -31,6 +34,8 @@ export function FilePicker({
   label,
   accept,
   onFile,
+  onFiles,
+  multiple,
   title,
   className,
   children,
@@ -43,15 +48,17 @@ export function FilePicker({
       <input
         type="file"
         accept={accept}
+        multiple={multiple}
         aria-label={label}
         className="sr-only"
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          // The File is held; emptying the input's value only empties its FileList, and without
+          const files = Array.from(event.target.files ?? []);
+          // The Files are held; emptying the input's value only empties its FileList, and without
           // it choosing the same file again fires no `change` at all.
           event.target.value = "";
-          if (file) {
-            onFile(file);
+          if (files.length > 0) {
+            onFiles?.(files);
+            onFile?.(files[0]);
           }
         }}
       />

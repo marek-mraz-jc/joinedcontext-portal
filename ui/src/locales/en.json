@@ -118,7 +118,10 @@
     "fillFromSentence": "Fill this from a sentence",
     "fillFromSentenceQuestion": "Fill in the open {kind} form from this: ",
     "guideLink": "Read about {kind} in the User Guide",
-    "entry": "Entry {number}"
+    "entry": "Entry {number}",
+    "dropOne": "Drop a file here or choose one",
+    "dropMany": "Drop files here or choose them",
+    "chosenFiles": "Chosen: {names}"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",

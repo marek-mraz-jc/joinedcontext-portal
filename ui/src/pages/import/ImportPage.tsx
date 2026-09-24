@@ -11,6 +11,7 @@ import {
   Button,
   Checkbox,
   Field,
+  FileDropZone,
   Input,
   PageHeader,
   safeHref,
@@ -181,14 +182,17 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
         <h2 id="import-bundle" className="text-base font-semibold">
           {t("import.bundle")}
         </h2>
-        <Field id="import-file" label={t("import.file")} help={t("import.fileHelp")}>
-          <input
-            id="import-file"
-            type="file"
-            accept=".zip,.yaml,.yml,.json"
-            onChange={(event) => void take(event.target.files?.[0] ?? null)}
-          />
-        </Field>
+        <FileDropZone
+          label={t("import.file")}
+          button={t("form.dropOne")}
+          hint={t("import.fileHelp")}
+          accept=".zip,.yaml,.yml,.json"
+          onFiles={(files) => void take(files[0] ?? null)}
+        >
+          {file ? (
+            <p className="text-caption text-fg">{t("form.chosenFiles", { names: file.name })}</p>
+          ) : null}
+        </FileDropZone>
         <p className="text-caption text-fg-muted">{t("import.noUrl")}</p>
 
         {pasted.length > 0 ? (

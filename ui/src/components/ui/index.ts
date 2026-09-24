@@ -15,6 +15,8 @@ export type { DialogProps, DialogSize } from "./Dialog";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
 export { Field, fieldIds } from "./Field";
+export { FileDropZone } from "./FileDropZone";
+export type { FileDropZoneProps } from "./FileDropZone";
 export { FilePicker } from "./FilePicker";
 export type { FilePickerProps } from "./FilePicker";
 export type { FieldProps } from "./Field";

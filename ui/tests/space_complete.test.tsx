@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -336,10 +336,28 @@ describe("the complete-a-space page against the UI contract", () => {
     const form = screen.getByLabelText(en.spaces.complete.space).closest("div.flex") as HTMLElement;
     await expectTabOrder(user, form);
 
-    // The file input is the browser's own picker, so it stays native — and it is still labelled.
-    const files = container.querySelector("#complete-files") as HTMLInputElement;
+    // The file input stays native inside the shared drop zone (T-2758), and it is still labelled.
+    const files = screen.getByLabelText(en.spaces.complete.files) as HTMLInputElement;
     expect(files.type).toBe("file");
-    expect(files).toHaveAccessibleName(en.spaces.complete.files);
+    expect(files.multiple).toBe(true);
+    expect(files.closest("[data-testid=file-drop-zone]")).not.toBeNull();
+    expect(container.querySelector("input[type=file]:not(.sr-only)")).toBeNull();
+  });
+
+  it("takes files dropped on the zone and names them (T-2758)", async () => {
+    stubFetch(COMPLETED);
+    renderComponent();
+    const zone = screen.getByTestId("file-drop-zone");
+    const dropped = [
+      new File(["id,name\n1,a"], "stations.csv", { type: "text/csv" }),
+      new File(["{}"], "extra.json", { type: "application/json" }),
+    ];
+    fireEvent.drop(zone, { dataTransfer: { files: dropped } });
+    expect(await screen.findByText("Chosen: stations.csv, extra.json")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.spaces.complete.action })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it.each(SUPPORTED_LOCALES)("writes the page in %s", async (locale) => {

@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
-import { asManifests, isChange, localized, storedMetadata } from "../../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -484,7 +484,6 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   // The API answers keys only to the owner or someone who may propose service accounts; the
   // view asks only for those, so nobody else sees a refused request.
   const mayChange = usePermissions(project).can("ServiceAccount", "propose");
-  const schema = serviceAccountSchema(t, [project]);
 
   const create = useMutation({
     mutationFn: async (next: ServiceAccountForm) => {
@@ -539,6 +538,48 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
         }),
       ),
   });
+
+  // The role is picked from the roles there are (T-2758): the organization's templates, which a
+  // service account holds like a person does, and this project's own. A role an account already
+  // holds stays a choice even when neither list names it, so an edit never loses it.
+  const orgRoles = useQuery({
+    queryKey: queryKeys.list(ORG_NAMESPACE, "roles"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project: ORG_NAMESPACE, plural: "roles" } },
+        }),
+      ),
+  });
+  const projectRoles = useQuery({
+    queryKey: queryKeys.list(project, "roles"),
+    enabled: project !== ORG_NAMESPACE,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "roles" } },
+        }),
+      ),
+  });
+  const roleChoices = new Map<string, string>();
+  for (const role of asManifests([...(orgRoles.data?.items ?? []), ...(projectRoles.data?.items ?? [])])) {
+    roleChoices.set(role.metadata.name, localized(role.metadata.title, locale, role.metadata.name));
+  }
+  for (const account of asManifests(list.data?.items ?? [])) {
+    for (const held of (account.spec as { roles?: { role?: unknown }[] }).roles ?? []) {
+      if (typeof held.role === "string" && held.role !== "" && !roleChoices.has(held.role)) {
+        roleChoices.set(held.role, held.role);
+      }
+    }
+  }
+  const schema = serviceAccountSchema(
+    t,
+    [project],
+    [],
+    // Until the organization's roles are read, the field stays a name to type: an empty list
+    // would be a picker with nothing to pick.
+    orgRoles.isSuccess ? [...roleChoices].map(([name, title]) => ({ name, title })) : [],
+  );
 
   if (list.isPending) {
     return (

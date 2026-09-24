@@ -381,10 +381,19 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           fromManifest: (manifest) => fromEnvelope(manifest, locale),
         }}
         submitLabel={t("spaces.propose")}
+        // The form opens from an address or a draft as well as from the disabled button, so it
+        // says the project is full itself, before anything is typed (T-2758, PF-75).
+        submitDisabledReason={quotaExceeded ? t("quota.exceeded", { limit }) : undefined}
         submitting={create.isPending}
         error={formError}
         onSubmit={(form) => create.mutate(form)}
-      />
+      >
+        {quotaExceeded ? (
+          <Alert role="status" tone="warning">
+            {t("quota.exceeded", { limit })}
+          </Alert>
+        ) : null}
+      </ResourceFormDialog>
     </div>
   );
 }

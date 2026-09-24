@@ -8,6 +8,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { findFormPage } from "./formPage";
 import { App } from "../src/App";
 import { ServiceAccounts } from "../src/pages/access/ServiceAccounts";
 import { expectNoAxeViolations, json, list, problem, renderPart } from "./page_contract";
@@ -93,6 +94,20 @@ function renderAccess(options: { keysStatus?: number; identity?: typeof IDENTITY
     }
     if (path.endsWith("/serviceaccounts")) {
       return json(ACCOUNTS);
+    }
+    if (path === "/api/v1/projects/org/roles") {
+      return json({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items: [
+          {
+            apiVersion: "joinedcontext.com/v1alpha1",
+            kind: "Role",
+            metadata: { name: "viewer", namespace: "org", title: { en: "Viewer" } },
+            spec: {},
+          },
+        ],
+      });
     }
     if (path.endsWith("/access")) {
       return json({ permissions: [], prohibitions: [] });
@@ -277,6 +292,21 @@ describe("the service accounts panel, mounted on its own", () => {
     });
     expect(await screen.findByText(en.access.accounts.empty)).toBeInTheDocument();
     expect(seen.some((path) => path.includes("/keys")), "no key is read for an empty list").toBe(false);
+  });
+
+  // T-2758: the role was a box to type a role's name into from memory.
+  it("picks the role from the organization's roles and the ones accounts hold", async () => {
+    renderAccess();
+    const user = userEvent.setup();
+    await screen.findByText("vendorx-parking-push");
+    await user.click(screen.getAllByRole("button", { name: en.access.accounts.add })[0]);
+    const dialog = await findFormPage();
+    const role = await within(dialog).findByRole("combobox", { name: /^Role/ });
+    await waitFor(() =>
+      expect(within(role).getByRole("option", { name: "Viewer" })).toBeInTheDocument(),
+    );
+    // Held by the listed account though no list names it: an edit must not lose it.
+    expect(within(role).getByRole("option", { name: "space-writer" })).toBeInTheDocument();
   });
 
   it("has no axe violation", async () => {

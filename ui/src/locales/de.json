@@ -118,7 +118,10 @@
     "fillFromSentence": "Aus einem Satz ausfüllen",
     "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
     "guideLink": "Über {kind} im Benutzerhandbuch lesen",
-    "entry": "Eintrag {number}"
+    "entry": "Eintrag {number}",
+    "dropOne": "Datei hierher ziehen oder auswählen",
+    "dropMany": "Dateien hierher ziehen oder auswählen",
+    "chosenFiles": "Ausgewählt: {names}"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
