@@ -4,7 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
-import { arrange, index, localized, paths, requiredProgress } from "../src/components/forms/uischema";
+import { arrange, index, localized, mergeUi, paths, requiredProgress } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
@@ -651,5 +651,28 @@ describe("an example is this project's and a select never shows one", () => {
     const first = within(select).getAllByRole("option")[0];
     expect(first).toHaveTextContent(en.form.choose);
     expect(first).toHaveValue("");
+  });
+});
+
+describe("a page's uiSchema over the kind's arrangement (T-2754)", () => {
+  it("hides one nested field and keeps the help written for its siblings", () => {
+    const arranged = {
+      source: { query: { type: { "ui:help": "Type help" }, geoQ: { "ui:help": "Geo help" } } },
+      name: { "ui:help": "Name help" },
+    };
+    const merged = mergeUi(arranged, { source: { query: { type: { "ui:widget": "hidden" } } } });
+    expect(merged).toEqual({
+      source: { query: { type: { "ui:help": "Type help", "ui:widget": "hidden" }, geoQ: { "ui:help": "Geo help" } } },
+      name: { "ui:help": "Name help" },
+    });
+  });
+
+  it("replaces a list and a value whole, and keeps the arrangement when the page has none", () => {
+    expect(mergeUi({ "ui:order": ["a", "b"] }, { "ui:order": ["b", "a"] })).toEqual({ "ui:order": ["b", "a"] });
+    expect(mergeUi({ source: { "ui:help": "x" } }, { source: { "ui:widget": "hidden" } })).toEqual({
+      source: { "ui:help": "x", "ui:widget": "hidden" },
+    });
+    expect(mergeUi({ a: 1 }, undefined)).toEqual({ a: 1 });
+    expect(mergeUi(undefined, { a: 1 })).toEqual({ a: 1 });
   });
 });

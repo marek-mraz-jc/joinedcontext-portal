@@ -93,17 +93,17 @@ spec:
         de: Ein Satz dazu, was diese Pipeline liest und wohin sie schreibt.
     class:
       help:
-        en: How the pipeline runs; auto selects continuous or periodic execution based on timing.
-        sk: Spôsob behu pipeline; auto zvolí nepretržitý alebo plánovaný beh podľa nastaveného času.
-        cs: Způsob běhu pipeline; auto zvolí nepřetržitý nebo plánovaný běh podle nastaveného času.
-        de: Ausführungsart der Pipeline; auto wählt anhand der Zeitspanne zwischen Dauerbetrieb und Zeitplan.
+        en: How the pipeline runs; automatic chooses always running or a schedule from the period.
+        sk: Spôsob behu pipeline; automaticky zvolí stály beh alebo rozvrh podľa periódy.
+        cs: Způsob běhu pipeline; automaticky zvolí stálý běh nebo rozvrh podle periody.
+        de: Ausführungsart der Pipeline; automatisch wählt anhand der Periode zwischen Dauerbetrieb und Zeitplan.
     schedule:
       placeholder: "0 4 * * *"
       help:
-        en: Cron schedule defining when periodic runs trigger, required when scheduled mode is chosen.
-        sk: Časový rozvrh cron určujúci spustenie plánovaných behov; vyžaduje sa pri voľbe scheduled.
-        cs: Časový rozvrh cron určující spuštění plánovaných běhů; vyžaduje se při volbě scheduled.
-        de: Cron-Zeitplan für periodische Ausführungen; erforderlich, wenn scheduled gewählt ist.
+        en: When the runs start, as five cron fields; 0 4 * * * is every day at 04:00.
+        sk: Kedy sa behy spúšťajú, ako päť polí cron; 0 4 * * * je každý deň o 04:00.
+        cs: Kdy se běhy spouštějí, jako pět polí cron; 0 4 * * * je každý den ve 04:00.
+        de: Wann die Läufe starten, als fünf Cron-Felder; 0 4 * * * ist täglich um 04:00.
     period:
       placeholder: 60s
       help:
@@ -223,10 +223,10 @@ spec:
         de: Direktes Transformationsskript, das eingehende Daten auf Standard-Entitätsattribute abbildet.
     targetEndpoint:
       help:
-        en: Endpoint URN that receives and stores the transformed entities.
-        sk: URN identifikátor cieľového rozhrania, ktoré prijíma a ukladá transformované entity.
-        cs: URN identifikátor cílového rozhraní, které přijímá a ukládá transformované entity.
-        de: URN des Ziel-Endpunkts, der die transformierten Entitäten empfängt und speichert.
+        en: The endpoint that receives the transformed entities; its policy decides what is stored.
+        sk: Endpoint, ktorý prijíma transformované entity; o tom, čo sa uloží, rozhoduje jeho politika.
+        cs: Endpoint, který přijímá transformované entity; o tom, co se uloží, rozhoduje jeho politika.
+        de: Der Endpunkt, der die umgewandelten Entitäten empfängt; seine Richtlinie entscheidet, was gespeichert wird.
     output.type:
       placeholder: BikeHireDockingStation
       help:

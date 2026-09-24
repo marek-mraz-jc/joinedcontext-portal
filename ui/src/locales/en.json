@@ -742,7 +742,7 @@
       "secrets": "Credentials",
       "id": "Name",
       "title": "Title",
-      "classHint": "auto lets the reconciler pick from the period; resident runs continuously; scheduled runs as a CronJob and needs a schedule.",
+      "classHint": "Automatic decides from the period; always running keeps the pipeline on; on a schedule starts it at the times below.",
       "schedule": "Schedule",
       "scheduleHint": "Five cron fields, such as 10 0 * * *. Required for scheduled, refused for resident.",
       "period": "Period",
@@ -766,7 +766,7 @@
       "triggerType": "Entity type",
       "watchedAttributes": "Watched attributes",
       "compute": "Compute",
-      "computeHint": "bloblang for reshaping, mapping for a schema-to-schema Mapping, wasm for real computation, container for heavy jobs.",
+      "computeHint": "What happens to each record: reshape it with Bloblang, apply a mapping of this project, run a compute module or a container job.",
       "computeKind": "Kind",
       "module": "Module",
       "function": "Function",
@@ -774,7 +774,7 @@
       "bloblang": "Bloblang mapping",
       "bloblangHint": "The mapping this step runs, rendered as the last processor of the stream. Leave it empty to keep the mapping in bento.yaml beside the manifest.",
       "targetEndpoint": "Target endpoint",
-      "targetEndpointHint": "The Endpoint URN the pipeline writes through; its Policy decides what lands.",
+      "targetEndpointHint": "The endpoint the pipeline writes through; its policy decides what lands.",
       "output": "Output",
       "outputType": "Entity type",
       "outputMode": "Write mode",
@@ -786,7 +786,22 @@
       "envVar": "Environment variable",
       "quotas": "Quotas",
       "maxMemoryMb": "Memory (MB)",
-      "cpuMillicores": "CPU (millicores)"
+      "cpuMillicores": "CPU (millicores)",
+      "classChoice": {
+        "auto": "Automatic, from the period",
+        "resident": "Always running",
+        "scheduled": "On a schedule"
+      },
+      "computeChoice": {
+        "bloblang": "Reshape records (Bloblang)",
+        "mapping": "A mapping of this project",
+        "wasm": "Compute module (WebAssembly)",
+        "container": "Container job"
+      },
+      "modeChoice": {
+        "upsert": "Create or replace",
+        "update-attrs": "Update attributes only"
+      }
     },
     "metrics": {
       "rate": "msg/s",

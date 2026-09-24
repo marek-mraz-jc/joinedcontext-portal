@@ -28,6 +28,7 @@ export const PROCESSOR_GROUPS: { category: string; processors: Processor[] }[] =
 })();
 
 const PROCESSOR_NAMES = new Set((processorCatalogue as Processor[]).map(({ name }) => name));
+const PROCESSOR_COUNT = PROCESSOR_NAMES.size;
 
 /** The runner's summary as plain words: its Markdown links keep their text and lose the target. */
 export const plainSummary = (summary: string): string =>
@@ -706,10 +707,15 @@ export function PipelineFlow({
           1280x720 could not show a palette and the canvas it drops onto at the same time, and a
           drag that scrolled the canvas into view left its palette behind. Both palettes touch
           the canvas now. */}
-      <div className="flex flex-col gap-1" data-testid="palette-processors">
-        <span id="flow-processors" className="text-caption font-semibold text-fg">
-          {t("pipelines.flow.processors")}
-        </span>
+      {/* One fold for all of them, shut: most pipelines take none, and nine open groups were
+          the tallest thing on the form (T-2754). */}
+      <details className="flex flex-col gap-1" data-testid="palette-processors">
+        <summary
+          id="flow-processors"
+          className="focus-ring cursor-pointer rounded-md text-caption font-semibold text-fg"
+        >
+          {t("pipelines.flow.processors")} ({PROCESSOR_COUNT})
+        </summary>
         <p className="text-caption text-fg-muted">{t("pipelines.flow.processorsHint")}</p>
         {PROCESSOR_GROUPS.map(({ category, processors }) => (
           <details key={category} className="rounded-md border border-border bg-surface">
@@ -740,7 +746,7 @@ export function PipelineFlow({
             </ul>
           </details>
         ))}
-      </div>
+      </details>
     </div>
   );
 }

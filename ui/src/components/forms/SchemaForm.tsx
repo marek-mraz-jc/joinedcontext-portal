@@ -112,6 +112,13 @@ function patternOf(
  * Every schema-driven form of the Portal: rjsf with the Portal's templates and widgets, live
  * validation with translated messages, and no error list (each field carries its own).
  */
+/**
+ * A choice written as `oneOf` consts, so its options read as words (T-2754), opens on "Choose…":
+ * RJSF's own default takes the first const, which picked a new pipeline's write target, a contact's
+ * role and a project visibility nobody chose. A field that has a default says so with `default`.
+ */
+const FORM_DEFAULTS = { constAsDefaults: "skipOneOf" } as const;
+
 export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   const {
     schema,
@@ -202,6 +209,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
             extraErrors={extraErrors}
             showErrorList={false}
             noHtml5Validate
+            experimental_defaultFormStateBehavior={FORM_DEFAULTS}
             transformErrors={transformErrors}
             templates={portalTemplates}
             widgets={widgets}

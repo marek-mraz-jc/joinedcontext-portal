@@ -10,8 +10,8 @@ import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import type { ManifestSource } from "../../components/ResourceFormDialog";
 import { Alert, buttonClass, Icon, safeHref } from "../../components/ui";
-import { pipelineSchema, pipelineUiSchema } from "../../schemas/kinds";
-import type { EndpointOption } from "../../schemas/kinds";
+import { pipelineSchema, pipelineUiSchemaFor } from "../../schemas/kinds";
+import type { EndpointOption, PipelineShown } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
@@ -299,6 +299,32 @@ export function fromManifest(document: unknown): PipelineForm {
   });
 }
 
+/** Which parts of the form a draft needs on screen (T-2754). */
+export function shownFor(form: PipelineForm | undefined): PipelineShown {
+  const source = form?.source;
+  const query = source?.query ?? {};
+  const filled = (value: unknown) =>
+    value !== undefined && value !== "" && !(Array.isArray(value) && value.length === 0);
+  const temporal = (query.temporalQ as { window?: unknown } | undefined)?.window;
+  const compute = (form?.compute ?? {}) as Record<string, unknown>;
+  return {
+    source:
+      source?.dataSourceRef && source.endpointRef
+        ? "both"
+        : source?.endpointRef
+          ? "space"
+          : source?.dataSourceRef
+            ? "datasource"
+            : "none",
+    readsMore:
+      !source?.endpointRef &&
+      (Object.values(query).some(filled) || filled(temporal) || source?.trigger !== undefined),
+    computeKind: form?.compute?.kind,
+    computeFilled: ["bloblang", "mappingRef", "module", "function"].filter((field) => filled(compute[field])),
+    scheduled: form?.class === "scheduled" || filled(form?.schedule),
+  };
+}
+
 /** The known values plus the one already chosen, so an edit never loses its own reference. */
 function withCurrent(values: string[], current: string | undefined): string[] {
   return current && !values.includes(current) ? [...values, current] : values;
@@ -413,6 +439,10 @@ export function PipelineEditorDialog({
     () => pipelineSchema(t, dataSourceNames, endpointOptions),
     [t, dataSourceNames, endpointOptions],
   );
+  // Keyed on what decides it, not on the draft: a new arrangement on every keystroke would make
+  // RJSF rebuild the input being typed into.
+  const shownKey = JSON.stringify(shownFor(draft));
+  const uiSchema = useMemo(() => pipelineUiSchemaFor(JSON.parse(shownKey) as PipelineShown), [shownKey]);
   const source = useMemo<ManifestSource<PipelineForm>>(
     () => ({
       toManifest: (form) => toEnvelope(project, form, base),
@@ -437,7 +467,7 @@ export function PipelineEditorDialog({
       description={t("pipelines.dialog.lead")}
       schema={schema}
       // A rename is a new manifest at a new path, so the name is fixed once it exists.
-      uiSchema={pipelineUiSchema}
+      uiSchema={uiSchema}
       lockedName={editing?.metadata.name}
       formData={draft}
       project={project}

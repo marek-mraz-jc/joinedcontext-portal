@@ -920,7 +920,11 @@ export function pipelineSchema(
         type: "string",
         title: t("pipelines.field.class"),
         description: t("pipelines.field.classHint"),
-        enum: [...PIPELINE_CLASSES],
+        // A person reads what each one does, the manifest keeps the word (T-2754).
+        oneOf: PIPELINE_CLASSES.map((value) => ({
+          const: value,
+          title: t(`pipelines.field.classChoice.${value}`),
+        })),
         default: "auto",
       },
       schedule: {
@@ -1006,7 +1010,10 @@ export function pipelineSchema(
           kind: {
             type: "string",
             title: t("pipelines.field.computeKind"),
-            enum: [...COMPUTE_KINDS],
+            oneOf: COMPUTE_KINDS.map((value) => ({
+              const: value,
+              title: t(`pipelines.field.computeChoice.${value}`),
+            })),
           },
           module: { type: "string", title: t("pipelines.field.module") },
           function: { type: "string", title: t("pipelines.field.function") },
@@ -1051,7 +1058,10 @@ export function pipelineSchema(
           mode: {
             type: "string",
             title: t("pipelines.field.outputMode"),
-            enum: [...OUTPUT_MODES],
+            oneOf: OUTPUT_MODES.map((value) => ({
+              const: value,
+              title: t(`pipelines.field.modeChoice.${value}`),
+            })),
           },
         },
         // The manifest takes both or neither.
@@ -1121,6 +1131,60 @@ export const pipelineUiSchema: UiSchema = {
     bloblang: { "ui:widget": "textarea", "ui:options": { rows: 14 } },
   },
 };
+
+/** What decides which fields of the pipeline form are on screen (T-2754). */
+export interface PipelineShown {
+  /** `space` reads an endpoint, `datasource` a feed, `none` nothing yet; `both` is a YAML mistake. */
+  source: "none" | "datasource" | "space" | "both";
+  /** A query or trigger value the studio does not edit is kept on screen, whatever the source. */
+  readsMore: boolean;
+  computeKind?: string;
+  /** Fields of the compute step that hold a value, so a leftover stays visible to be removed. */
+  computeFilled: string[];
+  scheduled: boolean;
+}
+
+const HIDDEN = { "ui:widget": "hidden" } as const;
+
+/**
+ * The pipeline form with only what the chosen source, compute kind and execution ask for (T-2754).
+ * The studio above the form picks the source and edits the entity query, so the form keeps the
+ * ways of reading it does not offer (geo filter, temporal window, subscription trigger), and only
+ * for an endpoint. A hidden field keeps its value; one that holds a value it should not is shown,
+ * so the check's complaint is next to something a person can change.
+ */
+export function pipelineUiSchemaFor(shown: PipelineShown): UiSchema {
+  const both = shown.source === "both";
+  const space = shown.source === "space" || both;
+  const studioQuery = both ? {} : { type: HIDDEN, attrs: HIDDEN, ids: HIDDEN, q: HIDDEN, scopeQ: HIDDEN };
+  const source =
+    !space && !shown.readsMore
+      ? HIDDEN
+      : {
+          ...pipelineUiSchema.source,
+          ...(both ? {} : { dataSourceRef: HIDDEN, endpointRef: HIDDEN }),
+          query: studioQuery,
+        };
+  const wants: Record<string, string[]> = {
+    bloblang: ["bloblang"],
+    mapping: ["mappingRef"],
+    wasm: ["module", "function"],
+    container: ["module", "function"],
+  };
+  const needed = wants[shown.computeKind ?? ""] ?? [];
+  const compute: Record<string, unknown> = { ...pipelineUiSchema.compute };
+  for (const field of ["bloblang", "mappingRef", "module", "function"]) {
+    if (!needed.includes(field) && !shown.computeFilled.includes(field)) {
+      compute[field] = HIDDEN;
+    }
+  }
+  return {
+    ...pipelineUiSchema,
+    ...(shown.scheduled ? {} : { schedule: HIDDEN }),
+    source,
+    compute,
+  } as UiSchema;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Dashboards and layers (T-0528, UI-17, UI-18): `DashboardSpec` and `LayerSpec` of jc-core.

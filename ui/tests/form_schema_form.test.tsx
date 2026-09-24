@@ -156,6 +156,52 @@ describe("the submit line (UI-44, UI-15)", () => {
   });
 });
 
+describe("a choice and a checkbox say it once (T-2754)", () => {
+  it("a_choice_written_as_words_opens_on_no_value_unless_it_has_a_default", async () => {
+    const onChange = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SchemaForm<{ target?: string; mode?: string }>
+          schema={{
+            type: "object",
+            properties: {
+              target: { type: "string", title: "Target", oneOf: [{ const: "a", title: "First" }, { const: "b", title: "Second" }] },
+              mode: { type: "string", title: "Mode", default: "b", oneOf: [{ const: "a", title: "First" }, { const: "b", title: "Second" }] },
+            },
+          }}
+          formData={{}}
+          onSubmit={vi.fn()}
+          onChange={onChange}
+        />
+      </I18nextProvider>,
+    );
+    expect(within(screen.getByLabelText(/^Target/)).getByRole("option", { selected: true })).toHaveTextContent(
+      en.form.choose,
+    );
+    expect(within(screen.getByLabelText(/^Mode/)).getByRole("option", { selected: true })).toHaveTextContent("Second");
+    await userEvent.type(screen.getByLabelText(/^Mode/), "{Tab}");
+    for (const [data] of onChange.mock.calls as [{ target?: string }][]) {
+      expect(data?.target).toBeUndefined();
+    }
+  });
+
+  it("a_checkbox_carries_its_help_once_under_its_label", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SchemaForm<{ feedback?: boolean }>
+          schema={{ type: "object", properties: { feedback: { type: "boolean", title: "Allow feedback", description: "For engineers." } } }}
+          uiSchema={{ feedback: { "ui:help": "Loops back on purpose." } }}
+          formData={{}}
+          onSubmit={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getAllByText("Loops back on purpose.")).toHaveLength(1);
+    expect(screen.queryByText("For engineers.")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Allow feedback" })).toHaveAccessibleDescription(/Loops back on purpose\./);
+  });
+});
+
 describe("what the person typed is not lost", () => {
   it("a_refused_submit_leaves_every_value_where_it_was", async () => {
     const { onSubmit } = show({ formData: {} });

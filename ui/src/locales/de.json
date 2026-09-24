@@ -742,7 +742,7 @@
       "secrets": "Zugangsdaten",
       "id": "Name",
       "title": "Titel",
-      "classHint": "auto überlässt die Wahl dem Reconciler anhand der Periode; resident läuft durchgehend; geplant läuft als CronJob und braucht einen Zeitplan.",
+      "classHint": "Automatisch entscheidet anhand der Periode; dauerhaft laufend hält die Pipeline an; nach Zeitplan startet sie zu den Zeiten unten.",
       "schedule": "Zeitplan",
       "scheduleHint": "Fünf Cron-Felder, etwa 10 0 * * *. Pflicht für geplant, verboten für resident.",
       "period": "Periode",
@@ -766,7 +766,7 @@
       "triggerType": "Entitätstyp",
       "watchedAttributes": "Beobachtete Attribute",
       "compute": "Berechnung",
-      "computeHint": "bloblang zum Umformen, mapping für ein Mapping zwischen Schemata, wasm für echte Berechnung, container für schwere Jobs.",
+      "computeHint": "Was mit jedem Datensatz geschieht: mit Bloblang umformen, ein Mapping dieses Projekts anwenden, ein Rechenmodul oder einen Container-Job ausführen.",
       "computeKind": "Art",
       "module": "Modul",
       "function": "Funktion",
@@ -774,7 +774,7 @@
       "bloblang": "Bloblang-Mapping",
       "bloblangHint": "Das Mapping dieses Schritts, als letzter Prozessor des Streams gerendert. Leer lassen, um das Mapping in bento.yaml neben dem Manifest zu behalten.",
       "targetEndpoint": "Ziel-Endpunkt",
-      "targetEndpointHint": "Die Endpunkt-URN, über die die Pipeline schreibt; ihre Policy entscheidet, was ankommt.",
+      "targetEndpointHint": "Der Endpunkt, über den die Pipeline schreibt; seine Richtlinie entscheidet, was ankommt.",
       "output": "Ausgabe",
       "outputType": "Entitätstyp",
       "outputMode": "Schreibmodus",
@@ -786,7 +786,22 @@
       "envVar": "Umgebungsvariable",
       "quotas": "Kontingente",
       "maxMemoryMb": "Speicher (MB)",
-      "cpuMillicores": "CPU (Millicores)"
+      "cpuMillicores": "CPU (Millicores)",
+      "classChoice": {
+        "auto": "Automatisch, nach der Periode",
+        "resident": "Dauerhaft laufend",
+        "scheduled": "Nach Zeitplan"
+      },
+      "computeChoice": {
+        "bloblang": "Datensätze umformen (Bloblang)",
+        "mapping": "Ein Mapping dieses Projekts",
+        "wasm": "Rechenmodul (WebAssembly)",
+        "container": "Container-Job"
+      },
+      "modeChoice": {
+        "upsert": "Anlegen oder ersetzen",
+        "update-attrs": "Nur Attribute aktualisieren"
+      }
     },
     "metrics": {
       "rate": "Nachr./s",

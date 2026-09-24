@@ -195,7 +195,10 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   // language. The schema's description is the field's rustdoc — carried into the API and MCP for
   // engineers — so it is the fallback, never the first thing shown (T-1604, Architecture/09 §2).
   const forPeople = typeof rawHelp === "string" && rawHelp.trim() !== "" ? rawHelp : undefined;
-  const descText = ownHeading ? undefined : forPeople ?? description ?? rawDescription;
+  // A checkbox carries its label and its sentence under it (CheckboxWidget); written here too,
+  // the sentence stood above the box and again below it (T-2754).
+  const inWidget = schema.type === "boolean" && !showLabel;
+  const descText = ownHeading || inWidget ? undefined : forPeople ?? description ?? rawDescription;
 
   return (
     <Field
@@ -204,7 +207,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       hideLabel={!showLabel}
       required={required}
       description={descText}
-      help={forPeople === undefined || ownHeading ? rawHelp : undefined}
+      help={inWidget ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={rawErrors}
       aside={
         ownHeading ? undefined : (
@@ -619,7 +622,10 @@ export function CheckboxWidget(props: WidgetProps): React.JSX.Element {
   // "required" attribute if the field value must be "true", due to "const" or "enum".
   const required = schemaRequiresTrueValue(schema);
   const uiOptions = getUiOptions(uiSchema);
-  const description = uiOptions.widget === "checkbox" ? undefined : (options.description ?? schema.description);
+  // The UiSchema's help first, written for people; the schema's description is the fallback, as
+  // under every other field (T-1604).
+  const help = typeof uiOptions.help === "string" && uiOptions.help.trim() !== "" ? uiOptions.help : undefined;
+  const description = help ?? options.description ?? schema.description;
   return (
     <div className="flex flex-col gap-1">
       <Checkbox

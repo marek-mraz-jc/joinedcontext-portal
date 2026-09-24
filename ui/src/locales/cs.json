@@ -742,7 +742,7 @@
       "secrets": "Přihlašovací údaje",
       "id": "Název",
       "title": "Titulek",
-      "classHint": "auto nechá výběr na reconcileru podle periody; rezidentní běží nepřetržitě; plánovaná běží jako CronJob a potřebuje rozvrh.",
+      "classHint": "Automaticky rozhodne podle periody; stále běží drží pipeline zapnutou; podle rozvrhu ji spouští v časech níže.",
       "schedule": "Rozvrh",
       "scheduleHint": "Pět cron polí, například 10 0 * * *. Povinné pro plánovanou, zakázané pro rezidentní.",
       "period": "Perioda",
@@ -766,7 +766,7 @@
       "triggerType": "Typ entity",
       "watchedAttributes": "Sledované atributy",
       "compute": "Výpočet",
-      "computeHint": "bloblang na přetváření, mapping na Mapping mezi schématy, wasm na skutečný výpočet, container na těžké úlohy.",
+      "computeHint": "Co se stane s každým záznamem: přetváření přes Bloblang, mapování tohoto projektu, výpočetní modul nebo úloha v kontejneru.",
       "computeKind": "Druh",
       "module": "Modul",
       "function": "Funkce",
@@ -774,7 +774,7 @@
       "bloblang": "Bloblang mapování",
       "bloblangHint": "Mapování, které tento krok provede, vykreslené jako poslední procesor streamu. Prázdné pole nechává mapování v bento.yaml vedle manifestu.",
       "targetEndpoint": "Cílový endpoint",
-      "targetEndpointHint": "URN endpointu, přes který pipelina zapisuje; o zápisu rozhoduje jeho Policy.",
+      "targetEndpointHint": "Endpoint, přes který pipeline zapisuje; o tom, co se zapíše, rozhoduje jeho politika.",
       "output": "Výstup",
       "outputType": "Typ entity",
       "outputMode": "Režim zápisu",
@@ -786,7 +786,22 @@
       "envVar": "Proměnná prostředí",
       "quotas": "Kvóty",
       "maxMemoryMb": "Paměť (MB)",
-      "cpuMillicores": "CPU (millicores)"
+      "cpuMillicores": "CPU (millicores)",
+      "classChoice": {
+        "auto": "Automaticky, podle periody",
+        "resident": "Stále běží",
+        "scheduled": "Podle rozvrhu"
+      },
+      "computeChoice": {
+        "bloblang": "Přetvářet záznamy (Bloblang)",
+        "mapping": "Mapování tohoto projektu",
+        "wasm": "Výpočetní modul (WebAssembly)",
+        "container": "Úloha v kontejneru"
+      },
+      "modeChoice": {
+        "upsert": "Vytvořit nebo nahradit",
+        "update-attrs": "Pouze aktualizovat atributy"
+      }
     },
     "metrics": {
       "rate": "zpráv/s",

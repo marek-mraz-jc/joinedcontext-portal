@@ -8,7 +8,7 @@ import { errorMessageKey, SchemaForm } from "./forms/SchemaForm";
 import type { ErrorSchema } from "@rjsf/utils";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import { portalThemeWidgets } from "./forms/theme";
-import { arrange, index, paths } from "./forms/uischema";
+import { arrange, index, mergeUi, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
@@ -46,7 +46,8 @@ export interface ResourceFormDialogProps<T> {
   schema: JsonSchema;
   /**
    * The manifest kind this form edits, e.g. `Endpoint`: what lets a
-   * `portal/forms/{kind lowercased}.uischema.yaml` arrange it (UI-02). Without a kind, or for a
+   * `portal/forms/{kind lowercased}.uischema.yaml` arrange it (UI-02). Defaults to `draftKind`, so
+   * a form that names its draft is arranged by its kind too (T-2754). Without either, or for a
    * kind nobody wrote a manifest for, the form renders from `uiSchema` alone.
    */
   kind?: string;
@@ -142,7 +143,7 @@ export function ResourceFormDialog<T>({
   title,
   description,
   schema,
-  kind,
+  kind: ownKind,
   uiSchema,
   lockedName,
   formData,
@@ -168,6 +169,7 @@ export function ResourceFormDialog<T>({
   const { t, i18n } = useTranslation();
   const branding = useBranding();
   const viewsId = useId();
+  const kind = ownKind ?? draftKind;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
   const disabled = closed || submitting === true;
@@ -248,15 +250,7 @@ export function ResourceFormDialog<T>({
     if (!arranged?.uiSchema) {
       return uiSchema;
     }
-    const merged: Record<string, unknown> = { ...(arranged.uiSchema as Record<string, unknown>) };
-    for (const [key, value] of Object.entries((uiSchema ?? {}) as Record<string, unknown>)) {
-      const own = merged[key];
-      merged[key] =
-        own && value && typeof own === "object" && typeof value === "object" && !Array.isArray(own) && !Array.isArray(value)
-          ? { ...(own as object), ...(value as object) }
-          : value;
-    }
-    return merged as UiSchema;
+    return mergeUi(arranged.uiSchema, uiSchema) as UiSchema;
   }, [arranged, uiSchema]);
   const lockedUiSchema = useMemo<UiSchema | undefined>(() => {
     if (lockedName === undefined) {
@@ -312,6 +306,12 @@ export function ResourceFormDialog<T>({
   const syncedDigestRef = useRef<string | undefined>(undefined);
 
   const activeName = draftName || extractName(formData);
+  // A draft opened is not the person's edit: what the form would write from it counts as synced,
+  // so a draft holding a field the form has no control for is not rewritten without it on open.
+  // Measured by the stored manifest instead, that write-back waited only on a re-render clearing
+  // the debounce first (T-2754).
+  const openedDigest = (manifest: unknown, loaded: T): string =>
+    digestOf(source ? source.toManifest(loaded) : manifest);
 
   // The assistant is told which form is open and which draft it edits, so a question asked from
   // here is answered about this form (T-1611, UI-61). No values travel: the draft is where they are.
@@ -387,7 +387,7 @@ export function ResourceFormDialog<T>({
         const loaded = source
           ? source.fromManifest(d.manifest)
           : (d.manifest as T);
-        syncedDigestRef.current = digestOf(d.manifest);
+        syncedDigestRef.current = openedDigest(d.manifest, loaded);
         onChange?.(loaded);
       }
     });
@@ -451,7 +451,7 @@ export function ResourceFormDialog<T>({
                   const loaded = source
                     ? source.fromManifest(reloaded.manifest)
                     : (reloaded.manifest as T);
-                  syncedDigestRef.current = digestOf(reloaded.manifest);
+                  syncedDigestRef.current = openedDigest(reloaded.manifest, loaded);
                   onChange?.(loaded);
                 }
               }
@@ -501,7 +501,7 @@ export function ResourceFormDialog<T>({
                 const loaded = source
                   ? source.fromManifest(reloaded.manifest)
                   : (reloaded.manifest as T);
-                syncedDigestRef.current = digestOf(reloaded.manifest);
+                syncedDigestRef.current = openedDigest(reloaded.manifest, loaded);
                 onChange?.(loaded);
               }
             }

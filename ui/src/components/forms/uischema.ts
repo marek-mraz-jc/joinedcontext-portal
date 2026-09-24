@@ -478,3 +478,21 @@ export function index(
 
   return { forms, problems };
 }
+
+const isPlain = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The caller's uiSchema over the manifest's, field by field at every depth: a caller that hides
+ * `source.query.type` keeps the help the manifest wrote for `source.query.geoQ` (T-2754).
+ */
+export function mergeUi(arranged: unknown, own: unknown): unknown {
+  if (!isPlain(arranged) || !isPlain(own)) {
+    return own === undefined ? arranged : own;
+  }
+  const merged: Record<string, unknown> = { ...arranged };
+  for (const [key, value] of Object.entries(own)) {
+    merged[key] = mergeUi(arranged[key], value);
+  }
+  return merged;
+}

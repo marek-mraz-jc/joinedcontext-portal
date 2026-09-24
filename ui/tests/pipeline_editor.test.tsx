@@ -250,9 +250,17 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 async function openNew() {
   await userEvent.click(await screen.findByRole("button", { name: en.pipelines.add }));
   const dialog = await findFormPage();
-  // The selects are filled from the project's lists once they arrive.
-  await within(dialog).findByRole("option", { name: "mqtt-mesto" });
+  // The selects are filled from the project's lists once they arrive: the target's is the
+  // form's own, the source is picked in the studio (T-2754).
+  await within(dialog).findByRole("option", { name: "public-air" });
   return dialog;
+}
+
+/** The source is picked where a person picks it: the studio above the form (T-2754). */
+async function pickDataSource(dialog: HTMLElement, name: string) {
+  const studio = within(dialog).getByTestId("pipeline-studio");
+  await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "datasource");
+  await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.field.dataSource), name);
 }
 
 const yamlTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name: en.form.view.yaml });
@@ -364,7 +372,7 @@ describe("pipeline editor", () => {
     const dialog = await openNew();
 
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Data source/), "mqtt-mesto");
+    await pickDataSource(dialog, "mqtt-mesto");
     await userEvent.selectOptions(
       within(dialog).getByLabelText(/^Target endpoint/),
       "public-air",
@@ -459,8 +467,11 @@ describe("pipeline editor", () => {
     const dialog = await openNew();
 
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Execution/), "resident");
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Data source/), "mqtt-mesto");
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/^Execution/),
+      en.pipelines.field.classChoice.resident,
+    );
+    await pickDataSource(dialog, "mqtt-mesto");
     await userEvent.selectOptions(
       within(dialog).getByLabelText(/^Target endpoint/),
       "public-air",
@@ -579,12 +590,12 @@ describe("pipeline editor", () => {
     const dialog = await openNew();
 
     expect(within(dialog).queryByText(en.pipelines.bloblangHint)).not.toBeInTheDocument();
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), "bloblang");
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), en.pipelines.field.computeChoice.bloblang);
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
     // A textarea, not a one-line input: a mapping is several lines of Bloblang (PL-41).
     expect(within(dialog).getByLabelText(/^Bloblang mapping/).tagName).toBe("TEXTAREA");
 
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), "wasm");
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), en.pipelines.field.computeChoice.wasm);
     expect(within(dialog).queryByText(en.pipelines.bloblangHint)).not.toBeInTheDocument();
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-index");
     // wasm needs module and function (PL-33): Check names both required fields on the compute
@@ -708,6 +719,81 @@ it("tells a feed from a space and reads the attributes of a class from an inline
   // for this case alone: the 20 s ceiling is what catches a test that really has hung, and it
   // stays where it is for the other 31.
   45_000);
+
+  it("shows only the fields of the chosen source, compute and execution (T-2754)", async () => {
+    renderPipelines();
+    const dialog = await openNew();
+    const studio = within(dialog).getByTestId("pipeline-studio");
+    // The form's own copies: the studio picks the source, so these are the form's leftovers.
+    const formField = (name: string) => dialog.querySelector(`#root_${name}`) as HTMLElement;
+    const geo = () => formField("source_query_geoQ");
+    const trigger = () => formField("source_trigger_subscription_type");
+
+    // Nothing chosen: no source fields, no compute fields, no schedule.
+    expect(geo()).not.toBeVisible();
+    expect(trigger()).not.toBeVisible();
+    expect(formField("source_dataSourceRef")).not.toBeVisible();
+    expect(formField("compute_bloblang")).not.toBeVisible();
+    expect(formField("compute_module")).not.toBeVisible();
+    expect(formField("schedule")).not.toBeVisible();
+
+    // A feed: nothing of an endpoint's query or trigger.
+    await pickDataSource(dialog, "mqtt-mesto");
+    expect(geo()).not.toBeVisible();
+    expect(trigger()).not.toBeVisible();
+    expect(formField("source_endpointRef")).not.toBeVisible();
+
+    // A space: the ways of reading the studio does not offer, and not the feed's picker.
+    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "space");
+    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.space), "ovzdusie");
+    expect(geo()).toBeVisible();
+    expect(trigger()).toBeVisible();
+    expect(formField("source_dataSourceRef")).not.toBeVisible();
+    // The entity query is the studio's: the form does not ask it twice.
+    expect(formField("source_query_type")).not.toBeVisible();
+
+    // Back to a feed: the endpoint's fields go again.
+    await pickDataSource(dialog, "mqtt-mesto");
+    expect(geo()).not.toBeVisible();
+
+    // The compute kind shows its own fields only.
+    const kind = within(dialog).getByLabelText(/^Kind/);
+    await userEvent.selectOptions(kind, en.pipelines.field.computeChoice.wasm);
+    expect(formField("compute_module")).toBeVisible();
+    expect(formField("compute_function")).toBeVisible();
+    expect(formField("compute_bloblang")).not.toBeVisible();
+    expect(formField("compute_mappingRef")).not.toBeVisible();
+    await userEvent.selectOptions(kind, en.pipelines.field.computeChoice.mapping);
+    expect(formField("compute_mappingRef")).toBeVisible();
+    expect(formField("compute_module")).not.toBeVisible();
+
+    // The schedule belongs to a scheduled pipeline.
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/^Execution/),
+      en.pipelines.field.classChoice.scheduled,
+    );
+    expect(formField("schedule")).toBeVisible();
+  });
+
+  it("reads its choices as words and chooses no target for the author (T-2754)", async () => {
+    renderPipelines();
+    const dialog = await openNew();
+    const execution = within(dialog).getByLabelText(/^Execution/);
+    expect(within(execution).getByRole("option", { selected: true })).toHaveTextContent(
+      en.pipelines.field.classChoice.auto,
+    );
+    const words = (select: HTMLElement) =>
+      within(select).getAllByRole("option").map((option) => option.textContent);
+    for (const raw of ["auto", "resident", "scheduled"]) {
+      expect(words(execution)).not.toContain(raw);
+    }
+    expect(words(within(dialog).getByLabelText(/^Kind/))).not.toContain("wasm");
+    // A write target is the author's choice, never the first endpoint of the list.
+    const target = within(dialog).getByLabelText(/^Target endpoint/);
+    expect(within(target).getByRole("option", { selected: true })).toHaveTextContent(en.form.choose);
+    // One sentence per checkbox, not one above and one under it.
+    expect(within(dialog).queryAllByText(en.pipelines.field.allowFeedbackHint).length).toBeLessThanOrEqual(1);
+  });
 
   it("keeps running or paused in the open and the rest in the row's menu (T-2287)", async () => {
     renderPipelines();
@@ -928,7 +1014,7 @@ describe("the pipeline editor against the UI contract", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
     const dialog = await findFormPage();
-    await within(dialog).findByRole("option", { name: "mqtt-mesto" });
+    await within(dialog).findByRole("option", { name: "public-air" });
 
     // The dialog carries the form/YAML tabs; the studio inside it has a set of its own, so both
     // answer to this name and what matters is that the name is the locale's, not English.
