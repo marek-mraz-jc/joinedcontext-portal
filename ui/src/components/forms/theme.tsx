@@ -241,7 +241,8 @@ function groupsOf(uiSchema: ObjectFieldTemplateProps["uiSchema"]): RenderedGroup
   return Array.isArray(options?.groups) ? options.groups : [];
 }
 
-/** The fields of one object laid out in cells: two columns on a wide screen, one on a phone. */
+/** The fields of one object laid out in cells: one column on a phone, two on a wide screen, three
+ * on a big one; a field that is not a scalar takes the whole row. */
 function Cells({
   properties,
   schema,
@@ -252,11 +253,11 @@ function Cells({
   uiSchema: ObjectFieldTemplateProps["uiSchema"];
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 min-[1800px]:grid-cols-3">
       {properties.map((prop) => (
         <div
           key={prop.name}
-          className={clsx("min-w-0", !scalar(schema, uiSchema, prop.name) && "md:col-span-2")}
+          className={clsx("min-w-0", !scalar(schema, uiSchema, prop.name) && "md:col-span-full")}
         >
           {prop.content}
         </div>

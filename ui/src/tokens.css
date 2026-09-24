@@ -156,6 +156,15 @@
   --portal-ring-offset: 2px;
 }
 
+/* On a big screen the page takes the width: grids, editors and forms are what these pages hold,
+   and a 1280px column left most of a 2560px screen empty (owner, 2026-09-24). Prose keeps its
+   own measure (max-w-prose) wherever it appears. */
+@media (min-width: 1800px) {
+  :root {
+    --portal-content-max: 150rem;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     /* Dark: the branded text colour becomes the paper, tinted a little towards the brand,
