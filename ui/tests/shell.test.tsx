@@ -85,13 +85,16 @@ describe("portal shell", () => {
       "Dashboards",
       "Applications",
       "Approvals",
-      // Project → Access folded into Project settings, and the organization's part moved to the
-      // Organization page beside the project switcher (T-2605, T-2606).
+      // Project → Access folded into Project settings (T-2606).
       "Project settings",
-      "Organization",
     ]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
+    // The organization is one button in the header, not a sidebar entry (owner, 2026-09-24).
+    expect(within(nav).queryByRole("link", { name: "Organization" })).toBeNull();
+    expect(
+      within(screen.getByRole("banner")).getByRole("link", { name: "Organization" }),
+    ).toHaveAttribute("href", "/organization/settings");
   });
 
   it("marks the section the router is on with aria-current", async () => {

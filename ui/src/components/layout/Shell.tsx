@@ -31,8 +31,6 @@ import { NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
-import { ORGANIZATION_TABS } from "../../pages/organization/OrganizationPage";
-import type { OrganizationTab } from "../../pages/organization/OrganizationPage";
 
 const NAV_LINK =
   "focus-ring-inset flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg";
@@ -129,22 +127,10 @@ function UserMenu() {
   );
 }
 
-/** The icon each organization tab carries in the sidebar (UI-82). */
-const ORGANIZATION_TAB_ICONS: Record<OrganizationTab, IconName> = {
-  settings: "access",
-  members: "user",
-  roles: "approvals",
-  groups: "share",
-  "service-accounts": "git",
-  projects: "spaces",
-};
-
 /**
- * The signed-in person at the bottom of the sidebar, with the organization and sign-out beside
- * them (UI-83). The header keeps its own menu; this is the same two actions where the owner looks
- * for them.
+ * The signed-in person at the bottom of the sidebar, with sign-out beside them (UI-83).
  */
-function ProfileBlock({ onNavigate }: { onNavigate: () => void }): JSX.Element | null {
+function ProfileBlock(): JSX.Element | null {
   const { t } = useTranslation();
   const { identity, signOut } = useAuth();
   if (!identity) {
@@ -171,14 +157,6 @@ function ProfileBlock({ onNavigate }: { onNavigate: () => void }): JSX.Element |
           ) : null}
         </span>
       </div>
-      <Link
-        to="/organization/$tab"
-        params={{ tab: "settings" }}
-        onClick={onNavigate}
-        className={navLinkClass(false)}
-      >
-        <NavLabel icon="user" label={t("nav.organization")} />
-      </Link>
       <Button
         variant="ghost"
         size="sm"
@@ -363,8 +341,7 @@ export function Shell({
   );
 
   const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
-  const organizationMatch = matchRoute({ to: "/organization/$tab", fuzzy: true });
-  const organizationTab = organizationMatch ? organizationMatch.tab : null;
+  const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -436,6 +413,20 @@ export function Shell({
               size="sm"
             />
           </div>
+          {/* The organization is one button, and its page holds everything of it as tabs:
+              settings, members, roles, groups, service accounts, projects (owner, 2026-09-24). */}
+          <Link
+            to="/organization/$tab"
+            params={{ tab: "settings" }}
+            aria-label={t("nav.organization")}
+            aria-current={organizationActive ? "page" : undefined}
+            className={buttonClass("ghost", "sm")}
+          >
+            <Icon name="access" className="size-4" />
+            <span aria-hidden="true" className="hidden sm:inline">
+              {t("nav.organization")}
+            </span>
+          </Link>
           <LanguageSwitcher />
           <UserMenu />
         </div>
@@ -568,33 +559,9 @@ export function Shell({
               </Link>
             </li>
           </ul>
-          {/* What is the same in every project lives outside any of them: the organization's
-              tabs as a section of their own, and the signed-in person at the bottom (UI-82,
-              UI-83, ADR-N-031). */}
-          <section aria-labelledby="nav-organization" className="flex flex-col gap-0.5 border-t border-border pt-3">
-            <h2 id="nav-organization" className="px-2 pb-1 text-caption font-semibold text-fg-subtle">
-              {t("nav.organization")}
-            </h2>
-            <ul className="flex flex-col gap-0.5">
-              {ORGANIZATION_TABS.map((tab) => {
-                const active = organizationTab === tab;
-                return (
-                  <li key={tab}>
-                    <Link
-                      to="/organization/$tab"
-                      params={{ tab }}
-                      onClick={closeNav}
-                      aria-current={active ? "page" : undefined}
-                      className={navLinkClass(active)}
-                    >
-                      <NavLabel icon={ORGANIZATION_TAB_ICONS[tab]} label={t(`organization.tab.${tab}`)} />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-          <ProfileBlock onNavigate={closeNav} />
+          {/* The signed-in person at the bottom (UI-83). The organization is one button in the
+              header, and its page holds every part of it as tabs (owner, 2026-09-24). */}
+          <ProfileBlock />
         </nav>
         <main id="main" className="min-w-0 flex-1">
           <div className="mx-auto flex max-w-content flex-col gap-section px-4 py-5 sm:px-gutter sm:py-6">

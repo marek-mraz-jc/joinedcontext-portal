@@ -59,33 +59,35 @@ describe("the Organization page's addresses (T-2605)", () => {
     );
   });
 
-  // UI-82, UI-83: the sidebar lists every tab in an Organization section, the tab in hand marked
-  // as the page, and the profile block at the bottom links the organization and signs out.
-  it("lists every tab in the sidebar's Organization section, marking the tab in hand", async () => {
+  // Owner, 2026-09-24: the organization is one button in the header, and its page holds every
+  // part of it as tabs; the sidebar lists none of them.
+  it("has one Organization button in the header, and the sidebar lists no organization tab", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
-    const section = await within(nav).findByRole("region", { name: en.nav.organization });
-    for (const [tab, label] of Object.entries(en.organization.tab)) {
-      expect(within(section).getByRole("link", { name: label })).toHaveAttribute("href", `/organization/${tab}`);
+    expect(within(nav).queryByRole("region", { name: en.nav.organization })).toBeNull();
+    for (const label of Object.values(en.organization.tab)) {
+      expect(within(nav).queryByRole("link", { name: label })).toBeNull();
     }
-    expect(within(section).getByRole("link", { name: en.organization.tab.members })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(within(section).getByRole("link", { name: en.organization.tab.settings })).not.toHaveAttribute(
-      "aria-current",
-    );
+    const header = screen.getByRole("banner");
+    const links = within(header).getAllByRole("link", { name: en.nav.organization });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/organization/settings");
+    expect(links[0]).toHaveAttribute("aria-current", "page");
   });
 
-  it("names the signed-in person at the bottom, with the organization and sign-out", async () => {
+  it("holds every part of the organization as a tab of its page", async () => {
+    renderAt("/organization/settings");
+    for (const label of Object.values(en.organization.tab)) {
+      expect(await screen.findByRole("tab", { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it("names the signed-in person at the bottom, with sign-out and no second organization link", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
     const profile = await within(nav).findByRole("region", { name: en.nav.profile });
     expect(within(profile).getByText(IDENTITY.username)).toBeInTheDocument();
-    expect(within(profile).getByRole("link", { name: en.nav.organization })).toHaveAttribute(
-      "href",
-      "/organization/settings",
-    );
+    expect(within(profile).queryByRole("link", { name: en.nav.organization })).toBeNull();
     expect(within(profile).getByRole("button", { name: en.auth.signOut })).toBeEnabled();
   });
 

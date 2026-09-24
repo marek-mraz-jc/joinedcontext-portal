@@ -41,9 +41,10 @@ describe("i18n", () => {
     expect(i18n.t("app.title")).toBe(de.app.title);
   });
 
-  it("falls back to Slovak for an unknown language", async () => {
+  // T-2804: English is the default, so a language the Portal lacks falls back to English.
+  it("falls back to English for an unknown language", async () => {
     await i18n.changeLanguage("unknown-lang");
-    expect(i18n.t("form.submit")).toBe(sk.form.submit);
+    expect(i18n.t("form.submit")).toBe(en.form.submit);
   });
 
   it("formats ICU plural of form.errors in Slovak for counts 0, 1, 2, and 5", async () => {
