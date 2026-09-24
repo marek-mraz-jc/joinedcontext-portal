@@ -19,7 +19,7 @@ spec:
   kind: static
   source:
     git:
-      url: https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_helsinki-bikes.git
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-bikes.git
       ref: main
   build:
     node: "22"

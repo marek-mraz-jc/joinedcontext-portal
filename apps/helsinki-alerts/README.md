@@ -35,5 +35,5 @@ pnpm build && pnpm e2e    # the built bundle in Chromium against the SDK's stub
 
 Against dev, `pnpm dev` with `JC_ENDPOINT_SLUG` set to the app's endpoint serves the pages with
 your own sign-in. The repository of record is
-`https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_helsinki-alerts.git`; the build lane
+`https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-alerts.git`; the build lane
 builds `main` with `.gitea/workflows/build.yml` (AP-75, AP-80).

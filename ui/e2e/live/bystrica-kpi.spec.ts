@@ -23,7 +23,7 @@ const APP = "bbsk-ukazovatele";
  * Where applications are served: the apex, not the Portal host, since T-2476 (the Portal answers
  * `/apps/*` with a 308 there). `JC_PORTAL_APPS_URL` on the cluster; `APPS_URL` here.
  */
-const APPS_URL = process.env.APPS_URL ?? "https://2.28.67.127.sslip.io";
+const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
 
 /** The domain of the Organization the two projects sit on today; see the id check below (T-2455). */
 const ORG_DOMAIN = "hel.fi";
@@ -195,7 +195,7 @@ test("both bodies ingest, compute and publish their own indicators, each into it
   // surface. This is the one claim of the demonstration that no signed-in check can make, so it
   // is made with a context that carries no session.
   const anonymous = await request.newContext({
-    baseURL: process.env.PORTAL_URL ?? "https://portal.2.28.67.127.sslip.io",
+    baseURL: process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com",
   });
   try {
     const open = await anonymous.get(

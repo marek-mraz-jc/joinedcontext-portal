@@ -19,7 +19,7 @@ spec:
   kind: static
   source:
     git:
-      url: https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_helsinki-events.git
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-events.git
       ref: main
   build: {}
   # The events endpoint of Helsinki is public (GW22): an anonymous reader gets what the public

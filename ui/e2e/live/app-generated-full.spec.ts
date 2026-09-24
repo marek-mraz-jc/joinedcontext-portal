@@ -24,7 +24,7 @@ const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
 const NAME = `bikes-full-${SUFFIX}`;
 /** The origin the apps are served on; the Portal's own host sends `/apps/*` there with a 308. */
-const APPS_URL = process.env.APPS_URL ?? "https://2.28.67.127.sslip.io";
+const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
 
 const PROMPT =
   "A page of HSL city bike stations: a table, a map, a filter for stations with free bikes, and a " +

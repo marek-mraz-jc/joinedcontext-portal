@@ -14,7 +14,7 @@ spec:
   kind: fullstack
   source:
     git:
-      url: https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_hsl-transport.git
+      url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_hsl-transport.git
       ref: main
   build:
     rust: "1.90"

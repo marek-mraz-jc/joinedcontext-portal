@@ -15,7 +15,7 @@ export default defineConfig({
   reporter: "list",
   timeout: 420_000,
   use: {
-    baseURL: process.env.PORTAL_URL ?? "https://portal.2.28.67.127.sslip.io",
+    baseURL: process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com",
     // Without this a click on a locator that matches nothing waits for the whole test timeout: one
     // wrong locator cost a ten-minute run that said only "Test timeout exceeded".
     actionTimeout: 30_000,

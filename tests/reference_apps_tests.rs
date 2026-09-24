@@ -442,7 +442,7 @@ fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility
         assert_eq!(
             source["git"]["url"],
             serde_json::json!(format!(
-                "https://2.28.67.127.sslip.io/git/joinedcontext/helsinki_{name}.git"
+                "https://dev.joinedcontext.com/git/joinedcontext/helsinki_{name}.git"
             )),
             "{name} builds from its own repository"
         );

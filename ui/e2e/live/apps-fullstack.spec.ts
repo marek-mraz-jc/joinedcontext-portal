@@ -18,7 +18,7 @@ import { STEWARD, VIEWER, goSignedIn, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 /** The origin the apps are served on; the Portal's own host sends `/apps/*` there with a 308. */
-const APPS_URL = process.env.APPS_URL ?? "https://2.28.67.127.sslip.io";
+const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
 const AIR = `${APPS_URL}/apps/air-quality/`;
 /** The one station the steward writes, a fixed id so a run that died leaves one to find. */
 const LOCAL_ID = "t2617-journey";
