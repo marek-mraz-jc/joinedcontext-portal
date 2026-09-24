@@ -117,7 +117,8 @@
     "askAboutFieldQuestion": "Im {kind}-Formular: Was gehört in „{label}“, und was passiert, wenn es leer bleibt?",
     "fillFromSentence": "Aus einem Satz ausfüllen",
     "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
-    "guideLink": "Über {kind} im Benutzerhandbuch lesen"
+    "guideLink": "Über {kind} im Benutzerhandbuch lesen",
+    "entry": "Eintrag {number}"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -756,9 +757,9 @@
       "attrs": "Attribute",
       "ids": "Entitäten",
       "idsHint": "URNs der Entitäten, die statt des ganzen Typs gelesen werden; das Studio füllt sie aus den markierten Zeilen.",
-      "q": "Filter (q)",
-      "scopeQ": "Scope-Filter (scopeQ)",
-      "geoQ": "Geo-Filter (geoQ)",
+      "q": "Attributfilter",
+      "scopeQ": "Bereichsfilter",
+      "geoQ": "Gebietsfilter",
       "temporalQ": "Zeitfenster",
       "temporalWindow": "ISO-8601-Dauer (P1D)",
       "trigger": "Trigger",
@@ -1683,10 +1684,14 @@
     "publications": {
       "title": "Veröffentlichte Endpunkte",
       "empty": "Kein Endpunkt dieses Projekts veröffentlicht in einen Katalog.",
-      "datastore": "DataStore-Spiegel aus {representation}, aktualisiert {refresh}.",
+      "datastore": "DataStore-Spiegel aus {representation}, {refresh}.",
       "publishedTo": "veröffentlicht in {instance}",
       "missingInstance": "Katalog {instance} fehlt",
-      "emptyHint": "Ein Endpoint veröffentlicht, wenn sein Manifest es erklärt. Öffnen Sie einen Endpoint und fügen Sie eine Veröffentlichung hinzu, damit sie hier erscheint."
+      "emptyHint": "Ein Endpoint veröffentlicht, wenn sein Manifest es erklärt. Öffnen Sie einen Endpoint und fügen Sie eine Veröffentlichung hinzu, damit sie hier erscheint.",
+      "refreshed": {
+        "onChange": "aktualisiert, wenn sich eine Entität ändert",
+        "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
+      }
     },
     "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}"
   },
@@ -2373,7 +2378,50 @@
       "forwards": "Forwards",
       "denials": "Refusals"
     },
-    "emptyHint": "Alles, was die Plattform hier tut, landet in dieser Liste: eine angewandte Änderung, der Durchsatz einer Pipeline, eine abgelehnte Anfrage. Laden Sie eine Datenquelle oder genehmigen Sie eine Änderung, und die ersten Zeilen erscheinen."
+    "emptyHint": "Alles, was die Plattform hier tut, landet in dieser Liste: eine angewandte Änderung, der Durchsatz einer Pipeline, eine abgelehnte Anfrage. Laden Sie eine Datenquelle oder genehmigen Sie eine Änderung, und die ersten Zeilen erscheinen.",
+    "kinds": {
+      "config": {
+        "planned": "Änderung geplant",
+        "applied": "Konfiguration angewendet",
+        "drifted": "Abweichung vom Repository"
+      },
+      "change": {
+        "merged": "Änderung übernommen"
+      },
+      "pipeline": {
+        "throughput": "Pipeline-Durchsatz",
+        "error": "Pipeline-Fehler",
+        "restarted": "Pipeline neu gestartet"
+      },
+      "endpoint": {
+        "traffic": "Endpunkt-Verkehr"
+      },
+      "access": {
+        "denied": "Zugriff verweigert"
+      },
+      "mcp": {
+        "tool": "Werkzeugaufruf des Assistenten"
+      },
+      "agent": {
+        "answer": "Antwort des Assistenten"
+      },
+      "federation": {
+        "forward": "Föderierte Anfrage",
+        "error": "Föderationsfehler"
+      },
+      "catalogue": {
+        "published": "Katalogveröffentlichung"
+      }
+    },
+    "sources": {
+      "reconciler": "Konfiguration",
+      "pipeline": "Pipelines",
+      "gateway": "Gateway",
+      "broker": "Broker",
+      "ckan": "Katalog",
+      "portal": "Portal"
+    },
+    "failed": "{what} fehlgeschlagen"
   },
   "import": {
     "title": "Konfiguration importieren",

@@ -153,8 +153,18 @@ describe("ckan publishing manager", () => {
       "href",
       `https://bb.example.com/api/endpoint/${SLUG}/file.csv`,
     );
-    expect(within(entry).getByText(/DataStore mirror from csv/)).toBeInTheDocument();
+    expect(within(entry).getByText(/DataStore mirror from CSV/)).toBeInTheDocument();
     expect(within(entry).getByText("published to open-data")).toBeInTheDocument();
+  });
+
+  it("says how the DataStore mirror is kept in words, not the manifest's values (T-2756)", async () => {
+    renderCkan();
+    const sentence = i18n.t("ckan.publications.datastore", {
+      representation: en.endpoints.representationOption.csv,
+      refresh: en.ckan.publications.refreshed.onChange,
+    });
+    expect(await screen.findByText(sentence)).toBeInTheDocument();
+    expect(screen.queryByText(/onChange|onReconcile/)).not.toBeInTheDocument();
   });
 
   it("says which endpoint points at a catalogue that is not there", async () => {

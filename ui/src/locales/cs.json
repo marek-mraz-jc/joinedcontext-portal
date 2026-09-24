@@ -117,7 +117,8 @@
     "askAboutFieldQuestion": "Ve formuláři {kind}: co patří do „{label}“ a co se stane, když to zůstane prázdné?",
     "fillFromSentence": "Vyplnit z jedné věty",
     "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: ",
-    "guideLink": "Přečtěte si o {kind} v uživatelské příručce"
+    "guideLink": "Přečtěte si o {kind} v uživatelské příručce",
+    "entry": "Položka {number}"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -756,9 +757,9 @@
       "attrs": "Atributy",
       "ids": "Entity",
       "idsHint": "URN entit, které se čtou místo celého typu; studio je vyplní z označených řádků.",
-      "q": "Filtr (q)",
-      "scopeQ": "Filtr rozsahu (scopeQ)",
-      "geoQ": "Geo filtr (geoQ)",
+      "q": "Filtr atributů",
+      "scopeQ": "Filtr rozsahu",
+      "geoQ": "Filtr oblasti",
       "temporalQ": "Časové okno",
       "temporalWindow": "Trvání ISO 8601 (P1D)",
       "trigger": "Spouštěč",
@@ -1683,10 +1684,14 @@
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žádný endpoint tohoto projektu nepublikuje do katalogu.",
-      "datastore": "Kopie řádků v DataStore z {representation}, obnovovaná {refresh}.",
+      "datastore": "Kopie řádků v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikováno do {instance}",
       "missingInstance": "katalog {instance} chybí",
-      "emptyHint": "Endpoint publikuje, když to jeho manifest vyhlásí. Otevřete endpoint a přidejte publikování, aby se tu zobrazilo."
+      "emptyHint": "Endpoint publikuje, když to jeho manifest vyhlásí. Otevřete endpoint a přidejte publikování, aby se tu zobrazilo.",
+      "refreshed": {
+        "onChange": "obnovovaná při změně entity",
+        "onReconcile": "obnovovaná při každém použití konfigurace"
+      }
     },
     "statusFailed": "Stav katalogů tohoto projektu se nepodařilo přečíst, takže níže uvedené může být neúplné: {reason}"
   },
@@ -2373,7 +2378,50 @@
       "forwards": "Forwards",
       "denials": "Refusals"
     },
-    "emptyHint": "Vše, co tu platforma udělá, se objeví v tomto seznamu: použitá změna, propustnost pipeline, odmítnutý požadavek. Načtěte datový zdroj nebo schvalte změnu a přijdou první řádky."
+    "emptyHint": "Vše, co tu platforma udělá, se objeví v tomto seznamu: použitá změna, propustnost pipeline, odmítnutý požadavek. Načtěte datový zdroj nebo schvalte změnu a přijdou první řádky.",
+    "kinds": {
+      "config": {
+        "planned": "Změna naplánována",
+        "applied": "Konfigurace použita",
+        "drifted": "Odchylka od repozitáře"
+      },
+      "change": {
+        "merged": "Změna sloučena"
+      },
+      "pipeline": {
+        "throughput": "Propustnost pipeline",
+        "error": "Chyba pipeline",
+        "restarted": "Pipeline restartována"
+      },
+      "endpoint": {
+        "traffic": "Provoz endpointu"
+      },
+      "access": {
+        "denied": "Přístup odmítnut"
+      },
+      "mcp": {
+        "tool": "Volání nástroje asistenta"
+      },
+      "agent": {
+        "answer": "Odpověď asistenta"
+      },
+      "federation": {
+        "forward": "Federovaný požadavek",
+        "error": "Chyba federace"
+      },
+      "catalogue": {
+        "published": "Publikování do katalogu"
+      }
+    },
+    "sources": {
+      "reconciler": "Konfigurace",
+      "pipeline": "Pipelines",
+      "gateway": "Brána",
+      "broker": "Broker",
+      "ckan": "Katalog",
+      "portal": "Portál"
+    },
+    "failed": "{what} selhalo"
   },
   "import": {
     "title": "Import konfigurace",

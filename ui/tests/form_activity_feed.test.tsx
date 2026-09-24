@@ -18,6 +18,7 @@ import i18n from "../src/i18n";
 import { ActivityFeed } from "../src/components/ActivityFeed";
 import { objectOf } from "../src/api/activity";
 import type { ActivityEvent } from "../src/api/activity";
+import en from "../src/locales/en.json";
 import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
 const PROJECT = "helsinki";
@@ -159,5 +160,32 @@ describe("the feed meets the UI contract", () => {
     // The kind badge and the kind/source filter options render the API's own identifiers
     // (`access.denied`, `gateway`), which no bundle translates and which look exactly like keys.
     expectNoRawKeys(container, ["[data-testid=activity-kind]", "option"]);
+  });
+});
+
+describe("what happened, in words (T-2756)", () => {
+  it("names the kind and the source in words, and a failure as one", async () => {
+    renderFeed([
+      event({ kind: "catalogue.published", source: "ckan", severity: "error", summary: "The catalogue refused the dataset." }),
+      event({ kind: "access.denied", severity: "error" }),
+    ]);
+    const [publication, refusal] = await rows();
+    expect(within(publication).getByTestId("activity-kind")).toHaveTextContent(
+      i18n.t("activity.failed", { what: en.activity.kinds.catalogue.published }),
+    );
+    expect(publication).toHaveTextContent(en.activity.sources.ckan);
+    expect(publication).not.toHaveTextContent("catalogue.published");
+    // A kind that already says it failed is not said twice.
+    expect(within(refusal).getByTestId("activity-kind")).toHaveTextContent(en.activity.kinds.access.denied);
+    expect(within(refusal).getByTestId("activity-kind")).not.toHaveTextContent("failed");
+  });
+
+  it("offers the filters in words, and a kind it does not know as the platform wrote it", async () => {
+    renderFeed([event({ kind: "brand.new", severity: "info" })]);
+    const [row] = await rows();
+    expect(within(row).getByTestId("activity-kind")).toHaveTextContent("brand.new");
+    expect(screen.getByRole("option", { name: en.activity.kinds.config.drifted })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: en.activity.sources.reconciler })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "config.drifted" })).not.toBeInTheDocument();
   });
 });

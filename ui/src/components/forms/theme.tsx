@@ -325,7 +325,22 @@ function Fieldset({
   );
 }
 
+/**
+ * An entry of a list is named by what it is and its number: RJSF titles it "Grants-1" from the
+ * list's own name (T-2756). The entry's schema title when it has one ("Grant 2"), else "Entry 2".
+ */
+function itemTitle(
+  { fieldPathId, schema }: ObjectFieldTemplateProps,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | undefined {
+  const last = fieldPathId?.path?.[fieldPathId.path.length - 1];
+  if (typeof last !== "number") return undefined;
+  const own = typeof schema.title === "string" && schema.title.trim() ? schema.title.trim() : undefined;
+  return own ? `${own} ${last + 1}` : t("form.entry", { number: last + 1 });
+}
+
 export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.Element {
+  const { t } = useTranslation();
   const { title, description, properties, fieldPathId, uiSchema } = props;
   const isRoot = fieldPathId.$id === "root";
 
@@ -366,7 +381,7 @@ export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.
   // fields, not as a boxed section around them.
   if (!title) return <>{properties.map((prop) => prop.content)}</>;
   return (
-    <Fieldset title={title} description={description}>
+    <Fieldset title={itemTitle(props, t) ?? title} description={description}>
       <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} />
     </Fieldset>
   );

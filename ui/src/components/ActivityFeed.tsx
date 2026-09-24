@@ -33,6 +33,20 @@ import type { BadgeTone } from "./ui";
 
 const COLUMNS = 4;
 
+/**
+ * What happened, in words (T-2756): "Catalogue publication", and "Catalogue publication failed"
+ * when the event is an error its kind does not already name. A kind this Portal does not know yet
+ * shows as the platform wrote it.
+ */
+export function kindLabel(
+  event: Pick<ActivityEvent, "kind" | "severity">,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const what = t(`activity.kinds.${event.kind}`, { defaultValue: event.kind });
+  const namesFailure = /\.(error|denied)$/.test(event.kind);
+  return event.severity === "error" && !namesFailure ? t("activity.failed", { what }) : what;
+}
+
 const SEVERITY_TONE: Record<string, BadgeTone> = {
   info: "neutral",
   warning: "warning",
@@ -170,7 +184,7 @@ export function ActivityFeed({
           <option value="">{t("activity.filter.all")}</option>
           {ACTIVITY_KINDS.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {t(`activity.kinds.${option}`)}
             </option>
           ))}
         </Select>
@@ -184,7 +198,7 @@ export function ActivityFeed({
           <option value="">{t("activity.filter.all")}</option>
           {ACTIVITY_SOURCES.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {t(`activity.sources.${option}`)}
             </option>
           ))}
         </Select>
@@ -253,10 +267,9 @@ export function ActivityFeed({
                   <TableCell>
                     <Badge
                       tone={SEVERITY_TONE[event.severity] ?? "neutral"}
-                      mono
                       data-testid="activity-kind"
                     >
-                      {event.kind}
+                      {kindLabel(event, t)}
                     </Badge>
                   </TableCell>
                   <TableCell primary>
@@ -272,7 +285,9 @@ export function ActivityFeed({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-fg-muted">{event.source}</TableCell>
+                  <TableCell className="text-fg-muted">
+                    {t(`activity.sources.${event.source}`, { defaultValue: event.source })}
+                  </TableCell>
                 </TableRow>
               );
             })}

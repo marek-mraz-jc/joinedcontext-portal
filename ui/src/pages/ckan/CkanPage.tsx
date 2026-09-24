@@ -373,9 +373,14 @@ function Publications({
               </div>
               {publication.datastore ? (
                 <p className="mt-1 text-sm">
+                  {/* In words: "refreshed onReconcile" was the manifest's value (T-2756). */}
                   {t("ckan.publications.datastore", {
-                    representation: publication.datastore.representation,
-                    refresh: publication.datastore.refresh,
+                    representation: t(`endpoints.representationOption.${publication.datastore.representation}`, {
+                      defaultValue: publication.datastore.representation,
+                    }),
+                    refresh: t(`ckan.publications.refreshed.${publication.datastore.refresh}`, {
+                      defaultValue: publication.datastore.refresh,
+                    }),
                   })}
                 </p>
               ) : null}

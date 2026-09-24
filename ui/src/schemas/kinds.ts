@@ -1377,9 +1377,10 @@ export function layerSchema(
         type: "object",
         title: t("dashboards.field.filter"),
         properties: {
-          q: { type: "string", title: "q" },
-          scopeQ: { type: "string", title: "scopeQ" },
-          geoQ: { type: "string", title: "geoQ" },
+          // In words, as the pipeline form names them; the help says the NGSI-LD syntax (T-2756).
+          q: { type: "string", title: t("pipelines.field.q") },
+          scopeQ: { type: "string", title: t("pipelines.field.scopeQ") },
+          geoQ: { type: "string", title: t("pipelines.field.geoQ") },
         },
       },
       colorBy: {
@@ -1538,10 +1539,10 @@ export function policySchema(
           },
         },
       },
-      q: { type: "string", title: "q" },
-      scopeQ: { type: "string", title: "scopeQ" },
-      geoQ: { type: "string", title: "geoQ" },
-      temporalQ: { type: "string", title: "temporalQ" },
+      q: { type: "string", title: t("pipelines.field.q") },
+      scopeQ: { type: "string", title: t("pipelines.field.scopeQ") },
+      geoQ: { type: "string", title: t("pipelines.field.geoQ") },
+      temporalQ: { type: "string", title: t("pipelines.field.temporalQ") },
       validity: {
         type: "object",
         title: t("policies.field.validity"),
@@ -1779,8 +1780,8 @@ export function subscriptionSchema(
         items: { type: "string", pattern: "^\\S+$" },
         uniqueItems: true,
       },
-      q: { type: "string", title: "q" },
-      geoQ: { type: "string", title: "geoQ" },
+      q: { type: "string", title: t("pipelines.field.q") },
+      geoQ: { type: "string", title: t("pipelines.field.geoQ") },
       notification: {
         type: "object",
         title: t("subscriptions.field.notification"),
@@ -2382,8 +2383,8 @@ export function appSchema(
               items: { type: "string", ...words(t, "choice.representation", APP_REPRESENTATIONS) },
               uniqueItems: true,
             },
-            q: { type: "string", title: "q" },
-            scopeQ: { type: "string", title: "scopeQ" },
+            q: { type: "string", title: t("pipelines.field.q") },
+            scopeQ: { type: "string", title: t("pipelines.field.scopeQ") },
             within: {
               type: "string",
               title: t("apps.field.within"),

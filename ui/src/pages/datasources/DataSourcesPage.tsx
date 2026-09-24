@@ -229,6 +229,27 @@ export function knownSecretNames(manifests: Manifest[]): string[] {
   return [...names].sort();
 }
 
+/** The words of a runner input's name that are written in capitals: protocols, products, clouds. */
+const ACRONYMS = new Set([
+  "amqp", "aws", "s3", "sqs", "csv", "gcp", "grpc", "http", "hdfs", "kv", "mqtt", "nats", "nsq",
+  "sftp", "sql", "zmq4n", "cdc", "s2",
+]);
+
+/**
+ * A runner input as a person reads it (T-2756): `sql_select` is "SQL select", `aws_s3` "AWS S3".
+ * The names are the technologies' own, the same in every language, so they are spelled out rather
+ * than translated.
+ */
+export function inputLabel(name: string): string {
+  return name
+    .split("_")
+    .filter(Boolean)
+    .map((word, at) =>
+      ACRONYMS.has(word) ? word.toUpperCase() : at === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
+    )
+    .join(" ");
+}
+
 /** The type a stored manifest declares, or the first one for a manifest that lost it. */
 export function typeOf(spec: Record<string, unknown>): DataSourceType {
   const declared = spec["type"];
@@ -554,7 +575,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
               <TableCell>
                 {isTypedDataSource(typeOf(source.spec))
                   ? t(`datasources.type.${typeOf(source.spec)}`, { defaultValue: typeOf(source.spec) })
-                  : typeOf(source.spec)}
+                  : inputLabel(typeOf(source.spec))}
               </TableCell>
               <TableCell className="break-all font-mono text-caption">
                 {endpointOf(source.spec)}

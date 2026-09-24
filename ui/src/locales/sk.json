@@ -117,7 +117,8 @@
     "askAboutFieldQuestion": "Vo formulári {kind}: čo patrí do „{label}“ a čo sa stane, keď to zostane prázdne?",
     "fillFromSentence": "Vyplniť z jednej vety",
     "fillFromSentenceQuestion": "Vyplň otvorený formulár {kind} z tohto: ",
-    "guideLink": "Prečítajte si o {kind} v používateľskej príručke"
+    "guideLink": "Prečítajte si o {kind} v používateľskej príručke",
+    "entry": "Položka {number}"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -756,9 +757,9 @@
       "attrs": "Atribúty",
       "ids": "Entity",
       "idsHint": "URN entít, ktoré sa čítajú namiesto celého typu; štúdio ich vyplní z označených riadkov.",
-      "q": "Filter (q)",
-      "scopeQ": "Filter rozsahu (scopeQ)",
-      "geoQ": "Geo filter (geoQ)",
+      "q": "Filter atribútov",
+      "scopeQ": "Filter rozsahu",
+      "geoQ": "Filter oblasti",
       "temporalQ": "Časové okno",
       "temporalWindow": "Trvanie ISO 8601 (P1D)",
       "trigger": "Spúšťač",
@@ -1683,10 +1684,14 @@
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žiadny endpoint tohto projektu nepublikuje do katalógu.",
-      "datastore": "Kópia riadkov v DataStore z {representation}, obnovovaná {refresh}.",
+      "datastore": "Kópia riadkov v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikované do {instance}",
       "missingInstance": "katalóg {instance} chýba",
-      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo."
+      "emptyHint": "Endpoint publikuje, keď to jeho manifest vyhlási. Otvorte endpoint a pridajte publikovanie, aby sa tu zobrazilo.",
+      "refreshed": {
+        "onChange": "obnovovaná pri zmene entity",
+        "onReconcile": "obnovovaná pri každom použití konfigurácie"
+      }
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}"
   },
@@ -2373,7 +2378,50 @@
       "forwards": "Forwards",
       "denials": "Refusals"
     },
-    "emptyHint": "Všetko, čo tu platforma urobí, sa objaví v tomto zozname: použitá zmena, priepustnosť pipeline, odmietnutá požiadavka. Načítajte dátový zdroj alebo schváľte zmenu a prídu prvé riadky."
+    "emptyHint": "Všetko, čo tu platforma urobí, sa objaví v tomto zozname: použitá zmena, priepustnosť pipeline, odmietnutá požiadavka. Načítajte dátový zdroj alebo schváľte zmenu a prídu prvé riadky.",
+    "kinds": {
+      "config": {
+        "planned": "Zmena naplánovaná",
+        "applied": "Konfigurácia použitá",
+        "drifted": "Odchýlka od repozitára"
+      },
+      "change": {
+        "merged": "Zmena zlúčená"
+      },
+      "pipeline": {
+        "throughput": "Priepustnosť pipeline",
+        "error": "Chyba pipeline",
+        "restarted": "Pipeline reštartovaná"
+      },
+      "endpoint": {
+        "traffic": "Prevádzka endpointu"
+      },
+      "access": {
+        "denied": "Prístup odmietnutý"
+      },
+      "mcp": {
+        "tool": "Volanie nástroja asistenta"
+      },
+      "agent": {
+        "answer": "Odpoveď asistenta"
+      },
+      "federation": {
+        "forward": "Federovaná požiadavka",
+        "error": "Chyba federácie"
+      },
+      "catalogue": {
+        "published": "Publikovanie do katalógu"
+      }
+    },
+    "sources": {
+      "reconciler": "Konfigurácia",
+      "pipeline": "Pipelines",
+      "gateway": "Brána",
+      "broker": "Broker",
+      "ckan": "Katalóg",
+      "portal": "Portál"
+    },
+    "failed": "{what} zlyhalo"
   },
   "import": {
     "title": "Import konfigurácie",

@@ -697,6 +697,7 @@
       "tests": [
         "datasources_view.test.tsx",
         "page_data_sources_page.test.tsx",
+        "raw_values_on_pages.test.tsx",
         "runner_input_schema.test.ts"
       ]
     },

@@ -117,7 +117,8 @@
     "askAboutFieldQuestion": "In the {kind} form: what goes in “{label}”, and what happens when it is left empty?",
     "fillFromSentence": "Fill this from a sentence",
     "fillFromSentenceQuestion": "Fill in the open {kind} form from this: ",
-    "guideLink": "Read about {kind} in the User Guide"
+    "guideLink": "Read about {kind} in the User Guide",
+    "entry": "Entry {number}"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -756,9 +757,9 @@
       "attrs": "Attributes",
       "ids": "Entities",
       "idsHint": "URNs of the entities to read instead of the whole type; the studio fills them from the rows you tick.",
-      "q": "Filter (q)",
-      "scopeQ": "Scope filter (scopeQ)",
-      "geoQ": "Geo filter (geoQ)",
+      "q": "Attribute filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
       "temporalQ": "Temporal window",
       "temporalWindow": "ISO 8601 duration (P1D)",
       "trigger": "Trigger",
@@ -1683,10 +1684,14 @@
     "publications": {
       "title": "Published endpoints",
       "empty": "No endpoint in this project publishes to a catalogue.",
-      "datastore": "DataStore mirror from {representation}, refreshed {refresh}.",
+      "datastore": "DataStore mirror from {representation}, {refresh}.",
       "publishedTo": "published to {instance}",
       "missingInstance": "catalogue {instance} is missing",
-      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here."
+      "emptyHint": "An endpoint publishes when its manifest declares a publication. Open an endpoint and add one to see it here.",
+      "refreshed": {
+        "onChange": "refreshed when an entity changes",
+        "onReconcile": "refreshed each time the configuration is applied"
+      }
     },
     "statusFailed": "The catalogue status of this project could not be read, so what is listed below may be incomplete: {reason}"
   },
@@ -2373,7 +2378,50 @@
       "forwards": "Forwards",
       "denials": "Refusals"
     },
-    "emptyHint": "Everything the platform does here lands in this list: a change applied, a pipeline's throughput, a refused request. Load a data source or approve a change and the first lines appear."
+    "emptyHint": "Everything the platform does here lands in this list: a change applied, a pipeline's throughput, a refused request. Load a data source or approve a change and the first lines appear.",
+    "kinds": {
+      "config": {
+        "planned": "Change planned",
+        "applied": "Configuration applied",
+        "drifted": "Drift from the repository"
+      },
+      "change": {
+        "merged": "Change merged"
+      },
+      "pipeline": {
+        "throughput": "Pipeline throughput",
+        "error": "Pipeline error",
+        "restarted": "Pipeline restarted"
+      },
+      "endpoint": {
+        "traffic": "Endpoint traffic"
+      },
+      "access": {
+        "denied": "Access refused"
+      },
+      "mcp": {
+        "tool": "Assistant tool call"
+      },
+      "agent": {
+        "answer": "Assistant answer"
+      },
+      "federation": {
+        "forward": "Federated request",
+        "error": "Federation error"
+      },
+      "catalogue": {
+        "published": "Catalogue publication"
+      }
+    },
+    "sources": {
+      "reconciler": "Configuration",
+      "pipeline": "Pipelines",
+      "gateway": "Gateway",
+      "broker": "Broker",
+      "ckan": "Catalogue",
+      "portal": "Portal"
+    },
+    "failed": "{what} failed"
   },
   "import": {
     "title": "Import configuration",
