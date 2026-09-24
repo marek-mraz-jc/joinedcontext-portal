@@ -31,6 +31,8 @@ import { NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
+import { ORGANIZATION_TABS } from "../../pages/organization/OrganizationPage";
+import type { OrganizationTab } from "../../pages/organization/OrganizationPage";
 
 const NAV_LINK =
   "focus-ring-inset flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg";
@@ -124,6 +126,70 @@ function UserMenu() {
         </MenuItem>
       </MenuContent>
     </Menu>
+  );
+}
+
+/** The icon each organization tab carries in the sidebar (UI-82). */
+const ORGANIZATION_TAB_ICONS: Record<OrganizationTab, IconName> = {
+  settings: "access",
+  members: "user",
+  roles: "approvals",
+  groups: "share",
+  "service-accounts": "git",
+  projects: "spaces",
+};
+
+/**
+ * The signed-in person at the bottom of the sidebar, with the organization and sign-out beside
+ * them (UI-83). The header keeps its own menu; this is the same two actions where the owner looks
+ * for them.
+ */
+function ProfileBlock({ onNavigate }: { onNavigate: () => void }): JSX.Element | null {
+  const { t } = useTranslation();
+  const { identity, signOut } = useAuth();
+  if (!identity) {
+    return null;
+  }
+  const display = identity.name ?? identity.username;
+  return (
+    <section
+      aria-label={t("nav.profile")}
+      className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3"
+    >
+      <div className="flex items-center gap-2 px-2 pb-1">
+        <span
+          aria-hidden="true"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-caption font-bold text-primary-soft-fg"
+        >
+          {display.trim().charAt(0).toUpperCase()}
+        </span>
+        {/* A name and a username are the person's own words, never a string to translate. */}
+        <span className="min-w-0" translate="no">
+          <span className="block truncate text-body font-medium text-fg">{display}</span>
+          {identity.name ? (
+            <span className="block truncate font-mono text-caption text-fg-muted">{identity.username}</span>
+          ) : null}
+        </span>
+      </div>
+      <Link
+        to="/organization/$tab"
+        params={{ tab: "settings" }}
+        onClick={onNavigate}
+        className={navLinkClass(false)}
+      >
+        <NavLabel icon="user" label={t("nav.organization")} />
+      </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          void signOut();
+        }}
+        className="justify-start gap-2 px-2"
+      >
+        <NavLabel icon="logout" label={t("auth.signOut")} />
+      </Button>
+    </section>
   );
 }
 
@@ -297,7 +363,8 @@ export function Shell({
   );
 
   const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
-  const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
+  const organizationMatch = matchRoute({ to: "/organization/$tab", fuzzy: true });
+  const organizationTab = organizationMatch ? organizationMatch.tab : null;
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -397,17 +464,6 @@ export function Shell({
             {/* Opening a project is a setting of the organization, so the control is always
                 here, disabled with the reason when this caller may not (UI-44, PF-65). */}
             <NewProjectButton project={project} />
-            {/* What is the same in every project lives outside any of them, beside the project
-                switcher (T-2605, Architecture/09 §14.1). */}
-            <Link
-              to="/organization/$tab"
-              params={{ tab: "settings" }}
-              onClick={closeNav}
-              aria-current={organizationActive ? "page" : undefined}
-              className={navLinkClass(organizationActive)}
-            >
-              <NavLabel icon="user" label={t("nav.organization")} />
-            </Link>
           </div>
           <ul className="flex flex-col gap-0.5">
             {NAV_SECTIONS.map((section) => {
@@ -512,6 +568,33 @@ export function Shell({
               </Link>
             </li>
           </ul>
+          {/* What is the same in every project lives outside any of them: the organization's
+              tabs as a section of their own, and the signed-in person at the bottom (UI-82,
+              UI-83, ADR-N-031). */}
+          <section aria-labelledby="nav-organization" className="flex flex-col gap-0.5 border-t border-border pt-3">
+            <h2 id="nav-organization" className="px-2 pb-1 text-caption font-semibold text-fg-subtle">
+              {t("nav.organization")}
+            </h2>
+            <ul className="flex flex-col gap-0.5">
+              {ORGANIZATION_TABS.map((tab) => {
+                const active = organizationTab === tab;
+                return (
+                  <li key={tab}>
+                    <Link
+                      to="/organization/$tab"
+                      params={{ tab }}
+                      onClick={closeNav}
+                      aria-current={active ? "page" : undefined}
+                      className={navLinkClass(active)}
+                    >
+                      <NavLabel icon={ORGANIZATION_TAB_ICONS[tab]} label={t(`organization.tab.${tab}`)} />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+          <ProfileBlock onNavigate={closeNav} />
         </nav>
         <main id="main" className="min-w-0 flex-1">
           <div className="mx-auto flex max-w-content flex-col gap-section px-4 py-5 sm:px-gutter sm:py-6">

@@ -59,12 +59,34 @@ describe("the Organization page's addresses (T-2605)", () => {
     );
   });
 
-  it("is linked beside the project switcher, marked as the page in hand", async () => {
+  // UI-82, UI-83: the sidebar lists every tab in an Organization section, the tab in hand marked
+  // as the page, and the profile block at the bottom links the organization and signs out.
+  it("lists every tab in the sidebar's Organization section, marking the tab in hand", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
-    const link = await within(nav).findByRole("link", { name: en.nav.organization });
-    expect(link).toHaveAttribute("href", "/organization/settings");
-    expect(link).toHaveAttribute("aria-current", "page");
+    const section = await within(nav).findByRole("region", { name: en.nav.organization });
+    for (const [tab, label] of Object.entries(en.organization.tab)) {
+      expect(within(section).getByRole("link", { name: label })).toHaveAttribute("href", `/organization/${tab}`);
+    }
+    expect(within(section).getByRole("link", { name: en.organization.tab.members })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(section).getByRole("link", { name: en.organization.tab.settings })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("names the signed-in person at the bottom, with the organization and sign-out", async () => {
+    renderAt("/organization/members");
+    const nav = await screen.findByRole("navigation", { name: "Main navigation" });
+    const profile = await within(nav).findByRole("region", { name: en.nav.profile });
+    expect(within(profile).getByText(IDENTITY.username)).toBeInTheDocument();
+    expect(within(profile).getByRole("link", { name: en.nav.organization })).toHaveAttribute(
+      "href",
+      "/organization/settings",
+    );
+    expect(within(profile).getByRole("button", { name: en.auth.signOut })).toBeEnabled();
   });
 
   it("opens a tab's create form as a page of its own, the assistant's `…/new` address", async () => {

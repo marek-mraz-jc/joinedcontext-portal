@@ -55,7 +55,8 @@
     "policies": "Politiky",
     "subscriptions": "Odběry",
     "organization": "Organizace",
-    "settings": "Nastavení projektu"
+    "settings": "Nastavení projektu",
+    "profile": "Váš účet"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",

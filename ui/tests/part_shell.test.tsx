@@ -312,7 +312,8 @@ describe("the shell against the UI contract", () => {
     await shell();
 
     for (const part of chrome()) {
-      expectNoRawKeys(part);
+      // The signed-in person's name and username are marked translate="no": data, not strings.
+      expectNoRawKeys(part, ['[translate="no"]']);
     }
   });
 });

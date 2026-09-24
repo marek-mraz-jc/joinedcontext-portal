@@ -55,7 +55,8 @@
     "policies": "Richtlinien",
     "subscriptions": "Abonnements",
     "organization": "Organisation",
-    "settings": "Projekteinstellungen"
+    "settings": "Projekteinstellungen",
+    "profile": "Ihr Konto"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
