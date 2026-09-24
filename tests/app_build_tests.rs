@@ -123,7 +123,13 @@ async fn the_build_links_the_repository_the_run_and_the_package_behind_the_forge
     let answer = send(&state, person("jana"), "GET", URI, None).await;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
     let build = body(&answer.text);
-    let login = |target: &str| format!("{}/user/login?redirect_to={}", gitea.uri(), target);
+    let login = |target: &str| {
+        format!(
+            "{}/user/oauth2/keycloak?redirect_to={}",
+            gitea.uri(),
+            target
+        )
+    };
     assert_eq!(
         build["repositoryUrl"],
         login("%2Ftest-owner%2Fhelsinki_bikes")

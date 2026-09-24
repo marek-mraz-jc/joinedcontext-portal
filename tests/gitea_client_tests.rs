@@ -316,7 +316,7 @@ async fn create_and_get_pull_request() {
     public.public_base = "https://city.example/git".parse().unwrap();
     assert_eq!(
         public.pull_request(17).await.unwrap().url,
-        "https://city.example/git/user/login?redirect_to=%2Fgit%2Ftest-owner%2Ftest-repo%2Fpulls%2F17"
+        "https://city.example/git/user/oauth2/keycloak?redirect_to=%2Fgit%2Ftest-owner%2Ftest-repo%2Fpulls%2F17"
     );
 }
 

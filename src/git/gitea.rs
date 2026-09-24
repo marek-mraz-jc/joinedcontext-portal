@@ -637,19 +637,21 @@ impl GiteaClient {
 
     /// A forge page behind the forge's own sign-in (PF-81). A Portal session is not a forge
     /// session, and the configuration repository is private, so a link straight to the file
-    /// answers 404 instead of offering the Keycloak button. `redirect_to` carries the path
-    /// back; Gitea returns only to a local one, which is why the host is dropped here.
+    /// answers 404. The link starts the forge's Keycloak sign-in instead of showing its sign-in
+    /// page (T-2759): the Keycloak session the Portal holds answers without a prompt, and Gitea
+    /// returns to `redirect_to`. Gitea returns only to a local path, which is why the host is
+    /// dropped here. `keycloak` is the auth source the Gitea chart registers (components/gitea).
     fn signed_in(&self, url: &str) -> String {
         let Ok(target) = Url::parse(url) else {
             return url.to_owned();
         };
         let mut login = self.public_base.clone();
         // `join` resolves against the last path segment, so a base without the trailing slash
-        // would put /user/login beside the prefix instead of inside it.
+        // would put /user/oauth2 beside the prefix instead of inside it.
         if !login.path().ends_with('/') {
             login.set_path(&format!("{}/", login.path()));
         }
-        let Ok(mut login) = login.join("user/login") else {
+        let Ok(mut login) = login.join("user/oauth2/keycloak") else {
             return url.to_owned();
         };
         login
@@ -1811,7 +1813,7 @@ mod browse_url_tests {
             .expect("configured");
         assert_eq!(
             client.browse_url("projects/helsinki/pipelines/p/pipeline.yaml", "main"),
-            "https://city.example/git/user/login?redirect_to=%2Fgit%2Fjoinedcontext%2Fconfiguration%2Fsrc%2Fbranch%2Fmain%2Fprojects%2Fhelsinki%2Fpipelines%2Fp%2Fpipeline.yaml"
+            "https://city.example/git/user/oauth2/keycloak?redirect_to=%2Fgit%2Fjoinedcontext%2Fconfiguration%2Fsrc%2Fbranch%2Fmain%2Fprojects%2Fhelsinki%2Fpipelines%2Fp%2Fpipeline.yaml"
         );
     }
 
@@ -1823,7 +1825,7 @@ mod browse_url_tests {
             .expect("configured");
         assert_eq!(
             client.browse_url("a.yaml", "main"),
-            "http://gitea-http.dev.svc.cluster.local:3000/user/login\
+            "http://gitea-http.dev.svc.cluster.local:3000/user/oauth2/keycloak\
              ?redirect_to=%2Fjoinedcontext%2Fconfiguration%2Fsrc%2Fbranch%2Fmain%2Fa.yaml"
         );
     }
@@ -1836,7 +1838,7 @@ mod browse_url_tests {
             .expect("configured");
         assert_eq!(
             client.pull_url(110),
-            "https://city.example/git/user/login\
+            "https://city.example/git/user/oauth2/keycloak\
              ?redirect_to=%2Fgit%2Fjoinedcontext%2Fconfiguration%2Fpulls%2F110"
         );
     }

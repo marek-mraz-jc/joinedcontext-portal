@@ -158,7 +158,7 @@ async fn sync_fills_mirror_from_tree_with_live_status_and_observed_revision() {
         space_status.source_url.as_deref(),
         Some(
             format!(
-                "{}/user/login?redirect_to=%2Ftest-owner%2Ftest-repo%2Fsrc%2Fbranch%2Fmain%2Fprojects%2Fovzdusie%2Fspaces%2Fmobility%2Fspace.yaml",
+                "{}/user/oauth2/keycloak?redirect_to=%2Ftest-owner%2Ftest-repo%2Fsrc%2Fbranch%2Fmain%2Fprojects%2Fovzdusie%2Fspaces%2Fmobility%2Fspace.yaml",
                 server.uri()
             )
             .as_str()
