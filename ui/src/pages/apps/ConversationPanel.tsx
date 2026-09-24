@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { forPeople } from "../../api/client";
 import { choicesOf, QuestionOptions } from "./QuestionOptions";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
@@ -521,7 +522,8 @@ export function ConversationPanel({
                         : "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2"
                     }
                   >
-                    {line(event, t, titles)}
+                    {/* What the person wrote stays as written; the rest loses its "(AG-70)" (T-2756). */}
+                    {mine ? line(event, t, titles) : forPeople(line(event, t, titles))}
                   </p>
                 </div>
               </li>

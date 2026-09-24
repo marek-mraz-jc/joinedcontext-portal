@@ -349,7 +349,7 @@ describe("dashboard editors", () => {
     });
     await openDashboardEditor();
     const dialog = await findFormPage();
-    await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)), "public");
+    await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)), en.choice.visibility.public);
     await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
 
     expect(await within(dialog).findByText(/whose audience is organization/)).toBeInTheDocument();
@@ -390,7 +390,7 @@ describe("dashboard editors", () => {
     const dialog = await findFormPage();
     await userEvent.selectOptions(
       within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)),
-      "organization",
+      en.choice.visibility.organization,
     );
 
     await waitFor(() => {
@@ -424,7 +424,7 @@ describe("the grid widget of a dashboard", () => {
     const pages = schema.properties?.pages as { items?: { properties?: Record<string, JsonSchema> } };
     const widget = pages.items?.properties?.widgets as { items?: { properties?: Record<string, JsonSchema> } };
     const properties = widget.items?.properties ?? {};
-    expect((properties.widgetType as { enum?: string[] }).enum).toEqual(["temporal-chart", "grid"]);
+    expect((properties.widgetType as { oneOf?: { const: string }[] }).oneOf?.map((option) => option.const)).toEqual(["temporal-chart", "grid"]);
     expect(properties.entityType).toBeDefined();
     const grid = properties.grid as { properties?: Record<string, unknown> };
     // The grid's own configuration, and never the two fields the widget decides for it.

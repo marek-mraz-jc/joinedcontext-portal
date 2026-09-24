@@ -2383,8 +2383,8 @@
     "fileHelp": "A ZIP an export produced, or a YAML stream or JSON manifest.",
     "fileMissing": "Choose a file first.",
     "noFile": "Choose a file first.",
-    "noUrl": "A bundle is uploaded, not fetched: importing from a URL would have this Portal open a connection to a host you name, and the policy that decides which hosts is not written yet (MF-20).",
-    "pastedSecret": "This bundle writes a credential in the open ({keys}). Replace it with a secretRef and choose the file again; the import refuses it either way (MF-24).",
+    "noUrl": "A bundle is uploaded, not fetched: importing from a URL would have this Portal open a connection to a host you name, and the policy that decides which hosts is not written yet.",
+    "pastedSecret": "This bundle writes a credential in the open ({keys}). Replace it with a secretRef and choose the file again; the import refuses it either way.",
     "namespace": "Project to import into",
     "namespaceHelp": "Every imported manifest is rewritten into it.",
     "orgDomain": "Organisation domain",
@@ -2886,5 +2886,133 @@
     "secretHint": "Type the name of a secret, never its value.",
     "default": "Default: {value}.",
     "useDefault": "Use the default"
+  },
+  "choice": {
+    "language": {
+      "sk": "Slovenčina",
+      "en": "English",
+      "de": "Deutsch",
+      "cs": "Čeština"
+    },
+    "datastoreRepresentation": {
+      "csv": "CSV table"
+    },
+    "gtfsFeed": {
+      "vehiclePositions": "Vehicle positions",
+      "tripUpdates": "Trip updates",
+      "alerts": "Service alerts"
+    },
+    "syncMode": {
+      "mirror": "Keep in step",
+      "oneshot": "Copy once"
+    },
+    "conflictPolicy": {
+      "fail": "Stop and say what clashed",
+      "skip": "Keep what is here",
+      "replace": "Replace what is here",
+      "rename": "Keep both, rename the new one"
+    },
+    "visibility": {
+      "private": "Only me",
+      "project": "This project",
+      "organization": "The whole organization",
+      "public": "Everyone, without signing in"
+    },
+    "pageLayout": {
+      "full-map": "One full map",
+      "grid-2x2": "Four tiles"
+    },
+    "widgetType": {
+      "temporal-chart": "Chart over time",
+      "grid": "Table"
+    },
+    "columnFormat": {
+      "text": "Text",
+      "number": "Number",
+      "date": "Date",
+      "link": "Link"
+    },
+    "gridMode": {
+      "view": "Read only",
+      "edit": "Editable"
+    },
+    "gridDensity": {
+      "compact": "Compact",
+      "comfortable": "Roomy"
+    },
+    "mapPosition": {
+      "right": "On the right",
+      "bottom": "Below"
+    },
+    "layerStyle": {
+      "circle": "Circles",
+      "line": "Lines",
+      "fill": "Filled areas",
+      "heatmap": "Heat map",
+      "hexagon": "Hexagons",
+      "icon": "Icons"
+    },
+    "principalKind": {
+      "role": "A role",
+      "group": "A group",
+      "user": "A person",
+      "serviceAccount": "A service account",
+      "did": "A decentralised identifier"
+    },
+    "verb": {
+      "read": "Read",
+      "propose": "Propose changes",
+      "approve": "Approve changes",
+      "delete": "Delete"
+    },
+    "notificationFormat": {
+      "normalized": "Full NGSI-LD",
+      "concise": "Concise NGSI-LD",
+      "keyValues": "Values only"
+    },
+    "scopeLevel": {
+      "project": "This project",
+      "contextSpace": "One context space",
+      "organization": "The whole organization"
+    },
+    "credentialKind": {
+      "oauth-client": "Client id and secret (OAuth)",
+      "api-key": "API key"
+    },
+    "mappingLanguage": {
+      "bloblang": "Bloblang"
+    },
+    "registrationMode": {
+      "inclusive": "Adds to the local data",
+      "exclusive": "Only the registered source answers",
+      "auxiliary": "Asked when nothing local answers",
+      "redirect": "Forwarded to the source"
+    },
+    "federationIdentity": {
+      "serviceAccount": "The project's service account",
+      "caller": "The person who asks"
+    },
+    "appSource": {
+      "path": "A folder of the configuration repository",
+      "git": "Its own Git repository"
+    },
+    "representation": {
+      "ngsi-ld": "NGSI-LD",
+      "geojson": "GeoJSON",
+      "csv": "CSV table",
+      "xlsx": "Excel workbook",
+      "json": "JSON",
+      "zip": "ZIP archive",
+      "ogc-features": "OGC API Features",
+      "sta": "SensorThings API",
+      "mcp": "MCP, for AI assistants"
+    },
+    "operationGroup": {
+      "retrieveOps": "Read",
+      "updateOps": "Change existing entities",
+      "associationOps": "Read everything and subscribe",
+      "federationOps": "Federate",
+      "redirectionOps": "Forward everything"
+    }
   }
 }

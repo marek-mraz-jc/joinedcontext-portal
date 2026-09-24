@@ -236,10 +236,10 @@ describe("the Role form", () => {
     expect(rights).toEqual({ kinds: ["DataSource", "Pipeline"], verbs: ["propose"] });
 
     const schema = roleSchema(t, rights.kinds, rights.verbs) as unknown as {
-      properties: { rules: { items: { properties: { kinds: { items: { enum?: string[] } }; verbs: { items: { enum: string[] } } } } } };
+      properties: { rules: { items: { properties: { kinds: { items: { enum?: string[] } }; verbs: { items: { oneOf: { const: string }[] } } } } } };
     };
     expect(schema.properties.rules.items.properties.kinds.items.enum).toEqual(["DataSource", "Pipeline"]);
-    expect(schema.properties.rules.items.properties.verbs.items.enum).toEqual(["propose"]);
+    expect(schema.properties.rules.items.properties.verbs.items.oneOf.map((option) => option.const)).toEqual(["propose"]);
   });
 
   it("falls back to what the API validates while no permissions document has arrived", () => {
@@ -374,7 +374,7 @@ describe("the Role form", () => {
     await user.selectOptions(kindsField, ["Pipeline"]);
     await user.selectOptions(
       window.document.querySelector("select#root_rules_0_verbs") as HTMLSelectElement,
-      ["approve"],
+      [en.choice.verb.approve],
     );
 
     // The button says which verb on which kind is missing, in the person's own language, and the
@@ -388,8 +388,8 @@ describe("the Role form", () => {
     // And the pair the author does hold is proposable: the refusal is about the rights, not
     // about the form.
     const verbs = window.document.querySelector("select#root_rules_0_verbs") as HTMLSelectElement;
-    await user.deselectOptions(verbs, ["approve"]);
-    await user.selectOptions(verbs, ["propose"]);
+    await user.deselectOptions(verbs, [en.choice.verb.approve]);
+    await user.selectOptions(verbs, [en.choice.verb.propose]);
     // The pair the author does hold leaves the rights refusal behind. What the button says next is
     // the Check this form asks of every kind, not a word about the rules.
     await waitFor(() => {

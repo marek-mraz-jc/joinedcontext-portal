@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, forPeople } from "./client";
 
 /**
  * One call of a project operation (`POST /ops/{name}`, API/01), through the typed client (UI-07).
@@ -27,5 +27,5 @@ export async function callOperation(
   const reason = [problem.detail, problem.error].find(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
-  return { ok: false, status: response.status, reason };
+  return { ok: false, status: response.status, reason: reason === undefined ? undefined : forPeople(reason) };
 }

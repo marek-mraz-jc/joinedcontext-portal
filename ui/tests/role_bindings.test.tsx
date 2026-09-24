@@ -218,7 +218,10 @@ describe("people and roles", () => {
     expect(within(dialog).getByLabelText(en.access.roles.whereLabel)).toHaveValue("project");
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.access.roles.propose }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(refusal);
+    // The API's words, without the requirement it cites for engineers (T-2756).
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent(refusal.replace(" (PF-52)", ""));
+    expect(alert).not.toHaveTextContent("PF-52");
   });
 
   it("opens the grant the assistant drafts while the person is already on the access page", async () => {

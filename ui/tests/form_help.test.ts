@@ -409,3 +409,62 @@ describe("the User Guide page beside every form", () => {
     });
   }
 });
+
+/**
+ * T-2756, UI-16: a choice reads as words. A plain `enum` shows the manifest's value itself
+ * ("mirror", "oauth-client", "retrieveOps"), so every choice is `oneOf` consts with a title from
+ * the locales. What stays a plain list is what a person knows by that very name: the page's own
+ * names (spaces, endpoints, layers, types, kinds, catalogues, accounts), HTTP methods and media
+ * types, and the operations, which the operations picker words itself.
+ */
+describe("every choice of every form reads as words", () => {
+  const NAMES = new Set([
+    "contextSpaceRef",
+    "allowedProjects",
+    "catalogueRef",
+    "layers",
+    "sourceEndpointRef",
+    "entityType",
+    "type",
+    "types",
+    "kinds",
+    "dataSourceRef",
+    "endpointRef",
+    "serviceAccountRef",
+    "verb",
+    "accept",
+    "operations",
+  ]);
+
+  function choices(node: unknown, name: string, found: { name: string; values: unknown[] }[] = []) {
+    if (Array.isArray(node)) {
+      for (const item of node) choices(item, name, found);
+      return found;
+    }
+    if (node === null || typeof node !== "object") return found;
+    const schema = node as Record<string, unknown>;
+    if (Array.isArray(schema.enum) && schema.enum.every((value) => typeof value === "string")) {
+      found.push({ name, values: schema.enum });
+    }
+    for (const [key, value] of Object.entries(schema)) {
+      if (key === "properties" && value && typeof value === "object") {
+        for (const [field, inner] of Object.entries(value)) choices(inner, field, found);
+      } else if (key !== "enum") {
+        choices(value, name, found);
+      }
+    }
+    return found;
+  }
+
+  for (const [kind, schemas] of Object.entries(FORMS)) {
+    it(`${kind} offers no plain value as a choice, and titles every option`, () => {
+      const raw = schemas
+        .flatMap((schema) => choices(schema, kind))
+        .filter(({ name }) => !NAMES.has(name))
+        .map(({ name, values }) => `${name}: ${values.join(", ")}`);
+      expect(raw).toEqual([]);
+      const untitled = JSON.stringify(schemas).match(/"title":"(choice|policies|apps)\.[\w.-]+"/g) ?? [];
+      expect(untitled, "a choice title that is a missing locale key").toEqual([]);
+    });
+  }
+});

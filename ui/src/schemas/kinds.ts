@@ -13,6 +13,19 @@ import type { JsonSchema, UiSchema } from "../components/forms/types";
  */
 
 /** DNS-1123 label: what every manifest name and every space slug has to be (PF-09). */
+/**
+ * A choice that reads as words (T-2756): the manifest keeps the value, the option says what it
+ * means in the person's language, from `{prefix}.{value}` in the locales. `form_help` holds every
+ * form against a plain `enum`, which would show the value itself.
+ */
+export function words(
+  t: (key: string) => string,
+  prefix: string,
+  values: readonly string[],
+): { oneOf: { const: string; title: string }[] } {
+  return { oneOf: values.map((value) => ({ const: value, title: t(`${prefix}.${value}`) })) };
+}
+
 export const DNS1123 = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 
 /** RFC 4648 base32, lowercase, unpadded; 26 characters carry 130 bits of entropy (EP-02). */
@@ -42,7 +55,7 @@ export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
       defaultLocale: {
         type: "string",
         title: t("spaces.field.locale"),
-        enum: ["sk", "en", "de", "cs"],
+        ...words(t, "choice.language", ["sk", "en", "de", "cs"]),
       },
       isSandbox: { type: "boolean", title: t("spaces.field.sandbox"), default: false },
       ttlDays: {
@@ -244,7 +257,7 @@ export function endpointSchema(
                   representation: {
                     type: "string",
                     title: t("endpoints.field.sheetFrom"),
-                    enum: [...DATASTORE_REPRESENTATIONS],
+                    ...words(t, "choice.datastoreRepresentation", DATASTORE_REPRESENTATIONS),
                   },
                   refresh: {
                     type: "string",
@@ -436,7 +449,7 @@ export function dataSourceSchema(
         feed: {
           type: "string",
           title: t("datasources.field.feed"),
-          enum: ["vehiclePositions", "tripUpdates", "alerts"],
+          ...words(t, "choice.gtfsFeed", ["vehiclePositions", "tripUpdates", "alerts"]),
           default: "vehiclePositions",
         },
       },
@@ -522,13 +535,13 @@ export function syncSourceSchema(
       mode: {
         type: "string",
         title: t("syncSources.field.mode"),
-        enum: ["mirror", "oneshot"],
+        ...words(t, "choice.syncMode", ["mirror", "oneshot"]),
         default: "mirror",
       },
       conflictPolicy: {
         type: "string",
         title: t("syncSources.field.conflictPolicy"),
-        enum: ["fail", "skip", "replace", "rename"],
+        ...words(t, "choice.conflictPolicy", ["fail", "skip", "replace", "rename"]),
         default: "fail",
       },
       // Both put a change through without a person looking at it, which is why CC-70 and CC-19
@@ -1227,8 +1240,40 @@ function gridWidgetSchema(t: (key: string) => string): JsonSchema {
     type: "object",
     title: t("dashboards.field.grid"),
     additionalProperties: published.additionalProperties ?? false,
-    properties: kept,
+    // The SDK publishes its choices as values; the form offers them as words (T-2756).
+    properties: Object.fromEntries(Object.entries(kept).map(([field, schema]) => [field, worded(schema, t, field)])),
   } as JsonSchema;
+}
+
+/** The grid configuration's own choices, by the property that holds them. */
+const GRID_CHOICES: Record<string, string> = {
+  format: "choice.columnFormat",
+  mode: "choice.gridMode",
+  density: "choice.gridDensity",
+  position: "choice.mapPosition",
+};
+
+/** A published schema with each choice of `GRID_CHOICES` offered as words, its default kept. */
+function worded(node: unknown, t: (key: string) => string, name?: string): unknown {
+  if (Array.isArray(node)) return node.map((item) => worded(item, t));
+  if (node === null || typeof node !== "object") return node;
+  const { enum: values, ...rest } = node as Record<string, unknown>;
+  const prefix = name === undefined ? undefined : GRID_CHOICES[name];
+  const own =
+    prefix && Array.isArray(values) && values.every((value) => typeof value === "string")
+      ? words(t, prefix, values as string[])
+      : values === undefined
+        ? {}
+        : { enum: values };
+  return Object.fromEntries([
+    ...Object.entries(rest).map(([key, value]) => [
+      key,
+      key === "properties" && value && typeof value === "object"
+        ? Object.fromEntries(Object.entries(value).map(([field, schema]) => [field, worded(schema, t, field)]))
+        : worded(value, t),
+    ]),
+    ...Object.entries(own),
+  ]);
 }
 
 export function dashboardSchema(
@@ -1245,7 +1290,7 @@ export function dashboardSchema(
       visibility: {
         type: "string",
         title: t("dashboards.field.visibility"),
-        enum: [...DASHBOARD_VISIBILITIES],
+        ...words(t, "choice.visibility", DASHBOARD_VISIBILITIES),
         default: "project",
       },
       pages: {
@@ -1259,7 +1304,7 @@ export function dashboardSchema(
             layout: {
               type: "string",
               title: t("dashboards.field.layout"),
-              enum: [...PAGE_LAYOUTS],
+              ...words(t, "choice.pageLayout", PAGE_LAYOUTS),
               default: "full-map",
             },
             layers: {
@@ -1280,7 +1325,7 @@ export function dashboardSchema(
                   widgetType: {
                     type: "string",
                     title: t("dashboards.field.widgetType"),
-                    enum: [...WIDGET_TYPES],
+                    ...words(t, "choice.widgetType", WIDGET_TYPES),
                     default: "temporal-chart",
                   },
                   endpointRef: { type: "string", title: t("dashboards.field.endpoint"), pattern: DNS1123 },
@@ -1326,7 +1371,7 @@ export function layerSchema(
         title: t("dashboards.field.entityType"),
         ...(types.length > 0 ? { enum: types } : { pattern: ENTITY_TYPE_PATTERN }),
       },
-      style: { type: "string", title: t("dashboards.field.style"), enum: [...LAYER_STYLES], default: "circle" },
+      style: { type: "string", title: t("dashboards.field.style"), ...words(t, "choice.layerStyle", LAYER_STYLES), default: "circle" },
       visible: { type: "boolean", title: t("dashboards.field.visible"), default: true },
       filter: {
         type: "object",
@@ -1422,7 +1467,7 @@ export function policySchema(
       effect: {
         type: "string",
         title: t("policies.field.effect"),
-        enum: [...POLICY_EFFECTS],
+        ...words(t, "policies.effect", POLICY_EFFECTS),
         default: "permission",
       },
       assignee: {
@@ -1433,7 +1478,7 @@ export function policySchema(
           kind: {
             type: "string",
             title: t("policies.field.assigneeKind"),
-            enum: [...PRINCIPAL_KINDS],
+            ...words(t, "choice.principalKind", PRINCIPAL_KINDS),
             default: "role",
           },
           id: { type: "string", title: t("policies.field.assigneeId"), maxLength: 253 },
@@ -1579,7 +1624,7 @@ export function roleSchema(
               title: t("access.projectRoles.field.verbs"),
               minItems: 1,
               uniqueItems: true,
-              items: { type: "string", enum: [...verbs] },
+              items: { type: "string", ...words(t, "choice.verb", verbs) },
             },
           },
         },
@@ -1779,7 +1824,7 @@ export function subscriptionSchema(
           format: {
             type: "string",
             title: t("subscriptions.field.format"),
-            enum: [...NOTIFICATION_FORMATS],
+            ...words(t, "choice.notificationFormat", NOTIFICATION_FORMATS),
           },
           attributes: {
             type: "array",
@@ -1891,7 +1936,7 @@ export function serviceAccountSchema(
                 level: {
                   type: "string",
                   title: t("access.accounts.field.scopeLevel"),
-                  enum: [...ROLE_SCOPE_LEVELS],
+                  ...words(t, "choice.scopeLevel", ROLE_SCOPE_LEVELS),
                   default: "project",
                 },
                 name: {
@@ -1931,7 +1976,7 @@ export function serviceAccountSchema(
             kind: {
               type: "string",
               title: t("access.accounts.field.credentialKind"),
-              enum: [...CREDENTIAL_KINDS],
+              ...words(t, "choice.credentialKind", CREDENTIAL_KINDS),
               default: "oauth-client",
             },
             name: {
@@ -2116,7 +2161,7 @@ export function registrationSchema(
       mode: {
         type: "string",
         title: t("registrations.field.mode"),
-        enum: [...REGISTRATION_MODES],
+        ...words(t, "choice.registrationMode", REGISTRATION_MODES),
         default: "inclusive",
       },
       federation: {
@@ -2126,7 +2171,7 @@ export function registrationSchema(
           identity: {
             type: "string",
             title: t("registrations.field.identity"),
-            enum: [...FEDERATION_IDENTITIES],
+            ...words(t, "choice.federationIdentity", FEDERATION_IDENTITIES),
             default: "serviceAccount",
           },
           serviceAccountRef: {
@@ -2227,13 +2272,13 @@ export function appSchema(
       kind: {
         type: "string",
         title: t("apps.field.kind"),
-        enum: [...APP_CLASSES],
+        ...words(t, "apps.generate.kinds", APP_CLASSES),
         default: "static",
       },
       visibility: {
         type: "string",
         title: t("apps.field.visibility"),
-        enum: [...APP_VISIBILITIES],
+        ...words(t, "choice.visibility", APP_VISIBILITIES),
         default: "project",
       },
       embeddable: {
@@ -2253,7 +2298,7 @@ export function appSchema(
           from: {
             type: "string",
             title: t("apps.field.sourceFrom"),
-            enum: [...APP_SOURCES],
+            ...words(t, "choice.appSource", APP_SOURCES),
             default: "path",
           },
           path: {
@@ -2334,7 +2379,7 @@ export function appSchema(
             representations: {
               type: "array",
               title: t("apps.field.representations"),
-              items: { type: "string", enum: [...APP_REPRESENTATIONS] },
+              items: { type: "string", ...words(t, "choice.representation", APP_REPRESENTATIONS) },
               uniqueItems: true,
             },
             q: { type: "string", title: "q" },

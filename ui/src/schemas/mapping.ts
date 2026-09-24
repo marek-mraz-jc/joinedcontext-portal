@@ -1,5 +1,5 @@
 import type { JsonSchema, UiSchema } from "../components/forms/types";
-import { DNS1123 } from "./kinds";
+import { DNS1123, words } from "./kinds";
 
 /**
  * The Mapping form (T-2354, DM-33..DM-39): the parts of a Mapping a person edits field by field.
@@ -83,7 +83,7 @@ export function mappingSchema(t: (key: string) => string): JsonSchema {
             language: {
               type: "string",
               title: t("mappings.field.language"),
-              enum: [...NATIVE_LANGUAGES],
+              ...words(t, "choice.mappingLanguage", NATIVE_LANGUAGES),
               default: "bloblang",
             },
             // Non-empty after trimming, as jc-core refuses it (DM-38).

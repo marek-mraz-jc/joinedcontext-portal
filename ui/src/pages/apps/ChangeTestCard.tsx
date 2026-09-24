@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { forPeople } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { QueryAnswer, viewOf } from "./QueryResultCard";
 
@@ -54,7 +55,7 @@ export function changeTestOf(payload: Record<string, unknown>): ChangeTest | nul
     outcome: verdict.ok === true ? "passed" : "failed",
     reasons: findings
       .filter(isRecord)
-      .map((finding) => [words(finding.path), words(finding.message)].filter(Boolean).join(" "))
+      .map((finding) => [words(finding.path), forPeople(words(finding.message) ?? "")].filter(Boolean).join(" "))
       .filter((reason) => reason !== ""),
     records: count(test.records),
     sample: Array.isArray(test.sample) && test.sample.length > 0 ? test.sample : undefined,

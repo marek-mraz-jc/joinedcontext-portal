@@ -79,7 +79,10 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
               onChange={(event) => toggle(name, event.currentTarget.checked)}
               label={
                 <span className="flex items-center gap-2">
-                  <span className="font-mono">{name}</span>
+                  {/* The group in words; its CIM 009 name is the manifest's, not the person's (T-2756). */}
+                  <span>{t(`choice.operationGroup.${name}`)}</span>
+                  {/* A space, so the box is named "… changes data", not "…changes data". */}
+                  {group.writes ? " " : null}
                   {group.writes ? (
                     <Badge tone="warning">{t("policies.operations.writes")}</Badge>
                   ) : null}
@@ -88,6 +91,7 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
             />
             {/* The members, always: a group is exactly the operations the table lists for it. */}
             <p className="pl-6 text-caption text-fg-muted">
+              {t(`endpoints.page.group.${name}`)}{" "}
               {t("policies.operations.covers", { count: group.operations.length })}{" "}
               <span className="font-mono">{group.operations.join(", ")}</span>
             </p>

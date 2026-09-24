@@ -2383,8 +2383,8 @@
     "fileHelp": "ZIP z exportu, nebo YAML proud či JSON manifest.",
     "fileMissing": "Nejprve vyberte soubor.",
     "noFile": "Nejprve vyberte soubor.",
-    "noUrl": "Balík se nahrává, nestahuje: import z URL by znamenal, že tento Portál otevře spojení na hostitele, kterého jste zadali, a pravidlo, které rozhoduje o povolených hostitelích, ještě není napsané (MF-20).",
-    "pastedSecret": "Tento balík má přihlašovací údaj napsaný přímo ({keys}). Nahraďte jej odkazem secretRef a vyberte soubor znovu; import jej stejně odmítne (MF-24).",
+    "noUrl": "Balík se nahrává, nestahuje: import z URL by znamenal, že tento Portál otevře spojení na hostitele, kterého jste zadali, a pravidlo, které rozhoduje o povolených hostitelích, ještě není napsané.",
+    "pastedSecret": "Tento balík má přihlašovací údaj napsaný přímo ({keys}). Nahraďte jej odkazem secretRef a vyberte soubor znovu; import jej stejně odmítne.",
     "namespace": "Projekt, do kterého se importuje",
     "namespaceHelp": "Každý importovaný manifest se do něj přepíše.",
     "orgDomain": "Doména organizace",
@@ -2886,5 +2886,133 @@
     "secretHint": "Zadejte název tajemství, nikdy jeho hodnotu.",
     "default": "Výchozí: {value}.",
     "useDefault": "Použít výchozí"
+  },
+  "choice": {
+    "language": {
+      "sk": "Slovenčina",
+      "en": "English",
+      "de": "Deutsch",
+      "cs": "Čeština"
+    },
+    "datastoreRepresentation": {
+      "csv": "Tabulka CSV"
+    },
+    "gtfsFeed": {
+      "vehiclePositions": "Polohy vozidel",
+      "tripUpdates": "Změny spojů",
+      "alerts": "Výluky a oznámení"
+    },
+    "syncMode": {
+      "mirror": "Udržovat v souladu",
+      "oneshot": "Zkopírovat jednou"
+    },
+    "conflictPolicy": {
+      "fail": "Zastavit a říct, co koliduje",
+      "skip": "Ponechat existující",
+      "replace": "Nahradit existující",
+      "rename": "Ponechat obojí, nové přejmenovat"
+    },
+    "visibility": {
+      "private": "Jen já",
+      "project": "Tento projekt",
+      "organization": "Celá organizace",
+      "public": "Kdokoli, bez přihlášení"
+    },
+    "pageLayout": {
+      "full-map": "Celá mapa",
+      "grid-2x2": "Čtyři dlaždice"
+    },
+    "widgetType": {
+      "temporal-chart": "Graf v čase",
+      "grid": "Tabulka"
+    },
+    "columnFormat": {
+      "text": "Text",
+      "number": "Číslo",
+      "date": "Datum",
+      "link": "Odkaz"
+    },
+    "gridMode": {
+      "view": "Jen pro čtení",
+      "edit": "Upravitelné"
+    },
+    "gridDensity": {
+      "compact": "Husté",
+      "comfortable": "Vzdušné"
+    },
+    "mapPosition": {
+      "right": "Vpravo",
+      "bottom": "Pod tabulkou"
+    },
+    "layerStyle": {
+      "circle": "Kruhy",
+      "line": "Čáry",
+      "fill": "Vyplněné plochy",
+      "heatmap": "Tepelná mapa",
+      "hexagon": "Šestiúhelníky",
+      "icon": "Ikony"
+    },
+    "principalKind": {
+      "role": "Role",
+      "group": "Skupina",
+      "user": "Osoba",
+      "serviceAccount": "Servisní účet",
+      "did": "Decentralizovaný identifikátor"
+    },
+    "verb": {
+      "read": "Číst",
+      "propose": "Navrhovat změny",
+      "approve": "Schvalovat změny",
+      "delete": "Mazat"
+    },
+    "notificationFormat": {
+      "normalized": "Úplné NGSI-LD",
+      "concise": "Stručné NGSI-LD",
+      "keyValues": "Jen hodnoty"
+    },
+    "scopeLevel": {
+      "project": "Tento projekt",
+      "contextSpace": "Jeden kontextový prostor",
+      "organization": "Celá organizace"
+    },
+    "credentialKind": {
+      "oauth-client": "ID klienta a tajemství (OAuth)",
+      "api-key": "API klíč"
+    },
+    "mappingLanguage": {
+      "bloblang": "Bloblang"
+    },
+    "registrationMode": {
+      "inclusive": "Doplňuje lokální data",
+      "exclusive": "Odpovídá jen registrovaný zdroj",
+      "auxiliary": "Použije se, když lokálně nic neodpoví",
+      "redirect": "Přesměruje se na zdroj"
+    },
+    "federationIdentity": {
+      "serviceAccount": "Servisní účet projektu",
+      "caller": "Osoba, která se ptá"
+    },
+    "appSource": {
+      "path": "Složka konfiguračního repozitáře",
+      "git": "Vlastní Git repozitář"
+    },
+    "representation": {
+      "ngsi-ld": "NGSI-LD",
+      "geojson": "GeoJSON",
+      "csv": "Tabulka CSV",
+      "xlsx": "Sešit Excel",
+      "json": "JSON",
+      "zip": "Archiv ZIP",
+      "ogc-features": "OGC API Features",
+      "sta": "SensorThings API",
+      "mcp": "MCP pro AI asistenty"
+    },
+    "operationGroup": {
+      "retrieveOps": "Číst",
+      "updateOps": "Měnit existující entity",
+      "associationOps": "Číst vše a odebírat",
+      "federationOps": "Federovat",
+      "redirectionOps": "Přesměrovat vše"
+    }
   }
 }

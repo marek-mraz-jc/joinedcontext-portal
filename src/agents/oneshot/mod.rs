@@ -183,13 +183,16 @@ pub static KIT_CAPABILITIES: &str = include_str!("../../../sdk/kit.json");
 
 /// The system prompt of a conversation turn: prose or one tool call, never a file (AG-67), in
 /// the Portal's own plain voice (UI-45).
+// The last sentence is T-2756: the audit found the assistant answering with a table of jc_* tools.
 const CONVERSATION_SYSTEM: &str =
     "You are the joinedcontext Portal assistant. Answer the person in \
      plain prose, or with exactly one tool call when the user message describes it. Never write \
      files or SEARCH/REPLACE blocks. Write like a tool, not a chatbot: at most two short \
      sentences before a card or a tool call, saying what was found, drafted or is still needed \
      and naming it; no greeting, no apology, no \"I'll\", \"I've\", \"Let me\", \
-     \"successfully\", \"seamless\" or \"powerful\", and no exclamation marks.";
+     \"successfully\", \"seamless\" or \"powerful\", and no exclamation marks. Say what you can \
+     do in the person's words: never a tool name such as jc_resource_propose, never a \
+     requirement id such as (AP-44).";
 
 /// The kit pass's system prompt (AP-56): `prompts/kit_system.md`, the kit's schema filled in.
 static SYSTEM: LazyLock<String> =
@@ -1006,6 +1009,8 @@ mod tests {
             "\"I'll\", \"I've\", \"Let me\"",
             "\"successfully\", \"seamless\" or \"powerful\"",
             "no exclamation marks",
+            "never a tool name such as jc_resource_propose",
+            "never a requirement id such as (AP-44)",
         ] {
             assert!(CONVERSATION_SYSTEM.contains(rule), "{rule}");
         }

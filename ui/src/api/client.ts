@@ -7,15 +7,40 @@ import type { components, paths } from "./schema";
 
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
 
+/**
+ * One requirement or decision reference as the server's texts cite them: `AP-44`, `T-2636`,
+ * `ADR-N-028 §5`. The prefixes are the requirement families of docs/Requirements.
+ */
+const REF = String.raw`(?:(?:AP|PF|CC|AG|UI|EP|DM|PL|OPS|MF|SDK|TS|SP|DS|MP)-\d+[a-z]?|T-\d{3,5}|ADR-N-\d{3}(?:\s*§\s*\d+)?)`;
+const REFS = new RegExp(String.raw`\s*\(${REF}(?:\s*,\s*${REF})*\)`, "g");
+
+/**
+ * A server's sentence as a person reads it: without the "(AP-44)" it cites for engineers
+ * (T-2756). The code keeps the ids, which is how the compliance matrix finds a requirement built;
+ * the screen does not. Only a parenthesis made of references alone goes, "(see AP-44)" stays.
+ */
+export function forPeople(text: string): string {
+  return text.replace(REFS, "");
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly problem?: ProblemDetails;
 
   constructor(status: number, message: string, problem?: ProblemDetails) {
-    super(message);
+    // Every refusal a page shows is one of these, read as `message` or as `problem.detail`.
+    super(forPeople(message));
     this.name = "ApiError";
     this.status = status;
-    this.problem = problem;
+    // A problem is the server's answer, read as it came: a field it left out stays out.
+    this.problem = problem && {
+      ...problem,
+      ...(typeof problem.title === "string" ? { title: forPeople(problem.title) } : {}),
+      ...(typeof problem.detail === "string" ? { detail: forPeople(problem.detail) } : {}),
+      ...(Array.isArray(problem.errors)
+        ? { errors: problem.errors.map((error) => (typeof error === "string" ? forPeople(error) : error)) }
+        : {}),
+    };
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }

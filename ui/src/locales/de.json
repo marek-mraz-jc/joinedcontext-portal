@@ -2383,8 +2383,8 @@
     "fileHelp": "Ein ZIP aus einem Export, oder ein YAML-Strom bzw. ein JSON-Manifest.",
     "fileMissing": "Wählen Sie zuerst eine Datei.",
     "noFile": "Wählen Sie zuerst eine Datei.",
-    "noUrl": "Ein Bündel wird hochgeladen, nicht geholt: ein Import per URL hieße, dass dieses Portal eine Verbindung zu einem von Ihnen genannten Host öffnet, und die Regel, welche Hosts erlaubt sind, ist noch nicht geschrieben (MF-20).",
-    "pastedSecret": "Dieses Bündel schreibt ein Geheimnis im Klartext ({keys}). Ersetzen Sie es durch einen secretRef und wählen Sie die Datei erneut; der Import lehnt es ohnehin ab (MF-24).",
+    "noUrl": "Ein Bündel wird hochgeladen, nicht geholt: ein Import per URL hieße, dass dieses Portal eine Verbindung zu einem von Ihnen genannten Host öffnet, und die Regel, welche Hosts erlaubt sind, ist noch nicht geschrieben.",
+    "pastedSecret": "Dieses Bündel schreibt ein Geheimnis im Klartext ({keys}). Ersetzen Sie es durch einen secretRef und wählen Sie die Datei erneut; der Import lehnt es ohnehin ab.",
     "namespace": "Projekt, in das importiert wird",
     "namespaceHelp": "Jedes importierte Manifest wird darauf umgeschrieben.",
     "orgDomain": "Domäne der Organisation",
@@ -2886,5 +2886,133 @@
     "secretHint": "Geben Sie den Namen eines Secrets ein, nie seinen Wert.",
     "default": "Standard: {value}.",
     "useDefault": "Standard verwenden"
+  },
+  "choice": {
+    "language": {
+      "sk": "Slovenčina",
+      "en": "English",
+      "de": "Deutsch",
+      "cs": "Čeština"
+    },
+    "datastoreRepresentation": {
+      "csv": "CSV-Tabelle"
+    },
+    "gtfsFeed": {
+      "vehiclePositions": "Fahrzeugpositionen",
+      "tripUpdates": "Fahrtaktualisierungen",
+      "alerts": "Störungsmeldungen"
+    },
+    "syncMode": {
+      "mirror": "Synchron halten",
+      "oneshot": "Einmal kopieren"
+    },
+    "conflictPolicy": {
+      "fail": "Anhalten und den Konflikt nennen",
+      "skip": "Vorhandenes behalten",
+      "replace": "Vorhandenes ersetzen",
+      "rename": "Beides behalten, Neues umbenennen"
+    },
+    "visibility": {
+      "private": "Nur ich",
+      "project": "Dieses Projekt",
+      "organization": "Die ganze Organisation",
+      "public": "Alle, ohne Anmeldung"
+    },
+    "pageLayout": {
+      "full-map": "Eine ganze Karte",
+      "grid-2x2": "Vier Kacheln"
+    },
+    "widgetType": {
+      "temporal-chart": "Diagramm über die Zeit",
+      "grid": "Tabelle"
+    },
+    "columnFormat": {
+      "text": "Text",
+      "number": "Zahl",
+      "date": "Datum",
+      "link": "Link"
+    },
+    "gridMode": {
+      "view": "Nur lesen",
+      "edit": "Bearbeitbar"
+    },
+    "gridDensity": {
+      "compact": "Kompakt",
+      "comfortable": "Luftig"
+    },
+    "mapPosition": {
+      "right": "Rechts",
+      "bottom": "Darunter"
+    },
+    "layerStyle": {
+      "circle": "Kreise",
+      "line": "Linien",
+      "fill": "Gefüllte Flächen",
+      "heatmap": "Heatmap",
+      "hexagon": "Sechsecke",
+      "icon": "Symbole"
+    },
+    "principalKind": {
+      "role": "Eine Rolle",
+      "group": "Eine Gruppe",
+      "user": "Eine Person",
+      "serviceAccount": "Ein Dienstkonto",
+      "did": "Eine dezentrale Kennung"
+    },
+    "verb": {
+      "read": "Lesen",
+      "propose": "Änderungen vorschlagen",
+      "approve": "Änderungen genehmigen",
+      "delete": "Löschen"
+    },
+    "notificationFormat": {
+      "normalized": "Vollständiges NGSI-LD",
+      "concise": "Kompaktes NGSI-LD",
+      "keyValues": "Nur Werte"
+    },
+    "scopeLevel": {
+      "project": "Dieses Projekt",
+      "contextSpace": "Ein Kontextraum",
+      "organization": "Die ganze Organisation"
+    },
+    "credentialKind": {
+      "oauth-client": "Client-ID und Geheimnis (OAuth)",
+      "api-key": "API-Schlüssel"
+    },
+    "mappingLanguage": {
+      "bloblang": "Bloblang"
+    },
+    "registrationMode": {
+      "inclusive": "Ergänzt die lokalen Daten",
+      "exclusive": "Nur die registrierte Quelle antwortet",
+      "auxiliary": "Gefragt, wenn lokal nichts antwortet",
+      "redirect": "An die Quelle weitergeleitet"
+    },
+    "federationIdentity": {
+      "serviceAccount": "Das Dienstkonto des Projekts",
+      "caller": "Die fragende Person"
+    },
+    "appSource": {
+      "path": "Ein Ordner des Konfigurations-Repositorys",
+      "git": "Ein eigenes Git-Repository"
+    },
+    "representation": {
+      "ngsi-ld": "NGSI-LD",
+      "geojson": "GeoJSON",
+      "csv": "CSV-Tabelle",
+      "xlsx": "Excel-Arbeitsmappe",
+      "json": "JSON",
+      "zip": "ZIP-Archiv",
+      "ogc-features": "OGC API Features",
+      "sta": "SensorThings API",
+      "mcp": "MCP für KI-Assistenten"
+    },
+    "operationGroup": {
+      "retrieveOps": "Lesen",
+      "updateOps": "Vorhandene Entitäten ändern",
+      "associationOps": "Alles lesen und abonnieren",
+      "federationOps": "Föderieren",
+      "redirectionOps": "Alles weiterleiten"
+    }
   }
 }

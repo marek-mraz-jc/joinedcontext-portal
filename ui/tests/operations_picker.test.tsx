@@ -43,8 +43,13 @@ function show(value: unknown, overrides?: Partial<WidgetProps>) {
   return { ...view, onChange: given.onChange as ReturnType<typeof vi.fn> };
 }
 
+/** A group's box by the words it is offered in, not its CIM 009 name (T-2756). */
 const groupBox = (name: string) =>
-  screen.getByRole("checkbox", { name: new RegExp(`^${name}`) });
+  screen.getByRole("checkbox", {
+    name: new RegExp(
+      `^${en.choice.operationGroup[name as keyof typeof en.choice.operationGroup]}( ${en.policies.operations.writes})?$`,
+    ),
+  });
 
 describe("the operations a Policy grants", () => {
   beforeEach(async () => {

@@ -11,7 +11,7 @@ import { portalThemeWidgets } from "./forms/theme";
 import { arrange, index, mergeUi, paths } from "./forms/uischema";
 import { portalWidgets } from "./forms/widgets";
 import { shippedForms } from "../schemas/forms";
-import { api, ApiError, queryKeys, unwrap } from "../api/client";
+import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
 import type { ResourceProposal } from "../api/manifest";
 import { Alert, Badge, Button, Checkbox, ExternalLink, Tabs, tabPanelProps } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
@@ -744,7 +744,7 @@ export function ResourceFormDialog<T>({
     }
     const marked: ErrorSchema = {};
     for (const finding of located) {
-      atPath(marked, finding.path.replace(/^metadata\./, "").split(".")).push(finding.message);
+      atPath(marked, finding.path.replace(/^metadata\./, "").split(".")).push(forPeople(finding.message));
     }
     return marked;
   }, [internalVerdict]);
@@ -979,7 +979,7 @@ export function ResourceFormDialog<T>({
                   {f.path ? (
                     <span className="font-mono">{f.path}: </span>
                   ) : null}
-                  <span>{f.message}</span>
+                  <span>{forPeople(f.message)}</span>
                 </li>
               ))}
             </ul>

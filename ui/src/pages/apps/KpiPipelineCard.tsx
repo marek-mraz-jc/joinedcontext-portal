@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "../../api/client";
+import { ApiError, forPeople } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
@@ -60,6 +60,7 @@ export function kpiPipelineOf(output: unknown): KpiPipeline | null {
     ? verdict.findings
         .map((f) => (typeof f === "object" && f !== null ? text((f as Record<string, unknown>).message) : undefined))
         .filter((m): m is string => m !== undefined)
+        .map(forPeople)
     : [];
   const drafts = Array.isArray(value.drafts)
     ? value.drafts.filter((d): d is DraftedManifest => {

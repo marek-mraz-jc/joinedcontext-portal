@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, unwrap } from "../../api/client";
+import { api, ApiError, forPeople, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import { useIdentity } from "../../auth/AuthProvider";
 import { admitsPerson } from "../../components/endpoints/sharing";
@@ -375,7 +375,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                         unattended build failed could see THAT it failed and nothing about why,
                         on the page whose job is to report it. */}
                     {run.status === "failed" && run.error ? (
-                      <p className="mt-1 max-w-prose text-caption text-danger">{run.error}</p>
+                      <p className="mt-1 max-w-prose text-caption text-danger">{forPeople(run.error)}</p>
                     ) : null}
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-caption text-fg-muted md:table-cell">

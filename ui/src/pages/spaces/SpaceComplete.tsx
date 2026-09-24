@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
+import { forPeople } from "../../api/client";
 import { callOperation } from "../../api/operations";
 import { handPrefill, takePrefill } from "../../assistant/state";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -319,7 +320,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
                     {d.verdict.findings.map((f, i) => (
                       <li key={i}>
                         {f.path ? `${f.path}: ` : ""}
-                        {f.message}
+                        {forPeople(f.message)}
                       </li>
                     ))}
                   </ul>

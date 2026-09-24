@@ -123,7 +123,7 @@ async function fillTheRole(
   );
   await user.selectOptions(
     within(dialog).getByLabelText(new RegExp(en.access.projectRoles.field.verbs)),
-    ["propose"],
+    [en.choice.verb.propose],
   );
 }
 
