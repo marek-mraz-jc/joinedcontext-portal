@@ -10,6 +10,15 @@ import cs from "./locales/cs.json";
 export const SUPPORTED_LOCALES = ["en", "sk", "de", "cs"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
+// WCAG 3.1.1: the document language has to follow the chosen locale, not stay at the
+// `lang="en"` baked into index.html. Registered before init: init detects `?lang=` and fires
+// its first languageChanged inside the call (T-2814).
+i18n.on("languageChanged", (lng) => {
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = lng;
+  }
+});
+
 void i18n
   .use(ICU)
   .use(LanguageDetector)
@@ -34,13 +43,5 @@ void i18n
     },
     returnNull: false,
   });
-
-// WCAG 3.1.1: the document language has to follow the chosen locale, not stay at the
-// `lang="en"` baked into index.html.
-i18n.on("languageChanged", (lng) => {
-  if (typeof document !== "undefined") {
-    document.documentElement.lang = lng;
-  }
-});
 
 export default i18n;
