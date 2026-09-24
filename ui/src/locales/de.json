@@ -647,7 +647,8 @@
         "range": "Längengrad liegt zwischen -180 und 180, Breitengrad zwischen -90 und 90.",
         "order": "West liegt links von Ost und Süd unter Nord."
       }
-    }
+    },
+    "ofApp": "Der Endpunkt der App {app}"
   },
   "datasources": {
     "title": "Datenquellen",
@@ -813,7 +814,8 @@
       "errors": "Fehler",
       "latency": "ms p99",
       "unavailable": "Keine Zahlen: der Runner antwortet nicht.",
-      "paused": "Pausiert"
+      "paused": "Läuft nicht",
+      "scheduled": "Läuft nach seinem Zeitplan"
     },
     "pause": "Pausieren",
     "pauseHint": "Schlägt eine Änderung vor, die diese Pipeline anhält.",
@@ -940,7 +942,9 @@
       "sourceReads": "Diese Quelle liest",
       "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen."
     },
-    "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben."
+    "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
+    "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
+    "noCredential": "Keine"
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -1095,7 +1099,9 @@
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Namespace",
         "k8sServiceAccount": "Kubernetes-Dienstkonto"
-      }
+      },
+      "grantIn": "{role} in {where}",
+      "grantOrg": "{role} in der ganzen Organisation"
     },
     "keys": {
       "create": "Neuer API-Schlüssel ({credential})",
@@ -1603,11 +1609,12 @@
         "cancelled": "Der Build von {commit} wurde abgebrochen."
       },
       "state": {
-        "building": "Wird gebaut: {commit}",
+        "building": "Neue Version wird gebaut",
         "failed": "Build fehlgeschlagen",
         "failedLink": "Warum er fehlschlug",
-        "served": "Ausgeliefert: {commit}",
-        "noRepository": "Kein eigenes Repository: Diese Anwendung ist älter als das Repository pro Anwendung, daher wird sie weder gebaut noch ausgeliefert."
+        "served": "Läuft",
+        "noRepository": "Kein eigenes Repository: Diese Anwendung ist älter als das Repository pro Anwendung, daher wird sie weder gebaut noch ausgeliefert.",
+        "commit": "Gebaut aus Commit {commit}"
       }
     },
     "rebuildAction": "Rebuild",
@@ -2839,7 +2846,9 @@
     "members": {
       "title": "Mitglieder",
       "hidden": "Sie sehen nicht, wer zu dieser Organisation gehört; die Organisationsverwaltung sieht es.",
-      "caption": "Wer eine Rolle in der ganzen Organisation hat"
+      "caption": "Wer eine Rolle in der ganzen Organisation hat",
+      "lead": "Wer eine Rolle in der ganzen Organisation hat, in jedem ihrer Projekte und Räume. Eine Vergabe ist eine Änderung, die eine andere Person freigibt.",
+      "emptyHint": "Eine Rollenbindung hier gibt jemandem eine Rolle in jedem Projekt der Organisation. Solange keine besteht, können nur die Bootstrap-Administratoren etwas ändern."
     },
     "roles": {
       "seeded": "mitgeliefert"
@@ -2852,7 +2861,10 @@
       "people": "Gebundene Personen und Gruppen",
       "peopleHidden": "Für Sie nicht sichtbar",
       "empty": "Noch kein Projekt",
-      "emptyHint": "Das erste eröffnen Sie mit Neues Projekt."
+      "emptyHint": "Das erste eröffnen Sie mit Neues Projekt.",
+      "own": "{count, plural, =0 {Keine eigenen} one {# eigene} other {# eigene}}",
+      "throughOrganization": "{count, plural, one {# über die Organisation} other {# über die Organisation}}",
+      "settings": "Einstellungen"
     }
   },
   "projectDelete": {

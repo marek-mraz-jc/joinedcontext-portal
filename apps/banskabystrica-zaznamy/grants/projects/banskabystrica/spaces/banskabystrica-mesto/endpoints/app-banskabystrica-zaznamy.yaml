@@ -5,6 +5,9 @@ metadata:
   namespace: banskabystrica
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Records of the city of Banská Bystrica
+    sk: Záznamy mesta Banská Bystrica
 spec:
   allowedProjects:
   - banskabystrica

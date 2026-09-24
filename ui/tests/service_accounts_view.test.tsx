@@ -62,7 +62,9 @@ const MINTED = {
   credential: "legacy-push",
 };
 
-function renderAccess(options: { keysStatus?: number; identity?: typeof IDENTITY; grants?: unknown[] } = {}) {
+function renderAccess(
+  options: { keysStatus?: number; identity?: typeof IDENTITY; grants?: unknown[]; accounts?: unknown } = {},
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     // The generated client hands over a `Request`; the gateway call is a plain `fetch(url)`.
     const request = typeof input === "string" || input instanceof URL ? null : input;
@@ -93,7 +95,7 @@ function renderAccess(options: { keysStatus?: number; identity?: typeof IDENTITY
       return Promise.resolve(new Response(null, { status: 204 }));
     }
     if (path.endsWith("/serviceaccounts")) {
-      return json(ACCOUNTS);
+      return json(options.accounts ?? ACCOUNTS);
     }
     if (path === "/api/v1/projects/org/roles") {
       return json({
@@ -307,6 +309,37 @@ describe("the service accounts panel, mounted on its own", () => {
     );
     // Held by the listed account though no list names it: an edit must not lose it.
     expect(within(role).getByRole("option", { name: "space-writer" })).toBeInTheDocument();
+  });
+
+  // T-2759: "space-reader, space-reader", and two lines saying the account has no key.
+  it("names where each grant holds, and says once that an account has no api key", async () => {
+    renderAccess({
+      accounts: {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items: [
+          {
+            apiVersion: "joinedcontext.com/v1alpha1",
+            kind: "ServiceAccount",
+            metadata: { name: "hub-reader", namespace: "banskabystrica" },
+            spec: {
+              owner: { user: "jana.kovacova" },
+              purpose: "Reads the hub",
+              roles: [
+                { role: "space-reader", scope: { contextSpace: "helsinki" } },
+                { role: "space-reader", scope: { contextSpace: "helsinki-kpi" } },
+              ],
+              credentials: [{ kind: "oauth-client", name: "main" }],
+            },
+          },
+        ],
+      },
+    });
+    expect(
+      await screen.findByText("space-reader in helsinki, space-reader in helsinki-kpi"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(en.access.keys.noCredential)).toBeInTheDocument();
+    expect(screen.queryByText(en.access.keys.empty)).toBeNull();
   });
 
   it("has no axe violation", async () => {

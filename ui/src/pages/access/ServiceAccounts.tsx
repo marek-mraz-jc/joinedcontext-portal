@@ -48,6 +48,19 @@ interface Credential {
   expiresAt?: string;
 }
 
+/** "space-reader in helsinki-kpi": a role and the one place it holds (PF-34). */
+export function grantLabel(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  role: string,
+  scope: Record<string, string> | undefined,
+): string {
+  const where = scope?.contextSpace ?? scope?.project;
+  if (where) {
+    return t("access.accounts.grantIn", { role, where });
+  }
+  return scope?.organization !== undefined ? t("access.accounts.grantOrg", { role }) : role;
+}
+
 interface ServiceAccountSpec {
   owner?: { user?: string };
   purpose?: string;
@@ -372,7 +385,11 @@ function KeyTable({
               : t("app.error.generic")}
         </Alert>
       ) : items.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("access.keys.empty")}</p>
+        // An account with no api-key credential already said so above; "No API key yet" under
+        // it was the same fact twice (T-2759).
+        credentials.length === 0 ? null : (
+          <p className="text-body text-fg-muted">{t("access.keys.empty")}</p>
+        )
       ) : (
         <Table caption={t("access.keys.tableCaption", { account })}>
           <TableHead>
@@ -678,9 +695,11 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                     <div className="flex gap-2">
                       <dt className="text-fg-muted">{t("access.accounts.roles")}</dt>
                       <dd className="font-medium text-fg">
+                        {/* A role held in two places read "space-reader, space-reader" (T-2759):
+                            each grant names where it holds. */}
                         {(spec.roles ?? [])
-                          .map((role) => role.role)
-                          .filter(Boolean)
+                          .filter((role) => Boolean(role.role))
+                          .map((role) => grantLabel(t, role.role ?? "", role.scope))
                           .join(", ")}
                       </dd>
                     </div>

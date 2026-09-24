@@ -5,6 +5,9 @@ metadata:
   namespace: bbsk
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Records of the Banská Bystrica region
+    sk: Záznamy Banskobystrického kraja
 spec:
   allowedProjects:
   - bbsk

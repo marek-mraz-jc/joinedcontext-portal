@@ -647,7 +647,8 @@
         "range": "Zeměpisná délka je mezi -180 a 180, šířka mezi -90 a 90.",
         "order": "Západ je vlevo od východu a jih pod severem."
       }
-    }
+    },
+    "ofApp": "Rozhraní aplikace {app}"
   },
   "datasources": {
     "title": "Zdroje dat",
@@ -813,7 +814,8 @@
       "errors": "chyby",
       "latency": "ms p99",
       "unavailable": "Bez čísel: runner neodpovídá.",
-      "paused": "Pozastavená"
+      "paused": "Neběží",
+      "scheduled": "Běží podle svého plánu"
     },
     "pause": "Pozastavit",
     "pauseHint": "Navrhne změnu, která tuto pipelinu zastaví.",
@@ -940,7 +942,9 @@
       "sourceReads": "Tento zdroj čte",
       "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem."
     },
-    "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte."
+    "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
+    "credentialsOfSource": "Drží je jeho zdroj dat {name}",
+    "noCredential": "Žádné"
   },
   "dashboards": {
     "lead": "Mapy nakreslené z endpointů tohoto projektu.",
@@ -1095,7 +1099,9 @@
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Jmenný prostor",
         "k8sServiceAccount": "Servisní účet Kubernetes"
-      }
+      },
+      "grantIn": "{role} v {where}",
+      "grantOrg": "{role} v celé organizaci"
     },
     "keys": {
       "create": "Nový API klíč ({credential})",
@@ -1603,11 +1609,12 @@
         "cancelled": "Sestavení {commit} bylo zrušeno."
       },
       "state": {
-        "building": "Sestavuje se {commit}",
+        "building": "Sestavuje se nová verze",
         "failed": "Sestavení selhalo",
         "failedLink": "Proč selhalo",
-        "served": "Poskytuje se {commit}",
-        "noRepository": "Nemá vlastní repozitář: aplikace vznikla před repozitářem pro každou aplikaci, proto ji nic nesestavuje ani neposkytuje."
+        "served": "Běží",
+        "noRepository": "Nemá vlastní repozitář: aplikace vznikla před repozitářem pro každou aplikaci, proto ji nic nesestavuje ani neposkytuje.",
+        "commit": "Sestaveno z commitu {commit}"
       }
     },
     "rebuildAction": "Rebuild",
@@ -2839,7 +2846,9 @@
     "members": {
       "title": "Členové",
       "hidden": "Nevidíte, kdo patří do této organizace; administrátor organizace to vidí.",
-      "caption": "Kdo má roli v celé organizaci"
+      "caption": "Kdo má roli v celé organizaci",
+      "lead": "Kdo má roli v celé organizaci, ve všech jejích projektech a prostorech. Přidělení je změna, kterou schvaluje jiná osoba.",
+      "emptyHint": "Přiřazení role zde dává někomu roli ve všech projektech organizace. Dokud neexistuje, měnit mohou jen zakládající správci."
     },
     "roles": {
       "seeded": "základní"
@@ -2852,7 +2861,10 @@
       "people": "Přiřazení lidé a skupiny",
       "peopleHidden": "Nezobrazuje se vám",
       "empty": "Zatím žádný projekt",
-      "emptyHint": "První otevřete tlačítkem Nový projekt."
+      "emptyHint": "První otevřete tlačítkem Nový projekt.",
+      "own": "{count, plural, =0 {Žádné vlastní} one {# vlastní} few {# vlastní} other {# vlastních}}",
+      "throughOrganization": "{count, plural, one {# přes organizaci} few {# přes organizaci} other {# přes organizaci}}",
+      "settings": "Nastavení"
     }
   },
   "projectDelete": {

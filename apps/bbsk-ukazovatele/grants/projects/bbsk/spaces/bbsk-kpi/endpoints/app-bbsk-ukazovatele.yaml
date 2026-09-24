@@ -5,6 +5,9 @@ metadata:
   namespace: bbsk
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Indicators of the region and the city
+    sk: Ukazovatele kraja a mesta
 spec:
   allowedProjects:
   - bbsk

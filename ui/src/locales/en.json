@@ -647,7 +647,8 @@
         "range": "Longitude is between -180 and 180, latitude between -90 and 90.",
         "order": "West is left of east and south is below north."
       }
-    }
+    },
+    "ofApp": "The endpoint of the app {app}"
   },
   "datasources": {
     "title": "Data sources",
@@ -813,7 +814,8 @@
       "errors": "errors",
       "latency": "ms p99",
       "unavailable": "No numbers: the runner is not answering.",
-      "paused": "Paused"
+      "paused": "Not running",
+      "scheduled": "Runs on its schedule"
     },
     "pause": "Pause",
     "pauseHint": "Proposes a change that stops this pipeline.",
@@ -940,7 +942,9 @@
       "sourceReads": "This source reads",
       "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step."
     },
-    "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have."
+    "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
+    "credentialsOfSource": "Held by its data source {name}",
+    "noCredential": "None"
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
@@ -1095,7 +1099,9 @@
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Namespace",
         "k8sServiceAccount": "Kubernetes service account"
-      }
+      },
+      "grantIn": "{role} in {where}",
+      "grantOrg": "{role} in the whole organization"
     },
     "keys": {
       "create": "New API key ({credential})",
@@ -1603,11 +1609,12 @@
         "cancelled": "The build of {commit} was cancelled."
       },
       "state": {
-        "building": "Building {commit}",
+        "building": "Building a new version",
         "failed": "Build failed",
         "failedLink": "Why it failed",
-        "served": "Served {commit}",
-        "noRepository": "No repository of its own: this application predates the per-application repository, so nothing builds or serves it."
+        "served": "Running",
+        "noRepository": "No repository of its own: this application predates the per-application repository, so nothing builds or serves it.",
+        "commit": "Built from commit {commit}"
       }
     },
     "rebuildAction": "Rebuild",
@@ -2839,7 +2846,9 @@
     "members": {
       "title": "Members",
       "hidden": "You cannot see who belongs to this organization; an organization administrator can.",
-      "caption": "Who holds a role across the whole organization"
+      "caption": "Who holds a role across the whole organization",
+      "lead": "Who holds a role across the whole organization, in every project and space it has. A grant is a change another person approves.",
+      "emptyHint": "A role binding here gives someone a role in every project of the organization. Until one exists, only the bootstrap administrators can change anything."
     },
     "roles": {
       "seeded": "seeded"
@@ -2852,7 +2861,10 @@
       "people": "People and groups bound",
       "peopleHidden": "Not shown to you",
       "empty": "No project yet",
-      "emptyHint": "Open the first one with New project."
+      "emptyHint": "Open the first one with New project.",
+      "own": "{count, plural, =0 {None of its own} one {# of its own} other {# of its own}}",
+      "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
+      "settings": "Settings"
     }
   },
   "projectDelete": {

@@ -42,6 +42,14 @@ interface PipelineSpec {
   schedule?: string;
   enabled?: boolean;
   secretRefs?: SecretRef[];
+  source?: { dataSourceRef?: { name?: string } | string };
+}
+
+/** The data source a pipeline reads, by name, when it names one. */
+function dataSourceOf(spec: PipelineSpec): string | undefined {
+  const ref = spec.source?.dataSourceRef;
+  const name = typeof ref === "string" ? ref : ref?.name;
+  return name && name.trim() !== "" ? name : undefined;
 }
 
 /** Bento's own duration notation, `250ms` / `45s` / `5m` / `1h` (Architecture/08 §1). */
@@ -79,17 +87,20 @@ function StreamMetrics({
   project,
   name,
   running,
+  resident,
 }: {
   project: string;
   name: string;
   running: boolean;
+  /** A scheduled pipeline has no stream to count; it is not paused for that (T-2759). */
+  resident: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const previous = useRef<{ received: number; at: number } | null>(null);
 
   const metrics = useQuery({
     queryKey: [...queryKeys.resource(project, "pipelines", name), "metrics"],
-    enabled: running,
+    enabled: running && resident,
     refetchInterval: 5_000,
     retry: false,
     queryFn: async () => {
@@ -116,6 +127,9 @@ function StreamMetrics({
 
   if (!running) {
     return <span className="text-caption text-fg-subtle">{t("pipelines.metrics.paused")}</span>;
+  }
+  if (!resident) {
+    return <span className="text-caption text-fg-subtle">{t("pipelines.metrics.scheduled")}</span>;
   }
   if (metrics.isError || (metrics.isFetched && !metrics.data)) {
     return (
@@ -401,18 +415,37 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                 </Badge>
               </TableCell>
               <TableCell>
-                <LifecycleBadge kind="phase" value={pipeline.status?.phase} />
+                {/* The row said "Live" beside a stream that said "Paused" (T-2759): a paused
+                    pipeline is applied and stopped, and stopped is what a person needs to read. */}
+                <LifecycleBadge
+                  kind="phase"
+                  value={
+                    !running && ["live", "applied", "synced"].includes((pipeline.status?.phase ?? "").toLowerCase())
+                      ? "paused"
+                      : pipeline.status?.phase
+                  }
+                />
               </TableCell>
               <TableCell secondary>
                 <StreamMetrics
                   project={project}
                   name={pipeline.metadata.name}
-                  running={running && klass === "resident"}
+                  running={running}
+                  resident={klass === "resident"}
                 />
               </TableCell>
               <TableCell secondary>
                 {/* Names only: a secret's value is resolved by the reconciler and never
                     leaves the cluster, so there is nothing here to mask (PL-17). */}
+                {(spec.secretRefs ?? []).length === 0 ? (
+                  // An empty cell read as missing data (T-2759): a pipeline that holds no
+                  // credential of its own reads through its data source, which holds it.
+                  <span className="text-caption text-fg-subtle">
+                    {dataSourceOf(spec)
+                      ? t("pipelines.credentialsOfSource", { name: dataSourceOf(spec) })
+                      : t("pipelines.noCredential")}
+                  </span>
+                ) : null}
                 <ul className="flex flex-col gap-1">
                   {(spec.secretRefs ?? []).map((ref) => (
                     <li key={`${ref.name}/${ref.key}`}>

@@ -77,6 +77,27 @@ describe("the endpoints page", () => {
     await expectAxeClean(container);
   });
 
+  // T-2759: an App's endpoint showed `app-bikes` and nothing else.
+  it("says_which_app_an_apps_endpoint_serves", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: answering([
+        endpoint("app-bikes", {
+          metadata: {
+            name: "app-bikes",
+            namespace: "helsinki",
+            title: { en: "City bikes" },
+            annotations: { "joinedcontext.com/generated-by": "portal/app-reconciler" },
+          },
+        }),
+        endpoint("public-air"),
+      ]),
+    });
+    expect(await screen.findByRole("link", { name: "City bikes" })).toBeInTheDocument();
+    expect(screen.getByText("The endpoint of the app bikes")).toBeInTheDocument();
+    expect(screen.getAllByText(/The endpoint of the app/)).toHaveLength(1);
+  });
+
   it("holds_its_layout_while_the_endpoints_are_on_their_way", async () => {
     await renderRoute({ path: PATH, pending: true });
     const tables = await screen.findAllByRole("table");

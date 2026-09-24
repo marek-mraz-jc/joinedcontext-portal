@@ -469,10 +469,13 @@ export function RoleBindings({
     <section className="space-y-4" aria-labelledby="role-bindings-heading">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          {/* The organization's members read "in this project" (T-2759): its own words. */}
           <h2 id="role-bindings-heading" className="text-title font-semibold text-fg">
-            {t("access.roles.title")}
+            {scope === "organization" ? t("organization.members.title") : t("access.roles.title")}
           </h2>
-          <p className="text-body text-fg-muted">{t("access.roles.lead")}</p>
+          <p className="text-body text-fg-muted">
+            {scope === "organization" ? t("organization.members.lead") : t("access.roles.lead")}
+          </p>
         </div>
         <PermissionGuard project={ORG_NAMESPACE} kind="RoleBinding" verb="propose">
           <Button variant="primary" onClick={() => setGranting(true)}>
@@ -513,7 +516,9 @@ export function RoleBindings({
                 <TableEmpty columns={5}>
                   <EmptyState bare
                     title={t("access.roles.empty")}
-                    description={t("access.roles.emptyHint")} />
+                    description={
+                      scope === "organization" ? t("organization.members.emptyHint") : t("access.roles.emptyHint")
+                    } />
                 </TableEmpty>
               ) : (
                 here.map((binding) => {

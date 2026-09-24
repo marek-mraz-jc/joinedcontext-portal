@@ -94,7 +94,9 @@ describe("the service accounts and the groups", () => {
       path: ACCOUNTS,
       answer: answering((path) => (path.includes("/keys") ? jsonResponse(list([])) : undefined)),
     });
-    expect(await screen.findByText(en.access.keys.empty)).toBeInTheDocument();
+    // Declaring no api-key credential is having none, said once (T-2759).
+    expect(await screen.findByText(en.access.keys.noCredential)).toBeInTheDocument();
+    expect(screen.queryByText(en.access.keys.empty)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

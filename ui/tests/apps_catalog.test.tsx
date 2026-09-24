@@ -317,6 +317,13 @@ describe("apps catalog", () => {
     expect(await screen.findByText(en.apps.build.started)).toBeInTheDocument();
   });
 
+  it("offers no Open on a retired app (T-2759, AP-86)", async () => {
+    renderCatalog([app({}, { lifecycle: "retired" })]);
+    const card = (await screen.findByText("Air quality map")).closest("li") as HTMLElement;
+    expect(within(card).queryByRole("button", { name: en.apps.openAction })).toBeNull();
+    expect(within(card).queryByRole("link", { name: en.apps.openAction })).toBeNull();
+  });
+
   it("retiring asks first, then proposes lifecycle retired (T-2618, AP-18)", async () => {
     const user = userEvent.setup();
     const fetchMock = renderCatalog([built(app({ name: "bikes", title: { en: "Bikes" } }, { lifecycle: "published" }))]);
@@ -401,18 +408,18 @@ describe("apps catalog", () => {
     );
 
     const card = async (title: string) => (await screen.findByText(title)).closest("li") as HTMLElement;
-    expect(
-      await within(await card("Building one")).findByText(en.apps.build.state.building.replace("{commit}", "abcdef0")),
-    ).toBeInTheDocument();
+    // The state in words on the card; the commit only in the tooltip (T-2759, AP-86).
+    const building = await within(await card("Building one")).findByText(en.apps.build.state.building);
+    expect(building.closest("[title]")).toHaveAttribute("title", "Built from commit abcdef0");
     const failing = await card("Failing one");
     expect(await within(failing).findByText(en.apps.build.state.failed)).toBeInTheDocument();
     expect(within(failing).getByRole("link", { name: new RegExp(en.apps.build.state.failedLink) })).toHaveAttribute(
       "href",
       `${FORGE}%2Fjoinedcontext%2Fruns%2F0123456789`,
     );
-    expect(
-      await within(await card("Bikes")).findByText(en.apps.build.state.served.replace("{commit}", "9f1c2ab")),
-    ).toBeInTheDocument();
+    const served = await within(await card("Bikes")).findByText(en.apps.build.state.served);
+    expect(served.closest("[title]")).toHaveAttribute("title", "Built from commit 9f1c2ab");
+    expect(within(await card("Bikes")).queryByText(/9f1c2ab/)).toBeNull();
     expect(await within(await card("Alerts")).findByText(en.apps.build.state.noRepository)).toBeInTheDocument();
   });
 

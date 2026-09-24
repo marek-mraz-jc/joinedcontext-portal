@@ -74,8 +74,14 @@ export function AppBuildState({
   }
   const run = build.data.run ?? null;
   const state = run ? runState(run) : null;
+  // The commit is for whoever looks for it, in the tooltip; the card says what state the app is
+  // in (T-2759, AP-86): "Served dc96941" read as a code, not as "it runs".
   if (run && state === "building") {
-    return <Badge tone="info">{t("apps.build.state.building", { commit: run.commit.slice(0, 7) })}</Badge>;
+    return (
+      <Badge tone="info" title={t("apps.build.state.commit", { commit: run.commit.slice(0, 7) })}>
+        {t("apps.build.state.building")}
+      </Badge>
+    );
   }
   if (run && state === "failed" && run.commit !== served) {
     return (
@@ -85,7 +91,11 @@ export function AppBuildState({
       </span>
     );
   }
-  return served ? <Badge tone="success">{t("apps.build.state.served", { commit: served.slice(0, 7) })}</Badge> : null;
+  return served ? (
+    <Badge tone="success" title={t("apps.build.state.commit", { commit: served.slice(0, 7) })}>
+      {t("apps.build.state.served")}
+    </Badge>
+  ) : null;
 }
 
 /**

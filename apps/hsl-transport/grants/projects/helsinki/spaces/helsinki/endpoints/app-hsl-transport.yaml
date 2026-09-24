@@ -5,6 +5,9 @@ metadata:
   namespace: helsinki
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Buses live
+    fi: Bussit livenä
 spec:
   audience: public
   callerRole: true

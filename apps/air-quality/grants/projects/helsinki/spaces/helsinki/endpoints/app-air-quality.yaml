@@ -5,6 +5,9 @@ metadata:
   namespace: helsinki
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Air quality
+    fi: Ilmanlaatu
 spec:
   allowedProjects:
   - helsinki

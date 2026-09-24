@@ -183,7 +183,8 @@ pub fn render(
     settings: &Settings,
 ) -> Result<Rendered, RenderError> {
     let (name, project, spec) = deployable(manifest)?;
-    let (endpoint, policies) = compiled_grants(name, project, &spec, slug, &settings.org_domain)?;
+    let (endpoint, policies) =
+        compiled_grants(manifest, name, project, &spec, slug, &settings.org_domain)?;
     let workload = match spec.class {
         AppClass::Static => None,
         class => {
@@ -212,7 +213,7 @@ pub fn grants(
     org_domain: &str,
 ) -> Result<(RawManifest, Vec<RawManifest>), RenderError> {
     let (name, project, spec) = deployable(manifest)?;
-    compiled_grants(name, project, &spec, slug, org_domain)
+    compiled_grants(manifest, name, project, &spec, slug, org_domain)
 }
 
 /// The name, project and valid spec of an App that runs (AP-18, AP-21).
@@ -242,6 +243,7 @@ fn deployable(manifest: &RawManifest) -> Result<(&str, &str, AppSpec), RenderErr
 }
 
 fn compiled_grants(
+    manifest: &RawManifest,
     name: &str,
     project: &str,
     spec: &AppSpec,
@@ -249,8 +251,17 @@ fn compiled_grants(
     org_domain: &str,
 ) -> Result<(RawManifest, Vec<RawManifest>), RenderError> {
     let space = single_space(spec)?;
+    let mut endpoint = endpoint(name, project, space, spec, slug);
+    // The endpoints list named it `app-{name}` and nothing else (T-2759): it carries its App's
+    // title, which is what a person knows the app by.
+    if let Some(title) = manifest.metadata.rest.get("title") {
+        endpoint
+            .metadata
+            .rest
+            .insert("title".to_owned(), title.clone());
+    }
     Ok((
-        endpoint(name, project, space, spec, slug),
+        endpoint,
         spec.data_needs
             .iter()
             .enumerate()

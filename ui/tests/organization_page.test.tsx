@@ -202,12 +202,28 @@ describe("the Organization page", () => {
   it("lists the projects with their titles and how many are bound at project scope", async () => {
     renderAt("projects");
     const helsinki = await screen.findByRole("row", { name: /Helsinki city data/ });
-    await waitFor(() => expect(within(helsinki).getByText("1")).toBeInTheDocument());
-    expect(screen.getByRole("row", { name: /espoo/ })).toBeInTheDocument();
+    // T-2759: every row read "0" while the organization's members act in every project.
+    await waitFor(() =>
+      expect(within(helsinki).getByText("1 of its own · 1 through the organization")).toBeInTheDocument(),
+    );
+    const espoo = screen.getByRole("row", { name: /espoo/ });
+    expect(within(espoo).getByText("None of its own · 1 through the organization")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Helsinki city data" })).toHaveAttribute(
       "href",
       "/projects/helsinki/spaces",
     );
+    // Delete was the only action: the project's settings are one click away.
+    expect(within(helsinki).getByRole("link", { name: en.organization.projects.settings })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/settings",
+    );
+  });
+
+  it("says the organization's members hold their roles across it, not in a project", async () => {
+    renderAt("members");
+    expect(await screen.findByRole("heading", { name: en.organization.members.title })).toBeInTheDocument();
+    expect(screen.getByText(en.organization.members.lead)).toBeInTheDocument();
+    expect(screen.queryByText(/in this project/)).toBeNull();
   });
 
   // UI-44: a viewer meets Delete disabled with the reason, and the count of bound people is not

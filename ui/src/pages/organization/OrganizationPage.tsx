@@ -10,6 +10,7 @@ import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { NewProjectButton } from "../../components/layout/NewProject";
 import {
   Alert,
+  buttonClass,
   EmptyState,
   PageHeader,
   Table,
@@ -75,7 +76,7 @@ function OrganizationMembers(): JSX.Element {
 }
 
 interface ScopedBinding {
-  scope?: { project?: string; contextSpace?: string };
+  scope?: { project?: string; contextSpace?: string; organization?: string };
   subjects?: unknown[];
 }
 
@@ -123,6 +124,19 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
       .map((binding) => binding.spec as ScopedBinding)
       .filter((spec) => spec.scope?.project === project)
       .reduce((sum, spec) => sum + (spec.subjects?.length ?? 0), 0);
+  // Every row read "0" (T-2759) while the organization's own members act in every project: they
+  // are counted beside the project's own.
+  const organizationWide = asManifests(bindings.data?.items ?? [])
+    .map((binding) => binding.spec as ScopedBinding)
+    .filter((spec) => spec.scope?.organization !== undefined)
+    .reduce((sum, spec) => sum + (spec.subjects?.length ?? 0), 0);
+  const people = (project: string) =>
+    [
+      t("organization.projects.own", { count: bound(project) }),
+      ...(organizationWide > 0
+        ? [t("organization.projects.throughOrganization", { count: organizationWide })]
+        : []),
+    ].join(" · ");
   const names = projects.data ?? [];
 
   return (
@@ -170,10 +184,12 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                 names.map((name) => (
                   <TableRow key={name}>
                     <TableCell primary>
+                      {/* Underlined like every other link of a list: plain text read as a name
+                          one could not open (T-2759). */}
                       <Link
                         to="/projects/$project/$plural"
                         params={{ project: name, plural: "spaces" }}
-                        className="focus-ring rounded-sm font-medium text-fg underline-offset-2 hover:underline"
+                        className="focus-ring rounded-sm font-medium text-primary-soft-fg underline underline-offset-2 hover:no-underline"
                       >
                         {titles.get(name) || name}
                       </Link>
@@ -183,11 +199,20 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                       {readsBindings
                         ? bindings.isPending
                           ? t("app.loading")
-                          : String(bound(name))
+                          : people(name)
                         : t("organization.projects.peopleHidden")}
                     </TableCell>
                     <TableCell align="right">
-                      <DeleteProjectAction project={name} />
+                      <span className="inline-flex items-center gap-2">
+                        <Link
+                          to="/projects/$project/settings"
+                          params={{ project: name }}
+                          className={buttonClass("secondary", "sm")}
+                        >
+                          {t("organization.projects.settings")}
+                        </Link>
+                        <DeleteProjectAction project={name} />
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))

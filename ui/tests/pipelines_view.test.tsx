@@ -44,6 +44,17 @@ const PIPELINES = {
       spec: { class: "auto", period: "1h", enabled: false },
       status: { phase: "Live" },
     },
+    {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Pipeline",
+      metadata: { name: "air-hourly", namespace: "banskabystrica" },
+      spec: {
+        class: "auto",
+        schedule: "0 * * * *",
+        source: { dataSourceRef: { kind: "DataSource", name: "air-feed" } },
+      },
+      status: { phase: "Live" },
+    },
   ],
 };
 
@@ -207,6 +218,37 @@ describe("pipelines view", () => {
         .find((request) => request.method === "PUT");
       expect(write?.url).toContain("/pipelines/parking-daily");
     });
+  });
+
+  // T-2759: the list said "Live" beside "Paused" beside a Pause button, for a scheduled pipeline
+  // that was running and for a paused one that was not.
+  it("says a scheduled pipeline runs on its schedule, and polls no stream for it", async () => {
+    const fetchMock = renderPipelines();
+    const row = await rowOf("air-hourly");
+    expect(within(row).getByText(en.pipelines.metrics.scheduled)).toBeInTheDocument();
+    expect(within(row).queryByText(en.pipelines.metrics.paused)).toBeNull();
+    expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: en.pipelines.pause })).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        new URL((call[0] as Request).url).pathname.includes("air-hourly/metrics"),
+      ),
+    ).toBe(false);
+  });
+
+  it("says a paused pipeline is paused, not live", async () => {
+    renderPipelines();
+    const row = await rowOf("parking-daily");
+    expect(within(row).getByText(en.phase.paused)).toBeInTheDocument();
+    expect(within(row).queryByText(en.phase.live)).toBeNull();
+  });
+
+  it("names where a pipeline's credential is when it holds none of its own", async () => {
+    renderPipelines();
+    expect(
+      within(await rowOf("air-hourly")).getByText("Held by its data source air-feed"),
+    ).toBeInTheDocument();
+    expect(within(await rowOf("parking-daily")).getByText(en.pipelines.noCredential)).toBeInTheDocument();
   });
 
   it("proposes a change instead of stopping a running pipeline directly (CC-35)", async () => {

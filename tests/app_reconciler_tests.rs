@@ -398,6 +398,27 @@ fn the_endpoint_is_the_union_of_what_the_needs_asked_for() {
     );
 }
 
+/// T-2759: the endpoints list named an app's endpoint `app-{name}` and nothing else.
+#[test]
+fn the_endpoint_carries_its_apps_title() {
+    let slug = generate_slug();
+    let mut titled = app(json!({}));
+    titled.metadata.rest.insert(
+        "title".to_owned(),
+        json!({ "en": "Air quality today", "sk": "Kvalita ovzdušia dnes" }),
+    );
+    let rendered = render(&titled, Some(APP_IMAGE), &slug, &settings()).expect("the app renders");
+    assert_eq!(
+        rendered.endpoint.metadata.rest.get("title"),
+        Some(&json!({ "en": "Air quality today", "sk": "Kvalita ovzdušia dnes" }))
+    );
+
+    // An App with no title leaves the endpoint without one rather than inventing it.
+    let untitled =
+        render(&app(json!({})), Some(APP_IMAGE), &slug, &settings()).expect("the app renders");
+    assert_eq!(untitled.endpoint.metadata.rest.get("title"), None);
+}
+
 #[test]
 fn a_public_app_tells_its_container_that_anonymous_callers_are_normal() {
     let rendered = render(

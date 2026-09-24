@@ -5,6 +5,9 @@ metadata:
   namespace: helsinki
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Helsinki events
+    fi: Helsingin tapahtumat
 spec:
   audience: public
   callerRole: true

@@ -621,7 +621,8 @@ function AppCardActions({
         primary={
           // A published app opens at its own address in a new tab, behind the edge login like
           // any audience member sees it (AP-14); only a build something serves opens (AP-86).
-          openReason ? (
+          // A retired app is gone: a greyed Open on it offered something that no longer exists.
+          lifecycle === "retired" ? undefined : openReason ? (
             <Button size="sm" variant="primary" disabled disabledReason={openReason}>
               {t("apps.openAction")}
             </Button>

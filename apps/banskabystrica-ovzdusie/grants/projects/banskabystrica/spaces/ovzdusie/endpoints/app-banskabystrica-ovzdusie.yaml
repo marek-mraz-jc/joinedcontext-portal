@@ -5,6 +5,9 @@ metadata:
   namespace: banskabystrica
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Air quality in Banská Bystrica
+    sk: Ovzdušie v Banskej Bystrici
 spec:
   audience: public
   callerRole: true

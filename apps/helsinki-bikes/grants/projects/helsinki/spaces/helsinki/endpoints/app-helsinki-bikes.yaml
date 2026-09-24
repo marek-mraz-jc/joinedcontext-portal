@@ -5,6 +5,9 @@ metadata:
   namespace: helsinki
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
+  title:
+    en: Helsinki city bikes
+    fi: Helsingin kaupunkipyörät
 spec:
   audience: organization
   callerRole: true

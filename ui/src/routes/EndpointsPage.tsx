@@ -1086,6 +1086,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     {endpoint.metadata.name}
                   </div>
                 ) : null}
+                {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
+                    nobody created it on this page and editing it here is undone by the App. */}
+                {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
+                  <div className="mt-0.5 text-caption text-fg-subtle">
+                    {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
+                  </div>
+                ) : null}
               </TableCell>
               <TableCell secondary>
                 <SharedWithBadge endpoint={endpoint} />
