@@ -25,7 +25,9 @@
     },
     "field": {
       "required": "povinné"
-    }
+    },
+    "close": "Zavrieť",
+    "cancel": "Zrušiť"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",

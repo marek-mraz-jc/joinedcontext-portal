@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
 import { ConfirmDialog, ExternalLink, RadioGroup, safeHref } from "../src/components/ui";
 
 const wrap = (node: React.ReactNode) => render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
@@ -111,6 +112,15 @@ describe("ConfirmDialog", () => {
     const accept = screen.getByTestId("confirm-accept");
     expect(accept).toHaveTextContent("Discard");
     expect(accept).not.toHaveTextContent(/^OK$/);
+  });
+
+  // T-2813: both read as their catalogue keys, `app.cancel` on screen and `app.close` to a reader.
+  it("its_cancel_and_close_buttons_say_words_not_keys", () => {
+    open();
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByTestId("confirm-cancel")).toHaveTextContent(en.app.cancel);
+    expect(within(dialog).getByRole("button", { name: en.app.close })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /^app\./ })).toBeNull();
   });
 
   it("confirming_runs_the_action_once_and_cancelling_never_does", async () => {

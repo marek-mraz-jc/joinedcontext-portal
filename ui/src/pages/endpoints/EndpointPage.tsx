@@ -422,7 +422,7 @@ export function EndpointPage({
 
       <Section title={t("endpoints.page.traffic")}>
         <Facts>
-          <Fact label={t("endpoints.field.rateLimit")}>
+          <Fact label={t("endpoints.field.rateLimits")}>
             {typeof spec.rateLimits?.requestsPerMinute === "number" ? (
               <span>
                 {t("endpoints.page.perMinute", { count: spec.rateLimits.requestsPerMinute })}

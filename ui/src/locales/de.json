@@ -25,7 +25,9 @@
     },
     "field": {
       "required": "Pflichtfeld"
-    }
+    },
+    "close": "Schließen",
+    "cancel": "Abbrechen"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",

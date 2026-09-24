@@ -25,7 +25,9 @@
     },
     "field": {
       "required": "required"
-    }
+    },
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",
