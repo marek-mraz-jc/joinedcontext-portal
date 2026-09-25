@@ -16,6 +16,12 @@ import type { ModelChoice } from "../src/components/pickers/DataModelPicker";
 import { TypePicker, importedNames } from "../src/components/pickers/TypePicker";
 import { Combobox } from "../src/components/pickers/Combobox";
 import { catalogueValue, modelValue } from "../src/components/pickers/organizationModels";
+import { SchemaForm } from "../src/components/forms/SchemaForm";
+import { DataModelPickerWidget, TypePickerWidget } from "../src/components/forms/widgets/ModelWidgets";
+import { portalWidgets } from "../src/components/forms/widgets";
+import type { JsonSchema, UiSchema } from "../src/components/forms/types";
+import { contextSpaceSchema, contextSpaceUiSchema, policySchema, policyUiSchema } from "../src/schemas/kinds";
+import { mappingSchema, mappingUiSchema } from "../src/schemas/mapping";
 
 const MODELS = [
   { name: "air-quality", project: "helsinki", space: "air", version: "1.2.0", lifecycle: "published", classes: ["AirQualityObserved"] },
@@ -28,7 +34,8 @@ const SDM = [
 
 let requests: string[] = [];
 let failList = false;
-let source = "imports:\n  - linkml:types\n  - ../kpi/kpi.linkml.yaml\nclasses: {}\n";
+const SOURCE = "imports:\n  - linkml:types\n  - ../kpi/kpi.linkml.yaml\nclasses: {}\n";
+let source = SOURCE;
 
 function stubFetch() {
   requests = [];
@@ -71,6 +78,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(async () => {
   failList = false;
+  source = SOURCE;
   await i18n.changeLanguage("en");
   stubFetch();
 });
@@ -253,5 +261,58 @@ describe("picker values", () => {
   it("names a model by project and name and a catalogue entry by its id", () => {
     expect(modelValue({ project: "helsinki", name: "air-quality" })).toBe("helsinki/air-quality");
     expect(catalogueValue({ id: "dataModel.Environment/AirQualityObserved" })).toBe("sdm:dataModel.Environment/AirQualityObserved");
+  });
+});
+
+describe("the forms name models and types through the pickers (T-2701)", () => {
+  it("registers both pickers under the names a uiSchema writes", () => {
+    expect(portalWidgets.typePicker).toBe(TypePickerWidget);
+    expect(portalWidgets.dataModelPicker).toBe(DataModelPickerWidget);
+  });
+
+  function form(schema: JsonSchema, uiSchema: UiSchema, formData: Record<string, unknown>) {
+    return wrap(
+      <SchemaForm project="helsinki" schema={schema} uiSchema={uiSchema} formData={formData} onSubmit={() => {}} />,
+    );
+  }
+
+  it("a Policy's entity type lists the classes of the policy's space", async () => {
+    const user = userEvent.setup();
+    form(policySchema(i18n.t.bind(i18n), ["air", "mobility"]), policyUiSchema, {
+      contextSpaceRef: "mobility",
+      information: [{ entities: [{}] }],
+    });
+    const box = screen.getByRole("combobox", { name: new RegExp(i18n.t("policies.field.entityType")) });
+    await user.click(box);
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      expect.stringContaining("BikeHireDockingStation"),
+      expect.stringContaining("Road"),
+      expect.stringContaining("KeyPerformanceIndicator"),
+    ]));
+  });
+
+  it("a space's data model and a mapping's source are the project's models, picked by name", async () => {
+    const user = userEvent.setup();
+    const changed: unknown[] = [];
+    const { unmount } = wrap(
+      <SchemaForm
+        project="helsinki"
+        schema={contextSpaceSchema(i18n.t.bind(i18n))}
+        uiSchema={contextSpaceUiSchema}
+        formData={{ name: "air" }}
+        onSubmit={() => {}}
+        onChange={(data) => changed.push(data)}
+      />,
+    );
+    await user.click(screen.getByRole("combobox", { name: new RegExp(i18n.t("spaces.field.dataModel")) }));
+    const options = await within(await screen.findByRole("listbox")).findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("air-quality"), expect.stringContaining("mobility")]);
+    await user.click(options[0]);
+    expect(changed.at(-1)).toMatchObject({ dataModelRef: "air-quality" });
+    unmount();
+
+    form(mappingSchema(i18n.t.bind(i18n)), mappingUiSchema, { source: { name: "mobility" } });
+    const [picked] = screen.getAllByRole("combobox");
+    await waitFor(() => expect((picked as HTMLInputElement).value).toBe("mobility"));
   });
 });

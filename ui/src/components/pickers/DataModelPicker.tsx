@@ -17,6 +17,8 @@ export interface DataModelPickerProps {
   onChange: (values: string[], choices: ModelChoice[]) => void;
   /** The form's project: its own models are listed first. */
   project?: string;
+  /** List the models of this project alone. */
+  only?: string;
   multiple?: boolean;
   /** Offer Smart Data Models catalogue entries as well (a search of two characters or more). */
   catalogue?: boolean;
@@ -39,6 +41,7 @@ export function DataModelPicker({
   value,
   onChange,
   project,
+  only,
   multiple = false,
   catalogue = true,
   onCreate,
@@ -54,7 +57,7 @@ export function DataModelPicker({
   const data = query.data;
 
   const { options, choices } = useMemo(() => {
-    const models = [...(data?.items ?? [])].sort(
+    const models = (data?.items ?? []).filter((m) => only === undefined || m.project === only).sort(
       (a, b) => Number(b.project === project) - Number(a.project === project),
     );
     const entries = catalogue ? (data?.smartDataModels ?? []) : [];
@@ -85,7 +88,7 @@ export function DataModelPicker({
       });
     }
     return { options, choices };
-  }, [data, project, catalogue, t]);
+  }, [data, project, only, catalogue, t]);
 
   return (
     <Combobox
