@@ -368,15 +368,26 @@ pub async fn draft_publication(
             "endpoint: name the Endpoint to publish".into(),
         ));
     }
+    // Who may ask, before anything of the project is looked up (PF-59, R20): a project the caller
+    // does not read answers like one that is not there, and a caller who reads it but not its
+    // Endpoints gets the answer of a missing name, so no status tells an Endpoint name apart.
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !effective.may_read_project() {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    let missing = || {
+        ApiError::NotFound(format!(
+            "endpoint '{name}' not found in project '{project}'"
+        ))
+    };
+    if !effective.may_read("Endpoint") {
+        return Err(missing());
+    }
     let endpoint = state
         .mirror
         .get(&project, "Endpoint", name)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "endpoint '{name}' not found in project '{project}'"
-            ))
-        })?;
-    crate::permissions::for_request(&state, &user.0.identity, &project).check(
+        .ok_or_else(missing)?;
+    effective.check(
         "Endpoint",
         Verb::Propose,
         Some(&serde_json::to_value(&endpoint).unwrap_or(Value::Null)),
