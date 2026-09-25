@@ -51,7 +51,7 @@
     "explore": "Daten erkunden",
     "assistant": "Assistent",
     "sync": "Sync",
-    "activity": "Activity",
+    "activity": "Aktivität",
     "import": "Import",
     "workspaces": "Kopien",
     "policies": "Richtlinien",
@@ -338,7 +338,7 @@
       "noEndpoints": "Dieser Raum hat noch keinen Endpoint.",
       "catalogue": "Katalog",
       "catalogueLink": "offene Daten",
-      "policies": "Policies",
+      "policies": "Richtlinien",
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
       "operations": "Operationen",
@@ -416,7 +416,7 @@
       "title": "Titel",
       "space": "Kontextraum",
       "slug": "Slug",
-      "publicUrl": "Public address",
+      "publicUrl": "Öffentliche Adresse",
       "audience": "Zielgruppe",
       "representations": "Repräsentationen",
       "more": "+{count} weitere",
@@ -540,50 +540,50 @@
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
       }
     },
-    "slugHint": "The address is created for you and never changes, even when the endpoint is renamed.",
+    "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
-      "title": "Model projection",
-      "hint": "Pick the classes and slots this endpoint exposes. The policy and projection are generated together.",
-      "noModel": "This space has no DataModel, so no projection can be drawn.",
-      "identityOnly": "identity only (id, type)",
-      "writable": "Writable",
-      "idPattern": "ID pattern",
-      "scope": "Scope",
-      "q": "Write query constraint",
-      "readQ": "Read filter (q)",
-      "reuse": "Projection",
-      "drawNew": "Draw a new one",
-      "sharedBy": "Shared by: {endpoints}",
-      "detach": "Detach and copy",
+      "title": "Modellprojektion",
+      "hint": "Wählen Sie die Klassen und Slots, die dieser Endpunkt bereitstellt. Richtlinie und Projektion werden zusammen erzeugt.",
+      "noModel": "Dieser Raum hat kein DataModel, daher lässt sich keine Projektion entwerfen.",
+      "identityOnly": "nur Identität (id, type)",
+      "writable": "Beschreibbar",
+      "idPattern": "ID-Muster",
+      "scope": "Bereich",
+      "q": "Einschränkung beim Schreiben (Abfrage)",
+      "readQ": "Lesefilter (q)",
+      "reuse": "Projektion",
+      "drawNew": "Neu entwerfen",
+      "sharedBy": "Geteilt von: {endpoints}",
+      "detach": "Lösen und kopieren",
       "nothingTicked": "Kreuzen Sie mindestens eine Klasse an, die der Endpoint veröffentlichen soll.",
-      "projectionName": "Projection name",
-      "preview": "Generated manifests",
+      "projectionName": "Name der Projektion",
+      "preview": "Erzeugte Manifeste",
       "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht."
     },
     "audienceOption": {
-      "project-list": "Selected projects: only the projects you tick",
-      "organization": "Organization: every project of the organization",
-      "public": "Public: anyone with the address"
+      "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
+      "organization": "Organisation: jedes Projekt der Organisation",
+      "public": "Öffentlich: jede Person mit der Adresse"
     },
     "refreshOption": {
       "onChange": "Wenn sich eine Entität ändert",
       "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD API",
+      "ngsi-ld": "NGSI-LD-Schnittstelle",
       "geojson": "GeoJSON",
       "csv": "CSV",
       "json": "JSON",
       "xlsx": "Excel (xlsx)",
-      "zip": "ZIP download",
+      "zip": "ZIP-Download",
       "ogc-features": "OGC API Features",
       "sta": "SensorThings API",
-      "mcp": "MCP for AI assistants"
+      "mcp": "MCP für KI-Assistenten"
     },
     "section": {
-      "projection": "Which classes and attributes it shows",
-      "hidden": "Hide attributes",
-      "manifests": "Show the manifests this proposes"
+      "projection": "Welche Klassen und Attribute er zeigt",
+      "hidden": "Attribute ausblenden",
+      "manifests": "Die vorgeschlagenen Manifeste anzeigen"
     },
     "filter": {
       "q": "Attributabfrage",
@@ -961,23 +961,23 @@
         "count": "Anzahl"
       },
       "preset": {
-        "title": "Preset",
-        "load": "Load (DataSource)",
+        "title": "Vorlage",
+        "load": "Laden (DataSource)",
         "kpi": "Analyse (KPI)"
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Aggregate context data from an endpoint into a KeyPerformanceIndicator entity written to the project KPI space.",
-        "endpoint": "Source endpoint",
-        "type": "Entity type",
-        "attribute": "Attribute",
-        "aggregate": "Aggregate",
-        "period": "Period",
-        "name": "Indicator name",
-        "test": "Test on the endpoint's page",
-        "testing": "Testing…",
-        "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
+        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KeyPerformanceIndicator-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
+        "endpoint": "Quell-Endpunkt",
+        "type": "Entitätstyp",
+        "attribute": "Attribut",
+        "aggregate": "Aggregation",
+        "period": "Zeitraum",
+        "name": "Name des Indikators",
+        "test": "Auf der Seite des Endpunkts testen",
+        "testing": "Wird getestet…",
+        "computedValue": "Berechneter Wert",
+        "nothingRead": "Von diesem Endpunkt wurde für diesen Typ und dieses Attribut nichts gelesen, daher gibt es nichts zu berechnen."
       }
     },
     "test": {
@@ -1347,7 +1347,7 @@
       "neverUsed": "nie benutzt",
       "field": {
         "keyId": "Schlüssel-Id",
-        "credential": "Credential",
+        "credential": "Zugangsdaten",
         "expires": "Gültig bis",
         "lastUsed": "Zuletzt benutzt"
       }
@@ -1708,7 +1708,7 @@
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere",
       "from": "aus {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Aufzählung {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1747,7 +1747,7 @@
         "Dashboard": "{count, plural, one {# Dashboard} other {# Dashboards}}"
       },
       "usedKind": {
-        "ContextSpace": "Context Space",
+        "ContextSpace": "Kontextraum",
         "Endpoint": "Endpoints",
         "Pipeline": "Pipelines",
         "Subscription": "Abonnements",
@@ -1889,8 +1889,8 @@
     "newAction": "Eigene Anwendung erzeugen",
     "builds": {
       "title": "Builds",
-      "line": "{state}, started {when}",
-      "open": "Open"
+      "line": "{state}, gestartet {when}",
+      "open": "Öffnen"
     },
     "drafts": {
       "title": "Im Bau",
@@ -1931,7 +1931,7 @@
       "representations": "Darstellungen",
       "within": "Innerhalb des Scopes",
       "window": "Zeitfenster",
-      "csp": "Content Security Policy",
+      "csp": "Content Security Policy (CSP)",
       "connectSrc": "Darf aufrufen",
       "frameAncestors": "Darf eingebettet werden von",
       "limits": "Grenzen",
@@ -1963,22 +1963,22 @@
         "commit": "Gebaut aus Commit {commit}"
       }
     },
-    "rebuildAction": "Rebuild",
-    "retireAction": "Retire",
-    "latestRun": "Latest build run",
-    "package": "Package",
-    "previewOnlyPreview": "Only a preview can be previewed here",
-    "publishOnlyPreview": "Only a preview can be published",
-    "rebuildOnlyPublished": "Only a published application is built",
-    "rebuildRunning": "A build is running",
-    "retireOnlyPublished": "Only a published application can be retired",
+    "rebuildAction": "Neu bauen",
+    "retireAction": "Außer Betrieb nehmen",
+    "latestRun": "Letzter Build-Lauf",
+    "package": "Paket",
+    "previewOnlyPreview": "Hier lässt sich nur eine Vorschau in der Vorschau öffnen",
+    "publishOnlyPreview": "Nur eine Vorschau kann veröffentlicht werden",
+    "rebuildOnlyPublished": "Nur eine veröffentlichte Anwendung wird gebaut",
+    "rebuildRunning": "Ein Build läuft",
+    "retireOnlyPublished": "Nur eine veröffentlichte Anwendung kann außer Betrieb genommen werden",
     "openDisabled": {
-      "draft": "Nothing published yet",
-      "preview": "A preview opens from the menu",
-      "retired": "This application is retired",
-      "building": "Building…",
-      "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "draft": "Noch nichts veröffentlicht",
+      "preview": "Eine Vorschau öffnet sich über das Menü",
+      "retired": "Diese Anwendung ist außer Betrieb",
+      "building": "Wird gebaut…",
+      "failed": "Build fehlgeschlagen",
+      "notBuilt": "Noch wird kein Build ausgeliefert"
     },
     "openPage": {
       "details": "App-Details",
@@ -1990,11 +1990,11 @@
       "signInAgain": "Erneut anmelden"
     },
     "retire": {
-      "title": "Retire {name}",
-      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
-      "hint": "This opens a merge request. The source and its builds stay in the forge.",
-      "confirm": "Open the merge request",
-      "cancel": "Cancel"
+      "title": "{name} außer Betrieb nehmen",
+      "body": "Die Außerbetriebnahme entzieht die Anwendung {visibility}: Ihre Adresse antwortet nicht mehr, sobald die Änderung freigegeben ist.",
+      "hint": "Dies öffnet einen Merge-Request. Der Quellcode und seine Builds bleiben in der Forge.",
+      "confirm": "Merge-Request öffnen",
+      "cancel": "Abbrechen"
     },
     "roles": {
       "title": "Rollen und Mitglieder",
@@ -2328,7 +2328,7 @@
     "removeLead": "{id} wird über diesen Endpunkt aus dem Raum entfernt.",
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
-    "deleteDenied": "This endpoint's grant does not let you delete a {type}",
+    "deleteDenied": "Die Freigabe dieses Endpunkts erlaubt Ihnen nicht, {type} zu löschen",
     "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
@@ -2388,7 +2388,7 @@
       "closed": "Der Lauf ist beendet und liest nichts mehr.",
       "agent": "Assistent",
       "you": "Sie",
-      "somethingElse": "Something else…",
+      "somethingElse": "Etwas anderes…",
       "emptyHint": "Schreiben Sie, was gebaut oder geändert werden soll; die Assistenz antwortet hier und fragt zurück, wenn sie eine Entscheidung braucht.",
       "dropped": "Die Live-Verbindung ist abgebrochen. Was oben steht, kann unfertig sein; öffnen Sie den Lauf erneut, um ihm weiter zu folgen.",
       "stalled": "Seit {seconds} Sekunden keine Antwort. Der Lauf arbeitet vielleicht noch, vielleicht steht er still.",
@@ -2438,8 +2438,8 @@
       "elapsed": "{seconds} s seit dem Start"
     },
     "chat": {
-      "show": "Show the assistant",
-      "hide": "Hide the assistant"
+      "show": "Assistenten einblenden",
+      "hide": "Assistenten ausblenden"
     },
     "progress": {
       "working": "Arbeitet…",
@@ -2711,7 +2711,7 @@
       "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen",
       "fromModel": "aus dem Datenmodell"
     },
-    "trail": "Pages the assistant opened",
+    "trail": "Seiten, die der Assistent geöffnet hat",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
     "paths": {
       "integrate-pipeline": {
@@ -2880,40 +2880,40 @@
     "testRun": "Testlauf"
   },
   "activity": {
-    "title": "Activity",
-    "lead": "What is happening in this project: the reconciler, the pipelines, the gateway, the broker and the catalogue, newest first.",
-    "empty": "Nothing has happened here yet.",
-    "time": "When",
-    "kind": "What",
-    "source": "Who says so",
-    "summary": "What happened",
-    "object": "Object",
-    "tail": "Live tail",
-    "tailOn": "Following",
-    "tailOff": "Paused",
+    "title": "Aktivität",
+    "lead": "Was in diesem Projekt geschieht: der Reconciler, die Pipelines, das Gateway, der Broker und der Katalog, das Neueste zuerst.",
+    "empty": "Hier ist noch nichts passiert.",
+    "time": "Wann",
+    "kind": "Was",
+    "source": "Wer es meldet",
+    "summary": "Was geschah",
+    "object": "Objekt",
+    "tail": "Live-Verlauf",
+    "tailOn": "Wird verfolgt",
+    "tailOff": "Angehalten",
     "filter": {
-      "kind": "Kind",
-      "source": "Source",
-      "severity": "Severity",
-      "space": "Context Space",
-      "all": "Any"
+      "kind": "Art",
+      "source": "Quelle",
+      "severity": "Schweregrad",
+      "space": "Kontextraum",
+      "all": "Alle"
     },
     "severity": {
       "info": "Info",
-      "warning": "Warning",
-      "error": "Error"
+      "warning": "Warnung",
+      "error": "Fehler"
     },
-    "more": "Show older",
-    "panelTitle": "Recent activity",
-    "panelEmpty": "Nothing has happened to this one yet.",
-    "announce": "{count, plural, one {# new error} other {# new errors}}",
-    "lastHour": "What happened in the last hour",
+    "more": "Ältere anzeigen",
+    "panelTitle": "Letzte Aktivität",
+    "panelEmpty": "Hiermit ist noch nichts passiert.",
+    "announce": "{count, plural, one {# neuer Fehler} other {# neue Fehler}}",
+    "lastHour": "Was in der letzten Stunde geschah",
     "bucket": {
-      "messages": "Messages ingested",
-      "changes": "Changes applied",
-      "requests": "Requests served",
-      "forwards": "Forwards",
-      "denials": "Refusals"
+      "messages": "Empfangene Nachrichten",
+      "changes": "Angewendete Änderungen",
+      "requests": "Beantwortete Anfragen",
+      "forwards": "Weiterleitungen",
+      "denials": "Ablehnungen"
     },
     "emptyHint": "Alles, was die Plattform hier tut, landet in dieser Liste: eine angewandte Änderung, der Durchsatz einer Pipeline, eine abgelehnte Anfrage. Laden Sie eine Datenquelle oder genehmigen Sie eine Änderung, und die ersten Zeilen erscheinen.",
     "kinds": {
@@ -3737,7 +3737,7 @@
       "CC_BYSA_4_0": "Creative Commons Namensnennung – Weitergabe unter gleichen Bedingungen 4.0",
       "CC0": "Creative Commons Zero (gemeinfrei)",
       "ODC_BY": "Open Data Commons Namensnennung",
-      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_ODBL": "Open Database License (ODbL)",
       "ODC_PDDL": "Open Data Commons Gemeinfreiheit"
     },
     "dataTheme": {
