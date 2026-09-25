@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { LIVE_BLOCKS, WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
 import { CITY } from "../src/fixtures/records";
+import { DATASETS } from "../src/labels";
 import { BASE, serve } from "./serve";
 
 // The Slovak words of src/locales.ts, written out: that module imports the SDK, which Node does
@@ -11,7 +12,7 @@ const REVIEW = "Skontrolovať zmeny";
 
 // UI-84, SDK-12 (T-2825): the records and a note under review at a phone, a tablet, a laptop and
 // a wall: no sideways scroll, no two blocks over each other, nothing axe finds at WCAG 2.1 AA.
-for (const view of ["the records", "a note under review"]) {
+for (const view of ["the records", "a note under review", "the charts of a cube"]) {
   for (const size of WIDTHS) {
     test(`${view} at ${size.width} px: no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
       const { outside, missing, problems } = await serve(page);
@@ -19,6 +20,11 @@ for (const view of ["the records", "a note under review"]) {
       await page.goto(BASE);
       await expect(page.getByRole("heading", { name: TITLE, level: 1 })).toBeVisible();
       await expect(page.getByRole("row").filter({ has: page.getByRole("gridcell") })).toHaveCount(CITY.length);
+      if (view === "the charts of a cube") {
+        // The water cube is the one the fixture holds (T-2966): its chart, named, not coded.
+        await page.getByRole("button", { name: DATASETS.vh5003rr.sk }).click();
+        await expect(page.getByRole("figure", { name: /Spotreba pitnej vody/ })).toBeVisible();
+      }
       if (view === "a note under review") {
         await page.getByRole("textbox", { name: NOTE_BOX }).first().fill("Overené s odborom.");
         await page.getByRole("button", { name: REVIEW }).click();

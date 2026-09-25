@@ -15,6 +15,7 @@ import App from "./App";
 import { answer, CITY, REGION } from "./fixtures/records";
 import { LOCALES, noteWords, SPACE_OF } from "./locales";
 import { NOTE, NOTE_MAX } from "./records";
+import { datasetName } from "./series";
 
 const CITY_SLUG = "ovr4ttzywhad2oiogf67n7zyn2g2elfc";
 const REGION_SLUG = "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj";
@@ -34,7 +35,13 @@ const problem = (status: number, detail: string) =>
 
 let calls: Array<{ path: string; method: string; body?: unknown; init?: RequestInit }>;
 
-function serving(options: { rows?: () => Response; write?: () => Response } = {}) {
+/** The cube a chart read asks for (`q=dataSet=="…"`), or `undefined` for the table's page. */
+function cubeOf(path: string): string | undefined {
+  const q = new URL(path, "http://localhost").searchParams.get("q") ?? "";
+  return /dataSet=="([^"]+)"/.exec(q)?.[1];
+}
+
+function serving(options: { rows?: () => Response; write?: () => Response; cube?: (dataSet: string) => Response } = {}) {
   return vi.fn(async (path: string, init?: RequestInit) => {
     const method = (init?.method ?? "GET").toUpperCase();
     calls.push({
@@ -47,6 +54,11 @@ function serving(options: { rows?: () => Response; write?: () => Response } = {}
       return options.write ? options.write() : new Response(null, { status: 204 });
     }
     if (path.includes("/entities")) {
+      const cube = cubeOf(path);
+      if (cube !== undefined && options.cube) return options.cube(cube);
+      if (cube !== undefined && !options.rows) {
+        return json(answer(CITY).filter((entity) => (entity.dataSet as { value: string }).value === cube));
+      }
       return options.rows ? options.rows() : json(answer(CITY));
     }
     throw new Error(`no stub for ${method} ${path}`);
@@ -124,11 +136,61 @@ describe("the records of one publisher", () => {
 
   it("asks the endpoint for one page of one type, and says how many match", async () => {
     show();
-    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
-    const asked = new URL(calls[0].path, "http://localhost");
+    // The table's page, not the charts' read of one cube.
+    await waitFor(() => expect(calls.some((call) => call.path.includes("/entities") && !cubeOf(call.path))).toBe(true));
+    const table = calls.find((call) => call.path.includes("/entities") && !cubeOf(call.path));
+    const asked = new URL(table?.path ?? "", "http://localhost");
     expect(asked.searchParams.get("type")).toBe("StatisticalObservation");
     expect(asked.searchParams.get("limit")).toBe("25");
     expect(asked.searchParams.get("count")).toBe("true");
+  });
+});
+
+describe("the table reads as names (T-2966)", () => {
+  it("names the indicator and the territory beside their codes, puts the unit on the number and folds the URN", async () => {
+    show();
+    await waitFor(() => expect(rows()).toHaveLength(CITY.length));
+    const table = screen.getByRole("region", { name: sk.records });
+    const water = rows().find((row) => within(row).queryByText("3 987,5") !== null);
+    expect(water).toBeDefined();
+    const cells = within(water as HTMLElement);
+    expect(cells.getByText("Spotreba pitnej vody - spolu")).toBeInTheDocument();
+    expect(cells.getByText("U03084")).toBeInTheDocument();
+    expect(cells.getByText("Banská Bystrica")).toBeInTheDocument();
+    expect(cells.getByText(/v tis\. m3 fakturovanej vody/)).toBeInTheDocument();
+    // No column of UN/CEFACT codes, and the identifier sits behind its disclosure.
+    expect(within(table).queryByText("MTQ")).toBeNull();
+    expect(within(table).queryByText("C62")).toBeNull();
+    expect(cells.getByText(sk.showId).closest("details")).not.toHaveAttribute("open");
+  });
+});
+
+describe("the charts above the table (T-2966)", () => {
+  it("draws the picked cube's indicator under the office's name, never its code", async () => {
+    const user = userEvent.setup();
+    show();
+    const overview = screen.getByRole("region", { name: sk.overview });
+    await user.click(within(overview).getByRole("button", { name: datasetName("vh5003rr", "sk") }));
+    const chart = await within(overview).findByRole("figure", { name: /Spotreba pitnej vody - spolu/ });
+    expect(within(chart).getByText("Banská Bystrica")).toBeInTheDocument();
+    expect(within(overview).queryByText(/U03084/)).toBeNull();
+    expect(within(overview).getByRole("button", { name: datasetName("vh5003rr", "sk") })).toHaveAttribute("aria-pressed", "true");
+    // The read is the endpoint's own query for that cube, one page as large as the broker answers.
+    const read = calls.map((call) => new URL(call.path, "http://localhost")).find((url) => cubeOf(url.href) === "vh5003rr");
+    expect(read?.searchParams.get("limit")).toBe("1000");
+  });
+
+  it("says when the charts cannot be read, and keeps the table", async () => {
+    show({ cube: () => problem(503, "Upstream unavailable") });
+    const overview = screen.getByRole("region", { name: sk.overview });
+    expect(await within(overview).findByRole("alert")).toHaveTextContent(sk.chartsFailed);
+    await waitFor(() => expect(rows()).toHaveLength(CITY.length));
+  });
+
+  it("says when a cube has no records yet", async () => {
+    show({ cube: () => json([]) });
+    const overview = screen.getByRole("region", { name: sk.overview });
+    expect(await within(overview).findByText(sk.chartsEmpty)).toBeInTheDocument();
   });
 });
 

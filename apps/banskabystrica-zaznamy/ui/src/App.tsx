@@ -9,9 +9,14 @@
  * that becomes the endpoint's own `q`, one open column, and a refusal shown beside the row it
  * belongs to. What this application adds is the narrowing — one type, six columns, one writable
  * attribute — and the sentence that says why the figures are not writable.
+ *
+ * Above the table, the same records as charts with the statistics office's names (T-2966): the
+ * table keeps the publisher's codes, because its filters ask the endpoint about those.
  */
 import { useMemo } from "react";
 import { endpointSource, EntityGrid, Header, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import { recordRenderers } from "./cells";
+import { Overview } from "./Overview";
 import { gridConfig, notesOnly } from "./records";
 import { bodyOf, noteWords, SPACE_OF, stringsFor } from "./locales";
 
@@ -34,6 +39,10 @@ export default function App() {
     [slug, language],
   );
   const grid = useMemo(() => (slug ? gridConfig(slug, s.column) : null), [slug, s.column]);
+  const renderers = useMemo(
+    () => recordRenderers(s.locale.startsWith("sk") ? "sk" : "en", { locale: s.locale, showId: s.showId }),
+    [s.locale, s.showId],
+  );
 
   if (!body) {
     return (
@@ -49,12 +58,19 @@ export default function App() {
     <main>
       <Page>
         <Header level={1} title={s.title[body]} subtitle={s.subtitle[body]} />
-        <div className="notes">
-          <p className="note">{s.readOnlyWhy}</p>
-          <p className="note">{s.noteWhy}</p>
-        </div>
         {source && grid ? (
-          <EntityGrid config={grid} source={source} labels={s.grid} />
+          <>
+            <Overview body={body} source={source} s={s} />
+            <section className="records" aria-labelledby="records-title">
+              <h2 id="records-title">{s.records}</h2>
+              <div className="notes">
+                <p className="note">{s.recordsWhy}</p>
+                <p className="note">{s.readOnlyWhy}</p>
+                <p className="note">{s.noteWhy}</p>
+              </div>
+              <EntityGrid config={grid} source={source} labels={s.grid} renderers={renderers} />
+            </section>
+          </>
         ) : (
           <p role="alert">{s.noEndpoint}</p>
         )}
