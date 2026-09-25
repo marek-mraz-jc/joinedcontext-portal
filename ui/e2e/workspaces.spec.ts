@@ -37,7 +37,8 @@ const WORKSPACE = {
   scope: { kind: "project" },
   previewState: "none",
   createdAt: "2026-09-18T09:00:00Z",
-  expiresAt: "2026-12-25T09:00:00Z",
+  // A week from the run: a fixed date expires the copy the day it passes (T-2729).
+  expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
   changes: 3,
 };
 
