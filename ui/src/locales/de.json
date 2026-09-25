@@ -1068,6 +1068,72 @@
       },
       "newest": "Neueste",
       "older": "Ältere Zeilen"
+    },
+    "workbench": {
+      "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
+      "running": "Läuft auf der Stichprobe…",
+      "advanced": "Erweiterter Editor",
+      "advancedHint": "Der Ablauf, mehrere Quellen, Prozessorschritte und eine KPI, auf demselben Entwurf.",
+      "more": "Weitere Optionen",
+      "moreHint": "Zeitplan, Art des Schritts, Ausgabe, Rückmeldung, Geheimnisse und Kontingente; die Vorgaben sind sicher.",
+      "source": {
+        "title": "Quelle",
+        "hint": "Wählen Sie, woher die Datensätze kommen, oder geben Sie eine Datei davon an.",
+        "pick": "Lesen aus",
+        "none": "Datenquelle oder Endpunkt wählen",
+        "type": "Zu lesender Entitätstyp",
+        "pickType": "Typ wählen",
+        "file": "Stichprobendatei wählen",
+        "fileTaken": "Stichprobe: {name}",
+        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen"
+      },
+      "sample": {
+        "title": "Stichprobe",
+        "hint": "Die ersten Datensätze, die die Quelle liefert, so wie die Pipeline sie liest.",
+        "waiting": "Wählen Sie eine Quelle oder geben Sie eine Datei an, um ihre Datensätze zu sehen.",
+        "empty": "Die Quelle hat keine Datensätze geliefert.",
+        "count": "{count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
+        "caption": "Datensätze der Stichprobe"
+      },
+      "mapping": {
+        "title": "Abbildung",
+        "hint": "Schreiben Sie in Bloblang, wie aus einem Datensatz eine Entität wird; jeder Slot sagt, was er nimmt.",
+        "slotsOf": "Was {type} nimmt",
+        "slots": "Was das Modell nimmt",
+        "noModel": "Der Zielraum nennt kein Datenmodell, daher ist kein Slot bekannt.",
+        "pickTarget": "Wählen Sie in Schritt 6 den Zielendpunkt, um zu sehen, was sein Modell nimmt.",
+        "required": "erforderlich",
+        "many": "mehrere Werte",
+        "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
+        "example": "Beispiel: {example}"
+      },
+      "output": {
+        "title": "Abgebildete Ausgabe",
+        "hint": "Jeder Datensatz, wie er geschrieben würde, mit jedem Problem an seinem Feld.",
+        "waiting": "Schreiben Sie eine Abbildung und geben Sie eine Stichprobe an, um das Ergebnis zu sehen.",
+        "line": "Zeile {line}",
+        "count": "{count, plural, =0 {Die Abbildung hat keinen Datensatz erzeugt.} one {Die Abbildung hat # Datensatz erzeugt.} other {Die Abbildung hat # Datensätze erzeugt.}}",
+        "caption": "Abgebildete Datensätze",
+        "record": "Datensatz",
+        "written": "Wie geschrieben",
+        "problems": "Probleme"
+      },
+      "validation": {
+        "title": "Validierung",
+        "hint": "Nur Datensätze, die das Modell des Raums annimmt, werden geschrieben; der Rest kommt auf die Liste der abgelehnten.",
+        "waiting": "Die Urteile folgen, sobald die Abbildung Datensätze erzeugt.",
+        "valid": "gültig",
+        "allValid": "{count, plural, one {# Datensatz ist} other {Alle # Datensätze sind}} gültig gegen {model} {version}.",
+        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
+      },
+      "target": {
+        "title": "Ziel und Speichern",
+        "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
+        "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
+        "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
+        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+      }
     }
   },
   "dashboards": {

@@ -1014,6 +1014,14 @@
         "pipeline_studio_functions.test.ts"
       ]
     },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "pipeline_workbench.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
         "Button": 2,
