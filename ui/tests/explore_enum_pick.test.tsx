@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { InRouter } from "./pageHarness";
 import { queryKeys } from "../src/api/client";
 import { enumsOfModel } from "../src/components/entities/filters";
 import { ExplorePage } from "../src/pages/explore/ExplorePage";
@@ -115,7 +116,9 @@ it("offers the enum's values as a picker in the explorer's edit cell", async () 
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-alerts" initialType="Alert" />
+        <InRouter>
+          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-alerts" initialType="Alert" />
+        </InRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );

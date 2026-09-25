@@ -14,6 +14,7 @@ import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, useModelSource 
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
+import { TypeLink } from "../models/ModelLinks";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import { useIdentity } from "../../auth/AuthProvider";
 
@@ -317,6 +318,11 @@ export function ExplorePage({
           onChange={changeQuery}
           denied={denied}
         />
+      ) : null}
+      {space && query.type ? (
+        <p className="text-caption text-fg-muted">
+          {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
+        </p>
       ) : null}
       {space ? <AccessPanel slug={slug} type={query.type} access={access} /> : null}
 

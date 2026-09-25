@@ -188,7 +188,8 @@ pub enum Operation {
 ///
 /// Precedence:
 /// - `Operation::Delete` is ALWAYS `Red`, without exception (CC-19, CC-39, PF-13).
-/// - `Endpoint` with `spec.audience == "public"` is `Red` (public exposure).
+/// - `Endpoint` with `spec.audience == "public"` and `App` with `spec.visibility == "public"` are
+///   `Red` (public exposure, PF-72, AP-120).
 /// - Federation edges and data-space edges (`ContextSourceRegistration`, `SharedSpaceReference`,
 ///   `DataSpaceParticipant`, `DataOffer`, `DataAgreement`) are `Red`.
 /// - Identity and access kinds (`ServiceAccount`, `Role`, `RoleBinding`, `Group`, `Policy`,
@@ -205,6 +206,10 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
     }
 
     if kind == "Endpoint" && spec.get("audience").and_then(|v| v.as_str()) == Some("public") {
+        return Lane::Red;
+    }
+    // An App anyone opens without a login is public exposure too (AP-120).
+    if kind == "App" && spec.get("visibility").and_then(|v| v.as_str()) == Some("public") {
         return Lane::Red;
     }
 
@@ -428,6 +433,25 @@ mod tests {
             ),
             Lane::Red
         );
+    }
+
+    /// AP-120, T-2690: an App reachable without a login is public exposure, like a public
+    /// Endpoint; one without `visibility` is `project` and stays yellow.
+    #[test]
+    fn a_public_app_is_red_and_any_other_app_yellow() {
+        for op in [Operation::Create, Operation::Update] {
+            assert_eq!(
+                classify("App", op, &json!({ "visibility": "public" })),
+                Lane::Red
+            );
+            for other in [
+                json!({ "visibility": "project" }),
+                json!({ "visibility": "roles" }),
+                json!({}),
+            ] {
+                assert_eq!(classify("App", op, &other), Lane::Yellow, "{other}");
+            }
+        }
     }
 
     #[test]

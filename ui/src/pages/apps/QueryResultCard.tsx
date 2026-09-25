@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
@@ -9,6 +10,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
+import { ModelLink, TypeLink } from "../models/ModelLinks";
 
 /**
  * What the assistant read from an endpoint through its data-plane MCP tools (AG-75): which
@@ -318,7 +320,7 @@ export function queryResultOf(payload: Record<string, unknown>, language?: strin
   };
 }
 
-export function QueryResultCard({ result }: { result: QueryResult }): JSX.Element {
+export function QueryResultCard({ result, project }: { result: QueryResult; project?: string }): JSX.Element {
   return (
     <div
       data-testid="query-result"
@@ -332,13 +334,17 @@ export function QueryResultCard({ result }: { result: QueryResult }): JSX.Elemen
           <span className="font-mono text-fg-muted">{result.argument}</span>
         ) : null}
       </p>
-      <QueryAnswer view={result.view} />
+      <QueryAnswer view={result.view} project={project} />
     </div>
   );
 }
 
 /** An answer as a small table of entities, a list of fields or the text itself. */
-export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
+/**
+ * One answer's view. Given the `project`, a model or a type it names links to the model's page
+ * (T-2766); without it (a change test's sample) the names stay text.
+ */
+export function QueryAnswer({ view, project }: { view: QueryView; project?: string }): JSX.Element {
   const { t } = useTranslation();
   return view.kind === "table" ? (
     <>
@@ -383,16 +389,30 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
       </p>
     </>
   ) : view.kind === "schema" ? (
-    <SchemaAnswer view={view} />
+    <SchemaAnswer view={view} project={project} />
   ) : view.kind === "schemaIndex" ? (
     <ul className="mt-1 flex flex-col gap-0.5">
       {view.models.map((model) => (
         <li key={`${model.name}@${model.semver}`} className="break-words">
-          {t("assistant.query.model", {
-            types: model.types.join(", "),
-            name: model.name,
-            semver: model.semver,
-          })}
+          {project === undefined ? (
+            t("assistant.query.model", {
+              types: model.types.join(", "),
+              name: model.name,
+              semver: model.semver,
+            })
+          ) : (
+            <>
+              {model.types.map((type, index) => (
+                <Fragment key={type}>
+                  {index === 0 ? null : ", "}
+                  <TypeLink project={project} type={type} className="font-mono" />
+                </Fragment>
+              ))}
+              {model.types.length === 0 ? null : ", "}
+              {t("assistant.query.fromModel")} <ModelLink project={project} name={model.name} className="font-mono" />{" "}
+              {model.semver}
+            </>
+          )}
         </li>
       ))}
       <li className="break-words text-fg-muted">
@@ -417,14 +437,24 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
 }
 
 /** A model's classes as small tables, and its document behind a toggle (T-2769). */
-function SchemaAnswer({ view }: { view: Extract<QueryView, { kind: "schema" }> }): JSX.Element {
+function SchemaAnswer({
+  view,
+  project,
+}: {
+  view: Extract<QueryView, { kind: "schema" }>;
+  project?: string;
+}): JSX.Element {
   const { t } = useTranslation();
   return (
     <>
       {view.classes.map((cls) => (
         <section key={cls.name} className="mt-1">
           <p className="break-words">
-            <span className="font-medium">{cls.name}</span>
+            {project === undefined ? (
+              <span className="font-medium">{cls.name}</span>
+            ) : (
+              <TypeLink project={project} type={cls.name} className="font-medium" />
+            )}
             {cls.description !== "" ? <span className="text-fg-muted"> · {cls.description}</span> : null}
           </p>
           {cls.attributes.length > 0 ? (

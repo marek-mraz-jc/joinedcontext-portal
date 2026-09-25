@@ -650,6 +650,7 @@
       },
       "tests": [
         "catalog_cards.test.tsx",
+        "model_links.test.tsx",
         "part_run_cards.test.tsx"
       ]
     },
@@ -678,7 +679,8 @@
         "Button": 2
       },
       "tests": [
-        "endpoint_proposal_card.test.tsx"
+        "endpoint_proposal_card.test.tsx",
+        "model_links.test.tsx"
       ]
     },
     "src/pages/apps/EntityWriteCard.tsx": {
@@ -875,11 +877,12 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 7,
+        "Button": 9,
         "Checkbox": 3
       },
       "tests": [
         "linkml_enum_values.test.tsx",
+        "linkml_imports_enums.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx"
       ]

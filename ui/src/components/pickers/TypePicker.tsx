@@ -12,6 +12,8 @@ import type { OrganizationModel } from "./organizationModels";
 export interface TypePickerProps {
   id?: string;
   label: string;
+  /** Named by the form's `<label for={id}>` (see `Combobox`). */
+  labelled?: boolean;
   /** The project whose types are offered. */
   project: string;
   /** The context space: its model's classes and the classes it imports. Absent: every model of the project. */
@@ -57,6 +59,7 @@ export function importedNames(source: string): string[] {
 export function TypePicker({
   id,
   label,
+  labelled,
   project,
   space,
   value,
@@ -120,6 +123,7 @@ export function TypePicker({
     <Combobox
       id={id}
       label={label}
+      labelled={labelled}
       value={value}
       multiple={multiple}
       options={options}

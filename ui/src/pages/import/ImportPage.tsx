@@ -19,6 +19,7 @@ import {
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 type ImportReport = components["schemas"]["ImportReport"];
 
@@ -203,10 +204,15 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
 
         <div className="flex flex-wrap items-end gap-4">
           <Field id="import-namespace" label={t("import.namespace")} help={t("import.namespaceHelp")}>
-            <Input
+            {/* A project the caller reads, or a new name the import creates (ADR-N-033). */}
+            <ResourceNamePicker
               id="import-namespace"
+              label={t("import.namespace")}
+              labelled
+              from="projects"
               value={namespace}
-              onChange={(event) => setNamespace(event.target.value)}
+              onChange={setNamespace}
+              create
             />
           </Field>
           <Field id="import-domain" label={t("import.orgDomain")} help={t("import.orgDomainHelp")}>

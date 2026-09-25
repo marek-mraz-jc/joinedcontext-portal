@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import type { ChangeEvent, FocusEvent, JSX } from "react";
 import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
@@ -8,6 +8,7 @@ import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
 import { Button, Select } from "../../ui";
 import { useShownErrors } from "../touched";
+import { FormProjectContext } from "./ModelWidgets";
 
 /**
  * A parameter whose choices are the project's own manifests of one kind (CC-24).
@@ -26,7 +27,8 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   const plural = typeof options?.plural === "string" ? options.plural : undefined;
   // Written into the uiSchema by the page that renders the form: a widget has no route of
   // its own, and a parameter schema must not be able to name another project.
-  const project = typeof options?.project === "string" ? options.project : undefined;
+  const formProject = useContext(FormProjectContext);
+  const project = (typeof options?.project === "string" ? options.project : undefined) ?? formProject;
 
   const query = useQuery({
     queryKey: queryKeys.list(project ?? "", plural ?? ""),

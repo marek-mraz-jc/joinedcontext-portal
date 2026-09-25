@@ -33,9 +33,9 @@ import {
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";
-import { ModelForm, ModelYaml } from "./ModelViews";
+import { ModelForm, ModelYaml, useImportSources } from "./ModelViews";
 import { ProposeLink, useProjectList, useProjectManifests } from "./ModelsList";
-import { parseModel } from "./linkml";
+import { classSlots, parseModel } from "./linkml";
 import type { LinkmlModel } from "./linkml";
 import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
 import type { ModelUse } from "./modelUsage";
@@ -93,9 +93,9 @@ function ClassesTable({ model }: { model: LinkmlModel }): JSX.Element {
             </TableCell>
             <TableCell>
               <ul className="flex flex-col gap-0.5">
-                {klass.slots.map((name) => {
-                  const slot = model.slots.find((one) => one.name === name);
-                  const range = slot?.range;
+                {classSlots(model, klass).map((slot) => {
+                  const name = slot.name;
+                  const range = slot.range;
                   return (
                     <li key={name}>
                       <span className="font-mono">{name}</span>
@@ -105,8 +105,8 @@ function ClassesTable({ model }: { model: LinkmlModel }): JSX.Element {
                       ) : range && enums.has(range) ? (
                         <Badge className="ml-2">{t("models.page.enum")}</Badge>
                       ) : null}
-                      {slot?.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
-                      {slot?.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
+                      {slot.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
+                      {slot.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
                     </li>
                   );
                 })}
@@ -167,15 +167,25 @@ function ModelMappings({
   );
 }
 
-export function ModelPage({ project, name }: { project: string; name: string }): JSX.Element {
+export function ModelPage({
+  project,
+  name,
+  initialClass,
+}: {
+  project: string;
+  name: string;
+  /** A class to open the form on, when a link named a type of the model. */
+  initialClass?: string;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<View>(initialClass ? "form" : "overview");
   const models = useProjectList(project, "datamodels");
   const all = useProjectManifests(project);
   const model = models.data?.find((one) => one.metadata.name === name);
   const source = useSourceOf(project, model);
   const parsed = useMemo(() => (source.data ? parseModel(source.data) : undefined), [source.data]);
   const uses = useMemo(() => (model ? usesOfModel(model, all) : []), [model, all]);
+  const imports = useImportSources(project, name, source.data ?? "");
 
   const back = (
     <Link
@@ -276,6 +286,7 @@ export function ModelPage({ project, name }: { project: string; name: string }):
               <div className="flex flex-col gap-4">
                 <LinkmlGraphView
                   source={source.data}
+                  imports={imports}
                   onOpenClass={() => {
                     setView("form");
                   }}
@@ -300,7 +311,7 @@ export function ModelPage({ project, name }: { project: string; name: string }):
                 ) : null}
               </div>
             ) : null}
-            {view === "form" && source.data !== undefined ? <ModelForm source={source.data} /> : null}
+            {view === "form" && source.data !== undefined ? <ModelForm source={source.data} initialClass={initialClass} /> : null}
             {view === "yaml" && source.data !== undefined ? <ModelYaml source={source.data} name={name} /> : null}
             {view === "used" ? (
               uses.length === 0 ? (
