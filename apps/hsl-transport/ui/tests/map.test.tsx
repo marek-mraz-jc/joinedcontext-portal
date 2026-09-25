@@ -16,13 +16,16 @@ const addLayer = vi.fn();
 const remove = vi.fn();
 const addImage = vi.fn();
 let load: (() => void) | undefined;
+let constructed: { style: unknown } | undefined;
 let moveend: (() => void) | undefined;
 /** Where the double says the map looks: all of Helsinki unless a test pans it. */
 let view: [[number, number], [number, number]] = [[24.5, 60.0], [25.5, 60.4]];
 
 vi.mock("maplibre-gl", () => {
   class Map {
-    constructor(public options: unknown) {}
+    constructor(public options: unknown) {
+      constructed = options as { style: unknown };
+    }
     on(event: string, handler: () => void) {
       if (event === "load") {
         load = handler;
@@ -45,7 +48,7 @@ vi.mock("maplibre-gl", () => {
 });
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
-import { App, arrowImage, VehicleMap } from "../src/App";
+import { App, arrowImage, basemapOf, VehicleMap } from "../src/App";
 import { featureCollection, inView, lineColor, NO_LINE, perLine, speedBands, type Vehicle } from "../src/api";
 import { DEFAULT_TOKENS } from "@joinedcontext/sdk";
 
@@ -87,6 +90,8 @@ beforeEach(() => {
   addImage.mockClear();
   load = undefined;
   moveend = undefined;
+  constructed = undefined;
+  document.getElementById("jc-config")?.remove();
   view = [[24.5, 60.0], [25.5, 60.4]];
   StubEventSource.last = undefined;
   vi.stubGlobal("EventSource", StubEventSource);
@@ -326,5 +331,43 @@ describe("the charts on the page", () => {
     view = [[10, 50], [10.1, 50.1]];
     moveend?.();
     await waitFor(() => expect(screen.getAllByText("No buses in view.")).toHaveLength(2));
+  });
+});
+
+describe("the basemap (AP-67)", () => {
+  const STYLE = "https://portal.example/api/v1/projects/helsinki/basemap/default/style.json";
+  function page(config: string) {
+    const script = document.createElement("script");
+    script.id = "jc-config";
+    script.type = "application/json";
+    script.textContent = config;
+    document.head.append(script);
+  }
+
+  it("is the project's, from the page the App's server wrote, and no tile host of the App's own", async () => {
+    page(JSON.stringify({ slug: "s", basemap: STYLE }));
+    render(<App />);
+    expect(constructed?.style).toBe(STYLE);
+    expect(JSON.stringify(constructed?.style)).not.toContain("openstreetmap");
+    expect(screen.queryByText("No basemap is configured")).not.toBeInTheDocument();
+  });
+
+  it("is the SDK's plain background, and says so, when the installation configures none", () => {
+    render(<App />);
+    expect(typeof constructed?.style).toBe("object");
+    expect(JSON.stringify(constructed?.style)).not.toContain("openstreetmap");
+    expect(screen.getByText("No basemap is configured")).toBeInTheDocument();
+  });
+
+  it("reads only an https style URL out of a well-formed configuration", () => {
+    expect(basemapOf()).toBeUndefined();
+    page("{not json");
+    expect(basemapOf()).toBeUndefined();
+    document.getElementById("jc-config")?.remove();
+    page(JSON.stringify({ basemap: "javascript:alert(1)" }));
+    expect(basemapOf()).toBeUndefined();
+    document.getElementById("jc-config")?.remove();
+    page(JSON.stringify({ basemap: STYLE }));
+    expect(basemapOf()).toBe(STYLE);
   });
 });

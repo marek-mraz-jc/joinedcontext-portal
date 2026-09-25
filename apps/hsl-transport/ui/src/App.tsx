@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
-import type { GeoJSONSource, StyleSpecification } from "maplibre-gl";
+import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Card, Header, Page, Split } from "@joinedcontext/sdk";
+import { Card, Header, NO_BASEMAP, Page, Split, styleFor } from "@joinedcontext/sdk";
 import {
   featureCollection,
   getVehicles,
@@ -23,22 +23,20 @@ const ARROW_SIZE = 24;
 const HELSINKI: [number, number] = [24.94, 60.17];
 
 /**
- * A keyless raster basemap with its attribution, so the app runs on a cluster with no map
- * account and no key anywhere in the manifest.
+ * The project's basemap, as the page the App's server writes carries it: `#jc-config.basemap`,
+ * the Portal's basemap route (AP-67, T-2928). The App names no tile host of its own; without a
+ * configured basemap the map is the SDK's plain background and says so.
  */
-const STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
+export function basemapOf(doc: Document = document): string | undefined {
+  const text = doc.getElementById("jc-config")?.textContent;
+  if (!text) return undefined;
+  try {
+    const basemap = (JSON.parse(text) as { basemap?: unknown }).basemap;
+    return typeof basemap === "string" && basemap.startsWith("https://") ? basemap : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * A white arrow pointing north on a transparent square, drawn pixel by pixel so the map needs no
@@ -103,8 +101,11 @@ export function useVehicles(): { vehicles: Vehicle[]; live: boolean } {
 export function VehicleMap({
   collection,
   onView,
+  basemap,
 }: {
   collection: VehicleCollection;
+  /** The basemap's style URL; the SDK's plain background without one. */
+  basemap?: string;
   /** Where the map looks, once it has loaded and after every pan or zoom. */
   onView?: (bounds: Bounds) => void;
 }) {
@@ -122,7 +123,7 @@ export function VehicleMap({
     }
     const instance = new MapLibreMap({
       container: container.current,
-      style: STYLE,
+      style: styleFor(basemap),
       center: HELSINKI,
       zoom: 11,
     });
@@ -185,7 +186,12 @@ export function VehicleMap({
     source?.setData(collection);
   }, [collection, ready]);
 
-  return <div className="map" ref={container} data-testid="map" role="application" aria-label="Bus map" />;
+  return (
+    <>
+      <div className="map" ref={container} data-testid="map" role="application" aria-label="Bus map" />
+      {!basemap && <p className="note">{NO_BASEMAP}</p>}
+    </>
+  );
 }
 
 /**
@@ -223,6 +229,7 @@ export function BarChart({ title, bars, note }: { title: string; bars: Bar[]; no
 export function App() {
   const { vehicles, live } = useVehicles();
   const [bounds, setBounds] = useState<Bounds | undefined>(undefined);
+  const [basemap] = useState(() => basemapOf());
   const collection = useMemo(() => featureCollection(vehicles), [vehicles]);
   // The charts and the legend follow the map: what they count is what the person looks at.
   const shown = useMemo(() => inView(vehicles, bounds), [vehicles, bounds]);
@@ -253,7 +260,7 @@ export function App() {
         />
         <Split ratio="2:1">
           <div className="map-pane">
-            <VehicleMap collection={collection} onView={setBounds} />
+            <VehicleMap collection={collection} onView={setBounds} basemap={basemap} />
             {legend.length > 0 && (
               <ul className="lines" aria-label="Lines on the map">
                 {legend.map((line) => (
