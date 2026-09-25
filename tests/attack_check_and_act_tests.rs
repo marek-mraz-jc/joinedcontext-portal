@@ -236,7 +236,7 @@ async fn a_branch_that_moved_after_the_review_is_refused_in_words_a_person_can_a
 const UPDATED: &str = "1683ddddeeeeffff000011112222aaaabbbbcccc";
 
 /// `forge_at(200)` whose branch another merge overtook: the first merge is refused as behind
-/// its base (PF-104), the update answers `update_status`, and the manifest's blob at the updated
+/// its base (PF-105), the update answers `update_status`, and the manifest's blob at the updated
 /// head is `blob-reviewed` when `main` left it alone.
 async fn behind_forge(update_status: u16, manifest_after: &str) -> MockServer {
     let gitea = forge_at(200).await;
@@ -298,7 +298,7 @@ async fn merges_asked(gitea: &MockServer) -> Vec<Value> {
         .collect()
 }
 
-/// PF-104, PF-57: a Change another merge overtook is brought up to date and merged at the
+/// PF-105, PF-57: a Change another merge overtook is brought up to date and merged at the
 /// updated head, because every file it changes reads the same there as at the reviewed commit.
 /// A file of `main` it does not touch (`README.md`) moving is no reason to send it back.
 #[tokio::test]
@@ -321,7 +321,7 @@ async fn a_branch_that_fell_behind_is_updated_and_merged_when_its_own_files_are_
     );
 }
 
-/// PF-104, PF-57: when `main` changed a file of the Change meanwhile, the approval no longer
+/// PF-105, PF-57: when `main` changed a file of the Change meanwhile, the approval no longer
 /// covers what would merge. Nothing merges, and the reviewer is told which file and what to do.
 #[tokio::test]
 async fn a_branch_whose_own_file_main_changed_goes_back_to_its_reviewer() {
@@ -343,7 +343,7 @@ async fn a_branch_whose_own_file_main_changed_goes_back_to_its_reviewer() {
     );
 }
 
-/// PF-104, CC-80: `main` that does not merge into the branch is the same answer as a branch
+/// PF-105, CC-80: `main` that does not merge into the branch is the same answer as a branch
 /// that moved, in words, never the forge's own.
 #[tokio::test]
 async fn a_branch_main_does_not_merge_into_is_refused_in_words_a_person_can_act_on() {

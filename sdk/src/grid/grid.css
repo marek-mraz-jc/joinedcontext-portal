@@ -460,3 +460,93 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A relationship end: the picked targets as chips, a search box, its list (UI-84). */
+.jc-rel {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jc-space-1, 4px);
+  min-width: 12rem;
+}
+
+.jc-rel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--jc-space-1, 4px);
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-md, 4px);
+  background: var(--jc-color-card, #f5f5f5);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jc-rel-remove {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 0 2px;
+}
+
+.jc-rel-input {
+  flex: 1 1 6rem;
+  min-width: 6rem;
+}
+
+.jc-rel-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 100%;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--jc-color-surface, #ffffff);
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-md, 4px);
+}
+
+.jc-rel-option {
+  padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px);
+  cursor: pointer;
+}
+
+.jc-rel-option[aria-selected="true"] {
+  background: var(--jc-color-card, #f5f5f5);
+  outline: 2px solid var(--jc-color-accent, #0b5fff);
+  outline-offset: -2px;
+}
+
+.jc-rel-option small {
+  color: var(--jc-color-muted, #5c5c5c);
+}
+
+.jc-rel-status:empty {
+  display: none;
+}
+
+.jc-rel-status,
+.jc-grid-rel-more {
+  color: var(--jc-color-muted, #5c5c5c);
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+.jc-rel-error {
+  flex-basis: 100%;
+  color: var(--jc-color-danger, #b00020);
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+.jc-grid-rel-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 4px);
+}

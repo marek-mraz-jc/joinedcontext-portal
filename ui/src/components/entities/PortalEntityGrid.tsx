@@ -127,6 +127,11 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     applying: t("entityGrid.applying"),
     refusedHere: t("entityGrid.refusedHere"),
     notInList: t("entityGrid.notInList"),
+    relationSearch: t("entityGrid.relationSearch"),
+    relationNone: t("entityGrid.relationNone"),
+    relationRemove: t("entityGrid.relationRemove"),
+    relationFailed: t("entityGrid.relationFailed"),
+    relationMore: t("entityGrid.relationMore"),
   };
 }
 

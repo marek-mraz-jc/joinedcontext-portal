@@ -343,7 +343,7 @@ pub async fn import(
     let clients: Vec<GiteaClient> = planned
         .iter()
         .map(|plan| {
-            // An application's repository goes where the generated ones live (PF-105).
+            // An application's repository goes where the generated ones live (PF-106).
             if plan.role == "application" {
                 gitea.for_application(plan.repository.clone())
             } else {
