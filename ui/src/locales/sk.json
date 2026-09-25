@@ -460,7 +460,31 @@
       "openData": "Otvorené údaje",
       "datastore": "Tabuľka údajov",
       "sheetFrom": "Tabuľka sa číta z",
-      "sheetRefresh": "Obnova tabuľky"
+      "sheetRefresh": "Obnova tabuľky",
+      "catalog": {
+        "title": "Popis v katalógu",
+        "publisher": "Vydavateľ",
+        "publisherName": "Názov vydavateľa",
+        "publisherUri": "Webová adresa vydavateľa",
+        "contactPoint": "Kontaktné miesto",
+        "contactName": "Kontaktné pracovisko",
+        "contactEmail": "Kontaktný e-mail",
+        "license": "Licencia",
+        "attribution": "Text uvedenia zdroja",
+        "themes": "Témy",
+        "keywords": "Kľúčové slová",
+        "spatial": "Pokryté územie",
+        "temporal": "Pokryté obdobie",
+        "temporalStart": "Pokryté od",
+        "temporalEnd": "Pokryté do",
+        "frequency": "Aktualizácia",
+        "source": "Pôvodné datasety",
+        "sourceUrl": "Adresa pôvodného datasetu",
+        "sourceTitle": "Názov pôvodného datasetu",
+        "sourceDescription": "Popis pôvodného datasetu",
+        "pipeline": "Plní tok údajov",
+        "legislation": "Príslušný právny predpis"
+      }
     },
     "rateClass": {
       "strict": "Prísna",
@@ -619,7 +643,43 @@
       "noFileLimits": "Platia limity platformy.",
       "publication": "Zverejnené ako otvorené dáta",
       "notSet": "nenastavené",
-      "filterPropose": "Navrhnúť tento filter"
+      "filterPropose": "Navrhnúť tento filter",
+      "catalog": {
+        "title": "V katalógu",
+        "lead": "Čo o tomto rozhraní čítajú katalógy otvorených údajov a čo smie používateľ s údajmi robiť.",
+        "notCatalogued": "Zatiaľ bez popisu v katalógu: záznam uvádza iba názov, formáty a prístupové práva. V nastaveniach doplňte vydavateľa, licenciu a čo údaje pokrývajú.",
+        "publisher": "Zverejňuje",
+        "licence": "Licencia",
+        "frequency": "Aktualizácia",
+        "contact": "Otázky na",
+        "coverage": "Pokrýva",
+        "period": "{start} až {end}",
+        "ongoing": "dnes",
+        "origin": "Pochádza z",
+        "byPipeline": "plní tok údajov {name}",
+        "themes": "Témy",
+        "offer": "Čo smie používateľ robiť",
+        "noLicence": "Nie je uvedená licencia, preto záznam nič neponúka: používateľ nevie, čo smie s údajmi robiť.",
+        "thePublisher": "vydavateľa",
+        "who": {
+          "public": "Ktokoľvek",
+          "organization": "Ktokoľvek v organizácii",
+          "project-list": "Uvedené projekty organizácie"
+        },
+        "use": {
+          "none": "{who} smie tieto údaje použiť na akýkoľvek účel, bez podmienok.",
+          "attribute": "{who} smie tieto údaje použiť, ak uvedie {publisher} ako zdroj.",
+          "shareAlike": "{who} smie tieto údaje použiť, ak uvedie {publisher} ako zdroj."
+        },
+        "shareAlike": "Čo z nich zverejní, musí zverejniť pod rovnakou licenciou.",
+        "raw": {
+          "jsonld": "Záznam DCAT-AP (JSON-LD)",
+          "turtle": "Záznam DCAT-AP (Turtle)",
+          "odrl": "Váš prístup ako ODRL",
+          "lead": "Dokument tak, ako ho z tohto rozhrania číta zberač katalógu alebo konektor dátového priestoru.",
+          "failed": "Rozhranie neodpovedalo. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
+        }
+      }
     },
     "condition": {
       "title": "Pridať podmienku",
@@ -3133,7 +3193,8 @@
       "administrative": "Administratíva",
       "technical": "Technika",
       "data-protection": "Ochrana osobných údajov",
-      "security": "Bezpečnosť"
+      "security": "Bezpečnosť",
+      "open-data": "Pracovisko otvorených údajov"
     },
     "visibility": {
       "organization": "Každý prihlásený človek organizácie",
@@ -3519,6 +3580,41 @@
       "associationOps": "Čítať všetko a odoberať",
       "federationOps": "Federovať",
       "redirectionOps": "Presmerovať všetko"
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Uveďte pôvod 4.0",
+      "CC_BYSA_4_0": "Creative Commons Uveďte pôvod – Zachovajte licenciu 4.0",
+      "CC0": "Creative Commons Zero (voľné dielo)",
+      "ODC_BY": "Open Data Commons Uveďte pôvod",
+      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_PDDL": "Open Data Commons Venovanie voľnému dielu"
+    },
+    "dataTheme": {
+      "AGRI": "Poľnohospodárstvo, rybárstvo, lesníctvo a potraviny",
+      "ECON": "Hospodárstvo a financie",
+      "EDUC": "Vzdelávanie, kultúra a šport",
+      "ENER": "Energetika",
+      "ENVI": "Životné prostredie",
+      "GOVE": "Vláda a verejný sektor",
+      "HEAL": "Zdravie",
+      "INTR": "Medzinárodné otázky",
+      "JUST": "Spravodlivosť, právny systém a verejná bezpečnosť",
+      "REGI": "Regióny a mestá",
+      "SOCI": "Obyvateľstvo a spoločnosť",
+      "TECH": "Veda a technika",
+      "TRAN": "Doprava"
+    },
+    "frequency": {
+      "CONT": "Priebežne",
+      "HOURLY": "Každú hodinu",
+      "DAILY": "Denne",
+      "WEEKLY": "Týždenne",
+      "MONTHLY": "Mesačne",
+      "QUARTERLY": "Štvrťročne",
+      "ANNUAL": "Ročne",
+      "IRREG": "Nepravidelne",
+      "NEVER": "Nikdy, je konečný",
+      "UNKNOWN": "Neznáme"
     }
   },
   "picker": {

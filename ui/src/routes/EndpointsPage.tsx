@@ -1,12 +1,12 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, readCsrfToken, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, overlay, plainTitle } from "../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
 import { useProjects } from "../api/projects";
@@ -45,6 +45,8 @@ import {
 import { endpointSchema, endpointUiSchema, generateSlug } from "../schemas/kinds";
 import type { JsonSchema } from "../components/forms/types";
 import { ModelPicker } from "../pages/endpoints/ModelPicker";
+import { catalogForm, catalogOf, prefillFromOrganization } from "../pages/endpoints/catalog";
+import type { CatalogForm, CatalogManifest } from "../pages/endpoints/catalog";
 import type { ModelPickerState } from "../pages/endpoints/ModelPicker";
 import { EndpointDataView } from "../components/entities/EndpointDataView";
 import {
@@ -84,6 +86,8 @@ interface EndpointForm {
       datastore?: { representation?: string; refresh?: string };
     };
   };
+  /** The catalogue description, one string per text in the author's language (EP-78, UI-50). */
+  catalog?: CatalogForm;
 }
 
 /** The `publish` block of the manifest, or nothing when no catalogue is named (EP-62). */
@@ -146,15 +150,19 @@ function toSpec(
   slug: string,
   hiddenAttributes: string[],
   projectionRefName?: string,
+  storedCatalog?: CatalogManifest,
+  language = "en",
 ) {
-  const { allowedProjects, rateLimits, caching, publish, ...rest } = form;
+  const { allowedProjects, rateLimits, caching, publish, catalog: catalogValues, ...rest } = form;
   void publish;
+  const catalog = catalogOf(catalogValues, storedCatalog, language);
   delete (rest as Partial<EndpointForm>).name;
   delete (rest as Partial<EndpointForm>).title;
   return {
     ...rest,
     slug,
     ...publishOf(form),
+    ...(catalog ? { catalog } : {}),
     ...(form.audience === "project-list" && allowedProjects && allowedProjects.length > 0
       ? { allowedProjects }
       : {}),
@@ -188,6 +196,7 @@ const OWNED_SPEC = [
   "projection",
   "projectionRef",
   "publish",
+  "catalog",
 ];
 
 export function toEnvelope(
@@ -197,9 +206,11 @@ export function toEnvelope(
   hiddenAttributes: string[],
   projectionRefName?: string,
   base?: Manifest,
+  language = "en",
 ): Manifest {
   const { name, title } = form;
-  const spec = toSpec(form, slug, hiddenAttributes, projectionRefName);
+  const stored = (base?.spec as { catalog?: CatalogManifest } | undefined)?.catalog;
+  const spec = toSpec(form, slug, hiddenAttributes, projectionRefName, stored, language);
   const next: Manifest = {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Endpoint",
@@ -231,7 +242,9 @@ export function toForm(endpoint: Manifest): EndpointForm {
         datastore?: { representation?: string; refresh?: string };
       };
     };
+    catalog?: CatalogManifest;
   };
+  const catalog = catalogForm(spec.catalog);
   return {
     name: endpoint.metadata.name,
     title: plainTitle(endpoint.metadata.title),
@@ -243,6 +256,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
     rateLimits: spec.rateLimits,
     caching: spec.caching,
     publish: publishForm(spec),
+    ...(catalog ? { catalog } : {}),
   };
 }
 
@@ -411,6 +425,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const permissions = usePermissions(project);
   const usage = useProjectUsage(project);
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  // The language a catalogue text the form shows is written back in (UI-50).
+  const language = locale.slice(0, 2);
 
   const [urlDraftName, setUrlDraftName] = useState(() => {
     if (typeof window === "undefined") return undefined;
@@ -546,6 +562,31 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ),
   });
 
+  // The Organization, whose name, domain and open-data desk a new endpoint's catalogue starts
+  // from (EP-78, EP-80), and the pipelines a catalogue may name as the data's origin.
+  const organizationsQuery = useQuery({
+    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
+        }),
+      ),
+  });
+  const catalogPrefill = useMemo(
+    () => prefillFromOrganization(asManifests(organizationsQuery.data?.items ?? [])[0]),
+    [organizationsQuery.data],
+  );
+  const pipelinesQuery = useQuery({
+    queryKey: queryKeys.list(project, "pipelines"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "pipelines" } },
+        }),
+      ),
+  });
+
   // The catalogues this project may publish to (EP-62). A project with none leaves the open-data
   // field free text, which is what a manifest written before the catalogue carries anyway.
   const cataloguesQuery = useQuery({
@@ -622,6 +663,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       hidden,
       projecting ? projectionNameOf(form) : pickerState.selectedProjectionRef,
       base ?? undefined,
+      language,
     );
 
   const buildManifests = (form: EndpointForm) => {
@@ -892,7 +934,9 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   }, []);
 
   /** A blank endpoint in the editor: the add button, or the address `/endpoints/new` (T-2474). */
-  const startNew = useCallback((firstSpace: string) => {
+  // A new endpoint's catalogue starts from the Organization: its name, its domain and its
+  // open-data desk, never a person (EP-80).
+  const startNew = useCallback((firstSpace: string, catalog?: CatalogForm) => {
     setFormError(null);
     setIsNew(true);
     setBase(null);
@@ -906,6 +950,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       audience: "project-list",
       enabledRepresentations: ["ngsi-ld"],
       allowedProjects: [],
+      ...(catalog ? { catalog } : {}),
     });
   }, []);
 
@@ -919,12 +964,12 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       openedNew.current = false;
       return;
     }
-    if (openedNew.current || spacesQuery.isPending) {
+    if (openedNew.current || spacesQuery.isPending || organizationsQuery.isPending) {
       return;
     }
     openedNew.current = true;
-    startNew(asManifests(spacesQuery.data?.items ?? [])[0]?.metadata.name ?? "");
-  }, [routedNew, spacesQuery.isPending, spacesQuery.data, startNew]);
+    startNew(asManifests(spacesQuery.data?.items ?? [])[0]?.metadata.name ?? "", catalogPrefill);
+  }, [routedNew, spacesQuery.isPending, organizationsQuery.isPending, spacesQuery.data, startNew, catalogPrefill]);
 
   // `?edit=<name>` from the endpoint's own settings page: the editor opens once, on the endpoint the
   // URL names, and only when the list has it — a name nobody publishes opens nothing rather than an
@@ -985,6 +1030,14 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   );
   // A catalogue the endpoint already names and this list does not: the manifest keeps it, so the
   // form opens every endpoint the API accepted rather than dropping its publication (T-2400).
+  // A pipeline the catalogue already names stays a choice, as a catalogue the endpoint names does.
+  const namedPipeline = editing?.catalog?.pipelineRef;
+  const pipelineNames = [
+    ...new Set([
+      ...asManifests(pipelinesQuery.data?.items ?? []).map((pipeline) => pipeline.metadata.name),
+      ...(namedPipeline ? [namedPipeline] : []),
+    ]),
+  ];
   const named = editing?.publish?.ckan?.instanceRef;
   const catalogues =
     named && named.length > 0 && !catalogueNames.includes(named)
@@ -996,6 +1049,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     pickable,
     editing?.rateLimits?.requestsPerMinute,
     catalogues,
+    pipelineNames,
   );
   const schema =
     editing?.audience === "project-list" ? baseSchema : withoutAllowedProjects(baseSchema);
@@ -1014,7 +1068,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       <Button
         variant="primary"
         icon={<Icon name="plus" className="size-4" />}
-        onClick={() => (formRoute ? formRoute.openNew() : startNew(spaceNames[0] ?? ""))}
+        onClick={() => (formRoute ? formRoute.openNew() : startNew(spaceNames[0] ?? "", catalogPrefill))}
       >
         {t("endpoints.add")}
       </Button>
