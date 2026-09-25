@@ -20,6 +20,11 @@
 //   node lane.mjs store-check <pnpm-lock.yaml> <node_modules>
 //                                      fails when a package the lockfile names for this platform
 //                                      is not in the store (AP-127)
+//   node lane.mjs restore <cache> <key> <seed> <to>
+//                                      starts it from the App's own build cache when it holds a
+//                                      complete entry for <key>, else from the seed (AP-131)
+//   node lane.mjs save <from> <cache> <key>
+//                                      keeps a green build's target/ as the App's cache entry
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
@@ -423,6 +428,59 @@ export function seed(from, to) {
   }
 }
 
+/** The App's cache entry and the file that says it is complete and for which key (AP-131). */
+const ENTRY = "target";
+const MARKER = "target.key";
+
+/**
+ * A job's `target/` started from the App's own build cache (AP-131), which only this App's build
+ * pods mount: a copy with its times kept, so cargo rebuilds only what changed. The entry counts
+ * when its marker names `key`, the digest of the App's `Cargo.lock` and the toolchain. Anything
+ * else (no cache mounted, no entry, another key, a copy that fails part way) falls back to the
+ * image's seed and never fails a build. Returns what it did.
+ */
+export function restore(cache, key, seedFrom, to) {
+  const marker = join(cache, MARKER);
+  let found = "";
+  try {
+    found = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
+  } catch {
+    found = "";
+  }
+  if (found === "" || found !== key) {
+    const why = !existsSync(cache) ? "no build cache is mounted" : found === "" ? "the build cache holds no complete entry" : "the build cache is for another Cargo.lock or toolchain";
+    return `${why}; ${seed(seedFrom, to)}`;
+  }
+  rmSync(to, { recursive: true, force: true });
+  try {
+    cpSync(join(cache, ENTRY), to, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    return "the App's build cache is the start of this build";
+  } catch (err) {
+    return `the build cache could not be copied (${err instanceof Error ? err.message : String(err)}); ${seed(seedFrom, to)}`;
+  }
+}
+
+/**
+ * Keeps a green build's `target/` as the App's one cache entry (AP-131). The marker goes first
+ * and comes back last, so a save cut short (a full volume, a pod that ends) leaves an entry
+ * `restore` ignores rather than half a target it would trust. A save that fails is said and
+ * never fails the build that made it. Returns what it did.
+ */
+export function save(from, cache, key) {
+  if (!existsSync(cache)) return "no build cache is mounted: nothing kept";
+  const entry = join(cache, ENTRY);
+  try {
+    rmSync(join(cache, MARKER), { force: true });
+    rmSync(entry, { recursive: true, force: true });
+    cpSync(from, entry, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    writeFileSync(join(cache, MARKER), `${key}\n`);
+    return "this build's target/ is the App's build cache";
+  } catch (err) {
+    rmSync(entry, { recursive: true, force: true });
+    return `the build cache was not kept (${err instanceof Error ? err.message : String(err)}): the next build starts from the seed`;
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, appDir, outDir] = process.argv.slice(2);
   try {
@@ -486,6 +544,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       if (missing.length > 0) throw new Error(`the store in ${outDir} lacks ${missing.length} package(s) ${appDir} names: ${missing.join(", ")}`);
       if (!existsSync(join(outDir, "@joinedcontext", "sdk", "package.json"))) throw new Error(`the store in ${outDir} holds no @joinedcontext/sdk`);
       console.log(`the store in ${outDir} holds every package ${appDir} names`);
+    } else if (command === "restore" && appDir && outDir && process.argv[5] && process.argv[6]) {
+      console.log(restore(appDir, outDir, process.argv[5], process.argv[6]));
+    } else if (command === "save" && appDir && outDir && process.argv[5]) {
+      console.log(save(appDir, outDir, process.argv[5]));
     } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
@@ -503,7 +565,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {
