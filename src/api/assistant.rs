@@ -21,7 +21,7 @@ use crate::agents::run::{digest_prompt, mint_run_id, mint_ticket, AgentRun, Agen
 use crate::agents::share;
 use crate::agents::store::now_rfc3339;
 use crate::api::agent_runs::{
-    agent_settings, default_profile, expiry, publish_event, status_payload, unavailable,
+    agent_settings, conversation_profile, expiry, publish_event, status_payload, unavailable,
     CreatedRun, MAX_PROMPT_CHARS,
 };
 use crate::api::pipelines::metrics_for;
@@ -736,7 +736,10 @@ pub async fn start_conversation(
     let form = form_context(&request)?;
     let page = page_context(request.page_context.as_ref(), &project)?;
 
-    let profile_name = request.profile.clone().unwrap_or_else(default_profile);
+    let profile_name = request
+        .profile
+        .clone()
+        .unwrap_or_else(|| conversation_profile(&state.mirror));
     let profile = Profile::load(&state.mirror, &profile_name)?;
 
     let mut run_endpoints = if request.endpoint_names.is_empty() {
