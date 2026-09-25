@@ -139,6 +139,8 @@ describe("the events page", () => {
     const perDay = optionOf("Events per day, next 30 days");
     expect(perDay.xAxis.data[0]).toBe("2030-10-20");
     expect(perDay.series[0].data.slice(0, 4)).toEqual([2, 0, 1, 1]);
+    // Each chart is built on its own beat (T-2994): wait for this one too.
+    await waitFor(() => expect(optionOf("Events by register").yAxis.data).toHaveLength(3));
     const registers = optionOf("Events by register");
     expect(registers.yAxis.data).toEqual(["City of Helsinki", "Culture centres", "City of Espoo"]);
     const colours = registers.series[0].data.map((bar: { itemStyle: { color: string } }) => bar.itemStyle.color);
@@ -152,7 +154,8 @@ describe("the events page", () => {
     await waitFor(() => expect(maps.length).toBeGreaterThan(0));
     const map = maps[0];
     map.load?.();
-    await waitFor(() => expect(map.setData).toHaveBeenCalled());
+    // A draw before the events are read carries none; wait for the one that carries them (T-2994).
+    await waitFor(() => expect(map.setData.mock.calls.at(-1)?.[0].features).toHaveLength(4));
     const features = map.setData.mock.calls.at(-1)![0].features;
     // Five are upcoming, and the cancelled jazz evening has no location.
     expect(features).toHaveLength(4);

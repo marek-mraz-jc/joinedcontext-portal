@@ -116,9 +116,11 @@ describe("the stations of the city", () => {
     );
     expect(within(card as HTMLElement).getByText(/21,3|21\.3/)).toBeInTheDocument();
     expect(within(card as HTMLElement).queryByText(new RegExp(LOCALES.sk.band.stale))).toBeNull();
-    await waitFor(() => expect(addSource).toHaveBeenCalled());
-    const [, source] = addSource.mock.calls.at(-1) as [string, { data: { features: Array<{ geometry: { coordinates: number[] } }> } }];
-    expect(source.data.features.map((feature) => feature.geometry.coordinates)).toEqual([[19.115268, 48.733256]]);
+    // The newest source is the one to read, once it holds the station (T-2994).
+    await waitFor(() => {
+      const [, source] = (addSource.mock.calls.at(-1) ?? []) as [string, { data: { features: Array<{ geometry: { coordinates: number[] } }> } }];
+      expect(source?.data.features.map((feature) => feature.geometry.coordinates)).toEqual([[19.115268, 48.733256]]);
+    });
     // The read went to the configured endpoint of the city's public space.
     expect(calls.some((call) => call.path.includes(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`))).toBe(true);
     expect(screen.getByText(LOCALES.sk.source)).toBeInTheDocument();

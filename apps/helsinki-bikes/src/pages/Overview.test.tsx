@@ -91,7 +91,10 @@ describe("the overview", () => {
     overview();
     await waitFor(() => expect(optionOf("Fullest stations").yAxis.data).toHaveLength(4));
     expect(optionOf("Fullest stations").yAxis.data[0]).toBe("Kapteeninpuistikko");
-    expect(optionOf("Emptiest stations").yAxis.data.slice(0, 2)).toEqual(["Laivasillankatu", "Sepänkatu"]);
+    // Each chart is built on its own beat (T-2994): wait for this one too.
+    await waitFor(() =>
+      expect(optionOf("Emptiest stations").yAxis.data.slice(0, 2)).toEqual(["Laivasillankatu", "Sepänkatu"]),
+    );
     expect(optionOf("Emptiest stations").series[0].data[0].value).toBe(0);
   });
 
@@ -100,7 +103,8 @@ describe("the overview", () => {
     await waitFor(() => expect(maps.length).toBeGreaterThan(0));
     const map = maps[0];
     map.load?.();
-    await waitFor(() => expect(map.setData).toHaveBeenCalled());
+    // A draw before the stations are read carries none; wait for the one that carries them (T-2994).
+    await waitFor(() => expect(map.setData.mock.calls.at(-1)?.[0].features).toHaveLength(STATIONS.length));
     const features = map.setData.mock.calls.at(-1)![0].features;
     expect(features).toHaveLength(STATIONS.length);
     const colours = new Set(features.map((f: { properties: { color: string } }) => f.properties.color));
