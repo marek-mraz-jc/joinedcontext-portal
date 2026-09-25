@@ -35,6 +35,7 @@ use crate::git::gitea::{Author, FileWrite, GitError};
 use crate::state::AppState;
 use jc_core::kinds::Verb;
 
+mod build;
 mod code_pass;
 mod conversation;
 mod edit_loop;

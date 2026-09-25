@@ -1290,3 +1290,54 @@ async fn testing_a_drafted_endpoint_says_it_is_not_live() {
         "{step}"
     );
 }
+
+/// T-2696: the endpoints chosen for an app open the app builder on them, in the order chosen,
+/// with no model call; the person starts the run there (AG-11). Words go to the model.
+#[tokio::test]
+async fn the_endpoints_of_an_app_open_the_builder_on_them() {
+    let started = start(READER, json!({ "path": "build-app" }), &["never asked"]).await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| e.kind == "question").await;
+    let question = of_kind(&events, "question")[0];
+    assert_eq!(question["step"], "build-app-endpoints");
+    let run = started.body["id"].as_str().expect("run id");
+    let (status, body) = send(
+        &started.state,
+        &started.config,
+        READER,
+        &format!("/api/v1/projects/helsinki/agent-runs/{run}/answers"),
+        json!({ "questionId": question["questionId"], "answers": { "answer": ["bikes", "air"] } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let events = events_until(&started, |e| e.kind == "navigate").await;
+    assert_eq!(
+        of_kind(&events, "navigate"),
+        [
+            &json!({ "route": "/projects/helsinki/apps/new", "prefill": { "endpoints": ["bikes", "air"] } })
+        ]
+    );
+    assert!(
+        of_kind(&events, "thought")
+            .iter()
+            .any(|t| t["text"] == "The app builder opens on 'bikes', 'air'. Name the app, say what it should do and start it there."),
+        "{events:?}"
+    );
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(
+        started
+            .proxy
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty(),
+        "the hand-over asked the model"
+    );
+    let runs = started
+        .state
+        .agents
+        .list_runs("helsinki", 10)
+        .await
+        .expect("runs");
+    assert_eq!(runs.len(), 1, "the conversation started no run of its own");
+}

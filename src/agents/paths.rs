@@ -183,9 +183,11 @@ impl Path {
                 pick: Some("endpoints"),
                 ..free("Which data do you want to share?")
             },
+            // The chosen endpoints open the app builder, where the person starts the run.
             Path::BuildApp => FirstStep {
                 pick: Some("endpoints"),
                 multiple: true,
+                step: Some("build-app-endpoints"),
                 ..free("Which endpoints should the app read?")
             },
             Path::BuildDashboard => FirstStep {

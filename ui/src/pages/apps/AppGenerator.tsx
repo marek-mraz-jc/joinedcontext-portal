@@ -13,6 +13,7 @@ import { EndpointPreview, accessWords } from "./EndpointPreview";
 import { useAccess } from "../../components/entities/AccessPanel";
 import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { takePrefill } from "../../assistant/state";
 
 /** The blueprint that turns a description into an app (AP-22, Architecture/16 §3). */
 export const BLUEPRINT = "app-from-prompt";
@@ -185,9 +186,15 @@ export function AppGenerator({
   const [name, setName] = useState(initialName ?? "");
   const [kind, setKind] = useState<AppKind>("static");
   const [prompt, setPrompt] = useState("");
-  const [endpointName, setEndpointName] = useState("");
+  // The endpoints the assistant's "Build an app" path handed over (T-2696), taken once: the first
+  // is the app's endpoint, the rest are read beside it.
+  const [handed] = useState(() => {
+    const endpoints = takePrefill(`/projects/${project}/apps/new`)?.endpoints;
+    return Array.isArray(endpoints) ? endpoints.filter((name): name is string => typeof name === "string") : [];
+  });
+  const [endpointName, setEndpointName] = useState(handed[0] ?? "");
   /** Endpoints read beside the primary one, e.g. an indicator space's (AP-44). */
-  const [extra, setExtra] = useState<string[]>([]);
+  const [extra, setExtra] = useState<string[]>(handed.slice(1));
   const [addingEndpoint, setAddingEndpoint] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
   const [write, setWrite] = useState(false);

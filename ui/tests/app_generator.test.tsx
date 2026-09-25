@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { rememberPrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { BLUEPRINT, dataNeeds } from "../src/pages/apps/AppGenerator";
@@ -331,6 +332,31 @@ describe("the app generator", () => {
       const needs = body.dataNeeds as { contextSpaceRef: { name: string }; operations: string[] }[];
       expect(needs.map((need) => need.contextSpaceRef.name)).toEqual(["ovzdusie", "ovzdusie-kpi"]);
       expect(needs[1].operations).toEqual(["queryEntity", "retrieveEntity"]);
+    });
+  });
+
+  it("opens on the endpoints the assistant's Build an app path handed over (T-2696)", async () => {
+    const kpis = {
+      ...ENDPOINT,
+      metadata: { ...ENDPOINT.metadata, name: "ovzdusie-kpi", title: { en: "Air quality indicators" } },
+      spec: { ...ENDPOINT.spec, contextSpaceRef: "ovzdusie-kpi", slug: "q3mzkq2v7w5ayxcbn4ltdj6hof" },
+    };
+    rememberPrefill(`/projects/${PROJECT}/apps/new`, { endpoints: ["ovzdusie-public", "ovzdusie-kpi"] });
+    window.history.pushState({}, "", `/projects/${PROJECT}/apps/new`);
+    const user = userEvent.setup();
+    const fetchMock = renderGenerator({ endpoints: [ENDPOINT, kpis] });
+    // The label also names the endpoints added beside it: the choice is the select.
+    const [endpoint] = (await screen.findAllByLabelText(en.apps.generate.endpoint, { exact: false })).filter(
+      (element) => element.tagName === "SELECT",
+    );
+    await waitFor(() => expect(endpoint).toHaveValue("ovzdusie-public"));
+    await screen.findByRole("group", { name: "AirQualityObserved" });
+    await user.type(screen.getByLabelText(en.apps.generate.name, { exact: false }), "ovzdusie-dnes");
+    await user.type(screen.getByLabelText(en.apps.generate.prompt, { exact: false }), "A map of today's PM10");
+    await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
+    await waitFor(async () => {
+      const body = await runBody(fetchMock);
+      expect(body.endpointNames).toEqual(["ovzdusie-public", "ovzdusie-kpi"]);
     });
   });
 

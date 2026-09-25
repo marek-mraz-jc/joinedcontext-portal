@@ -145,6 +145,7 @@ impl Driver {
         match step {
             Some(SOURCE_STEP) => self.source_taken(&answers).await,
             Some(TARGET_STEP) => self.target_taken(&answers, &events).await,
+            Some(build::ENDPOINTS_STEP) => self.build_taken(&answers).await,
             _ => Ok(None),
         }
     }
