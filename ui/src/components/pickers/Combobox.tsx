@@ -21,6 +21,8 @@ export interface ComboboxProps {
   id?: string;
   /** The accessible name of the search box and the list. */
   label: string;
+  /** A `<label for={id}>` of the form names the search box, so it carries no `aria-label` of its own. */
+  labelled?: boolean;
   /** The chosen values: one for a single picker, any number for `multiple`. */
   value: string[];
   onChange: (values: string[]) => void;
@@ -52,6 +54,7 @@ export interface ComboboxProps {
 export function Combobox({
   id,
   label,
+  labelled = false,
   value,
   onChange,
   options,
@@ -200,7 +203,7 @@ export function Combobox({
         <Input
           id={inputId}
           role="combobox"
-          aria-label={label}
+          aria-label={labelled ? undefined : label}
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"

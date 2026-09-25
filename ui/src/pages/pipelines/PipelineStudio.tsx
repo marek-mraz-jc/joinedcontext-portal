@@ -699,6 +699,7 @@ export function PipelineStudio({
               <TypePicker
                 id="studio-kpi-type"
                 label={t("pipelines.studio.kpi.type")}
+                labelled
                 project={project}
                 space={(() => {
                   const ep = endpoints.find((e) => e.metadata.name === kpiEndpoint);

@@ -20,7 +20,7 @@ import { SchemaForm } from "../src/components/forms/SchemaForm";
 import { DataModelPickerWidget, TypePickerWidget } from "../src/components/forms/widgets/ModelWidgets";
 import { portalWidgets } from "../src/components/forms/widgets";
 import type { JsonSchema, UiSchema } from "../src/components/forms/types";
-import { contextSpaceSchema, contextSpaceUiSchema, policySchema, policyUiSchema } from "../src/schemas/kinds";
+import { contextSpaceSchema, policySchema, policyUiSchema } from "../src/schemas/kinds";
 import { mappingSchema, mappingUiSchema } from "../src/schemas/mapping";
 
 const MODELS = [
@@ -270,15 +270,15 @@ describe("the forms name models and types through the pickers (T-2701)", () => {
     expect(portalWidgets.dataModelPicker).toBe(DataModelPickerWidget);
   });
 
-  function form(schema: JsonSchema, uiSchema: UiSchema, formData: Record<string, unknown>) {
+  function form(kind: string, schema: JsonSchema, uiSchema: UiSchema, formData: Record<string, unknown>) {
     return wrap(
-      <SchemaForm project="helsinki" schema={schema} uiSchema={uiSchema} formData={formData} onSubmit={() => {}} />,
+      <SchemaForm kind={kind} project="helsinki" schema={schema} uiSchema={uiSchema} formData={formData} onSubmit={() => {}} />,
     );
   }
 
   it("a Policy's entity type lists the classes of the policy's space", async () => {
     const user = userEvent.setup();
-    form(policySchema(i18n.t.bind(i18n), ["air", "mobility"]), policyUiSchema, {
+    form("Policy", policySchema(i18n.t.bind(i18n), ["air", "mobility"]), policyUiSchema, {
       contextSpaceRef: "mobility",
       information: [{ entities: [{}] }],
     });
@@ -296,9 +296,9 @@ describe("the forms name models and types through the pickers (T-2701)", () => {
     const changed: unknown[] = [];
     const { unmount } = wrap(
       <SchemaForm
+        kind="ContextSpace"
         project="helsinki"
         schema={contextSpaceSchema(i18n.t.bind(i18n))}
-        uiSchema={contextSpaceUiSchema}
         formData={{ name: "air" }}
         onSubmit={() => {}}
         onChange={(data) => changed.push(data)}
@@ -311,8 +311,10 @@ describe("the forms name models and types through the pickers (T-2701)", () => {
     expect(changed.at(-1)).toMatchObject({ dataModelRef: "air-quality" });
     unmount();
 
-    form(mappingSchema(i18n.t.bind(i18n)), mappingUiSchema, { source: { name: "mobility" } });
-    const [picked] = screen.getAllByRole("combobox");
+    form("Mapping", mappingSchema(i18n.t.bind(i18n)), mappingUiSchema, { source: { name: "mobility" } });
+    const [picked] = screen.getAllByRole("combobox", { name: i18n.t("mappings.field.model") });
     await waitFor(() => expect((picked as HTMLInputElement).value).toBe("mobility"));
+    // The space is one of the project's spaces, from the list and not typed (T-2702).
+    expect(screen.getByRole("combobox", { name: new RegExp(i18n.t("mappings.field.space")) }).tagName).toBe("SELECT");
   });
 });
