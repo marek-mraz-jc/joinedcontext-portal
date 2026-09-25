@@ -23,6 +23,21 @@ const measured = {
 };
 const added = { id: OWN, name: "Kumpula", names: { fi: "Kumpula" }, coordinates: [24.96, 60.2], own: true };
 
+/** One day at Kallio as the temporal API answers it: PM10 above its limit once, PM2.5 below. */
+const kallioDay = {
+  id: STATION,
+  type: "AirQualityObserved",
+  pm10: [
+    { type: "Property", value: 18, observedAt: "2026-09-06T08:00:00Z" },
+    { type: "Property", value: 57.5, observedAt: "2026-09-06T09:00:00Z" },
+    { type: "Property", value: 34.2, observedAt: "2026-09-06T10:00:00Z" },
+  ],
+  pm25: [
+    { type: "Property", value: 9, observedAt: "2026-09-06T08:00:00Z" },
+    { type: "Property", value: 21, observedAt: "2026-09-06T10:00:00Z" },
+  ],
+};
+
 function serve(identity: Record<string, unknown>, writeStatus = 204, writeDetail?: string) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -34,6 +49,9 @@ function serve(identity: Record<string, unknown>, writeStatus = 204, writeDetail
     }
     if (url.endsWith("api/stations") && method === "GET") {
       return json([measured, added]);
+    }
+    if (url.includes("/history") && method === "GET") {
+      return json(url.includes(encodeURIComponent(STATION)) ? kallioDay : { id: OWN, type: "AirQualityObserved" });
     }
     if (method !== "GET") {
       if (writeDetail) {
@@ -75,7 +93,11 @@ describe("air-quality app", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Kallio" });
     expect(screen.getByText("You are viewing anonymously.")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    // Picking a station to look at is reading; nothing that writes is offered (AP-40).
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toHaveAttribute("aria-pressed");
+    }
+    expect(screen.queryByRole("button", { name: /^(Edit|Remove|Add|Save)/ })).toBeNull();
     expect(screen.queryByRole("form")).toBeNull();
   });
 
@@ -97,8 +119,8 @@ describe("air-quality app", () => {
 
     const form = screen.getByRole("form", { name: "Edit Kallio" });
     expect(form).toHaveTextContent("PM10, PM2.5 and the index are measured by the station and cannot be edited.");
-    expect(screen.queryByLabelText(/PM10/)).toBeNull();
     const inside = within(form);
+    expect(inside.queryByLabelText(/PM10/)).toBeNull();
     await user.clear(inside.getByLabelText("Name in English"));
     await user.type(inside.getByLabelText("Name in English"), "Kallio station");
     await user.type(inside.getByLabelText("Steward note"), "Sensor cleaned.");

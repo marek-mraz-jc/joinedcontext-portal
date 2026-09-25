@@ -67,3 +67,5 @@ export const updateStation = (id: string, fields: StationFields): Promise<void> 
   call<void>(station(id), { method: "PATCH", body: JSON.stringify(fields) });
 export const deleteStation = (id: string): Promise<void> =>
   call<void>(station(id), { method: "DELETE" });
+/** One day of the station's PM10 and PM2.5, the temporal entity as the endpoint answered it. */
+export const getHistory = (id: string): Promise<unknown> => call<unknown>(`${station(id)}/history`);

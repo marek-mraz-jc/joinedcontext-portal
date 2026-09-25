@@ -9,12 +9,21 @@
 //!
 //! The leader holds one connection of the pool for as long as it leads. That is the price of
 //! a session-scoped lock; the pool is sized for it.
+//!
+//! A dead client does not always close its session: a pod killed behind its Linkerd proxy
+//! sends no FIN, and PostgreSQL would keep the session, and the lock, until TCP keepalive
+//! gives up about two hours later. So the lock session carries a lease the server enforces by
+//! itself, `idle_session_timeout`, and the leader keeps it busy with a heartbeat. A leader
+//! that stops beating loses the lock one [`LEASE`] later, whatever the network did.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 use sqlx::pool::PoolConnection;
-use sqlx::{PgPool, Postgres};
+use sqlx::{Connection, PgPool, Postgres};
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 /// The advisory lock the reconciler competes for.
 ///
@@ -23,24 +32,41 @@ use tokio::sync::Mutex;
 /// readable in `pg_locks` when an operator asks who holds it.
 pub const RECONCILER_LOCK_KEY: i64 = 0x6a63_5f72_6563_6f6e;
 
+/// How long the server keeps the lock of a leader that went silent. The heartbeat beats three
+/// times per lease, so one slow beat does not cost a live leader its lock.
+pub const LEASE: Duration = Duration::from_secs(60);
+
+type Held = Arc<Mutex<Option<PoolConnection<Postgres>>>>;
+
 /// One replica's claim on the reconciler role.
 pub struct Leadership {
     pool: PgPool,
     key: i64,
     /// The connection holding the lock. `None` means this replica is a follower.
-    held: Mutex<Option<PoolConnection<Postgres>>>,
+    held: Held,
     /// The same fact, readable without awaiting, for status answers.
-    leader: AtomicBool,
+    leader: Arc<AtomicBool>,
+    /// The server-side lease on the lock session.
+    lease: Duration,
+    /// The task keeping the lock session busy while this replica leads.
+    heartbeat: std::sync::Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Leadership {
     /// A claim on `key` in the database behind `pool`.
     pub fn new(pool: PgPool, key: i64) -> Self {
+        Self::with_lease(pool, key, LEASE)
+    }
+
+    /// A claim whose lock the server drops `lease` after the leader last spoke.
+    pub fn with_lease(pool: PgPool, key: i64, lease: Duration) -> Self {
         Self {
             pool,
             key,
-            held: Mutex::new(None),
-            leader: AtomicBool::new(false),
+            held: Arc::new(Mutex::new(None)),
+            leader: Arc::new(AtomicBool::new(false)),
+            lease,
+            heartbeat: std::sync::Mutex::new(None),
         }
     }
 
@@ -68,7 +94,9 @@ impl Leadership {
                 Ok(_) => return Ok(true),
                 Err(err) => {
                     tracing::warn!(error = %err, "the connection holding the reconciler lock died");
-                    *held = None;
+                    if let Some(connection) = held.take() {
+                        close(connection).await;
+                    }
                     self.leader.store(false, Ordering::Relaxed);
                 }
             }
@@ -81,30 +109,94 @@ impl Leadership {
             .await?;
 
         if won {
+            // The lease is set only on a session that holds the lock, and that session never
+            // goes back to the pool (see `close`), so no other query inherits the timeout.
+            let lease = format!("{}ms", self.lease.as_millis());
+            if let Err(err) = sqlx::query("SELECT set_config('idle_session_timeout', $1, false)")
+                .bind(&lease)
+                .execute(&mut *connection)
+                .await
+            {
+                tracing::warn!(error = %err, "the reconciler lock needs PostgreSQL 14 or later for its lease (idle_session_timeout); not leading");
+                close(connection).await;
+                self.leader.store(false, Ordering::Relaxed);
+                return Err(err);
+            }
             *held = Some(connection);
+            self.start_heartbeat();
         }
         self.leader.store(won, Ordering::Relaxed);
         Ok(won)
     }
 
+    /// Keeps the lock session busy, so the server's lease never ends it while this replica
+    /// lives; a beat that fails demotes this replica at once instead of at the next reconcile.
+    fn start_heartbeat(&self) {
+        let (held, leader) = (Arc::clone(&self.held), Arc::clone(&self.leader));
+        let period = self.lease / 3;
+        let task = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(period).await;
+                let mut guard = held.lock().await;
+                let Some(connection) = guard.as_mut() else {
+                    return;
+                };
+                if let Err(err) = sqlx::query("SELECT 1").execute(&mut **connection).await {
+                    tracing::warn!(error = %err, "the reconciler lock's heartbeat failed; this replica stops leading");
+                    if let Some(connection) = guard.take() {
+                        close(connection).await;
+                    }
+                    leader.store(false, Ordering::Relaxed);
+                    return;
+                }
+            }
+        });
+        if let Some(previous) = self
+            .heartbeat
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .replace(task)
+        {
+            previous.abort();
+        }
+    }
+
+    fn stop_heartbeat(&self) {
+        if let Some(task) = self
+            .heartbeat
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take()
+        {
+            task.abort();
+        }
+    }
+
     /// Gives the lock up, so another replica can take it without waiting for this one to die.
     ///
-    /// Unlocking before the connection goes back to the pool is not optional: an advisory
-    /// lock belongs to the session, and a pooled session handed to the next caller would
-    /// still be holding it.
+    /// The session ends with it: an advisory lock belongs to the session, and a pooled session
+    /// handed to the next caller would still hold the lock and carry the lease.
     pub async fn resign(&self) {
+        self.stop_heartbeat();
         let mut held = self.held.lock().await;
         self.leader.store(false, Ordering::Relaxed);
-        if let Some(mut connection) = held.take() {
-            if let Err(err) = sqlx::query("SELECT pg_advisory_unlock($1)")
-                .bind(self.key)
-                .execute(&mut *connection)
-                .await
-            {
-                // The connection is dropped either way, and dropping it releases the lock.
-                tracing::warn!(error = %err, "could not release the reconciler lock explicitly");
-            }
+        if let Some(connection) = held.take() {
+            close(connection).await;
         }
+    }
+}
+
+impl Drop for Leadership {
+    fn drop(&mut self) {
+        self.stop_heartbeat();
+    }
+}
+
+/// Ends a lock session instead of pooling it; ending the session releases the lock.
+async fn close(connection: PoolConnection<Postgres>) {
+    if let Err(err) = connection.detach().close().await {
+        // The socket is gone either way; the server ends the session when it notices.
+        tracing::warn!(error = %err, "the reconciler lock session did not close cleanly");
     }
 }
 
@@ -125,5 +217,104 @@ mod tests {
     fn the_lock_key_is_a_readable_constant() {
         // ASCII, so the key stays positive and readable where `pg_locks` shows it.
         assert_eq!(RECONCILER_LOCK_KEY.to_be_bytes(), *b"jc_recon");
+    }
+
+    fn database_url() -> Option<String> {
+        std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+    }
+
+    /// A key of this test alone, so parallel tests on one database never share a lock.
+    fn private_key(n: i64) -> i64 {
+        0x6a63_7465_7374_0000 + n
+    }
+
+    const SHORT: Duration = Duration::from_millis(1200);
+
+    /// A leader that goes silent without closing its session, like a pod killed behind its
+    /// proxy, must not keep the lock: the next replica leads once the lease is over.
+    #[tokio::test]
+    async fn a_silent_leader_loses_the_lock_after_its_lease() {
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = crate::db::connect(&url).await.expect("connect and migrate");
+        let key = private_key(1);
+        let silent = Leadership::with_lease(pool.clone(), key, SHORT);
+        let next = Leadership::with_lease(pool.clone(), key, SHORT);
+
+        assert!(silent.acquire().await.expect("first election"));
+        assert!(!next.acquire().await.expect("second election"));
+
+        // The process freezes: no heartbeat, no FIN, the session stays open on the server.
+        silent.stop_heartbeat();
+        tokio::time::sleep(SHORT * 2).await;
+
+        assert!(
+            next.acquire().await.expect("election after the lease"),
+            "the lock of a silent leader must be free one lease later"
+        );
+        next.resign().await;
+    }
+
+    /// A live leader keeps the lock across many leases without reconciling in between.
+    #[tokio::test]
+    async fn a_beating_leader_keeps_the_lock_past_its_lease() {
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = crate::db::connect(&url).await.expect("connect and migrate");
+        let key = private_key(2);
+        let leader = Leadership::with_lease(pool.clone(), key, SHORT);
+        let other = Leadership::with_lease(pool.clone(), key, SHORT);
+
+        assert!(leader.acquire().await.expect("election"));
+        tokio::time::sleep(SHORT * 3).await;
+
+        assert!(leader.is_leader());
+        assert!(
+            !other.acquire().await.expect("second election"),
+            "the heartbeat must keep a live leader's lock"
+        );
+        assert!(leader.acquire().await.expect("re-election"));
+
+        leader.resign().await;
+        assert!(
+            other.acquire().await.expect("election after resignation"),
+            "resigning frees the lock at once"
+        );
+        other.resign().await;
+    }
+
+    /// The lease never leaks into the pool: after a resignation the pool's sessions carry the
+    /// server's default idle_session_timeout.
+    #[tokio::test]
+    async fn a_resigned_lock_session_is_not_pooled_with_its_lease() {
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = crate::db::connect(&url).await.expect("connect and migrate");
+        let leader = Leadership::with_lease(pool.clone(), private_key(3), SHORT);
+        assert!(leader.acquire().await.expect("election"));
+        leader.resign().await;
+
+        let mut sessions = Vec::new();
+        for _ in 0..pool.size().max(1) {
+            sessions.push(pool.acquire().await.expect("pooled session"));
+        }
+        for session in &mut sessions {
+            let timeout: String = sqlx::query_scalar("SHOW idle_session_timeout")
+                .fetch_one(&mut **session)
+                .await
+                .expect("show");
+            assert_eq!(
+                timeout, "0",
+                "a pooled session must not carry the lock's lease"
+            );
+        }
     }
 }

@@ -4,7 +4,8 @@ import { toRichRow } from "@joinedcontext/sdk";
 import bikes from "./fixtures/bikes.json";
 import parking from "./fixtures/parking.json";
 import air from "./fixtures/air.json";
-import { bikeTotals, matching, nameOf, toAirStation, toBikeStation, toCarPark } from "./praha";
+import { between, bikeHistogram, bikePoints, bikeTotals, legendOf, matching, nameOf, stepLabels, toAirStation, toBikeStation, toCarPark } from "./praha";
+import type { BikeStation } from "./praha";
 
 const rows = (entities: unknown[]) => entities.map((entity) => toRichRow(entity as Record<string, unknown>, "cs"));
 
@@ -61,5 +62,44 @@ describe("names and search", () => {
     const stations = rows(bikes).map((row) => toBikeStation(row, "cs")).filter((s) => s !== null);
     expect(matching(stations, "vrsovicke", "cs-CZ").map((s) => s.name)).toEqual(["P10-Vršovické náměstí - REST. WAIKIKI"]);
     expect(matching(stations, "", "cs-CZ").map((s) => s.name)[0]).toBe("P10-Čechovo náměstí");
+  });
+});
+
+describe("the map and the histogram", () => {
+  const station = (bikes: number | null, working = true): BikeStation => ({
+    id: `s-${bikes}-${working}`,
+    name: "s",
+    bikes,
+    docks: 1,
+    working,
+    at: [14.4, 50.1],
+  });
+
+  it("counts stations in service into the steps and leaves out one that lends nothing or reports nothing", () => {
+    const stations = [station(0), station(2), station(3), station(10), station(11), station(40), station(5, false), station(null)];
+    expect(bikeHistogram(stations)).toEqual([1, 1, 1, 1, 2]);
+    expect(stepLabels([0, 1, 3, 6, 11])).toEqual(["0", "1–2", "3–5", "6–10", "11+"]);
+  });
+
+  it("puts on the map only the stations in service that have a point and a count", () => {
+    const points = bikePoints([station(4), station(4, false), station(null), { ...station(2), at: undefined }]);
+    expect(points).toEqual([{ id: "s-4-true", at: [14.4, 50.1], value: 4 }]);
+  });
+
+  it("reads a point location and refuses one outside the WGS84 range", () => {
+    const [inside, outside] = rows([
+      { ...bikes[0], location: { type: "GeoProperty", value: { type: "Point", coordinates: [14.42, 50.08] } } },
+      { ...bikes[0], location: { type: "GeoProperty", value: { type: "Point", coordinates: [514.42, 50.08] } } },
+    ]).map((row) => toBikeStation(row, "cs"));
+    expect(inside?.at).toEqual([14.42, 50.08]);
+    expect(outside?.at).toBeUndefined();
+  });
+
+  it("runs the legend from the low colour to the high one", () => {
+    const legend = legendOf([0, 1, 3], "#000000", "#ff8800");
+    expect(legend.map((step) => step.colour)).toEqual(["#000000", "#804400", "#ff8800"]);
+    expect(legend.map((step) => step.label)).toEqual(["0", "1–2", "3+"]);
+    // A token that is not a hex colour draws the high end rather than a broken one.
+    expect(between("rebeccapurple", "#ff8800", 0.5)).toBe("#ff8800");
   });
 });

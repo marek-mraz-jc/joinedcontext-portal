@@ -4,11 +4,33 @@ import type { FilterDef } from "@joinedcontext/sdk";
 import { EntityDetail } from "../components/EntityDetail";
 import { EntityMap } from "../components/EntityMap";
 import { EntityTable } from "../components/EntityTable";
+import type { ColumnDef } from "../components/EntityTable";
 import { FilterBar, SearchBox } from "../components/filters";
 import { STATION, hasBikes } from "../stations";
 
 const SEARCH: FilterDef[] = [{ kind: "search", attrs: ["name"], label: "Station" }];
 const COLUMNS = ["name", "availableBikeNumber", "freeSlotNumber", "totalSlotNumber", "status", "dateModified"];
+
+/** The table's columns in words, the status as a coloured chip (T-2924). */
+export const TABLE: ColumnDef[] = [
+  { attr: "name", label: "Station" },
+  { attr: "availableBikeNumber", label: "Bikes" },
+  { attr: "freeSlotNumber", label: "Free slots" },
+  { attr: "totalSlotNumber", label: "Capacity" },
+  {
+    attr: "status",
+    label: "Status",
+    render: (row) => {
+      const status = typeof row.status === "string" && row.status !== "" ? row.status : "unknown";
+      return (
+        <span className="app-chip" data-status={status}>
+          {status === "working" ? "Working" : status === "unknown" ? "Unknown" : status}
+        </span>
+      );
+    },
+  },
+  { attr: "dateModified", label: "Updated" },
+];
 
 /**
  * Every station: a search by name, "only stations with bikes", the map coloured by bikes with the
@@ -57,7 +79,7 @@ export function Stations() {
       </Split>
       <EntityTable
         rows={shown}
-        columns={COLUMNS}
+        columns={TABLE}
         loading={loading}
         error={error}
         selected={selectedId}
