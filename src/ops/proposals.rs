@@ -84,7 +84,7 @@ fn endpoint_propose_input_schema() -> Value {
             "entityTypes": texts("The entity types it serves", TERM),
             "rateLimits": {
                 "type": "object",
-                "description": "How many requests a caller may make",
+                "description": "Only when the person asks for a limit; leave it out otherwise, an endpoint has no limit by default",
                 "properties": {
                     "requestsPerMinute": {
                         "type": "integer",

@@ -487,6 +487,7 @@
       }
     },
     "rateClass": {
+      "none": "No limit",
       "strict": "Strict",
       "standard": "Standard",
       "open": "Open",
@@ -714,7 +715,39 @@
         "order": "West is left of east and south is below north."
       }
     },
-    "ofApp": "The endpoint of the app {app}"
+    "ofApp": "The endpoint of the app {app}",
+    "filterEditor": {
+      "label": "Filter of this endpoint",
+      "types": "Entity types it serves",
+      "noType": "Keep at least one type: an endpoint that serves no type serves nothing.",
+      "hidden": "Hidden attributes",
+      "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
+      "identityOnly": "Identity only: id and type.",
+      "createsProjection": "This endpoint names no projection yet. A filter you propose creates the projection {name} from the space's model, together with the endpoint that names it."
+    },
+    "proof": {
+      "title": "What this filter serves",
+      "type": "Type",
+      "served": "Served by this endpoint",
+      "original": "Original in the space",
+      "sides": "Side of the proof",
+      "caption": "{type}: what the endpoint serves beside what the space holds, one row per entity",
+      "summary": "Serving {served} of {total} {type} · hidden attributes: {hidden}",
+      "summaryServedOnly": "Serving {served} {type}",
+      "loading": "Reading what the filter serves...",
+      "originalUnreadable": "You cannot read the space itself, so the proof shows what the endpoint serves today and not your draft.",
+      "notServed": "not served",
+      "notServedMark": "Not served: the filter drops this entity.",
+      "hiddenMark": "not served",
+      "empty": "No entities on this page.",
+      "refused": "The draft filter is refused: {reason}",
+      "failed": "What the filter serves could not be read: {reason}",
+      "notLive": "The proof reads through the endpoint, so it appears once the endpoint is Live.",
+      "noType": "The proof needs at least one type the endpoint serves.",
+      "previous": "Previous page",
+      "next": "Next page",
+      "window": "Entities {from} to {to} of {total}"
+    }
   },
   "datasources": {
     "title": "Data sources",
@@ -1858,10 +1891,13 @@
         "building": "Building",
         "needsYou": "Needs you",
         "failed": "Failed",
-        "readyToPublish": "Ready to publish"
+        "readyToPublish": "Ready to publish",
+        "waitingApproval": "Waiting for approval"
       },
       "open": "Open",
-      "conflict": "{name} is already being built. Open it instead."
+      "conflict": "{name} is already being built. Open it instead.",
+      "waiting": "{count, plural, one {One application waits for its change to be approved.} other {# applications wait for their changes to be approved.}} The run keeps its preview while it waits.",
+      "openApprovals": "Open approvals"
     },
     "kpi": {
       "badge": "KPI"
@@ -2222,6 +2258,9 @@
     "review": "Review the changes",
     "apply": "Apply",
     "discard": "Discard the changes",
+    "attribute": "Attribute",
+    "before": "Before",
+    "after": "After",
     "observedKeep": "keep when each value was observed",
     "observedNow": "these values were observed now",
     "applying": "Applying…",
@@ -2349,7 +2388,10 @@
       "stop": "Stop the run",
       "retry": "Ask again",
       "newConversation": "New conversation",
-      "sendFailed": "The message was not sent: {reason}. What you typed is still here."
+      "sendFailed": "The message was not sent: {reason}. What you typed is still here.",
+      "tryAgain": "Try again",
+      "unanswered": "Your last message was not answered. Nothing was changed.",
+      "endedBecause": "Why: {reason}."
     },
     "line": {
       "status": "Now {status}.",

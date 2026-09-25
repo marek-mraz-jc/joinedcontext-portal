@@ -26,6 +26,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::groups::{MANAGED_BY, MANAGED_VALUE};
+use crate::resource::ResourceEnvelope;
 use crate::store::Mirror;
 
 /// The client attribute naming the App a managed client belongs to, `{project}/{name}`.
@@ -98,6 +99,8 @@ pub struct ClientRun {
 struct PublishedApp {
     project: String,
     name: String,
+    /// What the login page calls the App (PF-90): [`title_of`].
+    title: String,
     /// `None` when the manifest does not parse: the client is still kept, its roles are not.
     spec: Option<AppSpec>,
 }
@@ -113,6 +116,7 @@ fn published(mirror: &Mirror) -> Vec<PublishedApp> {
         .into_iter()
         .map(|envelope| PublishedApp {
             project: envelope.metadata.namespace.clone().unwrap_or_default(),
+            title: title_of(&envelope),
             name: envelope.metadata.name,
             spec: serde_json::from_value(envelope.spec).ok(),
         })
@@ -122,13 +126,25 @@ fn published(mirror: &Mirror) -> Vec<PublishedApp> {
     apps
 }
 
+/// The App's title as a person reads it on the login page, "Sign in to {title} · {organization}"
+/// (PF-90): the English title of the legacy map, the plain one, or the App's name when it has
+/// none. The realm's default language is English, and a client has one name.
+pub fn title_of(app: &ResourceEnvelope) -> String {
+    app.metadata
+        .title
+        .as_ref()
+        .map(|title| title.resolve(&["en".to_owned()], "").trim().to_owned())
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| app.metadata.name.clone())
+}
+
 /// The client an App should have, as Keycloak's representation (AP-111). `host` is the apex
-/// the apps are served on, `city.example.com`.
-pub fn desired(project: &str, app: &str, host: &str) -> Value {
+/// the apps are served on, `city.example.com`; `title` is [`title_of`] the App.
+pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
     let base = format!("https://{host}/apps/{app}/");
     json!({
         "clientId": client_id(app),
-        "name": format!("{project}/{app}"),
+        "name": title,
         "protocol": "openid-connect",
         "enabled": true,
         "publicClient": false,
@@ -798,7 +814,7 @@ impl AppClientSync {
     ) -> (ClientOutcome, Option<ClientSecret>) {
         let mut outcome = ClientOutcome::of(&app.name);
         let id = client_id(&app.name);
-        let want = desired(&app.project, &app.name, &self.host);
+        let want = desired(&app.project, &app.name, &app.title, &self.host);
 
         let held = match self.find(token, &id).await {
             Ok(held) => held,
@@ -893,6 +909,33 @@ impl AppClientSync {
 mod tests {
     use super::*;
 
+    /// PF-90: the login page reads "Sign in to {client name} · {organization}", so the client is
+    /// named after the App's title, and an App without one after its name, never `project/app`.
+    #[test]
+    fn the_client_is_named_after_the_apps_title() {
+        let titled = envelope_of(json!({ "name": "air-quality", "namespace": "helsinki",
+            "title": { "fi": "Ilmanlaatu", "en": "Air quality" } }));
+        assert_eq!(title_of(&titled), "Air quality");
+        let plain =
+            envelope_of(json!({ "name": "bikes", "namespace": "helsinki", "title": "City bikes" }));
+        assert_eq!(title_of(&plain), "City bikes");
+        let blank = envelope_of(json!({ "name": "bikes", "namespace": "helsinki", "title": "  " }));
+        assert_eq!(title_of(&blank), "bikes");
+        let untitled = envelope_of(json!({ "name": "bikes", "namespace": "helsinki" }));
+        assert_eq!(title_of(&untitled), "bikes");
+        assert_eq!(
+            desired("helsinki", "bikes", "City bikes", "city.example")["name"],
+            "City bikes"
+        );
+    }
+
+    fn envelope_of(metadata: Value) -> ResourceEnvelope {
+        serde_json::from_value(json!({
+            "apiVersion": "joinedcontext.com/v1alpha1", "kind": "App", "metadata": metadata, "spec": {},
+        }))
+        .expect("an envelope")
+    }
+
     #[test]
     fn a_secret_never_shows_in_debug() {
         let secret = ClientSecret("hunter2-value".to_owned());
@@ -902,7 +945,7 @@ mod tests {
 
     #[test]
     fn the_client_redirects_only_under_its_own_path_and_has_no_other_flow() {
-        let want = desired("helsinki", "bikes", "city.example");
+        let want = desired("helsinki", "bikes", "Bikes", "city.example");
         assert_eq!(want["clientId"], "app-bikes");
         assert_eq!(
             want["redirectUris"],
@@ -919,7 +962,7 @@ mod tests {
 
     #[test]
     fn drift_names_only_the_fields_the_app_sets() {
-        let want = desired("helsinki", "bikes", "city.example");
+        let want = desired("helsinki", "bikes", "Bikes", "city.example");
         let mut held = want.clone();
         held["id"] = json!("uuid-1");
         held["surrogateAuthRequired"] = json!(false);
