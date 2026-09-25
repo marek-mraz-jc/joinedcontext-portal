@@ -331,7 +331,10 @@ function StationDetail({
         id={station.id}
         attr="pm10"
         unit={s.unit}
-        labels={{ ...s.history, title: `${s.historyOf} ${s.pm10}` }}
+        heading={`${s.historyOf} ${s.pm10}`}
+        locale={s.locale}
+        fractionDigits={1}
+        labels={s.history}
         now={() => now}
       />
     </section>

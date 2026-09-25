@@ -8,9 +8,15 @@
  * year of a stream, and the panel says when the window was cut rather than showing a short series
  * as if it were the whole one.
  *
- * `ponytail: SVG polyline, a chart library when more than one series is wanted.`
+ * A numeric series is drawn as a line in the first colour of the design tokens' chart palette,
+ * over a time axis in the page's local time and a value axis naming the unit, each point giving
+ * its time and value on hover (T-2991). The table below carries every value for a screen reader.
+ *
+ * `ponytail: one series in SVG, no chart library in the SDK core: echarts/recharts would ship in
+ * every App's grid bundle. Several series in one panel is when a library earns its place.`
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { currentTokens } from "../sdk/tokens";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "./source";
 // Its rules live beside the grid's: an application may show the history without the grid.
 import "./grid.css";
@@ -84,30 +90,136 @@ export function asCsv(points: HistoryPoint[], attr: string): string {
   return [`observedAt,${cell(attr)}`, ...points.map((point) => `${cell(point.at)},${cell(point.value)}`)].join("\n");
 }
 
+/** The numeric points of a series in time order, or `null` when fewer than two can be drawn. */
+export function numericSeries(points: HistoryPoint[]): { at: number; value: number }[] | null {
+  const numbers = points
+    .filter((point) => typeof point.value === "number" || (typeof point.value === "string" && point.value.trim() !== ""))
+    .map((point) => ({ at: Date.parse(point.at), value: Number(point.value) }))
+    .filter((point) => Number.isFinite(point.at) && Number.isFinite(point.value))
+    .sort((a, b) => a.at - b.at);
+  return numbers.length < 2 ? null : numbers;
+}
+
 /** The polyline of a numeric series in a 0…100 box, or `null` when there is nothing to draw. */
 export function polyline(points: HistoryPoint[]): string | null {
-  const numbers = points
-    .map((point) => ({ at: Date.parse(point.at), value: Number(point.value) }))
-    .filter((point) => Number.isFinite(point.at) && Number.isFinite(point.value));
-  if (numbers.length < 2) {
+  const numbers = numericSeries(points);
+  if (!numbers) {
     return null;
   }
+  const { x, y } = scales(numbers, { left: 0, right: 100, top: 0, bottom: 100 });
+  return numbers.map((point) => `${x(point.at).toFixed(2)},${y(point.value).toFixed(2)}`).join(" ");
+}
+
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** The two axes of a series in a box; SVG's y grows downward, so the largest value is at the top. */
+function scales(numbers: { at: number; value: number }[], box: Box) {
   const times = numbers.map((point) => point.at);
   const values = numbers.map((point) => point.value);
-  const minAt = Math.min(...times);
-  const maxAt = Math.max(...times);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
+  const [minAt, maxAt] = [Math.min(...times), Math.max(...times)];
+  const [low, high] = [Math.min(...values), Math.max(...values)];
   const spanAt = maxAt - minAt || 1;
-  const spanValue = maxValue - minValue || 1;
-  return numbers
-    .map((point) => {
-      const x = ((point.at - minAt) / spanAt) * 100;
-      // SVG's y grows downward, so the largest value sits at the top where a person expects it.
-      const y = 100 - ((point.value - minValue) / spanValue) * 100;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
+  const spanValue = high - low || 1;
+  return {
+    x: (at: number) => box.left + ((at - minAt) / spanAt) * (box.right - box.left),
+    y: (value: number) => box.bottom - ((value - low) / spanValue) * (box.bottom - box.top),
+    minAt,
+    maxAt,
+    low,
+    high,
+  };
+}
+
+/** The page's language: what the times and numbers are written in unless the App says. */
+function pageLocale(): string | undefined {
+  return (typeof document !== "undefined" && document.documentElement.lang) || undefined;
+}
+
+const H = 220;
+
+/** The width the chart is drawn at, in CSS pixels, so its labels stay the size the page's text
+ *  is at any width rather than shrinking with a scaled drawing; 600 until it is measured. */
+function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(600);
+  useEffect(() => {
+    const box = ref.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const measured = Math.round(entry.contentRect.width);
+      if (measured > 0) setWidth(Math.max(measured, 240));
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width];
+}
+
+/** One numeric series: a line in the palette's first colour on a time and a value axis. */
+function Chart({
+  numbers,
+  label,
+  unit,
+  time,
+  number,
+}: {
+  numbers: { at: number; value: number }[];
+  label: string;
+  unit?: string;
+  time: (at: number) => string;
+  number: (value: number) => string;
+}) {
+  const [ref, W] = useWidth();
+  const PLOT: Box = { left: 56, right: W - 16, top: 24, bottom: H - 32 };
+  const colour = currentTokens().chart.palette[0];
+  const { x, y, minAt, maxAt, low, high } = scales(numbers, PLOT);
+  // A time label needs about 80 px: five on a laptop, three on a phone.
+  const count = W < 420 ? 2 : 4;
+  const ticks = [...new Set(Array.from({ length: count + 1 }, (_, i) => minAt + ((maxAt - minAt) * i) / count))];
+  const levels = low === high ? [low] : [low, (low + high) / 2, high];
+  const line = numbers.map((point) => `${x(point.at).toFixed(1)},${y(point.value).toFixed(1)}`).join(" ");
+  return (
+    <div ref={ref} className="jc-grid-history-plot">
+      <svg className="jc-grid-history-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+        {unit && (
+          <text className="jc-grid-history-unit" x={PLOT.left} y={PLOT.top - 10}>
+            {unit}
+          </text>
+        )}
+        {levels.map((level) => (
+          <g key={level}>
+            <line className="jc-grid-history-grid" x1={PLOT.left} x2={PLOT.right} y1={y(level)} y2={y(level)} />
+            <text className="jc-grid-history-tick" x={PLOT.left - 6} y={y(level) + 4} textAnchor="end">
+              {number(level)}
+            </text>
+          </g>
+        ))}
+        <line className="jc-grid-history-axis" x1={PLOT.left} x2={PLOT.right} y1={PLOT.bottom} y2={PLOT.bottom} />
+        {ticks.map((at, i) => (
+          <text
+            key={at}
+            className="jc-grid-history-tick"
+            x={x(at)}
+            y={H - 10}
+            textAnchor={i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle"}
+          >
+            {time(at)}
+          </text>
+        ))}
+        <polyline points={line} fill="none" stroke={colour} strokeWidth="2" strokeLinejoin="round" />
+        {numbers.map((point) => (
+          <circle key={point.at} cx={x(point.at)} cy={y(point.value)} r="3.5" fill={colour}>
+            <title>{`${time(point.at)}: ${number(point.value)}${unit ? ` ${unit}` : ""}`}</title>
+          </circle>
+        ))}
+      </svg>
+    </div>
+  );
 }
 
 export interface EntityHistoryProps {
@@ -116,6 +228,13 @@ export interface EntityHistoryProps {
   attr: string;
   /** What the value is measured in, as the cell showed it. */
   unit?: string;
+  /** The panel's heading, in the App's words; the default is the title and the attribute. The
+   *  entity's id is never shown: it is what a person cannot read (T-2991). */
+  heading?: string;
+  /** The language times and numbers are written in; the page's own by default. */
+  locale?: string;
+  /** The most decimals a value is written with: the attribute's own precision. */
+  fractionDigits?: number;
   maxPoints?: number;
   labels?: Partial<HistoryLabels>;
   onClose?: () => void;
@@ -157,14 +276,32 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
     void read();
   }, [read]);
 
-  const line = points ? polyline(points) : null;
+  const locale = props.locale ?? pageLocale();
+  const digits = props.fractionDigits ?? 2;
+  const { time, stamp, number } = useMemo(() => {
+    const numbers = new Intl.NumberFormat(locale, { maximumFractionDigits: digits });
+    const clock = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
+    const full = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
+    return {
+      time: (at: number) => clock.format(at),
+      stamp: (at: string) => {
+        const parsed = Date.parse(at);
+        return Number.isFinite(parsed) ? full.format(parsed) : at;
+      },
+      number: (value: number) => numbers.format(value),
+    };
+  }, [locale, digits]);
+  const heading = props.heading ?? `${labels.title}: ${attr}`;
+  const series = points ? numericSeries(points) : null;
+  const shown = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    return typeof value === "number" ? number(value) : String(value);
+  };
 
   return (
-    <section className="jc-grid-history" aria-label={`${labels.title} ${attr}`}>
+    <section className="jc-grid-history" aria-label={heading}>
       <header>
-        {/* The entity as well as the attribute: the panel is opened from a column, so which row
-            it is about has to be readable in it. */}
-        <h3>{`${labels.title}: ${attr} — ${id}`}</h3>
+        <h3>{heading}</h3>
         {onClose && (
           <button type="button" onClick={onClose}>
             {labels.close}
@@ -214,11 +351,7 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
       {points !== null && points.length > 0 && (
         <>
           {points.length >= maxPoints && <p className="jc-grid-history-cut">{labels.cut}</p>}
-          {line && (
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${labels.title} ${attr}`}>
-              <polyline points={line} fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-            </svg>
-          )}
+          {series && <Chart numbers={series} label={heading} unit={unit} time={time} number={number} />}
           <table>
             <thead>
               <tr>
@@ -230,8 +363,10 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
             <tbody>
               {points.map((point, index) => (
                 <tr key={`${point.at}-${index}`}>
-                  <td>{point.at}</td>
-                  <td>{point.value === null || point.value === undefined ? "" : String(point.value)}</td>
+                  <td>
+                    <time dateTime={point.at}>{stamp(point.at)}</time>
+                  </td>
+                  <td>{shown(point.value)}</td>
                   {unit && <td>{unit}</td>}
                 </tr>
               ))}
