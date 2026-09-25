@@ -27,6 +27,7 @@ const TEXT_CHARS: usize = 500;
 /// What became of one record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[schema(as = PipelineOutcome)]
 pub enum Outcome {
     /// The gateway took the batch it was in.
     Sent,
@@ -66,6 +67,7 @@ pub struct NewLine {
 /// One line of a run's log.
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = PipelineLogLine)]
 pub struct LogLine {
     /// Its place in the log; the `before` of the next page.
     pub id: i64,
@@ -86,6 +88,7 @@ pub struct LogLine {
 /// One run with its counts.
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = PipelineRun)]
 pub struct Run {
     /// Its name: the tick's time, or the UTC hour of a source that never ends.
     pub run: String,

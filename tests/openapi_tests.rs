@@ -514,3 +514,28 @@ fn every_request_body_has_an_example_that_validates_against_its_schema() {
         wrong.join("\n")
     );
 }
+
+/// utoipa keeps one schema per name and drops the other without a word: a pipeline's `Run` once
+/// replaced an agent run's in the spec, and the UI typed a pipeline's runs as agent runs (T-2710).
+#[test]
+fn a_pipelines_runs_and_an_agents_runs_keep_their_own_schemas() {
+    let doc: serde_json::Value = serde_json::from_str(&rendered()).expect("json");
+    let answer = |path: &str| {
+        doc["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+            ["$ref"]
+            .as_str()
+            .map(str::to_owned)
+    };
+    assert_eq!(
+        answer("/api/v1/projects/{project}/pipelines/{name}/runs").as_deref(),
+        Some("#/components/schemas/PipelineRunList")
+    );
+    assert_eq!(
+        answer("/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log").as_deref(),
+        Some("#/components/schemas/PipelineLogPage")
+    );
+    let schemas = &doc["components"]["schemas"];
+    assert!(schemas["RunList"]["properties"]["items"].is_object());
+    assert!(schemas["PipelineRun"]["properties"]["rejected"].is_object());
+    assert!(schemas["Run"]["properties"].get("rejected").is_none());
+}
