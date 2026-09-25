@@ -2,11 +2,12 @@ import { useCreateForm } from "../components/forms/FormRoute";
 import { useState } from "react";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
+import { spaceUsageQuery, usageRefusal } from "../api/spaceUsage";
 import { asManifests, isChange, localized, refName, rewritten, storedMetadata } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
@@ -142,6 +143,30 @@ function SpaceRowActions({
   );
 }
 
+/** A space's entity count, the reason when there is none, or that it is on its way. */
+function EntityCount({
+  usage,
+  numbers,
+}: {
+  usage: { data?: { entities: number }; error: unknown; isPending: boolean } | undefined;
+  numbers: Intl.NumberFormat;
+}): JSX.Element {
+  const { t } = useTranslation();
+  if (usage?.data !== undefined) {
+    return <span data-testid="space-entities">{numbers.format(usage.data.entities)}</span>;
+  }
+  if (usage === undefined || usage.isPending) {
+    return <span className="text-fg-subtle">{t("app.loading")}</span>;
+  }
+  const reason = t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) });
+  return (
+    <span className="text-fg-subtle" title={reason}>
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{reason}</span>
+    </span>
+  );
+}
+
 export function SpacesPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -171,6 +196,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
   const [form, setForm] = useState<SpaceForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [bySize, setBySize] = useState(false);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "spaces"),
@@ -227,12 +253,32 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
       <TableHeaderCell secondary>{t("spaces.field.dataModel")}</TableHeaderCell>
       <TableHeaderCell>{t("spaces.field.phase")}</TableHeaderCell>
+      <TableHeaderCell align="right" aria-sort={bySize ? "descending" : "none"}>
+        {/* The biggest space is one click away (T-2889); a second click puts the list back. */}
+        <Button size="sm" variant="ghost" aria-pressed={bySize} onClick={() => setBySize(!bySize)}>
+          {t("spaces.field.entities")}
+          <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
+        </Button>
+      </TableHeaderCell>
       <TableHeaderCell align="right">{t("spaces.field.inside")}</TableHeaderCell>
       <TableHeaderCell align="right" secondary>{t("spaces.field.source")}</TableHeaderCell>
     </TableHead>
   );
 
-  const spaces = asManifests(list.data?.items ?? []);
+  const listed = asManifests(list.data?.items ?? []);
+  const usages = useQueries({
+    queries: listed.map((space) => spaceUsageQuery(project, space.metadata.name)),
+  });
+  const entitiesOf = (index: number) => usages[index]?.data?.entities;
+  // Sorted by size, a space whose count is not known yet goes last rather than first.
+  const spaces = bySize
+    ? listed
+        .map((space, index) => ({ space, index, entities: entitiesOf(index) ?? -1 }))
+        .sort((a, b) => b.entities - a.entities)
+        .map(({ space }) => space)
+    : listed;
+  const usageOf = (name: string) => usages[listed.findIndex((space) => space.metadata.name === name)];
+  const numbers = new Intl.NumberFormat(locale);
   // The API counts what the project holds and knows which quota is in force, the project's own
   // or the organization's default (PF-73, PF-75); the page only reads the numbers.
   const contextSpaces = usage.data?.contextSpaces;
@@ -356,6 +402,9 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               <TableCell>
                 <LifecycleBadge kind="phase" value={space.status?.phase} />
+              </TableCell>
+              <TableCell align="right" className="font-mono">
+                <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
               </TableCell>
               <TableCell align="right">
                 <SpaceRowActions

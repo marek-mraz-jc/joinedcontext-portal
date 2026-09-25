@@ -1270,7 +1270,7 @@
     },
     "src/routes/SpacesPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",

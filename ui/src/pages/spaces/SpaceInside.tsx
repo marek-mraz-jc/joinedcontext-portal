@@ -6,6 +6,7 @@ import { originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk"
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { ActivityFeed } from "../../components/ActivityFeed";
@@ -578,6 +579,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const { t, i18n } = useTranslation();
   const identity = useIdentity();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  // What the whole space holds, the broker's count (T-2889); the table below breaks it down by
+  // type through the person's own endpoint.
+  const usage = useQuery(spaceUsageQuery(project, name));
 
   const space = useQuery({
     queryKey: queryKeys.resource(project, "spaces", name),
@@ -651,6 +655,15 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       </Section>
 
       <Section title={t("spaces.inside.types")}>
+        {usage.data !== undefined ? (
+          <p className="mb-3 text-body text-fg" data-testid="space-total">
+            {t("spaces.inside.total", { count: usage.data.entities })}
+          </p>
+        ) : usage.isError ? (
+          <p className="mb-3 text-body text-fg-muted" data-testid="space-total">
+            {t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) })}
+          </p>
+        ) : null}
         {model === undefined ? (
           <SectionState query={models} empty={t("spaces.inside.noModel")} />
         ) : types.length === 0 ? (
