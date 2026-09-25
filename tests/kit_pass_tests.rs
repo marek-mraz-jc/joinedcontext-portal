@@ -2346,6 +2346,69 @@ async fn a_type_two_endpoints_of_one_space_serve_is_sampled_through_both_and_joi
     );
 }
 
+/// AP-137: a second App built as the first one's archetype and layout (both the gallery's
+/// citizen map) is told so in the conversation and in its first instruction, with a layout no App
+/// of the project holds; the request itself is untouched.
+#[tokio::test]
+async fn an_app_like_another_of_the_project_is_asked_for_another_layout() {
+    use joinedcontext_portal::agents::run::{digest_prompt, mint_run_id, mint_ticket, AgentRun};
+    let forge = code_forge().await;
+    let answer = code_answer(
+        "A page listing the stations, with its test.",
+        &stations_app(STATIONS),
+    );
+    let (state, app, cookie, proxy) =
+        portal_state_with("openai-compatible", &[answer], Some(&forge)).await;
+    mount_types(&proxy).await;
+    // The project already holds a citizen map, built from its own first request.
+    state.mirror.upsert(envelope(
+        "App",
+        "bike-map",
+        PROJECT,
+        json!({ "kind": "static", "source": { "path": "." }, "build": { "node": "22" },
+                "visibility": "project", "lifecycle": "published", "dataNeeds": [] }),
+    ));
+    let earlier = "A map of the bike stations near me";
+    let id = mint_run_id();
+    let run: AgentRun = serde_json::from_value(json!({
+        "id": id, "project": PROJECT, "appName": "bike-map", "endpointName": "helsinki-bikes",
+        "endpointSlug": SLUG, "profile": "app-builder", "kind": "application",
+        "unattended": false, "appClass": "static", "visibility": "project",
+        "prompt": earlier, "promptDigest": digest_prompt(earlier), "dataNeeds": [],
+        "allowsWrite": false, "branch": format!("agent/app-bike-map/{id}"), "pathPrefix": "",
+        "status": "published", "ticketHash": mint_ticket().1, "steps": 0, "tokensUsed": 0,
+        "createdBy": STEWARD, "createdAt": "2026-09-21T06:00:00Z",
+        "expiresAt": "2099-09-21T06:00:00Z"
+    }))
+    .expect("a run");
+    state
+        .agents
+        .create_run(&run)
+        .await
+        .expect("the earlier run");
+
+    let id = create_application(&app, &cookie).await;
+    wait_for_version(&app, &cookie, &id, 1).await;
+
+    let log = events(&app, &cookie, &id).await;
+    assert!(
+        log.iter().any(|(kind, payload)| kind == "thought"
+            && payload["text"].as_str().is_some_and(|text| text
+                .starts_with("The App bike-map is already a citizen-map laid out as hero-map"))),
+        "{log:?}"
+    );
+    let requests = model_requests(&proxy).await;
+    let user = requests[0]["messages"][1]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(user.contains("A page listing the bike stations"), "{user}");
+    assert!(
+        user.contains("NOTE ON THE LOOK") && user.contains("`bike-map`"),
+        "{user}"
+    );
+    assert!(!user.contains("gallery layout `hero-map`"), "{user}");
+}
+
 #[tokio::test]
 async fn an_application_is_written_in_one_call_and_the_template_never_reaches_the_frame() {
     let forge = code_forge().await;
