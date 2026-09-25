@@ -548,6 +548,123 @@ async fn a_build_on_another_kind_is_refused() {
     assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
 }
 
+/// Where the App's manifest lives in the organization repository.
+fn manifest_path() -> String {
+    joinedcontext_portal::resource::by_plural("apps")
+        .expect("App is a kind")
+        .repo_path("ovzdusie", "ovzdusie", "air-quality")
+}
+
+/// The forge's answer to "which files does merge request 9 change".
+async fn change_holds(gitea: &MockServer, paths: &[&str]) {
+    let files: Vec<Value> = paths
+        .iter()
+        .map(|path| json!({ "filename": path, "status": "changed" }))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!("{}/pulls/9/files", common::REPO)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!(files)))
+        .mount(gitea)
+        .await;
+}
+
+/// The merge messages the Portal sent the forge.
+async fn merges(gitea: &MockServer) -> Vec<String> {
+    gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/merge"))
+        .filter_map(|r| {
+            let body: Value = serde_json::from_slice(&r.body).ok()?;
+            Some(body.get("merge_message_field")?.as_str()?.to_owned())
+        })
+        .collect()
+}
+
+/// AP-104, T-2661: a build the Portal checked and published does not wait for a person. A person
+/// approved its source; the Portal merges the lane's Change itself and says so in the merge commit.
+#[tokio::test]
+async fn a_checked_build_is_merged_by_the_portal_and_the_commit_names_it() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    change_holds(&gitea, &[&manifest_path()]).await;
+    let state = state_with(&gitea);
+
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let change: Value = serde_json::from_str(&accepted.text).expect("a Change");
+    assert_eq!(change["status"]["phase"], "Deploying", "{change}");
+
+    let merged = merges(&gitea).await;
+    assert_eq!(merged.len(), 1, "one merge: {merged:?}");
+    assert!(
+        merged[0].contains("Approved by the Portal") && merged[0].contains("AP-104"),
+        "the merge commit names the Portal as the approver: {}",
+        merged[0]
+    );
+}
+
+/// AP-73: the lane's field and nothing else. A Change that carries another file beside the App's
+/// manifest is no longer the build alone, so it waits for a person and nothing is merged.
+#[tokio::test]
+async fn a_build_change_that_carries_another_file_waits_for_a_person() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    change_holds(
+        &gitea,
+        &[
+            &manifest_path(),
+            "projects/ovzdusie/spaces/ovzdusie/policies/app-air-quality.yaml",
+        ],
+    )
+    .await;
+    let state = state_with(&gitea);
+
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let change: Value = serde_json::from_str(&accepted.text).expect("a Change");
+    assert_eq!(change["status"]["phase"], "PendingApproval", "{change}");
+    assert!(merges(&gitea).await.is_empty(), "nothing is merged");
+}
+
+/// A merge the forge refuses (the branch moved, a conflict with `main`) leaves the lane's Change
+/// waiting for a person, the way it waited before the Portal approved builds; the write stands.
+#[tokio::test]
+async fn a_build_change_the_forge_will_not_merge_waits_for_a_person() {
+    let gitea = forge().await;
+    built_on_forge(&gitea, COMMIT, BUNDLE, None).await;
+    package_takes(&gitea, 201).await;
+    change_holds(&gitea, &[&manifest_path()]).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{}/pulls/9/merge", common::REPO)))
+        .respond_with(ResponseTemplate::new(409).set_body_json(json!({ "message": "conflict" })))
+        .with_priority(1)
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+
+    let accepted = as_lane(&state, app(Some(build()), None)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let change: Value = serde_json::from_str(&accepted.text).expect("a Change");
+    assert_eq!(change["status"]["phase"], "PendingApproval", "{change}");
+}
+
+/// A person's App change is theirs to have approved: the build lane's approval never reaches it.
+#[tokio::test]
+async fn a_persons_app_change_is_not_approved_by_the_portal() {
+    let gitea = forge().await;
+    change_holds(&gitea, &[&manifest_path()]).await;
+    let state = state_with(&gitea);
+
+    let proposed = send(&state, person("jana"), "POST", APPS, Some(app(None, None))).await;
+    assert_eq!(proposed.status, StatusCode::ACCEPTED, "{}", proposed.text);
+    assert!(merges(&gitea).await.is_empty(), "nothing is merged");
+}
+
 /// The OCI layout `lane.mjs image` writes, as a tar, and its manifest digest.
 fn image_layout() -> (Vec<u8>, String, Vec<u8>) {
     let config = br#"{"architecture":"amd64","os":"linux"}"#.to_vec();
