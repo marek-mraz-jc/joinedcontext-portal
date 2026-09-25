@@ -1296,6 +1296,7 @@
     "newSlot": "Nový atribút",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníka {name}",
+    "removeEnumValue": "Odstrániť hodnotu {value}",
     "classUri": "IRI triedy",
     "description": "Popis",
     "titleIn": "Názov ({locale})",
@@ -1390,7 +1391,9 @@
       "file": "Uloží sa ako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvom {name}. Zvoľte iný názov.",
       "held": "Uložené ako zdieľaný koncept {name}; po obnovení stránky je stále tu, kým model neuložíte.",
-      "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá."
+      "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá.",
+      "spaceHas": "{space} (už má {model})",
+      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy."
     },
     "infer": {
       "title": "Model zo súboru",
@@ -1455,6 +1458,65 @@
       "published": "Zverejnený",
       "deprecated": "Zastaraný",
       "retired": "Vyradený"
+    },
+    "page": {
+      "listLead": "Všetky dátové modely tohto projektu: jeden pre každý kontextový priestor a čo je na ňom postavené.",
+      "listCaption": "Dátové modely projektu",
+      "new": {
+        "blank": "Nový prázdny model",
+        "file": "Nový model zo súboru",
+        "sdm": "Nový model zo Smart Data Models"
+      },
+      "emptyTitle": "Zatiaľ žiadny dátový model",
+      "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
+      "search": "Hľadať podľa názvu, titulku alebo triedy",
+      "everySpace": "Všetky priestory",
+      "lastChange": "Posledná zmena",
+      "usedBy": "Používa ho",
+      "noMatch": "Hľadaniu a zvolenému priestoru nezodpovedá žiadny model.",
+      "unused": "Zatiaľ nič",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} few {# endpointy} other {# endpointov}}",
+        "Pipeline": "{count, plural, one {# pipeline} few {# pipelines} other {# pipelines}}",
+        "App": "{count, plural, one {# aplikácia} few {# aplikácie} other {# aplikácií}}",
+        "Dashboard": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardov}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Kontextový priestor",
+        "Endpoint": "Endpointy",
+        "Pipeline": "Pipelines",
+        "Subscription": "Odbery",
+        "App": "Aplikácie",
+        "Dashboard": "Dashboardy",
+        "Mapping": "Mapovania"
+      },
+      "unusedLead": "Nič v tomto projekte model zatiaľ nepoužíva: nemenuje ho žiadny priestor, endpoint, pipeline, aplikácia ani dashboard.",
+      "back": "Všetky dátové modely",
+      "edit": "Upraviť model",
+      "notFound": "Dátový model {name} neexistuje",
+      "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
+      "sourceFailed": "LinkML modelu sa nepodarilo načítať: {reason}",
+      "views": "Pohľady na model",
+      "view": {
+        "overview": "Prehľad",
+        "diagram": "Diagram",
+        "form": "Formulár",
+        "yaml": "YAML",
+        "used": "Kde sa používa",
+        "history": "História",
+        "mappings": "Mapovania"
+      },
+      "class": "Trieda",
+      "relationship": "vzťah",
+      "enum": "výber",
+      "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
+      "formClass": "Trieda",
+      "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
+      "yaml": "LinkML modelu",
+      "copyYaml": "Kopírovať YAML",
+      "downloadYaml": "Stiahnuť YAML",
+      "copied": "Skopírované.",
+      "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
     }
   },
   "apps": {
@@ -1876,6 +1938,7 @@
       "isEmpty": "je prázdne",
       "present": "má hodnotu",
       "pattern": "vyhovuje",
+      "anyOf": "je jednou z",
       "gt": "je väčšie ako",
       "gte": "je aspoň",
       "lt": "je menšie ako",
@@ -1911,6 +1974,7 @@
     "observedNow": "tieto hodnoty boli pozorované teraz",
     "applying": "Uplatňujem…",
     "refusedHere": "odmietnuté",
+    "notInList": "nie je v zozname",
     "map": {
       "panel": "Mapa",
       "offTheMap": "nie je na mape",

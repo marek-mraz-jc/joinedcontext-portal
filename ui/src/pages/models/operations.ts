@@ -56,7 +56,13 @@ export type Operation =
   | { op: "setSlot"; name: string; field: SlotField; value: unknown }
   | { op: "setTitle"; target: "class" | "slot"; name: string; locale: string; value: string }
   | { op: "addEnum"; name: string }
-  | { op: "addEnumValue"; enum: string; value: string; description?: string };
+  | { op: "addEnumValue"; enum: string; value: string; description?: string }
+  /**
+   * What a person reads for one permissible value (UI-86): its title in one language, or its
+   * description. An empty text removes it.
+   */
+  | { op: "setEnumValue"; enum: string; value: string; field: "title" | "description"; locale?: string; text: string }
+  | { op: "removeEnumValue"; enum: string; value: string };
 
 /** `unit` takes a UN/CEFACT common code (DM-06); `kind` an NGSI-LD kind; the rest their YAML value. */
 export type SlotField =
@@ -122,6 +128,15 @@ function slotOf(model: LinkmlModel, name: string) {
 
 function enumOf(model: LinkmlModel, name: string) {
   return model.enums.find((entry) => entry.name === name) ?? refuse(`unknown enum '${name}'`);
+}
+
+/** Where one permissible value lives in the document; refused for a value the enum lacks. */
+function enumValuePath(model: LinkmlModel, name: string, value: string): string[] {
+  const entry = enumOf(model, name);
+  if (!entry.permissible_values.some((candidate) => candidate.name === value)) {
+    refuse(`enum '${entry.name}' has no value '${value}'`);
+  }
+  return ["enums", entry.name, "permissible_values", value];
 }
 
 /** The fields whose value the document takes as it is, once it has the right type. */
@@ -477,6 +492,36 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       );
       return;
     }
+    case "setEnumValue": {
+      const path = enumValuePath(model, operation.enum, operation.value);
+      // `good:` and `good: {}` both declare a value; only a map can carry a title.
+      if (!isMap(document.getIn(path, true))) {
+        document.setIn(path, document.createNode({}));
+      }
+      if (operation.field === "description") {
+        setOrDelete(document, [...path, "description"], operation.text.trim());
+        return;
+      }
+      const locale = operation.locale?.trim();
+      if (!locale) {
+        refuse("a title needs the language it is written in");
+      }
+      // A title written as one string is the model's one language, read as English (UI-86); a
+      // second language turns it into a map rather than overwriting it.
+      const existing = document.getIn([...path, "title"]);
+      if (typeof existing === "string") {
+        document.setIn([...path, "title"], document.createNode({ en: existing }));
+      }
+      setOrDelete(document, [...path, "title", locale], operation.text.trim());
+      const left = document.getIn([...path, "title"], true);
+      if (isMap(left) && left.items.length === 0) {
+        document.deleteIn([...path, "title"]);
+      }
+      return;
+    }
+    case "removeEnumValue":
+      document.deleteIn(enumValuePath(model, operation.enum, operation.value));
+      return;
     default:
       refuse(`unknown operation '${(operation as { op: string }).op}'`);
   }

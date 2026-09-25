@@ -1296,6 +1296,7 @@
     "newSlot": "New slot",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
+    "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
@@ -1404,7 +1405,9 @@
       "file": "Saved as {name}.linkml.yaml",
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
-      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do."
+      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
+      "spaceHas": "{space} (already has {model})",
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
     },
     "infer": {
       "title": "Model from a file",
@@ -1455,6 +1458,65 @@
       "published": "Published",
       "deprecated": "Deprecated",
       "retired": "Retired"
+    },
+    "page": {
+      "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "listCaption": "The project's data models",
+      "new": {
+        "blank": "New blank model",
+        "file": "New model from a file",
+        "sdm": "New model from Smart Data Models"
+      },
+      "emptyTitle": "No data model yet",
+      "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
+      "search": "Search by name, title or class",
+      "everySpace": "Every space",
+      "lastChange": "Last change",
+      "usedBy": "Used by",
+      "noMatch": "No model matches the search and the space chosen.",
+      "unused": "Nothing yet",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} other {# endpoints}}",
+        "Pipeline": "{count, plural, one {# pipeline} other {# pipelines}}",
+        "App": "{count, plural, one {# app} other {# apps}}",
+        "Dashboard": "{count, plural, one {# dashboard} other {# dashboards}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Context Space",
+        "Endpoint": "Endpoints",
+        "Pipeline": "Pipelines",
+        "Subscription": "Subscriptions",
+        "App": "Applications",
+        "Dashboard": "Dashboards",
+        "Mapping": "Mappings"
+      },
+      "unusedLead": "Nothing in this project uses the model yet: no space, endpoint, pipeline, app or dashboard names it.",
+      "back": "All data models",
+      "edit": "Edit model",
+      "notFound": "No data model named {name}",
+      "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
+      "sourceFailed": "The model's LinkML could not be read: {reason}",
+      "views": "Views of the model",
+      "view": {
+        "overview": "Overview",
+        "diagram": "Diagram",
+        "form": "Form",
+        "yaml": "YAML",
+        "used": "Where used",
+        "history": "History",
+        "mappings": "Mappings"
+      },
+      "class": "Class",
+      "relationship": "relationship",
+      "enum": "pick list",
+      "noClasses": "This model declares no class yet, so it generates no form.",
+      "formClass": "Class",
+      "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
+      "yaml": "The model's LinkML",
+      "copyYaml": "Copy the YAML",
+      "downloadYaml": "Download the YAML",
+      "copied": "Copied.",
+      "copyFailed": "The browser did not allow copying; select the text and copy it instead."
     }
   },
   "apps": {
@@ -1876,6 +1938,7 @@
       "isEmpty": "is empty",
       "present": "has a value",
       "pattern": "matches",
+      "anyOf": "is one of",
       "gt": "is greater than",
       "gte": "is at least",
       "lt": "is less than",
@@ -1911,6 +1974,7 @@
     "observedNow": "these values were observed now",
     "applying": "Applying…",
     "refusedHere": "refused",
+    "notInList": "not in the list",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",

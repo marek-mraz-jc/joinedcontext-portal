@@ -805,6 +805,7 @@
         "Button": 7
       },
       "tests": [
+        "explore_enum_pick.test.tsx",
         "explore_page.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
@@ -858,10 +859,11 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 7,
         "Checkbox": 3
       },
       "tests": [
+        "linkml_enum_values.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx"
       ]
@@ -884,6 +886,14 @@
         "part_model_file_drop.test.tsx"
       ]
     },
+    "src/pages/models/ModelPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
     "src/pages/models/ModelSubsetPicker.tsx": {
       "controls": {
         "Checkbox": 2
@@ -891,6 +901,22 @@
       "tests": [
         "model_subset.test.tsx",
         "part_model_subset_picker.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelViews.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelsList.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "models_list_page.test.tsx"
       ]
     },
     "src/pages/models/ModelsPage.tsx": {
