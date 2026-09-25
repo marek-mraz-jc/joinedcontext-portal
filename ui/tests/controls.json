@@ -808,7 +808,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 6,
         "Checkbox": 2
       },
       "tests": [

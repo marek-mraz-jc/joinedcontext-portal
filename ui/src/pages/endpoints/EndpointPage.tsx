@@ -64,7 +64,8 @@ import type { FilterOp } from "@joinedcontext/sdk";
  * named `ModelProjection` the endpoint references (`spec.projectionRef`, MP-01), which is why this page
  * reads the filter from there and says so. There is likewise no `paused`/`retiring` field on an
  * endpoint: `status.phase` is the platform's own and never written from a form, so this page paints no
- * pause button that nothing behind it could honour (T-2286 holds the contract question).
+ * pause button that nothing behind it could honour. Deleting is how an endpoint stops (EP-87, T-2286),
+ * and the last section says so and opens that deletion.
  */
 export function EndpointPage({
   project,
@@ -534,6 +535,19 @@ export function EndpointPage({
 
       <Section title={t("endpoints.page.catalog.title")} lead={t("endpoints.page.catalog.lead")}>
         <CatalogSection slug={slug} catalog={spec.catalog} audience={spec.audience ?? "project-list"} />
+      </Section>
+
+      {/* An endpoint has no pause; deleting it through a change is how it stops (EP-87). */}
+      <Section title={t("endpoints.page.stop.title")} lead={t("endpoints.page.stop.lead")}>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={denied("delete") !== undefined}
+          disabledReason={denied("delete")}
+          onClick={() => setOpenAction("delete")}
+        >
+          {t("endpoints.page.stop.delete")}
+        </Button>
       </Section>
     </div>
   );

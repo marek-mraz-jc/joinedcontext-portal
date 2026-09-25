@@ -602,6 +602,11 @@
     "page": {
       "back": "Alle Endpunkte",
       "proposedNotice": "Eine Änderung hier wird vorgeschlagen und von einer Genehmigerin geprüft, bevor etwas veröffentlicht wird.",
+      "stop": {
+        "title": "Diesen Endpoint stoppen",
+        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse mit 404 Not Found und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
+        "delete": "Diesen Endpoint löschen…"
+      },
       "change": "Diese Einstellungen ändern",
       "whatItIs": "Was er ist",
       "whatItAnswers": "Was er antwortet",

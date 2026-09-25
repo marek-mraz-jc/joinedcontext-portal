@@ -602,6 +602,11 @@
     "page": {
       "back": "Všetky endpointy",
       "proposedNotice": "Zmena tu sa navrhne a schvaľovateľ ju posúdi, než sa čokoľvek zverejní.",
+      "stop": {
+        "title": "Zastavenie tohto endpointu",
+        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa odpovedá 404 Not Found a už sa nikdy nepoužije. Nový endpoint dostane novú adresu.",
+        "delete": "Zmazať tento endpoint…"
+      },
       "change": "Zmeniť tieto nastavenia",
       "whatItIs": "Čo to je",
       "whatItAnswers": "Čo odpovedá",
