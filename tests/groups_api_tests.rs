@@ -271,3 +271,91 @@ async fn a_group_name_another_owner_holds_is_refused_naming_both() {
     .await;
     assert_eq!(same.status, StatusCode::OK, "{}", same.text);
 }
+
+/// AP-119: a project's steward reads and proposes the members of their App's default group from
+/// the App page, and no other group of the organization.
+#[tokio::test]
+async fn an_apps_steward_keeps_its_default_group_and_no_other() {
+    let gitea = forge().await;
+    let state = common::state_on(&gitea);
+    state.mirror.upsert(envelope(
+        "App",
+        "board",
+        "doprava",
+        json!({ "class": "ui" }),
+    ));
+    state.mirror.upsert(envelope(
+        "Role",
+        "app-steward",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["App"], "verbs": ["propose"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "app-stewards",
+        ORG_NAMESPACE,
+        json!({
+            "role": "app-steward",
+            "subjects": [{ "user": "steward@hel.fi" }],
+            "scope": { "project": "doprava" }
+        }),
+    ));
+    let mut board = envelope(
+        "Group",
+        "board-viewer",
+        ORG_NAMESPACE,
+        json!({ "members": [] }),
+    );
+    board
+        .metadata
+        .annotations
+        .insert("joinedcontext.com/app".into(), "doprava/board".into());
+    state.mirror.upsert(board);
+    state.mirror.upsert(envelope(
+        "Group",
+        "city-leads",
+        ORG_NAMESPACE,
+        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+    ));
+
+    let read = common::checked_send(
+        &state,
+        person("steward"),
+        "GET",
+        "/api/v1/projects/org/groups/board-viewer",
+        None,
+    )
+    .await;
+    assert_eq!(read.status, StatusCode::OK, "{}", read.text);
+    let other = common::checked_send(
+        &state,
+        person("steward"),
+        "GET",
+        "/api/v1/projects/org/groups/city-leads",
+        None,
+    )
+    .await;
+    assert_eq!(other.status, StatusCode::NOT_FOUND, "{}", other.text);
+
+    let mut added = group("board-viewer", &["eva@hel.fi"]);
+    added["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/board" });
+    let proposed = common::checked_send(
+        &state,
+        person("steward"),
+        "PUT",
+        "/api/v1/projects/org/groups/board-viewer",
+        Some(added),
+    )
+    .await;
+    assert_eq!(proposed.status, StatusCode::ACCEPTED, "{}", proposed.text);
+
+    let refused = common::checked_send(
+        &state,
+        person("steward"),
+        "PUT",
+        "/api/v1/projects/org/groups/city-leads",
+        Some(group("city-leads", &["lead@hel.fi", "eva@hel.fi"])),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+}
