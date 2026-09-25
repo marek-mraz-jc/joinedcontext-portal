@@ -899,3 +899,107 @@ async fn a_status_a_run_may_not_reach_is_refused_and_leaves_no_event_saying_it_d
         .expect("the store")
         .is_none());
 }
+
+// -------------------------------------------------------------------------------------------------
+// T-2865 the person's identity, handed to the proxy at the start (ADR-N-038 §3.1, AG-94)
+// -------------------------------------------------------------------------------------------------
+
+/// A run started through the edge hands the person's own token to the proxy, once, as the Portal's
+/// service account; neither the answer nor the stored run carries it.
+#[tokio::test]
+async fn a_run_started_at_the_edge_hands_its_persons_token_to_the_proxy_and_keeps_none() {
+    use wiremock::matchers::{body_json, header as wm_header, method, path, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "{}/protocol/openid-connect/token",
+            url::Url::parse(&common::REALM.issuer)
+                .expect("the issuer")
+                .path()
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "portal-service-token", "token_type": "Bearer", "expires_in": 300
+        })))
+        .mount(common::REALM.server)
+        .await;
+    let person = common::REALM.person_token_of("portal-api", "edge", STEWARD, &["portal-approver"]);
+    let proxy = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(r"^/internal/runs/[A-Za-z0-9-]+/identity$"))
+        .and(wm_header("authorization", "Bearer portal-service-token"))
+        .and(body_json(json!({ "subjectToken": person })))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&proxy)
+        .await;
+
+    let proxy_base = proxy.uri();
+    let config = Config::from_vars(|key| {
+        match key {
+            "JC_AGENTS_NAMESPACE" => Some("agents"),
+            "JC_AGENT_PROXY_BASE" => Some(proxy_base.as_str()),
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+            "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
+            "JC_TRUST_EDGE_TOKEN" => Some("true"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("the agent runner block is complete");
+    let oidc = joinedcontext_portal::auth::oidc::OidcClient::discover(
+        config.oidc.as_ref().expect("an oidc block"),
+        &config.redirect_uri(),
+    )
+    .await
+    .expect("the realm is discoverable");
+    let state = AppState::new(config, Some(oidc)).with_mirror(mirror());
+    let app = server::app(state.clone());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/api/v1/projects/{PROJECT}/agent-runs"))
+                .header("x-access-token", &person)
+                // The edge's session is a browser's: the double-submit token rides along.
+                .header(header::COOKIE, format!("jc_csrf={CSRF}"))
+                .header("x-csrf-token", CSRF)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(create_body().to_string()))
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    let answer = String::from_utf8_lossy(&bytes).into_owned();
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    proxy.verify().await;
+
+    assert!(
+        !answer.contains(&person),
+        "the answer carries the person's token"
+    );
+    let id = serde_json::from_str::<Value>(&answer).expect("json")["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let stored = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("the store")
+        .expect("the run");
+    assert!(
+        !format!("{stored:?}").contains(&person),
+        "the run record holds the person's token"
+    );
+}

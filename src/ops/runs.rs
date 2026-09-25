@@ -423,7 +423,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_flow_start",
             title: "Run A Blueprint",
-            description: "Expands one of the organisation's blueprints with the parameters given, as a change a person approves",
+            description: "Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval",
             input: flow_input_schema,
             output: super::change_schema,
             annotations: Annotations {

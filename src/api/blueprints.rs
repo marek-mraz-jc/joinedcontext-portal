@@ -22,7 +22,7 @@ use crate::api::mutate::{
     author_credentials, create_or_reuse_branch, find_literal_secret, resolve_repo_path,
 };
 use crate::api::resources::{ListMeta, ResourceList};
-use crate::auth::session::CurrentUser;
+use crate::auth::session::{CurrentUser, Identity};
 use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
 use crate::git::{Author, FileWrite};
@@ -51,10 +51,10 @@ fn allowed_roles(envelope: &ResourceEnvelope) -> Vec<&str> {
 /// already refuses to accept empty, so a blueprint that reaches the mirror without one is
 /// malformed rather than public. Reading it as "everyone" would turn a broken manifest into an
 /// open door.
-fn may_run(user: &CurrentUser, envelope: &ResourceEnvelope) -> bool {
+fn may_run(identity: &Identity, envelope: &ResourceEnvelope) -> bool {
     allowed_roles(envelope)
         .iter()
-        .any(|role| user.0.identity.roles.iter().any(|r| r == role))
+        .any(|role| identity.roles.iter().any(|r| r == role))
 }
 
 /// The lane a blueprint declares for its own changes (CC-59, CC-63).
@@ -175,7 +175,7 @@ pub async fn list_blueprints(
     let items = page
         .items
         .into_iter()
-        .filter(|envelope| may_run(&user, envelope))
+        .filter(|envelope| may_run(&user.0.identity, envelope))
         .collect();
 
     Ok(Json(ResourceList {
@@ -206,7 +206,7 @@ pub struct FlowRequest {
     post,
     path = "/api/v1/projects/{project}/flows",
     summary = "Run A Blueprint",
-    description = "Expands one of the organisation's blueprints with the parameters given, as a change a person approves.",
+    description = "Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.",
     tag = "blueprints",
     params(("project" = String, Path, description = "Project the flow creates resources in")),
     request_body(
@@ -228,13 +228,119 @@ pub async fn start_flow(
     Path(project): Path<String>,
     Json(request): Json<FlowRequest>,
 ) -> Result<Response, ApiError> {
+    let identity = &user.0.identity;
+    let planned = plan_flow(&state, identity, &project, &request)?;
+
+    // One merge request for the whole expansion: the manifests of one flow are reviewed and
+    // merged together or not at all (CC-32).
+    let gitea = state
+        .gitea
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let default_branch = gitea.default_branch().await?;
+    let branch = flow_branch(
+        &project,
+        &request.blueprint,
+        &request.version,
+        &request.parameters,
+    );
+    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+
+    let (author_name, author_email) = author_credentials(identity, &project);
+    for (repo_path, yaml) in &planned.files {
+        let existing_sha = gitea
+            .get_file(repo_path, &branch)
+            .await
+            .ok()
+            .flatten()
+            .map(|f| f.sha);
+        let message = format!(
+            "run blueprint {} {} in {project}",
+            request.blueprint, request.version
+        );
+        gitea
+            .put_file(&FileWrite {
+                path: repo_path,
+                branch: &branch,
+                message: &message,
+                content: yaml,
+                sha: existing_sha.as_deref(),
+                author: Author {
+                    name: &author_name,
+                    email: &author_email,
+                },
+            })
+            .await?;
+    }
+
+    let title = format!(
+        "run blueprint {} {} in {project}",
+        request.blueprint, request.version
+    );
+    let body = format!(
+        "Blueprint `{}` version {} expanded into {} manifest(s) in project `{project}` via joinedcontext Portal.",
+        request.blueprint,
+        request.version,
+        planned.files.len()
+    );
+    let pr = gitea
+        .create_pull_request(&branch, &default_branch, &title, &body)
+        .await?;
+
+    let change = Change::new(
+        crate::api::changes::change_meta(&state, gitea, pr.number, &project),
+        ChangeStatus::new(planned.lane, ChangePhase::PendingApproval, planned.summary)
+            .in_repository(&pr.repository)
+            .with_merge_request(pr.url.clone()),
+    );
+
+    // CC-63, CC-65, AG-14: a flow that is green after the stricter-of-two rule is merged now,
+    // for the person who started it, whose role the blueprint names (`may_run`) and who may
+    // propose every kind it renders (`plan_flow`). Anything stricter waits for a person.
+    let change = if planned.lane == Lane::Green {
+        let paths: Vec<&str> = planned
+            .files
+            .iter()
+            .map(|(path, _)| path.as_str())
+            .collect();
+        let started_by = identity.email.as_deref().unwrap_or(&identity.username);
+        let message = format!(
+            "Merge change proposal {}: {}\n\nGreen lane: blueprint {} {}, started by {started_by} \
+             (CC-63, CC-65, AG-14)",
+            change.metadata.name, pr.title, request.blueprint, request.version
+        );
+        crate::api::changes::merge_if_only(&state, gitea, &pr, &paths, &message, change).await
+    } else {
+        change
+    };
+    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+}
+
+/// What a flow would write, and in which lane, before anything reaches the forge.
+pub(crate) struct PlannedFlow {
+    /// The stricter of the lane the blueprint declares and the lane of every manifest it renders.
+    pub lane: Lane,
+    summary: PlanSummary,
+    /// Each rendered manifest: its path in the repository and its YAML.
+    files: Vec<(String, String)>,
+}
+
+/// Every check a flow makes before it writes: the blueprint the caller may run, its version, the
+/// expansion, and each rendered manifest through the gate a hand-written one passes. The lane is
+/// the stricter of what the blueprint declares and what the kinds themselves are (CC-63).
+pub(crate) fn plan_flow(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    request: &FlowRequest,
+) -> Result<PlannedFlow, ApiError> {
     // A blueprint the caller may not run answers exactly like one that does not exist: the
     // gallery already hid it, and a different answer here would say which ones exist (R20).
     let missing = || ApiError::NotFound(format!("blueprint '{}' not found", request.blueprint));
     let envelope = state
         .mirror
         .get(ORG_NAMESPACE, BLUEPRINT_KIND, &request.blueprint)
-        .filter(|envelope| may_run(&user, envelope))
+        .filter(|envelope| may_run(identity, envelope))
         .ok_or_else(missing)?;
 
     // Hiding a card is not an authorisation, so the role check runs again here (CC-59); the
@@ -283,46 +389,43 @@ pub async fn start_flow(
             other => ApiError::Internal(other.to_string()),
         })?;
 
-    // Each rendered manifest goes through the same gate a hand-written one does, and the lane is
-    // the stricter of what the blueprint declares and what the kinds themselves are (CC-63).
     let mut lane = declared_lane(blueprint.spec.risk_class);
     let mut summary = PlanSummary::default();
     let mut files = Vec::with_capacity(rendered.len());
     for expanded in &rendered {
         let (mut manifest, kind_info) =
-            accept_rendered(&expanded.manifest, &expanded.template, &project)?;
+            accept_rendered(&expanded.manifest, &expanded.template, project)?;
         // The realm role on the card says which blueprints a person is offered (CC-59); what
         // they may propose in this project is the bindings of the organization repository, the
         // same gate a hand-written manifest passes, and it is read before the forge is touched
-        // (PF-50, T-0799). A flow proposes; nothing here approves or deletes.
+        // (PF-50, T-0799).
         let body = serde_json::to_value(&manifest)
             .map_err(|e| ApiError::Internal(format!("serialize rendered manifest: {e}")))?;
-        crate::permissions::for_request(&state, &user.0.identity, &project).check(
+        crate::permissions::for_request(state, identity, project).check(
             kind_info.kind,
             jc_core::kinds::Verb::Propose,
             Some(&body),
         )?;
         // Nobody grants above their own rights, a blueprint's Role or RoleBinding included
         // (PF-52).
-        crate::permissions::within_own_rights(&state, &user.0.identity, &body, "proposer")?;
+        crate::permissions::within_own_rights(state, identity, &body, "proposer")?;
         // A name the organization holds once is refused as at every other door (PF-84, AP-14a,
         // AP-114, AP-115).
-        let (identity, name) = (&user.0.identity, &manifest.metadata.name);
+        let name = &manifest.metadata.name;
         crate::spaces::check(
-            &state,
+            state,
             identity,
-            &project,
+            project,
             kind_info.kind,
             name,
             &manifest.spec,
         )?;
-        crate::apps::names::check(&state, identity, &project, kind_info.kind, name)?;
-        crate::groups::check(&state, identity, kind_info.kind, &manifest.metadata)?;
-        let operation = if state
+        crate::apps::names::check(state, identity, project, kind_info.kind, name)?;
+        crate::groups::check(state, identity, kind_info.kind, &manifest.metadata)?;
+        let current = state
             .mirror
-            .get(&project, kind_info.kind, &manifest.metadata.name)
-            .is_some()
-        {
+            .get(project, kind_info.kind, &manifest.metadata.name);
+        let operation = if current.is_some() {
             Operation::Update
         } else {
             Operation::Create
@@ -332,84 +435,37 @@ pub async fn start_flow(
             change::classify(kind_info.kind, operation, &manifest.spec),
         );
 
-        let current = state
-            .mirror
-            .get(&project, kind_info.kind, &manifest.metadata.name);
         let diff = plan::diff(current.as_ref(), Some(&manifest));
         summary.create += diff.summary.create;
         summary.update += diff.summary.update;
         summary.delete += diff.summary.delete;
 
-        let repo_path = resolve_repo_path(&manifest, kind_info, &project)?;
+        let repo_path = resolve_repo_path(&manifest, kind_info, project)?;
         manifest.strip_status();
         let yaml = serde_yaml_ng::to_string(&manifest)
             .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
         files.push((repo_path, yaml));
     }
+    Ok(PlannedFlow {
+        lane,
+        summary,
+        files,
+    })
+}
 
-    // One merge request for the whole expansion: the manifests of one flow are reviewed and
-    // merged together or not at all (CC-32).
-    let gitea = state
-        .gitea
-        .as_deref()
-        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
-    let default_branch = gitea.default_branch().await?;
-    let branch = flow_branch(
-        &project,
-        &request.blueprint,
-        &request.version,
-        &request.parameters,
-    );
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
-
-    let (author_name, author_email) = author_credentials(&user.0.identity, &project);
-    for (repo_path, yaml) in &files {
-        let existing_sha = gitea
-            .get_file(repo_path, &branch)
-            .await
-            .ok()
-            .flatten()
-            .map(|f| f.sha);
-        let message = format!(
-            "run blueprint {} {} in {project}",
-            request.blueprint, request.version
-        );
-        gitea
-            .put_file(&FileWrite {
-                path: repo_path,
-                branch: &branch,
-                message: &message,
-                content: yaml,
-                sha: existing_sha.as_deref(),
-                author: Author {
-                    name: &author_name,
-                    email: &author_email,
-                },
-            })
-            .await?;
-    }
-
-    let title = format!(
-        "run blueprint {} {} in {project}",
-        request.blueprint, request.version
-    );
-    let body = format!(
-        "Blueprint `{}` version {} expanded into {} manifest(s) in project `{project}` via joinedcontext Portal.",
-        request.blueprint,
-        request.version,
-        files.len()
-    );
-    let pr = gitea
-        .create_pull_request(&branch, &default_branch, &title, &body)
-        .await?;
-
-    let change = Change::new(
-        crate::api::changes::change_meta(&state, gitea, pr.number, &project),
-        ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
-            .in_repository(&pr.repository)
-            .with_merge_request(pr.url),
-    );
-    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+/// The lane `jc_flow_start` runs in for this caller and input: the flow's own, so a green
+/// blueprint is not asked about as if it were yellow (AG-14, AG-63). An input that does not plan
+/// (unknown blueprint, bad parameters) answers `None`, and the operation's registered lane stands.
+pub(crate) fn flow_lane(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    input: &serde_json::Value,
+) -> Option<Lane> {
+    let request: FlowRequest = serde_json::from_value(input.clone()).ok()?;
+    plan_flow(state, identity, project, &request)
+        .ok()
+        .map(|planned| planned.lane)
 }
 
 pub fn router() -> Router<AppState> {
