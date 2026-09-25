@@ -132,7 +132,11 @@ test.describe("pipeline flow canvas", () => {
     await expect(paletteBloblang).toBeVisible();
     await expect(canvas).toBeVisible();
 
-    // Drag compute stage from palette onto SVG canvas
+    // Drag compute stage from palette onto SVG canvas. Both ends in view first: a drag that has
+    // to scroll the page on its way is dropped by Chromium, which a one-line hint above the
+    // studio was enough to cause (T-2899).
+    await canvas.scrollIntoViewIfNeeded();
+    await expect(paletteBloblang).toBeInViewport();
     await paletteBloblang.dragTo(canvas);
 
     const computeNode = page.getByTestId("flow-node-compute");
