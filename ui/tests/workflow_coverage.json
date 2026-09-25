@@ -665,7 +665,7 @@
       "refused-no-permission": {
         "live": {
           "spec": "all-endpoints.spec.ts",
-          "test": "a viewer sees the endpoints of the projects they may read, and of no other"
+          "test": "a person who does not administer the organization is offered no cross-project table"
         },
         "assistant": "jc_endpoint_propose"
       },

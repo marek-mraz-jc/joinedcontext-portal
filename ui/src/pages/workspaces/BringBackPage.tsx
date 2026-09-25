@@ -5,7 +5,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { FileList } from "./ComparePage";
-import { Alert, Button, EmptyState, PageHeader, PageLoading, RadioGroup, ResourcePageFailed } from "../../components/ui";
+import { Alert, Button, EmptyState, PageHeader, PageLoading, RadioGroup } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useAuth } from "../../auth/AuthProvider";
 
 
