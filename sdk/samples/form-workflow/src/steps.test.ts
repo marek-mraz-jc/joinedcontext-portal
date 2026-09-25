@@ -7,7 +7,7 @@ const of = (names: string[]) => names.map((name) => fields[name]);
 
 describe("the steps", () => {
   it("takes each input from the schema the LinkML model generates", () => {
-    expect(fields.category).toMatchObject({ input: "select", required: true, options: ["pothole", "streetlight", "graffiti", "litter", "other"] });
+    expect(fields.category).toMatchObject({ input: "select", required: true, options: ["pothole", "streetlight", "graffiti", "litter", "other"].map((value) => ({ value })) });
     expect(fields.title).toMatchObject({ input: "text", required: true, pattern: ".{5,80}" });
     expect(fields.district).toMatchObject({ input: "select", required: false });
     expect(fields.mayContact).toMatchObject({ input: "checkbox", required: false });

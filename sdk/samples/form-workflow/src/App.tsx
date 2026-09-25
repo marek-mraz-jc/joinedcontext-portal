@@ -77,8 +77,8 @@ function Input({
         <select {...common} value={value} onChange={(event) => onChange(event.target.value)}>
           <option value="">Choose…</option>
           {field.options?.map((option) => (
-            <option key={option} value={option}>
-              {word(option)}
+            <option key={option.value} value={option.value} title={option.description}>
+              {option.title ?? word(option.value)}
             </option>
           ))}
         </select>
