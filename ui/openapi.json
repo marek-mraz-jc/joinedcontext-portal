@@ -10577,6 +10577,13 @@
               "null"
             ]
           },
+          "qb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data\nStructure Definition (DM-60)."
+          },
           "shacl": {
             "type": [
               "string",
