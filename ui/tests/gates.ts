@@ -236,3 +236,149 @@ export function testsNaming(tree: Tree): Map<string, string[]> {
     ]),
   );
 }
+
+/**
+ * T-2728: the titles a Playwright spec declares, as the matcher of a rendered title.
+ *
+ * A literal title matches itself. A template title (`${kind}: created, …`) matches any rendering
+ * of it, and `titleIn` then asks that every value standing in for a placeholder appears in the
+ * spec as a string literal, so `Anything: created, …` is not a test because a helper exists.
+ */
+export function testTitles(source: string): RegExp[] {
+  const title = /\btest(?:\.(?:only|skip|fixme|fail|slow))?\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`)/g;
+  return [...withoutComments(source).matchAll(title)].map(([, double, single, template]) => {
+    const text = double ?? single ?? template;
+    const parts = text.split(/\$\{[^}]*\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return new RegExp(`^${parts.join("(.+?)")}$`);
+  });
+}
+
+/** The local modules a spec imports (`./kindJourney`), whose tests run under the spec's name. */
+export function localImports(source: string): string[] {
+  return importSpecifiers(withoutComments(source))
+    .filter((specifier) => specifier.startsWith("./"))
+    .map((specifier) => `${specifier.slice(2).replace(/\.ts$/, "")}.ts`);
+}
+
+/** Whether a spec, with the helpers it imports, declares a test of that rendered title. */
+export function titleIn(title: string, spec: string, helpers: readonly string[]): boolean {
+  const code = withoutComments(spec);
+  return [spec, ...helpers].some((source) =>
+    testTitles(source).some((matcher) => {
+      const match = matcher.exec(title);
+      if (!match) return false;
+      return match
+        .slice(1)
+        .every((value) => code.includes(`"${value}"`) || code.includes(`'${value}'`) || code.includes(`\`${value}\``));
+    }),
+  );
+}
+
+/** Every mutating operation of an OpenAPI document, as `METHOD /path`. */
+export function mutatingRoutes(openapi: { paths: Record<string, Record<string, unknown>> }): string[] {
+  return Object.entries(openapi.paths)
+    .flatMap(([path, operations]) =>
+      Object.keys(operations)
+        .filter((method) => ["post", "put", "patch", "delete"].includes(method))
+        .map((method) => `${method.toUpperCase()} ${path}`),
+    )
+    .sort();
+}
+
+/** One step of the workflow matrix, as `gate_workflows.test.ts` holds it to the tree. */
+export interface CoverageStep {
+  live?: { spec: string; test: string };
+  liveOwed?: string;
+  assistant?: string;
+  assistantOwed?: string;
+  /** Why no tool may take this step: only a person decides it (AG-11). */
+  personOnly?: string;
+  routes?: string[];
+}
+
+export interface Coverage {
+  workflows: Record<string, Record<string, CoverageStep>>;
+  unclaimed: Record<string, { why: string }>;
+}
+
+const STEP_HEADER = /^\|\s*step\s*\|\s*unit\s*\|\s*API\s*\|\s*mocked UI\s*\|\s*live journey\s*\|\s*assistant\s*\|$/;
+const ROUTE_HEADER = /^\|\s*route\s*\|\s*steps\s*\|$/;
+
+function cells(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+/**
+ * T-2728: the matrix of `Testing/07-workflow-coverage.md`, read from its markdown.
+ *
+ * A workflow is the first backticked name of the heading above a step table; a step is the
+ * backticked name in its first column. The live cell is `` `ui/e2e/live/x.spec.ts` › "title" ``
+ * or `owed: T-nnnn`; the assistant cell is `` `jc_…` ``, `owed: T-nnnn` or `person only: why`.
+ * The route table gives each mutating route its steps, or `none: why`. A row this cannot read
+ * is thrown with its line, because a matrix read wrongly is a gate that bites nothing.
+ */
+export function parseCoverage(markdown: string): Coverage {
+  const coverage: Coverage = { workflows: {}, unclaimed: {} };
+  let workflow: string | undefined;
+  let table: "steps" | "routes" | undefined;
+  markdown.split("\n").forEach((raw, index) => {
+    const line = raw.trim();
+    const where = `line ${index + 1}`;
+    if (line.startsWith("#")) {
+      workflow = /`([a-z][a-z0-9-]*)`/.exec(line)?.[1];
+      table = undefined;
+      return;
+    }
+    if (STEP_HEADER.test(line)) {
+      if (workflow === undefined) throw new Error(`${where}: a step table under a heading with no workflow name`);
+      table = "steps";
+      return;
+    }
+    if (ROUTE_HEADER.test(line)) {
+      table = "routes";
+      return;
+    }
+    if (!line.startsWith("|")) {
+      table = undefined;
+      return;
+    }
+    if (table === undefined || /^\|[\s|:-]+\|$/.test(line)) return;
+    const row = cells(line);
+    if (table === "routes") {
+      const route = /^`((?:POST|PUT|PATCH|DELETE) \/\S+)`$/.exec(row[0])?.[1];
+      if (route === undefined || row.length !== 2) throw new Error(`${where}: a route row reads \`METHOD /path\` | steps`);
+      const none = /^none: (.+)$/.exec(row[1]);
+      if (none) {
+        coverage.unclaimed[route] = { why: none[1] };
+        return;
+      }
+      const named = [...row[1].matchAll(/`([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)`/g)];
+      if (named.length === 0) throw new Error(`${where}: a route names its steps, or none: why`);
+      for (const [, flow, step] of named) {
+        const entry = coverage.workflows[flow]?.[step];
+        if (entry === undefined) throw new Error(`${where}: ${flow}/${step} is no step of the matrix above`);
+        entry.routes = [...(entry.routes ?? []), route];
+      }
+      return;
+    }
+    if (row.length !== 6 || workflow === undefined) throw new Error(`${where}: a step row has six cells`);
+    const step = /^`([a-z][a-z0-9-]*)`$/.exec(row[0])?.[1];
+    if (step === undefined) throw new Error(`${where}: the first cell is the step's name in backticks`);
+    const entry: CoverageStep = {};
+    const live = /^`ui\/e2e\/live\/([^`]+)` › "(.+)"$/.exec(row[4]);
+    const liveOwed = /^owed: (T-\d{4})\b/.exec(row[4]);
+    if (live) entry.live = { spec: live[1], test: live[2] };
+    else if (liveOwed) entry.liveOwed = liveOwed[1];
+    else throw new Error(`${where}: the live cell is \`ui/e2e/live/…\` › "title" or owed: T-nnnn`);
+    const tool = /^`([a-z_]+)`/.exec(row[5]);
+    const toolOwed = /^owed: (T-\d{4})\b/.exec(row[5]);
+    const person = /^person only: (.+)$/.exec(row[5]);
+    if (tool) entry.assistant = tool[1];
+    else if (toolOwed) entry.assistantOwed = toolOwed[1];
+    else if (person) entry.personOnly = person[1];
+    else throw new Error(`${where}: the assistant cell is a tool, owed: T-nnnn or person only: why`);
+    coverage.workflows[workflow] ??= {};
+    coverage.workflows[workflow][step] = entry;
+  });
+  return coverage;
+}

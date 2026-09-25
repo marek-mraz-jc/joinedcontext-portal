@@ -54,9 +54,9 @@
   },
   "peerDependencies": {
     "axe-core": "4.13.0",
-    "maplibre-gl": "^6.7.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "maplibre-gl": "6.9.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "peerDependenciesMeta": {
     "axe-core": {

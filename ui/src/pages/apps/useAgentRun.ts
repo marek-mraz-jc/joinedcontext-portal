@@ -34,6 +34,7 @@ export const EVENT_KINDS = [
   "tool",
   "commit",
   "preview",
+  "tests",
   "usage",
   "navigate",
   "lag",
@@ -81,6 +82,41 @@ export interface RunEvent {
   seq: number;
   kind: string;
   payload: Record<string, unknown>;
+}
+
+/** Why the version on screen is not published yet (SDK-38): its tests run or fail. */
+export interface TestsHold {
+  version: number;
+  running: boolean;
+  failed: number;
+  /** Up to five failing tests, `file › name`. */
+  names: string[];
+}
+
+/**
+ * The newest `tests` result of the version the preview shows, when it holds publication back; the
+ * Portal answers a publish of that version 409 with the same reason (API/04 §6). A version that was
+ * skipped, could not be tested or passed is not held.
+ */
+export function testsHold(events: RunEvent[], previewUrl: string | undefined): TestsHold | null {
+  const version = Number(new URLSearchParams(previewUrl?.split("?")[1] ?? "").get("v"));
+  if (!Number.isInteger(version) || version < 1) {
+    return null;
+  }
+  const result = [...events].reverse().find((event) => event.kind === "tests" && event.payload.version === version);
+  const outcome = result?.payload.outcome;
+  if (outcome !== "running" && outcome !== "failed") {
+    return null;
+  }
+  const failures = Array.isArray(result?.payload.failures) ? result.payload.failures : [];
+  const names = failures
+    .slice(0, 5)
+    .flatMap((failure: unknown) => {
+      const { file, name } = (failure ?? {}) as { file?: unknown; name?: unknown };
+      return typeof name === "string" ? [`${typeof file === "string" ? file : ""} › ${name}`] : [];
+    });
+  const failed = typeof result?.payload.failed === "number" ? result.payload.failed : names.length;
+  return { version, running: outcome === "running", failed, names };
 }
 
 /** One question the agent is waiting on, as the `question` event carries it. */

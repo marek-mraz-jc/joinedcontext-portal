@@ -7,38 +7,10 @@
     "route the router no longer has. The two lists only ever shrink."
   ],
   "mocked": {
-    "/projects/$project/workspaces": {
-      "why": "the workspace bar is covered by tests/workspaces_ui.test.tsx; the mocked spec is owed with the four snapshots"
-    },
-    "/projects/$project/workspaces/$name/compare": {
-      "why": "covered by tests/page_compare_page.test.tsx; the mocked spec is owed"
-    },
-    "/projects/$project/workspaces/$name/try-it": {
-      "why": "covered by tests/page_try_it_page.test.tsx; the mocked spec is owed"
-    },
     "/projects/$project/ckan": {
       "task": "T-1765",
       "why": "the page has no test of its own at all; its form task writes the first one"
-    },
-    "/projects/$project/import": {
-      "why": "covered by tests/import_wizard.test.tsx; the mocked spec is owed"
-    },
-    "/projects/$project/assistant": {
-      "why": "covered by tests/assistant_page.test.tsx; the mocked spec is owed"
     }
   },
-  "live": {
-    "/login": {
-      "why": "a live journey signs in through Keycloak, which redirects past this page; the page itself is covered by tests/page_login_page.test.tsx"
-    },
-    "/endpoints": {
-      "why": "the cross-project table needs two projects seeded on the instance; covered by tests/page_all_endpoints_page.test.tsx"
-    },
-    "/projects/$project/import": {
-      "why": "an import journey writes a whole project; covered by tests/import_wizard.test.tsx until a throwaway project exists for it"
-    },
-    "/projects/$project/shared": {
-      "why": "sharing needs a second project that opened an endpoint to this one; covered by the mocked spec e2e/sharing.spec.ts"
-    }
-  }
+  "live": {}
 }

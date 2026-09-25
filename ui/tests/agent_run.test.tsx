@@ -366,6 +366,50 @@ describe("watching a run", () => {
     });
   });
 
+  it("holds Publish while the version's tests run or fail, and names the failing ones (SDK-38)", async () => {
+    const previewUrl = `/api/v1/projects/${PROJECT}/agent-runs/${RUN_ID}/preview?v=2`;
+    renderRun({ run: { ...RUN, status: "previewing", previewUrl } });
+    await screen.findByRole("heading", { name: APP_TITLE });
+    expect(screen.getByRole("button", { name: en.agentRun.publish })).toBeEnabled();
+
+    await emit("tests", { seq: 10, version: 2, outcome: "running" });
+    const publish = await screen.findByRole("button", { name: en.agentRun.publish });
+    await waitFor(() => expect(publish).toBeDisabled());
+    expect(publish).toHaveAccessibleDescription(en.agentRun.testsHold.running.replace("{version}", "2"));
+    expect(screen.getByText(en.agentRun.line.testsRunning.replace("{version}", "2"))).toBeInTheDocument();
+
+    await emit("tests", {
+      seq: 11,
+      version: 2,
+      outcome: "failed",
+      passed: 2,
+      failed: 1,
+      failures: [{ file: "src/App.test.tsx", name: "lists the stations", message: "expected 3 rows" }],
+    });
+    await waitFor(() =>
+      expect(publish).toHaveAccessibleDescription(/src\/App\.test\.tsx › lists the stations/),
+    );
+    expect(publish).toBeDisabled();
+
+    // An older version's result is past; the newest of the version on screen decides.
+    await emit("tests", { seq: 12, version: 1, outcome: "failed", failed: 4 });
+    await emit("tests", { seq: 13, version: 2, outcome: "passed", passed: 3, failed: 0 });
+    await waitFor(() => expect(publish).toBeEnabled());
+    expect(publish).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("publishes a version whose tests were skipped or could not run (SDK-38)", async () => {
+    const previewUrl = `/api/v1/projects/${PROJECT}/agent-runs/${RUN_ID}/preview?v=3`;
+    renderRun({ run: { ...RUN, status: "previewing", previewUrl } });
+    await screen.findByRole("heading", { name: APP_TITLE });
+    await emit("tests", { seq: 10, version: 3, outcome: "skipped", reason: "this installation has no test sandbox" });
+    await emit("tests", { seq: 11, version: 3, outcome: "error", reason: "the tests did not finish within 150 s" });
+    expect(
+      await screen.findByText(/Version 3 was not tested here: this installation has no test sandbox/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.agentRun.publish })).toBeEnabled();
+  });
+
   it("publishes an unattended run that waits for approval with its preview built (AG-69)", async () => {
     renderRun({
       run: { ...RUN, unattended: true, status: "awaiting_approval", previewUrl: "/apps/x/" },

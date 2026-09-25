@@ -57,6 +57,7 @@ const PAGES = [
   `/projects/${PROJECT}/spaces/ovzdusie`,
   `/projects/${PROJECT}/endpoints/air-quality`,
   `/projects/${PROJECT}/apps/mapa`,
+  `/projects/${PROJECT}/apps/mapa/open`,
   `/projects/${PROJECT}/assistant`,
   `/projects/${PROJECT}/shared`,
   `/projects/${PROJECT}/workspaces`,
