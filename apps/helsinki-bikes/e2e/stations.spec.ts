@@ -1,55 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
-import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { stubTransport } from "@joinedcontext/sdk/testing";
 import { STATIONS } from "../src/fixtures/stations";
-
-const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
-const BASE = "http://portal.test/apps/helsinki-bikes/";
-const SLUG = "helsinkibikes";
-const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-bikes" };
-const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
+import { BASE, serve } from "./serve";
 
 // AP-07, AP-14: the served bundle lists the five stations and the filter hides the ones with none.
 test("the stations page shows the five stations and the filter hides the empty ones", async ({ page }) => {
-  const transport = stubTransport({
-    entities: STATIONS,
-    access: { permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
-  });
-  const outside: string[] = [];
-  const missing: string[] = [];
-  const problems: string[] = [];
-  page.on("pageerror", (error) => problems.push(error.message));
-
-  await page.route("**/*", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin !== "http://portal.test") {
-      outside.push(url.href);
-      return route.abort();
-    }
-    // A published app calls its endpoint under its own path, where the edge sets the session as
-    // the bearer and strips the prefix (T-2670); the stub answers the gateway's path.
-    if (url.pathname.startsWith(`/apps/helsinki-bikes/api/endpoint/${SLUG}/`)) {
-      const body = route.request().postData();
-      const path = url.pathname.slice("/apps/helsinki-bikes".length) + url.search;
-      const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
-      return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
-    }
-    if (!url.pathname.startsWith("/apps/helsinki-bikes/")) return route.fulfill({ status: 404, body: "" });
-    const file = normalize(url.pathname.slice("/apps/helsinki-bikes/".length) || "index.html");
-    if (file.startsWith("..") || !existsSync(join(DIST, file))) {
-      missing.push(url.pathname);
-      return route.fulfill({ status: 404, body: "" });
-    }
-    let body = readFileSync(join(DIST, file));
-    if (file === "index.html") {
-      body = Buffer.from(
-        body.toString("utf8").replace('<script id="jc-config" type="application/json"></script>', `<script id="jc-config" type="application/json">${JSON.stringify(CONFIG)}</script>`),
-      );
-    }
-    return route.fulfill({ status: 200, contentType: TYPES[extname(file)] ?? "application/octet-stream", body });
-  });
+  const { outside, missing, problems } = await serve(page);
 
   await page.goto(`${BASE}#stations`);
   const stations = page.getByRole("region", { name: "Stations" });
