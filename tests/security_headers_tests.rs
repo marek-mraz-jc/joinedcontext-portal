@@ -107,6 +107,35 @@ async fn a_page_reaches_nothing_it_was_not_served_from() {
     assert_eq!(directive(&policy, "object-src"), Some("'none'"));
 }
 
+/// The Open page frames an App from the apps origin (AP-122, T-2871): `frame-src` names that
+/// origin and nothing else, and without an apps origin the Portal frames only itself.
+#[tokio::test]
+async fn a_page_frames_only_itself_and_the_apps_origin() {
+    assert_eq!(directive(&policy().await, "frame-src"), Some("'self'"));
+
+    let mut config = Config::for_tests();
+    config.apps_url = Some("https://apps.city.example".parse().expect("a url"));
+    let app = server::app(AppState::new(config, None));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let policy = response.headers()[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .expect("ASCII")
+        .to_owned();
+    assert_eq!(
+        directive(&policy, "frame-src"),
+        Some("'self' https://apps.city.example")
+    );
+    assert_eq!(directive(&policy, "frame-ancestors"), Some("'self'"));
+}
+
 #[tokio::test]
 async fn every_answer_carries_the_headers_that_do_not_depend_on_the_route() {
     let headers = page_headers().await;
