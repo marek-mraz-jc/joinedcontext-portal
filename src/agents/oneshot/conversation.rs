@@ -2,6 +2,10 @@
 
 use super::*;
 
+use std::sync::PoisonError;
+
+use crate::agents::paths::{self, Path};
+
 /// Which operation answers a question about the project's own state (AG-64, T-1603).
 ///
 /// Asked "what waits for approval in helsinki?" on dev on 2026-09-19, the assistant read the
@@ -39,14 +43,28 @@ impl Driver {
         self.status(AgentRunStatus::Starting).await?;
         self.status(AgentRunStatus::Interviewing).await?;
 
+        let picked = self.current_path();
         let mut conversation: Vec<(String, String)> = Vec::new();
         if let Some(ref prior_id) = self.continues {
             if let Ok(events) = self.state.agents.events_since(prior_id, 0).await {
+                // A continuation keeps the path of the run it continues (API/04 §8).
+                if picked.is_none() {
+                    *self.path.lock().unwrap_or_else(PoisonError::into_inner) =
+                        paths::last_of(&events);
+                }
                 conversation = prior_transcript(events, self.transcript_budget);
             }
         }
 
-        if !self.prompt.trim().is_empty() {
+        if self.prompt.trim().is_empty() {
+            // A path picked without words: its first step, before any model call (AG-91).
+            if let Some(path) = picked {
+                self.first_step(path).await?;
+            }
+        } else {
+            if self.current_path().is_none() {
+                self.choose_path(&self.prompt).await?;
+            }
             match self.converse(&conversation, &self.prompt).await {
                 Ok(prose) => conversation.push((self.prompt.clone(), prose)),
                 Err(reason) => {
@@ -140,15 +158,23 @@ impl Driver {
             _ => self.endpoints.clone(),
         };
         let mut tools = self.data_tools(&chosen).await;
-        let offered =
+        let every_operation =
             tools_registry::offered(&self.access, &self.identity, &self.state, &self.project);
         let mut results: Vec<(data_query::QueryCall, String)> = Vec::new();
         let mut drafts = 0;
         let answer = loop {
+            // The path narrows what is offered (AG-89); a hand-over changes it mid-turn.
+            let path = self.current_path();
+            let offered: Vec<_> = every_operation
+                .iter()
+                .filter(|op| path.is_none_or(|path| path.allows(&op.name)))
+                .cloned()
+                .collect();
             let section = format!(
-                "{}\n{}",
+                "{}\n{}{}",
                 data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen)),
-                tools_registry::section(&offered)
+                tools_registry::section(&offered),
+                path_section(path)
             );
             let user = format!(
                 "{}{}",
@@ -167,6 +193,45 @@ impl Driver {
                     self.answer_timeout.as_secs()
                 )
             })??;
+
+            // A tool outside the path goes back to the model with the path's tools (AG-89), and
+            // a hand-over moves the rest of the turn onto the path it names (AG-88).
+            if let Some((tool, reason)) = self.off_path(&answer) {
+                self.event(
+                    "tool",
+                    failed_step(&tool, std::time::Instant::now(), &Value::Null, &reason),
+                )
+                .await?;
+                if drafts + 1 >= data_query::MAX_DRAFTS {
+                    let prose = format!("I stayed on this path: {reason}.");
+                    self.thought(&prose).await?;
+                    return Ok(prose);
+                }
+                drafts += 1;
+                results.push((drafted(&tool, None), format!("error: {reason}")));
+                continue;
+            }
+            if let Some(call) = switch_call(&answer) {
+                let said = match call {
+                    Ok((path, reason)) => match self.may_take(path) {
+                        Ok(()) => {
+                            self.switch_path(path, "handover", &reason).await?;
+                            format!("now on the path `{}`", path.id())
+                        }
+                        Err(refusal) => format!("error: {refusal}"),
+                    },
+                    Err(reason) => format!("error: {reason}"),
+                };
+                drafts += 1;
+                results.push((drafted("jc_switch_path", None), said));
+                if drafts >= data_query::MAX_DRAFTS {
+                    let prose = "I could not settle on a path for this; say what you want to do."
+                        .to_owned();
+                    self.thought(&prose).await?;
+                    return Ok(prose);
+                }
+                continue;
+            }
 
             let searches = data_query::search_calls(&answer);
             let calls = data_query::tool_calls(&answer);
@@ -399,7 +464,7 @@ impl Driver {
             if let Some(call) = tools_registry::ask_call(&answer) {
                 match call {
                     Ok(call) => match self.fill_options(call).await {
-                        Ok(call) => return self.ask_person(&call).await,
+                        Ok(call) => return self.ask_person(&call, None).await,
                         Err(reason) => {
                             drafts += 1;
                             results.push((drafted("jc_ask", None), format!("error: {reason}")));
@@ -1255,6 +1320,184 @@ must not reach the approval queue.
         }
         pack
     }
+}
+
+/// How `choose_path` asks (AG-88): one object, nothing else, so the answer is read and not
+/// interpreted.
+const CHOOSE_PATH_SYSTEM: &str = "You route a person's message to one of the assistant's paths. \
+Answer with one JSON object and nothing else: {\"path\": <one path id, or null>, \"reason\": \
+<one short sentence naming what in the message decided it>}. Answer null when no path fits: a \
+greeting, a question about the platform itself, or a request none of the paths does.";
+
+/// The most `choose_path` may write: one small object.
+const CHOOSE_PATH_BUDGET: u32 = 200;
+
+impl Driver {
+    /// The path the conversation is on now.
+    fn current_path(&self) -> Option<Path> {
+        *self.path.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn elapsed_ms(&self) -> u64 {
+        u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Whether the person may take a path: its kind is one they may propose (AG-87).
+    fn may_take(&self, path: Path) -> Result<(), String> {
+        let Some(kind) = path.proposes() else {
+            return Ok(());
+        };
+        if crate::permissions::for_request(&self.state, &self.identity, &self.project)
+            .may(kind, Verb::Propose)
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "the path `{}` ends by proposing a {kind}, which no role of the person lets them \
+                 propose here",
+                path.id()
+            ))
+        }
+    }
+
+    /// Puts the conversation on `path` and says so: `by` is `person`, `router` or `handover`.
+    async fn switch_path(&self, path: Path, by: &str, reason: &str) -> Result<(), String> {
+        *self.path.lock().unwrap_or_else(PoisonError::into_inner) = Some(path);
+        let mut payload = json!({ "path": path.id(), "by": by, "elapsedMs": self.elapsed_ms() });
+        if !reason.is_empty() {
+            payload["reason"] = json!(reason);
+        }
+        self.event("path", payload).await
+    }
+
+    /// A path's first step, asked by the Portal itself (AG-91): the `path` event, the page the
+    /// step works on, and its question with the options the person may pick from.
+    async fn first_step(&self, path: Path) -> Result<(), String> {
+        self.switch_path(path, "person", "").await?;
+        let step = path.first_step();
+        let call = tools_registry::AskCall {
+            question: step.question.to_owned(),
+            options: step
+                .options
+                .iter()
+                .map(|(value, title)| tools_registry::AskOption {
+                    value: (*value).to_owned(),
+                    title: (*title).to_owned(),
+                    description: None,
+                })
+                .collect(),
+            default: None,
+            pick: step.pick,
+            multiple: step.multiple,
+            min: step.multiple.then_some(1),
+            max: None,
+        };
+        let call = match self.fill_options(call.clone()).await {
+            Ok(call) => call,
+            // Nothing to pick is said, and the question is asked as free text.
+            Err(reason) => {
+                self.thought(&format!("{reason}; say it in your own words."))
+                    .await?;
+                tools_registry::AskCall {
+                    options: Vec::new(),
+                    pick: None,
+                    multiple: false,
+                    min: None,
+                    ..call
+                }
+            }
+        };
+        if let Some(page) = step.page {
+            self.event(
+                "navigate",
+                json!({ "route": format!("/projects/{}/{page}", self.project) }),
+            )
+            .await?;
+        }
+        self.ask_person(&call, Some(self.elapsed_ms())).await?;
+        Ok(())
+    }
+
+    /// Routes free text to a path with one short model call (AG-88). No path, a path the person
+    /// may not take, or a model that does not answer leaves the conversation as it was.
+    async fn choose_path(&self, text: &str) -> Result<(), String> {
+        let user = format!("The paths:\n{}\n\nThe message:\n{text}", paths::menu());
+        let answer = tokio::time::timeout(
+            self.answer_timeout,
+            self.complete_within(CHOOSE_PATH_SYSTEM, &user, CHOOSE_PATH_BUDGET),
+        )
+        .await;
+        let Ok(Ok(answer)) = answer else {
+            return Ok(());
+        };
+        match paths::chosen(&answer) {
+            Some((path, reason)) if self.may_take(path).is_ok() => {
+                self.switch_path(path, "router", &reason).await
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// The first tool of an answer the path does not have, and why it is refused (AG-89).
+    fn off_path(&self, answer: &str) -> Option<(String, String)> {
+        let path = self.current_path()?;
+        let tool = tools_registry::called(answer)
+            .into_iter()
+            .find(|tool| !path.allows(tool))?;
+        let reason = format!(
+            "the path `{}` does not use {tool}; its tools are {}. Work within it, or call \
+             jc_switch_path when the person wants another path",
+            path.id(),
+            path.tools().join(", ")
+        );
+        Some((tool, reason))
+    }
+}
+
+/// The pack's word on the path (AG-89): which it is, what it is for, the tools it has and how to
+/// hand over. Nothing without a path.
+fn path_section(path: Option<Path>) -> String {
+    let Some(path) = path else {
+        return String::new();
+    };
+    format!(
+        "\n## THE PATH\nYou are on the path `{}`: {}. Call only these tools: {}. Any other tool \
+         is refused. Nothing is proposed in the person's place: the flow ends on the page it \
+         filled, where the person proposes. When the person wants what another path does, hand \
+         over with ```json\n{{ \"tool\": \"jc_switch_path\", \"arguments\": {{ \"path\": \"<id>\", \
+         \"reason\": \"<why>\" }} }}\n```\nThe paths:\n{}\n",
+        path.id(),
+        path.goal(),
+        path.tools().join(", "),
+        paths::menu()
+    )
+}
+
+/// The `jc_switch_path` call of an answer, if it makes one: the path and the reason.
+fn switch_call(answer: &str) -> Option<Result<(Path, String), String>> {
+    let value = share::TOOL_FENCE
+        .captures_iter(answer)
+        .filter_map(|fence| serde_json::from_str::<Value>(&fence[1]).ok())
+        .find(|value| value.get("tool").and_then(Value::as_str) == Some("jc_switch_path"))?;
+    let arguments = value.get("arguments").cloned().unwrap_or(Value::Null);
+    let id = arguments
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(path) = Path::from_id(id) else {
+        return Some(Err(format!(
+            "'{id}' is not a path; the paths are {}",
+            Path::ALL.map(Path::id).join(", ")
+        )));
+    };
+    let reason = arguments
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .chars()
+        .take(300)
+        .collect();
+    Some(Ok((path, reason)))
 }
 
 /// One tool call as the transcript carries it: what was called, how it went, and what came

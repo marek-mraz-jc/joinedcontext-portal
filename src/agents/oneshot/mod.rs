@@ -284,6 +284,11 @@ struct Driver {
     transcript_budget: usize,
     /// The form the person asked from, when they asked from one (T-1611).
     form: FormContext,
+    /// The path the conversation is on (AG-89): the one the person picked, the one `choose_path`
+    /// or a hand-over took, or none. It changes during a turn, so it is behind a lock.
+    path: std::sync::Mutex<Option<crate::agents::paths::Path>>,
+    /// When the request that started this run arrived, for the `elapsedMs` of its steps (AG-91).
+    started: std::time::Instant,
 }
 
 /// The share of a run's token budget the prior transcript may spend, and four characters to
@@ -308,6 +313,14 @@ pub struct FormContext {
     pub field: Option<String>,
 }
 
+/// What a conversation opens with besides its words: the form it was asked from and the path
+/// the person picked (AG-87).
+#[derive(Debug, Clone, Default)]
+pub struct Opening {
+    pub form: FormContext,
+    pub path: Option<crate::agents::paths::Path>,
+}
+
 impl FormContext {
     /// Nothing to say when no form named itself.
     pub fn is_empty(&self) -> bool {
@@ -322,8 +335,9 @@ pub fn spawn(
     ticket: &str,
     profile: &Profile,
     settings: &crate::config::AgentSettings,
-    form: FormContext,
+    opening: Opening,
 ) {
+    let Opening { form, path } = opening;
     let http = reqwest::Client::builder()
         .timeout(CALL_TIMEOUT)
         .build()
@@ -362,6 +376,8 @@ pub fn spawn(
         steps_per_run: profile.steps_per_run,
         transcript_budget: transcript_budget(profile.max_tokens_per_run),
         form,
+        path: std::sync::Mutex::new(path),
+        started: std::time::Instant::now(),
     };
     tokio::spawn(async move {
         let run_id = driver.run_id.clone();
@@ -415,6 +431,8 @@ impl Driver {
             steps_per_run: 30,
             transcript_budget: transcript_budget(400_000),
             form: FormContext::default(),
+            path: std::sync::Mutex::new(None),
+            started: std::time::Instant::now(),
         }
     }
 }
@@ -1266,6 +1284,8 @@ mod tests {
             steps_per_run: 30,
             transcript_budget: transcript_budget(400_000),
             form: FormContext::default(),
+            path: std::sync::Mutex::new(None),
+            started: std::time::Instant::now(),
         };
         let pack = driver
             .pack(&json!({}), &BTreeMap::new(), &[], "instruction", None, None)

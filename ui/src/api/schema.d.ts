@@ -3334,7 +3334,10 @@ export interface components {
             /** @description The endpoints the person chose, zero to five, which the assistant may query (AG-75). */
             endpointNames?: string[];
             formContext?: null | components["schemas"]["FormContextRequest"];
-            message: string;
+            /** @description Required unless `path` is given (API/04 §8). */
+            message?: string;
+            /** @description The path the person picked in the empty assistant (AG-87, ADR-N-032). */
+            path?: null | ("integrate-pipeline" | "upload-data" | "find-data" | "share-data" | "build-app" | "build-dashboard" | "create-data-model" | "define-kpi");
             profile?: string | null;
         };
         /**

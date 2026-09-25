@@ -213,6 +213,7 @@ impl Turn {
 /// then repeating the last one, and waits for the turn to be answered.
 async fn converse(access: Value, who: Identity, message: &str, answers: &[&str]) -> Turn {
     let proxy = MockServer::start().await;
+    common::route_to_no_path(&proxy).await;
     for answer in answers {
         Mock::given(method("POST"))
             .and(path("/v1/llm/chat/completions"))
@@ -272,7 +273,9 @@ async fn converse(access: Value, who: Identity, message: &str, answers: &[&str])
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|request| request.url.path() == "/v1/llm/chat/completions")
+        .filter(|request| {
+            request.url.path() == "/v1/llm/chat/completions" && !common::is_router(&request.body)
+        })
         .map(|request| String::from_utf8_lossy(&request.body).into_owned())
         .collect();
     Turn {

@@ -15,6 +15,7 @@ pub mod model_change;
 pub mod needs;
 pub mod oneshot;
 pub mod patch;
+pub mod paths;
 pub mod preview;
 pub mod profile;
 pub mod reaper;

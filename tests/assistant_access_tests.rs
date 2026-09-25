@@ -204,6 +204,7 @@ async fn converse_with(
     conversation: Conversation,
 ) -> (AppState, Vec<AgentRunEvent>, String) {
     let proxy = MockServer::start().await;
+    common::route_to_no_path(&proxy).await;
     Mock::given(method("POST"))
         .and(path("/v1/llm/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -267,6 +268,7 @@ async fn converse_with(
         .await
         .unwrap_or_default()
         .iter()
+        .filter(|request| !common::is_router(&request.body))
         .map(|request| String::from_utf8_lossy(&request.body).into_owned())
         .collect::<Vec<_>>()
         .join("\n");
@@ -1266,6 +1268,7 @@ async fn ask_the_data_with(
     data: impl wiremock::Respond + 'static,
 ) -> (Vec<AgentRunEvent>, Vec<Value>, Vec<String>) {
     let proxy = MockServer::start().await;
+    common::route_to_no_path(&proxy).await;
     for answer in answers {
         Mock::given(method("POST"))
             .and(path("/v1/llm/chat/completions"))
@@ -1338,7 +1341,7 @@ async fn ask_the_data_with(
     let received = proxy.received_requests().await.unwrap_or_default();
     let bodies = received
         .iter()
-        .filter(|r| r.url.path() == "/v1/llm/chat/completions")
+        .filter(|r| r.url.path() == "/v1/llm/chat/completions" && !common::is_router(&r.body))
         .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
         .collect();
     let bearers = received
@@ -1652,6 +1655,7 @@ static ON_THE_RUNNER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(())
 /// A model that gives `answers` in order, one per request.
 async fn model_answering(answers: &[&str]) -> MockServer {
     let proxy = MockServer::start().await;
+    common::route_to_no_path(&proxy).await;
     for answer in answers {
         Mock::given(method("POST"))
             .and(path("/v1/llm/chat/completions"))
@@ -1771,7 +1775,7 @@ async fn change_on_the_runner(
             .await
             .unwrap_or_default()
             .iter()
-            .filter(|r| r.url.path() == "/v1/llm/chat/completions")
+            .filter(|r| r.url.path() == "/v1/llm/chat/completions" && !common::is_router(&r.body))
             .count();
         if asked == answers.len() && events.last().is_some_and(|e| e.kind == until) {
             break;
@@ -1783,7 +1787,7 @@ async fn change_on_the_runner(
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|r| r.url.path() == "/v1/llm/chat/completions")
+        .filter(|r| r.url.path() == "/v1/llm/chat/completions" && !common::is_router(&r.body))
         .map(|r| String::from_utf8_lossy(&r.body).into_owned())
         .collect();
     let harnesses = runner
@@ -2053,6 +2057,7 @@ async fn a_data_model_is_changed_by_the_editors_operations_once_the_source_check
         .await
         .unwrap_or_default()
         .iter()
+        .filter(|r| !common::is_router(&r.body))
         .map(|r| String::from_utf8_lossy(&r.body).into_owned())
         .collect();
     assert!(
@@ -2186,6 +2191,7 @@ async fn a_dashboard_is_created_with_its_layers_once_they_name_what_the_endpoint
         .await
         .unwrap_or_default()
         .iter()
+        .filter(|r| !common::is_router(&r.body))
         .map(|r| String::from_utf8_lossy(&r.body).into_owned())
         .collect();
     assert!(

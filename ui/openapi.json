@@ -12085,9 +12085,6 @@
       "StartConversation": {
         "type": "object",
         "description": "Request payload for starting or continuing an assistant conversation.",
-        "required": [
-          "message"
-        ],
         "properties": {
           "continues": {
             "type": [
@@ -12114,7 +12111,30 @@
             ]
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Required unless `path` is given (API/04 §8)."
+          },
+          "path": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "description": "One path, as the request and the `path` event spell it.",
+                "enum": [
+                  "integrate-pipeline",
+                  "upload-data",
+                  "find-data",
+                  "share-data",
+                  "build-app",
+                  "build-dashboard",
+                  "create-data-model",
+                  "define-kpi"
+                ]
+              }
+            ],
+            "description": "The path the person picked in the empty assistant (AG-87, ADR-N-032)."
           },
           "profile": {
             "type": [

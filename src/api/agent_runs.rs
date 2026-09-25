@@ -537,7 +537,7 @@ pub async fn create_run(
             &ticket,
             &profile,
             settings,
-            crate::agents::oneshot::FormContext::default(),
+            crate::agents::oneshot::Opening::default(),
         );
         return Ok((StatusCode::ACCEPTED, Json(CreatedRun { run, ticket: None })));
     }

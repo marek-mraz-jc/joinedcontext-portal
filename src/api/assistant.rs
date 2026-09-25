@@ -571,7 +571,13 @@ pub async fn propose_endpoint(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartConversation {
+    /// Required unless `path` is given (API/04 §8).
+    #[serde(default)]
     pub message: String,
+    /// The path the person picked in the empty assistant (AG-87, ADR-N-032).
+    #[serde(default)]
+    #[schema(inline)]
+    pub path: Option<crate::agents::paths::Path>,
     /// Where the person is standing when they ask (UI-61, AG-77): the form that is open, the draft
     /// it edits and the field they were last in. Values never travel here; the assistant reads the
     /// person's own draft with `jc_draft_get` under their own grants.
@@ -670,14 +676,17 @@ pub async fn start_conversation(
 ) -> Result<(StatusCode, Json<CreatedRun>), ApiError> {
     let settings = agent_settings(&state)?;
 
-    crate::permissions::for_request(&state, &user.0.identity, &project).check(
-        "App",
-        Verb::Propose,
-        None,
-    )?;
+    let grants = crate::permissions::for_request(&state, &user.0.identity, &project);
+    grants.check("App", Verb::Propose, None)?;
+    // A path ends by proposing its kind; a person who may not cannot take it (AG-87, UI-44).
+    if let Some(kind) = request.path.and_then(crate::agents::paths::Path::proposes) {
+        grants.check(kind, Verb::Propose, None)?;
+    }
 
-    if request.message.trim().is_empty() {
-        return Err(ApiError::BadRequest("message must not be empty".into()));
+    if request.message.trim().is_empty() && request.path.is_none() {
+        return Err(ApiError::BadRequest(
+            "message must not be empty unless a path is given".into(),
+        ));
     }
     if request.message.chars().count() > MAX_PROMPT_CHARS {
         return Err(ApiError::BadRequest(format!(
@@ -803,14 +812,16 @@ pub async fn start_conversation(
     .await?;
     // The first question is a line of the chat like every later one, so the panel shows it and
     // a continuation reads it back (AG-68). The driver subscribes after this, so it answers the
-    // prompt once, not this event as well.
-    publish_event(
-        &state,
-        &id,
-        "message",
-        serde_json::json!({ "text": run.prompt, "sentBy": run.created_by }),
-    )
-    .await?;
+    // prompt once, not this event as well. A path picked without words has no line to show.
+    if !run.prompt.trim().is_empty() {
+        publish_event(
+            &state,
+            &id,
+            "message",
+            serde_json::json!({ "text": run.prompt, "sentBy": run.created_by }),
+        )
+        .await?;
+    }
 
     oneshot::spawn(
         state.clone(),
@@ -819,7 +830,10 @@ pub async fn start_conversation(
         &ticket,
         &profile,
         settings,
-        form,
+        oneshot::Opening {
+            form,
+            path: request.path,
+        },
     );
 
     Ok((StatusCode::ACCEPTED, Json(CreatedRun { run, ticket: None })))
@@ -1078,6 +1092,7 @@ mod tests {
     fn a_form_context_is_a_kind_a_draft_and_a_field_path_or_it_is_refused() {
         let asked =
             |kind: Option<&str>, name: Option<&str>, field: Option<&str>| StartConversation {
+                path: None,
                 message: "what goes here?".to_owned(),
                 profile: None,
                 continues: None,
@@ -1123,6 +1138,7 @@ mod tests {
 
         // No form named itself: nothing to say, and no error either.
         assert!(form_context(&StartConversation {
+            path: None,
             message: "how is the air?".to_owned(),
             profile: None,
             continues: None,

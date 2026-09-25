@@ -161,6 +161,13 @@ pub(super) fn calls(answer: &str) -> Vec<RegistryCall> {
         .collect()
 }
 
+/// The name of every tool an answer calls, in order (AG-89): what a path's gate reads.
+pub(super) fn called(answer: &str) -> Vec<String> {
+    blocks(answer)
+        .filter_map(|value| value.get("tool").and_then(Value::as_str).map(str::to_owned))
+        .collect()
+}
+
 /// The names of every `describe_tool` call of an answer.
 pub(super) fn describes(answer: &str) -> Vec<String> {
     blocks(answer)
@@ -803,7 +810,11 @@ impl Driver {
 
     /// Asks the person one question and leaves the turn (AG-80): the answer arrives as an
     /// `answer` event, which starts the next turn with what they chose.
-    pub(super) async fn ask_person(&self, call: &AskCall) -> Result<String, String> {
+    pub(super) async fn ask_person(
+        &self,
+        call: &AskCall,
+        elapsed_ms: Option<u64>,
+    ) -> Result<String, String> {
         let id = format!("q-{}", crate::agents::store::now_rfc3339().replace(':', ""));
         let options: Vec<Value> = call
             .options
@@ -821,6 +832,7 @@ impl Driver {
                 "multiple": call.multiple,
                 "min": call.min,
                 "max": call.max,
+                "elapsedMs": elapsed_ms,
             }),
         )
         .await?;

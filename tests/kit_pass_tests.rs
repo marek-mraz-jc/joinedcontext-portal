@@ -325,6 +325,24 @@ async fn portal_state_with(
     } else {
         "/v1/llm/chat/completions"
     };
+    // A conversation that starts without a path is routed first (AG-88, T-2693): to no path
+    // here, so the answers below are the conversation's own turns.
+    let unrouted = "{\"path\": null, \"reason\": \"a script\"}";
+    Mock::given(method("POST"))
+        .and(path(route))
+        .and(wiremock::matchers::body_string_contains(
+            "route a person's message to one of the assistant's paths",
+        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(if provider == "anthropic" {
+                anthropic(unrouted)
+            } else {
+                openai(unrouted)
+            }),
+        )
+        .with_priority(1)
+        .mount(&proxy)
+        .await;
     for text in answers {
         let body = if provider == "anthropic" {
             anthropic(text)

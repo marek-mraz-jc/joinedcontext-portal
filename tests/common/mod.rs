@@ -434,3 +434,27 @@ pub static REALM: std::sync::LazyLock<Realm> = std::sync::LazyLock::new(|| {
 /// The clients the internal listener's routes belong to, as the deployment names them.
 pub const AGENT_PROXY_CLIENT: &str = "helsinki-agent-proxy";
 pub const PIPELINE_RUNNER_CLIENT: &str = "helsinki-pipelines";
+
+/// What `choose_path` sends first on a conversation that starts without a path (AG-88).
+pub const ROUTER_PROMPT: &str = "route a person's message to one of the assistant's paths";
+
+/// A stub model that routes free text to no path, ahead of a test's scripted answers, so a script
+/// written for the conversation's own turns reads the same as before paths (T-2693).
+pub async fn route_to_no_path(proxy: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .and(wiremock::matchers::body_string_contains(ROUTER_PROMPT))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "chatcmpl-router", "object": "chat.completion",
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": "{\"path\": null, \"reason\": \"a script\"}" }, "finish_reason": "stop" }],
+            "usage": { "total_tokens": 10 }
+        })))
+        .with_priority(1)
+        .mount(proxy)
+        .await;
+}
+
+/// Whether a request to the stub model is `choose_path`'s, which a test counting turns skips.
+pub fn is_router(body: &[u8]) -> bool {
+    String::from_utf8_lossy(body).contains(ROUTER_PROMPT)
+}
