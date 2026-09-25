@@ -2435,6 +2435,11 @@
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
     "notInList": "nicht in der Liste",
+    "relationSearch": "Suchen",
+    "relationNone": "Nichts, was Sie lesen dürfen, passt",
+    "relationRemove": "Entfernen",
+    "relationFailed": "Die Suche ist fehlgeschlagen",
+    "relationMore": "und weitere",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",

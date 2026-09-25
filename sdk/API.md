@@ -88,6 +88,10 @@ function optionLabel(option: EnumOption): string
 ```
 The permissible values of an attribute (UI-86): a direct `enum`, or one behind `$ref`, `allOf`, `anyOf` with `null`, or a `oneOf` of `const`s; each `{ value, title?, description? }`, the title in `language` where the model has one. `null` when the attribute is not an enum. `optionLabel` is what a picker shows: the title, else the value. `enumsOf` reads every enum attribute of one type's schema, which is what the grid's `enums` prop takes: such a column is then edited and filtered by picking.
 ```ts
+function relationsOf(type: unknown): Record<string, RelationEnd>
+```
+The relationship ends of one type's schema (UI-84): every property with `x-ngsi-ld-relationship`, as `{ target, many, required }`. Pass it as the grid's `relations` prop: the column is then edited by picking entities of the target class that the person can read, one on a single end and several on a many end, and a required end keeps its last target.
+```ts
 function isLanguageMap(value: unknown): value is LanguageMap
 ```
 Whether a value is `{ languageMap }`, the shape `entities.create`/`update` write as a `LanguageProperty`.

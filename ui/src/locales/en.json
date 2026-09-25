@@ -2435,6 +2435,11 @@
     "applying": "Applying…",
     "refusedHere": "refused",
     "notInList": "not in the list",
+    "relationSearch": "Search",
+    "relationNone": "Nothing you can read matches",
+    "relationRemove": "Remove",
+    "relationFailed": "The search failed",
+    "relationMore": "and more",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",
