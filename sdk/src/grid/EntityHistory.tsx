@@ -12,6 +12,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "./source";
+// Its rules live beside the grid's: an application may show the history without the grid.
+import "./grid.css";
 
 /** The windows a person picks from, as hours back from now; `custom` asks for two timestamps. */
 export const WINDOWS = ["hour", "day", "week", "custom"] as const;

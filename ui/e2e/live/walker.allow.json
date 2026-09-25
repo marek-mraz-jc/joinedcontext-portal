@@ -1,0 +1,7 @@
+{
+  "$comment": [
+    "T-2730: what the live walker (walker.spec.ts) finds on dev and is owed, one entry per route pattern and check, each naming the open task that fixes it.",
+    "Empty until the walker's first run on dev: each finding of that run becomes a task (tasks/newid) and an entry here. The list only shrinks."
+  ],
+  "excused": []
+}

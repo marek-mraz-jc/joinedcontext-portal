@@ -18,7 +18,13 @@ import i18n from "../src/i18n";
 import { rememberPrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { BLUEPRINT, dataNeeds } from "../src/pages/apps/AppGenerator";
+import {
+  ACCESS_PRESETS,
+  BLUEPRINT,
+  dataNeeds,
+  offersPreset,
+  presetOperations,
+} from "../src/pages/apps/AppGenerator";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -360,26 +366,31 @@ describe("the app generator", () => {
     });
   });
 
-  it("offers to update only where the person's own grant has a write, and then sends updateAttrs (AP-22, AP-62)", async () => {
+  it("offers Read and update only where the person's own grant holds its writes, and sends them (AP-132, PF-70)", async () => {
     const user = userEvent.setup();
     const fetchMock = renderGenerator({
       grant: {
         ...GRANT,
-        permissions: [{ ...GRANT.permissions[0], actions: ["queryEntity", "retrieveEntity", "updateAttrs"] }],
+        permissions: [{ ...GRANT.permissions[0], actions: ["queryEntity", "retrieveEntity", "updateAttrs", "appendAttrs"] }],
       },
     });
     await openGenerator(user);
     await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
-    const option = await screen.findByRole("checkbox", { name: /updateAttrs/ });
-    await user.click(option);
+    const access = await screen.findByLabelText(en.apps.generate.needs.access, { exact: false });
+    await waitFor(() =>
+      expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.update })).toBeEnabled(),
+    );
+    expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.full })).toBeDisabled();
+    await user.selectOptions(access, "update");
     await user.click(screen.getByRole("button", { name: en.apps.generate.submit }));
 
     await waitFor(async () => {
       const body = await runBody(fetchMock);
       const needs = body.dataNeeds as { operations: string[] }[];
-      expect(needs[0].operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs"]);
+      // No temporal read: the grant holds none, and the server would refuse it.
+      expect(needs[0].operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs", "appendAttrs"]);
     });
   });
 
@@ -388,14 +399,18 @@ describe("the app generator", () => {
     const fetchMock = renderGenerator({
       grant: {
         ...GRANT,
-        permissions: [{ ...GRANT.permissions[0], actions: ["queryEntity", "retrieveEntity", "updateAttrs"] }],
+        permissions: [{ ...GRANT.permissions[0], actions: ["queryEntity", "retrieveEntity", "updateAttrs", "appendAttrs"] }],
       },
     });
     await openGenerator(user);
     await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
 
-    await user.click(await screen.findByRole("checkbox", { name: /updateAttrs/ }));
+    const access = await screen.findByLabelText(en.apps.generate.needs.access, { exact: false });
+    await waitFor(() =>
+      expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.update })).toBeEnabled(),
+    );
+    await user.selectOptions(access, "update");
     const role = screen.getByLabelText(en.apps.generate.needs.writeRole, { exact: false });
     await user.type(role, "Steward");
     expect(await screen.findByText(en.apps.generate.needs.writeRoleInvalid)).toBeInTheDocument();
@@ -409,18 +424,22 @@ describe("the app generator", () => {
       const needs = body.dataNeeds as { operations: string[]; roles?: string[] }[];
       expect(needs[0].operations).toEqual(["queryEntity", "retrieveEntity"]);
       expect(needs[0].roles).toBeUndefined();
-      expect(needs[1].operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs"]);
+      expect(needs[1].operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs", "appendAttrs"]);
       expect(needs[1].roles).toEqual(["steward"]);
     });
   });
 
-  it("has no update option where the grant is read-only", async () => {
+  it("offers only Read only where the grant is read-only, and says why", async () => {
     const user = userEvent.setup();
     renderGenerator();
     await openGenerator(user);
     await screen.findByLabelText(en.apps.generate.endpoint, { exact: false });
     await fill(user);
-    expect(screen.queryByRole("checkbox", { name: /updateAttrs/ })).toBeNull();
+    const access = await screen.findByLabelText(en.apps.generate.needs.access, { exact: false });
+    expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.read })).toBeEnabled();
+    expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.update })).toBeDisabled();
+    expect(within(access).getByRole("option", { name: en.apps.generate.needs.presets.full })).toBeDisabled();
+    expect(screen.getByText(en.apps.generate.needs.accessHeld)).toBeInTheDocument();
   });
 
   it("navigates to the app page after creating the run (AG-43, AP-68)", async () => {
@@ -647,12 +666,13 @@ describe("the derived grant", () => {
   });
 
   it("reads for everyone and writes for the named role only, as two needs", () => {
-    const [read, write] = dataNeeds(endpoint, types, [], true, "steward");
-    expect(read.operations).toEqual(["queryEntity", "retrieveEntity"]);
+    const [read, write] = dataNeeds(endpoint, types, [], ACCESS_PRESETS.update, "steward");
+    expect(read.operations).toEqual(["queryEntity", "retrieveEntity", "queryTemporal", "retrieveTemporal"]);
     expect(read).not.toHaveProperty("roles");
-    expect(write.operations).toEqual(["queryEntity", "retrieveEntity", "updateAttrs"]);
+    expect(write.operations).toEqual(ACCESS_PRESETS.update);
     expect(write.roles).toEqual(["steward"]);
-    expect(dataNeeds(endpoint, types, [], true)).toHaveLength(1);
+    expect(dataNeeds(endpoint, types, [], ACCESS_PRESETS.update)).toHaveLength(1);
+    expect(dataNeeds(endpoint, types, [], ACCESS_PRESETS.read, "steward")).toHaveLength(1);
   });
 
   it("drops a type whose every attribute the user unticked", () => {
@@ -669,5 +689,39 @@ describe("the derived grant", () => {
     const [need] = dataNeeds(endpoint, types, ["AirQualityObserved.pm25"]);
     expect(need.attrs).toEqual(["location", "pm10"]);
     expect(need.attrs).not.toContain("internalNote");
+  });
+});
+
+describe("the access presets (AP-132)", () => {
+  const grant = (actions: string[], prohibited: string[] = [], type = "Alert") => ({
+    permissions: [{ resource: { type }, actions }],
+    prohibitions: [{ resource: { type }, actions: prohibited }],
+  });
+
+  it("each preset adds to the one before it, and only Read only writes nothing", () => {
+    expect(ACCESS_PRESETS.read).toEqual(["queryEntity", "retrieveEntity", "queryTemporal", "retrieveTemporal"]);
+    expect(ACCESS_PRESETS.update).toEqual([...ACCESS_PRESETS.read, "updateAttrs", "appendAttrs"]);
+    expect(ACCESS_PRESETS.full).toEqual([...ACCESS_PRESETS.update, "createEntity", "deleteEntity"]);
+  });
+
+  it("is offered only when every write it adds is held on every type, and a prohibition takes one away", () => {
+    const editor = grant(["queryEntity", "updateAttrs", "appendAttrs"]);
+    expect(offersPreset("read", editor, ["Alert"])).toBe(true);
+    expect(offersPreset("update", editor, ["Alert"])).toBe(true);
+    expect(offersPreset("full", editor, ["Alert"])).toBe(false);
+    expect(offersPreset("update", editor, ["Alert", "Road"]), "no grant on Road").toBe(false);
+    expect(offersPreset("update", grant(["updateAttrs", "appendAttrs"], ["appendAttrs"]), ["Alert"])).toBe(false);
+    expect(offersPreset("full", grant(ACCESS_PRESETS.full.slice(), [], "*"), ["Alert", "Road"])).toBe(true);
+    expect(offersPreset("update", undefined, ["Alert"]), "no document yet").toBe(false);
+    expect(offersPreset("read", editor, []), "nothing to read").toBe(false);
+  });
+
+  it("never carries more than the preset, and a temporal read only where it is held", () => {
+    const reader = grant(["queryEntity", "retrieveEntity", "queryTemporal"]);
+    expect(presetOperations("read", reader, ["Alert"])).toEqual(["queryEntity", "retrieveEntity", "queryTemporal"]);
+    expect(presetOperations("read", undefined, ["Alert"])).toEqual(["queryEntity", "retrieveEntity"]);
+    const full = grant(ACCESS_PRESETS.full.slice());
+    expect(presetOperations("update", full, ["Alert"])).toEqual(ACCESS_PRESETS.update);
+    expect(presetOperations("update", full, ["Alert"])).not.toContain("createEntity");
   });
 });

@@ -68,6 +68,8 @@ slots:
   pm10:
     range: float
     slot_uri: bb:pm10
+    unit:
+      exact_mappings: ["ucefact:GQ"]
 `;
 
 /** Both views over one string, which is what the page holds. */

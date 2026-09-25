@@ -307,153 +307,155 @@ export function EntityForm({
       aria-label={title ?? (row ? "Edit " + type : "New " + type)}
       onSubmit={(e) => void handleSubmit(e)}
     >
-      {!row && (
-        <label className="jc-field">
-          <span>Local id</span>
-          <input
-            name="localId"
-            aria-label="Local id"
-            value={localId}
-            onChange={(e) => setLocalId(e.target.value)}
-          />
-        </label>
-      )}
-      {fieldNames.map((name) => {
-        const spec = fieldSpecs[name];
-        const val = draft[name] ?? "";
-        const fieldDecision = can(op, type, name);
-        const disabled = !fieldDecision.ok;
-        const reason = disabled ? fieldDecision.reason : undefined;
-
-        let inputElement: React.JSX.Element;
-        switch (spec.input) {
-          case "language":
-            inputElement = (
-              <span className="jc-languages">
-                {languagesOf(name).map((lang) => (
-                  <input
-                    key={lang}
-                    type="text"
-                    lang={lang}
-                    aria-label={`${name} (${lang})`}
-                    placeholder={lang}
-                    value={languageDraft[name]?.[lang] ?? ""}
-                    disabled={disabled || stored === null}
-                    title={reason}
-                    onChange={(e) =>
-                      setLanguageDraft((d) => ({ ...d, [name]: { ...(d[name] ?? {}), [lang]: e.target.value } }))
-                    }
-                  />
-                ))}
-              </span>
-            );
-            break;
-          case "number":
-            inputElement = (
-              <input
-                type="number"
-                aria-label={name}
-                min={spec.min}
-                max={spec.max}
-                step="any"
-                value={val}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-              />
-            );
-            break;
-          case "select": {
-            // A stored value the enum does not list stays shown and marked, never replaced.
-            const outside = val !== "" && !spec.options?.some((opt) => opt.value === val);
-            inputElement = (
-              <select
-                aria-label={name}
-                aria-invalid={outside || undefined}
-                value={val}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-              >
-                <option value="">—</option>
-                {outside && <option value={val}>{`${val} (not in the list)`}</option>}
-                {spec.options?.map((opt) => (
-                  <option key={opt.value} value={opt.value} title={opt.description}>
-                    {optionLabel(opt)}
-                  </option>
-                ))}
-              </select>
-            );
-            break;
-          }
-          case "date":
-            inputElement = (
-              <input
-                type="date"
-                aria-label={name}
-                value={val}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-              />
-            );
-            break;
-          case "checkbox":
-            inputElement = (
-              <input
-                type="checkbox"
-                aria-label={name}
-                checked={val === "true"}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, [name]: e.target.checked ? "true" : "false" }))
-                }
-              />
-            );
-            break;
-          case "geo":
-            inputElement = (
-              <input
-                type="text"
-                aria-label={name}
-                placeholder="lat, lon"
-                value={val}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-              />
-            );
-            break;
-          default:
-            inputElement = (
-              <input
-                type="text"
-                aria-label={name}
-                value={val}
-                disabled={disabled}
-                title={reason}
-                onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
-              />
-            );
-            break;
-        }
-
-        return (
-          <label key={name} className="jc-field">
-            <span>
-              {name}
-              {spec.required ? " *" : ""}
-            </span>
-            {inputElement}
-            {fieldErrors[name] && (
-              <p className="jc-field-error" role="alert">
-                {fieldErrors[name]}
-              </p>
-            )}
+      <div className="jc-form-fields">
+        {!row && (
+          <label className="jc-field">
+            <span>Local id</span>
+            <input
+              name="localId"
+              aria-label="Local id"
+              value={localId}
+              onChange={(e) => setLocalId(e.target.value)}
+            />
           </label>
-        );
-      })}
+        )}
+        {fieldNames.map((name) => {
+          const spec = fieldSpecs[name];
+          const val = draft[name] ?? "";
+          const fieldDecision = can(op, type, name);
+          const disabled = !fieldDecision.ok;
+          const reason = disabled ? fieldDecision.reason : undefined;
+
+          let inputElement: React.JSX.Element;
+          switch (spec.input) {
+            case "language":
+              inputElement = (
+                <span className="jc-languages">
+                  {languagesOf(name).map((lang) => (
+                    <input
+                      key={lang}
+                      type="text"
+                      lang={lang}
+                      aria-label={`${name} (${lang})`}
+                      placeholder={lang}
+                      value={languageDraft[name]?.[lang] ?? ""}
+                      disabled={disabled || stored === null}
+                      title={reason}
+                      onChange={(e) =>
+                        setLanguageDraft((d) => ({ ...d, [name]: { ...(d[name] ?? {}), [lang]: e.target.value } }))
+                      }
+                    />
+                  ))}
+                </span>
+              );
+              break;
+            case "number":
+              inputElement = (
+                <input
+                  type="number"
+                  aria-label={name}
+                  min={spec.min}
+                  max={spec.max}
+                  step="any"
+                  value={val}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+                />
+              );
+              break;
+            case "select": {
+              // A stored value the enum does not list stays shown and marked, never replaced.
+              const outside = val !== "" && !spec.options?.some((opt) => opt.value === val);
+              inputElement = (
+                <select
+                  aria-label={name}
+                  aria-invalid={outside || undefined}
+                  value={val}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+                >
+                  <option value="">—</option>
+                  {outside && <option value={val}>{`${val} (not in the list)`}</option>}
+                  {spec.options?.map((opt) => (
+                    <option key={opt.value} value={opt.value} title={opt.description}>
+                      {optionLabel(opt)}
+                    </option>
+                  ))}
+                </select>
+              );
+              break;
+            }
+            case "date":
+              inputElement = (
+                <input
+                  type="date"
+                  aria-label={name}
+                  value={val}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+                />
+              );
+              break;
+            case "checkbox":
+              inputElement = (
+                <input
+                  type="checkbox"
+                  aria-label={name}
+                  checked={val === "true"}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, [name]: e.target.checked ? "true" : "false" }))
+                  }
+                />
+              );
+              break;
+            case "geo":
+              inputElement = (
+                <input
+                  type="text"
+                  aria-label={name}
+                  placeholder="lat, lon"
+                  value={val}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+                />
+              );
+              break;
+            default:
+              inputElement = (
+                <input
+                  type="text"
+                  aria-label={name}
+                  value={val}
+                  disabled={disabled}
+                  title={reason}
+                  onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
+                />
+              );
+              break;
+          }
+
+          return (
+            <label key={name} className="jc-field">
+              <span>
+                {name}
+                {spec.required ? " *" : ""}
+              </span>
+              {inputElement}
+              {fieldErrors[name] && (
+                <p className="jc-field-error" role="alert">
+                  {fieldErrors[name]}
+                </p>
+              )}
+            </label>
+          );
+        })}
+      </div>
       {languageProblem && <Problem error={languageProblem} />}
       {save.problem && <Problem error={save.problem} />}
       <div className="jc-form-actions">

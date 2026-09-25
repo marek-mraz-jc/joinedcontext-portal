@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
 import { axeViolations } from "./axe";
 
 // The plain-HTML sample application (T-2597) served the way the Portal static host serves it:
@@ -34,6 +35,40 @@ const TYPES: Record<string, string> = {
   css: "text/css",
 };
 
+/** Serves the folder under its published path with the host's CSP; endpoint reads land in `reads`. */
+async function serve(page: Page, reads: URL[] = []): Promise<void> {
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== ORIGIN) {
+      // AP-11: the page reaches no other host. Refused here and reported by the caller.
+      return route.abort();
+    }
+    if (url.pathname.startsWith("/api/endpoint/")) {
+      reads.push(url);
+      return route.fulfill({ status: 200, contentType: "application/ld+json", json: EVENTS });
+    }
+    const file = url.pathname.replace(/^\/apps\/helsinki-events\//, "") || "index.html";
+    if (!/^[a-z]+\.(html|js|css)$/.test(file)) {
+      return route.fulfill({ status: 404, body: "not found" });
+    }
+    let body = readFileSync(join(APP, file), "utf8");
+    if (file === "index.html") {
+      body = body.replace(
+        "<head>",
+        `<head><script id="jc-config" type="application/json">${JSON.stringify(CONFIG)}</script>`,
+      );
+    }
+    return route.fulfill({
+      status: 200,
+      headers: { "content-type": TYPES[file.split(".").pop() ?? ""], "content-security-policy": CSP },
+      body,
+    });
+  });
+}
+
+// The blocks of this page that must never cover each other: it has none of the SDK's classes.
+const BLOCKS = ".top h1, .lead, .filters label, .filters input, .status, .events li, #map, #detail";
+
 test.describe("Helsinki events, the plain-HTML application (AP-14, AP-83)", () => {
   // A reader in Helsinki: the start day and its query are that calendar day.
   test.use({ timezoneId: "Europe/Helsinki", locale: "en-GB" });
@@ -48,33 +83,7 @@ test.describe("Helsinki events, the plain-HTML application (AP-14, AP-83)", () =
     });
     page.on("pageerror", (error) => problems.push(error.message));
 
-    await page.route("**/*", async (route) => {
-      const url = new URL(route.request().url());
-      if (url.origin !== ORIGIN) {
-        // AP-11: the page reaches no other host. Refused here and reported below.
-        return route.abort();
-      }
-      if (url.pathname.startsWith("/api/endpoint/")) {
-        reads.push(url);
-        return route.fulfill({ status: 200, contentType: "application/ld+json", json: EVENTS });
-      }
-      const file = url.pathname.replace(/^\/apps\/helsinki-events\//, "") || "index.html";
-      if (!/^[a-z]+\.(html|js|css)$/.test(file)) {
-        return route.fulfill({ status: 404, body: "not found" });
-      }
-      let body = readFileSync(join(APP, file), "utf8");
-      if (file === "index.html") {
-        body = body.replace(
-          "<head>",
-          `<head><script id="jc-config" type="application/json">${JSON.stringify(CONFIG)}</script>`,
-        );
-      }
-      return route.fulfill({
-        status: 200,
-        headers: { "content-type": TYPES[file.split(".").pop() ?? ""], "content-security-policy": CSP },
-        body,
-      });
-    });
+    await serve(page, reads);
 
     await page.clock.setFixedTime(new Date("2026-09-22T09:00:00Z"));
     await page.goto(`${ORIGIN}/apps/helsinki-events/`);
@@ -156,4 +165,33 @@ test.describe("Helsinki events, the plain-HTML application (AP-14, AP-83)", () =
     await page.goto(`${ORIGIN}/apps/helsinki-events/index.html`);
     await expect(page.getByRole("status")).toHaveText(/has no endpoint to read/);
   });
+
+  // UI-84, SDK-12 (T-2825): the list and a chosen event at a phone, a tablet, a laptop and a
+  // wall: no sideways scroll, no two blocks over each other, nothing axe finds at WCAG 2.1 AA.
+  for (const view of [
+    { name: "the list", choose: null },
+    { name: "a chosen event", choose: /Workshop for Families/ },
+  ]) {
+    for (const size of WIDTHS) {
+      test(`${view.name} at ${size.width} px: no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
+        const problems: string[] = [];
+        page.on("pageerror", (error) => problems.push(error.message));
+        await serve(page);
+        await page.clock.setFixedTime(new Date("2026-09-22T09:00:00Z"));
+        await page.setViewportSize(size);
+        await page.goto(`${ORIGIN}/apps/helsinki-events/`);
+        await expect(page.getByRole("status")).toHaveText("4 of 5 events");
+        if (view.choose) {
+          await page.getByRole("list").getByRole("button", { name: view.choose }).click();
+          await expect(page.locator("#detail").getByRole("heading", { level: 2 })).toHaveText("Workshop for Families");
+        }
+        await testInfo.attach(`helsinki-events-${size.width}.png`, {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: "image/png",
+        });
+        expect(await layoutProblems(page, BLOCKS)).toEqual([]);
+        expect(problems).toEqual([]);
+      });
+    }
+  }
 });

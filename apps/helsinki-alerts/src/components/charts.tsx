@@ -173,15 +173,19 @@ export function timeSeriesOption(
       .sort((a, b) => a[0].localeCompare(b[0]));
     return {
       type: "line",
-      name: s.id,
+      // The local id, not the whole URN: a legend of URNs is one entry per line on a phone.
+      name: s.id.split(":").pop() || s.id,
       data: pts,
     };
   });
+  const legend = lineSeries.length > 1;
 
   return {
     color: t.chart.palette,
     tooltip: { trigger: "axis" },
-    grid: { containLabel: true, left: 8, right: 16, top: 16, bottom: 8 },
+    // Scrolls rather than wraps, so a narrow chart keeps its plot area.
+    ...(legend ? { legend: { type: "scroll", bottom: 0 } } : {}),
+    grid: { containLabel: true, left: 8, right: 16, top: 16, bottom: legend ? 36 : 8 },
     xAxis: { type: "time" },
     yAxis: { type: "value" },
     series: lineSeries,
@@ -269,7 +273,7 @@ export function ChartCard({
       ) : (
         <div
           className="jc-chart-canvas"
-          style={{ height: height ?? 280 }}
+          style={height === undefined ? undefined : { height }}
           ref={containerRef}
         />
       )}

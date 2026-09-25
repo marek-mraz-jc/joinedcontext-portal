@@ -60,7 +60,13 @@ application's own and are stated on the page.
 cd ui
 pnpm install
 pnpm typecheck && pnpm test && pnpm build
+pnpm e2e
 ```
+
+`pnpm e2e` serves the built bundle under `/apps/banskabystrica-ovzdusie/` with the static host's
+Content Security Policy and the fixture endpoint, and holds the stations and a picked station to a
+phone, a tablet, a laptop and a wall (375, 768, 1440, 2560 px): no sideways scroll, no overlapping
+blocks, axe clean at WCAG 2.1 AA (T-2825).
 
 `@joinedcontext/sdk` is linked from this repository, which is why `vite.config.ts` dedupes React.
 

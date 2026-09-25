@@ -153,6 +153,10 @@ describe("a kind's forms at their own addresses", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(en.form.notOpen.replace("{name}", "no-such-policy"));
+    // The page keeps its heading and its list under the warning: an unheaded page with one alert
+    // was all a person had (T-2730, UI-16), and what does exist is the next thing they need.
+    expect(screen.getByRole("heading", { level: 1, name: en.policies.title })).toBeVisible();
+    expect(screen.getByText("open-read")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: en.form.backToList }));
     await waitFor(() => expect(window.location.pathname).toBe(LIST));
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
