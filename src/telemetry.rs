@@ -62,6 +62,17 @@ const FIRST_FRAME_SECONDS: &str = "jc_agent_run_first_frame_seconds";
 /// Seconds from agent run creation to first generated version.
 const FIRST_VERSION_SECONDS: &str = "jc_agent_run_first_version_seconds";
 
+/// Seconds from a person's message to the assistant's answer (AG-72, T-2771).
+const ANSWER_SECONDS: &str = "jc_agent_answer_duration_seconds";
+/// Seconds one model call took through the proxy, by run kind.
+const MODEL_CALL_SECONDS: &str = "jc_agent_model_call_duration_seconds";
+/// Tokens of the model calls, by run kind and part (`input`, `output`, `cached`).
+const MODEL_TOKENS: &str = "jc_agent_model_tokens_total";
+/// Runs that ended, by kind and final status.
+const RUNS_FINISHED: &str = "jc_agent_runs_finished_total";
+/// Tool steps the assistant took, by tool and outcome.
+const TOOL_STEPS: &str = "jc_agent_tool_steps_total";
+
 /// The paths that describe the process rather than the traffic.
 const UNCOUNTED: &[&str] = &["/metrics", "/api/v1/health"];
 
@@ -79,6 +90,12 @@ const RUN_SECONDS: &[f64] = &[
     1.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0, 300.0,
 ];
 
+/// The bucket edges of an answer and of a model call: the answer is promised in 3 s at p50 and
+/// 8 s at p95, and alerted on above 10 s (AG-72).
+const ANSWER_BUCKETS: &[f64] = &[
+    0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 60.0, 120.0,
+];
+
 fn handle() -> &'static PrometheusHandle {
     static HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
     HANDLE.get_or_init(|| {
@@ -86,6 +103,10 @@ fn handle() -> &'static PrometheusHandle {
             .set_buckets(SECONDS)
             .expect("the bucket list is not empty")
             .set_buckets_for_metric(Matcher::Prefix("jc_agent_run_".to_owned()), RUN_SECONDS)
+            .expect("the bucket list is not empty")
+            .set_buckets_for_metric(Matcher::Full(ANSWER_SECONDS.to_owned()), ANSWER_BUCKETS)
+            .expect("the bucket list is not empty")
+            .set_buckets_for_metric(Matcher::Full(MODEL_CALL_SECONDS.to_owned()), ANSWER_BUCKETS)
             .expect("the bucket list is not empty")
             .install_recorder()
             .expect("this process installs the one recorder");
@@ -100,6 +121,11 @@ fn handle() -> &'static PrometheusHandle {
             FIRST_VERSION_SECONDS,
             "seconds from agent run creation to first generated version"
         );
+        metrics::describe_histogram!(ANSWER_SECONDS, "seconds from a message to the answer");
+        metrics::describe_histogram!(MODEL_CALL_SECONDS, "seconds one model call took");
+        metrics::describe_counter!(MODEL_TOKENS, "model tokens, by run kind and part");
+        metrics::describe_counter!(RUNS_FINISHED, "agent runs ended, by kind and status");
+        metrics::describe_counter!(TOOL_STEPS, "assistant tool steps, by tool and outcome");
         handle
     })
 }
@@ -147,6 +173,60 @@ pub fn record_run_timing(kind: &'static str, profile: &str, ms: i64) {
             tracing::warn!(kind, "unknown run timing kind");
         }
     }
+}
+
+/// A run kind as a label: one of the kinds a run is started for, anything else `other`, so a
+/// label never carries what a caller wrote (T-2771).
+fn run_kind(kind: &str) -> &'static str {
+    crate::agents::run::RUN_KINDS
+        .into_iter()
+        .find(|known| *known == kind)
+        .unwrap_or("other")
+}
+
+/// One answer of the assistant, however it ended.
+pub fn answered(seconds: f64) {
+    metrics::histogram!(ANSWER_SECONDS).record(seconds);
+}
+
+/// One model call as the proxy reported it in a `usage` frame: its latency and tokens. The
+/// frame's `model` is left out: a workspace writes the body the proxy read it from.
+pub fn model_call(kind: &str, usage: &serde_json::Value) {
+    let kind = run_kind(kind);
+    let number = |key: &str| usage.get(key).and_then(serde_json::Value::as_u64);
+    if let Some(ms) = number("latencyMs") {
+        metrics::histogram!(MODEL_CALL_SECONDS, "kind" => kind).record(ms as f64 / 1000.0);
+    }
+    for (part, key) in [
+        ("input", "inputTokens"),
+        ("output", "outputTokens"),
+        ("cached", "cachedTokens"),
+    ] {
+        if let Some(tokens) = number(key).filter(|tokens| *tokens > 0) {
+            metrics::counter!(MODEL_TOKENS, "kind" => kind, "part" => part).increment(tokens);
+        }
+    }
+}
+
+/// One run that reached a final status.
+pub fn run_finished(kind: &str, status: crate::agents::run::AgentRunStatus) {
+    metrics::counter!(RUNS_FINISHED, "kind" => run_kind(kind), "status" => status.as_str())
+        .increment(1);
+}
+
+/// One `tool` step: the tool when it is one of the assistant's or a registered operation,
+/// `other` for any other name (a model writes it), and `ok` or `failed`.
+pub fn tool_step(step: &serde_json::Value) {
+    let named = step.get("tool").and_then(serde_json::Value::as_str);
+    let tool = named
+        .and_then(|name| crate::ops::find(name).map(|op| op.name))
+        .or_else(|| named.and_then(crate::agents::paths::known_tool))
+        .unwrap_or("other");
+    let status = match step.get("status").and_then(serde_json::Value::as_str) {
+        Some("ok") => "ok",
+        _ => "failed",
+    };
+    metrics::counter!(TOOL_STEPS, "tool" => tool, "status" => status).increment(1);
 }
 
 /// Counts and times every request the Portal answers.
@@ -232,5 +312,45 @@ mod log_tests {
         assert_eq!(lines[0]["project"], "ovzdusie");
         assert_eq!(lines[0]["status"], 409);
         assert!(lines[0]["timestamp"].is_string(), "{written}");
+    }
+}
+
+#[cfg(test)]
+mod agent_series_tests {
+    use serde_json::json;
+
+    use crate::agents::run::AgentRunStatus;
+
+    /// T-2771: the assistant's series exist under the names the dashboard and the alerts read,
+    /// and their labels carry only what the Portal declares: a run kind or `other`, a known tool
+    /// or `other`, never the model a workspace named or a word a model made up.
+    #[test]
+    fn the_assistant_series_carry_only_bounded_labels() {
+        super::install();
+        super::answered(2.4);
+        super::model_call(
+            "conversation",
+            &json!({ "latencyMs": 1830, "inputTokens": 3980, "outputTokens": 140, "cachedTokens": 3200, "model": "secret/model-name" }),
+        );
+        super::model_call("made-up-kind", &json!({ "latencyMs": 10 }));
+        super::run_finished("conversation", AgentRunStatus::Expired);
+        super::tool_step(&json!({ "tool": "search_catalog", "status": "ok" }));
+        super::tool_step(&json!({ "tool": "rm -rf /", "status": "failed" }));
+        super::tool_step(&json!({ "tool": "jc_pipeline_test" }));
+        let text = super::handle().render();
+        for series in [
+            "jc_agent_answer_duration_seconds_bucket",
+            "jc_agent_model_call_duration_seconds_bucket{kind=\"conversation\"",
+            "jc_agent_model_call_duration_seconds_bucket{kind=\"other\"",
+            "jc_agent_model_tokens_total{kind=\"conversation\",part=\"cached\"} 3200",
+            "jc_agent_runs_finished_total{kind=\"conversation\",status=\"expired\"} 1",
+            "jc_agent_tool_steps_total{tool=\"search_catalog\",status=\"ok\"} 1",
+            "jc_agent_tool_steps_total{tool=\"other\",status=\"failed\"} 1",
+            "jc_agent_tool_steps_total{tool=\"jc_pipeline_test\",status=\"failed\"} 1",
+        ] {
+            assert!(text.contains(series), "{series} in\n{text}");
+        }
+        assert!(!text.contains("secret/model-name") && !text.contains("rm -rf"));
+        assert!(!text.contains("made-up-kind"));
     }
 }
