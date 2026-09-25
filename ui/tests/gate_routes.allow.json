@@ -28,12 +28,6 @@
     }
   },
   "live": {
-    "/login": {
-      "why": "a live journey signs in through Keycloak, which redirects past this page; the page itself is covered by tests/page_login_page.test.tsx"
-    },
-    "/endpoints": {
-      "why": "the cross-project table needs two projects seeded on the instance; covered by tests/page_all_endpoints_page.test.tsx"
-    },
     "/projects/$project/import": {
       "why": "an import journey writes a whole project; covered by tests/import_wizard.test.tsx until a throwaway project exists for it"
     },

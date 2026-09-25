@@ -1,0 +1,1233 @@
+{
+  "workflows": {
+    "session": {
+      "sign-in": {
+        "live": {
+          "spec": "login.spec.ts",
+          "test": "a person signs in from /login to the page they asked for, and signs out"
+        },
+        "personOnly": "signing in is a person proving who they are to Keycloak; no agent holds a person's password"
+      },
+      "sign-out": {
+        "live": {
+          "spec": "login.spec.ts",
+          "test": "a person signs in from /login to the page they asked for, and signs out"
+        },
+        "personOnly": "ending a session is the person's own act and would end the assistant's conversation with it",
+        "routes": [
+          "POST /api/v1/auth/backchannel-logout",
+          "POST /api/v1/auth/logout"
+        ]
+      },
+      "refused-wrong-password": {
+        "live": {
+          "spec": "login.spec.ts",
+          "test": "a wrong password gets no session, and an address off the Portal is not followed"
+        },
+        "personOnly": "a password is typed into Keycloak by the person, never through the assistant"
+      }
+    },
+    "organization": {
+      "read": {
+        "live": {
+          "spec": "organization.spec.ts",
+          "test": "an administrator reads the organization and grants a role that reaches the person"
+        },
+        "assistantOwed": "T-2732"
+      },
+      "edit-settings": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "organization.spec.ts",
+          "test": "a viewer is told who can see the members, and the list is never fetched for them"
+        },
+        "assistantOwed": "T-2732"
+      }
+    },
+    "people": {
+      "create": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/organization/people"
+        ]
+      },
+      "read": {
+        "live": {
+          "spec": "organization.spec.ts",
+          "test": "an administrator reads the organization and grants a role that reaches the person"
+        },
+        "assistantOwed": "T-2732"
+      },
+      "edit": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "PATCH /api/v1/organization/people/{id}"
+        ]
+      },
+      "disable": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/organization/people/{id}/disable"
+        ]
+      },
+      "enable": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/organization/people/{id}/enable"
+        ]
+      },
+      "reset-password": {
+        "liveOwed": "T-2746",
+        "personOnly": "a reset sends a person a way into their account; an agent that can start one can take the account over",
+        "routes": [
+          "POST /api/v1/organization/people/{id}/reset-password"
+        ]
+      },
+      "remove-second-factor": {
+        "liveOwed": "T-2746",
+        "personOnly": "removing a second factor weakens a person's sign-in and is decided by an administrator in person",
+        "routes": [
+          "POST /api/v1/organization/people/{id}/remove-second-factor"
+        ]
+      },
+      "sign-out-everywhere": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/organization/people/{id}/sign-out"
+        ]
+      },
+      "remove": {
+        "liveOwed": "T-2746",
+        "personOnly": "removing a person deletes their account and cannot be proposed as a Change a second person approves",
+        "routes": [
+          "DELETE /api/v1/organization/people/{id}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "organization.spec.ts",
+          "test": "a viewer is told who can see the members, and the list is never fetched for them"
+        },
+        "assistantOwed": "T-2732"
+      }
+    },
+    "groups": {
+      "create": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "grant-role": {
+        "live": {
+          "spec": "project-settings.spec.ts",
+          "test": "a project role bound to a group reaches the group's member, and only as far as it says"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "edit": {
+        "live": {
+          "spec": "parity.spec.ts",
+          "test": "RoleBinding stewards: the form, the REST route, the registry and the assistant plan the same change"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "retire": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "nobody grants above their own rights, and the page gives the reason"
+        },
+        "assistant": "jc_resource_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "a grant wider than the proposer's own rights is refused, and a narrower control is not"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "project": {
+      "create": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_project_create",
+        "routes": [
+          "POST /api/v1/projects"
+        ]
+      },
+      "read": {
+        "live": {
+          "spec": "walk.spec.ts",
+          "test": "every page opens cleanly for the steward"
+        },
+        "assistant": "jc_project_get"
+      },
+      "copy": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/projects/{project}/duplicate"
+        ]
+      },
+      "retire": {
+        "liveOwed": "T-2746",
+        "personOnly": "deleting a project removes its repository and every resource in it, and no agent may take that act (AG-11)",
+        "routes": [
+          "DELETE /api/v1/projects/{project}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "project-settings.spec.ts",
+          "test": "an old Access link lands on Members, and a viewer meets Delete project refused"
+        },
+        "assistant": "jc_project_delete"
+      }
+    },
+    "import": {
+      "upload": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_project_import",
+        "routes": [
+          "POST /api/v1/projects/{project}/import"
+        ]
+      },
+      "from-git": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_project_import",
+        "routes": [
+          "POST /api/v1/projects/{project}/import"
+        ]
+      },
+      "refused-no-permission": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_project_import"
+      },
+      "refused-secret": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_project_import"
+      }
+    },
+    "space": {
+      "create": {
+        "live": {
+          "spec": "assistant-creates.spec.ts",
+          "test": "the assistant opens the form for a context space, filled from one sentence"
+        },
+        "assistant": "jc_space_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "complete-from-sample": {
+        "live": {
+          "spec": "space_complete.spec.ts",
+          "test": "complete a space from sample file and propose change"
+        },
+        "assistant": "jc_space_complete"
+      },
+      "read": {
+        "live": {
+          "spec": "walk.spec.ts",
+          "test": "every page opens cleanly for the steward"
+        },
+        "assistant": "jc_resource_get"
+      },
+      "edit": {
+        "live": {
+          "spec": "form-pages.spec.ts",
+          "test": "an edit form opened from its address survives a reload, and saving lands on the list"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}",
+          "PATCH /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "approve": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "an administrator of the kind approves their own change, and the space is created"
+        },
+        "personOnly": "a person approves a change and an agent never does (AG-11, PF-58)",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/approve"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "change.spec.ts",
+          "test": "the assistant opens a change or a removal on the kind's page, and the person proposes it"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "viewer-refused.spec.ts",
+          "test": "a viewer is refused with a reason on every page, and at the door"
+        },
+        "assistant": "jc_space_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "verdict-gate.spec.ts",
+          "test": "the verdict gate: unchecked refuses, a check opens it, an edit closes it again"
+        },
+        "assistant": "jc_space_propose"
+      }
+    },
+    "datamodel": {
+      "create": {
+        "live": {
+          "spec": "parity.spec.ts",
+          "test": "DataModel helsinki: the form, the REST route, the registry and the assistant plan the same change"
+        },
+        "assistant": "jc_model_propose"
+      },
+      "infer-from-sample": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_model_infer",
+        "routes": [
+          "POST /api/v1/tools/infer-schema"
+        ]
+      },
+      "import-smart-data-model": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_catalog_search",
+        "routes": [
+          "POST /api/v1/tools/import-sdm"
+        ]
+      },
+      "add-class-enum-relation": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_model_source_put",
+        "routes": [
+          "PUT /api/v1/projects/{project}/datamodels/{name}/source"
+        ]
+      },
+      "validate": {
+        "live": {
+          "spec": "verdict-gate.spec.ts",
+          "test": "a check refuses a model that does not exist, names the field, and a fix clears it"
+        },
+        "assistant": "jc_manifest_dry_run",
+        "routes": [
+          "POST /api/v1/tools/generate"
+        ]
+      },
+      "read": {
+        "live": {
+          "spec": "walk.spec.ts",
+          "test": "every page opens cleanly for the steward"
+        },
+        "assistant": "jc_model_source_get"
+      },
+      "edit-source": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_model_source_put",
+        "routes": [
+          "PUT /api/v1/projects/{project}/datamodels/{name}/source"
+        ]
+      },
+      "retire": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "viewer-refused.spec.ts",
+          "test": "a viewer is refused with a reason on every page, and at the door"
+        },
+        "assistant": "jc_model_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "verdict-gate.spec.ts",
+          "test": "a check refuses a model that does not exist, names the field, and a fix clears it"
+        },
+        "assistant": "jc_model_propose"
+      }
+    },
+    "datasource": {
+      "create": {
+        "live": {
+          "spec": "load.spec.ts",
+          "test": "a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore"
+        },
+        "assistant": "jc_datasource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "check": {
+        "live": {
+          "spec": "runner-inputs.spec.ts",
+          "test": "csv: declared from the runner's form, tested, approved; entities arrive and the counter moves"
+        },
+        "assistant": "jc_datasource_check"
+      },
+      "read": {
+        "live": {
+          "spec": "walk.spec.ts",
+          "test": "every page opens cleanly for the steward"
+        },
+        "assistant": "jc_resource_get"
+      },
+      "edit": {
+        "live": {
+          "spec": "form-pages.spec.ts",
+          "test": "an edit form opened from its address survives a reload, and saving lands on the list"
+        },
+        "assistant": "jc_datasource_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "change.spec.ts",
+          "test": "the assistant opens a change or a removal on the kind's page, and the person proposes it"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "viewer-refused.spec.ts",
+          "test": "a viewer is refused with a reason on every page, and at the door"
+        },
+        "assistant": "jc_datasource_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "forms-examples.spec.ts",
+          "test": "every create form is green from its own examples"
+        },
+        "assistant": "jc_datasource_check"
+      },
+      "refused-secret": {
+        "live": {
+          "spec": "secrets.spec.ts",
+          "test": "a secret written into the YAML view is refused by its field, and the value is never echoed"
+        },
+        "assistant": "jc_datasource_propose"
+      }
+    },
+    "pipeline": {
+      "create": {
+        "live": {
+          "spec": "load.spec.ts",
+          "test": "a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore"
+        },
+        "assistant": "jc_pipeline_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "sample-source": {
+        "live": {
+          "spec": "build-samples.spec.ts",
+          "test": "a build on helsinki-news reads its samples and the preview shows rows"
+        },
+        "assistant": "jc_pipeline_sample_source"
+      },
+      "mapping": {
+        "live": {
+          "spec": "runner-inputs.spec.ts",
+          "test": "csv: declared from the runner's form, tested, approved; entities arrive and the counter moves"
+        },
+        "assistant": "jc_pipeline_try_mapping"
+      },
+      "validation": {
+        "live": {
+          "spec": "runner-inputs.spec.ts",
+          "test": "csv: declared from the runner's form, tested, approved; entities arrive and the counter moves"
+        },
+        "assistant": "jc_pipeline_validate"
+      },
+      "test": {
+        "live": {
+          "spec": "load.spec.ts",
+          "test": "a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore"
+        },
+        "assistant": "jc_pipeline_test",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelines/test"
+        ]
+      },
+      "target": {
+        "live": {
+          "spec": "assistant-paths.spec.ts",
+          "test": "Integrate a pipeline from a CSV and its feed stays within its budgets (T-2695, T-2697)"
+        },
+        "assistant": "jc_pipeline_metrics"
+      },
+      "retry-rejected": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
+        ]
+      },
+      "edit": {
+        "live": {
+          "spec": "parity.spec.ts",
+          "test": "Pipeline hel-news: the form, the REST route, the registry and the assistant plan the same change"
+        },
+        "assistant": "jc_pipeline_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "change.spec.ts",
+          "test": "the assistant opens a change or a removal on the kind's page, and the person proposes it"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "viewer-refused.spec.ts",
+          "test": "a viewer is refused with a reason on every page, and at the door"
+        },
+        "assistant": "jc_pipeline_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "verdict-gate.spec.ts",
+          "test": "the verdict gate: unchecked refuses, a check opens it, an edit closes it again"
+        },
+        "assistant": "jc_pipeline_validate"
+      },
+      "refused-secret": {
+        "live": {
+          "spec": "secrets.spec.ts",
+          "test": "no form offers a field for a secret's value, on any data source type"
+        },
+        "assistant": "jc_pipeline_propose"
+      }
+    },
+    "endpoint": {
+      "create": {
+        "live": {
+          "spec": "share.spec.ts",
+          "test": "an endpoint proposed and approved through the UI: Live, the hidden attribute absent, the viewer refused on the organization one"
+        },
+        "assistant": "jc_endpoint_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "read": {
+        "live": {
+          "spec": "all-endpoints.spec.ts",
+          "test": "an administrator reads every project's endpoints in one table and opens one project's"
+        },
+        "assistant": "jc_endpoint_list_all"
+      },
+      "try-it": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_ask"
+      },
+      "edit": {
+        "live": {
+          "spec": "parity.spec.ts",
+          "test": "Endpoint helsinki-bikes: the form, the REST route, the registry and the assistant plan the same change"
+        },
+        "assistant": "jc_endpoint_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}",
+          "PATCH /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "change.spec.ts",
+          "test": "the assistant opens a change or a removal on the kind's page, and the person proposes it"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "all-endpoints.spec.ts",
+          "test": "a viewer sees the endpoints of the projects they may read, and of no other"
+        },
+        "assistant": "jc_endpoint_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "one-change-at-a-time.spec.ts",
+          "test": "a second change on the same resource is refused by the name of the first, and lands once that one is decided"
+        },
+        "assistant": "jc_endpoint_propose"
+      }
+    },
+    "policy": {
+      "create": {
+        "live": {
+          "spec": "change.spec.ts",
+          "test": "the assistant drafts a role grant into the Members form, and the person proposes it as a red change"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "edit": {
+        "live": {
+          "spec": "parity.spec.ts",
+          "test": "RoleBinding stewards: the form, the REST route, the registry and the assistant plan the same change"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "PUT /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "retire": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "a person without the role is refused an approval, in the page and at the door"
+        },
+        "assistant": "jc_resource_propose"
+      },
+      "refused-red-verdict": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "a grant wider than the proposer's own rights is refused, and a narrower control is not"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "subscription": {
+      "create": {
+        "live": {
+          "spec": "kind-subscriptions.spec.ts",
+          "test": "Subscription: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "assistant-opens-form": {
+        "live": {
+          "spec": "kind-subscriptions.spec.ts",
+          "test": "Subscription: the assistant opens the kind's form and proposes nothing"
+        },
+        "assistant": "jc_ui_navigate"
+      },
+      "retire": {
+        "live": {
+          "spec": "kind-subscriptions.spec.ts",
+          "test": "Subscription: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-subscriptions.spec.ts",
+          "test": "Subscription: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "syncsource": {
+      "create": {
+        "live": {
+          "spec": "kind-syncsources.spec.ts",
+          "test": "SyncSource: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "sync-now": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_syncsource_sync",
+        "routes": [
+          "POST /api/v1/projects/{project}/syncsources/{name}/sync"
+        ]
+      },
+      "pause": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_syncsource_pause",
+        "routes": [
+          "POST /api/v1/projects/{project}/syncsources/{name}/pause"
+        ]
+      },
+      "detach": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_syncsource_detach",
+        "routes": [
+          "POST /api/v1/projects/{project}/syncsources/{name}/detach"
+        ]
+      },
+      "webhook": {
+        "liveOwed": "T-2746",
+        "personOnly": "a webhook is the remote repository calling in with its signature; no person or agent takes this step by hand",
+        "routes": [
+          "POST /api/v1/webhooks/sync/{project}/{name}"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "kind-syncsources.spec.ts",
+          "test": "SyncSource: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-syncsources.spec.ts",
+          "test": "SyncSource: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_syncsource_sync"
+      },
+      "refused-secret": {
+        "live": {
+          "spec": "secrets.spec.ts",
+          "test": "a token pasted into the secret name is refused by the name of the field"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "dashboard": {
+      "create": {
+        "live": {
+          "spec": "kind-dashboards.spec.ts",
+          "test": "Dashboard: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "layer": {
+        "live": {
+          "spec": "kind-layers.spec.ts",
+          "test": "Layer: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "kpi-pipeline": {
+        "live": {
+          "spec": "analyse.spec.ts",
+          "test": "a KPI pipeline configured with the preset, tested on endpoint, proposed, and verified in Explore"
+        },
+        "assistant": "jc_kpi_compute"
+      },
+      "read": {
+        "live": {
+          "spec": "bystrica-kpi.spec.ts",
+          "test": "one application shows both bodies, each number the number in its own space"
+        },
+        "assistant": "jc_kpi_compute"
+      },
+      "retire": {
+        "live": {
+          "spec": "kind-dashboards.spec.ts",
+          "test": "Dashboard: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-dashboards.spec.ts",
+          "test": "Dashboard: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "sharing": {
+      "share-space": {
+        "live": {
+          "spec": "kind-shared.spec.ts",
+          "test": "SharedSpaceReference: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "read-shared": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_federation_graph"
+      },
+      "register-source": {
+        "live": {
+          "spec": "kind-csrs.spec.ts",
+          "test": "ContextSourceRegistration: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-shared.spec.ts",
+          "test": "SharedSpaceReference: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "serviceaccount": {
+      "create": {
+        "live": {
+          "spec": "kind-serviceaccounts.spec.ts",
+          "test": "ServiceAccount: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "mint-key": {
+        "liveOwed": "T-2746",
+        "personOnly": "a key is a credential shown once to the person who minted it; an agent never receives one (AG-11)",
+        "routes": [
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys"
+        ]
+      },
+      "rotate-key": {
+        "liveOwed": "T-2746",
+        "personOnly": "a rotated key is a new credential shown once to a person, never to an agent (AG-11)",
+        "routes": [
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate"
+        ]
+      },
+      "revoke-key": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_service_account_key_revoke",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}"
+        ]
+      },
+      "retire": {
+        "live": {
+          "spec": "kind-serviceaccounts.spec.ts",
+          "test": "ServiceAccount: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_delete",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-serviceaccounts.spec.ts",
+          "test": "ServiceAccount: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_service_account_key_mint"
+      }
+    },
+    "ckan": {
+      "connect-instance": {
+        "live": {
+          "spec": "kind-ckaninstances.spec.ts",
+          "test": "CkanInstance: created, changed and removed through the page by a person"
+        },
+        "assistant": "jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/{plural}"
+        ]
+      },
+      "status": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_ckan_status"
+      },
+      "publish-dataset": {
+        "liveOwed": "T-2726",
+        "assistantOwed": "T-2726"
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "kind-ckaninstances.spec.ts",
+          "test": "CkanInstance: a viewer finds every write control disabled with its reason, and the door answers 403"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "app": {
+      "build-by-conversation": {
+        "live": {
+          "spec": "app-generated-full.spec.ts",
+          "test": "a prompt becomes a React + functions application that opens, reads and answers on dev"
+        },
+        "assistant": "jc_run_create",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs"
+        ]
+      },
+      "answer-question": {
+        "liveOwed": "T-2746",
+        "personOnly": "the run asks the person, and an agent answering its own question would decide for them (AG-11)",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs/{id}/answers"
+        ]
+      },
+      "message": {
+        "live": {
+          "spec": "app-generated-full.spec.ts",
+          "test": "a prompt becomes a React + functions application that opens, reads and answers on dev"
+        },
+        "assistant": "jc_run_message",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs/{id}/messages"
+        ]
+      },
+      "preview": {
+        "live": {
+          "spec": "build-samples.spec.ts",
+          "test": "a build on helsinki-news reads its samples and the preview shows rows"
+        },
+        "assistant": "jc_run_get",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs/{id}/functions/{fn}",
+          "POST /api/v1/projects/{project}/agent-runs/{id}/preview-errors",
+          "POST /api/v1/projects/{project}/agent-runs/{id}/preview-observations"
+        ]
+      },
+      "publish": {
+        "live": {
+          "spec": "app-generated-full.spec.ts",
+          "test": "a prompt becomes a React + functions application that opens, reads and answers on dev"
+        },
+        "assistant": "jc_run_publish",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs/{id}/publish"
+        ]
+      },
+      "cancel": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_run_cancel",
+        "routes": [
+          "POST /api/v1/projects/{project}/agent-runs/{id}/cancel"
+        ]
+      },
+      "rebuild": {
+        "live": {
+          "spec": "apps-samples.spec.ts",
+          "test": "each sample application is built from its own repository and the catalog says which commit"
+        },
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/projects/{project}/apps/{name}/rebuild"
+        ]
+      },
+      "open-signed-in": {
+        "live": {
+          "spec": "apps-samples.spec.ts",
+          "test": "the bikes application opens after the login with the stations of the space"
+        },
+        "assistant": "jc_ui_navigate"
+      },
+      "write-through-form": {
+        "live": {
+          "spec": "apps-fullstack.spec.ts",
+          "test": "a steward adds, corrects and removes a station, and the viewer sees it"
+        },
+        "assistantOwed": "T-2732"
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "apps-fullstack.spec.ts",
+          "test": "a viewer reads the air-quality stations, gets no form and is refused a write"
+        },
+        "assistant": "jc_run_publish"
+      },
+      "refused-preview-limit": {
+        "live": {
+          "spec": "preview-limit.spec.ts",
+          "test": "the third preview on the node is refused, and the refusal names the two that hold the slots"
+        },
+        "assistant": "jc_workspace_preview_start"
+      }
+    },
+    "workspace": {
+      "copy": {
+        "live": {
+          "spec": "copy-employee.spec.ts",
+          "test": "an employee copies the project, edits in the copy, and brings it back as one change"
+        },
+        "assistant": "jc_workspace_open",
+        "routes": [
+          "POST /api/v1/projects/{project}/workspaces"
+        ]
+      },
+      "compare": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_workspace_compare"
+      },
+      "update-from-main": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_workspace_update_from_main",
+        "routes": [
+          "POST /api/v1/projects/{project}/workspaces/{name}/update"
+        ]
+      },
+      "preview": {
+        "live": {
+          "spec": "workspace-preview.spec.ts",
+          "test": "a copy's preview answers on its own addresses and stops answering when stopped"
+        },
+        "assistant": "jc_workspace_preview_start",
+        "routes": [
+          "POST /api/v1/projects/{project}/workspaces/{name}/preview"
+        ]
+      },
+      "stop-preview": {
+        "live": {
+          "spec": "workspace-preview.spec.ts",
+          "test": "a copy's preview answers on its own addresses and stops answering when stopped"
+        },
+        "assistant": "jc_workspace_preview_stop",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/workspaces/{name}/preview"
+        ]
+      },
+      "bring-back": {
+        "live": {
+          "spec": "copy-employee.spec.ts",
+          "test": "an employee copies the project, edits in the copy, and brings it back as one change"
+        },
+        "personOnly": "bringing a copy back proposes every change of it at once and is left to a person (AG-11)",
+        "routes": [
+          "POST /api/v1/projects/{project}/workspaces/{name}/propose"
+        ]
+      },
+      "discard": {
+        "liveOwed": "T-2729",
+        "personOnly": "throwing a copy away loses the work in it, and an agent never does (AG-11)",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/workspaces/{name}"
+        ]
+      },
+      "refused-agent-way-out": {
+        "live": {
+          "spec": "copy-agent.spec.ts",
+          "test": "the assistant works in a copy and leaves both ways out to a person"
+        },
+        "assistant": "jc_workspace_propose"
+      },
+      "refused-no-permission": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_workspace_open"
+      }
+    },
+    "change": {
+      "read": {
+        "live": {
+          "spec": "assistant-reads.spec.ts",
+          "test": "the assistant answers about changes and pipelines from the platform's own operations"
+        },
+        "assistant": "jc_change_list"
+      },
+      "approve": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "an administrator of the kind approves their own change, and the space is created"
+        },
+        "personOnly": "a person approves a change and an agent never does (AG-11, PF-58)",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/approve"
+        ]
+      },
+      "reject": {
+        "liveOwed": "T-2746",
+        "personOnly": "rejecting decides a change as approving does, and only a person decides one (AG-11)",
+        "routes": [
+          "POST /api/v1/projects/{project}/changes/{id}/reject"
+        ]
+      },
+      "drift-adopt": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/projects/{project}/drift/{space}/{id}/adopt"
+        ]
+      },
+      "drift-revert": {
+        "liveOwed": "T-2746",
+        "assistantOwed": "T-2732",
+        "routes": [
+          "POST /api/v1/projects/{project}/drift/{space}/{id}/revert"
+        ]
+      },
+      "blueprint": {
+        "liveOwed": "T-2746",
+        "assistant": "jc_flow_start",
+        "routes": [
+          "POST /api/v1/projects/{project}/flows"
+        ]
+      },
+      "refused-own-approval": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "a person who proposes and does not administer cannot approve their own change"
+        },
+        "personOnly": "the refusal is of a person's approval; an agent is refused every approval before that (AG-11)"
+      },
+      "refused-agent-approval": {
+        "live": {
+          "spec": "roles-refusals.spec.ts",
+          "test": "the assistant never approves, however it is asked"
+        },
+        "assistant": "jc_change_approve"
+      },
+      "refused-second-change": {
+        "live": {
+          "spec": "one-change-at-a-time.spec.ts",
+          "test": "a second change on the same resource is refused by the name of the first, and lands once that one is decided"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    },
+    "draft": {
+      "save": {
+        "live": {
+          "spec": "drafts.spec.ts",
+          "test": "drafts shared across windows: typing in window A syncs to window B, check verdict syncs, propose drops draft"
+        },
+        "assistant": "jc_draft_put",
+        "routes": [
+          "PUT /api/v1/projects/{project}/drafts/{kind}/{name}"
+        ]
+      },
+      "drop": {
+        "live": {
+          "spec": "drafts.spec.ts",
+          "test": "drafts shared across windows: typing in window A syncs to window B, check verdict syncs, propose drops draft"
+        },
+        "assistant": "jc_draft_drop",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/drafts/{kind}/{name}"
+        ]
+      },
+      "refused-secret": {
+        "live": {
+          "spec": "secrets.spec.ts",
+          "test": "a secret written into the YAML view is refused by its field, and the value is never echoed"
+        },
+        "assistant": "jc_draft_put"
+      }
+    },
+    "assistant": {
+      "open-and-ask": {
+        "liveOwed": "T-2729",
+        "assistant": "jc_ask",
+        "routes": [
+          "POST /api/v1/projects/{project}/assistant/conversations"
+        ]
+      },
+      "integrate-pipeline": {
+        "live": {
+          "spec": "assistant-paths.spec.ts",
+          "test": "Integrate a pipeline from a CSV and its feed stays within its budgets (T-2695, T-2697)"
+        },
+        "assistant": "jc_switch_path"
+      },
+      "open-a-form": {
+        "live": {
+          "spec": "assistant-creates.spec.ts",
+          "test": "the assistant opens the form for a data source, filled from one sentence"
+        },
+        "assistant": "jc_ui_navigate"
+      },
+      "propose-endpoint": {
+        "live": {
+          "spec": "share.spec.ts",
+          "test": "an endpoint proposed and approved through the UI: Live, the hidden attribute absent, the viewer refused on the organization one"
+        },
+        "assistant": "jc_endpoint_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/assistant/propose-endpoint"
+        ]
+      },
+      "refused-no-permission": {
+        "live": {
+          "spec": "viewer-refused.spec.ts",
+          "test": "a viewer is refused with a reason on every page, and at the door"
+        },
+        "assistant": "jc_resource_propose"
+      }
+    }
+  },
+  "unclaimed": {
+    "POST /api/v1/activity": {
+      "why": "the browser's own activity log, sent as a side effect of every page and never a step a person takes"
+    },
+    "POST /api/v1/mcp": {
+      "why": "the MCP door carries every registered operation, and each operation is claimed by the step whose tool it is"
+    },
+    "PUT /api/v1/preferences": {
+      "why": "a person's own language, theme and last project, stored for them and never a workflow step"
+    },
+    "POST /api/v1/projects/{project}/ops/{name}": {
+      "why": "the registry's door runs every operation by name, and each operation is claimed by the step whose tool it is"
+    },
+    "POST /api/v1/webhooks/gitea": {
+      "why": "Gitea calls it with its signature after a push to a project repository; no person or agent sends it"
+    }
+  }
+}

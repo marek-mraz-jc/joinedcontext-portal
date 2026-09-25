@@ -63,12 +63,13 @@ jobs:
       - if: steps.has.outputs.ui == 'yes'
         name: the SDK builds and its screens pass (SDK-01, AP-56)
         run: cd sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build
-      # The three inventories first (T-2136): they read the tree and need no browser, so a module
-      # with no test, a route no spec opens or a control nothing uses fails in seconds with its
-      # own step name instead of somewhere inside the 2 000-case suite that follows.
+      # The four inventories first (T-2136, T-2728): they read the tree and need no browser, so a
+      # module with no test, a route no spec opens, a control nothing uses or a workflow step with
+      # no journey fails in seconds with its own step name instead of somewhere inside the
+      # 2 000-case suite that follows.
       - if: steps.has.outputs.ui == 'yes'
-        name: every module, route and control has a test (T-2136)
-        run: cd ui && pnpm install --frozen-lockfile && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts
+        name: every module, route, control and workflow step has a test (T-2136, T-2728)
+        run: cd ui && pnpm install --frozen-lockfile && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts tests/gate_workflows.test.ts
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm lint && pnpm test -- --run && pnpm build
       - if: steps.has.outputs.ui == 'no'
