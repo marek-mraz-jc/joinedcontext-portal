@@ -1458,6 +1458,9 @@ impl Driver {
     /// Whether the person may take a path: its kind is one they may propose (AG-87), and the
     /// capabilities they chose include it (AG-92).
     fn may_take(&self, path: Path) -> Result<(), String> {
+        if let Some(hidden) = path.hidden_by(&self.state.config) {
+            return Err(hidden);
+        }
         if let Some(chosen) = self
             .capabilities()
             .filter(|chosen| !chosen.allows_path(path))

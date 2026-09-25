@@ -13,6 +13,8 @@ import {
   IRI_PATTERN,
   SPATIAL_PATTERN,
 } from "../pages/endpoints/catalog";
+import { withCatalog } from "../pages/organization/limits";
+import type { LimitEntry } from "../pages/organization/limits";
 
 /**
  * Draft-07 schemas for the kinds the Portal writes, mirroring jc-core's `ContextSpaceSpec`
@@ -2337,6 +2339,9 @@ export const APP_REPRESENTATIONS = [
 /** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
 export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";
 
+/** An IPv4 or IPv6 network with a prefix of at least 1: never a host name, never `/0` (AP-134). */
+export const EGRESS_CIDR_PATTERN = "^(?:\\d{1,3}(?:\\.\\d{1,3}){3}/(?:[1-9]|[12]\\d|3[0-2])|[0-9a-fA-F:]*:[0-9a-fA-F:.]*/(?:[1-9]|[1-9]\\d|1[01]\\d|12[0-8]))$";
+
 /** An ISO 8601 duration reaching back from now, such as `P1D` or `PT6H` (AP-05). */
 export const ISO_DURATION_PATTERN = "^P(?=\\d|T\\d)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$";
 
@@ -2489,6 +2494,14 @@ export function appSchema(
               title: t("apps.field.window"),
               pattern: ISO_DURATION_PATTERN,
             },
+            // The App roles this need is granted to; none is every caller the endpoint admits
+            // (AP-96), so the list is kept however the rest of the need is edited.
+            roles: {
+              type: "array",
+              title: t("apps.field.needRoles"),
+              items: { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" },
+              uniqueItems: true,
+            },
           },
         },
       },
@@ -2523,6 +2536,30 @@ export function appSchema(
             type: "integer",
             title: t("apps.field.maxFileRows"),
             minimum: 1,
+          },
+        },
+      },
+      // Where a server pod may connect besides its endpoint, by address only; jc-core refuses a
+      // host name and every address, `/0` (AP-134). Declaring one takes the red lane.
+      egress: {
+        type: "array",
+        title: t("apps.field.egress"),
+        items: {
+          type: "object",
+          required: ["cidr", "ports"],
+          properties: {
+            cidr: {
+              type: "string",
+              title: t("apps.field.egressCidr"),
+              pattern: EGRESS_CIDR_PATTERN,
+            },
+            ports: {
+              type: "array",
+              title: t("apps.field.egressPorts"),
+              minItems: 1,
+              items: { type: "integer", minimum: 1, maximum: 65535 },
+              uniqueItems: true,
+            },
           },
         },
       },
@@ -2562,19 +2599,22 @@ export const QUOTA_DIMENSIONS = [
   "requestsPerMinute",
 ] as const;
 
+/** `spec.policies.apps.public` (ADR-N-035): whether a project may publish an app to everyone. */
+const PUBLIC_APPS = ["allowed", "refused"] as const;
+
 /**
  * The `Organization` manifest's `spec` as a form (T-2605, PF-01, PF-25, PF-41, PF-61, PF-65,
  * PF-73, PF-78), field for field jc-core's `OrganizationSpec`. `gitRepositoryUrl` is the
  * installation's and not offered; the form keeps it from the stored manifest.
  */
-export function organizationSchema(t: (key: string) => string): JsonSchema {
+export function organizationSchema(t: (key: string) => string, entries: readonly LimitEntry[] = []): JsonSchema {
   const quota = Object.fromEntries(
     QUOTA_DIMENSIONS.map((dimension) => [
       dimension,
       { type: "integer", minimum: 0, title: t(`organization.field.quota.${dimension}`) },
     ]),
   );
-  return {
+  const schema = {
     type: "object",
     required: ["domain", "locales", "defaultLocale"],
     properties: {
@@ -2655,8 +2695,53 @@ export function organizationSchema(t: (key: string) => string): JsonSchema {
           },
         },
       },
+      // Every limit comes from the catalog below, held to the operator's bound.
+      limits: {
+        type: "object",
+        title: t("organization.limitGroup.limits"),
+        description: t("organization.limitGroup.limitsHint"),
+        properties: {},
+      },
+      // The two policies that are no number; every numeric one comes from the catalog below.
+      policies: {
+        type: "object",
+        title: t("organization.limitGroup.policies"),
+        description: t("organization.limitGroup.policiesHint"),
+        properties: {
+          apps: {
+            type: "object",
+            title: t("organization.limitGroup.apps"),
+            description: t("organization.limitGroup.appsHint"),
+            properties: {
+              public: {
+                type: "string",
+                title: t("organization.policy.publicApps"),
+                description: t("organization.policy.publicAppsHint"),
+                oneOf: PUBLIC_APPS.map((value) => ({ const: value, title: t(`organization.policy.publicApps_${value}`) })),
+              },
+            },
+          },
+          agents: {
+            type: "object",
+            title: t("organization.limitGroup.agents"),
+            description: t("organization.limitGroup.agentsHint"),
+            properties: {
+              models: {
+                type: "array",
+                title: t("organization.policy.models"),
+                description: t("organization.policy.modelsHint"),
+                minItems: 1,
+                uniqueItems: true,
+                items: { type: "string", minLength: 1, maxLength: 200 },
+              },
+            },
+          },
+        },
+      },
     },
   } as JsonSchema;
+  // Every numeric policy and limit, held to the operator's bound (PF-97, PF-102).
+  return withCatalog(schema, entries, t);
 }
 
 /**

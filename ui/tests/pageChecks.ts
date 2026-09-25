@@ -27,6 +27,7 @@ export type PageCheck =
   | "bare-urn"
   | "overflow"
   | "form-columns"
+  | "row-link"
   // What the walkers add around the DOM check: axe's serious and critical rules, and (live)
   // the console, a request answering >= 400, and a write control a viewer can press.
   | "axe"
@@ -110,6 +111,18 @@ export function pageFindings(options: PageCheckOptions): string[] {
   for (const label of root.querySelectorAll("h1, h2, h3, button, a, th, label, legend, [role='tab'], dt")) {
     const value = text(label);
     if (/^urn:ngsi-ld:\S+$/.test(value) && shown(label) && !label.closest(code)) say("bare-urn", value);
+  }
+
+  // Every record of a list opens on a click (T-2875): each row of a table of records
+  // (`data-records`) holds its record's link, the one `TableRow` hands a click to. The empty
+  // row and the loading skeleton are not records.
+  for (const table of root.querySelectorAll("table[data-records]")) {
+    if (table.getAttribute("aria-busy") === "true" || !shown(table)) continue;
+    for (const row of table.querySelectorAll(":scope > tbody > tr")) {
+      const cells = row.querySelectorAll(":scope > td, :scope > th");
+      if (cells.length === 1 && Number(cells[0].getAttribute("colspan") ?? "1") > 1) continue;
+      if (!row.querySelector("a[data-row-link]")) say("row-link", `${table.querySelector("caption")?.textContent ?? "a table"}: ${text(row)}`);
+    }
   }
 
   if (options.layout) {

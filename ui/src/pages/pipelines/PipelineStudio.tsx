@@ -617,7 +617,7 @@ export function PipelineStudio({
 
   return (
     <div className="flex flex-col gap-3" data-testid="pipeline-studio">
-      <Field id="studio-preset" label={t("pipelines.studio.preset.title")}>
+      <Field id="studio-preset" label={t("pipelines.studio.preset.title")} description={t("pipelines.studio.preset.hint")}>
         <Select
           id="studio-preset"
           value={preset}
@@ -652,7 +652,7 @@ export function PipelineStudio({
           </FormHeading>
           <p className="text-caption text-fg-muted">{t("pipelines.studio.kpi.lead")}</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field id="studio-kpi-endpoint" label={t("pipelines.studio.kpi.endpoint")}>
+            <Field id="studio-kpi-endpoint" label={t("pipelines.studio.kpi.endpoint")} description={t("pipelines.studio.kpi.endpointHint")}>
               <Select
                 id="studio-kpi-endpoint"
                 value={kpiEndpoint}
@@ -677,7 +677,7 @@ export function PipelineStudio({
                 ))}
               </Select>
             </Field>
-            <Field id="studio-kpi-name" label={t("pipelines.studio.kpi.name")}>
+            <Field id="studio-kpi-name" label={t("pipelines.studio.kpi.name")} description={t("pipelines.studio.kpi.nameHint")}>
               <Input
                 id="studio-kpi-name"
                 value={kpiName}
@@ -695,7 +695,7 @@ export function PipelineStudio({
                 }}
               />
             </Field>
-            <Field id="studio-kpi-type" label={t("pipelines.studio.kpi.type")}>
+            <Field id="studio-kpi-type" label={t("pipelines.studio.kpi.type")} description={t("pipelines.studio.kpi.typeHint")}>
               {/* The type is one the endpoint's space models (ADR-N-033), never typed. */}
               <TypePicker
                 id="studio-kpi-type"
@@ -721,7 +721,7 @@ export function PipelineStudio({
                 }}
               />
             </Field>
-            <Field id="studio-kpi-attribute" label={t("pipelines.studio.kpi.attribute")}>
+            <Field id="studio-kpi-attribute" label={t("pipelines.studio.kpi.attribute")} description={t("pipelines.studio.kpi.attributeHint")}>
               <Input
                 id="studio-kpi-attribute"
                 value={kpiAttribute}
@@ -739,7 +739,7 @@ export function PipelineStudio({
                 }}
               />
             </Field>
-            <Field id="studio-kpi-agg" label={t("pipelines.studio.kpi.aggregate")}>
+            <Field id="studio-kpi-agg" label={t("pipelines.studio.kpi.aggregate")} description={t("pipelines.studio.kpi.aggregateHint")}>
               <Select
                 id="studio-kpi-agg"
                 value={kpiAggregate}
@@ -761,7 +761,7 @@ export function PipelineStudio({
                 <option value="count">{t("pipelines.studio.aggregate.count")}</option>
               </Select>
             </Field>
-            <Field id="studio-kpi-period" label={t("pipelines.studio.kpi.period")}>
+            <Field id="studio-kpi-period" label={t("pipelines.studio.kpi.period")} description={t("pipelines.studio.kpi.periodHint")}>
               <Input
                 id="studio-kpi-period"
                 value={kpiPeriod}
@@ -879,7 +879,7 @@ export function PipelineStudio({
                       ) : null}
                     </div>
                     {draft?.compute?.kind === "bloblang" ? (
-                      <Field id="flow-bloblang-field" label={t("pipelines.flow.nodeBloblang")}>
+                      <Field id="flow-bloblang-field" label={t("pipelines.flow.nodeBloblang")} description={t("pipelines.field.bloblangHint")}>
                         <Textarea
                           id="flow-bloblang-field"
                           data-testid="flow-bloblang"
@@ -899,7 +899,7 @@ export function PipelineStudio({
                         />
                       </Field>
                     ) : draft?.compute?.kind === "mapping" ? (
-                      <Field id="flow-mapping-field" label={t("pipelines.field.mappingRef")}>
+                      <Field id="flow-mapping-field" label={t("pipelines.field.mappingRef")} description={t("pipelines.flow.mappingRefHint")}>
                         <ResourceNamePicker
                           id="flow-mapping-field"
                           label={t("pipelines.field.mappingRef")}
@@ -920,7 +920,7 @@ export function PipelineStudio({
                       </Field>
                     ) : draft?.compute?.kind === "wasm" || draft?.compute?.kind === "container" ? (
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <Field id="flow-module-field" label={t("pipelines.field.module")}>
+                        <Field id="flow-module-field" label={t("pipelines.field.module")} description={t("pipelines.flow.moduleHint")}>
                           <Input
                             id="flow-module-field"
                             data-testid="flow-module"
@@ -936,7 +936,7 @@ export function PipelineStudio({
                             }}
                           />
                         </Field>
-                        <Field id="flow-function-field" label={t("pipelines.field.function")}>
+                        <Field id="flow-function-field" label={t("pipelines.field.function")} description={t("pipelines.flow.functionHint")}>
                           <Input
                             id="flow-function-field"
                             data-testid="flow-function"
@@ -1071,7 +1071,7 @@ export function PipelineStudio({
             <FormHeading id="studio-source" className="text-body font-semibold text-fg">
               {t("pipelines.studio.source")}
             </FormHeading>
-            <Field id="studio-source-kind" label={t("pipelines.studio.sourceKind")}>
+            <Field id="studio-source-kind" label={t("pipelines.studio.sourceKind")} description={t("pipelines.studio.sourceKindHint")}>
               <Select
                 id="studio-source-kind"
                 value={kind}
@@ -1083,7 +1083,7 @@ export function PipelineStudio({
               </Select>
             </Field>
             {kind === "datasource" ? (
-              <Field id="studio-datasource" label={t("pipelines.field.dataSource")}>
+              <Field id="studio-datasource" label={t("pipelines.field.dataSource")} description={t("pipelines.studio.dataSourceHint")}>
                 <Select
                   id="studio-datasource"
                   value={draft?.source?.dataSourceRef ?? ""}
@@ -1100,7 +1100,7 @@ export function PipelineStudio({
             ) : null}
             {kind === "space" ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field id="studio-space" label={t("pipelines.studio.space")}>
+                <Field id="studio-space" label={t("pipelines.studio.space")} description={t("pipelines.studio.spaceHint")}>
                   <Select
                     id="studio-space"
                     value={space ?? ""}
@@ -1234,7 +1234,7 @@ export function PipelineStudio({
               </FormHeading>
               <p className="text-caption text-fg-muted">{t("pipelines.studio.processHint")}</p>
               <div className="flex flex-wrap items-end gap-2">
-                <Field id="studio-aggregate-attribute" label={t("pipelines.studio.attribute")}>
+                <Field id="studio-aggregate-attribute" label={t("pipelines.studio.attribute")} description={t("pipelines.studio.attributeHint")}>
                   {attributes.length > 0 ? (
                     <Select
                       id="studio-aggregate-attribute"

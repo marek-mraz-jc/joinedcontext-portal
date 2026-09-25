@@ -113,3 +113,39 @@ export function withPickers(kind: string | undefined, schema: unknown, uiSchema:
   }
   return out as UiSchema;
 }
+
+/** Applies `name` to every value a picker path reaches, `a.b[].c` stepping into each item. */
+function mapPath(value: unknown, steps: string[], name: (value: unknown) => unknown): unknown {
+  if (steps.length === 0) return name(value);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const [step, ...rest] = steps;
+  const array = step.endsWith("[]");
+  const field = array ? step.slice(0, -2) : step;
+  const record = value as Record<string, unknown>;
+  if (!(field in record)) return value;
+  const inner = record[field];
+  const next = array
+    ? Array.isArray(inner)
+      ? inner.map((item) => mapPath(item, rest, name))
+      : inner
+    : mapPath(inner, rest, name);
+  return next === inner ? value : { ...record, [field]: next };
+}
+
+/**
+ * The form data a picker can show (T-2872): a reference the manifest writes typed,
+ * `dataModelRef: { kind: DataModel, name: praha-mesto }`, is held by its name, because every
+ * picker and the schema's `type: string` read a name, and an object left there opened the field
+ * empty. A page whose manifest keeps the typed form writes it back in its own `toManifest`.
+ */
+export function namesOfRefs(kind: string | undefined, data: unknown): unknown {
+  let out = data;
+  for (const path of Object.keys((kind && REFERENCE_PICKERS[kind]) || {})) {
+    out = mapPath(out, path.split("."), (value) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+      const name = (value as { name?: unknown }).name;
+      return typeof name === "string" && name !== "" ? name : value;
+    });
+  }
+  return out;
+}

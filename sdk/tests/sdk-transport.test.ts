@@ -46,11 +46,12 @@ describe("originTransport", () => {
       const send = transportFor({ slug: "demo", orgDomain: "example.org", space: "demo", transport: "origin", appName: "bikes" });
       await send({ method: "GET", path: "/api/endpoint/demo/ngsi-ld/v1/entities?type=A" });
       await send({ method: "PATCH", path: "/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Ax/attrs", body: {} });
-      await send({ method: "POST", path: "/apps/bikes/api/functions/sum", body: {} });
+      await send({ method: "POST", path: "/api/functions/sum", body: {} });
+      // The app is the whole of its own host (AP-133): nothing is prefixed.
       expect(urls).toEqual([
-        "/apps/bikes/api/endpoint/demo/ngsi-ld/v1/entities?type=A",
-        "/apps/bikes/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Ax/attrs",
-        "/apps/bikes/api/functions/sum",
+        "/api/endpoint/demo/ngsi-ld/v1/entities?type=A",
+        "/api/endpoint/demo/ngsi-ld/v1/entities/urn%3Ax/attrs",
+        "/api/functions/sum",
       ]);
     } finally {
       vi.unstubAllGlobals();
@@ -73,7 +74,7 @@ describe("originTransport", () => {
     );
 
     await expect(client.functions.call("near-me", { radius: 500 })).resolves.toEqual({ stations: 3 });
-    expect(calls[0].url).toBe("/apps/bikes/api/functions/near-me");
+    expect(calls[0].url).toBe("/api/functions/near-me");
     expect(calls[0].init?.method).toBe("POST");
     expect((calls[0].init?.headers as Record<string, string>)[CSRF_HEADER]).toBe("token-fn");
   });
@@ -189,9 +190,9 @@ describe("bridgeTransport", () => {
         path: "/api/endpoint/demo/access",
       });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
-      // T-2670: under the app's own path, where the apps session cookie reaches and the edge
-      // sets it as the bearer; at /api/endpoint/ the call would go out anonymous.
-      expect(fetchSpy).toHaveBeenCalledWith("/apps/test-app/api/endpoint/demo/access", expect.anything());
+      // AP-133: the app is the whole of its own host, whose session the edge sets as the
+      // bearer on `/api/endpoint/` (T-2670), so the path goes out as the SDK wrote it.
+      expect(fetchSpy).toHaveBeenCalledWith("/api/endpoint/demo/access", expect.anything());
       expect(postSpy).not.toHaveBeenCalled();
 
       vi.useFakeTimers();

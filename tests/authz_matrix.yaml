@@ -121,6 +121,10 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/limits
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+    note: "the catalog and the operator's bounds are the installation's; a project the caller may not read is left out of the answer (API/01 §28, R20)"
   - route: GET /organization/setup
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]

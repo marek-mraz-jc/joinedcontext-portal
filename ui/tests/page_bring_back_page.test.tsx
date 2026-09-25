@@ -126,10 +126,12 @@ describe("bringing a copy back", () => {
   it.each([
     ["workspace", 403, "You may not read this copy."],
     ["compare", 503, "The comparison store is not answering."],
-  ] as const)("says why %s could not be read, with a retry", async (on, status, detail) => {
+  ] as const)("says why %s could not be read, with a retry only for an outage", async (on, status, detail) => {
     renderBringBack({ fails: { on, status, detail } });
     expect(await screen.findByRole("alert")).toHaveTextContent(detail);
-    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    // A refusal answers the same the second time (T-2834); the way back is there either way.
+    expect(screen.queryAllByRole("button", { name: en.app.error.retry })).toHaveLength(status >= 500 ? 1 : 0);
+    expect(screen.getByRole("link", { name: en.workspaces.compare.back })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 1, name: en.workspaces.bringBack.title }),
     ).toBeInTheDocument();

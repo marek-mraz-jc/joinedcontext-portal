@@ -585,6 +585,73 @@ async fn a_type_name_that_is_not_pascal_case_or_a_description_too_long_is_refuse
     }
 }
 
+/// T-2874: an installation that hides dashboards completes the space without drawing one.
+#[tokio::test]
+async fn a_hidden_dashboards_section_draws_no_map() {
+    let mut config = Config::for_tests();
+    config.dashboards = false;
+    let model_tools = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/infer-schema"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "linkml": "id: https://example.com/stations\nclasses:\n  BikeHireDockingStation:\n    is_a: Entity\n    slots: [station_id, name]\nslots:\n  station_id: { range: string }\n  name: { range: string }\n"
+        })))
+        .mount(&model_tools)
+        .await;
+    config.model_tools_url = Some(model_tools.uri());
+    let app = server::app(AppState::new(config.clone(), None));
+    let cookie = session_cookie(
+        &config,
+        "steward.user",
+        Some("steward@hel.fi"),
+        vec!["portal-approver"],
+        vec![],
+    );
+    let stations = json!({ "data": { "stations": [
+        { "station_id": "008", "name": "Vanha kirkkopuisto", "lat": 60.165288, "lon": 24.93915 },
+        { "station_id": "015", "name": "Ritarikatu", "lat": 60.171609, "lon": 24.956159 }
+    ] } });
+    let payload = json!({
+        "space": "city-bikes",
+        "typeName": "BikeHireDockingStation",
+        "description": "The city bike stations of Helsinki.",
+        "files": [
+            { "name": "station_information.json", "content": stations.to_string() },
+            { "name": "README.md", "content": "Data comes from https://example.invalid/gbfs/station_information.json" }
+        ]
+    });
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/helsinki/ops/jc_space_complete")
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: Value =
+        serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let kinds: Vec<&str> = body["drafts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["kind"].as_str())
+        .collect();
+    assert!(
+        kinds.contains(&"Pipeline"),
+        "the rest is still drafted: {kinds:?}"
+    );
+    assert!(
+        !kinds.contains(&"Layer") && !kinds.contains(&"Dashboard"),
+        "{kinds:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_feeds_records_become_the_model_the_mapping_and_a_map_dashboard_with_fresh_verdicts() {
     // AG-79: a GBFS-shaped sample; the records are `data.stations`, not the envelope around them.

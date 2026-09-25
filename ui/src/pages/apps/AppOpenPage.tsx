@@ -7,21 +7,26 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
 import { useBranding } from "../../branding";
-import { Button, buttonClass, EmptyState, ExternalLink, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, buttonClass, EmptyState, ExternalLink, PageHeader, PageLoading, ResourcePageFailed } from "../../components/ui";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
 import { appDisplayName } from "./appTitle";
 
 /**
- * The App's own address: on the origin the Portal serves Apps from when it has one (`appsOrigin`
- * of the branding, from `JC_PORTAL_APPS_URL`), else the path on the Portal's own host.
+ * The App's own address: its own host `{name}.apps.{domain}` under the apex the Portal serves
+ * Apps from when it has one (`appsOrigin` of the branding, from `JC_PORTAL_APPS_URL`; AP-133),
+ * else the path on the Portal's own host.
  */
 export function appAddress(name: string, appsOrigin?: string | null): string {
   const path = `/apps/${encodeURIComponent(name)}/`;
-  if (!appsOrigin) return path;
+  // Only a DNS label is a host's first label; anything else keeps the path, which the Portal
+  // answers with a 404.
+  if (!appsOrigin || !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) return path;
   try {
-    const url = new URL(path, appsOrigin);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : path;
+    const url = new URL("/", appsOrigin);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return path;
+    url.hostname = `${name}.apps.${url.hostname}`;
+    return url.toString();
   } catch {
     return path;
   }
@@ -113,22 +118,26 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   if (app.isPending) {
     return (
       <div className="space-y-4">
-        <PageHeader title={fallbackTitle} actions={details} />
+        <PageHeader title={fallbackTitle} description={t("apps.openPage.lead")} actions={details} />
         <PageLoading label={t("app.loading")} />
       </div>
     );
   }
   if (app.isError) {
     return (
-      <div className="space-y-4">
-        <PageHeader title={fallbackTitle} actions={details} />
-        <PageFailed
-          error={app.error}
-          onRetry={() => {
-            void app.refetch();
-          }}
-        />
-      </div>
+      <ResourcePageFailed
+        title={fallbackTitle}
+        description={t("apps.openPage.lead")}
+        error={app.error}
+        onRetry={() => {
+          void app.refetch();
+        }}
+        back={
+          <Button onClick={() => void navigate({ to: "/projects/$project/$plural", params: { project, plural: "apps" } })}>
+            {t("apps.back")}
+          </Button>
+        }
+      />
     );
   }
 
@@ -143,7 +152,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   if (blocked) {
     return (
       <div className="space-y-4">
-        <PageHeader title={title} actions={details} />
+        <PageHeader title={title} description={t("apps.openPage.lead")} actions={details} />
         <EmptyState title={blocked} description={t("apps.openPage.notOpen")} icon="apps" />
       </div>
     );
@@ -153,7 +162,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
     <div className="flex h-full min-h-0 flex-col gap-3">
       <PageHeader
         title={title}
-        description={commit ? t("apps.openPage.served", { commit: commit.slice(0, 7) }) : undefined}
+        description={commit ? t("apps.openPage.served", { commit: commit.slice(0, 7) }) : t("apps.openPage.lead")}
         actions={
           <>
             {details}

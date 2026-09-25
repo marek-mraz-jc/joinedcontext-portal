@@ -388,6 +388,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Organization Limits
+         * @description Every policy and limit of the catalog with the operator's bound, the value in force and where it comes from, and the quota of each project the caller may read (PF-96…PF-102, ADR-N-035).
+         */
+        get: operations["get_limits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people": {
         parameters: {
             query?: never;
@@ -952,7 +972,7 @@ export interface paths {
          * Export App
          * @description One App as its repository's git bundle beside its manifest, for an organization administrator (UI-87).
          */
-        get: operations["export"];
+        get: operations["export_app"];
         put?: never;
         post?: never;
         delete?: never;
@@ -972,7 +992,7 @@ export interface paths {
          * The Caller's Roles In An Application
          * @description The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).
          */
-        get: operations["me"];
+        get: operations["app_me"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1790,7 +1810,7 @@ export interface paths {
         };
         /**
          * Read Data Quality
-         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
          */
         get: operations["get_quality"];
         put?: never;
@@ -2523,6 +2543,14 @@ export interface components {
              *     }
              */
             fonts: components["schemas"]["Fonts"];
+            /**
+             * @description The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`
+             *     is not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so
+             *     what a branding file says is overwritten; always sent, so the UI never mistakes a shown
+             *     section for one it has not heard about.
+             * @default []
+             */
+            hiddenSections: string[];
             /**
              * @description Full name: page titles and the login page.
              * @default joinedcontext
@@ -3483,6 +3511,45 @@ export interface components {
         };
         /** @enum {string} */
         Level: "error" | "warning" | "info";
+        /** @description One entry of the catalog as the settings page shows it (PF-102). */
+        LimitEntry: {
+            /**
+             * Format: int32
+             * @description The catalog's default; `null` is no limit.
+             */
+            default?: number | null;
+            /**
+             * Format: int32
+             * @description The largest value the organization may set; `null` where nobody sets a ceiling.
+             */
+            max?: number | null;
+            /**
+             * Format: int32
+             * @description The smallest value the organization may set.
+             */
+            min: number;
+            /** @description `organization` or `default`. */
+            origin: components["schemas"]["LimitOrigin"];
+            /** @description The manifest path, e.g. `spec.limits.edge.requestsPerMinute.web`. */
+            path: string;
+            /**
+             * @description The settings section: `projects`, `applications`, `edge`, `signIn`, `people`, `agents`,
+             *     `pipelinesAndData`.
+             */
+            section: string;
+            /** @description Whether the operator may only tighten the bound (ADR-N-035 §3.2). */
+            security: boolean;
+            /**
+             * Format: int32
+             * @description What the Organization manifest sets; `null` when it sets nothing.
+             */
+            value?: number | null;
+        };
+        /**
+         * @description Where a value in force comes from (PF-101).
+         * @enum {string}
+         */
+        LimitOrigin: "project" | "organization" | "default";
         ListMeta: {
             continue?: string | null;
             remainingItemCount?: number | null;
@@ -3673,6 +3740,10 @@ export interface components {
             name: string;
             outputSchema: Record<string, never>;
             title: string;
+        };
+        OrganizationLimits: {
+            entries: components["schemas"]["LimitEntry"][];
+            projects: components["schemas"]["ProjectQuota"][];
         };
         /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
         OrganizationModel: {
@@ -4012,6 +4083,14 @@ export interface components {
             items: components["schemas"]["ProjectSummary"][];
             kind: string;
         };
+        /** @description The quota in force for one project the caller may read. */
+        ProjectQuota: {
+            origin: components["schemas"]["LimitOrigin"];
+            project: string;
+            quota: {
+                [key: string]: components["schemas"]["QuotaUse"];
+            };
+        };
         ProjectStatus: {
             /**
              * @description Every countable dimension by its manifest field name (`contextSpaces`,
@@ -4048,6 +4127,19 @@ export interface components {
             /** Format: int64 */
             expectedVersion?: number | null;
             manifest: unknown;
+        };
+        /** @description One quota dimension of a project. */
+        QuotaUse: {
+            /**
+             * Format: int32
+             * @description `null` is no limit.
+             */
+            limit?: number | null;
+            /**
+             * Format: int32
+             * @description The manifest count for a countable dimension (PF-75); `null` for a runtime limit.
+             */
+            used?: number | null;
         };
         /** @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). */
         Readiness: {
@@ -5240,6 +5332,35 @@ export interface operations {
             };
             /** @description The results directory cannot be read */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_limits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog and the values in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationLimits"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7283,7 +7404,7 @@ export interface operations {
             };
         };
     };
-    export: {
+    export_app: {
         parameters: {
             query?: never;
             header?: never;
@@ -7351,7 +7472,7 @@ export interface operations {
             };
         };
     };
-    me: {
+    app_me: {
         parameters: {
             query?: never;
             header?: never;

@@ -79,7 +79,7 @@ async fn manifest(
         (status = 503, description = "No repository configured", body = ProblemDetails)
     )
 )]
-pub async fn export(
+pub async fn export_app(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
@@ -460,5 +460,5 @@ async fn land(
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/projects/{project}/apps/{name}/export", get(export))
+    Router::new().route("/projects/{project}/apps/{name}/export", get(export_app))
 }

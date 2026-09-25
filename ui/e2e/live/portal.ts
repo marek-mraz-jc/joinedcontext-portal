@@ -1,5 +1,21 @@
 import { expect } from "@playwright/test";
-import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
+
+/**
+ * The project sections the installation hides (`hiddenSections` of `/api/v1/branding`, T-2874):
+ * a case over one is excused while it is hidden, and runs again the day it is shown.
+ */
+export async function hiddenSections(request: APIRequestContext): Promise<string[]> {
+  const answer = await request.get("/api/v1/branding");
+  const hidden = answer.ok() ? ((await answer.json()) as { hiddenSections?: unknown }).hiddenSections : undefined;
+  return Array.isArray(hidden) ? hidden.filter((section): section is string => typeof section === "string") : [];
+}
+
+/** Whether a Portal address lies in one of the `hidden` sections. */
+export function inHiddenSection(address: string, hidden: string[]): boolean {
+  const section = address.split(/[?#]/)[0].split("/")[3];
+  return section !== undefined && hidden.includes(section);
+}
 
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
 export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };

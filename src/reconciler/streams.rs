@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use jc_core::kinds::data_source::{check_class, DataSourceSpec, DataSourceType};
 use jc_core::kinds::pipeline::{Compute, ComputeKind, PipelineSource, PipelineSpec, Step};
@@ -18,6 +18,21 @@ use crate::store::Mirror;
 
 /// Timeout for requests sent to the runner's streams API.
 const RUNNER_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The first wait after a PUT the runner did not answer, doubled on each further miss up to
+/// [`BACKOFF_CEILING`] (T-2891).
+const BACKOFF_START: Duration = Duration::from_secs(60);
+const BACKOFF_CEILING: Duration = Duration::from_secs(15 * 60);
+
+/// The last PUT of one stream that the runner did not answer: the render it carried, when the
+/// next attempt is due, the wait that led there, and what the transport said.
+#[derive(Debug, Clone)]
+struct Backoff {
+    hash: u64,
+    until: Instant,
+    wait: Duration,
+    reason: String,
+}
 
 /// Why a pipeline stream cannot be rendered from the manifest specifications.
 #[derive(Debug, thiserror::Error)]
@@ -66,6 +81,11 @@ pub struct StreamDeployer {
     /// sent again, because the runner restarts a stream on every PUT and a periodic pipeline
     /// then emits on every pass instead of every period (PL-45, T-0659).
     rendered: Mutex<HashMap<(String, String), u64>>,
+    /// Streams whose last PUT the runner did not answer. Bento restarts a stream on PUT and
+    /// waits for it to stop, and a stream blocked delivering data never stops, so every such
+    /// PUT costs a whole [`RUNNER_TIMEOUT`]; sending the same render again on every pass kept
+    /// a leader tick busy for minutes (T-2891). A changed render is sent at once.
+    backoff: Mutex<HashMap<(String, String), Backoff>>,
     /// Where a refused record is posted (the Portal's internal listener, as the runner reaches
     /// it) and the compiled model of each space: with both, every stream into a space that
     /// names a model carries the validation stage (PL-60, PL-61).
@@ -92,6 +112,7 @@ impl StreamDeployer {
             http,
             deployed: Mutex::new(HashSet::new()),
             rendered: Mutex::new(HashMap::new()),
+            backoff: Mutex::new(HashMap::new()),
             validation: None,
         }
     }
@@ -536,11 +557,12 @@ impl StreamDeployer {
     ) -> StreamOutcome {
         let key = (ns.to_owned(), name.to_owned());
         let hash = config_hash(&stream_json);
-        let mut unchanged = self
+        let stored = self
             .rendered
             .lock()
-            .map(|rendered| rendered.get(&key) == Some(&hash))
-            .unwrap_or(false);
+            .map(|rendered| rendered.get(&key).copied())
+            .unwrap_or(None);
+        let mut unchanged = stored == Some(hash);
         // A runner that restarted holds no streams, so an unchanged render it no longer runs is
         // sent again; a runner that does not answer the list keeps the hash's word. A stream the
         // runner holds but reports inactive is sent again too, unless its input is one that ends
@@ -572,19 +594,122 @@ impl StreamDeployer {
                     }
                 },
             };
+        } else if stored.is_none() {
+            // No hash means this Portal has not sent the stream since it started. The runner
+            // answers a stream's config exactly as it was sent, so a stream it runs as rendered
+            // is adopted rather than PUT again: every restart used to PUT every stream, and a
+            // stream the runner cannot stop made each of those PUTs wait out the timeout (T-2891).
+            unchanged = self.holds_as_rendered(ns, name, &stream_json).await;
         }
         let outcome = if unchanged {
             StreamOutcome::Live
+        } else if let Some(waiting) = self.waiting(&key, hash) {
+            waiting
         } else {
-            self.deploy_stream(ns, name, &stream_json).await
+            match self.deploy_stream(ns, name, &stream_json).await {
+                Ok(outcome) => outcome,
+                Err(reason) => self.back_off(key.clone(), hash, reason),
+            }
         };
         if outcome == StreamOutcome::Live {
             current_live.insert(key.clone());
             if let Ok(mut rendered) = self.rendered.lock() {
-                rendered.insert(key, hash);
+                rendered.insert(key.clone(), hash);
+            }
+            if let Ok(mut backoff) = self.backoff.lock() {
+                backoff.remove(&key);
             }
         }
         outcome
+    }
+
+    /// Whether the runner holds `name` with exactly this config and it still runs (or its input
+    /// ends by itself, as in [`Self::apply`]). Anything else, the runner not answering included,
+    /// is "no": the stream is then sent as before.
+    async fn holds_as_rendered(&self, project: &str, name: &str, stream_json: &Value) -> bool {
+        let Some(runner) = self.runner_for(project) else {
+            return false;
+        };
+        let Ok(response) = self
+            .http
+            .get(format!("{runner}/streams/{name}"))
+            .send()
+            .await
+        else {
+            return false;
+        };
+        if !response.status().is_success() {
+            return false;
+        }
+        let Ok(held) = response.json::<Value>().await else {
+            return false;
+        };
+        let alive = held.get("active").and_then(Value::as_bool).unwrap_or(true)
+            || input_ends_by_itself(&stream_json["input"]);
+        let same = held.get("config") == Some(stream_json);
+        if same && alive {
+            tracing::info!(
+                project = %project,
+                pipeline = %name,
+                "the runner already runs this stream as rendered; not sent again"
+            );
+        }
+        same && alive
+    }
+
+    /// The outcome of a stream whose last PUT of this same render the runner did not answer,
+    /// while its wait lasts; `None` when it is due, or when the render changed since.
+    fn waiting(&self, key: &(String, String), hash: u64) -> Option<StreamOutcome> {
+        let backoff = self.backoff.lock().ok()?;
+        let last = backoff.get(key)?;
+        let left = last.until.checked_duration_since(Instant::now())?;
+        (last.hash == hash).then(|| {
+            StreamOutcome::Error(format!(
+                "the pipeline runner did not answer the last change of this stream ({}); the \
+                 Portal sends it again in {} s",
+                last.reason,
+                left.as_secs().max(1)
+            ))
+        })
+    }
+
+    /// Records a PUT the runner did not answer and says when the next one goes out: the wait
+    /// doubles while the same render keeps missing, and starts over for a new one.
+    fn back_off(&self, key: (String, String), hash: u64, reason: String) -> StreamOutcome {
+        let wait = self
+            .backoff
+            .lock()
+            .ok()
+            .and_then(|backoff| {
+                backoff
+                    .get(&key)
+                    .filter(|last| last.hash == hash)
+                    .map(|last| last.wait)
+            })
+            .map_or(BACKOFF_START, |last| (last * 2).min(BACKOFF_CEILING));
+        tracing::warn!(
+            project = %key.0,
+            pipeline = %key.1,
+            wait_secs = wait.as_secs(),
+            %reason,
+            "the pipeline runner did not answer the stream's PUT; waiting before the next one"
+        );
+        let said = format!(
+            "the pipeline runner did not answer: {reason}; the Portal sends it again in {} s",
+            wait.as_secs()
+        );
+        if let Ok(mut backoff) = self.backoff.lock() {
+            backoff.insert(
+                key,
+                Backoff {
+                    hash,
+                    until: Instant::now() + wait,
+                    wait,
+                    reason,
+                },
+            );
+        }
+        StreamOutcome::Error(said)
     }
 
     /// DELETE {runner}/streams/{name} for pipelines that were deployed last run and are gone or disabled now.
@@ -622,6 +747,9 @@ impl StreamDeployer {
             if let Ok(mut rendered) = self.rendered.lock() {
                 rendered.remove(&(project.to_string(), name.clone()));
             }
+            if let Ok(mut backoff) = self.backoff.lock() {
+                backoff.remove(&(project.to_string(), name.clone()));
+            }
         }
     }
 
@@ -649,37 +777,48 @@ impl StreamDeployer {
         )
     }
 
-    async fn deploy_stream(&self, project: &str, name: &str, stream_json: &Value) -> StreamOutcome {
+    /// PUTs (or, for a stream the runner does not hold, POSTs) one stream: the runner's answer,
+    /// or `Err` with what the transport said when the runner did not answer at all.
+    async fn deploy_stream(
+        &self,
+        project: &str,
+        name: &str,
+        stream_json: &Value,
+    ) -> Result<StreamOutcome, String> {
         let Some(runner) = self.runner_for(project) else {
-            return StreamOutcome::Error(format!("`{project}` is not a project name"));
+            return Ok(StreamOutcome::Error(format!(
+                "`{project}` is not a project name"
+            )));
         };
         let url = format!("{runner}/streams/{name}");
 
-        let mut response = match self.http.put(&url).json(stream_json).send().await {
-            Ok(resp) => resp,
-            Err(err) => {
-                return StreamOutcome::Error(format!("the pipeline runner did not answer: {err}"));
-            }
-        };
+        let mut response = self
+            .http
+            .put(&url)
+            .json(stream_json)
+            .send()
+            .await
+            .map_err(|err| err.to_string())?;
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            response = match self.http.post(&url).json(stream_json).send().await {
-                Ok(resp) => resp,
-                Err(err) => {
-                    return StreamOutcome::Error(format!(
-                        "the pipeline runner did not answer: {err}"
-                    ));
-                }
-            };
+            response = self
+                .http
+                .post(&url)
+                .json(stream_json)
+                .send()
+                .await
+                .map_err(|err| err.to_string())?;
         }
 
         let status = response.status();
         if status.is_success() {
-            StreamOutcome::Live
+            Ok(StreamOutcome::Live)
         } else {
             let body = response.text().await.unwrap_or_default();
             let truncated = truncate_body(&body, 500);
-            StreamOutcome::Error(format!("runner answered {status}: {truncated}"))
+            Ok(StreamOutcome::Error(format!(
+                "runner answered {status}: {truncated}"
+            )))
         }
     }
 }
@@ -2337,7 +2476,12 @@ output:
             .await;
         assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
         let sent = server.received_requests().await.expect("recorded");
-        let body = String::from_utf8_lossy(&sent[0].body).to_string();
+        // The first request asks whether the runner already holds the stream (T-2891).
+        let put = sent
+            .iter()
+            .find(|request| request.method.as_str() == "PUT")
+            .expect("the stream was PUT");
+        let body = String::from_utf8_lossy(&put.body).to_string();
         // The space `helsinki` has no manifest here, so it renders `helsinki-helsinki` (PF-84);
         // the domain stays the runner's own variable.
         assert!(body.contains(r#"+ \"helsinki-helsinki\" +"#), "{body}");
@@ -2561,7 +2705,12 @@ output:
             .await;
         assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
         let sent = server.received_requests().await.expect("recorded");
-        let body = String::from_utf8_lossy(&sent[0].body).to_string();
+        // The first request asks whether the runner already holds the stream (T-2891).
+        let put = sent
+            .iter()
+            .find(|request| request.method.as_str() == "PUT")
+            .expect("the stream was PUT");
+        let body = String::from_utf8_lossy(&put.body).to_string();
         assert!(body.contains(r#"+ \"helsinki-raw\" +"#), "{body}");
         assert!(!body.contains("JC_SOURCE_SPACE"), "{body}");
     }
@@ -2654,6 +2803,155 @@ output:
                 .await;
             assert_eq!(outcomes[0].2, StreamOutcome::Live);
         }
+    }
+
+    /// What one converge PUT to a runner that accepts everything: the rendered stream as sent.
+    async fn rendered_citybikes() -> serde_json::Value {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        StreamDeployer::new(server.uri())
+            .converge(&helsinki_test_mirror(), &Bentos::new(), &Default::default())
+            .await;
+        let sent = server.received_requests().await.expect("recorded");
+        let put = sent
+            .iter()
+            .find(|request| request.method.as_str() == "PUT")
+            .expect("the stream was PUT");
+        serde_json::from_slice(&put.body).expect("a JSON stream")
+    }
+
+    /// A runner whose `GET /streams/citybikes-free` answers `held`, and which counts every PUT.
+    async fn runner_holding(held: serde_json::Value, puts: u64) -> wiremock::MockServer {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(held))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/streams"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "citybikes-free": { "active": true } })),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(puts)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// T-2891: a Portal that restarted has no hashes, and the runner answers each stream's config
+    /// as it was sent. A stream it runs exactly as rendered is adopted, not PUT again, on the first
+    /// pass and on the passes after it; one it holds with another config, or holds stopped, is sent.
+    #[tokio::test]
+    async fn a_restarted_portal_adopts_the_stream_the_runner_runs_as_rendered() {
+        let rendered = rendered_citybikes().await;
+        let mirror = helsinki_test_mirror();
+
+        let same =
+            runner_holding(serde_json::json!({ "active": true, "config": rendered }), 0).await;
+        let restarted = StreamDeployer::new(same.uri());
+        for _ in 0..2 {
+            let outcomes = restarted
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+        }
+
+        let mut changed = rendered.clone();
+        changed["pipeline"]["processors"] = serde_json::json!([{ "mapping": "root = this" }]);
+        for held in [
+            serde_json::json!({ "active": true, "config": changed }),
+            serde_json::json!({ "active": false, "config": rendered }),
+            serde_json::json!({ "active": true }),
+        ] {
+            let runner = runner_holding(held.clone(), 1).await;
+            let outcomes = StreamDeployer::new(runner.uri())
+                .converge(&mirror, &Bentos::new(), &Default::default())
+                .await;
+            assert_eq!(outcomes[0].2, StreamOutcome::Live, "{held}: {outcomes:?}");
+        }
+    }
+
+    /// T-2891: a PUT the runner does not answer is not sent again on the next pass: the pipeline
+    /// says when it will be, and nothing but the adoption check reaches the runner meanwhile. A
+    /// changed render is sent at once. The runner here takes each connection and drops it, the
+    /// transport failure a PUT that outlives the timeout ends in.
+    #[tokio::test]
+    async fn a_put_the_runner_does_not_answer_waits_before_it_is_sent_again() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("a port");
+        let address = listener.local_addr().expect("an address");
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let log = Arc::clone(&seen);
+        tokio::spawn(async move {
+            use tokio::io::AsyncReadExt;
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut buffer = [0u8; 16];
+                let read = socket.read(&mut buffer).await.unwrap_or(0);
+                let head = String::from_utf8_lossy(&buffer[..read]).to_string();
+                let verb = head.split(' ').next().unwrap_or_default().to_owned();
+                log.lock().expect("the log").push(verb);
+                drop(socket);
+            }
+        });
+        let verbs = || seen.lock().expect("the log").clone();
+        let puts = || verbs().iter().filter(|verb| verb.as_str() == "PUT").count();
+
+        let deployer = StreamDeployer::new(format!("http://{address}"));
+        let mirror = helsinki_test_mirror();
+        let first = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        let StreamOutcome::Error(said) = &first[0].2 else {
+            panic!("an unanswered PUT is not live: {first:?}");
+        };
+        assert!(
+            said.contains("did not answer") && said.contains("again in 60 s"),
+            "{said}"
+        );
+        assert_eq!(puts(), 1, "{:?}", verbs());
+
+        let second = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        let StreamOutcome::Error(said) = &second[0].2 else {
+            panic!("a stream waiting to be sent is not live: {second:?}");
+        };
+        assert!(said.contains("the last change of this stream"), "{said}");
+        assert_eq!(puts(), 1, "the waiting stream was PUT again: {:?}", verbs());
+
+        let mut pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("the pipeline");
+        pipeline.spec["compute"]["bloblang"] = serde_json::json!("root = this.data.stations");
+        mirror.upsert(pipeline);
+        let third = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert!(
+            matches!(&third[0].2, StreamOutcome::Error(said) if said.contains("again in 60 s")),
+            "{third:?}"
+        );
+        assert_eq!(
+            puts(),
+            2,
+            "a changed render waits for nothing: {:?}",
+            verbs()
+        );
     }
 
     /// Which inputs end on their own, because that is what tells a finished stream from a dead one

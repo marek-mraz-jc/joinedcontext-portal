@@ -55,8 +55,15 @@ const SLUG_LEN: usize = 26;
 /// Where the rendered objects run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-    /// The primary domain, `city.example.com`, which the app's endpoint is served on.
+    /// The Portal's host, `portal.city.example.com`, where an App's `JC_ME_URL` is answered.
     pub host: String,
+    /// The domain every App's own host sits under, `city.example.com`: App `name` is served on
+    /// `{name}.apps.{apex}` (AP-133). The host of `JC_PORTAL_APPS_URL`, else the Portal's host
+    /// without its `portal.` label.
+    pub apex: String,
+    /// The context gateway's Service in the cluster (`JC_PORTAL_GATEWAY_URL`), the only address
+    /// an App pod reaches its endpoint on (AP-134). `None`: no pod-backed App runs.
+    pub gateway_url: Option<String>,
     /// The Portal's own namespace: where the pull Secret is kept and the Portal's
     /// ServiceAccount lives. Apps ran here before each project had its own (AP-116), so it is
     /// also where their old objects are removed from.
@@ -80,7 +87,91 @@ pub struct Settings {
     pub pull_secret: Option<String>,
 }
 
+/// The context gateway as an App pod's NetworkPolicy names it: its namespace, from the
+/// Service's in-cluster host `context-gateway.{namespace}.svc…`, and its port.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Gateway {
+    pub namespace: String,
+    pub port: u16,
+}
+
+/// The label the gateway chart puts on its pods.
+const GATEWAY_POD: &str = "context-gateway-gateway";
+
+/// The networks a declared destination may never reach, whatever its CIDR says (AP-134): the
+/// private ranges, carrier-grade NAT and link-local (the cloud metadata address), and their IPv6
+/// counterparts.
+const PRIVATE_RANGES: [&str; 7] = [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "100.64.0.0/10",
+    "169.254.0.0/16",
+    "fc00::/7",
+    "fe80::/10",
+];
+
+/// A CIDR as a 128-bit network: IPv4 in the top 32 bits, with its family and prefix. `None`
+/// for anything jc-core would have refused.
+fn network(cidr: &str) -> Option<(bool, u128, u8)> {
+    let (address, prefix) = cidr.split_once('/')?;
+    let prefix: u8 = prefix.parse().ok()?;
+    match address.parse::<std::net::IpAddr>().ok()? {
+        std::net::IpAddr::V4(v4) if prefix <= 32 => {
+            Some((true, u128::from(u32::from(v4)) << 96, prefix))
+        }
+        std::net::IpAddr::V6(v6) if prefix <= 128 => Some((false, u128::from(v6), prefix)),
+        _ => None,
+    }
+}
+
+/// Whether network `inner` lies inside network `outer` (same family).
+fn within(inner: (bool, u128, u8), outer: (bool, u128, u8)) -> bool {
+    let mask = |prefix: u8| u128::MAX.checked_shl(128 - u32::from(prefix)).unwrap_or(0);
+    inner.0 == outer.0 && inner.2 >= outer.2 && inner.1 & mask(outer.2) == outer.1 & mask(outer.2)
+}
+
+/// One declared destination as a NetworkPolicy peer, the private ranges inside it excepted.
+/// `None` for a destination that lies wholly inside a private range: nothing of it is reachable.
+fn egress_block(cidr: &str) -> Option<Value> {
+    let declared = network(cidr)?;
+    let private: Vec<(&str, (bool, u128, u8))> = PRIVATE_RANGES
+        .iter()
+        .filter_map(|range| network(range).map(|net| (*range, net)))
+        .collect();
+    if private.iter().any(|(_, range)| within(declared, *range)) {
+        return None;
+    }
+    let except: Vec<&str> = private
+        .iter()
+        .filter(|(_, range)| within(*range, declared))
+        .map(|(text, _)| *text)
+        .collect();
+    let mut block = json!({ "cidr": cidr });
+    if !except.is_empty() {
+        block["except"] = json!(except);
+    }
+    Some(json!({ "ipBlock": block }))
+}
+
 impl Settings {
+    /// The gateway an App pod calls, from [`Settings::gateway_url`] (AP-134).
+    pub fn gateway(&self) -> Result<Gateway, RenderError> {
+        let url: url::Url = self
+            .gateway_url
+            .as_deref()
+            .and_then(|url| url.parse().ok())
+            .ok_or(RenderError::NoGateway)?;
+        let namespace = url
+            .host_str()
+            .and_then(|host| host.split('.').nth(1))
+            .filter(|namespace| crate::resource::is_dns1123(namespace))
+            .ok_or(RenderError::NoGateway)?
+            .to_owned();
+        let port = url.port_or_known_default().ok_or(RenderError::NoGateway)?;
+        Ok(Gateway { namespace, port })
+    }
+
     /// `{release}-{project}-apps`, the namespace a project's pod-backed Apps run in (AP-116).
     pub fn apps_namespace(&self, project: &str) -> Result<String, RenderError> {
         let release = self.release.as_deref().ok_or(RenderError::NoRelease)?;
@@ -198,6 +289,10 @@ pub enum RenderError {
     /// The endpoint slug read back from the cluster is not a slug.
     #[error("the endpoint slug is not usable: {0}")]
     Slug(jc_core::Error),
+    /// No gateway Service is configured, so the pod has no address to reach its endpoint on
+    /// inside the cluster (AP-134).
+    #[error("no context gateway is configured (JC_PORTAL_GATEWAY_URL, http://context-gateway.<namespace>.svc.cluster.local:8080), so a pod-backed App has no endpoint to call (AP-134)")]
+    NoGateway,
 }
 
 /// Compiles one `App` manifest into its endpoint, its policies and, unless it is `static`, the
@@ -373,6 +468,7 @@ fn render_workload(
     }
 
     let namespace = settings.apps_namespace(project)?;
+    let gateway = settings.gateway()?;
     let workload_name = format!("app-{name}");
     let labels = json!({
         "app.kubernetes.io/name": workload_name,
@@ -453,7 +549,15 @@ fn render_workload(
     Ok(Workload {
         deployment,
         service,
-        network_policy: network_policy(&workload_name, &namespace, settings, &labels, &selector),
+        network_policy: network_policy(
+            &workload_name,
+            &namespace,
+            settings,
+            &gateway,
+            &spec.egress,
+            &labels,
+            &selector,
+        ),
         secret,
     })
 }
@@ -473,8 +577,9 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 /// What a generated application is started with (AP-14, AP-28):
 ///
 /// - `JC_BIND_ADDRESS` — where it listens, which is the port the Service routes to.
-/// - `JC_BASE_PATH` — the path it is served under, so every link it writes resolves.
-/// - `JC_ENDPOINT_URL` — the one Endpoint it may read, as a caller reaches it.
+/// - `JC_BASE_PATH` — the path it is served under, `/`: the App is the whole of its host (AP-133).
+/// - `JC_ENDPOINT_URL` — the one Endpoint it may read, on the gateway's Service in the cluster
+///   (AP-134).
 /// - `JC_ME_URL` — the Portal route that answers the caller's roles in this App, called with the
 ///   edge's `X-Access-Token` as the bearer (AP-109).
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
@@ -493,12 +598,18 @@ fn app_container(
     settings: &Settings,
     config: &Value,
 ) -> Value {
+    // `render` refuses a pod-backed App before this when there is no gateway to name.
+    let gateway = settings.gateway_url.as_deref().unwrap_or_default();
     let mut env = vec![
         json!({ "name": "JC_BIND_ADDRESS", "value": format!("{APP_ADDRESS}:{APP_PORT}") }),
-        json!({ "name": "JC_BASE_PATH", "value": format!("/apps/{name}/") }),
+        // The App is the whole of its own host (AP-133).
+        json!({ "name": "JC_BASE_PATH", "value": "/" }),
+        // The gateway's Service in the cluster, never the public host: the mesh carries the
+        // person's token there as mTLS, and the NetworkPolicy can name the gateway's pods
+        // (AP-134). A pod-backed App is not rendered without it.
         json!({
             "name": "JC_ENDPOINT_URL",
-            "value": format!("https://{}/api/endpoint/{}/", settings.host, slug.as_str()),
+            "value": format!("{gateway}/api/endpoint/{}/", slug.as_str()),
         }),
         json!({
             "name": "JC_ME_URL",
@@ -544,15 +655,64 @@ fn app_container(
     container
 }
 
-/// Default-deny in both directions with two holes: APISIX in, and the platform host out
-/// (AP-15, AP-26).
+/// Default-deny in both directions: APISIX in; out, DNS, the Linkerd control plane, the
+/// gateway's pods and the destinations `spec.egress` declares, nothing else (AP-134).
 fn network_policy(
     name: &str,
     namespace: &str,
     settings: &Settings,
+    gateway: &Gateway,
+    declared: &[jc_core::kinds::AppEgress],
     labels: &Value,
     selector: &Value,
 ) -> Value {
+    let mut egress = vec![
+        // The Linkerd control plane (identity, destination, policy): without it the proxy never
+        // learns its inbound policy and the pod never starts.
+        json!({
+            "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
+            "ports": [
+                { "protocol": "TCP", "port": 8080 },
+                { "protocol": "TCP", "port": 8086 },
+                { "protocol": "TCP", "port": 8090 },
+            ],
+        }),
+        json!({
+            "to": [{
+                "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "kube-system" } },
+                "podSelector": { "matchLabels": { "k8s-app": "kube-dns" } },
+            }],
+            "ports": [
+                { "protocol": "UDP", "port": 53 },
+                { "protocol": "TCP", "port": 53 },
+            ],
+        }),
+        // The one call an App pod makes to the platform, its own endpoint, on the gateway's
+        // Service in the cluster: its pods on their port, and on the Linkerd inbound port the
+        // meshed connection lands on.
+        json!({
+            "to": [{
+                "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": gateway.namespace } },
+                "podSelector": { "matchLabels": { "app.kubernetes.io/name": GATEWAY_POD } },
+            }],
+            "ports": [
+                { "protocol": "TCP", "port": gateway.port },
+                { "protocol": "TCP", "port": LINKERD_INBOUND },
+            ],
+        }),
+    ];
+    // What the manifest declares and a publisher approved (PF-71): each network on its own
+    // ports, never a private range inside it.
+    for destination in declared {
+        if let Some(block) = egress_block(&destination.cidr) {
+            let ports: Vec<Value> = destination
+                .ports
+                .iter()
+                .map(|port| json!({ "protocol": "TCP", "port": port }))
+                .collect();
+            egress.push(json!({ "to": [block], "ports": ports }));
+        }
+    }
     json!({
         "apiVersion": "networking.k8s.io/v1",
         "kind": "NetworkPolicy",
@@ -584,42 +744,7 @@ fn network_policy(
                     ],
                 },
             ],
-            "egress": [
-                // The Linkerd control plane (identity, destination, policy): without it the
-                // proxy never learns its inbound policy and the pod never starts.
-                {
-                    "to": [{ "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } } }],
-                    "ports": [
-                        { "protocol": "TCP", "port": 8080 },
-                        { "protocol": "TCP", "port": 8086 },
-                        { "protocol": "TCP", "port": 8090 },
-                    ],
-                },
-                {
-                    "to": [{
-                        "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "kube-system" } },
-                        "podSelector": { "matchLabels": { "k8s-app": "kube-dns" } },
-                    }],
-                    "ports": [
-                        { "protocol": "UDP", "port": 53 },
-                        { "protocol": "TCP", "port": 53 },
-                    ],
-                },
-                // The one call an app pod makes, its own endpoint, carries the public host in
-                // the URL, so it is DNATed to the ingress controller before this rule is
-                // evaluated and cannot be written as a pod selector. The same trap the Portal's
-                // own policy documents; 443 and the controller's container port are what the
-                // rule can narrow to.
-                {
-                    "to": [{ "ipBlock": { "cidr": "0.0.0.0/0" } }],
-                    "ports": [
-                        { "protocol": "TCP", "port": 443 },
-                        { "protocol": "TCP", "port": 8443 },
-                        // A meshed ingress controller is reached on its inbound proxy.
-                        { "protocol": "TCP", "port": LINKERD_INBOUND },
-                    ],
-                },
-            ],
+            "egress": egress,
         },
     })
 }

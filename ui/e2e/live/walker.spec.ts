@@ -23,7 +23,7 @@ import type { Page, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { pageFindings, unexcused } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
-import { STEWARD, VIEWER, signIn } from "./portal";
+import { STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const NAMESPACES = Object.keys(JSON.parse(readFileSync(join(here, "../../src/locales/en.json"), "utf8")) as object);
@@ -161,7 +161,9 @@ for (const [who, person] of [
     });
 
     try {
-      const all = await visits(page);
+      // A section the installation hides is no page to walk (T-2874).
+      const hidden = await hiddenSections(page.request);
+      const all = (await visits(page)).filter((visit) => !inHiddenSection(visit.address, hidden));
       for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const visit of all) {

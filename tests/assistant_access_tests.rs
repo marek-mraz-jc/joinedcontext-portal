@@ -58,6 +58,8 @@ fn config_with(proxy_base: &str, runner: Option<&str>) -> Config {
             "JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID" => Some(common::PIPELINE_RUNNER_CLIENT),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
             "JC_PORTAL_PUBLIC_URL" => Some("https://portal.example.com"),
+            // The dashboard path is exercised here; hidden by default (T-2874).
+            "JC_PORTAL_DASHBOARDS" => Some("true"),
             "JC_PORTAL_PIPELINE_RUNNER_URL" => runner.as_deref(),
             "JC_PORTAL_PIPELINE_TEST_CAPTURE_URL" => {
                 runner.as_ref().map(|_| "http://portal-internal:9090")
