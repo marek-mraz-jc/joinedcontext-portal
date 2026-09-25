@@ -915,114 +915,6 @@ impl Syncer {
             }
         }
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
-        //     validation stage of its space's model at the version the space pins now (PL-60).
-        if let Some(deployer) = self.streams.as_ref() {
-            if let Some(schemas) = deployer.model_schemas() {
-                schemas.replace(crate::pipeline_validation::load(
-                    &repository,
-                    scratch.path(),
-                ));
-            }
-            let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
-            // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
-            // stream, the Portal says Live, and the counters are the only witness (T-0914). One
-            // scrape per project with a Live stream, read for each of them.
-            let mut counters: BTreeMap<String, Option<String>> = BTreeMap::new();
-            for (ns, _, outcome) in &outcomes {
-                if matches!(outcome, StreamOutcome::Live) && !counters.contains_key(ns) {
-                    counters.insert(ns.clone(), deployer.metrics(ns).await);
-                }
-            }
-            for (ns, name, outcome) in outcomes {
-                let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
-                    continue;
-                };
-                let is_stream = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
-                    envelope.spec.clone(),
-                )
-                .map(|s| is_stream_pipeline(&s))
-                .unwrap_or(false);
-
-                match outcome {
-                    StreamOutcome::Live => {
-                        if let Some(status) = envelope.status.as_mut() {
-                            status.phase = crate::resource::Phase::Live;
-                            status.conditions = match counters
-                                .get(&ns)
-                                .and_then(Option::as_deref)
-                                .and_then(|body| failing(body, &name))
-                            {
-                                Some(said) => vec![make_condition(
-                                    "StreamWriting",
-                                    "False",
-                                    "NothingWritten",
-                                    &said,
-                                )],
-                                None => Vec::new(),
-                            };
-                        }
-                        fresh_mirror.upsert(envelope);
-                    }
-                    StreamOutcome::Error(err) => {
-                        if let Some(status) = envelope.status.as_mut() {
-                            status.phase = crate::resource::Phase::Error;
-                            status.conditions = vec![make_condition(
-                                "StreamDeployed",
-                                "False",
-                                "RunnerRefused",
-                                &err,
-                            )];
-                        }
-                        fresh_mirror.upsert(envelope);
-                    }
-                    StreamOutcome::Skipped(why) => {
-                        if is_stream {
-                            if let Some(status) = envelope.status.as_mut() {
-                                status.phase = crate::resource::Phase::Pending;
-                                let reason = if why.contains("quota") {
-                                    "QuotaExceeded"
-                                } else if why.contains("disabled") || why.contains("paused") {
-                                    "Paused"
-                                } else {
-                                    "Skipped"
-                                };
-                                status.conditions =
-                                    vec![make_condition("StreamDeployed", "False", reason, why)];
-                            }
-                            fresh_mirror.upsert(envelope);
-                        }
-                    }
-                }
-            }
-        } else {
-            mark_streams_pending(
-                &fresh_mirror,
-                "NoRunner",
-                "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
-            );
-        }
-
-        // A pipeline whose credential did not resolve says so last, over whatever the wave
-        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
-        // the missing reference is the reason the author can act on (T-0927, PL-15). The
-        // condition names the reference, never the value.
-        for ((namespace, name), reason) in &refused {
-            let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
-                continue;
-            };
-            if let Some(status) = envelope.status.as_mut() {
-                status.phase = crate::resource::Phase::Error;
-                status.conditions = vec![make_condition(
-                    "StreamDeployed",
-                    "False",
-                    "SecretUnresolved",
-                    reason,
-                )];
-            }
-            fresh_mirror.upsert(envelope);
-        }
-
         // 5b'. What every `Subscription` manifest declares, written into the space it names
         //      (T-0931, CC-72). The broker holds the effect, so the status of each manifest is
         //      where a person sees whether the declaration arrived.
@@ -1224,6 +1116,117 @@ impl Syncer {
                     tracing::warn!(%reason, "edge file not written")
                 }
             }
+        }
+
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
+        //     After the App clients and the edge file: a runner that cannot restart a stream
+        //     answers a PUT only at the timeout, and the edge's routes and protections must not
+        //     wait for that (T-2891).
+        if let Some(deployer) = self.streams.as_ref() {
+            if let Some(schemas) = deployer.model_schemas() {
+                schemas.replace(crate::pipeline_validation::load(
+                    &repository,
+                    scratch.path(),
+                ));
+            }
+            let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
+            // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
+            // stream, the Portal says Live, and the counters are the only witness (T-0914). One
+            // scrape per project with a Live stream, read for each of them.
+            let mut counters: BTreeMap<String, Option<String>> = BTreeMap::new();
+            for (ns, _, outcome) in &outcomes {
+                if matches!(outcome, StreamOutcome::Live) && !counters.contains_key(ns) {
+                    counters.insert(ns.clone(), deployer.metrics(ns).await);
+                }
+            }
+            for (ns, name, outcome) in outcomes {
+                let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
+                    continue;
+                };
+                let is_stream = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
+                    envelope.spec.clone(),
+                )
+                .map(|s| is_stream_pipeline(&s))
+                .unwrap_or(false);
+
+                match outcome {
+                    StreamOutcome::Live => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.phase = crate::resource::Phase::Live;
+                            status.conditions = match counters
+                                .get(&ns)
+                                .and_then(Option::as_deref)
+                                .and_then(|body| failing(body, &name))
+                            {
+                                Some(said) => vec![make_condition(
+                                    "StreamWriting",
+                                    "False",
+                                    "NothingWritten",
+                                    &said,
+                                )],
+                                None => Vec::new(),
+                            };
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
+                    StreamOutcome::Error(err) => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.phase = crate::resource::Phase::Error;
+                            status.conditions = vec![make_condition(
+                                "StreamDeployed",
+                                "False",
+                                "RunnerRefused",
+                                &err,
+                            )];
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
+                    StreamOutcome::Skipped(why) => {
+                        if is_stream {
+                            if let Some(status) = envelope.status.as_mut() {
+                                status.phase = crate::resource::Phase::Pending;
+                                let reason = if why.contains("quota") {
+                                    "QuotaExceeded"
+                                } else if why.contains("disabled") || why.contains("paused") {
+                                    "Paused"
+                                } else {
+                                    "Skipped"
+                                };
+                                status.conditions =
+                                    vec![make_condition("StreamDeployed", "False", reason, why)];
+                            }
+                            fresh_mirror.upsert(envelope);
+                        }
+                    }
+                }
+            }
+        } else {
+            mark_streams_pending(
+                &fresh_mirror,
+                "NoRunner",
+                "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
+            );
+        }
+
+        // A pipeline whose credential did not resolve says so last, over whatever the wave
+        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
+        // the missing reference is the reason the author can act on (T-0927, PL-15). The
+        // condition names the reference, never the value.
+        for ((namespace, name), reason) in &refused {
+            let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
+                continue;
+            };
+            if let Some(status) = envelope.status.as_mut() {
+                status.phase = crate::resource::Phase::Error;
+                status.conditions = vec![make_condition(
+                    "StreamDeployed",
+                    "False",
+                    "SecretUnresolved",
+                    reason,
+                )];
+            }
+            fresh_mirror.upsert(envelope);
         }
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
