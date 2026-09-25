@@ -9,7 +9,10 @@
       "crashBody": "Im Portal ist beim Zeichnen dieser Seite etwas fehlgeschlagen. An dem, was Sie angesehen haben, wurde nichts geändert.",
       "crashReference": "Nennen Sie das hier, wenn Sie es melden:",
       "crashReload": "Seite neu laden",
-      "crashHome": "Zum Anfang"
+      "crashHome": "Zum Anfang",
+      "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
+      "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
+      "reference": "Nennen Sie das, wenn Sie es melden:"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",
@@ -27,7 +30,18 @@
       "required": "Pflichtfeld"
     },
     "close": "Schließen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "session": {
+      "title": "Ihre Sitzung ist abgelaufen",
+      "body": "Sie waren eine Weile weg, darum hat das Portal Sie abgemeldet. Diese Seite und was Sie darauf eingegeben haben, sind noch da.",
+      "hereCost": "Melden Sie sich in einem neuen Tab erneut an und kehren Sie dann hierher zurück. Eine Anmeldung hier verlässt diese Seite, und alles Ungespeicherte geht verloren.",
+      "afterSignIn": "Wenn Sie sich im neuen Tab angemeldet haben, kommen Sie hierher zurück und machen Sie weiter.",
+      "signIn": "In neuem Tab anmelden",
+      "continue": "Hier weitermachen",
+      "here": "Lieber hier anmelden",
+      "close": "Nicht jetzt",
+      "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",

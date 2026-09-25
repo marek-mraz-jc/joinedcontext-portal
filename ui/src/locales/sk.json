@@ -9,7 +9,10 @@
       "crashBody": "V Portáli zlyhalo niečo pri vykresľovaní tejto stránky. Na tom, čo ste si prezerali, sa nič nezmenilo.",
       "crashReference": "Pri hlásení uveďte toto:",
       "crashReload": "Načítať stránku znova",
-      "crashHome": "Späť na začiatok"
+      "crashHome": "Späť na začiatok",
+      "session": "Vaše prihlásenie skončilo. Prihláste sa znova, aby ste to videli.",
+      "forbiddenHint": "Prístup vám môže dať vlastník projektu alebo správca organizácie.",
+      "reference": "Uveďte toto, keď to budete hlásiť:"
     },
     "notFound": {
       "title": "Táto stránka neexistuje",
@@ -27,7 +30,18 @@
       "required": "povinné"
     },
     "close": "Zavrieť",
-    "cancel": "Zrušiť"
+    "cancel": "Zrušiť",
+    "session": {
+      "title": "Vaše prihlásenie skončilo",
+      "body": "Boli ste chvíľu preč, preto vás Portál odhlásil. Táto stránka aj to, čo ste na nej napísali, tu stále sú.",
+      "hereCost": "Prihláste sa znova na novej karte a potom sa vráťte na túto. Prihlásenie tu opustí túto stránku a všetko neuložené sa stratí.",
+      "afterSignIn": "Keď sa na novej karte prihlásite, vráťte sa sem a pokračujte.",
+      "signIn": "Prihlásiť sa na novej karte",
+      "continue": "Pokračovať tu",
+      "here": "Prihlásiť sa radšej tu",
+      "close": "Teraz nie",
+      "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
