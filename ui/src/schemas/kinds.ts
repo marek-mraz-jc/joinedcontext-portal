@@ -5,6 +5,14 @@ import {
 } from "../components/endpoints/operationGroups";
 import { gridConfigSchema } from "@joinedcontext/sdk";
 import type { JsonSchema, UiSchema } from "../components/forms/types";
+import {
+  CATALOG_LICENCES,
+  DATA_THEMES,
+  EMAIL_PATTERN,
+  FREQUENCIES,
+  IRI_PATTERN,
+  SPATIAL_PATTERN,
+} from "../pages/endpoints/catalog";
 
 /**
  * Draft-07 schemas for the kinds the Portal writes, mirroring jc-core's `ContextSpaceSpec`
@@ -115,6 +123,7 @@ export function endpointSchema(
   projects: string[] = [],
   perMinute?: number,
   catalogues: string[] = [],
+  pipelines: string[] = [],
 ): JsonSchema {
   // A limit set outside the form (YAML, the API, the assistant) is valid on the wire, so it
   // stays a choice of its own instead of an invalid field nobody can propose past.
@@ -273,6 +282,84 @@ export function endpointSchema(
             },
           },
         },
+      },
+      // What a DCAT-AP catalogue needs beyond the distributions (EP-78): folded, and written only
+      // when a person filled something in, so an endpoint nobody catalogued carries no empty block.
+      catalog: catalogSchema(t, pipelines),
+    },
+  };
+}
+
+/** The `catalog` property of the endpoint form (EP-78). */
+function catalogSchema(t: (key: string) => string, pipelines: string[] = []): JsonSchema {
+  const text = (key: string) => ({ type: "string", title: t(`endpoints.field.catalog.${key}`) }) as const;
+  return {
+    type: "object",
+    title: t("endpoints.field.catalog.title"),
+    properties: {
+      publisher: {
+        type: "object",
+        title: t("endpoints.field.catalog.publisher"),
+        properties: {
+          name: text("publisherName"),
+          uri: { ...text("publisherUri"), format: "uri", pattern: IRI_PATTERN },
+        },
+      },
+      contactPoint: {
+        type: "object",
+        title: t("endpoints.field.catalog.contactPoint"),
+        properties: {
+          name: text("contactName"),
+          email: { ...text("contactEmail"), pattern: EMAIL_PATTERN, maxLength: 254 },
+        },
+      },
+      license: { ...text("license"), ...words(t, "choice.licence", CATALOG_LICENCES) },
+      attribution: text("attribution"),
+      themes: {
+        type: "array",
+        title: t("endpoints.field.catalog.themes"),
+        items: { type: "string", ...words(t, "choice.dataTheme", DATA_THEMES) },
+        uniqueItems: true,
+      },
+      keywords: {
+        type: "array",
+        title: t("endpoints.field.catalog.keywords"),
+        items: { type: "string", maxLength: 100 },
+      },
+      spatial: {
+        type: "array",
+        title: t("endpoints.field.catalog.spatial"),
+        items: { type: "string", pattern: SPATIAL_PATTERN },
+      },
+      temporal: {
+        type: "object",
+        title: t("endpoints.field.catalog.temporal"),
+        properties: {
+          start: { ...text("temporalStart"), format: "date" },
+          end: { ...text("temporalEnd"), format: "date" },
+        },
+      },
+      frequency: { ...text("frequency"), ...words(t, "choice.frequency", FREQUENCIES) },
+      source: {
+        type: "array",
+        title: t("endpoints.field.catalog.source"),
+        items: {
+          type: "object",
+          properties: {
+            url: { ...text("sourceUrl"), format: "uri", pattern: IRI_PATTERN },
+            title: text("sourceTitle"),
+            description: text("sourceDescription"),
+          },
+        },
+      },
+      pipelineRef: {
+        ...text("pipeline"),
+        ...(pipelines.length > 0 ? { enum: pipelines } : { pattern: DNS1123, maxLength: 63 }),
+      },
+      applicableLegislation: {
+        type: "array",
+        title: t("endpoints.field.catalog.legislation"),
+        items: { type: "string", pattern: IRI_PATTERN },
       },
     },
   };
@@ -2451,7 +2538,7 @@ export const appUiSchema: UiSchema = {
 };
 
 /** The four contact roles jc-core's `ContactRole` accepts (PF-01). */
-export const CONTACT_ROLES = ["administrative", "technical", "data-protection", "security"] as const;
+export const CONTACT_ROLES = ["administrative", "technical", "data-protection", "security", "open-data"] as const;
 
 /** `projects.visibility` (PF-61): every signed-in person of the organization, or only the named. */
 export const PROJECT_VISIBILITIES = ["organization", "members"] as const;
