@@ -2043,7 +2043,25 @@
       "details": "Podrobnosti: názov, druh a čo smí čítať ({name})",
       "noEndpoints": "Tento projekt zatiaľ nepublikuje žiadny endpoint; aplikácia z neho číta, takže najprv publikujte endpoint.",
       "nameHint": "Malé písmená, číslice a spojovníky: stáva sa z toho adresa, na ktorej sa aplikácia poskytuje.",
-      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky, začína aj končí niektorým z nich a má najviac 40 znakov."
+      "nameInvalid": "Názov tvoria malé písmená, číslice a spojovníky, začína aj končí niektorým z nich a má najviac 40 znakov.",
+      "newEndpoint": {
+        "open": "+ Nový endpoint",
+        "title": "Nový endpoint",
+        "hint": "Navrhne sa hneď ako samostatná zmena. Tvorca ho použije, keď je zmena zlúčená a endpoint beží.",
+        "name": "Názov endpointu",
+        "nameHint": "Malé písmená, číslice a pomlčky, napr. bikes-app.",
+        "nameInvalid": "Použite malé písmená, číslice a pomlčky; začiatok a koniec písmeno alebo číslica, najviac 63 znakov.",
+        "space": "Kontextový priestor",
+        "spaceMissing": "Vyberte kontextový priestor, ktorý endpoint sprístupní.",
+        "accessHint": "Iba čítanie nič nové neudeľuje: cez endpoint čítate to, čo už v priestore čítate. Čítanie a úpravy alebo Plný prístup udelia tieto operácie na typoch nižšie všetkým v projekte, takže zmena ide červeným pruhom a rozhoduje iný schvaľovateľ.",
+        "types": "Typy, ktoré aplikácia smie meniť",
+        "typesHint": "Oprávnenie platí len pre tieto typy.",
+        "typesMissing": "Vyberte aspoň jeden typ, ktorý aplikácia smie meniť.",
+        "propose": "Navrhnúť endpoint",
+        "cancel": "Zrušiť",
+        "close": "Zavrieť",
+        "waiting": "{name} je navrhnutý (pruh {lane}). Keď je zmena zlúčená a endpoint beží, tvorca ho načíta; popis môžete medzitým písať ďalej."
+      }
     },
     "newAction": "Vygenerovať vlastnú aplikáciu",
     "builds": {

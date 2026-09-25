@@ -2043,7 +2043,25 @@
       "details": "Details: name, kind, and what it may read ({name})",
       "noEndpoints": "This project publishes no endpoint yet; an application reads from one, so publish an endpoint first.",
       "nameHint": "Lowercase letters, digits and dashes: it becomes the address the application is served at.",
-      "nameInvalid": "A name is lowercase letters, digits and dashes, starts and ends with one of them, and is at most 40 characters."
+      "nameInvalid": "A name is lowercase letters, digits and dashes, starts and ends with one of them, and is at most 40 characters.",
+      "newEndpoint": {
+        "open": "+ New endpoint",
+        "title": "New endpoint",
+        "hint": "Proposed now as a change of its own. The builder picks it up once the change is merged and the endpoint is served.",
+        "name": "Endpoint name",
+        "nameHint": "Lowercase letters, digits and dashes, e.g. bikes-app.",
+        "nameInvalid": "Use lowercase letters, digits and dashes, starting and ending with a letter or digit, at most 63 characters.",
+        "space": "Context space",
+        "spaceMissing": "Choose the context space the endpoint serves.",
+        "accessHint": "Read only grants nothing new: you read through the endpoint what you already read in the space. Read and update or Full grant those operations on the types below to everyone in this project, so the change takes the red lane and another approver decides.",
+        "types": "Types the app may change",
+        "typesHint": "The grant covers these types and no other.",
+        "typesMissing": "Choose at least one type the app may change.",
+        "propose": "Propose endpoint",
+        "cancel": "Cancel",
+        "close": "Close",
+        "waiting": "{name} is proposed ({lane} lane). Once the change is merged and the endpoint is served, the builder reads it; you can keep writing the description meanwhile."
+      }
     },
     "newAction": "Generate your own app",
     "builds": {

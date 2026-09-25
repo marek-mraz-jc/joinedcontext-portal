@@ -2043,7 +2043,25 @@
       "details": "Details: Name, Art und was sie lesen darf ({name})",
       "noEndpoints": "Dieses Projekt veröffentlicht noch keinen Endpoint; eine Anwendung liest aus einem, veröffentlichen Sie also zuerst einen.",
       "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche: daraus wird die Adresse, unter der die Anwendung ausgeliefert wird.",
-      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, beginnt und endet mit einem davon und hat höchstens 40 Zeichen."
+      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, beginnt und endet mit einem davon und hat höchstens 40 Zeichen.",
+      "newEndpoint": {
+        "open": "+ Neuer Endpunkt",
+        "title": "Neuer Endpunkt",
+        "hint": "Wird sofort als eigene Änderung vorgeschlagen. Der Builder übernimmt ihn, sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht.",
+        "name": "Name des Endpunkts",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. bikes-app.",
+        "nameInvalid": "Kleinbuchstaben, Ziffern und Bindestriche verwenden, Anfang und Ende Buchstabe oder Ziffer, höchstens 63 Zeichen.",
+        "space": "Kontextraum",
+        "spaceMissing": "Wählen Sie den Kontextraum, den der Endpunkt bereitstellt.",
+        "accessHint": "Nur lesen gewährt nichts Neues: Sie lesen über den Endpunkt, was Sie im Raum bereits lesen. Lesen und ändern oder Voll gewähren diese Operationen auf den Typen unten allen im Projekt; die Änderung geht deshalb über die rote Spur und eine andere Person genehmigt sie.",
+        "types": "Typen, die die App ändern darf",
+        "typesHint": "Die Berechtigung gilt nur für diese Typen.",
+        "typesMissing": "Wählen Sie mindestens einen Typ, den die App ändern darf.",
+        "propose": "Endpunkt vorschlagen",
+        "cancel": "Abbrechen",
+        "close": "Schließen",
+        "waiting": "{name} ist vorgeschlagen (Spur {lane}). Sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht, liest der Builder ihn; die Beschreibung können Sie inzwischen weiterschreiben."
+      }
     },
     "newAction": "Eigene Anwendung erzeugen",
     "builds": {
