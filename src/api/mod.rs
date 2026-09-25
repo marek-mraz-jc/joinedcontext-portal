@@ -31,6 +31,7 @@ pub mod preferences;
 pub mod projects;
 pub mod resources;
 pub mod service_accounts;
+pub mod setup;
 pub mod sync;
 pub mod sync_sources;
 pub mod webhook;
@@ -70,6 +71,7 @@ pub fn router() -> Router<AppState> {
         .merge(ops::router())
         .merge(permissions::router())
         .merge(people::router())
+        .merge(setup::router())
         .merge(pipelines::router())
         .merge(preferences::router())
         .merge(projects::router())

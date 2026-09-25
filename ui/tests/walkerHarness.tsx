@@ -22,7 +22,7 @@ import { ORGANIZATION_TABS } from "../src/pages/organization/OrganizationPage";
 import { PROJECT_SETTINGS_TABS } from "../src/pages/projectSettings/ProjectSettingsPage";
 import { pageFindings, unexcused } from "./pageChecks";
 import type { Excused } from "./pageChecks";
-import { problem, renderRoute } from "./pageHarness";
+import { jsonResponse, problem, renderRoute } from "./pageHarness";
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const P = "/projects/helsinki";
@@ -79,12 +79,20 @@ const NAMESPACES = Object.keys(en);
 /** The names the addresses above make up: nothing on the mocked instance holds them. */
 const MADE_UP = new Set(["p-1", "stewards", "air", "air-v2", "chg-0a1b2c3d", "helsinki"]);
 
+const SETUP_NOTHING_DONE = {
+  complete: false,
+  steps: ["organization", "domain", "people", "project", "publishers", "policies"].map((id) => ({ id, done: false })),
+  operator: ["branding", "loginTheme", "smtp", "backups"].map((id) => ({ id, done: false })),
+};
+
 /**
  * A read of one made-up resource answers 404, as the Portal does for a name nobody holds; every
  * list answers empty. So a detail page is walked in its not-found state and a list in its empty
  * one, which are the two states a page is most often left untested in.
  */
 function answer(path: string): Response | undefined {
+  // The setup read (API/01 §25) is one object, not a list: a new organization with nothing done.
+  if (path === "/api/v1/organization/setup") return jsonResponse(SETUP_NOTHING_DONE);
   const last = decodeURIComponent(path.split("/").pop() ?? "");
   return MADE_UP.has(last) && path !== "/api/v1/projects/helsinki" ? problem(404, `${last} was not found`) : undefined;
 }
