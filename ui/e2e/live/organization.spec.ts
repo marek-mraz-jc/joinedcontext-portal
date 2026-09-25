@@ -67,10 +67,10 @@ test("an administrator reads the organization and grants a role that reaches the
     const { page } = steward;
     expect(await grantsOfViewer(page), "no grant is left over from an earlier run").toEqual([]);
 
-    // Reached from the navigation, beside the project switcher.
-    await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Organization" }).click();
+    // Reached from the one Administration entry of the top bar (UI-75, T-2879).
+    await page.getByRole("banner").getByRole("link", { name: "Administration" }).click();
     await expect(page).toHaveURL(/\/organization\/settings/);
-    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible();
 
     // PF-56: the taxonomy every organization starts from, marked as the seed.
     await page.getByRole("tab", { name: "Roles" }).click();
