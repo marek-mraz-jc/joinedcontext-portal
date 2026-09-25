@@ -2033,6 +2033,17 @@ impl GiteaClient {
         Ok(())
     }
 
+    /// `POST /pulls/{number}/update?style=merge` — merges the base branch into the pull
+    /// request's branch: the configuration's branch rule merges nothing over an outdated base
+    /// (PF-104). The forge answers 500 for a branch that is not behind, and 409 when the base
+    /// does not merge into it.
+    pub async fn update_pull_request(&self, number: u64) -> Result<(), GitError> {
+        let mut url = self.repo_url(&format!("pulls/{number}/update"))?;
+        url.query_pairs_mut().append_pair("style", "merge");
+        let res = self.send(self.http.post(url)).await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
     /// `POST /pulls/{number}/merge` — merges the pull request.
     /// Merges pull request `number`.
     ///
