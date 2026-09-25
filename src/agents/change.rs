@@ -234,20 +234,26 @@ const NEW_FORMS: [&str; 9] = [
 /// it: `/projects/{project}/{section}/new` (T-2577, T-2582, AG-73). What is no kind, or a kind
 /// whose page has no create form of its own, is refused in words the model acts on.
 pub fn section(plural_or_kind: &str) -> Result<&'static str, String> {
-    let info = crate::resource::by_plural(plural_or_kind)
-        .or_else(|| crate::resource::by_kind(plural_or_kind))
-        .ok_or_else(|| format!("'{plural_or_kind}' is not a kind of the Portal"))?;
-    let section = page(info.kind, info.plural);
+    let section = page_of(plural_or_kind)?;
     if NEW_FORMS.contains(&section) {
         Ok(section)
     } else {
+        let kind = crate::resource::by_plural(plural_or_kind).map_or(plural_or_kind, |i| i.kind);
         Err(format!(
-            "a new {} has no create form to open empty; open its page ('{section}') with \
+            "a new {kind} has no create form to open empty; open its page ('{section}') with \
              `resource`, `spaces`, `models` or the page that shows it, and tell the person which \
-             button there creates one",
-            info.kind
+             button there creates one"
         ))
     }
+}
+
+/// The page a kind's resources and drafts open on, from its plural or its kind as the model
+/// spells it (T-2768): a plural is not a page (`datamodels` is `models`).
+pub fn page_of(plural_or_kind: &str) -> Result<&'static str, String> {
+    let info = crate::resource::by_plural(plural_or_kind)
+        .or_else(|| crate::resource::by_kind(plural_or_kind))
+        .ok_or_else(|| format!("'{plural_or_kind}' is not a kind of the Portal"))?;
+    Ok(page(info.kind, info.plural))
 }
 
 /// Where the person reviews the change: the kind's page with the resource's editor open

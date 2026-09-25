@@ -359,7 +359,8 @@ const PAGES: [(&str, &str); 20] = [
     ("endpoint", "/projects/{project}/endpoints?name={name}"),
     ("policies", "/projects/{project}/policies"),
     ("shared", "/projects/{project}/shared"),
-    ("draft", "/projects/{project}/{plural}?draft={name}"),
+    // The draft's own kind picks the page (T-2768): `open_page` reads it from the drafts.
+    ("draft", "/projects/{project}/{section}?draft={name}"),
     // The rest of what `ui/src/router.tsx` serves (T-1011, T-1012): the assistant opens the
     // page a person would, so every route a person reaches by clicking is one it can name.
     ("activity", "/projects/{project}/activity"),
@@ -380,7 +381,8 @@ const PAGES: [(&str, &str); 20] = [
     ("assistant", "/projects/{project}/assistant"),
     ("app", "/projects/{project}/apps/{name}"),
     // A resource of any kind, the way `model` and `endpoint` open one of theirs.
-    ("resource", "/projects/{project}/{plural}?name={name}"),
+    // Its page is the kind's, never its plural spelled as a path (`datamodels` is `models`).
+    ("resource", "/projects/{project}/{section}?name={name}"),
     // A kind's empty create form, in the section a person creates one in (T-2577, AG-73): what
     // "create a ServiceAccount" opens for a kind the chat does not draft itself.
     ("new", "/projects/{project}/{section}/new"),
@@ -511,13 +513,13 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         .ok_or_else(|| format!("'{}' is not a page of the Portal", call.page))?;
     let section = match (call.page.as_str(), call.plural.as_deref()) {
         ("new", Some(plural)) => Some(crate::agents::change::section(plural.trim())?),
+        ("draft" | "resource", Some(kind)) => Some(crate::agents::change::page_of(kind.trim())?),
         _ => None,
     };
     let filled = [
         ("project", Some(project)),
         ("section", section),
         ("name", call.name.as_deref()),
-        ("plural", call.plural.as_deref().or(Some("models"))),
         ("endpoint", call.endpoint.as_deref()),
         ("type", call.entity_type.as_deref()),
         ("q", call.q.as_deref()),
@@ -534,6 +536,8 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
                 "name" => "the name of what to open",
                 "endpoint" => "the endpoint whose data to open",
                 "type" => "the entity type to show",
+                "section" if call.page == "draft" => "the kind of the draft",
+                "section" if call.page == "resource" => "the plural of the resource's kind",
                 "section" => "the plural of the kind to create",
                 other => other,
             };
@@ -553,6 +557,65 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         route = route.replace(&hole, &filled);
     }
     Ok(without_empty_pairs(&route))
+}
+
+/// Which draft named `name` a `draft` page opens, as its kind (T-2768). A plural or kind the
+/// model gave narrows drafts of one name that differ in kind; one it got wrong does not win over
+/// the only draft that has the name. Of two left, the person's own is the one they mean.
+fn draft_of(
+    drafts: &[crate::ops::drafts::Draft],
+    name: &str,
+    plural: Option<&str>,
+    person: &str,
+) -> Result<String, String> {
+    let named: Vec<_> = drafts
+        .iter()
+        .filter(|d| d.workspace.is_none() && d.name == name)
+        .collect();
+    if named.is_empty() {
+        let mut held: Vec<String> = drafts
+            .iter()
+            .filter(|d| d.workspace.is_none())
+            .map(|d| format!("{} '{}'", d.kind, d.name))
+            .collect();
+        held.sort();
+        return Err(if held.is_empty() {
+            format!("there is no draft named '{name}': this project holds no drafts")
+        } else {
+            format!(
+                "there is no draft named '{name}'; the drafts of this project are {}",
+                held.join(", ")
+            )
+        });
+    }
+    let kind = plural.map(str::trim).and_then(|p| {
+        crate::resource::by_plural(p)
+            .or_else(|| crate::resource::by_kind(p))
+            .map(|info| info.kind)
+    });
+    let of_kind: Vec<_> = named
+        .iter()
+        .copied()
+        .filter(|d| Some(d.kind.as_str()) == kind)
+        .collect();
+    let left = if of_kind.is_empty() { named } else { of_kind };
+    let own: Vec<_> = left
+        .iter()
+        .copied()
+        .filter(|d| d.touched_by == person)
+        .collect();
+    match (left.as_slice(), own.as_slice()) {
+        ([one], _) | (_, [one]) => Ok(one.kind.clone()),
+        _ => {
+            let mut kinds: Vec<&str> = left.iter().map(|d| d.kind.as_str()).collect();
+            kinds.sort_unstable();
+            Err(format!(
+                "drafts of more than one kind are named '{name}' ({}); name the plural of the \
+                 one to open",
+                kinds.join(", ")
+            ))
+        }
+    }
 }
 
 /// Drops the query pairs nothing filled: an optional placeholder left `q=` behind, and an empty
@@ -840,7 +903,15 @@ impl Driver {
     /// Opens a page for the person (UI-59). The route is this table's, never the model's text.
     pub(super) async fn open_page(&self, call: &NavigateCall) -> Result<String, String> {
         let started = std::time::Instant::now();
-        let route = match route_of(&self.project, call) {
+        let resolved = if call.page == "draft" {
+            self.draft_kind(call).await.map(|kind| NavigateCall {
+                plural: kind,
+                ..call.clone()
+            })
+        } else {
+            Ok(call.clone())
+        };
+        let route = match resolved.and_then(|call| route_of(&self.project, &call)) {
             Ok(route) => route,
             Err(reason) => {
                 self.event(
@@ -872,6 +943,34 @@ impl Driver {
         .await?;
         self.event("navigate", json!({ "route": route })).await?;
         Ok(format!("opened {route}"))
+    }
+
+    /// The kind of the draft a `draft` page opens (T-2768), read from the drafts the project
+    /// holds under that name, never guessed: a draft of an endpoint opened the model screen when
+    /// a missing plural defaulted to `models`. `None` for a call without a name, which the route
+    /// refuses in its own words.
+    async fn draft_kind(&self, call: &NavigateCall) -> Result<Option<String>, String> {
+        let Some(name) = call
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+        else {
+            return Ok(None);
+        };
+        // Only the drafts the person may read, as `jc_draft_list` lists them (PF-59): a name
+        // they could not read is no draft of theirs, and its kind is not told.
+        let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
+        let drafts: Vec<_> = self
+            .state
+            .drafts
+            .list(&self.project)
+            .await
+            .map_err(|e| format!("the drafts cannot be read now: {e}"))?
+            .into_iter()
+            .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+            .collect();
+        draft_of(&drafts, name, call.plural.as_deref(), &self.created_by).map(Some)
     }
 
     /// The options of a `pick` question, from what the person may read (AG-83): the same
@@ -1405,6 +1504,101 @@ mod tests {
         assert!(formless.contains("Mapping"), "{formless}");
         let none = route_of("helsinki", &new(None)).expect_err("no plural");
         assert!(none.contains("plural"), "{none}");
+    }
+
+    fn draft(kind: &str, name: &str, by: &str) -> crate::ops::drafts::Draft {
+        crate::ops::drafts::Draft {
+            project: "helsinki".to_owned(),
+            kind: kind.to_owned(),
+            name: name.to_owned(),
+            workspace: None,
+            manifest: json!({}),
+            verdict: None,
+            touched_by: by.to_owned(),
+            touched_kind: "assistant".to_owned(),
+            version: 1,
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    fn open(page: &str, name: &str, plural: Option<&str>) -> NavigateCall {
+        NavigateCall {
+            page: page.to_owned(),
+            name: Some(name.to_owned()),
+            plural: plural.map(str::to_owned),
+            endpoint: None,
+            entity_type: None,
+            q: None,
+        }
+    }
+
+    /// T-2768: a draft opens on its own kind's page, and a draft or resource page without a
+    /// kind is refused instead of opening the model screen, as `sample-endpoint` did.
+    #[test]
+    fn a_draft_opens_on_its_kinds_page_and_never_on_a_guessed_one() {
+        for (kind, route) in [
+            (
+                "Endpoint",
+                "/projects/helsinki/endpoints?draft=sample-endpoint",
+            ),
+            (
+                "DataModel",
+                "/projects/helsinki/models?draft=sample-endpoint",
+            ),
+            (
+                "ContextSpace",
+                "/projects/helsinki/spaces?draft=sample-endpoint",
+            ),
+        ] {
+            let call = open("draft", "sample-endpoint", Some(kind));
+            assert_eq!(route_of("helsinki", &call).expect("a route"), route);
+        }
+        let none =
+            route_of("helsinki", &open("draft", "sample-endpoint", None)).expect_err("no kind");
+        assert!(none.contains("the kind of the draft"), "{none}");
+        assert_eq!(
+            route_of("helsinki", &open("resource", "air", Some("datamodels"))).expect("a route"),
+            "/projects/helsinki/models?name=air"
+        );
+        let none = route_of("helsinki", &open("resource", "air", None)).expect_err("no kind");
+        assert!(none.contains("the plural of the resource's kind"), "{none}");
+    }
+
+    #[test]
+    fn the_draft_the_name_means_is_found_by_its_name() {
+        let me = "piper@hel.fi";
+        let drafts = vec![
+            draft("Endpoint", "sample-endpoint", me),
+            draft("DataModel", "bikes", me),
+            draft("ContextSpace", "bikes", "someone@hel.fi"),
+        ];
+        // The only draft of the name wins over a plural the model got wrong.
+        for plural in [None, Some("endpoints"), Some("models")] {
+            assert_eq!(
+                draft_of(&drafts, "sample-endpoint", plural, me).as_deref(),
+                Ok("Endpoint"),
+                "{plural:?}"
+            );
+        }
+        assert_eq!(
+            draft_of(&drafts, "bikes", Some("spaces"), me).as_deref(),
+            Ok("ContextSpace")
+        );
+        assert_eq!(
+            draft_of(&drafts, "bikes", None, me).as_deref(),
+            Ok("DataModel")
+        );
+        let two = draft_of(&drafts, "bikes", None, "viewer@hel.fi").expect_err("two kinds");
+        assert!(two.contains("ContextSpace, DataModel"), "{two}");
+        let unknown = draft_of(&drafts, "trams", None, me).expect_err("no draft");
+        assert!(
+            unknown.contains("DataModel 'bikes'") && unknown.contains("Endpoint 'sample-endpoint'"),
+            "{unknown}"
+        );
+        let mut elsewhere = draft("Endpoint", "trams", me);
+        elsewhere.workspace = Some("try-trams".to_owned());
+        let empty = draft_of(&[elsewhere], "trams", None, me).expect_err("in a workspace");
+        assert!(empty.contains("holds no drafts"), "{empty}");
     }
 
     /// A grid without an endpoint or without a type is refused: the explorer would open on

@@ -31,6 +31,7 @@ import { AppPage } from "./pages/apps/AppPage";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
 import { AssistantPage } from "./pages/assistant/AssistantPage";
 import { HandOff } from "./assistant/HandOff";
+import { DraftElsewhere } from "./assistant/DraftElsewhere";
 import { WorkspaceProvider } from "./components/layout/WorkspaceContext";
 import { WorkspacesPage } from "./routes/WorkspacesPage";
 import { ComparePage } from "./pages/workspaces/ComparePage";
@@ -476,6 +477,7 @@ const modelsRoute = createRoute({
     return (
       <Shell project={project}>
         <HandOff>
+          <DraftElsewhere project={project} page="models" />
           <ModelsPage project={project} />
         </HandOff>
       </Shell>
@@ -632,8 +634,10 @@ const sectionRoute = createRoute({
   path: "/projects/$project/$plural",
   // `?edit=<name>` opens the kind's own editor on that resource (T-2281): the assistant's hand-off
   // and older links; the endpoint's settings page links the edit address itself.
-  validateSearch: (search: Record<string, unknown>): { edit?: string } => ({
+  // `?draft=<name>` opens the kind's form on that draft (AG-61, AG-73).
+  validateSearch: (search: Record<string, unknown>): { edit?: string; draft?: string } => ({
     edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
+    draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
   }),
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
@@ -658,6 +662,7 @@ const sectionRoute = createRoute({
     return (
       <Shell project={project}>
         <HandOff>
+          <DraftElsewhere project={project} page={plural} />
           <FormRouteHost project={project} plural={plural} form={form}>
             <ResourceListPage
               project={project}

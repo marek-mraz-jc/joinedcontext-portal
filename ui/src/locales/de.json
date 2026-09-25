@@ -2331,7 +2331,13 @@
     "findings": "Befunde",
     "strict": "strikte Validierung",
     "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist.",
-    "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}"
+    "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}",
+    "elsewhere": {
+      "title": "Auf dieser Seite gibt es keinen Entwurf „{name}“",
+      "other": "Es ist ein Entwurf einer anderen Art, der auf seiner eigenen Seite liegt.",
+      "none": "Dieses Projekt hat keinen Entwurf dieses Namens, den Sie lesen dürfen. Fragen Sie den Assistenten erneut oder beginnen Sie hier einen neuen.",
+      "open": "In {page} öffnen"
+    }
   },
   "assistantPage": {
     "title": "Assistent",

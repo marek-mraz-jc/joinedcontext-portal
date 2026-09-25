@@ -2331,7 +2331,13 @@
     "findings": "Findings",
     "strict": "strict validation",
     "strictHelp": "Nothing is proposed until the check is green.",
-    "saveRefused": "The draft was not saved: {reason}"
+    "saveRefused": "The draft was not saved: {reason}",
+    "elsewhere": {
+      "title": "No draft called “{name}” on this page",
+      "other": "It is a draft of another kind, kept on its own page.",
+      "none": "This project holds no draft of that name that you may read. Ask the assistant again, or start a new one here.",
+      "open": "Open it in {page}"
+    }
   },
   "assistantPage": {
     "title": "Assistant",

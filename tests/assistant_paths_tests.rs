@@ -1143,3 +1143,90 @@ async fn a_follow_up_that_names_nothing_runs_no_search() {
         "the follow-up ran no search of its own"
     );
 }
+
+/// T-2768: "open my draft" opens the page of the draft's own kind, filled from it. The owner's
+/// run opened `/models?draft=sample-endpoint` for an endpoint draft: a missing plural defaulted to
+/// `models`. A name no draft has opens nothing and the model reads the drafts that exist.
+#[tokio::test]
+async fn a_draft_opens_on_the_page_of_its_own_kind() {
+    let navigate = |name: &str| {
+        format!(
+            "Here is the draft.\n\n```json\n{{\"tool\":\"jc_ui_navigate\",\"arguments\":{{\"page\":\"draft\",\"name\":\"{name}\"}}}}\n```\n"
+        )
+    };
+    for (who, name, opened) in [
+        (
+            BUILDER,
+            "sample-endpoint",
+            Some("/projects/helsinki/endpoints?draft=sample-endpoint"),
+        ),
+        (BUILDER, "trams", None),
+        // A person who may not read endpoints is not told the draft exists, nor its kind.
+        (BLIND, "sample-endpoint", None),
+    ] {
+        let proxy = model(&[r#"{"path": null, "reason": "a question"}"#, &navigate(name)]).await;
+        let config = config(&proxy.uri());
+        let state = AppState::new(config.clone(), None).with_mirror(mirror());
+        state
+            .drafts
+            .put(
+                "helsinki",
+                "Endpoint",
+                "sample-endpoint",
+                json!({ "kind": "Endpoint", "metadata": { "name": "sample-endpoint" } }),
+                None,
+                BUILDER,
+                "assistant",
+            )
+            .await
+            .expect("a draft");
+        let (status, body) = send(
+            &state,
+            &config,
+            who,
+            "/api/v1/projects/helsinki/assistant/conversations",
+            json!({ "message": "open my draft" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+        let started = Started {
+            state,
+            config,
+            status,
+            body,
+            proxy,
+        };
+        let events = events_until(&started, |e| {
+            e.kind == "tool" && e.payload["tool"] == "jc_ui_navigate"
+        })
+        .await;
+        let step = of_kind(&events, "tool")
+            .into_iter()
+            .find(|tool| tool["tool"] == "jc_ui_navigate")
+            .expect("the step");
+        let routes: Vec<&Value> = of_kind(&events, "navigate")
+            .iter()
+            .map(|n| &n["route"])
+            .collect();
+        match opened {
+            Some(route) => {
+                assert_eq!(step["status"], "ok", "{step}");
+                assert_eq!(routes, [route]);
+            }
+            None => {
+                assert_eq!(step["status"], "failed", "{step}");
+                let error = step["error"].as_str().unwrap_or_default();
+                let told = if who == BLIND {
+                    "no draft named 'sample-endpoint': this project holds no drafts"
+                } else {
+                    "the drafts of this project are Endpoint 'sample-endpoint'"
+                };
+                assert!(
+                    error.contains(&format!("no draft named '{name}'")) && error.contains(told),
+                    "{step}"
+                );
+                assert!(routes.is_empty(), "{routes:?}");
+            }
+        }
+    }
+}

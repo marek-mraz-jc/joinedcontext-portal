@@ -2331,7 +2331,13 @@
     "findings": "Zistenia",
     "strict": "prísne overenie",
     "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená.",
-    "saveRefused": "Koncept sa neuložil: {reason}"
+    "saveRefused": "Koncept sa neuložil: {reason}",
+    "elsewhere": {
+      "title": "Na tejto stránke nie je koncept „{name}“",
+      "other": "Je to koncept iného druhu, uložený na vlastnej stránke.",
+      "none": "Tento projekt nemá koncept s týmto názvom, ktorý môžete čítať. Opýtajte sa asistenta znova alebo začnite nový tu.",
+      "open": "Otvoriť v sekcii {page}"
+    }
   },
   "assistantPage": {
     "title": "Asistent",
