@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Button, Field, PermissionGuard, Textarea } from "../components/ui";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -31,6 +31,7 @@ import {
 import type { Capabilities } from "./Capabilities";
 import { Icon } from "../components/ui/icons";
 import { pageOf } from "./pageOf";
+import { ConversationList } from "./ConversationList";
 import type { IconName } from "../components/ui/icons";
 import {
   dismissNotice,
@@ -229,6 +230,9 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     }
   }, [layout]);
   const full = layout === "full";
+  const wide = useSyncExternalStore(onWideChange, isWide, () => false);
+  const [listOpen, setListOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
   // A run remembered after mount (the run page, the Assistant page, a started conversation)
   // opens the panel; closing forgets the run and leaves the bubble.
   const runId = run?.runId ?? null;
@@ -478,6 +482,163 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     );
   }
 
+  const conversation = building ? (
+        <div
+          id="run-chat"
+          data-testid="assistant-build"
+          className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
+        >
+          <Button
+            size="sm"
+            onClick={() => {
+              setBuilding(false);
+            }}
+            className="self-start"
+          >
+            {t("assistant.backToChat")}
+          </Button>
+          <AppGenerator
+            project={activeProject}
+            onStarted={(runId) => {
+              setBuilding(false);
+              rememberRun({ project: activeProject, runId });
+            }}
+          />
+        </div>
+      ) : !run ? (
+        <>
+          <div
+            id="run-chat"
+            data-testid="assistant-empty"
+            className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-surface p-3"
+          >
+            <p className="text-body text-fg-muted">{t("assistant.empty.lead")}</p>
+            <Paths
+              project={activeProject}
+              disabled={isStarting}
+              capabilities={capabilities}
+              onPick={(path) => {
+                void startConversation("", path);
+              }}
+            />
+          </div>
+
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = composerMessage.trim();
+              if (text && !isStarting) {
+                void startConversation(text);
+              }
+            }}
+          >
+            <div className="flex flex-wrap items-start gap-1">
+              <DataBar
+                project={activeProject}
+                selected={chosenEndpoints}
+                onChange={chooseEndpoints}
+                opens="down"
+              />
+              <CapabilitiesControl
+                project={activeProject}
+                endpoints={chosenEndpoints}
+                value={capabilities}
+                onChange={chooseCapabilities}
+              />
+            </div>
+            {/* The failure is the composer's own error: tied to the box the person is still in,
+                which goes invalid, and announced (UI-44, T-1749). What was typed stays. */}
+            <Field
+              id="assistant-empty-composer"
+              label={t("assistant.empty.composer")}
+              errors={startError ? [`${t("assistant.empty.failed")} ${startError}`] : undefined}
+            >
+              <Textarea
+                id="assistant-empty-composer"
+                rows={3}
+                value={composerMessage}
+                onChange={(event) => {
+                  setComposerMessage(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    const text = composerMessage.trim();
+                    if (text && !isStarting) {
+                      void startConversation(text);
+                    }
+                  }
+                }}
+                className="resize-none"
+              />
+            </Field>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                {attach}
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={composerMessage.trim() === ""}
+                loading={isStarting}
+              >
+                {t("assistant.empty.send")}
+              </Button>
+            </div>
+          </form>
+        </>
+      ) : (
+        <div
+          id="run-chat"
+          className="min-h-48 w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
+        >
+          <ConversationPanel
+            project={run.project}
+            events={events}
+            streaming={streaming}
+            answering={answer.isPending}
+            sending={send.isPending}
+            live={!over}
+            building={Boolean(record.data?.appName)}
+            onAnswer={(questionId, answers) => {
+              answer.mutate({ questionId, answers });
+            }}
+            // `mutateAsync`, so the panel knows whether the message left: it empties the box on
+            // success and keeps every word of it, with the reason, when the send failed (T-1761).
+            // Each message of a conversation says the page it was sent from: "and this one?" is
+            // about where the person is now (T-2763). An application run takes no page.
+            onSend={(text) =>
+              send.mutateAsync({
+                text,
+                pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
+                // What the person switched on or off travels with each message (AG-92).
+                access: record.data?.kind === "conversation" ? accessFor(capabilities, liveEndpoints) : undefined,
+                ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
+                  ? { endpointNames: pendingEndpoints }
+                  : {}),
+              })
+            }
+            onCancel={() => cancel.mutate()}
+            onRetry={retry}
+            onNewConversation={newConversation}
+            attach={attach}
+            above={full && wide ? undefined : liveBar}
+            onUseEndpoint={addEndpoint}
+            // A link in an answer opens its page in place; from full screen, beside it, so the
+            // person sees the page and keeps the conversation (T-2773).
+            onOpenLink={(href) => {
+              if (full) {
+                setLayout("side");
+              }
+              void navigate({ href });
+            }}
+            usedEndpoints={liveEndpoints}
+          />
+        </div>
+      );
+
   return (
     <aside
       aria-label={t("agentRun.conversation.title")}
@@ -621,156 +782,120 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         </nav>
       ) : null}
 
-      {building ? (
-        <div
-          id="run-chat"
-          data-testid="assistant-build"
-          className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
-        >
-          <Button
-            size="sm"
-            onClick={() => {
-              setBuilding(false);
-            }}
-            className="self-start"
-          >
-            {t("assistant.backToChat")}
-          </Button>
-          <AppGenerator
-            project={activeProject}
-            onStarted={(runId) => {
-              setBuilding(false);
-              rememberRun({ project: activeProject, runId });
-            }}
-          />
-        </div>
-      ) : !run ? (
-        <>
-          <div
-            id="run-chat"
-            data-testid="assistant-empty"
-            className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-surface p-3"
-          >
-            <p className="text-body text-fg-muted">{t("assistant.empty.lead")}</p>
-            <Paths
-              project={activeProject}
-              disabled={isStarting}
-              capabilities={capabilities}
-              onPick={(path) => {
-                void startConversation("", path);
-              }}
-            />
-          </div>
-
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const text = composerMessage.trim();
-              if (text && !isStarting) {
-                void startConversation(text);
-              }
-            }}
-          >
-            <div className="flex flex-wrap items-start gap-1">
-              <DataBar
-                project={activeProject}
-                selected={chosenEndpoints}
-                onChange={chooseEndpoints}
-                opens="down"
-              />
-              <CapabilitiesControl
-                project={activeProject}
-                endpoints={chosenEndpoints}
-                value={capabilities}
-                onChange={chooseCapabilities}
-              />
-            </div>
-            {/* The failure is the composer's own error: tied to the box the person is still in,
-                which goes invalid, and announced (UI-44, T-1749). What was typed stays. */}
-            <Field
-              id="assistant-empty-composer"
-              label={t("assistant.empty.composer")}
-              errors={startError ? [`${t("assistant.empty.failed")} ${startError}`] : undefined}
+      {/* Full screen (T-2773, UI-84): the conversations on the left, the conversation in one
+          column of a readable width, its data and capabilities on the right. From 1024 px; below
+          it the conversation is the screen. At 2560 px the sides widen, the column does not.
+          The same tree in every layout, `contents` where it is not full screen, so switching
+          keeps the conversation and every word typed into it. */}
+      <div data-testid={full ? "assistant-full" : undefined} className={full ? "flex min-h-0 flex-1 gap-4" : "contents"}>
+          {full && wide ? (
+            <Side
+              id="assistant-conversations"
+              open={listOpen}
+              onToggle={setListOpen}
+              show={t("assistant.full.showList")}
+              hide={t("assistant.full.hideList")}
+              edge="left"
+              className="w-64 2xl:w-80"
             >
-              <Textarea
-                id="assistant-empty-composer"
-                rows={3}
-                value={composerMessage}
-                onChange={(event) => {
-                  setComposerMessage(event.target.value);
+              <ConversationList
+                project={activeProject}
+                current={run?.runId ?? null}
+                onOpen={(runId) => {
+                  setBuilding(false);
+                  rememberRun({ project: activeProject, runId });
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    const text = composerMessage.trim();
-                    if (text && !isStarting) {
-                      void startConversation(text);
-                    }
-                  }
-                }}
-                className="resize-none"
               />
-            </Field>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                {attach}
-              </div>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                disabled={composerMessage.trim() === ""}
-                loading={isStarting}
-              >
-                {t("assistant.empty.send")}
-              </Button>
-            </div>
-          </form>
-        </>
-      ) : (
-        <div
-          id="run-chat"
-          className="min-h-48 w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
-        >
-          <ConversationPanel
-            project={run.project}
-            events={events}
-            streaming={streaming}
-            answering={answer.isPending}
-            sending={send.isPending}
-            live={!over}
-            building={Boolean(record.data?.appName)}
-            onAnswer={(questionId, answers) => {
-              answer.mutate({ questionId, answers });
-            }}
-            // `mutateAsync`, so the panel knows whether the message left: it empties the box on
-            // success and keeps every word of it, with the reason, when the send failed (T-1761).
-            // Each message of a conversation says the page it was sent from: "and this one?" is
-            // about where the person is now (T-2763). An application run takes no page.
-            onSend={(text) =>
-              send.mutateAsync({
-                text,
-                pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
-                // What the person switched on or off travels with each message (AG-92).
-                access: record.data?.kind === "conversation" ? accessFor(capabilities, liveEndpoints) : undefined,
-                ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
-                  ? { endpointNames: pendingEndpoints }
-                  : {}),
-              })
-            }
-            onCancel={() => cancel.mutate()}
-            onRetry={retry}
-            onNewConversation={newConversation}
-            attach={attach}
-            above={liveBar}
-            onUseEndpoint={addEndpoint}
-            usedEndpoints={liveEndpoints}
-          />
-        </div>
-      )}
+            </Side>
+          ) : null}
+          <div
+            data-testid={full ? "assistant-column" : undefined}
+            className={full ? "mx-auto flex min-h-0 w-full max-w-4xl min-w-0 flex-1 flex-col gap-2" : "contents"}
+          >
+            {conversation}
+          </div>
+          {full && wide && run && !building ? (
+            <Side
+              id="assistant-data"
+              open={panelOpen}
+              onToggle={setPanelOpen}
+              show={t("assistant.full.showData")}
+              hide={t("assistant.full.hideData")}
+              edge="right"
+              className="w-80 2xl:w-112"
+            >
+              <section aria-label={t("assistant.full.data")} className="flex flex-col gap-2">
+                <h3 className="text-caption font-semibold text-fg-muted">{t("assistant.full.data")}</h3>
+                {liveBar}
+              </section>
+            </Side>
+          ) : null}
+      </div>
 
     </aside>
+  );
+}
+
+/** Wide enough for the conversations and the data beside the full-screen conversation. */
+const WIDE = "(min-width: 64rem)";
+
+function onWideChange(changed: () => void): () => void {
+  const query = typeof window.matchMedia === "function" ? window.matchMedia(WIDE) : null;
+  query?.addEventListener("change", changed);
+  return () => query?.removeEventListener("change", changed);
+}
+
+function isWide(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(WIDE).matches;
+}
+
+/**
+ * A side of the full-screen assistant that folds away to a button, so the conversation can take
+ * the width when the person wants it (T-2773).
+ */
+function Side({
+  id,
+  open,
+  onToggle,
+  show,
+  hide,
+  edge,
+  className,
+  children,
+}: {
+  id: string;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  show: string;
+  hide: string;
+  edge: "left" | "right";
+  className: string;
+  children: ReactNode;
+}): JSX.Element {
+  const toggle = (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-expanded={open}
+      aria-controls={open ? id : undefined}
+      aria-label={open ? hide : show}
+      title={open ? hide : show}
+      onClick={() => {
+        onToggle(!open);
+      }}
+      className="w-8 shrink-0 self-start px-0 text-fg-muted hover:text-fg"
+      icon={<Icon name={open === (edge === "left") ? "chevronLeft" : "chevronRight"} className="size-4" />}
+    />
+  );
+  return (
+    <div className={clsx("flex min-h-0 shrink-0 gap-1", edge === "right" && "flex-row-reverse", open && className)}>
+      {toggle}
+      {open ? (
+        <div id={id} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

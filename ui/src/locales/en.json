@@ -2272,6 +2272,11 @@
         "use": "Use this address",
         "invalid": "Give a full address starting with http:// or https://."
       }
+    },
+    "prose": {
+      "copyId": "Copy the whole id",
+      "copied": "Copied",
+      "table": "A table in the answer"
     }
   },
   "assistant": {
@@ -2388,6 +2393,19 @@
         "noWrite": "Your role does not write through this endpoint."
       },
       "pathLeft": "Not with {preset}: switch it on in Capabilities."
+    },
+    "full": {
+      "conversations": "Conversations",
+      "search": "Search conversations",
+      "none": "No conversations here yet.",
+      "noMatch": "No conversation asks about “{words}”.",
+      "untitled": "A conversation started from a path",
+      "more": "Show {count} more",
+      "showList": "Show the conversations",
+      "hideList": "Hide the conversations",
+      "data": "Data and capabilities",
+      "showData": "Show the data and capabilities",
+      "hideData": "Hide the data and capabilities"
     }
   },
   "permissions": {
@@ -3207,6 +3225,34 @@
       "associationOps": "Read everything and subscribe",
       "federationOps": "Federate",
       "redirectionOps": "Forward everything"
+    }
+  },
+  "picker": {
+    "search": "Search",
+    "chosen": "Chosen: {label}",
+    "remove": "Remove {name}",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "No data model matches.",
+      "create": "New data model “{name}”",
+      "catalogueUnavailable": "Smart Data Models cannot be searched right now: {reason}",
+      "catalogueHint": "Type two letters or more to search Smart Data Models too.",
+      "lifecycle": {
+        "draft": "draft",
+        "published": "published",
+        "deprecated": "deprecated",
+        "retired": "retired",
+        "mirrored": "mirrored"
+      }
+    },
+    "type": {
+      "local": "Types of {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Imported from {name}",
+      "none": "The model of {space} declares no type yet.",
+      "noneInProject": "No data model of this project declares a type yet.",
+      "create": "New type “{name}”"
     }
   }
 }

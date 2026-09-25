@@ -15,6 +15,8 @@ import { KpiCard, kpiOf } from "./KpiCard";
 import { KpiPipelineCard, kpiPipelineOf } from "./KpiPipelineCard";
 import { QueryResultCard, queryResultOf } from "./QueryResultCard";
 import { QuestionData } from "./QuestionData";
+import { Prose } from "./Prose";
+import type { OpenLink } from "./Prose";
 import type { RunEvent } from "./useAgentRun";
 
 /** Who a line came from. The three read differently, so they are drawn differently. */
@@ -350,6 +352,7 @@ export function ConversationPanel({
   onUseEndpoint,
   usedEndpoints,
   building = false,
+  onOpenLink,
 }: {
   /** The project the run belongs to: what a card's links open. */
   project: string;
@@ -385,6 +388,8 @@ export function ConversationPanel({
   building?: boolean;
   /** The endpoints the conversation queries, so a found one says it is in use. */
   usedEndpoints?: string[];
+  /** Opens a Portal link of an answer in place, keeping the conversation (T-2773). */
+  onOpenLink?: OpenLink;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
@@ -579,20 +584,26 @@ export function ConversationPanel({
                 aria-hidden={writing ? true : undefined}
                 data-testid={writing ? "partial-line" : undefined}
               >
-                <div className="max-w-[85%]">
+                <div className="min-w-0 max-w-[85%]">
                   <p className={mine ? "text-right text-xs text-fg-muted" : "text-xs text-fg-muted"}>
                     {labelOf(event, t)}
                   </p>
-                  <p
-                    className={
-                      mine
-                        ? "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-primary px-3 py-2 text-primary-fg"
-                        : "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2"
-                    }
-                  >
-                    {/* What the person wrote stays as written; the rest loses its "(AG-70)" (T-2756). */}
-                    {mine ? line(event, t, titles) : forPeople(line(event, t, titles))}
-                  </p>
+                  {mine ? (
+                    // What the person wrote stays as written.
+                    <p className="mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-primary px-3 py-2 text-primary-fg">
+                      {line(event, t, titles)}
+                    </p>
+                  ) : event.kind === "thought" || writing ? (
+                    // An answer is Markdown, drawn as its lists, tables and links; it loses its
+                    // "(AG-70)" (T-2756, T-2773).
+                    <div className="mt-0.5 rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2">
+                      <Prose text={forPeople(line(event, t, titles))} onOpenLink={onOpenLink} />
+                    </div>
+                  ) : (
+                    <p className="mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2">
+                      {forPeople(line(event, t, titles))}
+                    </p>
+                  )}
                 </div>
               </li>
             );

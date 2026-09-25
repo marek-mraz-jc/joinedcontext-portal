@@ -2272,6 +2272,11 @@
         "use": "Použiť túto adresu",
         "invalid": "Zadajte celú adresu začínajúcu http:// alebo https://."
       }
+    },
+    "prose": {
+      "copyId": "Kopírovať celý identifikátor",
+      "copied": "Skopírované",
+      "table": "Tabuľka v odpovedi"
     }
   },
   "assistant": {
@@ -2388,6 +2393,19 @@
         "noWrite": "Vaša rola cez tento endpoint nezapisuje."
       },
       "pathLeft": "Nie pri voľbe {preset}: zapnite to v Schopnostiach."
+    },
+    "full": {
+      "conversations": "Konverzácie",
+      "search": "Hľadať v konverzáciách",
+      "none": "Zatiaľ tu nie sú žiadne konverzácie.",
+      "noMatch": "Žiadna konverzácia sa nepýta na „{words}“.",
+      "untitled": "Konverzácia začatá z cesty",
+      "more": "Zobraziť ďalších {count}",
+      "showList": "Zobraziť konverzácie",
+      "hideList": "Skryť konverzácie",
+      "data": "Dáta a schopnosti",
+      "showData": "Zobraziť dáta a schopnosti",
+      "hideData": "Skryť dáta a schopnosti"
     }
   },
   "permissions": {
@@ -3207,6 +3225,34 @@
       "associationOps": "Čítať všetko a odoberať",
       "federationOps": "Federovať",
       "redirectionOps": "Presmerovať všetko"
+    }
+  },
+  "picker": {
+    "search": "Hľadať",
+    "chosen": "Vybrané: {label}",
+    "remove": "Odobrať {name}",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "Žiadny dátový model nezodpovedá.",
+      "create": "Nový dátový model „{name}“",
+      "catalogueUnavailable": "Smart Data Models sa teraz nedajú prehľadať: {reason}",
+      "catalogueHint": "Napíšte aspoň dve písmená a hľadajte aj v Smart Data Models.",
+      "lifecycle": {
+        "draft": "návrh",
+        "published": "zverejnený",
+        "deprecated": "zastaraný",
+        "retired": "vyradený",
+        "mirrored": "zrkadlený"
+      }
+    },
+    "type": {
+      "local": "Typy priestoru {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Importované z {name}",
+      "none": "Model priestoru {space} zatiaľ nedeklaruje žiadny typ.",
+      "noneInProject": "Žiadny dátový model tohto projektu zatiaľ nedeklaruje typ.",
+      "create": "Nový typ „{name}“"
     }
   }
 }

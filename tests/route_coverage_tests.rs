@@ -80,6 +80,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/changes/{id}/approve", "jc_change_approve"),
 ("POST", "/projects/{project}/changes/{id}/reject", "jc_change_reject"),
 ("GET", "/projects/{project}/ckan/status", "jc_ckan_status"),
+("GET", "/organization/datamodels", "the list behind the model and type pickers (DM-63); an agent reads a project's models through jc_resource_list and the catalogue through jc_catalog_search"),
 ("GET", "/projects/{project}/datamodels/{name}/source", "jc_model_source_get"),
 ("PUT", "/projects/{project}/datamodels/{name}/source", "jc_model_source_put"),
 ("GET", "/projects/{project}/drafts", "jc_draft_list"),

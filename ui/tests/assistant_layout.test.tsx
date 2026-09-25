@@ -171,8 +171,15 @@ async function openDock() {
   return person;
 }
 
-/** The panel's own children, in the order a person reads them. */
-const children = () => [...dock().children] as HTMLElement[];
+/**
+ * The panel's own children, in the order a person reads them: a `contents` wrapper draws no box
+ * of its own (T-2773 keeps one tree for every layout), so its children stand in its place.
+ */
+const laidOut = (element: Element): HTMLElement[] =>
+  ([...element.children] as HTMLElement[]).flatMap((child) =>
+    child.classList.contains("contents") ? laidOut(child) : [child],
+  );
+const children = () => laidOut(dock());
 
 describe("where the assistant's input sits", () => {
   beforeEach(async () => {
