@@ -6,6 +6,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
@@ -41,7 +42,9 @@ function renderCard(kpi: Kpi = KPI, onSend?: (text: string) => void) {
   const router = createRouter({ routeTree: rootRoute.addChildren([home, explore, plural]) });
   render(
     <I18nextProvider i18n={i18n}>
-      <RouterProvider router={router} />
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
     </I18nextProvider>,
   );
   return router;
@@ -126,7 +129,7 @@ describe("the indicator card", () => {
     const minutes = within(form).getByRole("spinbutton", { name: en.agentRun.kpi.keepMinutes });
     await userEvent.clear(minutes);
     await userEvent.type(minutes, "30");
-    const space = within(form).getByRole("textbox");
+    const space = within(form).getByRole("combobox", { name: /Into the space/ });
     expect(space).toHaveValue("helsinki-kpi");
     await userEvent.clear(space);
     await userEvent.type(space, "air-kpi");

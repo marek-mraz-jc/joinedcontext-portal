@@ -12,6 +12,7 @@ import type { Verdict } from "../../api/drafts";
 import { parse as parseYaml } from "yaml";
 import { Alert, Badge, Button, Card, Field, FileDropZone, Icon, Input, PageHeader } from "../../components/ui";
 import type { IconName } from "../../components/ui";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 interface CompletedDraft {
   kind: string;
@@ -209,10 +210,15 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
 
       <Card className="flex flex-col gap-4">
         <Field id="complete-space" label={t("spaces.complete.space")}>
-          <Input
+          {/* An existing space to complete, or the name of a new one (ADR-N-033). */}
+          <ResourceNamePicker
             id="complete-space"
+            label={t("spaces.complete.space")}
+            labelled
+            from={{ project, plural: "spaces" }}
             value={spaceName}
-            onChange={(e) => setSpaceName(e.target.value)}
+            onChange={setSpaceName}
+            create
             placeholder={t("spaces.complete.spacePlaceholder")}
           />
         </Field>

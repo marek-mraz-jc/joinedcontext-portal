@@ -3354,6 +3354,8 @@
       "none": "The model of {space} declares no type yet.",
       "noneInProject": "No data model of this project declares a type yet.",
       "create": "New type “{name}”"
-    }
+    },
+    "createNamed": "New: “{name}”",
+    "list": "Choices"
   }
 }
