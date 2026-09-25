@@ -204,7 +204,7 @@ impl Driver {
             );
             let answer = tokio::time::timeout(
                 self.answer_timeout,
-                self.complete_with_system(CONVERSATION_SYSTEM, &user),
+                self.complete_streamed(CONVERSATION_SYSTEM, &user),
             )
             .await
             .map_err(|_| {

@@ -2,7 +2,7 @@
 
 ### How an app is built
 `src/main.tsx` calls `startApp(App, { tokens })`.
-Pages compose the template's components with this package's hooks. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
+Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
 Backend functions live in `functions/{name}.ts` using `@joinedcontext/sdk/server`.
 Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
@@ -59,6 +59,18 @@ Returns `{ id, name, email, roles }` of the signed-in person as the host served 
 function useFunction<T = unknown>(name: string, body?: unknown, options?: { enabled?: boolean }): Loaded & { data: T | null }
 ```
 Invokes a backend server function and manages its response lifecycle.
+
+### Layout (T-2777, UI-84)
+```ts
+function Page(props: { children; width?: "narrow" | "wide" | "full"; label? }): JSX.Element
+function Header(props: { title; subtitle?; actions?; level?: 1 | 2 | 3 }): JSX.Element
+function Grid(props: { children; columns?: 1 | 2 | 3 | 4 }): JSX.Element
+function Card(props: { title?; actions?; children; level?: 1 | 2 | 3; label? }): JSX.Element
+function Split(props: { children: [ReactNode, ReactNode]; ratio?: "1:1" | "2:1" | "1:2" }): JSX.Element
+function Sidebar(props: { label: string; side: ReactNode; children; position?: "start" | "end" }): JSX.Element
+function Tabs(props: { tabs: { id; label; render: () => ReactNode }[]; label: string; initial?; onChange? }): JSX.Element
+```
+Build every screen from these and the app is responsive at 375 to 2560 px without CSS of its own. Each one lays out by the width it is given (container queries), so a `Grid` inside a `Split` or a framed app adapts to its own box: `Grid` is 1 column, then 2 from 40rem, 3 from 64rem, `columns` (at most 4) from 90rem; `Split` stacks under 48rem; `Sidebar` is a column beside the content from 48rem and a drawer behind a button named `label` on a phone (Escape closes it); `Tabs` follows the WAI-ARIA pattern (arrow keys, Home, End) and scrolls sideways on a phone. `--jc-gutter` and `--jc-font-size-title` grow with the window; `--jc-target` (44 px) is the least height of a control on a phone or a touch screen.
 
 ### Tables, forms, maps, exports
 ```ts

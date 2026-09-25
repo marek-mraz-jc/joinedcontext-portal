@@ -30,6 +30,7 @@ export const EVENT_KINDS = [
   "answer",
   "message",
   "thought",
+  "partial",
   "tool",
   "commit",
   "preview",
