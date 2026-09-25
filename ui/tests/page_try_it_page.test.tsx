@@ -114,7 +114,9 @@ describe("trying a copy", () => {
     expect(
       screen.queryByRole("button", { name: en.workspaces.tryIt.start }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    // A refusal answers the same the second time (T-2834); the way back is there either way.
+    expect(screen.queryAllByRole("button", { name: en.app.error.retry })).toHaveLength(status >= 500 ? 1 : 0);
+    expect(screen.getByRole("link", { name: en.workspaces.compare.back })).toBeInTheDocument();
   });
 
   it("says where a running preview answers and what stays paused", async () => {

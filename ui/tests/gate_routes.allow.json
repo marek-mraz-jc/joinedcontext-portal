@@ -6,11 +6,6 @@
     "route that is missing and not listed here, and on an entry that is covered now or names a",
     "route the router no longer has. The two lists only ever shrink."
   ],
-  "mocked": {
-    "/projects/$project/ckan": {
-      "task": "T-2849",
-      "why": "worker-10 rebuilds the open data page under T-2726; T-2849 writes its mocked spec and live journey on the rebuilt page"
-    }
-  },
+  "mocked": {},
   "live": {}
 }

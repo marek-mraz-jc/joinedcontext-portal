@@ -626,6 +626,15 @@ pub async fn create_run(
     };
 
     state.agents.create_run(&run).await.map_err(unavailable)?;
+    // The person's identity goes to the proxy before anything the run does can read through it
+    // (ADR-N-038 §3.1, AG-94); the Portal keeps no copy.
+    crate::agents::identity::hand_over(
+        state.oidc.as_deref(),
+        &settings.proxy_base,
+        &id,
+        crate::agents::identity::persons_token(&headers, state.config.trust_edge_token),
+    )
+    .await;
     publish_event(
         &state,
         &id,
@@ -816,7 +825,7 @@ pub(crate) fn with_links(state: &AppState, mut run: AgentRun) -> AgentRun {
         if !run.branch.is_empty() {
             run.source_url = Some(if run.in_own_repository() {
                 gitea
-                    .for_repository(repository::name(&run.project, &run.app_name))
+                    .for_application(repository::name(&run.project, &run.app_name))
                     .browse_url("", &run.branch)
             } else {
                 // The project's own repository in layout 2 (CC-87).
@@ -2133,7 +2142,7 @@ async fn publish_source(state: &AppState, run: &AgentRun) -> Result<serde_json::
                 .into(),
         )
     })?;
-    let repo = gitea.for_repository(repository::name(&run.project, &run.app_name));
+    let repo = gitea.for_application(repository::name(&run.project, &run.app_name));
     let sha = match repo.branch_head(&run.branch).await {
         Ok(sha) => sha,
         Err(GitError::NotFound) => {
@@ -2195,7 +2204,7 @@ pub async fn merge_published_application(
             return;
         }
     };
-    let repo = gitea.for_repository(repository::name(&run.project, &run.app_name));
+    let repo = gitea.for_application(repository::name(&run.project, &run.app_name));
     match repository::merge_published(&repo, &run, sha, approver).await {
         Ok(()) => {
             if let Err(err) = state

@@ -368,6 +368,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Validation Health
+         * @description The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).
+         */
+        get: operations["get_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Organization Limits
+         * @description Every policy and limit of the catalog with the operator's bound, the value in force and where it comes from, and the quota of each project the caller may read (PF-96…PF-102, ADR-N-035).
+         */
+        get: operations["get_limits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people": {
         parameters: {
             query?: never;
@@ -377,13 +417,13 @@ export interface paths {
         };
         /**
          * List People
-         * @description Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.
+         * @description Searches the organization's people, a page at a time.
          */
         get: operations["list_people"];
         put?: never;
         /**
          * Create Person
-         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.
+         * @description Creates a person and sends the sign-up e-mail.
          */
         post: operations["create_person"];
         delete?: never;
@@ -401,7 +441,7 @@ export interface paths {
         };
         /**
          * Get Person
-         * @description One person with their groups, platform roles and application roles. Needs `read` on Person.
+         * @description One person with their groups and roles.
          */
         get: operations["get_person"];
         put?: never;
@@ -415,7 +455,7 @@ export interface paths {
         head?: never;
         /**
          * Edit Person
-         * @description Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.
+         * @description Edits a person's name, e-mail or language.
          */
         patch: operations["edit_person"];
         trace?: never;
@@ -431,7 +471,7 @@ export interface paths {
         put?: never;
         /**
          * Disable Person
-         * @description Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.
+         * @description Disables a person and ends their sessions; never the caller or the last Organization Administrator.
          */
         post: operations["disable_person"];
         delete?: never;
@@ -451,7 +491,7 @@ export interface paths {
         put?: never;
         /**
          * Enable Person
-         * @description Enables a disabled person. Needs `disable` on Person.
+         * @description Enables a disabled person.
          */
         post: operations["enable_person"];
         delete?: never;
@@ -511,7 +551,7 @@ export interface paths {
         put?: never;
         /**
          * Sign Person Out
-         * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
+         * @description Ends every session of a person.
          */
         post: operations["sign_out_person"];
         delete?: never;
@@ -875,6 +915,26 @@ export interface paths {
          * @description Proposes the application a finished run built; a person approves the change.
          */
         post: operations["publish_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/app-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Checks
+         * @description The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).
+         */
+        get: operations["list_app_checks"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1404,7 +1464,7 @@ export interface paths {
         put?: never;
         /**
          * Run A Blueprint
-         * @description Expands one of the organisation's blueprints with the parameters given, as a change a person approves.
+         * @description Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.
          */
         post: operations["start_flow"];
         delete?: never;
@@ -1648,9 +1708,33 @@ export interface paths {
         put?: never;
         /**
          * Mint A Service Account Key
-         * @description Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.
+         * @description Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104).
          */
         post: operations["create_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read A Service Account Key Claim
+         * @description What a key asked for over MCP will be, shown to the person who asked for it before it is minted.
+         */
+        get: operations["get_key_claim"];
+        put?: never;
+        /**
+         * Use A Service Account Key Claim
+         * @description Mints the key, or makes the rotation, a claim describes; the token is in this answer and nowhere else, and the claim is spent.
+         */
+        post: operations["use_key_claim"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1688,9 +1772,29 @@ export interface paths {
         put?: never;
         /**
          * Rotate A Service Account Key
-         * @description Replaces one key with a successor; the old one stops working when its overlap ends.
+         * @description Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104).
          */
         post: operations["rotate_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Data Quality
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
+         */
+        get: operations["get_quality"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2275,6 +2379,19 @@ export interface components {
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
         };
+        /** @description The last probe of one App (AP-136). */
+        AppCheck: {
+            /** Format: date-time */
+            at: string;
+            name: string;
+            reason?: string | null;
+            state: components["schemas"]["AppCheckState"];
+        };
+        /** @enum {string} */
+        AppCheckState: "green" | "red" | "amber";
+        AppChecks: {
+            checks: components["schemas"]["AppCheck"][];
+        };
         /**
          * @description The caller as a published App sees them: the object the static host writes into
          *     `#jc-config` as `user` (AP-95).
@@ -2331,6 +2448,11 @@ export interface components {
              */
             linkml?: string | null;
             owl?: string | null;
+            /**
+             * @description `model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data
+             *     Structure Definition (DM-60).
+             */
+            qb?: string | null;
             shacl?: string | null;
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
@@ -2401,6 +2523,14 @@ export interface components {
              *     }
              */
             fonts: components["schemas"]["Fonts"];
+            /**
+             * @description The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`
+             *     is not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so
+             *     what a branding file says is overwritten; always sent, so the UI never mistakes a shown
+             *     section for one it has not heard about.
+             * @default []
+             */
+            hiddenSections: string[];
             /**
              * @description Full name: page titles and the login page.
              * @default joinedcontext
@@ -2768,12 +2898,31 @@ export interface components {
             key: string;
             params: Record<string, never>;
         };
+        CheckHealth: {
+            check: string;
+            result?: null | components["schemas"]["Digest"];
+            state: components["schemas"]["CheckState"];
+        };
+        /** @enum {string} */
+        CheckState: "green" | "red" | "stale" | "unreadable";
         /** @description The CKAN picture of one project. */
         CkanStatus: {
             /** @description Every catalogue this project can publish to. */
             instances: components["schemas"]["InstanceSummary"][];
             /** @description One entry per endpoint that declares `spec.publish.ckan`. */
             publications: components["schemas"]["PublicationStatus"][];
+        };
+        /**
+         * @description What a key claim will do once its person confirms it (PF-104).
+         * @enum {string}
+         */
+        ClaimAction: "mint" | "rotate";
+        /** @description Where the person opens a claim, and until when. */
+        ClaimLink: {
+            expiresAt: string;
+            id: string;
+            /** @description The Portal page that shows the claim to the person who asked for it. */
+            url: string;
         };
         /**
          * @description The five colours a page is built from. Each is validated as a hex triplet or sextet before
@@ -2836,6 +2985,17 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        /** @description How many results of one run ended in each verdict. */
+        Counts: {
+            /** Format: int32 */
+            error: number;
+            /** Format: int32 */
+            fail: number;
+            /** Format: int32 */
+            pass: number;
+            /** Format: int32 */
+            skip: number;
+        };
         CreatePerson: {
             email: string;
             firstName: string;
@@ -2891,6 +3051,23 @@ export interface components {
             refresh: string;
             /** @description The tabular representation the rows are read through. */
             representation: string;
+        };
+        /** @description What `scripts/publish-health.py` writes for one check. */
+        Digest: {
+            /** Format: date-time */
+            at: string;
+            check: string;
+            counts: components["schemas"]["Counts"];
+            /** Format: int32 */
+            everyHours: number;
+            failures?: components["schemas"]["Failure"][];
+            history?: components["schemas"]["Point"][];
+            /**
+             * @description The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for
+             *     every other check.
+             */
+            passed?: string[];
+            run?: string | null;
         };
         /** @description `status.domainVerification` of an Organization (PF-41, Architecture/03 §3). */
         DomainVerification: {
@@ -3026,6 +3203,15 @@ export interface components {
             /** Format: int32 */
             status: number;
         };
+        /** @description One result of the last run that did not pass, and the open task it filed. */
+        Failure: {
+            key: string;
+            task?: string | null;
+            title: string;
+            verdict: components["schemas"]["FailureVerdict"];
+        };
+        /** @enum {string} */
+        FailureVerdict: "fail" | "error";
         /** @description The federation of one project (UI-27). */
         FederationGraph: {
             /** @description Directed edges, each naming the manifest it was read from. */
@@ -3100,14 +3286,19 @@ export interface components {
             kind?: string | null;
             name?: string | null;
         };
-        /** @description The runner's counters for the pipeline that feeds an endpoint, read when the search ran. */
+        /** @enum {string} */
+        FreshState: "fresh" | "stale" | "empty" | "untargeted";
+        /** @description How recent the data of one pipeline is. */
         Freshness: {
-            /** Format: int64 */
-            errors?: number | null;
+            /** Format: date-time */
+            newest?: string | null;
+            paused: boolean;
             pipeline: string;
+            state: components["schemas"]["FreshState"];
             /** Format: int64 */
-            received?: number | null;
-            scrapedAt: string;
+            targetSeconds?: number | null;
+            /** @description The pipeline's output type; empty when it names none and the whole space counts. */
+            type: string;
         };
         /**
          * @description How a request authenticated: what `GET /api/v1/auth/me` reports so the UI knows whose
@@ -3244,6 +3435,25 @@ export interface components {
             url: string;
         };
         /**
+         * @description A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token
+         *     and no id of a key that does not exist yet: nothing is minted until the person confirms it.
+         */
+        KeyClaim: {
+            account: string;
+            action: components["schemas"]["ClaimAction"];
+            claim: components["schemas"]["ClaimLink"];
+            credential: string;
+            /** @description The expiry the minted key will carry, when it has one. */
+            keyExpiresAt?: string | null;
+            /** @description The key a rotation replaces. */
+            keyId?: string | null;
+            /**
+             * Format: int64
+             * @description How long the replaced key keeps working beside its successor.
+             */
+            overlapHours?: number | null;
+        };
+        /**
          * @description One key as everyone else ever sees it: what an operator decides on, and nothing that opens
          *     a door.
          */
@@ -3281,6 +3491,45 @@ export interface components {
         };
         /** @enum {string} */
         Level: "error" | "warning" | "info";
+        /** @description One entry of the catalog as the settings page shows it (PF-102). */
+        LimitEntry: {
+            /**
+             * Format: int32
+             * @description The catalog's default; `null` is no limit.
+             */
+            default?: number | null;
+            /**
+             * Format: int32
+             * @description The largest value the organization may set; `null` where nobody sets a ceiling.
+             */
+            max?: number | null;
+            /**
+             * Format: int32
+             * @description The smallest value the organization may set.
+             */
+            min: number;
+            /** @description `organization` or `default`. */
+            origin: components["schemas"]["LimitOrigin"];
+            /** @description The manifest path, e.g. `spec.limits.edge.requestsPerMinute.web`. */
+            path: string;
+            /**
+             * @description The settings section: `projects`, `applications`, `edge`, `signIn`, `people`, `agents`,
+             *     `pipelinesAndData`.
+             */
+            section: string;
+            /** @description Whether the operator may only tighten the bound (ADR-N-035 §3.2). */
+            security: boolean;
+            /**
+             * Format: int32
+             * @description What the Organization manifest sets; `null` when it sets nothing.
+             */
+            value?: number | null;
+        };
+        /**
+         * @description Where a value in force comes from (PF-101).
+         * @enum {string}
+         */
+        LimitOrigin: "project" | "organization" | "default";
         ListMeta: {
             continue?: string | null;
             remainingItemCount?: number | null;
@@ -3471,6 +3720,10 @@ export interface components {
             name: string;
             outputSchema: Record<string, never>;
             title: string;
+        };
+        OrganizationLimits: {
+            entries: components["schemas"]["LimitEntry"][];
+            projects: components["schemas"]["ProjectQuota"][];
         };
         /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
         OrganizationModel: {
@@ -3670,6 +3923,19 @@ export interface components {
             /** @description `{ "user": … }` or `{ "group": … }`. */
             via: Record<string, never>;
         };
+        /** @description One earlier run, for the trend. */
+        Point: {
+            /** Format: date-time */
+            at: string;
+            /** Format: int32 */
+            error: number;
+            /** Format: int32 */
+            fail: number;
+            /** Format: int32 */
+            pass: number;
+            /** Format: int32 */
+            skip: number;
+        };
         Preferences: {
             /**
              * @description Whether manifest forms show the fields a `UiSchema` marks `advanced` (CC-29, UI-02).
@@ -3797,6 +4063,14 @@ export interface components {
             items: components["schemas"]["ProjectSummary"][];
             kind: string;
         };
+        /** @description The quota in force for one project the caller may read. */
+        ProjectQuota: {
+            origin: components["schemas"]["LimitOrigin"];
+            project: string;
+            quota: {
+                [key: string]: components["schemas"]["QuotaUse"];
+            };
+        };
         ProjectStatus: {
             /**
              * @description Every countable dimension by its manifest field name (`contextSpaces`,
@@ -3833,6 +4107,19 @@ export interface components {
             /** Format: int64 */
             expectedVersion?: number | null;
             manifest: unknown;
+        };
+        /** @description One quota dimension of a project. */
+        QuotaUse: {
+            /**
+             * Format: int32
+             * @description `null` is no limit.
+             */
+            limit?: number | null;
+            /**
+             * Format: int32
+             * @description The manifest count for a countable dimension (PF-75); `null` for a runtime limit.
+             */
+            used?: number | null;
         };
         /** @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). */
         Readiness: {
@@ -3984,6 +4271,15 @@ export interface components {
              */
             overlapHours?: number | null;
         };
+        /** @description One failing rule of a space: a SHACL component and the path it is about. */
+        RuleCount: {
+            /** Format: int64 */
+            count: number;
+            /** @description At most five ids of entities that break it. */
+            examples: string[];
+            path: string;
+            rule: string;
+        };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
          *
@@ -4088,6 +4384,18 @@ export interface components {
         SpaceMapping: {
             from: string;
             to: string;
+        };
+        /** @description What one run found in one space. */
+        SpaceQuality: {
+            /** Format: int64 */
+            checked: number;
+            freshness: components["schemas"]["Freshness"][];
+            /** Format: int64 */
+            invalid: number;
+            /** Format: date-time */
+            observedAt: string;
+            rules: components["schemas"]["RuleCount"][];
+            truncated: boolean;
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
@@ -4217,6 +4525,9 @@ export interface components {
          * @enum {string}
          */
         Validation: "strict" | "lax";
+        ValidationHealth: {
+            checks: components["schemas"]["CheckHealth"][];
+        };
         Verdict: {
             /** Format: date-time */
             checkedAt: string;
@@ -4953,6 +5264,82 @@ export interface operations {
                 };
             };
             /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every published check */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationHealth"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The results directory cannot be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_limits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog and the values in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationLimits"];
+                };
+            };
+            /** @description Not signed in */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6895,6 +7282,56 @@ export interface operations {
             };
         };
     };
+    list_app_checks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The App checks of the project */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChecks"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks read on App */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     build: {
         parameters: {
             query?: never;
@@ -7226,7 +7663,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04. */
+        /** @description What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04. */
         requestBody: {
             content: {
                 /**
@@ -9610,6 +10047,141 @@ export interface operations {
             };
         };
     };
+    get_key_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description ServiceAccount name */
+                name: string;
+                /** @description The claim the MCP answer named */
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What confirming the claim will do; no token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyClaim"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such claim for this person: another person's, expired, used or never made */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No key database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    use_key_claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description ServiceAccount name */
+                name: string;
+                /** @description The claim the MCP answer named */
+                claimId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The minted key; the claim is spent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MintedKey"];
+                };
+            };
+            /** @description The credential is no longer declared, or its expiry has passed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such claim for this person, or the key it rotates is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The key the claim rotates was revoked in the meantime */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No key database configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     revoke_key: {
         parameters: {
             query?: never;
@@ -9743,6 +10315,49 @@ export interface operations {
             };
             /** @description No key database configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_quality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report, or `{}` when the space was not checked yet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceQuality"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

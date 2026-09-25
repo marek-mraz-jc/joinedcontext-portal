@@ -2,7 +2,7 @@
 //!
 //! Each published App logs people in with a confidential client of its own, `app-{name}`: the
 //! standard flow with PKCE, no direct grants, no service account, redirect and post-logout URIs
-//! under `/apps/{name}/` only. This wave is the only writer of such a client: it carries the
+//! and the web origin of its own host `{name}.apps.{domain}` only (AP-133). This wave is the only writer of such a client: it carries the
 //! attribute `managed-by: joinedcontext` and the App it belongs to, a change made in the console
 //! is overwritten and reported, and a managed client whose App is no longer published is
 //! deleted. A client of that id without the attribute belongs to whoever made it and is never
@@ -12,7 +12,8 @@
 //! every `spec.access[]` subject a role mapping this wave writes, a group mapping for a `group`
 //! and a user mapping for a `user`. It is the only writer of both, so a role or a mapping made in
 //! the console is removed and reported. Audience mappers put `app-{name}` and the slug of every
-//! Endpoint the App reads into the client's tokens, so the gateway admits them there.
+//! Endpoint the App reads into the client's tokens, so the gateway admits them there; every other
+//! protocol mapper on the client is removed and named on the App (T-2857).
 //!
 //! Keycloak generates each secret. The wave reads it back for the edge file (AP-112) and holds
 //! it in [`ClientSecret`], whose `Debug` never shows the value; it is never logged, stored in a
@@ -72,15 +73,19 @@ pub struct ClientOutcome {
     /// A subject the realm has no group or user for yet: its mapping is written once it does
     /// (a group the group wave creates, a person at their first login), so never a failure.
     pub warnings: Vec<String>,
+    /// Mappers the App does not declare that were on its client and have been removed, as
+    /// [`mapper_label`]s (T-2857); the App's status names them.
+    pub removed_mappers: Vec<String>,
     pub error: Option<String>,
 }
 
 impl ClientOutcome {
-    fn of(app: &str) -> Self {
+    pub(crate) fn of(app: &str) -> Self {
         Self {
             app: app.to_owned(),
             drift: Vec::new(),
             warnings: Vec::new(),
+            removed_mappers: Vec::new(),
             error: None,
         }
     }
@@ -139,9 +144,13 @@ pub fn title_of(app: &ResourceEnvelope) -> String {
 }
 
 /// The client an App should have, as Keycloak's representation (AP-111). `host` is the apex
-/// the apps are served on, `city.example.com`; `title` is [`title_of`] the App.
+/// the apps' hosts sit under, `city.example.com`; `title` is [`title_of`] the App.
 pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
-    let base = format!("https://{host}/apps/{app}/");
+    let origin = format!(
+        "https://{}",
+        crate::reconciler::edge_file::app_host(app, host)
+    );
+    let base = format!("{origin}/");
     json!({
         "clientId": client_id(app),
         "name": title,
@@ -155,7 +164,7 @@ pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
         "serviceAccountsEnabled": false,
         "frontchannelLogout": true,
         "redirectUris": [format!("{base}*")],
-        "webOrigins": [format!("https://{host}")],
+        "webOrigins": [origin],
         "attributes": {
             "pkce.code.challenge.method": "S256",
             "post.logout.redirect.uris": format!("{base}*"),
@@ -227,6 +236,37 @@ pub fn audience_mapper(audience: &str) -> Value {
     })
 }
 
+/// Whether a mapper held on an App's client is one the App asks for: the audience mapper of one
+/// of its `audiences` (T-2857). Everything else is removed, whatever its type or name.
+fn allowed_mapper(mapper: &Value, audiences: &[String]) -> bool {
+    mapper["protocolMapper"] == "oidc-audience-mapper"
+        && mapper["name"].as_str().is_some_and(|name| {
+            audiences
+                .iter()
+                .any(|audience| name == format!("{AUDIENCE_MAPPER}{audience}"))
+        })
+}
+
+/// A mapper as a report names it: its type and name, never its config (a claim value can be
+/// anything). Both come from the realm, so they are cut short and stripped of control
+/// characters before they reach a log line or a condition.
+pub fn mapper_label(mapper: &Value) -> String {
+    let clean = |value: &Value| -> String {
+        value
+            .as_str()
+            .unwrap_or("unnamed")
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(64)
+            .collect()
+    };
+    format!(
+        "{} mapper {}",
+        clean(&mapper["protocolMapper"]),
+        clean(&mapper["name"])
+    )
+}
+
 /// The fields of `want` the realm holds otherwise, as sentences for the drift report. Only the
 /// fields [`desired`] sets are compared: Keycloak fills in many more, which are its own.
 pub fn drift(want: &Value, held: &Value) -> Vec<String> {
@@ -259,7 +299,7 @@ pub fn drift(want: &Value, held: &Value) -> Vec<String> {
     found
 }
 
-fn managed(client: &Value) -> bool {
+pub(crate) fn managed(client: &Value) -> bool {
     client
         .get("attributes")
         .and_then(|a| a.get(MANAGED_BY))
@@ -305,8 +345,9 @@ struct RealmIndex {
     users: BTreeMap<String, Option<String>>,
 }
 
-/// The realm's app clients, as the reconciler's own client may write them.
-pub struct AppClientSync {
+/// The realm's admin API as the Portal's own client reaches it: a token by `client_credentials`
+/// and calls under `/admin/realms/{realm}`. Shared by every wave that writes clients.
+pub struct Admin {
     http: reqwest::Client,
     /// `https://idm.host/realms/{realm}`: where the token comes from.
     issuer: String,
@@ -314,27 +355,11 @@ pub struct AppClientSync {
     admin: String,
     client_id: String,
     client_secret: String,
-    /// The apex the apps are served on.
-    host: String,
-    /// Where a run records the `app-*` clients it may not write, for the write doors (AP-114).
-    foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
 }
 
-impl AppClientSync {
-    /// Makes each run record the realm's unmanaged `app-*` clients where the write doors read
-    /// them.
-    pub fn with_foreign(mut self, foreign: std::sync::Arc<super::foreign::ForeignNames>) -> Self {
-        self.foreign = Some(foreign);
-        self
-    }
-
+impl Admin {
     /// `None` when the issuer is not a realm URL, because then there is nothing to manage.
-    pub fn new(
-        issuer: &str,
-        client_id: String,
-        client_secret: String,
-        host: String,
-    ) -> Option<Self> {
+    pub fn new(issuer: &str, client_id: String, client_secret: String) -> Option<Self> {
         let trimmed = issuer.trim_end_matches('/');
         let (root, realm) = trimmed.rsplit_once("/realms/")?;
         Some(Self {
@@ -343,12 +368,10 @@ impl AppClientSync {
             admin: format!("{root}/admin/realms/{realm}"),
             client_id,
             client_secret,
-            host,
-            foreign: None,
         })
     }
 
-    async fn token(&self) -> Result<String, String> {
+    pub(crate) async fn token(&self) -> Result<String, String> {
         let response = self
             .http
             .post(format!("{}/protocol/openid-connect/token", self.issuer))
@@ -370,7 +393,7 @@ impl AppClientSync {
         Ok(token.access_token)
     }
 
-    async fn send(
+    pub(crate) async fn send(
         &self,
         token: &str,
         method: reqwest::Method,
@@ -399,7 +422,7 @@ impl AppClientSync {
         Ok(None)
     }
 
-    async fn get<T: serde::de::DeserializeOwned>(
+    pub(crate) async fn get<T: serde::de::DeserializeOwned>(
         &self,
         token: &str,
         path: &str,
@@ -411,198 +434,77 @@ impl AppClientSync {
         serde_json::from_value(value).map_err(|err| format!("GET {path}: {err}"))
     }
 
-    /// The id of the realm's group of this name; `None` while there is none.
-    async fn group_id(
-        &self,
-        token: &str,
-        index: &mut RealmIndex,
-        name: &str,
-    ) -> Result<Option<String>, String> {
-        if index.groups.is_none() {
-            let groups: Vec<KcNamed> = self
-                .get(token, "/groups?briefRepresentation=true&max=1000")
-                .await?;
-            index.groups = Some(groups.into_iter().map(|g| (g.name, g.id)).collect());
-        }
-        Ok(index
-            .groups
-            .as_ref()
-            .and_then(|groups| groups.get(name))
-            .cloned())
-    }
-
-    /// The id of the realm's user of this e-mail or username; `None` before their first login.
-    async fn user_id(
-        &self,
-        token: &str,
-        index: &mut RealmIndex,
-        user: &str,
-    ) -> Result<Option<String>, String> {
-        if let Some(known) = index.users.get(user) {
-            return Ok(known.clone());
-        }
-        let field = if user.contains('@') {
-            "email"
-        } else {
-            "username"
-        };
-        let found: Vec<KcUserRef> = self
-            .get(
+    /// The realm's client of one id, or `None`.
+    pub(crate) async fn find(&self, token: &str, id: &str) -> Result<Option<Value>, String> {
+        let found = self
+            .send(
                 token,
-                &format!(
-                    "/users?exact=true&{field}={}",
-                    super::groups::urlencoding(user)
-                ),
+                reqwest::Method::GET,
+                &format!("/clients?clientId={id}"),
+                None,
             )
-            .await?;
-        let id = found.into_iter().find(|u| u.is(user)).map(|u| u.id);
-        index.users.insert(user.to_owned(), id.clone());
-        Ok(id)
+            .await?
+            .unwrap_or(Value::Null);
+        Ok(found.as_array().and_then(|list| list.first()).cloned())
     }
 
-    /// The App's roles, who holds each, and its audiences, brought to the manifest (AP-113).
-    /// What the realm held and the manifest does not say goes, and is reported as drift.
-    async fn converge_grants(
+    /// The client's audience mappers brought to `audiences`: a missing one is added, a changed
+    /// one written back, and one this platform wrote for an audience no longer named removed.
+    /// `owner` names what decides the audiences in the drift report, "the App" or "the account".
+    pub(crate) async fn converge_audiences(
         &self,
         token: &str,
         uuid: &str,
-        spec: &AppSpec,
         audiences: &[String],
-        index: &mut RealmIndex,
+        owner: &str,
         outcome: &mut ClientOutcome,
     ) -> Result<(), String> {
         use reqwest::Method;
         let client = format!("/clients/{uuid}");
-        let wanted = holders(spec);
-
-        let mut held: Vec<KcNamed> = self.get(token, &format!("{client}/roles")).await?;
-        for role in held.iter().filter(|role| !wanted.contains_key(&role.name)) {
-            self.send(
-                token,
-                Method::DELETE,
-                &format!("{client}/roles/{}", role.name),
-                None,
-            )
-            .await?;
-            outcome.drift.push(format!(
-                "the client held the role {}, which the App does not declare; it was removed",
-                role.name
-            ));
-        }
-        let missing: Vec<&String> = wanted
-            .keys()
-            .filter(|name| !held.iter().any(|role| &role.name == *name))
-            .collect();
-        for name in &missing {
-            self.send(
-                token,
-                Method::POST,
-                &format!("{client}/roles"),
-                Some(&json!({ "name": name })),
-            )
-            .await?;
-        }
-        if !missing.is_empty() {
-            held = self.get(token, &format!("{client}/roles")).await?;
-        }
-
-        for (name, subjects) in &wanted {
-            let role = held
-                .iter()
-                .find(|role| &role.name == name)
-                .ok_or_else(|| format!("the role {name} was created and cannot be read back"))?;
-            let mapping = json!([{ "id": role.id, "name": role.name }]);
-
-            let groups: Vec<KcNamed> = self
-                .get(
-                    token,
-                    &format!("{client}/roles/{name}/groups?briefRepresentation=true&max=1000"),
-                )
-                .await?;
-            let users: Vec<KcUserRef> = self
-                .get(token, &format!("{client}/roles/{name}/users?max=1000"))
-                .await?;
-            for group in &groups {
-                if !subjects.contains(&Holder::Group(group.name.clone())) {
-                    self.send(
-                        token,
-                        Method::DELETE,
-                        &format!("/groups/{}/role-mappings/clients/{uuid}", group.id),
-                        Some(&mapping),
-                    )
-                    .await?;
-                    outcome.drift.push(format!(
-                        "the group {} held the role {name} and the App does not give it; the mapping was removed",
-                        group.name
-                    ));
-                }
-            }
-            for user in &users {
-                let named = subjects
-                    .iter()
-                    .any(|holder| matches!(holder, Holder::User(u) if user.is(u)));
-                if !named {
-                    self.send(
-                        token,
-                        Method::DELETE,
-                        &format!("/users/{}/role-mappings/clients/{uuid}", user.id),
-                        Some(&mapping),
-                    )
-                    .await?;
-                    outcome.drift.push(format!(
-                        "the user {} held the role {name} and the App does not give it; the mapping was removed",
-                        user.email.as_deref().unwrap_or(&user.username)
-                    ));
-                }
-            }
-            for holder in subjects {
-                let (path, id) = match holder {
-                    Holder::Group(group) => {
-                        if groups.iter().any(|g| &g.name == group) {
-                            continue;
-                        }
-                        ("groups", self.group_id(token, index, group).await?)
-                    }
-                    Holder::User(user) => {
-                        if users.iter().any(|u| u.is(user)) {
-                            continue;
-                        }
-                        ("users", self.user_id(token, index, user).await?)
-                    }
-                };
-                match id {
-                    Some(id) => {
-                        self.send(
-                            token,
-                            Method::POST,
-                            &format!("/{path}/{id}/role-mappings/clients/{uuid}"),
-                            Some(&mapping),
-                        )
-                        .await?;
-                    }
-                    None => outcome.warnings.push(format!(
-                        "the realm has no {holder} yet, so the role {name} is mapped once it does"
-                    )),
-                }
-            }
-        }
-
+        // The client's mappers are the audiences its owner names and nothing else (T-2857): FGAP bounds
+        // which clients may be managed, never what a mapper writes into a token, so a hardcoded
+        // claim, role or audience added by hand or through a leaked credential would mint tokens
+        // its owner never asked for. Every other mapper goes first, so a foreign one that took one
+        // of the wanted names cannot block writing ours.
         let mappers: Vec<Value> = self
             .get(token, &format!("{client}/protocol-mappers/models"))
             .await?;
-        let ours = |mapper: &&Value| {
-            mapper["protocolMapper"] == "oidc-audience-mapper"
-                && mapper["name"]
-                    .as_str()
-                    .is_some_and(|name| name.starts_with(AUDIENCE_MAPPER))
-        };
+        let (ours, others): (Vec<&Value>, Vec<&Value>) = mappers
+            .iter()
+            .partition(|mapper| allowed_mapper(mapper, audiences));
+        for mapper in others {
+            let Some(id) = mapper["id"].as_str() else {
+                return Err(format!(
+                    "the {} has no id, so it cannot be removed",
+                    mapper_label(mapper)
+                ));
+            };
+            self.send(
+                token,
+                Method::DELETE,
+                &format!("{client}/protocol-mappers/models/{id}"),
+                None,
+            )
+            .await?;
+            let name = mapper["name"].as_str().unwrap_or_default();
+            if mapper["protocolMapper"] == "oidc-audience-mapper"
+                && name.starts_with(AUDIENCE_MAPPER)
+            {
+                outcome.drift.push(format!(
+                    "the client put the audience {} in its tokens, which {owner} does not read; the mapper was removed",
+                    name.trim_start_matches(AUDIENCE_MAPPER)
+                ));
+            } else {
+                let label = mapper_label(mapper);
+                outcome.drift.push(format!(
+                    "the {label}, which {owner} does not declare, was removed"
+                ));
+                outcome.removed_mappers.push(label);
+            }
+        }
         for audience in audiences {
             let want = audience_mapper(audience);
-            match mappers
-                .iter()
-                .filter(ours)
-                .find(|m| m["name"] == want["name"])
-            {
+            match ours.iter().find(|m| m["name"] == want["name"]) {
                 None => {
                     self.send(
                         token,
@@ -638,48 +540,234 @@ impl AppClientSync {
                 }
             }
         }
-        for mapper in mappers.iter().filter(ours) {
-            let name = mapper["name"].as_str().unwrap_or_default();
-            if audiences
-                .iter()
-                .any(|a| name == format!("{AUDIENCE_MAPPER}{a}"))
-            {
-                continue;
-            }
-            let Some(id) = mapper["id"].as_str() else {
-                continue;
-            };
-            self.send(
-                token,
-                Method::DELETE,
-                &format!("{client}/protocol-mappers/models/{id}"),
-                None,
-            )
-            .await?;
-            outcome.drift.push(format!(
-                "the client put the audience {} in its tokens, which the App does not read; the mapper was removed",
-                name.trim_start_matches(AUDIENCE_MAPPER)
-            ));
-        }
         Ok(())
     }
+}
 
-    /// The realm's client of one id, or `None`.
-    async fn find(&self, token: &str, id: &str) -> Result<Option<Value>, String> {
-        let found = self
-            .send(
+/// The realm's app clients, as the reconciler's own client may write them.
+pub struct AppClientSync {
+    admin: Admin,
+    /// The apex the apps are served on.
+    host: String,
+    /// Where a run records the `app-*` clients it may not write, for the write doors (AP-114).
+    foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
+}
+
+impl AppClientSync {
+    /// Makes each run record the realm's unmanaged `app-*` clients where the write doors read
+    /// them.
+    pub fn with_foreign(mut self, foreign: std::sync::Arc<super::foreign::ForeignNames>) -> Self {
+        self.foreign = Some(foreign);
+        self
+    }
+
+    /// `None` when the issuer is not a realm URL, because then there is nothing to manage.
+    pub fn new(
+        issuer: &str,
+        client_id: String,
+        client_secret: String,
+        host: String,
+    ) -> Option<Self> {
+        Some(Self {
+            admin: Admin::new(issuer, client_id, client_secret)?,
+            host,
+            foreign: None,
+        })
+    }
+
+    /// The id of the realm's group of this name; `None` while there is none.
+    async fn group_id(
+        &self,
+        token: &str,
+        index: &mut RealmIndex,
+        name: &str,
+    ) -> Result<Option<String>, String> {
+        if index.groups.is_none() {
+            let groups: Vec<KcNamed> = self
+                .admin
+                .get(token, "/groups?briefRepresentation=true&max=1000")
+                .await?;
+            index.groups = Some(groups.into_iter().map(|g| (g.name, g.id)).collect());
+        }
+        Ok(index
+            .groups
+            .as_ref()
+            .and_then(|groups| groups.get(name))
+            .cloned())
+    }
+
+    /// The id of the realm's user of this e-mail or username; `None` before their first login.
+    async fn user_id(
+        &self,
+        token: &str,
+        index: &mut RealmIndex,
+        user: &str,
+    ) -> Result<Option<String>, String> {
+        if let Some(known) = index.users.get(user) {
+            return Ok(known.clone());
+        }
+        let field = if user.contains('@') {
+            "email"
+        } else {
+            "username"
+        };
+        let found: Vec<KcUserRef> = self
+            .admin
+            .get(
                 token,
-                reqwest::Method::GET,
-                &format!("/clients?clientId={id}"),
-                None,
+                &format!(
+                    "/users?exact=true&{field}={}",
+                    super::groups::urlencoding(user)
+                ),
             )
-            .await?
-            .unwrap_or(Value::Null);
-        Ok(found.as_array().and_then(|list| list.first()).cloned())
+            .await?;
+        let id = found.into_iter().find(|u| u.is(user)).map(|u| u.id);
+        index.users.insert(user.to_owned(), id.clone());
+        Ok(id)
+    }
+
+    /// The App's roles, who holds each, and its audiences, brought to the manifest (AP-113).
+    /// What the realm held and the manifest does not say goes, and is reported as drift.
+    async fn converge_grants(
+        &self,
+        token: &str,
+        uuid: &str,
+        spec: &AppSpec,
+        audiences: &[String],
+        index: &mut RealmIndex,
+        outcome: &mut ClientOutcome,
+    ) -> Result<(), String> {
+        use reqwest::Method;
+        let client = format!("/clients/{uuid}");
+        let wanted = holders(spec);
+
+        let mut held: Vec<KcNamed> = self.admin.get(token, &format!("{client}/roles")).await?;
+        for role in held.iter().filter(|role| !wanted.contains_key(&role.name)) {
+            self.admin
+                .send(
+                    token,
+                    Method::DELETE,
+                    &format!("{client}/roles/{}", role.name),
+                    None,
+                )
+                .await?;
+            outcome.drift.push(format!(
+                "the client held the role {}, which the App does not declare; it was removed",
+                role.name
+            ));
+        }
+        let missing: Vec<&String> = wanted
+            .keys()
+            .filter(|name| !held.iter().any(|role| &role.name == *name))
+            .collect();
+        for name in &missing {
+            self.admin
+                .send(
+                    token,
+                    Method::POST,
+                    &format!("{client}/roles"),
+                    Some(&json!({ "name": name })),
+                )
+                .await?;
+        }
+        if !missing.is_empty() {
+            held = self.admin.get(token, &format!("{client}/roles")).await?;
+        }
+
+        for (name, subjects) in &wanted {
+            let role = held
+                .iter()
+                .find(|role| &role.name == name)
+                .ok_or_else(|| format!("the role {name} was created and cannot be read back"))?;
+            let mapping = json!([{ "id": role.id, "name": role.name }]);
+
+            let groups: Vec<KcNamed> = self
+                .admin
+                .get(
+                    token,
+                    &format!("{client}/roles/{name}/groups?briefRepresentation=true&max=1000"),
+                )
+                .await?;
+            let users: Vec<KcUserRef> = self
+                .admin
+                .get(token, &format!("{client}/roles/{name}/users?max=1000"))
+                .await?;
+            for group in &groups {
+                if !subjects.contains(&Holder::Group(group.name.clone())) {
+                    self.admin
+                        .send(
+                            token,
+                            Method::DELETE,
+                            &format!("/groups/{}/role-mappings/clients/{uuid}", group.id),
+                            Some(&mapping),
+                        )
+                        .await?;
+                    outcome.drift.push(format!(
+                        "the group {} held the role {name} and the App does not give it; the mapping was removed",
+                        group.name
+                    ));
+                }
+            }
+            for user in &users {
+                let named = subjects
+                    .iter()
+                    .any(|holder| matches!(holder, Holder::User(u) if user.is(u)));
+                if !named {
+                    self.admin
+                        .send(
+                            token,
+                            Method::DELETE,
+                            &format!("/users/{}/role-mappings/clients/{uuid}", user.id),
+                            Some(&mapping),
+                        )
+                        .await?;
+                    outcome.drift.push(format!(
+                        "the user {} held the role {name} and the App does not give it; the mapping was removed",
+                        user.email.as_deref().unwrap_or(&user.username)
+                    ));
+                }
+            }
+            for holder in subjects {
+                let (path, id) = match holder {
+                    Holder::Group(group) => {
+                        if groups.iter().any(|g| &g.name == group) {
+                            continue;
+                        }
+                        ("groups", self.group_id(token, index, group).await?)
+                    }
+                    Holder::User(user) => {
+                        if users.iter().any(|u| u.is(user)) {
+                            continue;
+                        }
+                        ("users", self.user_id(token, index, user).await?)
+                    }
+                };
+                match id {
+                    Some(id) => {
+                        self.admin
+                            .send(
+                                token,
+                                Method::POST,
+                                &format!("/{path}/{id}/role-mappings/clients/{uuid}"),
+                                Some(&mapping),
+                            )
+                            .await?;
+                    }
+                    None => outcome.warnings.push(format!(
+                        "the realm has no {holder} yet, so the role {name} is mapped once it does"
+                    )),
+                }
+            }
+        }
+
+        self.admin
+            .converge_audiences(token, uuid, audiences, "the App", outcome)
+            .await
     }
 
     async fn secret(&self, token: &str, uuid: &str) -> Result<ClientSecret, String> {
         let value = self
+            .admin
             .send(
                 token,
                 reqwest::Method::GET,
@@ -700,7 +788,7 @@ impl AppClientSync {
     /// no published App names, and answers the outcomes and the secrets.
     pub async fn converge(&self, mirror: &Mirror) -> ClientRun {
         let mut run = ClientRun::default();
-        let token = match self.token().await {
+        let token = match self.admin.token().await {
             Ok(token) => token,
             Err(err) => {
                 let mut outcome = ClientOutcome::of("*");
@@ -735,6 +823,7 @@ impl AppClientSync {
 
         // A managed app client no published App names is this wave's to remove (AP-111).
         match self
+            .admin
             .send(
                 &token,
                 reqwest::Method::GET,
@@ -774,6 +863,7 @@ impl AppClientSync {
                     let mut outcome = ClientOutcome::of(app);
                     match client.get("id").and_then(Value::as_str) {
                         Some(uuid) => match self
+                            .admin
                             .send(
                                 &token,
                                 reqwest::Method::DELETE,
@@ -816,7 +906,7 @@ impl AppClientSync {
         let id = client_id(&app.name);
         let want = desired(&app.project, &app.name, &app.title, &self.host);
 
-        let held = match self.find(token, &id).await {
+        let held = match self.admin.find(token, &id).await {
             Ok(held) => held,
             Err(err) => {
                 outcome.error = Some(err);
@@ -840,6 +930,7 @@ impl AppClientSync {
                 let found = drift(&want, &client);
                 if !found.is_empty() {
                     if let Err(err) = self
+                        .admin
                         .send(
                             token,
                             reqwest::Method::PUT,
@@ -857,13 +948,14 @@ impl AppClientSync {
             }
             None => {
                 if let Err(err) = self
+                    .admin
                     .send(token, reqwest::Method::POST, "/clients", Some(&want))
                     .await
                 {
                     outcome.error = Some(err);
                     return (outcome, None);
                 }
-                match self.find(token, &id).await {
+                match self.admin.find(token, &id).await {
                     Ok(Some(client)) => match client.get("id").and_then(Value::as_str) {
                         Some(uuid) => uuid.to_owned(),
                         None => {
@@ -902,6 +994,38 @@ impl AppClientSync {
                 (outcome, None)
             }
         }
+    }
+}
+
+/// The mappers a run removed, on the App itself (T-2857): a condition `ClientSynced` with the
+/// reason `MapperRemoved` naming each by type and name, so the owner sees that something wrote
+/// into the App's client and what it was. The App's other conditions stay as they are.
+pub fn record(mirror: &Mirror, outcomes: &[ClientOutcome]) {
+    for outcome in outcomes {
+        if outcome.removed_mappers.is_empty() {
+            continue;
+        }
+        let Some(mut envelope) =
+            mirror.find(|env| env.kind == "App" && env.metadata.name == outcome.app)
+        else {
+            continue;
+        };
+        let Some(status) = envelope.status.as_mut() else {
+            continue;
+        };
+        status
+            .conditions
+            .retain(|condition| condition.r#type != "ClientSynced");
+        status.conditions.push(super::streams::make_condition(
+            "ClientSynced",
+            "True",
+            "MapperRemoved",
+            &format!(
+                "removed from the App's login client: {}",
+                outcome.removed_mappers.join("; ")
+            ),
+        ));
+        mirror.upsert(envelope);
     }
 }
 
@@ -944,12 +1068,21 @@ mod tests {
     }
 
     #[test]
-    fn the_client_redirects_only_under_its_own_path_and_has_no_other_flow() {
+    fn the_client_redirects_only_to_its_own_host_and_has_no_other_flow() {
         let want = desired("helsinki", "bikes", "Bikes", "city.example");
         assert_eq!(want["clientId"], "app-bikes");
+        // Its own host alone (AP-133): not the apex, not another App's host.
         assert_eq!(
             want["redirectUris"],
-            json!(["https://city.example/apps/bikes/*"])
+            json!(["https://bikes.apps.city.example/*"])
+        );
+        assert_eq!(
+            want["attributes"]["post.logout.redirect.uris"],
+            "https://bikes.apps.city.example/*"
+        );
+        assert_eq!(
+            want["webOrigins"],
+            json!(["https://bikes.apps.city.example"])
         );
         assert_eq!(want["directAccessGrantsEnabled"], false);
         assert_eq!(want["serviceAccountsEnabled"], false);

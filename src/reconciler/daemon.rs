@@ -110,6 +110,8 @@ pub struct Syncer {
     registrations: Option<Arc<super::registrations::RegistrationSync>>,
     /// The seed-entity drift scan and what its last run found (CC-21, UI-25, UI-26).
     drift: Option<(Arc<super::drift::Watch>, Arc<super::drift::Store>)>,
+    /// The daily data-quality run (DM-74); the leader starts it when it is due.
+    quality: Option<Arc<crate::quality::Scanner>>,
     subscriptions: Option<Arc<super::subscriptions::SubscriptionSync>>,
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
     /// and served, and the realm is written by nobody (PF-63).
@@ -124,6 +126,9 @@ pub struct Syncer {
     /// what the edge file is composed with (AP-112). Never logged.
     app_client_secrets:
         Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>>,
+    /// The federated client of every ServiceAccount bound to a workload (PF-47). `None` without
+    /// a login client: such an account then has no client, and its workload no identity.
+    workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
     /// The APISIX file the edge serves, composed from helm's base and every published App's
     /// routes (ADR-N-030, AP-112), with the settings that say where each App runs. `None`
     /// outside a cluster: the edge then serves helm's base alone.
@@ -131,6 +136,9 @@ pub struct Syncer {
         Arc<super::edge_file::EdgeFile>,
         crate::apps::reconciler::Settings,
     )>,
+    /// The certificate and edge Ingress of every published App's host (ADR-N-037, AP-133).
+    /// `None` outside a cluster.
+    app_hosts: Option<Arc<super::app_hosts::AppHosts>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -187,12 +195,15 @@ impl Syncer {
             streams: None,
             registrations: None,
             drift: None,
+            quality: None,
             subscriptions: None,
             groups: None,
             people: None,
             app_clients: None,
             app_client_secrets: Arc::default(),
+            workload_clients: None,
             edge_file: None,
+            app_hosts: None,
             activity: None,
             apps_cache_dir: None,
             artifact_store: None,
@@ -301,6 +312,15 @@ impl Syncer {
         self
     }
 
+    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
+    pub fn with_workload_clients(
+        mut self,
+        clients: Arc<super::workload_clients::WorkloadClientSync>,
+    ) -> Self {
+        self.workload_clients = Some(clients);
+        self
+    }
+
     /// Makes each run write the edge's APISIX file with every published App's routes (AP-112).
     pub fn with_edge_file(
         mut self,
@@ -308,6 +328,12 @@ impl Syncer {
         settings: crate::apps::reconciler::Settings,
     ) -> Self {
         self.edge_file = Some((edge_file, settings));
+        self
+    }
+
+    /// Makes each run give every published App's host its certificate and Ingress (AP-133).
+    pub fn with_app_hosts(mut self, hosts: Arc<super::app_hosts::AppHosts>) -> Self {
+        self.app_hosts = Some(hosts);
         self
     }
 
@@ -351,6 +377,11 @@ impl Syncer {
 
     /// Makes each run compare the seed entities the repository declares against what the
     /// spaces hold, and keep the answer where the API reads it (CC-21).
+    pub fn with_quality(mut self, scanner: Arc<crate::quality::Scanner>) -> Self {
+        self.quality = Some(scanner);
+        self
+    }
+
     pub fn with_drift(
         mut self,
         watch: Arc<super::drift::Watch>,
@@ -894,114 +925,6 @@ impl Syncer {
             }
         }
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
-        //     validation stage of its space's model at the version the space pins now (PL-60).
-        if let Some(deployer) = self.streams.as_ref() {
-            if let Some(schemas) = deployer.model_schemas() {
-                schemas.replace(crate::pipeline_validation::load(
-                    &repository,
-                    scratch.path(),
-                ));
-            }
-            let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
-            // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
-            // stream, the Portal says Live, and the counters are the only witness (T-0914). One
-            // scrape per project with a Live stream, read for each of them.
-            let mut counters: BTreeMap<String, Option<String>> = BTreeMap::new();
-            for (ns, _, outcome) in &outcomes {
-                if matches!(outcome, StreamOutcome::Live) && !counters.contains_key(ns) {
-                    counters.insert(ns.clone(), deployer.metrics(ns).await);
-                }
-            }
-            for (ns, name, outcome) in outcomes {
-                let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
-                    continue;
-                };
-                let is_stream = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
-                    envelope.spec.clone(),
-                )
-                .map(|s| is_stream_pipeline(&s))
-                .unwrap_or(false);
-
-                match outcome {
-                    StreamOutcome::Live => {
-                        if let Some(status) = envelope.status.as_mut() {
-                            status.phase = crate::resource::Phase::Live;
-                            status.conditions = match counters
-                                .get(&ns)
-                                .and_then(Option::as_deref)
-                                .and_then(|body| failing(body, &name))
-                            {
-                                Some(said) => vec![make_condition(
-                                    "StreamWriting",
-                                    "False",
-                                    "NothingWritten",
-                                    &said,
-                                )],
-                                None => Vec::new(),
-                            };
-                        }
-                        fresh_mirror.upsert(envelope);
-                    }
-                    StreamOutcome::Error(err) => {
-                        if let Some(status) = envelope.status.as_mut() {
-                            status.phase = crate::resource::Phase::Error;
-                            status.conditions = vec![make_condition(
-                                "StreamDeployed",
-                                "False",
-                                "RunnerRefused",
-                                &err,
-                            )];
-                        }
-                        fresh_mirror.upsert(envelope);
-                    }
-                    StreamOutcome::Skipped(why) => {
-                        if is_stream {
-                            if let Some(status) = envelope.status.as_mut() {
-                                status.phase = crate::resource::Phase::Pending;
-                                let reason = if why.contains("quota") {
-                                    "QuotaExceeded"
-                                } else if why.contains("disabled") || why.contains("paused") {
-                                    "Paused"
-                                } else {
-                                    "Skipped"
-                                };
-                                status.conditions =
-                                    vec![make_condition("StreamDeployed", "False", reason, why)];
-                            }
-                            fresh_mirror.upsert(envelope);
-                        }
-                    }
-                }
-            }
-        } else {
-            mark_streams_pending(
-                &fresh_mirror,
-                "NoRunner",
-                "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
-            );
-        }
-
-        // A pipeline whose credential did not resolve says so last, over whatever the wave
-        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
-        // the missing reference is the reason the author can act on (T-0927, PL-15). The
-        // condition names the reference, never the value.
-        for ((namespace, name), reason) in &refused {
-            let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
-                continue;
-            };
-            if let Some(status) = envelope.status.as_mut() {
-                status.phase = crate::resource::Phase::Error;
-                status.conditions = vec![make_condition(
-                    "StreamDeployed",
-                    "False",
-                    "SecretUnresolved",
-                    reason,
-                )];
-            }
-            fresh_mirror.upsert(envelope);
-        }
-
         // 5b'. What every `Subscription` manifest declares, written into the space it names
         //      (T-0931, CC-72). The broker holds the effect, so the status of each manifest is
         //      where a person sees whether the declaration arrived.
@@ -1133,6 +1056,7 @@ impl Syncer {
         //     back replace the last run's, so a retired App's secret is gone with its client.
         if let Some(clients) = self.app_clients.as_ref() {
             let run = clients.converge(&fresh_mirror).await;
+            super::app_clients::record(&fresh_mirror, &run.outcomes);
             for outcome in &run.outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
@@ -1161,6 +1085,22 @@ impl Syncer {
             }
         }
 
+        // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
+        //      is read back: no secret opens such a client.
+        if let Some(clients) = self.workload_clients.as_ref() {
+            for outcome in clients.converge(&fresh_mirror).await {
+                match (&outcome.error, outcome.drift.is_empty()) {
+                    (Some(err), _) => {
+                        tracing::warn!(account = %outcome.app, error = %err, "workload client did not converge")
+                    }
+                    (None, false) => {
+                        tracing::info!(account = %outcome.app, drift = %outcome.drift.join("; "), "workload client brought back to the account")
+                    }
+                    (None, true) => {}
+                }
+            }
+        }
+
         // 5e. The file the edge serves: helm's base with the routes of every App whose client
         //     the step above has in place (ADR-N-030, AP-112). A failure leaves APISIX serving
         //     the last file it read.
@@ -1186,6 +1126,117 @@ impl Syncer {
                     tracing::warn!(%reason, "edge file not written")
                 }
             }
+        }
+
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
+        //     After the App clients and the edge file: a runner that cannot restart a stream
+        //     answers a PUT only at the timeout, and the edge's routes and protections must not
+        //     wait for that (T-2891).
+        if let Some(deployer) = self.streams.as_ref() {
+            if let Some(schemas) = deployer.model_schemas() {
+                schemas.replace(crate::pipeline_validation::load(
+                    &repository,
+                    scratch.path(),
+                ));
+            }
+            let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
+            // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
+            // stream, the Portal says Live, and the counters are the only witness (T-0914). One
+            // scrape per project with a Live stream, read for each of them.
+            let mut counters: BTreeMap<String, Option<String>> = BTreeMap::new();
+            for (ns, _, outcome) in &outcomes {
+                if matches!(outcome, StreamOutcome::Live) && !counters.contains_key(ns) {
+                    counters.insert(ns.clone(), deployer.metrics(ns).await);
+                }
+            }
+            for (ns, name, outcome) in outcomes {
+                let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
+                    continue;
+                };
+                let is_stream = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
+                    envelope.spec.clone(),
+                )
+                .map(|s| is_stream_pipeline(&s))
+                .unwrap_or(false);
+
+                match outcome {
+                    StreamOutcome::Live => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.phase = crate::resource::Phase::Live;
+                            status.conditions = match counters
+                                .get(&ns)
+                                .and_then(Option::as_deref)
+                                .and_then(|body| failing(body, &name))
+                            {
+                                Some(said) => vec![make_condition(
+                                    "StreamWriting",
+                                    "False",
+                                    "NothingWritten",
+                                    &said,
+                                )],
+                                None => Vec::new(),
+                            };
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
+                    StreamOutcome::Error(err) => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.phase = crate::resource::Phase::Error;
+                            status.conditions = vec![make_condition(
+                                "StreamDeployed",
+                                "False",
+                                "RunnerRefused",
+                                &err,
+                            )];
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
+                    StreamOutcome::Skipped(why) => {
+                        if is_stream {
+                            if let Some(status) = envelope.status.as_mut() {
+                                status.phase = crate::resource::Phase::Pending;
+                                let reason = if why.contains("quota") {
+                                    "QuotaExceeded"
+                                } else if why.contains("disabled") || why.contains("paused") {
+                                    "Paused"
+                                } else {
+                                    "Skipped"
+                                };
+                                status.conditions =
+                                    vec![make_condition("StreamDeployed", "False", reason, why)];
+                            }
+                            fresh_mirror.upsert(envelope);
+                        }
+                    }
+                }
+            }
+        } else {
+            mark_streams_pending(
+                &fresh_mirror,
+                "NoRunner",
+                "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
+            );
+        }
+
+        // A pipeline whose credential did not resolve says so last, over whatever the wave
+        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
+        // the missing reference is the reason the author can act on (T-0927, PL-15). The
+        // condition names the reference, never the value.
+        for ((namespace, name), reason) in &refused {
+            let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
+                continue;
+            };
+            if let Some(status) = envelope.status.as_mut() {
+                status.phase = crate::resource::Phase::Error;
+                status.conditions = vec![make_condition(
+                    "StreamDeployed",
+                    "False",
+                    "SecretUnresolved",
+                    reason,
+                )];
+            }
+            fresh_mirror.upsert(envelope);
         }
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
@@ -1227,6 +1278,52 @@ impl Syncer {
                     }
                     Err(err) => tracing::warn!(%app, error = %err, "app did not converge"),
                 }
+            }
+        }
+
+        // 6a. Every published App's host: its certificate, requested once, and its edge Ingress;
+        //     a retired App's are removed (ADR-N-037, AP-133). An App whose certificate is not
+        //     issued yet says so, and reads published only once it is.
+        if let (Some(hosts), Some((_, settings))) =
+            (self.app_hosts.as_ref(), self.edge_file.as_ref())
+        {
+            let published: std::collections::BTreeSet<String> = self
+                .mirror
+                .matching(|env| {
+                    env.kind == "App"
+                        && env
+                            .spec
+                            .get("lifecycle")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(jc_core::kinds::AppLifecycle::Published.as_str())
+                })
+                .into_iter()
+                .map(|env| env.metadata.name)
+                .collect();
+            for (name, state) in hosts.converge(&published, &settings.apex).await {
+                let (reason, message) = match state {
+                    super::app_hosts::HostState::Ready => continue,
+                    super::app_hosts::HostState::Pending(message) => {
+                        ("CertificatePending", message)
+                    }
+                    super::app_hosts::HostState::Failed(message) => ("HostRefused", message),
+                };
+                tracing::warn!(app = %name, %reason, %message, "the App's host is not served yet");
+                let Some(mut envelope) = self
+                    .mirror
+                    .find(|env| env.kind == "App" && env.metadata.name == name)
+                else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    status.conditions = vec![super::streams::make_condition(
+                        "Ready",
+                        "False",
+                        reason,
+                        &format!("the App's host has no certificate yet (AP-133): {message}"),
+                    )];
+                }
+                self.mirror.upsert(envelope);
             }
         }
 
@@ -1353,6 +1450,10 @@ impl Syncer {
                     // same thing, and the second must not look like the first on the page.
                     Err(err) => tracing::warn!(error = %err, "the drift scan did not complete"),
                 }
+            }
+            // 9. Data quality (DM-74): once a day, in the background; the sync never waits.
+            if let Some(scanner) = self.quality.as_ref() {
+                scanner.start_if_due();
             }
         }
 

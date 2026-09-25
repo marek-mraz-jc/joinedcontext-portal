@@ -24,7 +24,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { APPROVER, STEWARD, ask, proposedChange, reject, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, ask, hiddenSections, inHiddenSection, proposedChange, reject, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
 const SUFFIX = new Date().toISOString().slice(11, 19).replace(/:/g, "");
@@ -72,6 +72,8 @@ interface Create {
    * person is promised (AG-45).
    */
   handOver?: string;
+  /** The section the case works in, where the installation may hide it (T-2874). */
+  section?: string;
 }
 
 const CREATES: Create[] = [
@@ -108,13 +110,20 @@ const CREATES: Create[] = [
     what: "a dashboard",
     sentence: (name) => `Make a dashboard called ${name} showing the bikes of the helsinki space`,
     route: /\/projects\/helsinki\/dashboards/,
+    section: "dashboards",
   },
 ];
 
 for (const create of CREATES) {
   test(`the assistant opens the form for ${create.what}, filled from one sentence`, async ({
     browser,
+    request,
   }) => {
+    const hidden = await hiddenSections(request);
+    test.skip(
+      create.section !== undefined && inHiddenSection(`/projects/${PROJECT}/${create.section}`, hidden),
+      "the installation hides this section (T-2874)",
+    );
     // Starts away from every route under test: a start page that is already the target would let a
     // case pass on a request the assistant ignored (the space case did, on the first run).
     const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/activity?lang=en`);

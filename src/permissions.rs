@@ -202,6 +202,16 @@ impl Effective {
         if self.bootstrap {
             return Ok(());
         }
+        // An App that declares destinations on the internet lets data out as surely as a public
+        // one, so its approval is judged as a public App's: publisher or org-admin (AP-134,
+        // PF-71). The seeded steward's approve is constrained to a non-public visibility.
+        let egress_declared = kind == "App" && verb == Verb::Approve && declares_egress(target);
+        let judged_as_public = egress_declared.then(|| {
+            let mut judged = target.cloned().unwrap_or_default();
+            judged["spec"]["visibility"] = Value::from("public");
+            judged
+        });
+        let target = judged_as_public.as_ref().or(target);
         let space_of_target = target.and_then(space_ref);
         let mut violation: Option<String> = None;
         for grant in &self.grants {
@@ -243,6 +253,14 @@ impl Effective {
                     .to_owned(),
             ));
         }
+        if egress_declared {
+            return Err(ApiError::Denied(
+                "approving an App that declares spec.egress needs publisher, the role whose \
+                 approve is constrained to a public visibility; org-admin holds it too (AP-134, \
+                 PF-71)"
+                    .to_owned(),
+            ));
+        }
         if kind == "App"
             && verb == Verb::Approve
             && target
@@ -264,6 +282,14 @@ impl Effective {
             )
         })))
     }
+}
+
+/// Whether an App manifest declares a destination beyond its endpoint (AP-134).
+fn declares_egress(target: Option<&Value>) -> bool {
+    target
+        .and_then(|t| t.pointer("/spec/egress"))
+        .and_then(Value::as_array)
+        .is_some_and(|egress| !egress.is_empty())
 }
 
 /// Where a binding applies.
@@ -399,6 +425,16 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
     }
     grants.extend(account_grants(mirror, &organization, identity));
     grants
+}
+
+/// Whether one of a ServiceAccount's roles names a `Role` (§2a), so the account acts on the
+/// Portal and its client's tokens carry the Portal's audience (PF-47).
+pub(crate) fn account_holds_portal_role(mirror: &Mirror, spec: &ServiceAccountSpec) -> bool {
+    let organization = roles(mirror, ORG_NAMESPACE);
+    spec.roles.iter().any(|granted| {
+        Reach::of(&granted.scope)
+            .is_some_and(|reach| role_of(mirror, &organization, &reach, &granted.role).is_some())
+    })
 }
 
 /// The account a bearer token speaks for (PF-46, PF-49): its `azp` is the derived client id of

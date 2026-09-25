@@ -1243,6 +1243,20 @@ async fn approve_every_file(
         if access {
             crate::permissions::within_own_rights(state, identity, &manifest, "approver")?;
         }
+        // The bounds are the operator's and may have tightened since the proposal (PF-97).
+        crate::api::mutate::organization_within_bounds(
+            state,
+            &envelope.kind,
+            &envelope.spec,
+            ApiError::Conflict,
+        )?;
+        // And the public-app policy may have been set since (PF-103).
+        crate::api::mutate::public_app_allowed(
+            state,
+            envelope.metadata.namespace.as_deref().unwrap_or_default(),
+            &envelope,
+            ApiError::Conflict,
+        )?;
         lane = crate::api::import::riskiest(
             lane,
             change::classify(&envelope.kind, Operation::Create, &envelope.spec),
@@ -1405,7 +1419,8 @@ pub async fn approve_change_for(
 /// later" until it has; an approval that follows the proposal within seconds (the demo's, a
 /// script's, the build lane's) waits it out instead of failing. The forge refuses to merge a
 /// commit other than `head_sha`, and a branch that no longer merges into the base; both come back
-/// 409 and both mean the same thing to whoever approved (T-1683, CC-80).
+/// 409 and both mean the same thing to whoever approved (T-1683, CC-80). A branch another merge
+/// overtook is brought up to date first (PF-105, `bring_up_to_date`).
 async fn merge_when_ready(
     gitea: &GiteaClient,
     pr_number: u64,
@@ -1413,27 +1428,78 @@ async fn merge_when_ready(
     head_sha: &str,
     id: &str,
 ) -> Result<(), ApiError> {
+    let mut head = head_sha.to_owned();
     let mut attempt = 0;
     loop {
         match gitea
-            .merge(pr_number, MergeStyle::Squash, message, Some(head_sha))
+            .merge(pr_number, MergeStyle::Squash, message, Some(&head))
             .await
         {
+            Err(err) if behind_base(&err) && attempt < 15 => {
+                attempt += 1;
+                head = bring_up_to_date(gitea, pr_number, head_sha, id).await?;
+            }
             Err(GitError::Api { status: 405, .. }) if attempt < 15 => {
                 attempt += 1;
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-            Err(GitError::Conflict(_)) => {
-                return Err(ApiError::Conflict(format!(
-                    "change proposal '{id}' is not what it was when it was reviewed: its branch \
-                     has moved past the commit this approval read, or it no longer merges into \
-                     the base branch. Open the change again, read what it says now, and approve \
-                     that (PF-57)."
-                )))
-            }
+            Err(GitError::Conflict(_)) => return Err(moved_on(id)),
             other => return other.map_err(ApiError::from),
         }
     }
+}
+
+fn moved_on(id: &str) -> ApiError {
+    ApiError::Conflict(format!(
+        "change proposal '{id}' is not what it was when it was reviewed: its branch has moved \
+         past the commit this approval read, or it no longer merges into the base branch. Open \
+         the change again, read what it says now, and approve that (PF-57)."
+    ))
+}
+
+/// The forge's refusal of a branch that is behind its base (PF-105): a 405 like "not checked
+/// yet", told apart only by its message.
+fn behind_base(err: &GitError) -> bool {
+    matches!(err, GitError::Api { status: 405, message } if message.contains("behind the base branch"))
+}
+
+/// Merges `main` into a Change's branch that fell behind it, and answers the branch's new head
+/// (PF-105). The approval read the files at `approved`; it still covers the updated head only
+/// when every file the Change touches reads the same there, so a file `main` changed meanwhile
+/// sends the Change back to its reviewer, naming the file.
+async fn bring_up_to_date(
+    gitea: &GiteaClient,
+    pr_number: u64,
+    approved: &str,
+    id: &str,
+) -> Result<String, ApiError> {
+    match gitea.update_pull_request(pr_number).await {
+        Err(GitError::Conflict(_)) => return Err(moved_on(id)),
+        other => other?,
+    }
+    let pr = gitea.pull_request(pr_number).await?;
+    // The branch, not the pull request: the forge refreshes the pull's head in the background.
+    let head = gitea.branch_head(&pr.head_branch).await?;
+    let before: std::collections::HashMap<String, String> =
+        gitea.list_tree_blobs(approved).await?.into_iter().collect();
+    let after: std::collections::HashMap<String, String> =
+        gitea.list_tree_blobs(&head).await?.into_iter().collect();
+    let changed: Vec<String> = gitea
+        .pull_request_files(pr_number)
+        .await?
+        .into_iter()
+        .filter(|file| before.get(&file.path) != after.get(&file.path))
+        .map(|file| file.path)
+        .collect();
+    if !changed.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "change proposal '{id}' fell behind main, and main has changed {} since it was \
+             reviewed. Open the change again, read what it says now, and approve that (PF-57, \
+             PF-105).",
+            changed.join(", ")
+        )));
+    }
+    Ok(head)
 }
 
 /// The mirror catches up with `main` now rather than at the next poll, so what an approval merged
@@ -1467,33 +1533,49 @@ pub(crate) async fn approve_build(
     manifest_path: &str,
     change: Change,
 ) -> Change {
+    let message = format!(
+        "Merge change proposal {}: {}\n\nApproved by the Portal: the build lane's status.build, \
+         checked against the App's repository and published (AP-73, AP-104)",
+        change.metadata.name, pr.title
+    );
+    merge_if_only(state, gitea, pr, &[manifest_path], &message, change).await
+}
+
+/// Merges `pr` now, pinned to the commit the Portal wrote, when every file it changes is one of
+/// `paths` and none is deleted: the build lane's `status.build` (AP-104) and a green blueprint
+/// flow (CC-63, CC-65, AG-14) are merged by the Portal only while the merge request holds exactly
+/// what the Portal checked. A merge request with any other file, one whose files cannot be read,
+/// or one the forge will not merge comes back as the pending Change it was, waiting for a person.
+pub(crate) async fn merge_if_only(
+    state: &AppState,
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    paths: &[&str],
+    message: &str,
+    change: Change,
+) -> Change {
     let id = change.metadata.name.clone();
-    let only_the_manifest = match gitea.pull_request_files(pr.number).await {
+    let only_these = match gitea.pull_request_files(pr.number).await {
         Ok(files) => {
             !files.is_empty()
                 && files
                     .iter()
-                    .all(|file| file.path == manifest_path && !file.deleted)
+                    .all(|file| !file.deleted && paths.contains(&file.path.as_str()))
         }
         Err(err) => {
-            tracing::warn!(change = %id, error = %err, "the build's change waits for a person: its files could not be read");
+            tracing::warn!(change = %id, error = %err, "the change waits for a person: its files could not be read");
             return change;
         }
     };
-    if !only_the_manifest {
-        tracing::warn!(change = %id, path = %manifest_path, "the build's change carries more than the App's manifest and waits for a person (AP-73)");
+    if !only_these {
+        tracing::warn!(change = %id, "the change carries a file the Portal did not check and waits for a person");
         return change;
     }
-    let message = format!(
-        "Merge change proposal {id}: {}\n\nApproved by the Portal: the build lane's status.build, \
-         checked against the App's repository and published (AP-73, AP-104)",
-        pr.title
-    );
-    if let Err(err) = merge_when_ready(gitea, pr.number, &message, &pr.head_sha, &id).await {
-        tracing::warn!(change = %id, error = %err, "the build's change waits for a person: the forge did not merge it");
+    if let Err(err) = merge_when_ready(gitea, pr.number, message, &pr.head_sha, &id).await {
+        tracing::warn!(change = %id, error = %err, "the change waits for a person: the forge did not merge it");
         return change;
     }
-    tracing::info!(change = %id, "the Portal approved the build lane's change (AP-104)");
+    tracing::info!(change = %id, "the Portal merged the change as proposed");
     sync_soon(state);
     let mut change = change;
     change.status.phase = ChangePhase::Deploying;

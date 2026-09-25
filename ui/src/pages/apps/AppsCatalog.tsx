@@ -18,6 +18,7 @@ import { fromAppEnvelope, toAppEnvelope } from "./appForm";
 import type { AppForm } from "./appForm";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
+import { AppCheckChip, useAppChecks } from "./AppCheckChip";
 import { Icon } from "../../components/ui/icons";
 import { requestOpen } from "../../assistant/state";
 import { AppBuildState, runState, useAppBuild, useRebuild } from "./AppBuildPanel";
@@ -25,7 +26,8 @@ import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Alert, Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
+import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "../../components/ui";
+import { RecordLink } from "../../components/RecordLink";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 
@@ -68,6 +70,11 @@ export function openBlockedReason(app: Manifest, run: WorkflowRun | null, t: TFu
   if (lifecycle !== "published") {
     return t(`apps.openDisabled.${lifecycle === "preview" || lifecycle === "retired" ? lifecycle : "draft"}`);
   }
+  // Its own host answers once its certificate is issued (AP-133): until then there is nothing
+  // to open, and the reconciler says so on the App.
+  const host = (app.status?.conditions ?? []).find((condition) => condition.type === "Ready");
+  if (host?.status === "False" && host.reason === "CertificatePending") return t("apps.openDisabled.certificate");
+  if (host?.status === "False" && host.reason === "HostRefused") return t("apps.openDisabled.host");
   if (isServed(app)) return undefined;
   if (run && runState(run) === "building") return t("apps.openDisabled.building");
   if (run && runState(run) === "failed") return t("apps.openDisabled.failed");
@@ -239,6 +246,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
     refetchInterval: runId === null ? 15000 : false,
   });
   const endpointTitles = useEndpointTitles(project);
+  const appChecks = useAppChecks(project);
 
   const publish = useMutation({
     mutationFn: async ({ app, lifecycle }: { app: Manifest; lifecycle: Lifecycle }) => {
@@ -388,11 +396,18 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
             <li
               key={app.metadata.name}
               title={localized(app.metadata.description, i18n.language, "") || undefined}
-              className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-4 text-center hover:bg-surface-subtle"
+              onClick={recordCard.onClick}
+              onAuxClick={recordCard.onAuxClick}
+              className={`flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-4 text-center hover:bg-surface-subtle ${recordCard.className}`}
             >
               <AppIcon />
-              <h2 className="line-clamp-2 text-sm font-semibold">{title}</h2>
+              <h2 className="line-clamp-2 text-sm font-semibold">
+                <RecordLink project={project} plural="apps" name={app.metadata.name}>
+                  {title}
+                </RecordLink>
+              </h2>
               <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
+              {spec.lifecycle === "published" ? <AppCheckChip check={appChecks.get(app.metadata.name)} /> : null}
               {spec.visibility ? (
                 <p className="text-xs text-fg-muted">
                   {t("apps.visibility", { visibility: spec.visibility })}

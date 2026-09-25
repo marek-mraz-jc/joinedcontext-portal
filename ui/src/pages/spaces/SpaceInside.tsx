@@ -20,12 +20,14 @@ import {
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { enumsOfModel, useModelSource } from "../../components/entities/filters";
+import { enumsOfModel, relationsOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { SpaceDrift } from "./SpaceDrift";
+import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
   Badge,
@@ -35,6 +37,7 @@ import {
   Icon,
   PageFailed,
   PageHeader,
+  ResourcePageFailed,
   PageLoading,
   Select,
   Table,
@@ -303,6 +306,7 @@ function SpaceData({
     () => enumsOfModel(modelSource, type, i18n.language),
     [modelSource, type, i18n.language],
   );
+  const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -380,6 +384,7 @@ function SpaceData({
           config={config}
           source={source}
           enums={enums}
+          relations={relations}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}
@@ -594,11 +599,22 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   }
   if (space.isError) {
     return (
-      <PageFailed
+      <ResourcePageFailed
+        title={name}
+        description={t("spaces.lead")}
         error={space.error}
         onRetry={() => {
           void space.refetch();
         }}
+        back={
+          <Link
+            to="/projects/$project/$plural"
+            params={{ project, plural: "spaces" }}
+            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
+          >
+            {t("spaces.inside.back")}
+          </Link>
+        }
       />
     );
   }
@@ -698,6 +714,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.inside.data")}>
         <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} />
+      </Section>
+
+      <Section title={t("spaces.quality.title")}>
+        <SpaceQuality project={project} space={name} />
+      </Section>
+
+      <Section title={t("drift.section.title")}>
+        <SpaceDrift project={project} space={name} />
       </Section>
 
       <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>

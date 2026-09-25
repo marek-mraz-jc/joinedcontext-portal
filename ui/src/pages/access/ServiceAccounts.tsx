@@ -7,6 +7,7 @@ import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from 
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
+import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { useCreateForm } from "../../components/forms/FormRoute";
@@ -41,6 +42,32 @@ import type { components } from "../../api/schema";
 
 type KeyInfo = components["schemas"]["KeyInfo"];
 type MintedKey = components["schemas"]["MintedKey"];
+type KeyClaim = components["schemas"]["KeyClaim"];
+
+/** A key an MCP client asked for, as its link names it: `?account=…&claim=…` (PF-104). */
+interface HandedClaim {
+  account: string;
+  claim: string;
+}
+
+/** The claim the address hands the page, read once as the page mounts. */
+function handedClaim(): HandedClaim | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const search = new URLSearchParams(window.location.search);
+  const account = search.get("account");
+  const claim = search.get("claim");
+  return account && claim ? { account, claim } : null;
+}
+
+/** Drops the claim from the address, so a reload or a shared link does not open it again. */
+function forgetHandedClaim(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("account");
+  url.searchParams.delete("claim");
+  window.history.replaceState(window.history.state, "", url);
+}
 
 interface Credential {
   kind?: string;
@@ -246,6 +273,126 @@ function TokenDialog({
             </Button>
           </div>
         </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * A key an MCP client asked for (PF-104). The client was answered this link and never the token:
+ * the person who asked sees here what the claim will do, and only their confirmation mints the
+ * key, which the token dialog then shows once. A claim that is not theirs, has expired or was
+ * used answers 404, and the dialog says to ask again.
+ */
+function KeyClaimDialog({
+  project,
+  handed,
+  onMinted,
+  onClose,
+}: {
+  project: string;
+  handed: HandedClaim;
+  onMinted: (minted: MintedKey) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const queryClient = useQueryClient();
+  const path = { project, name: handed.account, claimId: handed.claim };
+
+  const claim = useQuery({
+    queryKey: [...queryKeys.resource(project, "serviceaccounts", handed.account), "claims", handed.claim],
+    retry: false,
+    queryFn: async (): Promise<KeyClaim> =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}", {
+          params: { path },
+        }),
+      ),
+  });
+
+  const use = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST("/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}", {
+          params: { path },
+        }),
+      ),
+    onSuccess: (minted) => {
+      void queryClient.invalidateQueries({
+        queryKey: [...queryKeys.resource(project, "serviceaccounts", handed.account), "keys"],
+      });
+      onClose();
+      onMinted(minted);
+    },
+  });
+
+  const problem = (err: unknown): string =>
+    err instanceof ApiError ? (err.problem?.detail ?? err.message) : t("app.error.generic");
+  const gone = claim.error instanceof ApiError && claim.error.status === 404;
+  const asked = claim.data;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+      title={t("access.keys.claim.title")}
+      description={t("access.keys.claim.hint")}
+      closeLabel={t("access.keys.claim.cancel")}
+      footer={
+        asked ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              {t("access.keys.claim.cancel")}
+            </Button>
+            <Button variant="primary" loading={use.isPending} onClick={() => use.mutate()}>
+              {asked.action === "rotate" ? t("access.keys.claim.confirmRotate") : t("access.keys.claim.confirmMint")}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={onClose}>{t("access.keys.done")}</Button>
+        )
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {claim.isPending ? <Skeleton className="h-12" /> : null}
+        {claim.isError ? (
+          <Alert role="alert" tone="danger">
+            {gone ? t("access.keys.claim.gone") : problem(claim.error)}
+          </Alert>
+        ) : null}
+        {asked ? (
+          <>
+            <p className="text-body">
+              {asked.action === "rotate"
+                ? t("access.keys.claim.rotate", {
+                    keyId: asked.keyId ?? "",
+                    account: asked.account,
+                    hours: asked.overlapHours ?? 24,
+                  })
+                : t("access.keys.claim.mint", { credential: asked.credential, account: asked.account })}
+            </p>
+            {asked.keyExpiresAt ? (
+              <p className="text-body text-fg-muted">
+                {t("access.keys.claim.expires", { date: formatDate(asked.keyExpiresAt, locale) })}
+              </p>
+            ) : null}
+            <p className="text-caption text-fg-muted">
+              {t("access.keys.claim.until", {
+                time: new Date(asked.claim.expiresAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+              })}
+            </p>
+          </>
+        ) : null}
+        {use.isError ? (
+          <Alert role="alert" tone="danger">
+            {use.error instanceof ApiError && use.error.status === 404 ? t("access.keys.claim.gone") : problem(use.error)}
+          </Alert>
+        ) : null}
       </div>
     </Dialog>
   );
@@ -481,6 +628,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const [minted, setMinted] = useState<MintedKey | null>(null);
+  const [claim, setClaim] = useState<HandedClaim | null>(handedClaim);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useCreateForm();
   // A new account starts owned by the person creating it, which is who answers for it until
@@ -661,7 +809,9 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                 <Card>
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="font-medium text-fg">
-                      {localized(account.metadata.title, locale, account.metadata.name)}
+                      <FormRecordLink name={account.metadata.name}>
+                        {localized(account.metadata.title, locale, account.metadata.name)}
+                      </FormRecordLink>
                     </h3>
                     {account.metadata.title ? (
                       <span className="font-mono text-caption text-fg-muted">
@@ -671,6 +821,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                     <span className="flex items-center gap-1.5">
                       <EditResourceAction
                         target={accountTarget}
+                        addressed
                         form={{
                           schema,
                           uiSchema: serviceAccountUiSchema,
@@ -730,6 +881,17 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       )}
 
       <TokenDialog minted={minted} onClose={() => setMinted(null)} />
+      {claim ? (
+        <KeyClaimDialog
+          project={project}
+          handed={claim}
+          onMinted={setMinted}
+          onClose={() => {
+            forgetHandedClaim();
+            setClaim(null);
+          }}
+        />
+      ) : null}
 
       <ResourceFormDialog<ServiceAccountForm>
         kind="ServiceAccount"

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { draftState } from "../src/pages/apps/AppsCatalog";
+import { draftState, openBlockedReason } from "../src/pages/apps/AppsCatalog";
+import type { Manifest } from "../src/api/manifest";
 import { renderRoute } from "./pageHarness";
 
 const IDENTITY = {
@@ -57,6 +58,9 @@ const CHANGE = {
   status: { lane: "yellow", phase: "PendingApproval", plan: { update: 1 } },
 };
 
+/** What the App probe last said, per project (AP-136); each test starts with none. */
+let APP_CHECKS: unknown[] = [];
+
 /** What the dry run before a write answers: green unless a test asks for a red check (PF-57). */
 const GREEN = { valid: true, verdict: { ok: true, findings: [] } };
 
@@ -95,6 +99,9 @@ function renderCatalog(
       return build[1] in builds
         ? json(builds[build[1]])
         : json({ title: "Not Found", status: 404 }, 404);
+    }
+    if (path.endsWith("/app-checks")) {
+      return json({ checks: APP_CHECKS });
     }
     if (path.endsWith("/agent-runs") && request.method === "GET") {
       return json({ items: runs });
@@ -160,6 +167,7 @@ describe("apps catalog", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     window.history.pushState({}, "", "/projects/banskabystrica/apps");
+    APP_CHECKS = [];
   });
 
   afterEach(() => {
@@ -184,8 +192,26 @@ describe("apps catalog", () => {
 
   });
 
+  it("a published app carries the probe's verdict in words, a preview and an unchecked app none (AP-136)", async () => {
+    APP_CHECKS = [
+      { name: "hluk", state: "red", at: "2026-09-25T09:00:00Z", reason: "no row read in 60 s" },
+      { name: "mapa-ovzdusia", state: "green", at: "2026-09-25T09:00:00Z" },
+    ];
+    renderCatalog([
+      built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" })),
+      built(app({ name: "teploty", title: { en: "Temperatures" } }, { lifecycle: "published" })),
+      app(),
+    ]);
+    const noise = await cardOf("Noise");
+    expect(await within(noise).findByText(en.apps.check.red)).toBeInTheDocument();
+    expect(within(noise).getByText(/: no row read in 60 s$/)).toBeInTheDocument();
+    // A preview is not probed, whatever the probe said of its name; an app not yet checked shows nothing.
+    expect(within(await cardOf("Air quality map")).queryByText(en.apps.check.green)).toBeNull();
+    expect(within(await cardOf("Temperatures")).queryByText(/^Checked/)).toBeNull();
+  });
+
   // T-2618: the owner reads a card by its footer, so it is always the same two controls.
-  it("a served app's card has exactly one Open and one menu, nothing else (T-2618, AP-14)", async () => {
+  it("a served app's card has its title's link, one Open and one menu, nothing else (T-2618, T-2875, AP-14)", async () => {
     renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
 
     const card = await cardOf("Noise");
@@ -194,7 +220,9 @@ describe("apps catalog", () => {
     expect(open).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
     expect(open).not.toHaveAttribute("target");
     expect(within(card).getByRole("button", { name: more("Noise") })).toBeInTheDocument();
-    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(2);
+    // The title is the card's record link (T-2875): a click anywhere on the card opens the app's page.
+    expect(within(card).getByRole("link", { name: "Noise" })).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk");
+    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(3);
   });
 
   it("a preview keeps Open disabled with its reason, and its menu offers preview and publish (T-2618, UI-44)", async () => {
@@ -524,6 +552,25 @@ describe("apps catalog", () => {
   it("an empty catalogue says so instead of showing an empty grid", async () => {
     renderCatalog([]);
     expect(await screen.findByText(en.apps.empty)).toBeInTheDocument();
+  });
+
+  it("keeps a published App closed until its host has its certificate (AP-133, T-2838)", () => {
+    const t = i18n.getFixedT("en");
+    const app = (conditions: object[]): Manifest =>
+      ({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "App",
+        metadata: { name: "bikes", annotations: { "joinedcontext.com/shipped-with": "portal" } },
+        spec: { lifecycle: "published" },
+        status: { conditions },
+      }) as unknown as Manifest;
+    const ready = (status: string, reason: string) => [{ type: "Ready", status, reason }];
+    expect(openBlockedReason(app(ready("False", "CertificatePending")), null, t)).toBe(en.apps.openDisabled.certificate);
+    expect(openBlockedReason(app(ready("False", "HostRefused")), null, t)).toBe(en.apps.openDisabled.host);
+    // Issued, or no word yet, or another reason: the build decides, as before.
+    expect(openBlockedReason(app(ready("True", "CertificatePending")), null, t)).toBeUndefined();
+    expect(openBlockedReason(app([]), null, t)).toBeUndefined();
+    expect(openBlockedReason(app(ready("False", "BuildMissing")), null, t)).toBeUndefined();
   });
 
   it("draftState maps lifecycle statuses to draft categories (AP-70)", () => {

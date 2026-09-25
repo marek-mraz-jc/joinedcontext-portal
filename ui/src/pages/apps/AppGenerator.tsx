@@ -10,6 +10,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { fetchJson, publishedTypes } from "../endpoints/SchemaProjectionPanel";
 import type { PublishedType } from "../endpoints/SchemaProjectionPanel";
 import { EndpointPreview } from "./EndpointPreview";
+import { NewEndpointPanel } from "./NewEndpointPanel";
 import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
@@ -251,6 +252,8 @@ export function AppGenerator({
   /** Endpoints read beside the primary one, e.g. an indicator space's (AP-44). */
   const [extra, setExtra] = useState<string[]>(handed.slice(1));
   const [addingEndpoint, setAddingEndpoint] = useState(false);
+  /** "New endpoint" is open: proposed as its own Change, read once it is served (AP-132). */
+  const [creatingEndpoint, setCreatingEndpoint] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
   const [preset, setPreset] = useState<Preset>("read");
   /** Empty: everyone the app admits may write. A name: only that application role (AP-96). */
@@ -524,6 +527,36 @@ export function AppGenerator({
           ))}
         </Select>
         </Field>
+        {creatingEndpoint ? (
+          <NewEndpointPanel
+            project={project}
+            onCancel={() => setCreatingEndpoint(false)}
+            onLive={(created, wanted) => {
+              setCreatingEndpoint(false);
+              // Only the primary endpoint is written, so a write preset makes the new one primary
+              // and the one before it is read beside it. The access select still offers the
+              // preset only where the grant holds it (PF-70).
+              if (endpointName === "" || wanted !== "read") {
+                if (endpointName !== "") {
+                  setExtra((current) => [endpointName, ...current.filter((n) => n !== created)].slice(0, MAX_ENDPOINTS - 1));
+                  setAddingEndpoint(true);
+                }
+                setEndpointName(created);
+                setDropped([]);
+                setPreset(wanted);
+              } else {
+                setExtra((current) =>
+                  current.includes(created) || current.length + 1 >= MAX_ENDPOINTS ? current : [...current, created],
+                );
+                setAddingEndpoint(true);
+              }
+            }}
+          />
+        ) : (
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setCreatingEndpoint(true)}>
+            {t("apps.generate.newEndpoint.open")}
+          </Button>
+        )}
         {endpointName !== "" && choices.length > 1 && (
           <div className="mt-2">
             {!addingEndpoint && extra.length === 0 ? (
@@ -794,7 +827,7 @@ function NoBuilder(): JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="space-y-3">
-      <PageHeader title={t("apps.generate.title")} />
+      <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />
       <Alert tone="info">{t("apps.generate.noBuilder")}</Alert>
       <p className="text-sm">{t("apps.generate.examplesHint")}</p>
       <ul className="list-disc pl-5 text-sm">

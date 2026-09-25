@@ -617,8 +617,9 @@ async fn an_app_without_data_needs_is_served_as_built() {
     assert_eq!(body, INDEX);
 }
 
-/// One request for an app with the `Host` a browser sends, on a Portal whose apps live on
-/// `https://example.org` and whose own UI lives on `https://portal.example.org`.
+/// One request for an app with the `Host` a browser sends, on a Portal whose apps live under
+/// `https://example.org`, each on `{name}.apps.example.org`, and whose own UI lives on
+/// `https://portal.example.org`.
 async fn get_on_host(root: &std::path::Path, host: &str, uri: &str) -> axum::response::Response {
     let config = Config {
         apps_dir: Some(root.to_string_lossy().into_owned()),
@@ -645,7 +646,12 @@ async fn get_on_host(root: &std::path::Path, host: &str, uri: &str) -> axum::res
 #[tokio::test]
 async fn on_the_apps_origin_only_the_portal_frames_an_app() {
     let dir = app_root("framed", &[("index.html", INDEX)]);
-    let response = get_on_host(dir.path(), "example.org", "/apps/air-quality/").await;
+    let response = get_on_host(
+        dir.path(),
+        "air-quality.apps.example.org",
+        "/apps/air-quality/",
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::OK);
     let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
         .to_str()
@@ -670,11 +676,11 @@ async fn an_app_asked_for_on_the_portal_host_is_sent_to_the_apps_origin() {
     for (uri, location) in [
         (
             "/apps/air-quality/",
-            "https://example.org/apps/air-quality/",
+            "https://air-quality.apps.example.org/",
         ),
         (
             "/apps/air-quality/bundle.js?v=2",
-            "https://example.org/apps/air-quality/bundle.js?v=2",
+            "https://air-quality.apps.example.org/bundle.js?v=2",
         ),
     ] {
         let response = get_on_host(dir.path(), "portal.example.org", uri).await;
@@ -691,26 +697,45 @@ async fn an_app_asked_for_on_the_portal_host_is_sent_to_the_apps_origin() {
         );
     }
 
-    // Any host but the apps origin is the same refusal: a Host header is the caller's to set.
-    let response = get_on_host(dir.path(), "evil.example.net", "/apps/air-quality/").await;
-    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(
-        response.headers()[header::LOCATION],
-        "https://example.org/apps/air-quality/"
-    );
+    // Any host but the App's own is the same refusal: the apex, another App's host (whose page
+    // would then share this App's storage, AP-133), a look-alike. A Host header is the caller's
+    // to set, and the target is never read from it.
+    for host in [
+        "evil.example.net",
+        "example.org",
+        "hsl-transport.apps.example.org",
+        "air-quality.apps.example.org.evil.net",
+        "apps.example.org",
+    ] {
+        let response = get_on_host(dir.path(), host, "/apps/air-quality/").await;
+        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT, "{host}");
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            "https://air-quality.apps.example.org/",
+            "{host}"
+        );
+    }
 }
 
 #[tokio::test]
 async fn an_app_is_served_on_the_apps_origin() {
     let dir = app_root("apps-host", &[("index.html", INDEX)]);
 
-    for host in ["example.org", "EXAMPLE.org:443"] {
+    for host in [
+        "air-quality.apps.example.org",
+        "AIR-QUALITY.apps.EXAMPLE.org:443",
+    ] {
         let response = get_on_host(dir.path(), host, "/apps/air-quality/").await;
         assert_eq!(response.status(), StatusCode::OK, "{host}");
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body, INDEX);
     }
-    let response = get_on_host(dir.path(), "example.org:8443", "/apps/air-quality/").await;
+    let response = get_on_host(
+        dir.path(),
+        "air-quality.apps.example.org:8443",
+        "/apps/air-quality/",
+    )
+    .await;
     assert_eq!(
         response.status(),
         StatusCode::PERMANENT_REDIRECT,

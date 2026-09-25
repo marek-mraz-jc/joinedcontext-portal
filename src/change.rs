@@ -188,8 +188,8 @@ pub enum Operation {
 ///
 /// Precedence:
 /// - `Operation::Delete` is ALWAYS `Red`, without exception (CC-19, CC-39, PF-13).
-/// - `Endpoint` with `spec.audience == "public"` and `App` with `spec.visibility == "public"` are
-///   `Red` (public exposure, PF-72, AP-120).
+/// - `Endpoint` with `spec.audience == "public"`, and `App` with `spec.visibility == "public"` or a
+///   non-empty `spec.egress`, are `Red` (public exposure, PF-72, AP-120, AP-134).
 /// - Federation edges and data-space edges (`ContextSourceRegistration`, `SharedSpaceReference`,
 ///   `DataSpaceParticipant`, `DataOffer`, `DataAgreement`) are `Red`.
 /// - Identity and access kinds (`ServiceAccount`, `Role`, `RoleBinding`, `Group`, `Policy`,
@@ -208,8 +208,17 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
     if kind == "Endpoint" && spec.get("audience").and_then(|v| v.as_str()) == Some("public") {
         return Lane::Red;
     }
-    // An App anyone opens without a login is public exposure too (AP-120).
-    if kind == "App" && spec.get("visibility").and_then(|v| v.as_str()) == Some("public") {
+    // An App anyone opens without a login is public exposure too (AP-120), and so is one whose
+    // pod may send what it reads to a declared destination (AP-134).
+    // ponytail: every Change of an App that declares one is red, not only the one that adds or
+    // widens it; the lane sees the new spec alone.
+    if kind == "App"
+        && (spec.get("visibility").and_then(|v| v.as_str()) == Some("public")
+            || spec
+                .get("egress")
+                .and_then(|v| v.as_array())
+                .is_some_and(|egress| !egress.is_empty()))
+    {
         return Lane::Red;
     }
 
@@ -451,6 +460,26 @@ mod tests {
             ] {
                 assert_eq!(classify("App", op, &other), Lane::Yellow, "{other}");
             }
+        }
+    }
+
+    /// AP-134: an App whose pod may reach a declared destination takes the red lane; an empty
+    /// list is no destination.
+    #[test]
+    fn an_app_that_declares_egress_is_red() {
+        for op in [Operation::Create, Operation::Update] {
+            assert_eq!(
+                classify(
+                    "App",
+                    op,
+                    &json!({ "visibility": "project", "egress": [{ "cidr": "203.0.113.0/24", "ports": [443] }] })
+                ),
+                Lane::Red
+            );
+            assert_eq!(
+                classify("App", op, &json!({ "visibility": "project", "egress": [] })),
+                Lane::Yellow
+            );
         }
     }
 

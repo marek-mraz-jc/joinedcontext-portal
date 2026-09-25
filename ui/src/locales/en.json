@@ -143,7 +143,8 @@
     "entry": "Entry {number}",
     "dropOne": "Drop a file here or choose one",
     "dropMany": "Drop files here or choose them",
-    "chosenFiles": "Chosen: {names}"
+    "chosenFiles": "Chosen: {names}",
+    "advancedModeHint": "Also shows the fields most manifests leave at their defaults; the choice is remembered for you."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -202,7 +203,8 @@
       "pending": "Waits on {change}: approve that change first, then this one.",
       "merged": "{change}, which this change waits on, is merged.",
       "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
-    }
+    },
+    "back": "All approvals"
   },
   "lane": {
     "green": "Green",
@@ -217,6 +219,8 @@
     "draftHelp": "Not proposed yet, saved locally only.",
     "pendingApproval": "Pending approval",
     "pendingApprovalHelp": "Waiting for an approver to approve or reject it.",
+    "notDeployed": "Not deployed",
+    "notDeployedHelp": "Merged, but not running: a quota is used up, it is paused, or it is a kind the platform does not run. Its details say which.",
     "deploying": "Deploying",
     "deployingHelp": "Approved and merged; the reconciler is applying it.",
     "live": "Live",
@@ -312,7 +316,10 @@
     "button": "Edit",
     "action": "Edit {name}",
     "loading": "Reading {name}…",
-    "unreadable": "{name} could not be read."
+    "unreadable": "{name} could not be read.",
+    "viewTitle": "View {name}",
+    "readOnly": "Your role does not permit changing {kind} here, so this form is read only. An administrator of the project can grant it.",
+    "manifest": "The manifest of {name}"
   },
   "resourceList": {
     "name": "Name",
@@ -424,7 +431,41 @@
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first."
     },
-    "segment": "ids: {segment}"
+    "segment": "ids: {segment}",
+    "quality": {
+      "title": "Data quality",
+      "notYet": "Not checked yet: the platform checks this space's data once a day.",
+      "nothingToCheck": "No entities to check",
+      "valid": "{share} valid",
+      "rulesFailing": "{count, plural, =0 {no rule failing} one {# rule failing} other {# rules failing}}",
+      "allFresh": "fresh",
+      "stale": "{count, plural, one {# pipeline stale} other {# pipelines stale}}",
+      "checkedAt": "{count, plural, one {# entity} other {# entities}} checked {when}.",
+      "truncated": "Only the first 20,000 were read.",
+      "rulesCaption": "The rules the space's entities break",
+      "rule": "Rule",
+      "attribute": "Attribute",
+      "entities": "Entities",
+      "examples": "Examples",
+      "wholeEntity": "the entity itself",
+      "examplesHidden": "Only people who read the space's entities see which ones",
+      "freshnessCaption": "How recent each pipeline's data is",
+      "pipeline": "Pipeline",
+      "type": "Type",
+      "newest": "Newest",
+      "target": "Expected within",
+      "state": "State",
+      "anyType": "any type",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "paused": "Paused",
+      "states": {
+        "fresh": "Fresh",
+        "stale": "Stale",
+        "empty": "Empty",
+        "untargeted": "No target"
+      }
+    }
   },
   "endpoints": {
     "check": "Check",
@@ -567,7 +608,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "model source",
       "jsonSchema": "JSON Schema",
       "access": "access",
       "catalogue": "catalogue"
@@ -854,7 +895,8 @@
       "caCert": "Certificate authority reference",
       "secretName": "Secret name",
       "secretKey": "Key in the secret",
-      "input": "Input configuration"
+      "input": "Input configuration",
+      "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type."
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -992,7 +1034,8 @@
       "preset": {
         "title": "Preset",
         "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "kpi": "Analyse (KPI)",
+        "hint": "Load copies records from an external feed into a space; Analyse computes an indicator from what an endpoint already serves."
       },
       "kpi": {
         "title": "Analyse (KPI)",
@@ -1006,7 +1049,13 @@
         "test": "Test on the endpoint's page",
         "testing": "Testing…",
         "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
+        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute.",
+        "endpointHint": "The endpoint the indicator is computed from, read under its policy.",
+        "nameHint": "Lower-case letters, digits and hyphens; it names the indicator and its pipeline.",
+        "typeHint": "The entity type whose values are aggregated, one the endpoint's space models.",
+        "attributeHint": "The numeric attribute of that type the aggregate reads.",
+        "aggregateHint": "How the values of one period become one number.",
+        "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h."
       },
       "process": "3. Process",
       "processHint": "A snippet writes the Bloblang below; edit it afterwards or pick another compute kind in the form.",
@@ -1015,7 +1064,11 @@
         "sum": "Sum",
         "average": "Average",
         "count": "Count"
-      }
+      },
+      "sourceKindHint": "An external feed this project connects to, or a context space this project already fills.",
+      "dataSourceHint": "The feed's connection, as saved under Data sources; a new feed is added there first.",
+      "spaceHint": "The space the pipeline reads, through one of its endpoints and that endpoint's policy.",
+      "attributeHint": "The attribute the snippet below works on."
     },
     "test": {
       "title": "Try it on a sample",
@@ -1077,7 +1130,10 @@
       "addSource": "+ Source",
       "removeSource": "Remove source",
       "sourceReads": "This source reads",
-      "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step."
+      "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
+      "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
+      "moduleHint": "The path or package of the module the step runs.",
+      "functionHint": "The module's entry point the step calls for each record."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -1153,7 +1209,9 @@
         "pickType": "Choose a type",
         "file": "Choose a sample file",
         "fileTaken": "Sample: {name}",
-        "fileDrop": "Drop a CSV or JSON file, or choose one"
+        "fileDrop": "Drop a CSV or JSON file, or choose one",
+        "pickHint": "The records the pipeline reads: a data source or an endpoint of this project. A sample file below lets you try the mapping without either.",
+        "typeHint": "The entity type of the endpoint the pipeline reads; the sample shows its first records."
       },
       "sample": {
         "title": "Sample",
@@ -1178,7 +1236,8 @@
         "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
         "sourceUnit": "Source in another unit?",
         "sourceUnitOf": "Source unit of {slot}",
-        "addConversion": "Add to mapping"
+        "addConversion": "Add to mapping",
+        "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it."
       },
       "output": {
         "title": "Mapped output",
@@ -1391,6 +1450,18 @@
         "credential": "Credential",
         "expires": "Expires",
         "lastUsed": "Last used"
+      },
+      "claim": {
+        "title": "A key your MCP client asked for",
+        "hint": "Confirm it here to see the key. Your MCP client was not given it.",
+        "mint": "Mint a new key for the credential {credential} of {account}.",
+        "rotate": "Rotate key {keyId} of {account}: a successor is minted, and the current key keeps working for {hours, plural, one {# hour} other {# hours}}.",
+        "expires": "The new key expires {date}.",
+        "until": "This link works until {time}.",
+        "confirmMint": "Mint and show the key",
+        "confirmRotate": "Rotate and show the key",
+        "cancel": "Not now",
+        "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
       }
     },
     "matrix": {
@@ -1551,7 +1622,7 @@
     "format": "Format",
     "formats": {
       "whole": "Whole project (configuration, schemas and data models)",
-      "wholeHelp": "A ZIP archive: every manifest and the files beside them, the JSON Schema of every kind, each data model's LinkML source and JSON Schema, and a README that says what each file means.",
+      "wholeHelp": "A ZIP archive: every manifest and the files beside them, the JSON Schema of every kind, each data model's source and JSON Schema, and a README that says what each file means.",
       "yaml": "YAML",
       "yamlHelp": "One manifest per document, ready to apply again; a whole project ends with an index that holds the schemas.",
       "json": "JSON list",
@@ -1572,7 +1643,7 @@
     "download": "Download"
   },
   "models": {
-    "title": "LinkML model editor",
+    "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",
     "classes": "Classes",
@@ -1745,10 +1816,14 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import.",
+      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
-      "more": "and {count} more",
+      "row": {
+        "pk": "{name}: {type}, the key that identifies each entity",
+        "fk": "{name}: {type}, a reference to another class",
+        "plain": "{name}: {type}"
+      },
       "from": "from {name}",
       "enumBox": "Enum {name}: {values}",
       "legendRelationship": "A solid line with no arrow is a relationship, named by its field and the inverse. The number at each end says how many entities of that class one entity at the other end is joined to: 1 exactly one, 0..1 at most one, 1..* at least one, * any number.",
@@ -1768,7 +1843,7 @@
       "name": "Name",
       "space": "Context space",
       "version": "Version",
-      "linkml": "LinkML source",
+      "linkml": "Model source",
       "lifecycle": "Lifecycle",
       "openWorld": "Accept undeclared attributes"
     },
@@ -1814,7 +1889,7 @@
       "edit": "Edit model",
       "notFound": "No data model named {name}",
       "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
-      "sourceFailed": "The model's LinkML could not be read: {reason}",
+      "sourceFailed": "The model's source could not be read: {reason}",
       "views": "Views of the model",
       "view": {
         "overview": "Overview",
@@ -1831,7 +1906,7 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
-      "yaml": "The model's LinkML",
+      "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",
@@ -2004,7 +2079,25 @@
       "details": "Details: name, kind, and what it may read ({name})",
       "noEndpoints": "This project publishes no endpoint yet; an application reads from one, so publish an endpoint first.",
       "nameHint": "Lowercase letters, digits and dashes: it becomes the address the application is served at.",
-      "nameInvalid": "A name is lowercase letters, digits and dashes, starts and ends with one of them, and is at most 40 characters."
+      "nameInvalid": "A name is lowercase letters, digits and dashes, starts and ends with one of them, and is at most 40 characters.",
+      "newEndpoint": {
+        "open": "+ New endpoint",
+        "title": "New endpoint",
+        "hint": "Proposed now as a change of its own. The builder picks it up once the change is merged and the endpoint is served.",
+        "name": "Endpoint name",
+        "nameHint": "Lowercase letters, digits and dashes, e.g. bikes-app.",
+        "nameInvalid": "Use lowercase letters, digits and dashes, starting and ending with a letter or digit, at most 63 characters.",
+        "space": "Context space",
+        "spaceMissing": "Choose the context space the endpoint serves.",
+        "accessHint": "Read only grants nothing new: you read through the endpoint what you already read in the space. Read and update or Full grant those operations on the types below to everyone in this project, so the change takes the red lane and another approver decides.",
+        "types": "Types the app may change",
+        "typesHint": "The grant covers these types and no other.",
+        "typesMissing": "Choose at least one type the app may change.",
+        "propose": "Propose endpoint",
+        "cancel": "Cancel",
+        "close": "Close",
+        "waiting": "{name} is proposed ({lane} lane). Once the change is merged and the endpoint is served, the builder reads it; you can keep writing the description meanwhile."
+      }
     },
     "newAction": "Generate your own app",
     "builds": {
@@ -2056,7 +2149,11 @@
       "frameAncestors": "May be framed by",
       "limits": "Limits",
       "requestsPerMinute": "Requests per minute",
-      "maxFileRows": "Rows per file download"
+      "maxFileRows": "Rows per file download",
+      "egress": "Outbound networks",
+      "egressCidr": "Network",
+      "egressPorts": "Ports",
+      "needRoles": "Only for roles"
     },
     "build": {
       "title": "Build on the forge",
@@ -2098,7 +2195,9 @@
       "retired": "This application is retired",
       "building": "Building…",
       "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "notBuilt": "No build is served yet",
+      "certificate": "Its address is being secured, which takes a minute",
+      "host": "Its address could not be set up; an administrator sees why"
     },
     "openPage": {
       "details": "App details",
@@ -2107,7 +2206,8 @@
       "frameTitle": "{title}, the application",
       "notOpen": "There is nothing to open here yet. The App details say what happens next.",
       "signInHint": "Is the app asking you to sign in and staying empty?",
-      "signInAgain": "Sign in again"
+      "signInAgain": "Sign in again",
+      "lead": "The published application, run inside the Portal with your sign-in."
     },
     "retire": {
       "title": "Retire {name}",
@@ -2137,6 +2237,13 @@
       "noOthers": "No other group holds this role.",
       "give": "Give this role to a group",
       "groupsUnreadable": "Your role does not list the organization's groups."
+    },
+    "check": {
+      "green": "Working",
+      "red": "Failing",
+      "amber": "Not checked lately",
+      "line": "Checked {when}",
+      "lineWithReason": "Checked {when}: {reason}"
     }
   },
   "appLifecycle": {
@@ -2395,6 +2502,11 @@
     "applying": "Applying…",
     "refusedHere": "refused",
     "notInList": "not in the list",
+    "relationSearch": "Search",
+    "relationNone": "Nothing you can read matches",
+    "relationRemove": "Remove",
+    "relationFailed": "The search failed",
+    "relationMore": "and more",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",
@@ -3138,6 +3250,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Drift from the repository",
+      "notYet": "No drift scan has run yet: the platform compares this space's seed entities with the repository on its next pass.",
+      "clean": "The space holds what the repository declares.",
+      "found": "{count, plural, one {# entity differs from the repository.} other {# entities differ from the repository.}}",
+      "observed": "Scanned {when}.",
+      "caption": "Entities of {space} that differ from the repository",
+      "entity": "Entity",
+      "kind": "Drift",
+      "attributes": "Attributes",
+      "resolution": "Resolution",
+      "resolve": "Resolve",
+      "resolveLabel": "Resolve the drift of {id}",
+      "mayNotResolve": "Resolving needs the right to propose entities in this project.",
+      "wholeEntity": "The whole entity"
+    },
     "modal": {
       "title": "What changed in ‘{id}’",
       "lead": {
@@ -3490,7 +3618,8 @@
       "blueprints": "Blueprints",
       "agentprofiles": "Agent profiles",
       "dataspaceparticipants": "Data space",
-      "environments": "Environments"
+      "environments": "Environments",
+      "health": "Health"
     },
     "settings": {
       "title": "Settings",
@@ -3713,6 +3842,240 @@
           "hint": "Scheduled database backups to object storage (postgres.backups)."
         }
       }
+    },
+    "health": {
+      "title": "Validation health",
+      "lead": "Every check that validates this installation, from its last published run: drift and the supply chain, conformance, the authorization matrix, performance budgets, the restore drill and the live sweep.",
+      "hidden": "Only an administrator of the organization can see the validation health.",
+      "caption": "The validation checks and their last run",
+      "check": "Check",
+      "state": "State",
+      "lastRun": "Last run",
+      "results": "Results",
+      "trend": "Last 7 days",
+      "failures": "Failures",
+      "empty": "No check has published a result yet",
+      "emptyHint": "Each check publishes its result after it runs; the first ones appear after the next hourly batch.",
+      "unreadableHint": "The published result is not one this page can read; publish it again.",
+      "counts": "{pass} passed, {fail} failed, {error} errors, {skip} skipped",
+      "trendLabel": "{runs, plural, one {# run} other {# runs}} in 7 days, {red} of them red",
+      "showFailures": "{count, plural, one {Show # failure} other {Show # failures}}",
+      "task": "(task {task})",
+      "states": {
+        "green": "Green",
+        "red": "Red",
+        "stale": "Stale",
+        "unreadable": "Unreadable"
+      },
+      "summary": {
+        "green": "Everything green",
+        "red": "{count, plural, one {# check red} other {# checks red}}",
+        "stale": "{count, plural, one {# check stale} other {# checks stale}}",
+        "unreadable": "{count, plural, one {# result unreadable} other {# results unreadable}}"
+      }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Context spaces per project",
+            "hint": "How many context spaces one project may hold."
+          },
+          "residentPipelines": {
+            "label": "Resident pipelines per project",
+            "hint": "How many pipelines of one project the runner keeps running at once."
+          },
+          "publicEndpoints": {
+            "label": "Public endpoints per project",
+            "hint": "How many endpoints of one project may be open to everyone."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Ingested events per second",
+            "hint": "How fast one project may write data in."
+          },
+          "apps": {
+            "label": "Apps per project",
+            "hint": "How many apps of one project may be in preview or published."
+          },
+          "agentRunsPerDay": {
+            "label": "Assistant runs per day",
+            "hint": "How many assistant runs one project may start each day."
+          },
+          "entitiesPerSpace": {
+            "label": "Entities per space",
+            "hint": "How many entities one context space may hold."
+          },
+          "requestsPerMinute": {
+            "label": "Requests per minute per project",
+            "hint": "The most requests per minute the endpoints of one project serve."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Name cooldown (days)",
+          "hint": "How long a removed project's name waits before anyone may use it again."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Web requests per minute",
+              "hint": "Requests per minute one visitor may make to the Portal and the apps."
+            },
+            "api": {
+              "label": "API requests per minute",
+              "hint": "Requests per minute one client may make to the Portal API."
+            },
+            "dataRead": {
+              "label": "Data reads per minute",
+              "hint": "Reads per minute one client may make through an endpoint."
+            },
+            "dataWrite": {
+              "label": "Data writes per minute",
+              "hint": "Writes per minute one client may make through an endpoint."
+            },
+            "publicEndpoint": {
+              "label": "Public endpoint requests per minute",
+              "hint": "Requests per minute an anonymous visitor may make to a public endpoint."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Largest request (MiB)",
+            "hint": "The edge refuses a larger request body before anything reads it."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Largest data write (MiB)",
+            "hint": "The gateway refuses a larger write; at most the edge's limit."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Sign-out after inactivity (minutes)",
+            "hint": "A session ends after this long without activity."
+          },
+          "sessionMaxHours": {
+            "label": "Longest session (hours)",
+            "hint": "After this long a person signs in again, active or not."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Invitation valid (hours)",
+            "hint": "How long an invitation link works."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Model spend per day",
+            "hint": "Whole currency units the assistant may spend on models each day."
+          },
+          "spendPerMonth": {
+            "label": "Model spend per month",
+            "hint": "Whole currency units the assistant may spend on models each month."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Rejected records kept",
+            "hint": "How many refused records a pipeline keeps for review."
+          },
+          "sampleMegabytes": {
+            "label": "Test sample size (MiB)",
+            "hint": "The largest sample a pipeline test reads."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Largest upload (MiB)",
+            "hint": "The largest file a person may upload; at most the edge's limit."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Shortest password",
+              "hint": "How many characters a password needs at least."
+            },
+            "history": {
+              "label": "Password history",
+              "hint": "How many earlier passwords a new one may not repeat."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Policies",
+      "policiesHint": "What the organization allows.",
+      "apps": "Applications",
+      "appsHint": "Who may see the apps projects publish.",
+      "agents": "Assistant",
+      "agentsHint": "What the assistant may use and spend.",
+      "limits": "Limits",
+      "limitsHint": "How much the platform does for the organization.",
+      "edge": "Edge",
+      "edgeHint": "What the edge lets through, per client.",
+      "requestsPerMinute": "Requests per minute",
+      "requestsPerMinuteHint": "One rate per kind of traffic.",
+      "gateway": "Gateway",
+      "gatewayHint": "What one write through an endpoint may carry.",
+      "signIn": "Sign-in",
+      "signInHint": "Sessions and passwords.",
+      "password": "Passwords",
+      "passwordHint": "What a password must be.",
+      "people": "People",
+      "peopleHint": "Invitations into the organization.",
+      "pipelines": "Pipelines",
+      "pipelinesHint": "What pipelines keep and read.",
+      "data": "Data",
+      "dataHint": "What a person may upload."
+    },
+    "limits": {
+      "title": "Policies and limits",
+      "lead": "Every limit the organization sets, the value in force and the range the operator allows. Edit changes them through an approved change.",
+      "atLeast": "at least {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (default)",
+      "noLimit": "no limit",
+      "defaultNone": "By default there is no limit.",
+      "defaultIs": "The default is {value}.",
+      "allowed": "Allowed: {bound}.",
+      "usedOf": "{used} of {limit}",
+      "setting": "Setting",
+      "inForce": "In force",
+      "range": "Allowed range",
+      "perProject": "Quota per project",
+      "perProjectLead": "Whose quota each project runs on and what it uses; projects you cannot read are not listed.",
+      "project": "Project",
+      "whose": "Quota from",
+      "noProjects": "No project you can read.",
+      "section": {
+        "projects": "Projects",
+        "applications": "Applications",
+        "edge": "Edge",
+        "signIn": "Sign-in",
+        "people": "People",
+        "agents": "Assistant",
+        "pipelinesAndData": "Pipelines and data"
+      },
+      "origin": {
+        "project": "the project",
+        "organization": "the organization",
+        "default": "nobody (no limit)"
+      }
+    },
+    "policy": {
+      "publicApps": "Public apps",
+      "publicAppsHint": "Whether a project may publish an app everyone can open without signing in.",
+      "publicApps_allowed": "Allowed",
+      "publicApps_refused": "Refused",
+      "models": "Models the assistant may use",
+      "modelsHint": "Leave empty to allow every model the installation offers.",
+      "everyModel": "Every model of the installation"
     }
   },
   "projectDelete": {

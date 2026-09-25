@@ -1,5 +1,21 @@
 import { expect } from "@playwright/test";
-import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
+
+/**
+ * The project sections the installation hides (`hiddenSections` of `/api/v1/branding`, T-2874):
+ * a case over one is excused while it is hidden, and runs again the day it is shown.
+ */
+export async function hiddenSections(request: APIRequestContext): Promise<string[]> {
+  const answer = await request.get("/api/v1/branding");
+  const hidden = answer.ok() ? ((await answer.json()) as { hiddenSections?: unknown }).hiddenSections : undefined;
+  return Array.isArray(hidden) ? hidden.filter((section): section is string => typeof section === "string") : [];
+}
+
+/** Whether a Portal address lies in one of the `hidden` sections. */
+export function inHiddenSection(address: string, hidden: string[]): boolean {
+  const section = address.split(/[?#]/)[0].split("/")[3];
+  return section !== undefined && hidden.includes(section);
+}
 
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
 export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };
@@ -61,6 +77,12 @@ export async function serviceAccountToken(baseURL: string): Promise<string> {
 }
 
 /**
+ * The App probe (T-2795, AP-136): a member of every App's default group who reads `App` and
+ * nothing else, so what it sees is what an App's own people see.
+ */
+export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PASSWORD ?? "" };
+
+/**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
  * (`#username`, `#password`, `#kc-login`), back to the page asked for. Mirrors
  * joinedcontext-presentation/record/acts/_portal.py so a spec and a recording take one path.
@@ -69,7 +91,7 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
-        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD)",
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD)",
     );
   }
   const context = await browser.newContext();

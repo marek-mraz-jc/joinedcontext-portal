@@ -117,10 +117,10 @@ describe("AppOpenPage", () => {
   });
 
   it("frames an App on the apps origin with its own origin, never the Portal's (T-2840)", async () => {
-    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, { appsOrigin: "https://apps.example.org" });
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, { appsOrigin: "https://example.org" });
     await waitFor(() =>
       expect(screen.getByTitle("City bikes, the application").getAttribute("src")).toBe(
-        "https://apps.example.org/apps/city-bikes/",
+        "https://city-bikes.apps.example.org/",
       ),
     );
     const frame = screen.getByTitle("City bikes, the application");
@@ -128,7 +128,7 @@ describe("AppOpenPage", () => {
       "allow-scripts allow-forms allow-popups allow-downloads allow-same-origin",
     );
     expect(screen.getByRole("link", { name: /new window/i }).getAttribute("href")).toBe(
-      "https://apps.example.org/apps/city-bikes/",
+      "https://city-bikes.apps.example.org/",
     );
   });
 

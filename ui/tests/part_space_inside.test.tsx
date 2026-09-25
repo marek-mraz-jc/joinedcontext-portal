@@ -128,8 +128,8 @@ describe("what a space holds, against the UI contract", () => {
   });
 
   it("offers to read the failed list again, and asks again when pressed", async () => {
-    const { fetchMock, user } = show({ policies: problem("the policy list is not yours to read") });
-    await screen.findByText("the policy list is not yours to read");
+    const { fetchMock, user } = show({ policies: problem("the policy store is not answering", 503) });
+    await screen.findByText("the policy store is not answering");
     const before = fetchMock.mock.calls.length;
     await user.click(screen.getAllByRole("button", { name: en.app.error.retry })[0]);
     expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
@@ -141,8 +141,18 @@ describe("what a space holds, against the UI contract", () => {
   });
 
   it("says what the API said when the space cannot be read, with one thing to do", async () => {
-    const { fetchMock, user } = show({ space: problem("no grant for this space", 404) });
+    show({ space: problem("no grant for this space", 404) });
     expect(await screen.findByText("no grant for this space")).toBeInTheDocument();
+    // A 404 answers the same the second time (T-2834): the heading, the purpose line and the
+    // way back, no Retry.
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.spaces.inside.back })).toBeInTheDocument();
+  });
+
+  it("offers Retry when the space's store is away, and asks again when pressed", async () => {
+    const { fetchMock, user } = show({ space: problem("the store is away", 503) });
+    expect(await screen.findByText("the store is away")).toBeInTheDocument();
     const before = fetchMock.mock.calls.length;
     await user.click(screen.getByRole("button", { name: en.app.error.retry }));
     expect(fetchMock.mock.calls.length).toBeGreaterThan(before);

@@ -6,6 +6,8 @@ export { isLanguageMap } from "../ngsi";
 export { fieldOf } from "../write";
 export { enumOptions, enumsOf, optionLabel } from "../enums";
 export type { EnumOption } from "../enums";
+export { relationsOf } from "../relations";
+export type { RelationEnd, TargetOption } from "../relations";
 export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 
 // Client

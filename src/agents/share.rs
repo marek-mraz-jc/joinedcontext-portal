@@ -52,6 +52,40 @@ pub struct ProposeEndpoint {
     pub entity_types: Vec<String>,
     #[serde(default)]
     pub rate_limits: Option<RateLimits>,
+    /// The access preset of an endpoint Build an app proposes inline (AP-132); absent for a share.
+    #[serde(default)]
+    pub access: Option<Preset>,
+}
+
+/// What an app may do through a new endpoint (AP-132). A read reaches the person's own grants on
+/// the space and adds none; a write preset grants its operations, which takes the red lane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Preset {
+    Read,
+    Update,
+    Full,
+}
+
+impl Preset {
+    /// The operations the preset names, reads first, as AP-132 lists them.
+    pub fn operations(self) -> &'static [&'static str] {
+        const FULL: [&str; 8] = [
+            "queryEntity",
+            "retrieveEntity",
+            "queryTemporal",
+            "retrieveTemporal",
+            "updateAttrs",
+            "appendAttrs",
+            "createEntity",
+            "deleteEntity",
+        ];
+        match self {
+            Preset::Read => &FULL[..4],
+            Preset::Update => &FULL[..6],
+            Preset::Full => &FULL,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -172,6 +206,13 @@ pub fn render(
         .as_deref()
         .map(str::trim)
         .unwrap_or("project-list");
+    // An app's own endpoint: this project reads it, and nobody else (AP-132).
+    let own_project = [project.to_owned()];
+    let allowed = if params.access.is_some() && params.allowed_projects.is_empty() {
+        &own_project[..]
+    } else {
+        &params.allowed_projects[..]
+    };
     if !AUDIENCES.contains(&audience) {
         return Err(format!(
             "audience '{audience}' is not one of {}",
@@ -179,8 +220,7 @@ pub fn render(
         ));
     }
     let projects = without_repeats(
-        params
-            .allowed_projects
+        allowed
             .iter()
             .map(|p| p.trim().to_owned())
             .filter(|p| !p.is_empty())
@@ -195,6 +235,19 @@ pub fn render(
         return Err(
             "audience project-list needs at least one project in allowedProjects".to_owned(),
         );
+    }
+    if let Some(preset) = params.access {
+        if audience != "project-list" || projects != own_project {
+            return Err(format!(
+                "an access preset is for an endpoint this project's apps read: audience must be \
+                 project-list with allowedProjects ['{project}'] alone"
+            ));
+        }
+        if preset != Preset::Read && params.entity_types.is_empty() {
+            return Err(
+                "a write preset needs entityTypes: the types the app may change".to_owned(),
+            );
+        }
     }
     let representations: Vec<String> = if params.representations.is_empty() {
         vec!["ngsi-ld".to_owned(), "geojson".to_owned()]
@@ -306,29 +359,40 @@ pub fn render(
         .iter()
         .map(|t| json!({ "type": t }))
         .collect();
-    let policies = assignees
-        .into_iter()
-        .map(|(suffix, assignee)| {
-            json!({
-                "apiVersion": API_VERSION,
-                "kind": "Policy",
-                "metadata": { "name": format!("{name}-{suffix}"), "namespace": project },
-                "spec": {
-                    "contextSpaceRef": { "kind": "ContextSpace", "name": space },
-                    // Rendered by the loader, so a copied organization is its own assigner (CC-82).
-                    "assigner": "did:web:{orgDomain}",
-                    "assignee": assignee,
-                    "operations": ["retrieveOps"],
-                    "information": [{ "entities": entities }],
-                },
+    // A read preset grants nothing: the person reads through the endpoint what they already
+    // read in the space. A write preset grants exactly its operations (AP-132).
+    let operations = match params.access {
+        None => json!(["retrieveOps"]),
+        Some(Preset::Read) => Value::Null,
+        Some(preset) => json!(preset.operations()),
+    };
+    let policies: Vec<Value> = if operations.is_null() {
+        Vec::new()
+    } else {
+        assignees
+            .into_iter()
+            .map(|(suffix, assignee)| {
+                json!({
+                    "apiVersion": API_VERSION,
+                    "kind": "Policy",
+                    "metadata": { "name": format!("{name}-{suffix}"), "namespace": project },
+                    "spec": {
+                        "contextSpaceRef": { "kind": "ContextSpace", "name": space },
+                        // Rendered by the loader, so a copied organization is its own assigner (CC-82).
+                        "assigner": "did:web:{orgDomain}",
+                        "assignee": assignee,
+                        "operations": operations,
+                        "information": [{ "entities": entities }],
+                    },
+                })
             })
-        })
-        .collect();
+            .collect()
+    };
 
     // A Policy that names a group the repository does not declare does not validate, and the
     // share is refused for something the person cannot fix from the chat. The missing groups
     // are drafted empty beside it (T-1042, PF-62).
-    let groups: Vec<Value> = if audience == "project-list" {
+    let groups: Vec<Value> = if audience == "project-list" && !policies.is_empty() {
         projects
             .iter()
             .filter(|p| !known_groups.iter().any(|known| known == *p))
@@ -370,6 +434,12 @@ pub fn render(
     if let Some(limits) = &params.rate_limits {
         prefill["rateLimits"] = serde_json::to_value(limits).unwrap_or(Value::Null);
     }
+
+    // Proposed together, the Change takes the lane of its highest manifest: a Policy is red.
+    let lane = match (params.access, policies.first()) {
+        (Some(_), Some(policy)) => change::classify("Policy", Operation::Create, &policy["spec"]),
+        _ => lane,
+    };
 
     Ok(Proposal {
         lane,
@@ -703,7 +773,7 @@ pub fn edit_call(answer: &str) -> Option<Result<EditEndpoint, String>> {
 mod tests {
     use super::{
         edit, edit_call, form_values, prose_of, render, slug, tool_call, EditEndpoint, FieldChange,
-        ProposeEndpoint,
+        Preset, ProposeEndpoint,
     };
     use crate::change::Lane;
     use serde_json::json;
@@ -1054,5 +1124,100 @@ mod tests {
                 "{audience}"
             );
         }
+    }
+
+    /// The preset → operations table of AP-132: each preset is the one before plus its writes.
+    #[test]
+    fn a_preset_names_exactly_the_operations_ap_132_lists() {
+        let reads = [
+            "queryEntity",
+            "retrieveEntity",
+            "queryTemporal",
+            "retrieveTemporal",
+        ];
+        assert_eq!(Preset::Read.operations(), reads);
+        assert_eq!(
+            Preset::Update.operations(),
+            [&reads[..], &["updateAttrs", "appendAttrs"]].concat()
+        );
+        assert_eq!(
+            Preset::Full.operations(),
+            [
+                &reads[..],
+                &["updateAttrs", "appendAttrs", "createEntity", "deleteEntity"]
+            ]
+            .concat()
+        );
+    }
+
+    fn app_endpoint(access: Preset) -> ProposeEndpoint {
+        ProposeEndpoint {
+            context_space: "mobility".into(),
+            name: "bikes-app".into(),
+            entity_types: vec!["BikeHireDockingStation".into()],
+            access: Some(access),
+            ..Default::default()
+        }
+    }
+
+    /// A read preset grants nothing: the endpoint alone, read with the grants already held.
+    #[test]
+    fn a_read_preset_is_the_endpoint_alone_for_this_project() {
+        let proposal =
+            render("helsinki", "hel.fi", &app_endpoint(Preset::Read), &[]).expect("renders");
+        assert_eq!(proposal.lane, Lane::Yellow);
+        assert!(proposal.policies.is_empty(), "{:?}", proposal.policies);
+        assert!(proposal.groups.is_empty(), "{:?}", proposal.groups);
+        let spec = &proposal.endpoint["spec"];
+        assert_eq!(spec["audience"], "project-list");
+        assert_eq!(spec["allowedProjects"], json!(["helsinki"]));
+    }
+
+    /// A write preset grants its operations on the named types to the project, and is red.
+    #[test]
+    fn a_write_preset_grants_its_operations_on_the_named_types_in_the_red_lane() {
+        for preset in [Preset::Update, Preset::Full] {
+            let proposal =
+                render("helsinki", "hel.fi", &app_endpoint(preset), &[]).expect("renders");
+            assert_eq!(proposal.lane, Lane::Red, "{preset:?}");
+            assert_eq!(proposal.policies.len(), 1, "{preset:?}");
+            let policy = &proposal.policies[0];
+            assert_eq!(policy["metadata"]["name"], "bikes-app-helsinki");
+            assert_eq!(policy["spec"]["operations"], json!(preset.operations()));
+            assert_eq!(
+                policy["spec"]["assignee"],
+                json!({ "kind": "group", "id": "helsinki" })
+            );
+            assert_eq!(
+                policy["spec"]["information"],
+                json!([{ "entities": [{ "type": "BikeHireDockingStation" }] }])
+            );
+        }
+    }
+
+    /// A preset is for this project's own apps, and a write names what it writes.
+    #[test]
+    fn a_preset_for_another_audience_or_a_write_on_no_type_is_refused() {
+        let mut elsewhere = app_endpoint(Preset::Read);
+        elsewhere.allowed_projects = vec!["espoo".into()];
+        let mut public = app_endpoint(Preset::Update);
+        public.audience = Some("public".into());
+        let mut both = app_endpoint(Preset::Read);
+        both.allowed_projects = vec!["helsinki".into(), "espoo".into()];
+        for params in [elsewhere, public, both] {
+            let refusal = render("helsinki", "hel.fi", &params, &[]).expect_err("refused");
+            assert!(
+                refusal.contains("allowedProjects ['helsinki'] alone"),
+                "{refusal}"
+            );
+        }
+        let mut untyped = app_endpoint(Preset::Full);
+        untyped.entity_types.clear();
+        let refusal = render("helsinki", "hel.fi", &untyped, &[]).expect_err("refused");
+        assert!(refusal.contains("needs entityTypes"), "{refusal}");
+        // Reading needs no type: the builder narrows what the app reads.
+        let mut read = app_endpoint(Preset::Read);
+        read.entity_types.clear();
+        assert!(render("helsinki", "hel.fi", &read, &[]).is_ok());
     }
 }

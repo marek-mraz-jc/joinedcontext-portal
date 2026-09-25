@@ -12,7 +12,8 @@
 //! `JC_PORTAL_TEST_DATABASE_URL` names a PostgreSQL (ci-full), and say so when it does not.
 //!
 //! API/01 (the operation door) refuses these three to an agent run and leaves them to a person's
-//! own MCP client; the MCP case below asserts that contract as written.
+//! own MCP client, which is answered a claim the person opens in the Portal instead of a token
+//! (PF-104, T-2359); the MCP cases below assert that contract as written.
 
 mod common;
 
@@ -99,11 +100,11 @@ impl Log {
     }
 }
 
-/// PF-36, PF-37, PF-38: the steward mints, lists, rotates and revokes through the session and
-/// through her MCP client. The token is in the mint's and the rotation's answer and nowhere after:
-/// not in the listing, not in the log, and no Change is opened for it.
+/// PF-36, PF-37, PF-38: the steward mints, lists, rotates and revokes through her session. The
+/// token is in the mint's and the rotation's answer and nowhere after: not in the listing, not in
+/// the log, and no Change is opened for it.
 #[tokio::test]
-async fn every_person_door_mints_lists_rotates_and_revokes_and_the_token_is_shown_once() {
+async fn the_session_mints_lists_rotates_and_revokes_and_the_token_is_shown_once() {
     let Some(state) = with_db().await else {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
@@ -116,71 +117,70 @@ async fn every_person_door_mints_lists_rotates_and_revokes_and_the_token_is_show
             .with_writer(move || writer.clone())
             .finish(),
     );
-    for caller in [session(steward()), mcp(steward())] {
-        let minted = doors::call(
-            "jc_service_account_key_mint",
-            &caller,
-            &state,
-            input("jc_service_account_key_mint", ""),
-        )
-        .await;
-        assert_eq!(StatusCode::OK, minted.status, "{}", minted.text());
-        let token = minted.body["token"].as_str().unwrap_or_default().to_owned();
-        let key_id = minted.body["keyId"].as_str().unwrap_or_default().to_owned();
+    let caller = session(steward());
+    let minted = doors::call(
+        "jc_service_account_key_mint",
+        &caller,
+        &state,
+        input("jc_service_account_key_mint", ""),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, minted.status, "{}", minted.text());
+    let token = minted.body["token"].as_str().unwrap_or_default().to_owned();
+    let key_id = minted.body["keyId"].as_str().unwrap_or_default().to_owned();
+    assert!(
+        token.starts_with(&format!("jc_{key_id}_")),
+        "{}",
+        minted.text()
+    );
+    assert!(
+        minted.body.get("changeId").is_none(),
+        "a key went into a Change"
+    );
+
+    let rotated = doors::call(
+        "jc_service_account_key_rotate",
+        &caller,
+        &state,
+        input("jc_service_account_key_rotate", &key_id),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, rotated.status, "{}", rotated.text());
+    let successor = rotated.body["token"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(!successor.is_empty() && successor != token);
+
+    let listed = doors::call(
+        "jc_service_account_key_list",
+        &caller,
+        &state,
+        input("jc_service_account_key_list", ""),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, listed.status, "{}", listed.text());
+    assert!(listed.text().contains(&key_id), "{}", listed.text());
+    for secret in [&token, &successor] {
         assert!(
-            token.starts_with(&format!("jc_{key_id}_")),
-            "{}",
-            minted.text()
+            !listed.text().contains(secret.as_str()),
+            "a token was listed again"
         );
         assert!(
-            minted.body.get("changeId").is_none(),
-            "a key went into a Change"
+            !log.text().contains(secret.as_str()),
+            "a token reached the log"
         );
-
-        let rotated = doors::call(
-            "jc_service_account_key_rotate",
-            &caller,
-            &state,
-            input("jc_service_account_key_rotate", &key_id),
-        )
-        .await;
-        assert_eq!(StatusCode::OK, rotated.status, "{}", rotated.text());
-        let successor = rotated.body["token"]
-            .as_str()
-            .unwrap_or_default()
-            .to_owned();
-        assert!(!successor.is_empty() && successor != token);
-
-        let listed = doors::call(
-            "jc_service_account_key_list",
-            &caller,
-            &state,
-            input("jc_service_account_key_list", ""),
-        )
-        .await;
-        assert_eq!(StatusCode::OK, listed.status, "{}", listed.text());
-        assert!(listed.text().contains(&key_id), "{}", listed.text());
-        for secret in [&token, &successor] {
-            assert!(
-                !listed.text().contains(secret.as_str()),
-                "a token was listed again"
-            );
-            assert!(
-                !log.text().contains(secret.as_str()),
-                "a token reached the log"
-            );
-        }
-
-        let revoked = doors::call(
-            "jc_service_account_key_revoke",
-            &caller,
-            &state,
-            input("jc_service_account_key_revoke", &key_id),
-        )
-        .await;
-        assert_eq!(StatusCode::OK, revoked.status, "{}", revoked.text());
-        assert_eq!(json!(true), revoked.body["revoked"]);
     }
+
+    let revoked = doors::call(
+        "jc_service_account_key_revoke",
+        &caller,
+        &state,
+        input("jc_service_account_key_revoke", &key_id),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, revoked.status, "{}", revoked.text());
+    assert_eq!(json!(true), revoked.body["revoked"]);
     assert!(
         log.text().contains("api key minted"),
         "the log was not captured: {}",
@@ -397,4 +397,331 @@ async fn an_input_the_route_would_refuse_is_refused_at_the_door() {
         );
         assert!(!refused.text().contains("jc_x_y"), "the input was echoed");
     }
+}
+
+/// Another steward of the project: she may manage the account's keys, but a claim is not hers.
+fn colleague() -> joinedcontext_portal::auth::session::Identity {
+    let mut identity = steward();
+    identity.subject = "f:1:ondrej".to_owned();
+    identity.username = "ondrej".to_owned();
+    identity
+}
+
+fn claim_uri(keys: &str, claim: &Value) -> String {
+    format!(
+        "{keys}/claims/{}",
+        claim["claim"]["id"].as_str().unwrap_or_default()
+    )
+}
+
+/// An account of its own for the MCP flow, so no other test's keys move its listing.
+const CLAIMS: &str = "air-claims";
+
+fn with_claims_account(state: &AppState) -> String {
+    state.mirror.upsert(envelope(
+        "ServiceAccount",
+        CLAIMS,
+        PROJECT,
+        json!({
+            "owner": { "user": "jana" },
+            "purpose": "The air sensors push their readings, keys asked for over MCP",
+            "roles": [],
+            "credentials": [{ "kind": "api-key", "name": "sensor-push" }]
+        }),
+    ));
+    format!("/api/v1/projects/{PROJECT}/serviceaccounts/{CLAIMS}/keys")
+}
+
+/// The one key `key_id` as the listing shows it.
+fn listed_key(listing: &Value, key_id: &str) -> Value {
+    listing["items"]
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["keyId"] == json!(key_id)))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+/// PF-104: over MCP a mint and a rotation answer a claim and mint nothing; the person who asked
+/// opens it in the Portal, sees what it will do, and gets the token once. The MCP answer, the
+/// claim's page and the log never carry a token, and a used claim is gone.
+#[tokio::test]
+async fn an_mcp_client_is_answered_a_claim_and_the_person_mints_the_key_in_the_portal() {
+    let Some(state) = with_db().await else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let log = Log::default();
+    let writer = log.clone();
+    let _guard = tracing::subscriber::set_default(
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_writer(move || writer.clone())
+            .finish(),
+    );
+    let keys = with_claims_account(&state);
+    let keys_before = doors::http(&state, steward(), "GET", &keys, None).await;
+
+    let asked = doors::call(
+        "jc_service_account_key_mint",
+        &mcp(steward()),
+        &state,
+        json!({ "account": CLAIMS, "credential": "sensor-push" }),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, asked.status, "{}", asked.text());
+    assert!(
+        !asked.text().contains("jc_"),
+        "a token reached the MCP answer: {}",
+        asked.text()
+    );
+    assert!(
+        asked.body.get("token").is_none() && asked.body.get("keyId").is_none(),
+        "{}",
+        asked.text()
+    );
+    assert_eq!(json!("mint"), asked.body["action"]);
+    assert_eq!(json!("sensor-push"), asked.body["credential"]);
+    let url = asked.body["claim"]["url"].as_str().unwrap_or_default();
+    assert!(
+        url.ends_with(&format!(
+            "/projects/{PROJECT}/settings/service-accounts?account={CLAIMS}&claim={}",
+            asked.body["claim"]["id"].as_str().unwrap_or_default()
+        )),
+        "{url}"
+    );
+    let keys_after = doors::http(&state, steward(), "GET", &keys, None).await;
+    assert_eq!(
+        keys_before.body, keys_after.body,
+        "a key was minted before the person confirmed"
+    );
+
+    // Only the person who asked sees the claim or uses it; her colleague is told it is not there.
+    let shown = doors::http(
+        &state,
+        steward(),
+        "GET",
+        &claim_uri(&keys, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(StatusCode::OK, shown.status, "{}", shown.text());
+    assert_eq!(asked.body["claim"]["id"], shown.body["claim"]["id"]);
+    assert!(!shown.text().contains("jc_"), "{}", shown.text());
+    for method in ["GET", "POST"] {
+        let other = doors::http(
+            &state,
+            colleague(),
+            method,
+            &claim_uri(&keys, &asked.body),
+            None,
+        )
+        .await;
+        assert_eq!(
+            StatusCode::NOT_FOUND,
+            other.status,
+            "{method}: {}",
+            other.text()
+        );
+    }
+
+    let minted = doors::http(
+        &state,
+        steward(),
+        "POST",
+        &claim_uri(&keys, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(StatusCode::CREATED, minted.status, "{}", minted.text());
+    let key_id = minted.body["keyId"].as_str().unwrap_or_default().to_owned();
+    let token = minted.body["token"].as_str().unwrap_or_default().to_owned();
+    assert!(
+        token.starts_with(&format!("jc_{key_id}_")),
+        "{}",
+        minted.text()
+    );
+    let again = doors::http(
+        &state,
+        steward(),
+        "POST",
+        &claim_uri(&keys, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(
+        StatusCode::NOT_FOUND,
+        again.status,
+        "a claim was used twice: {}",
+        again.text()
+    );
+
+    // A rotation the same way: the claim names the key it replaces, the successor comes from the
+    // Portal, and the predecessor is given the end of its overlap only then.
+    let asked = doors::call(
+        "jc_service_account_key_rotate",
+        &mcp(steward()),
+        &state,
+        json!({ "account": CLAIMS, "keyId": key_id, "overlapHours": 2 }),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, asked.status, "{}", asked.text());
+    assert_eq!(json!("rotate"), asked.body["action"]);
+    assert_eq!(json!(key_id), asked.body["keyId"]);
+    assert_eq!(json!(2), asked.body["overlapHours"]);
+    assert!(!asked.text().contains("jc_"), "{}", asked.text());
+    let listed = doors::http(&state, steward(), "GET", &keys, None).await;
+    assert_eq!(
+        Value::Null,
+        listed_key(&listed.body, &key_id)["expiresAt"],
+        "the old key was given an end before the person confirmed: {}",
+        listed.text()
+    );
+    let successor = doors::http(
+        &state,
+        steward(),
+        "POST",
+        &claim_uri(&keys, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(
+        StatusCode::CREATED,
+        successor.status,
+        "{}",
+        successor.text()
+    );
+    let successor_token = successor.body["token"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(!successor_token.is_empty() && successor_token != token);
+    let listed = doors::http(&state, steward(), "GET", &keys, None).await;
+    assert!(
+        listed_key(&listed.body, &key_id)["expiresAt"].is_string(),
+        "the rotation left the old key without an end: {}",
+        listed.text()
+    );
+
+    for secret in [&token, &successor_token] {
+        assert!(
+            !log.text().contains(secret.as_str()),
+            "a token reached the log"
+        );
+    }
+    assert!(
+        log.text().contains("api key claim recorded"),
+        "{}",
+        log.text()
+    );
+}
+
+/// PF-104, R20: an expired claim opens nothing, and it answers exactly as a claim that never
+/// existed; recording the next claim deletes it.
+#[tokio::test]
+async fn an_expired_claim_opens_nothing() {
+    let Some(state) = with_db().await else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = state.db.clone().expect("a pool");
+    let now = time::OffsetDateTime::now_utc();
+    let stale = joinedcontext_portal::db::KeyClaimRow {
+        id: format!("{:032x}", now.unix_timestamp_nanos()),
+        project: PROJECT.to_owned(),
+        account: ACCOUNT.to_owned(),
+        action: "mint".to_owned(),
+        credential: "sensor-push".to_owned(),
+        key_id: None,
+        key_expires_at: None,
+        overlap_hours: None,
+        created_by: steward().subject,
+        created_at: now - time::Duration::minutes(30),
+        expires_at: now - time::Duration::minutes(15),
+    };
+    joinedcontext_portal::db::insert_key_claim(&pool, &stale, now - time::Duration::minutes(30))
+        .await
+        .expect("insert");
+    let uri = format!("{KEYS}/claims/{}", stale.id);
+    let never = format!("{KEYS}/claims/ffffffffffffffffffffffffffffffff");
+    for method in ["GET", "POST"] {
+        let expired = doors::http(&state, steward(), method, &uri, None).await;
+        let missing = doors::http(&state, steward(), method, &never, None).await;
+        assert_eq!(
+            StatusCode::NOT_FOUND,
+            expired.status,
+            "{method}: {}",
+            expired.text()
+        );
+        assert_eq!(missing.status, expired.status);
+    }
+    doors::call(
+        "jc_service_account_key_mint",
+        &mcp(steward()),
+        &state,
+        input("jc_service_account_key_mint", ""),
+    )
+    .await;
+    let left: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM service_account_key_claims WHERE id = $1")
+            .bind(&stale.id)
+            .fetch_optional(&pool)
+            .await
+            .expect("select");
+    assert_eq!(None, left, "an expired claim was kept");
+}
+
+/// PF-38, PF-104: a key revoked between the claim and its use is not rotated; the claim is spent
+/// all the same, so a retry cannot rotate it either.
+#[tokio::test]
+async fn a_claim_for_a_key_revoked_since_rotates_nothing() {
+    let Some(state) = with_db().await else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let minted = doors::http(
+        &state,
+        steward(),
+        "POST",
+        KEYS,
+        Some(json!({ "credential": "sensor-push" })),
+    )
+    .await;
+    assert_eq!(StatusCode::CREATED, minted.status, "{}", minted.text());
+    let key_id = minted.body["keyId"].as_str().unwrap_or_default().to_owned();
+    let asked = doors::call(
+        "jc_service_account_key_rotate",
+        &mcp(steward()),
+        &state,
+        input("jc_service_account_key_rotate", &key_id),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, asked.status, "{}", asked.text());
+    let revoked = doors::http(
+        &state,
+        steward(),
+        "DELETE",
+        &format!("{KEYS}/{key_id}"),
+        None,
+    )
+    .await;
+    assert_eq!(StatusCode::NO_CONTENT, revoked.status, "{}", revoked.text());
+
+    let used = doors::http(
+        &state,
+        steward(),
+        "POST",
+        &claim_uri(KEYS, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(StatusCode::CONFLICT, used.status, "{}", used.text());
+    let again = doors::http(
+        &state,
+        steward(),
+        "POST",
+        &claim_uri(KEYS, &asked.body),
+        None,
+    )
+    .await;
+    assert_eq!(StatusCode::NOT_FOUND, again.status, "{}", again.text());
 }

@@ -9,6 +9,7 @@ import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
+import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
@@ -323,7 +324,7 @@ export function Roles({
           {error instanceof ApiError ? (error.problem?.detail ?? error.message) : t("app.error.generic")}
         </Alert>
       ) : (
-        <Table caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
+        <Table data-records="" caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
           <TableHead>
             <TableHeaderCell>{t("access.projectRoles.role")}</TableHeaderCell>
             <TableHeaderCell>{t("access.projectRoles.where")}</TableHeaderCell>
@@ -345,7 +346,7 @@ export function Roles({
                   <TableRow key={`${row.home}/${row.name}`}>
                     <TableCell primary>
                       <span className="inline-flex items-center gap-2">
-                        {row.name}
+                        <FormRecordLink name={row.name} />
                         {row.home === ORG_NAMESPACE &&
                         (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
                           <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
@@ -369,6 +370,11 @@ export function Roles({
                             name: row.name,
                             label: row.name,
                           }}
+                          // A role of this project wins its name's address over the organization's.
+                          addressed={
+                            row.home === project ||
+                            !rows.some((other) => other.home === project && other.name === row.name)
+                          }
                           form={{
                             schema: editSchema,
                             fromManifest: (manifest) =>

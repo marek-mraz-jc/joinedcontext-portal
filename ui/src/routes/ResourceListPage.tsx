@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { JSX } from "react";
+import { RecordLink } from "../components/RecordLink";
 import { ResourceList } from "../components/ResourceList";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -311,7 +312,11 @@ export function KindList({
           return (
             <TableRow key={item.metadata.name}>
               <TableCell primary>
-                <div>{title}</div>
+                <div>
+                  <RecordLink project={project} plural={plural} name={item.metadata.name}>
+                    {title}
+                  </RecordLink>
+                </div>
                 {item.metadata.title ? (
                   <div className="mt-0.5 font-mono text-caption text-fg-subtle">{item.metadata.name}</div>
                 ) : null}

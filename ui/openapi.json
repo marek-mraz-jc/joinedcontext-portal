@@ -882,13 +882,97 @@
         }
       }
     },
+    "/api/v1/organization/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Validation Health",
+        "description": "The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Every published check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationHealth"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The results directory cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/limits": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Organization Limits",
+        "description": "Every policy and limit of the catalog with the operator's bound, the value in force and where it comes from, and the quota of each project the caller may read (PF-96…PF-102, ADR-N-035).",
+        "operationId": "get_limits",
+        "responses": {
+          "200": {
+            "description": "The catalog and the values in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationLimits"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people": {
       "get": {
         "tags": [
           "people"
         ],
         "summary": "List People",
-        "description": "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.",
+        "description": "Searches the organization's people, a page at a time.",
         "operationId": "list_people",
         "parameters": [
           {
@@ -971,7 +1055,7 @@
           "people"
         ],
         "summary": "Create Person",
-        "description": "Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.",
+        "description": "Creates a person and sends the sign-up e-mail.",
         "operationId": "create_person",
         "requestBody": {
           "content": {
@@ -1049,7 +1133,7 @@
           "people"
         ],
         "summary": "Get Person",
-        "description": "One person with their groups, platform roles and application roles. Needs `read` on Person.",
+        "description": "One person with their groups and roles.",
         "operationId": "get_person",
         "parameters": [
           {
@@ -1184,7 +1268,7 @@
           "people"
         ],
         "summary": "Edit Person",
-        "description": "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.",
+        "description": "Edits a person's name, e-mail or language.",
         "operationId": "edit_person",
         "parameters": [
           {
@@ -1280,7 +1364,7 @@
           "people"
         ],
         "summary": "Disable Person",
-        "description": "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.",
+        "description": "Disables a person and ends their sessions; never the caller or the last Organization Administrator.",
         "operationId": "disable_person",
         "parameters": [
           {
@@ -1353,7 +1437,7 @@
           "people"
         ],
         "summary": "Enable Person",
-        "description": "Enables a disabled person. Needs `disable` on Person.",
+        "description": "Enables a disabled person.",
         "operationId": "enable_person",
         "parameters": [
           {
@@ -1545,7 +1629,7 @@
           "people"
         ],
         "summary": "Sign Person Out",
-        "description": "Ends every session of the person. Needs `disable` on Person and every right the person holds.",
+        "description": "Ends every session of a person.",
         "operationId": "sign_out_person",
         "parameters": [
           {
@@ -3454,6 +3538,69 @@
         }
       }
     },
+    "/api/v1/projects/{project}/app-checks": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List App Checks",
+        "description": "The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).",
+        "operationId": "list_app_checks",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The App checks of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppChecks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/build": {
       "get": {
         "tags": [
@@ -3915,7 +4062,7 @@
           }
         ],
         "requestBody": {
-          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
+          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04.",
           "content": {
             "application/json": {
               "schema": {
@@ -5820,7 +5967,7 @@
           "blueprints"
         ],
         "summary": "Run A Blueprint",
-        "description": "Expands one of the organisation's blueprints with the parameters given, as a change a person approves.",
+        "description": "Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.",
         "operationId": "start_flow",
         "parameters": [
           {
@@ -7047,7 +7194,7 @@
           "access"
         ],
         "summary": "Mint A Service Account Key",
-        "description": "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else.",
+        "description": "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104).",
         "operationId": "create_key",
         "parameters": [
           {
@@ -7126,6 +7273,196 @@
           },
           "404": {
             "description": "No such account, or none the caller may manage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No key database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Read A Service Account Key Claim",
+        "description": "What a key asked for over MCP will be, shown to the person who asked for it before it is minted.",
+        "operationId": "get_key_claim",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "description": "The claim the MCP answer named",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What confirming the claim will do; no token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such claim for this person: another person's, expired, used or never made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No key database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Use A Service Account Key Claim",
+        "description": "Mints the key, or makes the rotation, a claim describes; the token is in this answer and nowhere else, and the claim is spent.",
+        "operationId": "use_key_claim",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "description": "The claim the MCP answer named",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The minted key; the claim is spent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The credential is no longer declared, or its expiry has passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such claim for this person, or the key it rotates is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The key the claim rotates was revoked in the meantime",
             "content": {
               "application/json": {
                 "schema": {
@@ -7237,7 +7574,7 @@
           "access"
         ],
         "summary": "Rotate A Service Account Key",
-        "description": "Replaces one key with a successor; the old one stops working when its overlap ends.",
+        "description": "Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104).",
         "operationId": "rotate_key",
         "parameters": [
           {
@@ -7334,6 +7671,68 @@
           },
           "503": {
             "description": "No key database configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Data Quality",
+        "description": "The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).",
+        "operationId": "get_quality",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report, or `{}` when the space was not checked yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceQuality"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
             "content": {
               "application/json": {
                 "schema": {
@@ -10046,6 +10445,55 @@
           }
         }
       },
+      "AppCheck": {
+        "type": "object",
+        "description": "The last probe of one App (AP-136).",
+        "required": [
+          "name",
+          "state",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/AppCheckState"
+          }
+        }
+      },
+      "AppCheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "amber"
+        ]
+      },
+      "AppChecks": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppCheck"
+            }
+          }
+        }
+      },
       "AppMe": {
         "type": "object",
         "description": "The caller as a published App sees them: the object the static host writes into\n`#jc-config` as `user` (AP-95).",
@@ -10161,6 +10609,13 @@
               "null"
             ]
           },
+          "qb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data\nStructure Definition (DM-60)."
+          },
           "shacl": {
             "type": [
               "string",
@@ -10268,6 +10723,14 @@
               "body": "system-ui, sans-serif",
               "heading": "system-ui, sans-serif"
             }
+          },
+          "hiddenSections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`\nis not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so\nwhat a branding file says is overwritten; always sent, so the UI never mistakes a shown\nsection for one it has not heard about.",
+            "default": []
           },
           "instanceName": {
             "type": "string",
@@ -11377,6 +11840,40 @@
           }
         }
       },
+      "CheckHealth": {
+        "type": "object",
+        "required": [
+          "check",
+          "state"
+        ],
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/CheckState"
+          }
+        }
+      },
+      "CheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "stale",
+          "unreadable"
+        ]
+      },
       "CkanStatus": {
         "type": "object",
         "description": "The CKAN picture of one project.",
@@ -11398,6 +11895,35 @@
               "$ref": "#/components/schemas/PublicationStatus"
             },
             "description": "One entry per endpoint that declares `spec.publish.ckan`."
+          }
+        }
+      },
+      "ClaimAction": {
+        "type": "string",
+        "description": "What a key claim will do once its person confirms it (PF-104).",
+        "enum": [
+          "mint",
+          "rotate"
+        ]
+      },
+      "ClaimLink": {
+        "type": "object",
+        "description": "Where the person opens a claim, and until when.",
+        "required": [
+          "id",
+          "url",
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The Portal page that shows the claim to the person who asked for it."
           }
         }
       },
@@ -11505,6 +12031,39 @@
           "replace",
           "rename"
         ]
+      },
+      "Counts": {
+        "type": "object",
+        "description": "How many results of one run ended in each verdict.",
+        "required": [
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
       },
       "CreatePerson": {
         "type": "object",
@@ -11650,6 +12209,59 @@
             "description": "The tabular representation the rows are read through."
           }
         }
+      },
+      "Digest": {
+        "type": "object",
+        "description": "What `scripts/publish-health.py` writes for one check.",
+        "required": [
+          "check",
+          "at",
+          "everyHours",
+          "counts"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "check": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "everyHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Failure"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "passed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for\nevery other check."
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "DomainVerification": {
         "type": "object",
@@ -12074,6 +12686,40 @@
         },
         "additionalProperties": false
       },
+      "Failure": {
+        "type": "object",
+        "description": "One result of the last run that did not pass, and the open task it filed.",
+        "required": [
+          "key",
+          "verdict",
+          "title"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FailureVerdict"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailureVerdict": {
+        "type": "string",
+        "enum": [
+          "fail",
+          "error"
+        ]
+      },
       "FederationGraph": {
         "type": "object",
         "description": "The federation of one project (UI-27).",
@@ -12243,26 +12889,42 @@
         },
         "additionalProperties": false
       },
+      "FreshState": {
+        "type": "string",
+        "enum": [
+          "fresh",
+          "stale",
+          "empty",
+          "untargeted"
+        ]
+      },
       "Freshness": {
         "type": "object",
-        "description": "The runner's counters for the pipeline that feeds an endpoint, read when the search ran.",
+        "description": "How recent the data of one pipeline is.",
         "required": [
           "pipeline",
-          "scrapedAt"
+          "type",
+          "state",
+          "paused"
         ],
         "properties": {
-          "errors": {
+          "newest": {
             "type": [
-              "integer",
+              "string",
               "null"
             ],
-            "format": "int64",
-            "minimum": 0
+            "format": "date-time"
+          },
+          "paused": {
+            "type": "boolean"
           },
           "pipeline": {
             "type": "string"
           },
-          "received": {
+          "state": {
+            "$ref": "#/components/schemas/FreshState"
+          },
+          "targetSeconds": {
             "type": [
               "integer",
               "null"
@@ -12270,8 +12932,9 @@
             "format": "int64",
             "minimum": 0
           },
-          "scrapedAt": {
-            "type": "string"
+          "type": {
+            "type": "string",
+            "description": "The pipeline's output type; empty when it names none and the whole space counts."
           }
         }
       },
@@ -12574,6 +13237,52 @@
           }
         }
       },
+      "KeyClaim": {
+        "type": "object",
+        "description": "A key asked for over MCP, waiting for its person in the Portal (PF-104). It carries no token\nand no id of a key that does not exist yet: nothing is minted until the person confirms it.",
+        "required": [
+          "claim",
+          "account",
+          "action",
+          "credential"
+        ],
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClaimAction"
+          },
+          "claim": {
+            "$ref": "#/components/schemas/ClaimLink"
+          },
+          "credential": {
+            "type": "string"
+          },
+          "keyExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The expiry the minted key will carry, when it has one."
+          },
+          "keyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key a rotation replaces."
+          },
+          "overlapHours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the replaced key keeps working beside its successor."
+          }
+        }
+      },
       "KeyInfo": {
         "type": "object",
         "description": "One key as everyone else ever sees it: what an operator decides on, and nothing that opens\na door.",
@@ -12666,6 +13375,77 @@
           "error",
           "warning",
           "info"
+        ]
+      },
+      "LimitEntry": {
+        "type": "object",
+        "description": "One entry of the catalog as the settings page shows it (PF-102).",
+        "required": [
+          "path",
+          "section",
+          "security",
+          "min",
+          "origin"
+        ],
+        "properties": {
+          "default": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The catalog's default; `null` is no limit.",
+            "minimum": 0
+          },
+          "max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The largest value the organization may set; `null` where nobody sets a ceiling.",
+            "minimum": 0
+          },
+          "min": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The smallest value the organization may set.",
+            "minimum": 0
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin",
+            "description": "`organization` or `default`."
+          },
+          "path": {
+            "type": "string",
+            "description": "The manifest path, e.g. `spec.limits.edge.requestsPerMinute.web`."
+          },
+          "section": {
+            "type": "string",
+            "description": "The settings section: `projects`, `applications`, `edge`, `signIn`, `people`, `agents`,\n`pipelinesAndData`."
+          },
+          "security": {
+            "type": "boolean",
+            "description": "Whether the operator may only tighten the bound (ADR-N-035 §3.2)."
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "What the Organization manifest sets; `null` when it sets nothing.",
+            "minimum": 0
+          }
+        }
+      },
+      "LimitOrigin": {
+        "type": "string",
+        "description": "Where a value in force comes from (PF-101).",
+        "enum": [
+          "project",
+          "organization",
+          "default"
         ]
       },
       "ListMeta": {
@@ -13238,6 +14018,27 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "OrganizationLimits": {
+        "type": "object",
+        "required": [
+          "entries",
+          "projects"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LimitEntry"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectQuota"
+            }
           }
         }
       },
@@ -13845,6 +14646,44 @@
           }
         }
       },
+      "Point": {
+        "type": "object",
+        "description": "One earlier run, for the trend.",
+        "required": [
+          "at",
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
       "Preferences": {
         "type": "object",
         "properties": {
@@ -14209,6 +15048,32 @@
           }
         }
       },
+      "ProjectQuota": {
+        "type": "object",
+        "description": "The quota in force for one project the caller may read.",
+        "required": [
+          "project",
+          "origin",
+          "quota"
+        ],
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin"
+          },
+          "project": {
+            "type": "string"
+          },
+          "quota": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuotaUse"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ProjectStatus": {
         "type": "object",
         "required": [
@@ -14318,6 +15183,30 @@
           "manifest": {}
         },
         "additionalProperties": false
+      },
+      "QuotaUse": {
+        "type": "object",
+        "description": "One quota dimension of a project.",
+        "properties": {
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "`null` is no limit.",
+            "minimum": 0
+          },
+          "used": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The manifest count for a countable dimension (PF-75); `null` for a runtime limit.",
+            "minimum": 0
+          }
+        }
       },
       "Readiness": {
         "type": "object",
@@ -14714,6 +15603,36 @@
         },
         "additionalProperties": false
       },
+      "RuleCount": {
+        "type": "object",
+        "description": "One failing rule of a space: a SHACL component and the path it is about.",
+        "required": [
+          "rule",
+          "path",
+          "count",
+          "examples"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most five ids of entities that break it."
+          },
+          "path": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          }
+        }
+      },
       "RunContext": {
         "type": "object",
         "description": "Everything the proxy needs to decide one request, and nothing a workspace may see.\n\nThis is the one place the ticket hash leaves the Portal, and it leaves on the internal\nlistener alone. The budgets are read from the profile at answer time rather than copied into\nthe run row, so lowering a profile's ceiling takes effect on the runs already in flight.",
@@ -15010,6 +15929,49 @@
           }
         },
         "additionalProperties": false
+      },
+      "SpaceQuality": {
+        "type": "object",
+        "description": "What one run found in one space.",
+        "required": [
+          "observedAt",
+          "checked",
+          "invalid",
+          "truncated",
+          "rules",
+          "freshness"
+        ],
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "freshness": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Freshness"
+            }
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleCount"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
       },
       "StartConversation": {
         "type": "object",
@@ -15371,6 +16333,20 @@
           "strict",
           "lax"
         ]
+      },
+      "ValidationHealth": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckHealth"
+            }
+          }
+        }
       },
       "Verdict": {
         "type": "object",

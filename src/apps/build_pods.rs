@@ -299,7 +299,7 @@ pub async fn dispatch_once(
         id,
         labels,
         repository,
-    } in forge.queued_jobs().await?
+    } in forge.applications().queued_jobs().await?
     {
         let Some(class) = Class::of(&labels) else {
             continue;
@@ -328,7 +328,7 @@ pub async fn dispatch_once(
         }
         // The token first: a forge that mints none leaves nothing behind in the cluster.
         let token = forge
-            .for_repository(&repository)
+            .for_application(&repository)
             .repository_registration_token()
             .await?;
         kube.apply(&claim(settings, &app)).await?;

@@ -65,7 +65,7 @@
     "explore": "Daten erkunden",
     "assistant": "Assistent",
     "sync": "Sync",
-    "activity": "Activity",
+    "activity": "Aktivität",
     "import": "Import",
     "workspaces": "Kopien",
     "policies": "Richtlinien",
@@ -143,7 +143,8 @@
     "entry": "Eintrag {number}",
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
-    "chosenFiles": "Ausgewählt: {names}"
+    "chosenFiles": "Ausgewählt: {names}",
+    "advancedModeHint": "Zeigt auch die Felder, die die meisten Manifeste auf ihren Standardwerten lassen; die Wahl wird für Sie gespeichert."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -202,7 +203,8 @@
       "pending": "Wartet auf {change}: Geben Sie zuerst diese Änderung frei, dann diese hier.",
       "merged": "{change}, auf die diese Änderung wartet, ist zusammengeführt.",
       "rejected": "{change}, auf die diese Änderung wartet, wurde abgelehnt: Was diese Änderung nennt, entsteht nicht. Lehnen Sie sie ab oder schlagen Sie sie neu vor."
-    }
+    },
+    "back": "Alle Freigaben"
   },
   "lane": {
     "green": "Grün",
@@ -217,6 +219,8 @@
     "draftHelp": "Noch nicht eingereicht, nur lokal gespeichert.",
     "pendingApproval": "Wartet auf Freigabe",
     "pendingApprovalHelp": "Wartet auf Freigabe oder Ablehnung.",
+    "notDeployed": "Nicht bereitgestellt",
+    "notDeployedHelp": "Gemergt, läuft aber nicht: ein Kontingent ist ausgeschöpft, es ist pausiert oder die Plattform führt diese Art nicht aus. Die Details nennen den Grund.",
     "deploying": "Wird bereitgestellt",
     "deployingHelp": "Freigegeben und gemergt; der Reconciler wendet die Änderung an.",
     "live": "Aktiv",
@@ -312,7 +316,10 @@
     "button": "Bearbeiten",
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",
-    "unreadable": "{name} konnte nicht gelesen werden."
+    "unreadable": "{name} konnte nicht gelesen werden.",
+    "viewTitle": "{name} ansehen",
+    "readOnly": "Ihre Rolle erlaubt hier keine Änderung an {kind}, daher ist dieses Formular schreibgeschützt. Eine Administratorin oder ein Administrator des Projekts kann das erteilen.",
+    "manifest": "Manifest von {name}"
   },
   "resourceList": {
     "name": "Name",
@@ -370,7 +377,7 @@
       "noEndpoints": "Dieser Raum hat noch keinen Endpoint.",
       "catalogue": "Katalog",
       "catalogueLink": "offene Daten",
-      "policies": "Policies",
+      "policies": "Richtlinien",
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
       "operations": "Operationen",
@@ -424,7 +431,41 @@
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
       "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu."
     },
-    "segment": "IDs: {segment}"
+    "segment": "IDs: {segment}",
+    "quality": {
+      "title": "Datenqualität",
+      "notYet": "Noch nicht geprüft: Die Plattform prüft die Daten dieses Raums einmal täglich.",
+      "nothingToCheck": "Keine Entitäten zu prüfen",
+      "valid": "{share} gültig",
+      "rulesFailing": "{count, plural, =0 {keine verletzte Regel} one {# verletzte Regel} other {# verletzte Regeln}}",
+      "allFresh": "aktuell",
+      "stale": "{count, plural, one {# Pipeline veraltet} other {# Pipelines veraltet}}",
+      "checkedAt": "{count, plural, one {# Entität geprüft} other {# Entitäten geprüft}} am {when}.",
+      "truncated": "Nur die ersten 20.000 wurden gelesen.",
+      "rulesCaption": "Die Regeln, die die Entitäten des Raums verletzen",
+      "rule": "Regel",
+      "attribute": "Attribut",
+      "entities": "Entitäten",
+      "examples": "Beispiele",
+      "wholeEntity": "die Entität selbst",
+      "examplesHidden": "Welche es sind, sehen nur Personen, die die Entitäten des Raums lesen",
+      "freshnessCaption": "Wie aktuell die Daten jeder Pipeline sind",
+      "pipeline": "Pipeline",
+      "type": "Typ",
+      "newest": "Neueste",
+      "target": "Erwartet innerhalb",
+      "state": "Zustand",
+      "anyType": "jeder Typ",
+      "minutes": "{count} Min.",
+      "hours": "{count} Std.",
+      "paused": "Angehalten",
+      "states": {
+        "fresh": "Aktuell",
+        "stale": "Veraltet",
+        "empty": "Leer",
+        "untargeted": "Ohne Ziel"
+      }
+    }
   },
   "endpoints": {
     "check": "Prüfen",
@@ -448,7 +489,7 @@
       "title": "Titel",
       "space": "Kontextraum",
       "slug": "Slug",
-      "publicUrl": "Public address",
+      "publicUrl": "Öffentliche Adresse",
       "audience": "Zielgruppe",
       "representations": "Repräsentationen",
       "more": "+{count} weitere",
@@ -547,7 +588,7 @@
     },
     "link": {
       "index": "Index",
-      "linkml": "Modell (LinkML)",
+      "linkml": "Modellquelle",
       "jsonSchema": "JSON Schema",
       "access": "Zugriff",
       "catalogue": "Katalog"
@@ -572,50 +613,50 @@
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
       }
     },
-    "slugHint": "The address is created for you and never changes, even when the endpoint is renamed.",
+    "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
-      "title": "Model projection",
-      "hint": "Pick the classes and slots this endpoint exposes. The policy and projection are generated together.",
-      "noModel": "This space has no DataModel, so no projection can be drawn.",
-      "identityOnly": "identity only (id, type)",
-      "writable": "Writable",
-      "idPattern": "ID pattern",
-      "scope": "Scope",
-      "q": "Write query constraint",
-      "readQ": "Read filter (q)",
-      "reuse": "Projection",
-      "drawNew": "Draw a new one",
-      "sharedBy": "Shared by: {endpoints}",
-      "detach": "Detach and copy",
+      "title": "Modellprojektion",
+      "hint": "Wählen Sie die Klassen und Slots, die dieser Endpunkt bereitstellt. Richtlinie und Projektion werden zusammen erzeugt.",
+      "noModel": "Dieser Raum hat kein DataModel, daher lässt sich keine Projektion entwerfen.",
+      "identityOnly": "nur Identität (id, type)",
+      "writable": "Beschreibbar",
+      "idPattern": "ID-Muster",
+      "scope": "Bereich",
+      "q": "Einschränkung beim Schreiben (Abfrage)",
+      "readQ": "Lesefilter (q)",
+      "reuse": "Projektion",
+      "drawNew": "Neu entwerfen",
+      "sharedBy": "Geteilt von: {endpoints}",
+      "detach": "Lösen und kopieren",
       "nothingTicked": "Kreuzen Sie mindestens eine Klasse an, die der Endpoint veröffentlichen soll.",
-      "projectionName": "Projection name",
-      "preview": "Generated manifests",
+      "projectionName": "Name der Projektion",
+      "preview": "Erzeugte Manifeste",
       "identityAlways": "Jede Entität hat eine id und einen type, daher wird dies immer veröffentlicht."
     },
     "audienceOption": {
-      "project-list": "Selected projects: only the projects you tick",
-      "organization": "Organization: every project of the organization",
-      "public": "Public: anyone with the address"
+      "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
+      "organization": "Organisation: jedes Projekt der Organisation",
+      "public": "Öffentlich: jede Person mit der Adresse"
     },
     "refreshOption": {
       "onChange": "Wenn sich eine Entität ändert",
       "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD API",
+      "ngsi-ld": "NGSI-LD-Schnittstelle",
       "geojson": "GeoJSON",
       "csv": "CSV",
       "json": "JSON",
       "xlsx": "Excel (xlsx)",
-      "zip": "ZIP download",
+      "zip": "ZIP-Download",
       "ogc-features": "OGC API Features",
       "sta": "SensorThings API",
-      "mcp": "MCP for AI assistants"
+      "mcp": "MCP für KI-Assistenten"
     },
     "section": {
-      "projection": "Which classes and attributes it shows",
-      "hidden": "Hide attributes",
-      "manifests": "Show the manifests this proposes"
+      "projection": "Welche Klassen und Attribute er zeigt",
+      "hidden": "Attribute ausblenden",
+      "manifests": "Die vorgeschlagenen Manifeste anzeigen"
     },
     "filter": {
       "q": "Attributabfrage",
@@ -835,7 +876,8 @@
       "caCert": "Referenz auf Zertifizierungsstelle",
       "secretName": "Name des Secrets",
       "secretKey": "Schlüssel im Secret",
-      "input": "Eingabekonfiguration"
+      "input": "Eingabekonfiguration",
+      "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ."
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -998,24 +1040,35 @@
         "count": "Anzahl"
       },
       "preset": {
-        "title": "Preset",
-        "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "title": "Vorlage",
+        "load": "Laden (DataSource)",
+        "kpi": "Analyse (KPI)",
+        "hint": "Laden kopiert Datensätze aus einer externen Quelle in einen Space; Analysieren berechnet einen Indikator aus dem, was ein Endpoint bereits liefert."
       },
       "kpi": {
         "title": "Analyse (KPI)",
-        "lead": "Aggregate context data from an endpoint into a KeyPerformanceIndicator entity written to the project KPI space.",
-        "endpoint": "Source endpoint",
-        "type": "Entity type",
-        "attribute": "Attribute",
-        "aggregate": "Aggregate",
-        "period": "Period",
-        "name": "Indicator name",
-        "test": "Test on the endpoint's page",
-        "testing": "Testing…",
-        "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
-      }
+        "lead": "Fasst Kontextdaten eines Endpunkts zu einer KeyPerformanceIndicator-Entität zusammen, die in den KPI-Raum des Projekts geschrieben wird.",
+        "endpoint": "Quell-Endpunkt",
+        "type": "Entitätstyp",
+        "attribute": "Attribut",
+        "aggregate": "Aggregation",
+        "period": "Zeitraum",
+        "name": "Name des Indikators",
+        "test": "Auf der Seite des Endpunkts testen",
+        "testing": "Wird getestet…",
+        "computedValue": "Berechneter Wert",
+        "nothingRead": "Von diesem Endpunkt wurde für diesen Typ und dieses Attribut nichts gelesen, daher gibt es nichts zu berechnen.",
+        "endpointHint": "Der Endpoint, aus dem der Indikator berechnet wird, gelesen unter seiner Policy.",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; benennt den Indikator und seine Pipeline.",
+        "typeHint": "Der Entitätstyp, dessen Werte aggregiert werden; der Space des Endpoints modelliert ihn.",
+        "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
+        "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
+        "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h."
+      },
+      "sourceKindHint": "Eine externe Quelle, mit der sich dieses Projekt verbindet, oder ein Context Space, den dieses Projekt bereits füllt.",
+      "dataSourceHint": "Die Verbindung der Quelle, wie unter Datenquellen gespeichert; eine neue Quelle legen Sie zuerst dort an.",
+      "spaceHint": "Der Space, den die Pipeline liest, über einen seiner Endpoints und dessen Policy.",
+      "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet."
     },
     "test": {
       "title": "An einer Probe ausprobieren",
@@ -1077,7 +1130,10 @@
       "addSource": "+ Quelle",
       "removeSource": "Quelle entfernen",
       "sourceReads": "Diese Quelle liest",
-      "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen."
+      "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
+      "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
+      "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
+      "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
@@ -1153,7 +1209,9 @@
         "pickType": "Typ wählen",
         "file": "Stichprobendatei wählen",
         "fileTaken": "Stichprobe: {name}",
-        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen"
+        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen",
+        "pickHint": "Die Datensätze, die die Pipeline liest: eine Datenquelle oder ein Endpoint dieses Projekts. Mit einer Beispieldatei unten probieren Sie das Mapping auch ohne beides aus.",
+        "typeHint": "Der Entitätstyp des Endpoints, den die Pipeline liest; die Stichprobe zeigt seine ersten Datensätze."
       },
       "sample": {
         "title": "Stichprobe",
@@ -1178,7 +1236,8 @@
         "measuredIn": "Gemessen in {symbol} ({code}); fehlt der unitCode in einem Datensatz, ergänzt ihn das Gateway.",
         "sourceUnit": "Quelle in einer anderen Einheit?",
         "sourceUnitOf": "Quelleinheit von {slot}",
-        "addConversion": "Zum Mapping hinzufügen"
+        "addConversion": "Zum Mapping hinzufügen",
+        "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots."
       },
       "output": {
         "title": "Abgebildete Ausgabe",
@@ -1388,9 +1447,21 @@
       "neverUsed": "nie benutzt",
       "field": {
         "keyId": "Schlüssel-Id",
-        "credential": "Credential",
+        "credential": "Zugangsdaten",
         "expires": "Gültig bis",
         "lastUsed": "Zuletzt benutzt"
+      },
+      "claim": {
+        "title": "Ein Schlüssel, den Ihr MCP-Client angefordert hat",
+        "hint": "Bestätigen Sie ihn hier, um den Schlüssel zu sehen. Ihr MCP-Client hat ihn nicht erhalten.",
+        "mint": "Einen neuen Schlüssel für die Anmeldeinformation {credential} von {account} erstellen.",
+        "rotate": "Schlüssel {keyId} von {account} rotieren: Ein Nachfolger wird erstellt, der aktuelle Schlüssel funktioniert noch {hours, plural, one {# Stunde} other {# Stunden}}.",
+        "expires": "Der neue Schlüssel läuft am {date} ab.",
+        "until": "Der Link gilt bis {time}.",
+        "confirmMint": "Erstellen und Schlüssel anzeigen",
+        "confirmRotate": "Rotieren und Schlüssel anzeigen",
+        "cancel": "Nicht jetzt",
+        "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
       }
     },
     "matrix": {
@@ -1551,7 +1622,7 @@
     "format": "Format",
     "formats": {
       "whole": "Ganzes Projekt (Konfiguration, Schemas und Datenmodelle)",
-      "wholeHelp": "Ein ZIP-Archiv: jedes Manifest und die Dateien daneben, das JSON Schema jeder Art, LinkML-Quelle und JSON Schema jedes Datenmodells und eine README, die sagt, was jede Datei bedeutet.",
+      "wholeHelp": "Ein ZIP-Archiv: jedes Manifest und die Dateien daneben, das JSON Schema jeder Art, Quelle und JSON Schema jedes Datenmodells und eine README, die sagt, was jede Datei bedeutet.",
       "yaml": "YAML",
       "yamlHelp": "Ein Manifest pro Dokument, bereit zum erneuten Anwenden; ein ganzes Projekt endet mit einem Index, der die Schemas enthält.",
       "json": "JSON-Liste",
@@ -1572,7 +1643,7 @@
     "download": "Herunterladen"
   },
   "models": {
-    "title": "LinkML-Modelleditor",
+    "title": "Modelleditor",
     "version": "Version {version}",
     "add": "Hinzufügen",
     "classes": "Klassen",
@@ -1745,12 +1816,16 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import.",
+      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import. Im Kasten zeigt jedes Feld seinen Typ: PK markiert den Schlüssel, FK ein Feld, das auf eine andere Klasse verweist, mit dieser Klasse und der Anzahl. Auch eine gepunktete Linie nennt die Anzahl an beiden Enden; * heißt beliebig viele.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
-      "more": "und {count} weitere",
+      "row": {
+        "pk": "{name}: {type}, der Schlüssel, der jede Entität identifiziert",
+        "fk": "{name}: {type}, ein Verweis auf eine andere Klasse",
+        "plain": "{name}: {type}"
+      },
       "from": "aus {name}",
-      "enumBox": "Enum {name}: {values}",
+      "enumBox": "Aufzählung {name}: {values}",
       "legendRelationship": "Eine durchgezogene Linie ohne Pfeil ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
@@ -1768,7 +1843,7 @@
       "name": "Name",
       "space": "Kontextraum",
       "version": "Version",
-      "linkml": "LinkML-Quelle",
+      "linkml": "Modellquelle",
       "lifecycle": "Lebenszyklus",
       "openWorld": "Nicht deklarierte Attribute annehmen"
     },
@@ -1801,7 +1876,7 @@
         "Dashboard": "{count, plural, one {# Dashboard} other {# Dashboards}}"
       },
       "usedKind": {
-        "ContextSpace": "Context Space",
+        "ContextSpace": "Kontextraum",
         "Endpoint": "Endpoints",
         "Pipeline": "Pipelines",
         "Subscription": "Abonnements",
@@ -1814,7 +1889,7 @@
       "edit": "Modell bearbeiten",
       "notFound": "Kein Datenmodell namens {name}",
       "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
-      "sourceFailed": "Das LinkML des Modells konnte nicht gelesen werden: {reason}",
+      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}",
       "views": "Ansichten des Modells",
       "view": {
         "overview": "Übersicht",
@@ -1831,7 +1906,7 @@
       "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
       "formClass": "Klasse",
       "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
-      "yaml": "Das LinkML des Modells",
+      "yaml": "Die Quelle des Modells (LinkML YAML)",
       "copyYaml": "YAML kopieren",
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",
@@ -1847,7 +1922,7 @@
       "field": "Ein Feld hinzufügen: bei geöffneter Klasse unter Attribute benennen, zum Beispiel name."
     },
     "rangeBasic": "Grundtypen",
-    "rangeEnums": "Enums",
+    "rangeEnums": "Aufzählungen",
     "rangeClasses": "Klassen (öffnet Beziehung hinzufügen)",
     "relationships": {
       "title": "Beziehungen",
@@ -2004,13 +2079,31 @@
       "details": "Details: Name, Art und was sie lesen darf ({name})",
       "noEndpoints": "Dieses Projekt veröffentlicht noch keinen Endpoint; eine Anwendung liest aus einem, veröffentlichen Sie also zuerst einen.",
       "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche: daraus wird die Adresse, unter der die Anwendung ausgeliefert wird.",
-      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, beginnt und endet mit einem davon und hat höchstens 40 Zeichen."
+      "nameInvalid": "Ein Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, beginnt und endet mit einem davon und hat höchstens 40 Zeichen.",
+      "newEndpoint": {
+        "open": "+ Neuer Endpunkt",
+        "title": "Neuer Endpunkt",
+        "hint": "Wird sofort als eigene Änderung vorgeschlagen. Der Builder übernimmt ihn, sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht.",
+        "name": "Name des Endpunkts",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. bikes-app.",
+        "nameInvalid": "Kleinbuchstaben, Ziffern und Bindestriche verwenden, Anfang und Ende Buchstabe oder Ziffer, höchstens 63 Zeichen.",
+        "space": "Kontextraum",
+        "spaceMissing": "Wählen Sie den Kontextraum, den der Endpunkt bereitstellt.",
+        "accessHint": "Nur lesen gewährt nichts Neues: Sie lesen über den Endpunkt, was Sie im Raum bereits lesen. Lesen und ändern oder Voll gewähren diese Operationen auf den Typen unten allen im Projekt; die Änderung geht deshalb über die rote Spur und eine andere Person genehmigt sie.",
+        "types": "Typen, die die App ändern darf",
+        "typesHint": "Die Berechtigung gilt nur für diese Typen.",
+        "typesMissing": "Wählen Sie mindestens einen Typ, den die App ändern darf.",
+        "propose": "Endpunkt vorschlagen",
+        "cancel": "Abbrechen",
+        "close": "Schließen",
+        "waiting": "{name} ist vorgeschlagen (Spur {lane}). Sobald die Änderung zusammengeführt ist und der Endpunkt bereitsteht, liest der Builder ihn; die Beschreibung können Sie inzwischen weiterschreiben."
+      }
     },
     "newAction": "Eigene Anwendung erzeugen",
     "builds": {
       "title": "Builds",
-      "line": "{state}, started {when}",
-      "open": "Open"
+      "line": "{state}, gestartet {when}",
+      "open": "Öffnen"
     },
     "drafts": {
       "title": "Im Bau",
@@ -2051,12 +2144,16 @@
       "representations": "Darstellungen",
       "within": "Innerhalb des Scopes",
       "window": "Zeitfenster",
-      "csp": "Content Security Policy",
+      "csp": "Content Security Policy (CSP)",
       "connectSrc": "Darf aufrufen",
       "frameAncestors": "Darf eingebettet werden von",
       "limits": "Grenzen",
       "requestsPerMinute": "Anfragen pro Minute",
-      "maxFileRows": "Zeilen pro Datei-Download"
+      "maxFileRows": "Zeilen pro Datei-Download",
+      "egress": "Ausgehende Netze",
+      "egressCidr": "Netz",
+      "egressPorts": "Ports",
+      "needRoles": "Nur für Rollen"
     },
     "build": {
       "title": "Build in der Forge",
@@ -2083,22 +2180,24 @@
         "commit": "Gebaut aus Commit {commit}"
       }
     },
-    "rebuildAction": "Rebuild",
-    "retireAction": "Retire",
-    "latestRun": "Latest build run",
-    "package": "Package",
-    "previewOnlyPreview": "Only a preview can be previewed here",
-    "publishOnlyPreview": "Only a preview can be published",
-    "rebuildOnlyPublished": "Only a published application is built",
-    "rebuildRunning": "A build is running",
-    "retireOnlyPublished": "Only a published application can be retired",
+    "rebuildAction": "Neu bauen",
+    "retireAction": "Außer Betrieb nehmen",
+    "latestRun": "Letzter Build-Lauf",
+    "package": "Paket",
+    "previewOnlyPreview": "Hier lässt sich nur eine Vorschau in der Vorschau öffnen",
+    "publishOnlyPreview": "Nur eine Vorschau kann veröffentlicht werden",
+    "rebuildOnlyPublished": "Nur eine veröffentlichte Anwendung wird gebaut",
+    "rebuildRunning": "Ein Build läuft",
+    "retireOnlyPublished": "Nur eine veröffentlichte Anwendung kann außer Betrieb genommen werden",
     "openDisabled": {
-      "draft": "Nothing published yet",
-      "preview": "A preview opens from the menu",
-      "retired": "This application is retired",
-      "building": "Building…",
-      "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "draft": "Noch nichts veröffentlicht",
+      "preview": "Eine Vorschau öffnet sich über das Menü",
+      "retired": "Diese Anwendung ist außer Betrieb",
+      "building": "Wird gebaut…",
+      "failed": "Build fehlgeschlagen",
+      "notBuilt": "Noch wird kein Build ausgeliefert",
+      "certificate": "Die Adresse der Anwendung wird gesichert, das dauert etwa eine Minute",
+      "host": "Die Adresse der Anwendung ließ sich nicht einrichten; der Grund ist für Administratoren sichtbar"
     },
     "openPage": {
       "details": "App-Details",
@@ -2107,14 +2206,15 @@
       "frameTitle": "{title}, die Anwendung",
       "notOpen": "Hier gibt es noch nichts zu öffnen. Die App-Details sagen, wie es weitergeht.",
       "signInHint": "Fragt die App nach einer Anmeldung und bleibt leer?",
-      "signInAgain": "Erneut anmelden"
+      "signInAgain": "Erneut anmelden",
+      "lead": "Die veröffentlichte Anwendung, im Portal mit Ihrer Anmeldung ausgeführt."
     },
     "retire": {
-      "title": "Retire {name}",
-      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
-      "hint": "This opens a merge request. The source and its builds stay in the forge.",
-      "confirm": "Open the merge request",
-      "cancel": "Cancel"
+      "title": "{name} außer Betrieb nehmen",
+      "body": "Die Außerbetriebnahme entzieht die Anwendung {visibility}: Ihre Adresse antwortet nicht mehr, sobald die Änderung freigegeben ist.",
+      "hint": "Dies öffnet einen Merge-Request. Der Quellcode und seine Builds bleiben in der Forge.",
+      "confirm": "Merge-Request öffnen",
+      "cancel": "Abbrechen"
     },
     "roles": {
       "title": "Rollen und Mitglieder",
@@ -2137,6 +2237,13 @@
       "noOthers": "Keine andere Gruppe hat diese Rolle.",
       "give": "Rolle einer Gruppe geben",
       "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
+    },
+    "check": {
+      "green": "Funktioniert",
+      "red": "Gestört",
+      "amber": "Länger nicht geprüft",
+      "line": "Geprüft {when}",
+      "lineWithReason": "Geprüft {when}: {reason}"
     }
   },
   "appLifecycle": {
@@ -2395,6 +2502,11 @@
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
     "notInList": "nicht in der Liste",
+    "relationSearch": "Suchen",
+    "relationNone": "Nichts, was Sie lesen dürfen, passt",
+    "relationRemove": "Entfernen",
+    "relationFailed": "Die Suche ist fehlgeschlagen",
+    "relationMore": "und weitere",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",
@@ -2450,7 +2562,7 @@
     "removeLead": "{id} wird über diesen Endpunkt aus dem Raum entfernt.",
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
-    "deleteDenied": "This endpoint's grant does not let you delete a {type}",
+    "deleteDenied": "Die Freigabe dieses Endpunkts erlaubt Ihnen nicht, {type} zu löschen",
     "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
@@ -2510,7 +2622,7 @@
       "closed": "Der Lauf ist beendet und liest nichts mehr.",
       "agent": "Assistent",
       "you": "Sie",
-      "somethingElse": "Something else…",
+      "somethingElse": "Etwas anderes…",
       "emptyHint": "Schreiben Sie, was gebaut oder geändert werden soll; die Assistenz antwortet hier und fragt zurück, wenn sie eine Entscheidung braucht.",
       "dropped": "Die Live-Verbindung ist abgebrochen. Was oben steht, kann unfertig sein; öffnen Sie den Lauf erneut, um ihm weiter zu folgen.",
       "stalled": "Seit {seconds} Sekunden keine Antwort. Der Lauf arbeitet vielleicht noch, vielleicht steht er still.",
@@ -2560,8 +2672,8 @@
       "elapsed": "{seconds} s seit dem Start"
     },
     "chat": {
-      "show": "Show the assistant",
-      "hide": "Hide the assistant"
+      "show": "Assistenten einblenden",
+      "hide": "Assistenten ausblenden"
     },
     "progress": {
       "working": "Arbeitet…",
@@ -2833,7 +2945,7 @@
       "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen",
       "fromModel": "aus dem Datenmodell"
     },
-    "trail": "Pages the assistant opened",
+    "trail": "Seiten, die der Assistent geöffnet hat",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
     "paths": {
       "integrate-pipeline": {
@@ -3003,40 +3115,40 @@
     "testRun": "Testlauf"
   },
   "activity": {
-    "title": "Activity",
-    "lead": "What is happening in this project: the reconciler, the pipelines, the gateway, the broker and the catalogue, newest first.",
-    "empty": "Nothing has happened here yet.",
-    "time": "When",
-    "kind": "What",
-    "source": "Who says so",
-    "summary": "What happened",
-    "object": "Object",
-    "tail": "Live tail",
-    "tailOn": "Following",
-    "tailOff": "Paused",
+    "title": "Aktivität",
+    "lead": "Was in diesem Projekt geschieht: der Reconciler, die Pipelines, das Gateway, der Broker und der Katalog, das Neueste zuerst.",
+    "empty": "Hier ist noch nichts passiert.",
+    "time": "Wann",
+    "kind": "Was",
+    "source": "Wer es meldet",
+    "summary": "Was geschah",
+    "object": "Objekt",
+    "tail": "Live-Verlauf",
+    "tailOn": "Wird verfolgt",
+    "tailOff": "Angehalten",
     "filter": {
-      "kind": "Kind",
-      "source": "Source",
-      "severity": "Severity",
-      "space": "Context Space",
-      "all": "Any"
+      "kind": "Art",
+      "source": "Quelle",
+      "severity": "Schweregrad",
+      "space": "Kontextraum",
+      "all": "Alle"
     },
     "severity": {
       "info": "Info",
-      "warning": "Warning",
-      "error": "Error"
+      "warning": "Warnung",
+      "error": "Fehler"
     },
-    "more": "Show older",
-    "panelTitle": "Recent activity",
-    "panelEmpty": "Nothing has happened to this one yet.",
-    "announce": "{count, plural, one {# new error} other {# new errors}}",
-    "lastHour": "What happened in the last hour",
+    "more": "Ältere anzeigen",
+    "panelTitle": "Letzte Aktivität",
+    "panelEmpty": "Hiermit ist noch nichts passiert.",
+    "announce": "{count, plural, one {# neuer Fehler} other {# neue Fehler}}",
+    "lastHour": "Was in der letzten Stunde geschah",
     "bucket": {
-      "messages": "Messages ingested",
-      "changes": "Changes applied",
-      "requests": "Requests served",
-      "forwards": "Forwards",
-      "denials": "Refusals"
+      "messages": "Empfangene Nachrichten",
+      "changes": "Angewendete Änderungen",
+      "requests": "Beantwortete Anfragen",
+      "forwards": "Weiterleitungen",
+      "denials": "Ablehnungen"
     },
     "emptyHint": "Alles, was die Plattform hier tut, landet in dieser Liste: eine angewandte Änderung, der Durchsatz einer Pipeline, eine abgelehnte Anfrage. Laden Sie eine Datenquelle oder genehmigen Sie eine Änderung, und die ersten Zeilen erscheinen.",
     "kinds": {
@@ -3138,6 +3250,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Abweichung vom Repository",
+      "notYet": "Noch keine Abweichungsprüfung: Die Plattform vergleicht die Seed-Entitäten dieses Raums beim nächsten Durchlauf mit dem Repository.",
+      "clean": "Der Raum enthält, was das Repository deklariert.",
+      "found": "{count, plural, one {# Entität weicht vom Repository ab.} other {# Entitäten weichen vom Repository ab.}}",
+      "observed": "Geprüft {when}.",
+      "caption": "Entitäten von {space}, die vom Repository abweichen",
+      "entity": "Entität",
+      "kind": "Abweichung",
+      "attributes": "Attribute",
+      "resolution": "Auflösung",
+      "resolve": "Auflösen",
+      "resolveLabel": "Abweichung von {id} auflösen",
+      "mayNotResolve": "Zum Auflösen brauchen Sie das Recht, in diesem Projekt Entitäten vorzuschlagen.",
+      "wholeEntity": "Die ganze Entität"
+    },
     "modal": {
       "title": "Was sich in „{id}“ geändert hat",
       "lead": {
@@ -3490,7 +3618,8 @@
       "blueprints": "Vorlagen",
       "agentprofiles": "Agentenprofile",
       "dataspaceparticipants": "Datenraum",
-      "environments": "Umgebungen"
+      "environments": "Umgebungen",
+      "health": "Prüfstatus"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3713,6 +3842,240 @@
           "hint": "Geplante Datenbanksicherungen in einen Objektspeicher (postgres.backups)."
         }
       }
+    },
+    "health": {
+      "title": "Prüfstatus",
+      "lead": "Jede Prüfung dieser Installation mit ihrem zuletzt veröffentlichten Lauf: Abweichungen und Lieferkette, Konformität, Berechtigungsmatrix, Leistungsbudgets, Wiederherstellungsprobe und der Live-Durchlauf.",
+      "hidden": "Nur eine Administratorin oder ein Administrator der Organisation sieht den Prüfstatus.",
+      "caption": "Die Prüfungen und ihr letzter Lauf",
+      "check": "Prüfung",
+      "state": "Zustand",
+      "lastRun": "Letzter Lauf",
+      "results": "Ergebnisse",
+      "trend": "Letzte 7 Tage",
+      "failures": "Fehlschläge",
+      "empty": "Noch keine Prüfung hat ein Ergebnis veröffentlicht",
+      "emptyHint": "Jede Prüfung veröffentlicht ihr Ergebnis nach ihrem Lauf; die ersten erscheinen nach dem nächsten stündlichen Durchgang.",
+      "unreadableHint": "Diese Seite kann das veröffentlichte Ergebnis nicht lesen; veröffentlichen Sie es erneut.",
+      "counts": "{pass} bestanden, {fail} fehlgeschlagen, {error} Fehler, {skip} übersprungen",
+      "trendLabel": "{runs, plural, one {# Lauf} other {# Läufe}} in 7 Tagen, davon {red} rot",
+      "showFailures": "{count, plural, one {# Fehlschlag anzeigen} other {# Fehlschläge anzeigen}}",
+      "task": "(Aufgabe {task})",
+      "states": {
+        "green": "Grün",
+        "red": "Rot",
+        "stale": "Veraltet",
+        "unreadable": "Unlesbar"
+      },
+      "summary": {
+        "green": "Alles grün",
+        "red": "{count, plural, one {# Prüfung rot} other {# Prüfungen rot}}",
+        "stale": "{count, plural, one {# Prüfung veraltet} other {# Prüfungen veraltet}}",
+        "unreadable": "{count, plural, one {# Ergebnis unlesbar} other {# Ergebnisse unlesbar}}"
+      }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Kontexträume pro Projekt",
+            "hint": "Wie viele Kontexträume ein Projekt haben darf."
+          },
+          "residentPipelines": {
+            "label": "Dauerhaft laufende Pipelines pro Projekt",
+            "hint": "Wie viele Pipelines eines Projekts der Runner gleichzeitig laufen lässt."
+          },
+          "publicEndpoints": {
+            "label": "Öffentliche Endpunkte pro Projekt",
+            "hint": "Wie viele Endpunkte eines Projekts für alle offen sein dürfen."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Aufgenommene Ereignisse pro Sekunde",
+            "hint": "Wie schnell ein Projekt Daten schreiben darf."
+          },
+          "apps": {
+            "label": "Apps pro Projekt",
+            "hint": "Wie viele Apps eines Projekts in der Vorschau oder veröffentlicht sein dürfen."
+          },
+          "agentRunsPerDay": {
+            "label": "Assistentenläufe pro Tag",
+            "hint": "Wie viele Assistentenläufe ein Projekt pro Tag starten darf."
+          },
+          "entitiesPerSpace": {
+            "label": "Entitäten pro Raum",
+            "hint": "Wie viele Entitäten ein Kontextraum haben darf."
+          },
+          "requestsPerMinute": {
+            "label": "Anfragen pro Minute pro Projekt",
+            "hint": "Die meisten Anfragen pro Minute, die die Endpunkte eines Projekts bedienen."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Namenssperre (Tage)",
+          "hint": "Wie lange der Name eines entfernten Projekts gesperrt bleibt."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Web-Anfragen pro Minute",
+              "hint": "Anfragen pro Minute, die ein Besucher an das Portal und die Apps stellen darf."
+            },
+            "api": {
+              "label": "API-Anfragen pro Minute",
+              "hint": "Anfragen pro Minute, die ein Client an die Portal-API stellen darf."
+            },
+            "dataRead": {
+              "label": "Datenlesezugriffe pro Minute",
+              "hint": "Lesezugriffe pro Minute, die ein Client über einen Endpunkt machen darf."
+            },
+            "dataWrite": {
+              "label": "Datenschreibzugriffe pro Minute",
+              "hint": "Schreibzugriffe pro Minute, die ein Client über einen Endpunkt machen darf."
+            },
+            "publicEndpoint": {
+              "label": "Anfragen an öffentliche Endpunkte pro Minute",
+              "hint": "Anfragen pro Minute, die ein anonymer Besucher an einen öffentlichen Endpunkt stellen darf."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Größte Anfrage (MiB)",
+            "hint": "Der Rand lehnt einen größeren Anfragetext ab, bevor ihn etwas liest."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Größter Datenschreibvorgang (MiB)",
+            "hint": "Das Gateway lehnt einen größeren Schreibvorgang ab; höchstens das Limit des Rands."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Abmeldung nach Inaktivität (Minuten)",
+            "hint": "Eine Sitzung endet nach dieser Zeit ohne Aktivität."
+          },
+          "sessionMaxHours": {
+            "label": "Längste Sitzung (Stunden)",
+            "hint": "Nach dieser Zeit meldet man sich erneut an, aktiv oder nicht."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Einladung gültig (Stunden)",
+            "hint": "Wie lange ein Einladungslink funktioniert."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Modellausgaben pro Tag",
+            "hint": "Ganze Währungseinheiten, die der Assistent pro Tag für Modelle ausgeben darf."
+          },
+          "spendPerMonth": {
+            "label": "Modellausgaben pro Monat",
+            "hint": "Ganze Währungseinheiten, die der Assistent pro Monat für Modelle ausgeben darf."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Aufbewahrte abgelehnte Datensätze",
+            "hint": "Wie viele abgelehnte Datensätze eine Pipeline zur Prüfung behält."
+          },
+          "sampleMegabytes": {
+            "label": "Größe der Testprobe (MiB)",
+            "hint": "Die größte Probe, die ein Pipeline-Test liest."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Größter Upload (MiB)",
+            "hint": "Die größte Datei, die man hochladen darf; höchstens das Limit des Rands."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Kürzestes Passwort",
+              "hint": "Wie viele Zeichen ein Passwort mindestens braucht."
+            },
+            "history": {
+              "label": "Passwortverlauf",
+              "hint": "Wie viele frühere Passwörter ein neues nicht wiederholen darf."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Richtlinien",
+      "policiesHint": "Was die Organisation erlaubt.",
+      "apps": "Anwendungen",
+      "appsHint": "Wer die Apps sehen darf, die Projekte veröffentlichen.",
+      "agents": "Assistent",
+      "agentsHint": "Was der Assistent nutzen und ausgeben darf.",
+      "limits": "Grenzwerte",
+      "limitsHint": "Wie viel die Plattform für die Organisation leistet.",
+      "edge": "Rand",
+      "edgeHint": "Was der Rand pro Client durchlässt.",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "requestsPerMinuteHint": "Eine Rate pro Art von Verkehr.",
+      "gateway": "Gateway",
+      "gatewayHint": "Was ein Schreibvorgang über einen Endpunkt tragen darf.",
+      "signIn": "Anmeldung",
+      "signInHint": "Sitzungen und Passwörter.",
+      "password": "Passwörter",
+      "passwordHint": "Wie ein Passwort sein muss.",
+      "people": "Personen",
+      "peopleHint": "Einladungen in die Organisation.",
+      "pipelines": "Pipelines",
+      "pipelinesHint": "Was Pipelines behalten und lesen.",
+      "data": "Daten",
+      "dataHint": "Was man hochladen darf."
+    },
+    "limits": {
+      "title": "Richtlinien und Limits",
+      "lead": "Jedes Limit, das die Organisation setzt, der geltende Wert und der Bereich, den der Betreiber erlaubt. Bearbeiten ändert sie über eine genehmigte Änderung.",
+      "atLeast": "mindestens {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (Standard)",
+      "noLimit": "kein Limit",
+      "defaultNone": "Standardmäßig gibt es kein Limit.",
+      "defaultIs": "Der Standard ist {value}.",
+      "allowed": "Erlaubt: {bound}.",
+      "usedOf": "{used} von {limit}",
+      "setting": "Einstellung",
+      "inForce": "Geltend",
+      "range": "Erlaubter Bereich",
+      "perProject": "Kontingent pro Projekt",
+      "perProjectLead": "Wessen Kontingent jedes Projekt nutzt und was es verbraucht; Projekte, die Sie nicht lesen dürfen, fehlen.",
+      "project": "Projekt",
+      "whose": "Kontingent von",
+      "noProjects": "Kein Projekt, das Sie lesen dürfen.",
+      "section": {
+        "projects": "Projekte",
+        "applications": "Anwendungen",
+        "edge": "Rand",
+        "signIn": "Anmeldung",
+        "people": "Personen",
+        "agents": "Assistent",
+        "pipelinesAndData": "Pipelines und Daten"
+      },
+      "origin": {
+        "project": "das Projekt",
+        "organization": "die Organisation",
+        "default": "niemand (kein Limit)"
+      }
+    },
+    "policy": {
+      "publicApps": "Öffentliche Apps",
+      "publicAppsHint": "Ob ein Projekt eine App veröffentlichen darf, die jeder ohne Anmeldung öffnet.",
+      "publicApps_allowed": "Erlaubt",
+      "publicApps_refused": "Abgelehnt",
+      "models": "Modelle, die der Assistent nutzen darf",
+      "modelsHint": "Leer lassen, um jedes Modell der Installation zu erlauben.",
+      "everyModel": "Jedes Modell der Installation"
     }
   },
   "projectDelete": {
@@ -3930,7 +4293,7 @@
       "CC_BYSA_4_0": "Creative Commons Namensnennung – Weitergabe unter gleichen Bedingungen 4.0",
       "CC0": "Creative Commons Zero (gemeinfrei)",
       "ODC_BY": "Open Data Commons Namensnennung",
-      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_ODBL": "Open Database License (ODbL)",
       "ODC_PDDL": "Open Data Commons Gemeinfreiheit"
     },
     "dataTheme": {

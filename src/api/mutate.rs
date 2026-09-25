@@ -227,6 +227,20 @@ fn moved_on_main(
         || a.description != b.description
 }
 
+/// The refusal of a create whose file is already there (T-2855): what holds the path, and what to
+/// do instead, so nobody's manifest is replaced by a change that reads as a create.
+fn path_taken(kind: &str, held: &str, name: &str, path: &str) -> ApiError {
+    let holder = if held.is_empty() {
+        "a manifest".to_owned()
+    } else {
+        format!("{kind} '{held}'")
+    };
+    ApiError::Conflict(format!(
+        "{holder} is already filed at {path}; creating {kind} '{name}' would replace it. \
+         Change {holder} instead, or remove it first"
+    ))
+}
+
 pub(crate) async fn create_or_reuse_branch(
     gitea: &crate::git::GiteaClient,
     branch: &str,
@@ -860,6 +874,14 @@ async fn propose_engine(
         })?;
     }
 
+    // 4e. An Organization's limits stay inside the operator's bounds (PF-97): refused here,
+    //     before a Change exists, and again at approval, since the bounds may tighten between.
+    if operation != Operation::Delete {
+        organization_within_bounds(state, kind_info.kind, &envelope.spec, ApiError::BadRequest)?;
+        // 4f. The organization's public-app policy (PF-103), held again at approval.
+        public_app_allowed(state, project, &envelope, ApiError::BadRequest)?;
+    }
+
     // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
     //     `jcctl validate` runs, so the two cannot disagree about what is stale, and every stale
     //     name is listed at once. The model is looked up in this project only, so a model of
@@ -1044,6 +1066,33 @@ async fn propose_engine(
     let current = state
         .mirror
         .get(project, kind_info.kind, &envelope.metadata.name);
+    // 5'. A kind filed once per scope keeps one file whatever its name (DS-07): a create under a
+    //     new name would replace the one there and read as a create (T-2855).
+    // Filed once when two names in two spaces render one path, whichever template the namespace
+    // picks: a ContextSpace is filed by its `{space}`, which is its own name.
+    let filed_once =
+        kind_info.repo_path(project, "s1", "a") == kind_info.repo_path(project, "s2", "b");
+    if operation == Operation::Create && filed_once {
+        if let Some(held) = state
+            .mirror
+            .list(
+                project,
+                kind_info.kind,
+                &crate::store::ListOptions::default(),
+            )
+            .items
+            .into_iter()
+            .find(|held| held.metadata.name != envelope.metadata.name)
+        {
+            let path = kind_info.repo_path(project, "", &held.metadata.name);
+            return Err(path_taken(
+                kind_info.kind,
+                &held.metadata.name,
+                &envelope.metadata.name,
+                &path,
+            ));
+        }
+    }
     let mut plan = plan::diff(current.as_ref(), Some(&envelope));
 
     // The same folder as the manifest, so a path is checked against where it will be written.
@@ -1130,6 +1179,22 @@ async fn propose_engine(
     //     moved to: the build lane's status write once undid the bootstrap's new pin (T-2674).
     if workspace.is_none() {
         let on_main = gitea.get_file(&manifest_path, &default_branch).await?;
+        // A create of a kind filed once writes a file that is not there yet: one at its path on
+        // main is the resource the mirror has not read, and writing over it would be a
+        // replacement the approver reads as a create (T-2855).
+        if operation == Operation::Create && filed_once {
+            if let Some(file) = &on_main {
+                let held = serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content)
+                    .map(|held| held.metadata.name)
+                    .unwrap_or_default();
+                return Err(path_taken(
+                    kind_info.kind,
+                    &held,
+                    &envelope.metadata.name,
+                    &manifest_path,
+                ));
+            }
+        }
         if moved_on_main(current.as_ref(), on_main.as_ref()) {
             return Err(ApiError::Conflict(format!(
                 "{} '{}' changed on {default_branch} after the Portal last read it; read it \
@@ -1558,6 +1623,76 @@ const MAX_SIDECARS: usize = 16;
 const MAX_SIDECAR_BYTES: usize = 256 * 1024;
 
 /// A `ModelProjection` against the LinkML of the DataModel version it references (MP-01).
+/// Refuses an Organization spec that sets a limit outside the operator's bounds, naming the
+/// entry, the value, the bound and who moves the bound (PF-97, ADR-N-035). Any other kind passes.
+/// `refusal` is the answer's kind: a form error on a door, a conflict at approval.
+pub(crate) fn organization_within_bounds(
+    state: &AppState,
+    kind: &str,
+    spec: &Value,
+    refusal: fn(String) -> ApiError,
+) -> Result<(), ApiError> {
+    if kind != "Organization" {
+        return Ok(());
+    }
+    // The kind's own parse ran before; a spec that does not parse was refused there.
+    let Ok(spec) = serde_json::from_value::<jc_core::kinds::OrganizationSpec>(spec.clone()) else {
+        return Ok(());
+    };
+    spec.check_limits(&state.config.organization_bounds)
+        .map_err(|e| {
+            refusal(format!(
+                "{e}; an organization sets a value inside the bound, and the operator moves the \
+                 bound in the deployment (portal.organizationBounds), never the Portal (PF-97)"
+            ))
+        })
+}
+
+/// An App made public while the organization refuses public Apps (`spec.policies.apps.public`,
+/// PF-100, PF-103). An App that is public already stays as it is: the policy stops new public
+/// Apps, it takes nothing offline, so an edit that keeps it public passes.
+pub(crate) fn public_app_allowed(
+    state: &AppState,
+    project: &str,
+    envelope: &ResourceEnvelope,
+    refusal: fn(String) -> ApiError,
+) -> Result<(), ApiError> {
+    use jc_core::kinds::{OrganizationPolicies, PublicApps};
+    let public = |spec: &Value| spec.get("visibility").and_then(Value::as_str) == Some("public");
+    if envelope.kind != "App" || !public(&envelope.spec) {
+        return Ok(());
+    }
+    let name = &envelope.metadata.name;
+    if state
+        .mirror
+        .get(project, "App", name)
+        .is_some_and(|stored| public(&stored.spec))
+    {
+        return Ok(());
+    }
+    let refused = state
+        .mirror
+        .list(
+            crate::permissions::ORG_NAMESPACE,
+            "Organization",
+            &crate::store::ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find_map(|org| {
+            serde_json::from_value::<OrganizationPolicies>(org.spec.get("policies")?.clone()).ok()
+        })
+        .is_some_and(|policies| policies.apps.public == PublicApps::Refused);
+    if refused {
+        return Err(refusal(format!(
+            "App '{name}' may not be public: the organization refuses public Apps \
+             (spec.policies.apps.public). Keep it visible to the project or the organization, or \
+             ask an organization admin to allow public Apps in Organization settings (PF-103)"
+        )));
+    }
+    Ok(())
+}
+
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
     use jc_core::kinds::{DataModelSpec, ModelProjectionSpec};
     // The kind's own parse ran above; a spec it accepted parses here too.
@@ -2114,6 +2249,137 @@ mod tests {
     use crate::resource::ObjectMeta;
     use http_body_util::BodyExt;
     use serde_json::json;
+
+    /// T-2716 (PF-97): the operator's bound holds an Organization's limit at approval too, as a
+    /// conflict naming the entry, the value, the bound and who moves it; other kinds pass.
+    #[test]
+    fn an_organization_limit_outside_the_operators_bound_is_refused_with_who_moves_it() {
+        let mut config = Config::for_tests();
+        config.organization_bounds = serde_json::from_value(serde_json::json!({
+            "spec.projects.quota.contextSpaces": { "max": 20 }
+        }))
+        .expect("bounds");
+        let state = AppState::new(config, None);
+        let spec = |spaces: u32| {
+            serde_json::json!({
+                "domain": "hel.fi",
+                "locales": ["en"],
+                "defaultLocale": "en",
+                "projects": { "quota": { "contextSpaces": spaces } }
+            })
+        };
+        let refused =
+            organization_within_bounds(&state, "Organization", &spec(50), ApiError::Conflict)
+                .expect_err("50 is over the operator's 20");
+        let ApiError::Conflict(message) = refused else {
+            panic!("a conflict at approval: {refused:?}");
+        };
+        for part in [
+            "spec.projects.quota.contextSpaces",
+            "50",
+            "0 … 20",
+            "portal.organizationBounds",
+        ] {
+            assert!(message.contains(part), "{part}: {message}");
+        }
+        assert!(
+            organization_within_bounds(&state, "Organization", &spec(20), ApiError::Conflict)
+                .is_ok()
+        );
+        assert!(
+            organization_within_bounds(&state, "ContextSpace", &spec(50), ApiError::Conflict)
+                .is_ok()
+        );
+        // Without an operator file a quota has no ceiling (ADR-N-035: the operator sets one).
+        let open = AppState::new(Config::for_tests(), None);
+        assert!(organization_within_bounds(
+            &open,
+            "Organization",
+            &spec(500),
+            ApiError::BadRequest
+        )
+        .is_ok());
+    }
+
+    /// T-2870 (PF-103): with public Apps refused, a Change that makes an App public is refused
+    /// naming the setting and who changes it; an App public already keeps being edited, and an
+    /// App kept to its project, another kind, or an organization that allows them all pass.
+    #[test]
+    fn a_new_public_app_is_refused_while_the_organization_refuses_public_apps() {
+        let state = AppState::new(Config::for_tests(), None);
+        let manifest = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+            api_version: resource::API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some(namespace.into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        };
+        let app = |name: &str, visibility: &str| {
+            manifest("App", name, "helsinki", json!({ "visibility": visibility }))
+        };
+        let organization = |public: &str| {
+            manifest(
+                "Organization",
+                "hel-fi",
+                crate::permissions::ORG_NAMESPACE,
+                json!({ "policies": { "apps": { "public": public } } }),
+            )
+        };
+        let check = |envelope: &ResourceEnvelope| {
+            public_app_allowed(&state, "helsinki", envelope, ApiError::BadRequest)
+        };
+
+        // No Organization, or one that says nothing: public Apps are allowed (the default).
+        assert!(check(&app("bikes", "public")).is_ok());
+        state.mirror.upsert(organization("allowed"));
+        assert!(check(&app("bikes", "public")).is_ok());
+
+        state.mirror.upsert(organization("refused"));
+        let refused = check(&app("bikes", "public")).expect_err("a new public App");
+        let ApiError::BadRequest(message) = refused else {
+            panic!("a bad request at the door: {refused:?}");
+        };
+        for part in [
+            "App 'bikes'",
+            "spec.policies.apps.public",
+            "Organization settings",
+        ] {
+            assert!(message.contains(part), "{part}: {message}");
+        }
+        assert!(matches!(
+            public_app_allowed(
+                &state,
+                "helsinki",
+                &app("bikes", "public"),
+                ApiError::Conflict
+            ),
+            Err(ApiError::Conflict(_))
+        ));
+        assert!(check(&app("bikes", "project")).is_ok());
+        assert!(check(&manifest(
+            "Endpoint",
+            "bikes",
+            "helsinki",
+            json!({ "visibility": "public" })
+        ))
+        .is_ok());
+
+        // Public before the policy: the policy takes nothing offline, so its edits pass; a private
+        // App of the same name in another project is not that App.
+        state.mirror.upsert(app("map", "public"));
+        assert!(check(&app("map", "public")).is_ok());
+        state.mirror.upsert(manifest(
+            "App",
+            "atlas",
+            "espoo",
+            json!({ "visibility": "public" }),
+        ));
+        assert!(check(&app("atlas", "public")).is_err());
+    }
 
     fn dummy_user() -> CurrentUser {
         CurrentUser(Session {

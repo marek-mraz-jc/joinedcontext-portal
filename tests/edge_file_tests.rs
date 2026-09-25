@@ -32,18 +32,17 @@ const BASE: &str = r#"plugin_configs:
       request-id:
         include_in_response: true
 upstreams:
-  - id: apps-surface
+  - id: portal-ui
     nodes:
       "portal.jc.svc.cluster.local:8080": 1
   - id: context-endpoint
     nodes:
       "context-gateway.jc.svc.cluster.local:8080": 1
 routes:
-  - id: apps-surface
-    uri: /apps/*
-    host: city.example
-    upstream_id: apps-surface
-    plugin_config_id: apps-surface
+  - id: portal-ui
+    uri: /*
+    host: portal.city.example
+    upstream_id: portal-ui
   - id: context-endpoint
     uri: /api/endpoint/*
     host: city.example
@@ -60,6 +59,7 @@ fn apps() -> Vec<EdgeApp> {
             namespace: "jc-helsinki-apps".into(),
         },
         secret: ClientSecret::from(CLIENT_SECRET.to_owned()),
+        slugs: vec!["k4y7pq2mzt6vhx3nbwrs5cjd8f".into()],
     }]
 }
 

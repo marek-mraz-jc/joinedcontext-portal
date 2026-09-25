@@ -420,3 +420,181 @@ spec:
     .await;
     assert_eq!(StatusCode::OK, free.status, "{}", free.text());
 }
+
+/// The forge of `server` lists, as the merge request's files, exactly the paths the flow wrote,
+/// plus `extra`; returns a probe that says whether the merge was asked for.
+async fn files_are_what_was_written(server: &MockServer, extra: &[&str]) {
+    use std::sync::{Arc, Mutex};
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, Request, ResponseTemplate};
+    let written = Arc::new(Mutex::new(Vec::<String>::new()));
+    let record = Arc::clone(&written);
+    let prefix = format!("{}/contents/", common::REPO);
+    Mock::given(method("PUT"))
+        .and(path_regex(format!("^{}/contents/.+", common::REPO)))
+        .respond_with(move |request: &Request| {
+            if let Some(path) = request.url.path().strip_prefix(&prefix) {
+                record.lock().expect("paths").push(path.to_owned());
+            }
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } }))
+        })
+        .with_priority(1)
+        .mount(server)
+        .await;
+    let extra: Vec<String> = extra.iter().map(|p| (*p).to_owned()).collect();
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{}/pulls/[0-9]+/files$", common::REPO)))
+        .respond_with(move |_: &Request| {
+            let mut files: Vec<Value> = written
+                .lock()
+                .expect("paths")
+                .iter()
+                .map(|path| json!({ "filename": path, "status": "added" }))
+                .collect();
+            files.extend(
+                extra
+                    .iter()
+                    .map(|path| json!({ "filename": path, "status": "added" })),
+            );
+            ResponseTemplate::new(200).set_body_json(files)
+        })
+        .mount(server)
+        .await;
+}
+
+/// The merge the Portal asked the forge for, as its request body.
+async fn merges(server: &MockServer) -> Vec<Value> {
+    server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/merge"))
+        .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
+        .collect()
+}
+
+/// AG-14, CC-63, CC-65: a blueprint declared green whose manifests are all green is merged as it
+/// is proposed, attributed to the person who started it, pinned to the commit the Portal wrote.
+#[tokio::test]
+async fn a_green_flow_is_merged_for_the_person_who_started_it() {
+    let (server, state) = world().await;
+    files_are_what_was_written(&server, &[]).await;
+    let change = doors::call(
+        "jc_flow_start",
+        &session(with_role(steward())),
+        &state,
+        flow("threshold-alert", json!({ "title": "air" })),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, change.status, "{}", change.text());
+    assert_eq!("green", change.body["lane"], "{}", change.text());
+    assert_eq!(
+        "Deploying",
+        change.body["change"]["status"]["phase"],
+        "{}",
+        change.text()
+    );
+    let merged = merges(&server).await;
+    assert_eq!(1, merged.len(), "one merge: {merged:?}");
+    let message = merged[0]["merge_message_field"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        message.contains(
+            "Green lane: blueprint threshold-alert 1.2.0, started by jana@banskabystrica.sk"
+        ),
+        "{merged:?}"
+    );
+}
+
+/// CC-63: a merge request that carries a file the Portal did not write waits for a person.
+#[tokio::test]
+async fn a_green_flow_whose_merge_request_holds_another_file_waits_for_a_person() {
+    let (server, state) = world().await;
+    files_are_what_was_written(&server, &["policies/everyone-reads.yaml"]).await;
+    let change = doors::call(
+        "jc_flow_start",
+        &session(with_role(steward())),
+        &state,
+        flow("threshold-alert", json!({ "title": "air" })),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, change.status, "{}", change.text());
+    assert_eq!(
+        "PendingApproval",
+        change.body["change"]["status"]["phase"],
+        "{}",
+        change.text()
+    );
+    assert!(merges(&server).await.is_empty());
+}
+
+/// CC-63: a blueprint declared yellow waits for a person, and MCP asks before it runs (AG-63);
+/// a green one runs in the green lane, so an agent is not asked (AG-14).
+#[tokio::test]
+async fn a_flow_runs_in_its_own_lane_and_anything_stricter_than_green_waits() {
+    let (server, state) = world().await;
+    files_are_what_was_written(&server, &[]).await;
+    let mut yellow = blueprint("dashboard", TEMPLATE, json!([ROLE]));
+    yellow["riskClass"] = json!("yellow");
+    state.mirror.upsert(envelope(
+        "Blueprint",
+        "reviewed-alert",
+        ORG_NAMESPACE,
+        yellow,
+    ));
+    let op = joinedcontext_portal::ops::find("jc_flow_start").expect("registered");
+    let identity = with_role(steward());
+    let lane = |name: &str| {
+        joinedcontext_portal::ops::lane_for(
+            op,
+            &identity,
+            &state,
+            PROJECT,
+            &flow(name, json!({ "title": "air" })),
+        )
+    };
+    use joinedcontext_portal::change::Lane;
+    assert_eq!(Lane::Green, lane("threshold-alert"));
+    assert_eq!(Lane::Yellow, lane("reviewed-alert"));
+    // A call that does not plan keeps the registered lane, and the call itself refuses it.
+    assert_eq!(op.lane, lane("no-such-blueprint"));
+
+    let change = doors::call(
+        "jc_flow_start",
+        &session(identity.clone()),
+        &state,
+        flow("reviewed-alert", json!({ "title": "air" })),
+    )
+    .await;
+    assert_eq!("yellow", change.body["lane"], "{}", change.text());
+    assert_eq!(
+        "PendingApproval",
+        change.body["change"]["status"]["phase"],
+        "{}",
+        change.text()
+    );
+    assert!(merges(&server).await.is_empty());
+}
+
+/// AG-14, CC-59: an analyst whose role the green blueprint does not name is refused like an
+/// unknown blueprint, and nothing reaches the forge.
+#[tokio::test]
+async fn an_analyst_without_the_blueprints_role_is_refused_and_nothing_merges() {
+    let (server, state) = world().await;
+    let analyst = Identity {
+        roles: vec!["analyst".to_owned()],
+        ..steward()
+    };
+    let refused = doors::call(
+        "jc_flow_start",
+        &mcp(analyst),
+        &state,
+        flow("threshold-alert", json!({ "title": "air" })),
+    )
+    .await;
+    assert_eq!(StatusCode::NOT_FOUND, refused.status, "{}", refused.text());
+    assert_eq!(0, forge_writes(&server).await);
+    assert!(merges(&server).await.is_empty());
+}

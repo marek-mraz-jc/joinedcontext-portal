@@ -32,6 +32,7 @@ import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
+import { ValidationHealth } from "./ValidationHealth";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
@@ -47,6 +48,7 @@ export const ORGANIZATION_TABS = [
   "environments",
   "projects",
   "setup",
+  "health",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -169,6 +171,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={t("organization.projects.caption")}
           status={projects.isPending ? t("app.loading") : undefined}
         >
@@ -196,6 +199,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                       {/* Underlined like every other link of a list: plain text read as a name
                           one could not open (T-2759). */}
                       <Link
+                        data-row-link=""
                         to="/projects/$project/$plural"
                         params={{ project: name, plural: "spaces" }}
                         className="focus-ring rounded-sm font-medium text-primary-soft-fg underline underline-offset-2 hover:no-underline"
@@ -271,6 +275,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "environments" ? <KindList project={ORG_NAMESPACE} plural="environments" embedded /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
+        {tab === "health" ? <ValidationHealth /> : null}
       </div>
     </div>
   );

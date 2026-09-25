@@ -40,7 +40,7 @@ use crate::api::projects::{
     DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
-use crate::api::service_accounts::{KeyInfo, KeyList, MintedKey};
+use crate::api::service_accounts::{ClaimAction, ClaimLink, KeyClaim, KeyInfo, KeyList, MintedKey};
 use crate::auth::oidc::{LogoutTarget, Me};
 use crate::auth::{Front, Identity};
 use crate::branding::Validation;
@@ -128,9 +128,15 @@ use crate::tools::model_tools::{
         crate::api::people::remove_second_factor,
         crate::api::people::sign_out_person,
         crate::api::people::delete_person,
+        crate::api::validation::get_health,
+        crate::api::organization_limits::get_limits,
+        crate::api::validation::list_app_checks,
+        crate::api::quality::get_quality,
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
         crate::api::service_accounts::rotate_key,
+        crate::api::service_accounts::get_key_claim,
+        crate::api::service_accounts::use_key_claim,
         crate::api::service_accounts::revoke_key,
         crate::api::preferences::get_preferences,
         crate::api::preferences::put_preferences,
@@ -187,6 +193,26 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::validation::ValidationHealth,
+        crate::api::organization_limits::OrganizationLimits,
+        crate::api::organization_limits::LimitEntry,
+        crate::api::organization_limits::LimitOrigin,
+        crate::api::organization_limits::ProjectQuota,
+        crate::api::organization_limits::QuotaUse,
+        crate::api::validation::CheckHealth,
+        crate::api::validation::CheckState,
+        crate::api::validation::Digest,
+        crate::api::validation::Counts,
+        crate::api::validation::Failure,
+        crate::api::validation::FailureVerdict,
+        crate::api::validation::Point,
+        crate::api::validation::AppChecks,
+        crate::quality::SpaceQuality,
+        crate::quality::RuleCount,
+        crate::quality::Freshness,
+        crate::quality::FreshState,
+        crate::api::validation::AppCheck,
+        crate::api::validation::AppCheckState,
         crate::api::app_build::AppBuild,
         crate::api::app_build::Rebuild,
         crate::api::app_me::AppMe,
@@ -329,6 +355,9 @@ use crate::tools::model_tools::{
         KeyInfo,
         KeyList,
         MintedKey,
+        KeyClaim,
+        ClaimLink,
+        ClaimAction,
         Revision,
         RevisionList,
         FlowRequest,

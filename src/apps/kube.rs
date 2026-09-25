@@ -40,7 +40,7 @@ const APPLY_PATCH: &str = "application/apply-patch+yaml";
 
 /// The kinds an App, its agent runs and its build pods compile into (AP-13, AP-15, AP-26, AG-33,
 /// EP-02, AP-131).
-const KINDS: [(&str, &str, &str); 9] = [
+const KINDS: [(&str, &str, &str); 11] = [
     ("apps/v1", "Deployment", "deployments"),
     ("v1", "Service", "services"),
     ("v1", "Secret", "secrets"),
@@ -56,6 +56,9 @@ const KINDS: [(&str, &str, &str); 9] = [
         "RoleBinding",
         "rolebindings",
     ),
+    // An App's host: its edge Ingress and its certificate, in the APISIX namespace (AP-133).
+    ("networking.k8s.io/v1", "Ingress", "ingresses"),
+    ("cert-manager.io/v1", "Certificate", "certificates"),
 ];
 
 /// The one kind the Portal creates and deletes but never applies: the ConfigMap that carries a
