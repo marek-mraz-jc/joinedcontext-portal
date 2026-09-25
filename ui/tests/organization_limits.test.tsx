@@ -59,10 +59,17 @@ const LIMITS: OrganizationLimits = {
   ],
 };
 
+/** An organization administrator (UI-75, PF-03): the page opens only for approve and delete on RoleBinding. */
 const ADMIN = {
   project: "org",
   bootstrap: false,
-  grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["Organization"], verbs: ["propose", "approve"] } }],
+  grants: [
+    {
+      role: "org-admin",
+      binding: "admins",
+      rule: { kinds: ["RoleBinding", "Organization"], verbs: ["propose", "approve", "delete"] },
+    },
+  ],
 } as unknown as Effective;
 
 function renderSettings(limits: unknown = LIMITS) {
