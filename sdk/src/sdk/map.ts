@@ -1,4 +1,5 @@
 import type { StyleSpecification } from "maplibre-gl";
+import { currentTokens } from "./tokens";
 
 export const NO_BASEMAP = "No basemap is configured";
 /** What a map says when its rows carry no location; the run's check reads it as a map left empty. */
@@ -18,7 +19,8 @@ export function styleFor(basemap?: string): string | StyleSpecification {
       {
         id: "background",
         type: "background",
-        paint: { "background-color": "#cbd5e1" },
+        // No basemap: the page's own line colour, so the empty map sits in the app's look (SDK-25).
+        paint: { "background-color": currentTokens().color.line },
       },
     ],
   };

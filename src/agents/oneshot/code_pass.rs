@@ -4,6 +4,45 @@ use super::*;
 use crate::agents::sandbox;
 
 impl Driver {
+    /// The chat line and the instruction lines when another App of the project already has this
+    /// run's archetype and layout (AP-137). Each other App's design is read back from the request
+    /// of its first run; an App with no run, or a store that does not answer, is left out.
+    async fn design_advice(&self, others: &[String]) -> Option<(String, String)> {
+        use crate::agents::samples;
+        let runs = match self.state.agents.list_runs(&self.project, 500).await {
+            Ok(runs) => runs,
+            Err(err) => {
+                tracing::warn!(run = %self.run_id, error = %err, "the project's runs were not read; no design is compared");
+                return None;
+            }
+        };
+        // Newest first: the last run seen of an App that continues nothing is its first.
+        let mut first: BTreeMap<&str, &str> = BTreeMap::new();
+        for run in &runs {
+            if run.app_name != self.app_name
+                && run.continues.is_none()
+                && others.contains(&run.app_name)
+            {
+                first.insert(run.app_name.as_str(), run.prompt.as_str());
+            }
+        }
+        let designed: Vec<(String, samples::Design)> = first
+            .into_iter()
+            .map(|(app, prompt)| (app.to_owned(), samples::design(prompt)))
+            .collect();
+        let design = samples::design(&self.prompt);
+        let advice = samples::advice(&design, &designed)?;
+        Some((
+            format!(
+                "The App {} is already a {} laid out as {}; this one gets its own look and is \
+                 laid out as {} so the two do not look alike. Ask for the same layout if you \
+                 want it.",
+                advice.twin, design.archetype, design.layout, advice.layout
+            ),
+            samples::advice_section(&design, &advice),
+        ))
+    }
+
     /// A code run (Architecture/20 §4.1): one call writes the application over the template,
     /// what does not build goes back once, every generated version is checked against what the
     /// frame observed (SDK-28), and every message after the first run is one more pass over the
@@ -53,6 +92,12 @@ impl Driver {
 
         let mut conversation: Vec<(String, String)> = Vec::new();
         let mut instruction = self.prompt.clone();
+        // No two Apps of the project alike (AP-137): the look differs by construction, the
+        // archetype and the layout are compared here, and a twin is advice, not a refusal.
+        if let Some(note) = self.design_advice(&others).await {
+            self.thought(&note.0).await?;
+            instruction.push_str(&note.1);
+        }
         // The generated version in the frame, none until one transpiles.
         let mut shown: Option<Shown> = None;
         // Verification passes since the last instruction (SDK-28).
