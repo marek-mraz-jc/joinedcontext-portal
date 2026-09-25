@@ -68,6 +68,11 @@ export function openBlockedReason(app: Manifest, run: WorkflowRun | null, t: TFu
   if (lifecycle !== "published") {
     return t(`apps.openDisabled.${lifecycle === "preview" || lifecycle === "retired" ? lifecycle : "draft"}`);
   }
+  // Its own host answers once its certificate is issued (AP-133): until then there is nothing
+  // to open, and the reconciler says so on the App.
+  const host = (app.status?.conditions ?? []).find((condition) => condition.type === "Ready");
+  if (host?.status === "False" && host.reason === "CertificatePending") return t("apps.openDisabled.certificate");
+  if (host?.status === "False" && host.reason === "HostRefused") return t("apps.openDisabled.host");
   if (isServed(app)) return undefined;
   if (run && runState(run) === "building") return t("apps.openDisabled.building");
   if (run && runState(run) === "failed") return t("apps.openDisabled.failed");

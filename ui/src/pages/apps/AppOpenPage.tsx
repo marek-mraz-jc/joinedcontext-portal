@@ -13,15 +13,20 @@ import { appSpec, openBlockedReason } from "./AppsCatalog";
 import { appDisplayName } from "./appTitle";
 
 /**
- * The App's own address: on the origin the Portal serves Apps from when it has one (`appsOrigin`
- * of the branding, from `JC_PORTAL_APPS_URL`), else the path on the Portal's own host.
+ * The App's own address: its own host `{name}.apps.{domain}` under the apex the Portal serves
+ * Apps from when it has one (`appsOrigin` of the branding, from `JC_PORTAL_APPS_URL`; AP-133),
+ * else the path on the Portal's own host.
  */
 export function appAddress(name: string, appsOrigin?: string | null): string {
   const path = `/apps/${encodeURIComponent(name)}/`;
-  if (!appsOrigin) return path;
+  // Only a DNS label is a host's first label; anything else keeps the path, which the Portal
+  // answers with a 404.
+  if (!appsOrigin || !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) return path;
   try {
-    const url = new URL(path, appsOrigin);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : path;
+    const url = new URL("/", appsOrigin);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return path;
+    url.hostname = `${name}.apps.${url.hostname}`;
+    return url.toString();
   } catch {
     return path;
   }

@@ -2087,7 +2087,9 @@
       "retired": "This application is retired",
       "building": "Building…",
       "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "notBuilt": "No build is served yet",
+      "certificate": "Die Adresse der Anwendung wird gesichert, das dauert etwa eine Minute",
+      "host": "Die Adresse der Anwendung ließ sich nicht einrichten; der Grund ist für Administratoren sichtbar"
     },
     "openPage": {
       "details": "App-Details",

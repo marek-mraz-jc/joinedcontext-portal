@@ -2087,7 +2087,9 @@
       "retired": "This application is retired",
       "building": "Building…",
       "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "notBuilt": "No build is served yet",
+      "certificate": "Adresa aplikace se zabezpečuje, trvá to asi minutu",
+      "host": "Adresu aplikace se nepodařilo připravit; důvod vidí správce"
     },
     "openPage": {
       "details": "Podrobnosti aplikace",
