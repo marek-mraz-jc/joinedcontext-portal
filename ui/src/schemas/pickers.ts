@@ -33,6 +33,7 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
     "source.trigger.subscription.type": TYPE,
     "compute.mappingRef": project("mappings"),
     "output.type": TYPE,
+    "expiry.types[]": TYPE,
   },
   Dashboard: {
     "pages[].widgets[].endpointRef": project("endpoints"),
