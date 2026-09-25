@@ -667,6 +667,7 @@ mod pass_edges {
             apisix_namespace: "apisix".into(),
             image_repository: None,
             pull_secret: None,
+            basemap_base: None,
             release: None,
             service_account: None,
         };

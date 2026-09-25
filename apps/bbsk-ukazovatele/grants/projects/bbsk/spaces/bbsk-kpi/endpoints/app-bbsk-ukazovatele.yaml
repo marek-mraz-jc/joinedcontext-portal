@@ -18,6 +18,4 @@ spec:
     name: bbsk-kpi
   enabledRepresentations:
   - ngsi-ld
-  rateLimits:
-    requestsPerMinute: 120
   slug: lzeplkk2ymndc6s5ktxa5doe6z

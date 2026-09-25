@@ -5,13 +5,15 @@
  * screen and says what failed in its own place.
  */
 import { useEffect, useId, useMemo, useState } from "react";
-import { endpointSource, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { endpointSource, Header, mapColors, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
 import type { RichRow } from "@joinedcontext/sdk";
 import {
   BIKE_STEPS,
   bikeHistogram,
   bikePoints,
   bikeTotals,
+  histogramBars,
+  legendOf,
   matching,
   POLLUTANTS,
   stepLabels,
@@ -178,7 +180,8 @@ function BikeHistogram({ stations, s }: { stations: BikeStation[]; s: Strings })
       xAxis: { type: "category", data: labels, name: s.bikes.legend, nameLocation: "middle", nameGap: 28 },
       yAxis: { type: "value", name: s.bikes.histogramAxis },
       tooltip: { trigger: "axis" },
-      series: [{ type: "bar", data: counts, colorBy: "data" }],
+      // The map's legend colours, step for step, so one step is one colour on the whole screen.
+      series: [{ type: "bar", data: histogramBars(counts, legendOf(BIKE_STEPS, mapColors().low, mapColors().high)) }],
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [counts.join(","), s],

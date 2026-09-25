@@ -18,6 +18,4 @@ spec:
     name: bbsk-kraj
   enabledRepresentations:
   - ngsi-ld
-  rateLimits:
-    requestsPerMinute: 300
   slug: 66kkv3xr4lau6pjg2i5ef5lonc

@@ -19,3 +19,57 @@ pub mod reconciler;
 /// A person's roles in an application (ADR-N-027).
 pub mod roles;
 pub mod static_host;
+
+/// The warning an App still written with a shape name of the previous release gets (AP-124):
+/// `static` and `fullstack` are read as `ui` and `ui-rust` for one release, so the manifest passes,
+/// and the person is told what to write before the release that refuses them.
+pub fn renamed_shape(manifest: &serde_json::Value) -> Option<crate::ops::verdict::Finding> {
+    if manifest.get("kind").and_then(serde_json::Value::as_str) != Some("App") {
+        return None;
+    }
+    let written = manifest.pointer("/spec/kind")?.as_str()?;
+    let (old, new) = jc_core::kinds::AppClass::renamed(written)?;
+    Some(crate::ops::verdict::Finding {
+        level: crate::ops::verdict::Level::Warning,
+        path: "spec.kind".to_owned(),
+        message: format!(
+            "`{old}` is read as `{new}` for this release only and refused by the next: write \
+             `kind: {new}` (AP-124)"
+        ),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::renamed_shape;
+    use serde_json::json;
+
+    #[test]
+    fn an_app_written_with_an_old_shape_name_is_told_the_new_one() {
+        for (old, new) in [("static", "ui"), ("fullstack", "ui-rust")] {
+            let finding = renamed_shape(&json!({ "kind": "App", "spec": { "kind": old } }))
+                .expect("a warning");
+            assert_eq!(finding.level, crate::ops::verdict::Level::Warning);
+            assert_eq!(finding.path, "spec.kind");
+            assert!(
+                finding.message.contains(&format!("write `kind: {new}`")),
+                "{}",
+                finding.message
+            );
+        }
+    }
+
+    #[test]
+    fn a_new_name_another_kind_or_no_shape_gets_no_warning() {
+        for manifest in [
+            json!({ "kind": "App", "spec": { "kind": "ui" } }),
+            json!({ "kind": "App", "spec": { "kind": "ui-rust" } }),
+            json!({ "kind": "App", "spec": {} }),
+            json!({ "kind": "App" }),
+            json!({ "kind": "Dashboard", "spec": { "kind": "static" } }),
+            json!({ "kind": "App", "spec": { "kind": 3 } }),
+        ] {
+            assert_eq!(renamed_shape(&manifest), None, "{manifest}");
+        }
+    }
+}

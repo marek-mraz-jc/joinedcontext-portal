@@ -108,10 +108,14 @@ fn problem_response(
 /// Returns the absolute style URL for a given project if basemap proxying is configured.
 pub fn style_url(config: &Config, project: &str) -> Option<String> {
     config.basemap.as_ref()?;
-    let base = config.public_base_url.as_str().trim_end_matches('/');
-    Some(format!(
-        "{base}/api/v1/projects/{project}/basemap/default/style.json"
-    ))
+    Some(style_url_at(config.public_base_url.as_str(), project))
+}
+
+/// The style URL of `project` under the Portal's public `base`, for a caller that knows the
+/// basemap is configured.
+pub fn style_url_at(base: &str, project: &str) -> String {
+    let base = base.trim_end_matches('/');
+    format!("{base}/api/v1/projects/{project}/basemap/default/style.json")
 }
 
 /// Everything the basemap serves for `project` lives under this prefix: the one address a

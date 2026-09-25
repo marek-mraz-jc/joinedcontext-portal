@@ -46,6 +46,10 @@ pub struct Config {
     /// The Portal route that answers the caller's roles in this App (AP-109). Without it nobody
     /// holds a role, so the form is offered to nobody.
     pub me_url: Option<String>,
+    /// `JC_APP_CONFIG`, the `#jc-config` object the reconciler hands a pod App (endpoints, and the
+    /// project's `basemap` style URL when one is configured, AP-67), already escaped for the
+    /// `<script>` element the page carries it in. `None`: the page is served as built.
+    pub page_config: Option<String>,
 }
 
 impl Config {
@@ -62,8 +66,28 @@ impl Config {
             me_url: std::env::var("JC_ME_URL")
                 .ok()
                 .filter(|url| !url.is_empty()),
+            page_config: match std::env::var("JC_APP_CONFIG") {
+                Ok(raw) if !raw.trim().is_empty() => Some(page_config(&raw)?),
+                _ => None,
+            },
         })
     }
+}
+
+/// `JC_APP_CONFIG` as the body of a `<script type="application/json">`: a JSON object, or the
+/// app does not start. `<`, `>` and `&` only occur inside JSON strings, where their `\u` escapes
+/// read the same, so no value can close the element early.
+pub fn page_config(raw: &str) -> Result<String, String> {
+    let value: Value =
+        serde_json::from_str(raw).map_err(|err| format!("JC_APP_CONFIG is not JSON: {err}"))?;
+    if !value.is_object() {
+        return Err("JC_APP_CONFIG is not a JSON object".to_owned());
+    }
+    Ok(value
+        .to_string()
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026"))
 }
 
 fn with_trailing_slash(url: &str) -> String {
