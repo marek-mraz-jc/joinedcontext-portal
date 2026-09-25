@@ -243,3 +243,24 @@ test.describe("live", () => {
     }
   }
 });
+
+// T-2981: a table inside a closed <details> is never drawn, yet Chromium lays it out when asked
+// for its box, so the check counted it over the card below and turned bbsk-zaznamy red at 375 px.
+test.describe("the check itself", () => {
+  const PAGE_WITH = (open: boolean) => `<!doctype html><html lang="en"><head><title>The check</title></head><body>
+    <details${open ? " open" : ""}><summary>Values</summary>
+      <table style="position:absolute;top:40px;left:0;width:200px;height:100px"><tr><th>2023</th><td>1 893</td></tr></table>
+    </details>
+    <figure style="position:absolute;top:40px;left:0;width:200px;height:100px;margin:0">A chart</figure>
+  </body></html>`;
+
+  test("a closed <details> hides its content from the overlap check", async ({ page }) => {
+    await page.setContent(PAGE_WITH(false));
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+  });
+
+  test("the same content open is counted", async ({ page }) => {
+    await page.setContent(PAGE_WITH(true));
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([expect.stringMatching(/^overlap: table\. .* × figure\./)]);
+  });
+});
