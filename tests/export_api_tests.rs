@@ -651,8 +651,22 @@ async fn a_whole_project_archive_says_what_its_files_mean() {
 /// asked `may_read_manifest` it asked only about the kind, and this caller got both spaces.
 #[tokio::test]
 async fn an_export_leaves_out_the_spaces_the_grant_is_not_bound_to() {
-    let answer = get_as(
+    // The whole project is an administrator's (UI-87); this caller names what it wants.
+    let whole = get_as(
         "/api/v1/projects/banskabystrica/export",
+        true,
+        Some("ovzdusie"),
+    )
+    .await;
+    assert_eq!(whole.status, StatusCode::FORBIDDEN, "{}", whole.text());
+    assert!(
+        whole.text().contains("organization administrators"),
+        "{}",
+        whole.text()
+    );
+
+    let answer = get_as(
+        "/api/v1/projects/banskabystrica/export?names=air-quality,noise,public-air",
         true,
         Some("ovzdusie"),
     )
@@ -849,7 +863,7 @@ fn archived(answer: &Answer) -> Vec<String> {
 #[tokio::test]
 async fn an_archive_carries_only_the_native_files_of_what_the_caller_may_read() {
     let answer = get_as(
-        "/api/v1/projects/banskabystrica/export?format=zip",
+        "/api/v1/projects/banskabystrica/export?format=zip&names=air-quality,noise",
         true,
         Some("ovzdusie"),
     )

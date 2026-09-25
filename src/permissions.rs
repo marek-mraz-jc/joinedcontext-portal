@@ -71,6 +71,22 @@ pub struct Effective {
 }
 
 /// The effective permissions of the signed-in caller in `project`, right now.
+/// Refuses anybody but an organization administrator, who holds `approve` on `Organization`
+/// (the seeded `org-admin`, PF-56), with a `403` that names what `action` needs (UI-87).
+pub fn require_organization_admin(
+    state: &AppState,
+    identity: &Identity,
+    action: &str,
+) -> Result<(), ApiError> {
+    for_request(state, identity, ORG_NAMESPACE)
+        .check("Organization", Verb::Approve, None)
+        .map_err(|_| {
+            ApiError::Denied(format!(
+                "{action} is for organization administrators, on the Administration page (UI-87)"
+            ))
+        })
+}
+
 pub fn for_request(state: &AppState, identity: &Identity, project: &str) -> Effective {
     effective(
         &state.mirror,

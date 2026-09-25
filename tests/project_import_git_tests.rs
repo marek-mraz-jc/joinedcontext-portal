@@ -168,8 +168,8 @@ async fn new_repository(server: &MockServer, base: &str, head: &str, files: &[(&
     }
 }
 
-/// A layout 2 organization that lets anyone open a project, into which `ovzdusie`'s export is
-/// imported as `doprava`.
+/// A layout 2 organization that lets anyone open a project and makes Jana its administrator,
+/// into which `ovzdusie`'s export is imported as `doprava`.
 async fn world() -> (MockServer, AppState) {
     let server = forge().await;
     Mock::given(method("GET"))
@@ -201,6 +201,19 @@ async fn world() -> (MockServer, AppState) {
         "bb",
         ORG_NAMESPACE,
         json!({ "domain": "banskabystrica.sk", "projects": { "creation": "anyone" } }),
+    ));
+    // Jana administers the organization, which importing a project needs (UI-87).
+    state.mirror.upsert(envelope(
+        "Role",
+        "org-admin",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Organization"], "verbs": ["read", "propose", "approve", "delete"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "org-admins",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "org-admin", "scope": { "organization": "bb" } }),
     ));
     state.mirror.set_layout(2);
     (server, state)
@@ -555,5 +568,27 @@ async fn who_may_not_open_a_project_is_refused_before_the_body_is_read() {
     )
     .await;
     assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    nothing_created(&server).await;
+}
+
+/// UI-87 (T-2879): opening a project is not importing one. A person the organization lets open
+/// projects but who does not administer it is refused before the upload is read.
+#[tokio::test]
+async fn who_does_not_administer_the_organization_imports_no_project() {
+    let (server, state) = world().await;
+    let answer = import(
+        &state,
+        person("peter"),
+        "?format=git",
+        b"not a zip",
+        &[("stray", "x")],
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    assert!(
+        answer.text.contains("organization administrators"),
+        "{}",
+        answer.text
+    );
     nothing_created(&server).await;
 }

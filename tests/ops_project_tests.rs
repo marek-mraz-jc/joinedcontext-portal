@@ -151,8 +151,8 @@ async fn removed(server: &MockServer) -> Vec<String> {
     paths
 }
 
-/// PF-50, AG-64: the steward and the viewer read the project, its history and its export through
-/// the session, MCP and a run whose profile names the three reads.
+/// PF-50, AG-64: the steward and the viewer read the project, its history and the manifests they
+/// name through the session, MCP and a run whose profile names the three reads.
 #[tokio::test]
 async fn every_door_reads_the_project_its_history_and_its_export() {
     let (_server, state) = world().await;
@@ -175,7 +175,13 @@ async fn every_door_reads_the_project_its_history_and_its_export() {
         assert_eq!(StatusCode::OK, history.status, "{who}: {}", history.text());
         assert_eq!(REVISION, history.body["items"][0]["sha"], "{who}");
 
-        let export = doors::call("jc_project_export", &caller, &state, json!({})).await;
+        let export = doors::call(
+            "jc_project_export",
+            &caller,
+            &state,
+            json!({ "names": "air-public,noise-public" }),
+        )
+        .await;
         assert_eq!(StatusCode::OK, export.status, "{who}: {}", export.text());
         let document = export.body["document"].as_str().unwrap_or_default();
         for name in ["air-public", "noise-public"] {
@@ -201,7 +207,13 @@ async fn a_reader_of_one_space_exports_only_that_space() {
         mcp(zuzana()),
         run(zuzana(), &["jc_project_export"]),
     ] {
-        let export = doors::call("jc_project_export", &caller, &state, json!({})).await;
+        let export = doors::call(
+            "jc_project_export",
+            &caller,
+            &state,
+            json!({ "names": "air-public,noise-public" }),
+        )
+        .await;
         assert_eq!(StatusCode::OK, export.status, "{}", export.text());
         let document = export.body["document"].as_str().unwrap_or_default();
         assert!(document.contains("air-public"), "{document}");
@@ -209,6 +221,49 @@ async fn a_reader_of_one_space_exports_only_that_space() {
             !document.contains("noise"),
             "the unbound space leaked: {document}"
         );
+    }
+}
+
+/// UI-87 (T-2879): the whole project leaves only through an organization administrator, at every
+/// door; a steward of the project, who approves everything in it, is refused with the reason.
+#[tokio::test]
+async fn a_whole_project_export_is_for_an_organization_administrator_ui87() {
+    let (_server, state) = world().await;
+    state.mirror.upsert(envelope(
+        "Role",
+        "org-admin",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Organization"], "verbs": ["read", "propose", "approve", "delete"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "org-admins",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "group": "org-admins" }], "role": "org-admin", "scope": { "organization": "bb" } }),
+    ));
+    let mut admin = steward();
+    admin.groups.push("org-admins".into());
+
+    for caller in [
+        session(steward()),
+        mcp(steward()),
+        run(steward(), &["jc_project_export"]),
+    ] {
+        let refused = doors::call("jc_project_export", &caller, &state, json!({})).await;
+        assert_eq!(StatusCode::FORBIDDEN, refused.status, "{}", refused.text());
+        assert!(
+            refused.text().contains("organization administrators"),
+            "the refusal says who may: {}",
+            refused.text()
+        );
+    }
+    for caller in [session(admin.clone()), mcp(admin)] {
+        let export = doors::call("jc_project_export", &caller, &state, json!({})).await;
+        assert_eq!(StatusCode::OK, export.status, "{}", export.text());
+        let document = export.body["document"].as_str().unwrap_or_default();
+        for name in ["air-public", "noise-public"] {
+            assert!(document.contains(name), "{name} missing from {document}");
+        }
     }
 }
 

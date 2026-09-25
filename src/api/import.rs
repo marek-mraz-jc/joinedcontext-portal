@@ -1204,6 +1204,7 @@ async fn read_request(
         (status = 200, description = "Dry run: what the import would do", body = ImportReport),
         (status = 400, description = "The bundle was refused", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "format=git by anybody who may not open a project (PF-65) or does not administer the organization (UI-87)", body = ProblemDetails),
         (status = 409, description = "A resource already exists and the policy is 'fail', or the bundle has no fresh check of its own (`verdict_required`, PF-57)", body = ProblemDetails),
         (status = 501, description = "Importing from a URL is not implemented", body = ProblemDetails),
         (status = 503, description = "No repository configured", body = ProblemDetails),
@@ -1224,6 +1225,11 @@ pub async fn import(
         Some("git") => {
             // Before the body: who may not open a project learns that and nothing else (PF-65).
             crate::api::projects::may_open(&state, &user.0.identity)?;
+            crate::permissions::require_organization_admin(
+                &state,
+                &user.0.identity,
+                "importing a project",
+            )?;
             let (bytes, mut input) = read_git_request(&state, request).await?;
             input.dry_run |= query.dry_run.as_deref() == Some("All");
             let (status, body) =

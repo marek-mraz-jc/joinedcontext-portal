@@ -333,9 +333,9 @@ routes:
     rule: "project-verb:propose:<kind>"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
   - route: GET /projects/{project}/export
-    rule: "project-read"
-    expect: [401, 404, 404, 404, 404, 404, 404, 404]
-    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+    rule: "project-read, and verb:approve:Organization for a whole project (UI-87)"
+    expect: [401, 403, 403, 403, 403, 404, 404, 403]
+    note: "the row asks for the whole project, which is an organization administrator's (UI-87); the administrator's 404 is the project the fixture does not hold, and a reader who names manifests passes (export_api_tests)"
   - route: GET /projects/{project}/federation-graph
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

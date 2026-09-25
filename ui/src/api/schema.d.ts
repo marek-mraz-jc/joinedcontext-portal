@@ -8870,7 +8870,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A git export, and the caller may not read every manifest of the project */
+            /** @description A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9110,7 +9110,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            /** @description format=git by anybody who may not open a project (PF-65) or does not administer the organization (UI-87) */
             403: {
                 headers: {
                     [name: string]: unknown;

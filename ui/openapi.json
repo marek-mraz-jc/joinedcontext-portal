@@ -5844,7 +5844,7 @@
             }
           },
           "403": {
-            "description": "A git export, and the caller may not read every manifest of the project",
+            "description": "A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full",
             "content": {
               "application/json": {
                 "schema": {
@@ -6151,7 +6151,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "description": "format=git by anybody who may not open a project (PF-65) or does not administer the organization (UI-87)",
             "content": {
               "application/json": {
                 "schema": {
