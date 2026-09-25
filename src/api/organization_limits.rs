@@ -29,26 +29,39 @@ pub(crate) fn organization_spec(state: &AppState) -> Option<OrganizationSpec> {
         .find_map(|envelope| serde_json::from_value::<OrganizationSpec>(envelope.spec).ok())
 }
 
+/// The organization's `spec.limits`, when its manifest sets any that parse. Only that subtree is
+/// read, so a field this Portal does not know yet elsewhere in the manifest never turns the
+/// organization's own limits back into the defaults.
+fn organization_limits(state: &AppState) -> Option<jc_core::kinds::OrganizationLimits> {
+    state
+        .mirror
+        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
+        .items
+        .into_iter()
+        .find_map(|org| serde_json::from_value(org.spec.get("limits")?.clone()).ok())
+}
+
 const UPLOAD: &str = "spec.limits.data.uploadMegabytes";
+const INVITATION: &str = "spec.limits.people.invitationHours";
+
+/// How long the link in a realm e-mail the Portal asks for lives (`spec.limits.people.
+/// invitationHours`, ADR-N-035): the organization's value, else the catalog's default, held
+/// inside the operator's bound, so a bound lowered after the change was approved still holds.
+/// `None` only if the catalog lost the entry, which leaves the realm's own lifespan.
+pub(crate) fn invitation_lifespan(state: &AppState) -> Option<std::time::Duration> {
+    let entry = jc_core::kinds::org_settings::entry_at(INVITATION)?;
+    let set = organization_limits(state).and_then(|limits| limits.people.invitation_hours);
+    let (min, max) = state.config.organization_bounds.range(entry);
+    // `max`/`min` rather than `clamp`: an operator file with min above max must not panic here.
+    let hours = set.or(entry.default)?.min(max.unwrap_or(u32::MAX)).max(min);
+    Some(std::time::Duration::from_secs(u64::from(hours) * 3600))
+}
 
 /// Refuses an upload or import larger than the organization accepts (`spec.limits.data.
 /// uploadMegabytes`, ADR-N-035): its own value, else the catalog's default, and never past the
 /// Portal's own ceiling, which the edge's largest body sets.
 pub(crate) fn within_upload_limit(state: &AppState, bytes: usize) -> Result<(), ApiError> {
-    // Only `spec.limits` is read, so a field this Portal does not know yet elsewhere in the
-    // manifest never turns the organization's own limit back into the default.
-    let set = state
-        .mirror
-        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
-        .items
-        .into_iter()
-        .find_map(|org| {
-            serde_json::from_value::<jc_core::kinds::OrganizationLimits>(
-                org.spec.get("limits")?.clone(),
-            )
-            .ok()
-        })
-        .and_then(|limits| limits.data.upload_megabytes);
+    let set = organization_limits(state).and_then(|limits| limits.data.upload_megabytes);
     let megabytes =
         set.or_else(|| jc_core::kinds::org_settings::entry_at(UPLOAD).and_then(|e| e.default));
     let limit = megabytes
