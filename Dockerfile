@@ -41,14 +41,20 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /work
 COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
 COPY apps/bbsk-ukazovatele/ui/package.json apps/bbsk-ukazovatele/ui/pnpm-lock.yaml ./apps/bbsk-ukazovatele/ui/
+COPY apps/praha-mesto/ui/package.json apps/praha-mesto/ui/pnpm-lock.yaml ./apps/praha-mesto/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
-    && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile
+    && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
+    && cd ../../praha-mesto/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
+COPY apps/praha-mesto/ui/ ./apps/praha-mesto/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
     && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
     && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-ukazovatele
+RUN cd apps/praha-mesto/ui && pnpm build \
+    && cp -r dist /srv/apps/praha-mesto \
+    && node /work/scripts/app-integrity.mjs /srv/apps/praha-mesto
 
 FROM rust:1.97-slim-bookworm AS build
 WORKDIR /src
