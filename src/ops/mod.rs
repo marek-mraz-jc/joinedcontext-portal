@@ -17,6 +17,7 @@ pub mod changes;
 pub mod compute;
 pub mod drafts;
 pub mod feed_shape;
+pub mod people;
 pub mod pipeline_steps;
 pub mod previews;
 pub mod proposals;
@@ -517,6 +518,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
     operations.extend(workspaces::operations());
+    operations.extend(people::operations());
     operations
 }
 
