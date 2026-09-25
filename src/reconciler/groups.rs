@@ -180,6 +180,18 @@ impl GroupSync {
     /// organization namespace are read, and only groups carrying the managed attribute are
     /// written or removed.
     pub async fn converge(&self, mirror: &Mirror) -> Vec<GroupOutcome> {
+        self.converge_with(mirror, &[]).await
+    }
+
+    /// [`Self::converge`], and besides the manifests the groups the platform derives, each
+    /// `(name, members by e-mail)`: a project's `{slug}-readers` and `{slug}-writers`, which
+    /// its bindings fill (PF-87). They are managed like a manifest's group and removed with the
+    /// project; a `Group` manifest of the same name wins, and the clash is the outcome's error.
+    pub async fn converge_with(
+        &self,
+        mirror: &Mirror,
+        generated: &[(String, BTreeSet<String>)],
+    ) -> Vec<GroupOutcome> {
         let token = match self.token().await {
             Ok(token) => token,
             Err(err) => {
@@ -236,7 +248,26 @@ impl GroupSync {
                 }
             };
             let held = existing.iter().find(|group| group.name == name);
-            outcomes.push(self.converge_one(&token, &name, &spec, held).await);
+            let members = spec
+                .members
+                .iter()
+                .map(|member| member.user.trim().to_lowercase())
+                .collect();
+            outcomes.push(self.converge_one(&token, &name, &members, held).await);
+        }
+        for (name, members) in generated {
+            if !wanted.insert(name.clone()) {
+                let mut outcome = GroupOutcome::of(name);
+                outcome.error = Some(format!(
+                    "a Group manifest declares '{name}', the name of a project's forge group \
+                     (PF-87); the manifest decides its members, so the project's bindings do not \
+                     reach the forge through it. Rename the manifest"
+                ));
+                outcomes.push(outcome);
+                continue;
+            }
+            let held = existing.iter().find(|group| &group.name == name);
+            outcomes.push(self.converge_one(&token, name, members, held).await);
         }
 
         // A managed group the repository no longer declares is this wave's to remove; one
@@ -271,7 +302,7 @@ impl GroupSync {
         &self,
         token: &str,
         name: &str,
-        spec: &GroupSpec,
+        wanted: &BTreeSet<String>,
         held: Option<&KcGroup>,
     ) -> GroupOutcome {
         let mut outcome = GroupOutcome::of(name);
@@ -343,13 +374,7 @@ impl GroupSync {
             .into_iter()
             .filter_map(|user| Some((user.email?.to_lowercase(), user.id)))
             .collect();
-        let wanted: BTreeSet<String> = spec
-            .members
-            .iter()
-            .map(|member| member.user.trim().to_lowercase())
-            .collect();
-
-        for email in &wanted {
+        for email in wanted {
             if held_by_email.iter().any(|(held, _)| held == email) {
                 continue;
             }
@@ -366,13 +391,13 @@ impl GroupSync {
                     {
                         Ok(()) => outcome
                             .drift
-                            .push(format!("{email} is in the manifest and was added")),
+                            .push(format!("{email} belongs in the group and was added")),
                         Err(err) => outcome.error = Some(err),
                     }
                 }
                 // Not an error: the person joins the group the moment the realm knows them.
                 Ok(None) => outcome.warnings.push(format!(
-                    "{email} is in the manifest and the realm has no user with that address yet"
+                    "{email} belongs in the group and the realm has no user with that address yet"
                 )),
                 Err(err) => outcome.error = Some(err),
             }
@@ -392,8 +417,8 @@ impl GroupSync {
                 .await
             {
                 Ok(()) => outcome.drift.push(format!(
-                    "{email} was in the realm's group and in no manifest; the membership was \
-                     removed"
+                    "{email} was in the realm's group and does not belong in it; the \
+                     membership was removed"
                 )),
                 Err(err) => outcome.error = Some(err),
             }

@@ -774,3 +774,80 @@ fn the_janitor_approves_and_deletes_only_what_a_journey_named() {
         "no manifest, no name to match"
     );
 }
+
+/// PF-87, T-2655: who reaches a project's repository in the forge. Read makes a reader, propose
+/// a writer (and a reader); an organization binding reaches every project; a group counts through
+/// its manifest; a binding to another project, to one space, or out of force reaches nobody.
+#[test]
+fn a_projects_readers_and_writers_come_from_the_bindings_that_reach_it() {
+    use joinedcontext_portal::permissions::project_members;
+
+    let viewer = org(
+        "Role",
+        "viewer",
+        json!({ "rules": [{ "kinds": ["Pipeline", "Endpoint"], "verbs": ["read"] }] }),
+    );
+    let mirror = mirror_with(vec![
+        viewer,
+        developer_role(),
+        org(
+            "Group",
+            "air-team",
+            json!({ "members": [{ "user": "Eva@hel.fi" }] }),
+        ),
+        binding(
+            "read-here",
+            "viewer",
+            json!([{ "user": "reader@hel.fi" }]),
+            json!({ "project": "ovzdusie" }),
+            None,
+        ),
+        binding(
+            "develop-here",
+            "pipeline-developer",
+            json!([{ "group": "air-team" }]),
+            json!({ "project": "ovzdusie" }),
+            None,
+        ),
+        binding(
+            "read-everywhere",
+            "viewer",
+            json!([{ "user": "auditor@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+        binding(
+            "elsewhere",
+            "pipeline-developer",
+            json!([{ "user": "other@hel.fi" }]),
+            json!({ "project": "doprava" }),
+            None,
+        ),
+        binding(
+            "one-space",
+            "viewer",
+            json!([{ "user": "space@hel.fi" }]),
+            json!({ "contextSpace": "air" }),
+            None,
+        ),
+        binding(
+            "expired",
+            "pipeline-developer",
+            json!([{ "user": "gone@hel.fi" }]),
+            json!({ "project": "ovzdusie" }),
+            Some(json!({ "notAfter": "2026-01-01T00:00:00Z" })),
+        ),
+    ]);
+    let now = Utc.with_ymd_and_hms(2026, 9, 25, 0, 0, 0).unwrap();
+    let members = project_members(&mirror, "ovzdusie", now);
+    let set = |people: &[&str]| people.iter().map(|p| (*p).to_owned()).collect();
+    assert_eq!(
+        members.readers,
+        set(&["auditor@hel.fi", "eva@hel.fi", "reader@hel.fi"])
+    );
+    assert_eq!(members.writers, set(&["eva@hel.fi"]));
+    // A project nobody is bound to has the organization's readers and nobody else.
+    let other = project_members(&mirror, "nowhere", now);
+    assert_eq!(other.readers, set(&["auditor@hel.fi"]));
+    assert!(other.writers.is_empty());
+}

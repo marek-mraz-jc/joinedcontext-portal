@@ -348,3 +348,92 @@ async fn a_run_records_the_realms_unmanaged_groups_for_the_write_doors() {
     assert!(foreign.has_group("admins"));
     assert!(!foreign.has_group("retired"));
 }
+
+/// PF-87, T-2655: a project's derived groups are kept like a manifest's: the one the realm holds
+/// gets the members the bindings name and loses the one they do not, and a Group manifest that
+/// takes a derived group's name keeps it, with the clash as the derived group's error.
+#[tokio::test]
+async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifests_name() {
+    let keycloak = realm().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups")))
+        .and(query_param("briefRepresentation", "false"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "r1", "name": "doprava-readers", "attributes": { MANAGED_BY: [MANAGED_VALUE] } },
+            { "id": "w1", "name": "doprava-writers", "attributes": { MANAGED_BY: [MANAGED_VALUE] } }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups/r1/members")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "u-old", "email": "left@hel.fi" }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/users")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "u-new", "email": "reader@hel.fi" }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path_regex(format!("^{REALM}/users/.*/groups/.*$")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(format!("^{REALM}/users/.*/groups/.*$")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&keycloak)
+        .await;
+
+    // The manifest holds `doprava-writers`, so the derived group of that name is refused.
+    let mirror = mirror_with(vec![group("doprava-writers", &[])]);
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups/w1/members")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&keycloak)
+        .await;
+    let generated = vec![
+        (
+            "doprava-readers".to_owned(),
+            ["reader@hel.fi".to_owned()].into_iter().collect(),
+        ),
+        (
+            "doprava-writers".to_owned(),
+            ["writer@hel.fi".to_owned()].into_iter().collect(),
+        ),
+    ];
+    let outcomes = sync(&keycloak).converge_with(&mirror, &generated).await;
+
+    let readers = outcomes
+        .iter()
+        .find(|o| o.name == "doprava-readers")
+        .expect("the readers' outcome");
+    assert_eq!(readers.error, None, "{outcomes:?}");
+    let clash = outcomes
+        .iter()
+        .find(|o| o.name == "doprava-writers" && o.error.is_some())
+        .expect("the clash is reported");
+    assert!(
+        clash
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Rename the manifest"),
+        "{clash:?}"
+    );
+    let wrote = wrote(&keycloak).await;
+    assert!(
+        wrote.contains(&format!("PUT {REALM}/users/u-new/groups/r1")),
+        "{wrote:?}"
+    );
+    assert!(
+        wrote.contains(&format!("DELETE {REALM}/users/u-old/groups/r1")),
+        "{wrote:?}"
+    );
+    // The writer the bindings name is not written into the manifest's group.
+    assert!(!wrote.iter().any(|w| w.contains("/groups/w1")), "{wrote:?}");
+}
