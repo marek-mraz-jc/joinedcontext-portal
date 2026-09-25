@@ -86,10 +86,35 @@ fn scratch(tag: &str, apps: &[(&str, &str, &str, &str)]) -> (Repository, PathBuf
     (Repository::load(&root).expect("the repository loads"), root)
 }
 
-/// Accepts every write and answers the pull Secret from the Portal's namespace; every other read
-/// is a 404 (nothing deployed yet).
+/// The Deployment of `air` in its project's namespace.
+const AIR: &str = "/apis/apps/v1/namespaces/dev-ovzdusie-apps/deployments/app-air";
+/// Where `air` ran before its project had a namespace.
+const AIR_LEGACY: &str = "/apis/apps/v1/namespaces/joinedcontext/deployments/app-air";
+
+/// A Deployment the API server has seen at `generation` with `available` pods up.
+fn rolled_out(generation: u64, observed: u64, available: u64) -> Value {
+    json!({
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": { "name": "app-air", "namespace": "dev-ovzdusie-apps", "generation": generation },
+        "status": { "observedGeneration": observed, "availableReplicas": available },
+    })
+}
+
+/// Accepts every write, answers the pull Secret from the Portal's namespace and `air`'s new
+/// Deployment as rolled out; every other read is a 404 (nothing deployed yet).
 async fn cluster() -> MockServer {
+    cluster_where(rolled_out(1, 1, 1)).await
+}
+
+/// The same, with `air`'s new Deployment in the state `deployment`.
+async fn cluster_where(deployment: Value) -> MockServer {
     let api = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(AIR))
+        .respond_with(ResponseTemplate::new(200).set_body_json(deployment))
+        .mount(&api)
+        .await;
     Mock::given(method("GET"))
         .and(path(PULL))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -170,7 +195,7 @@ async fn the_first_pod_backed_app_creates_its_projects_namespace_before_its_obje
     };
     // The namespace, then what makes it safe and usable, then the app. The binding comes before
     // the policy: without it the Portal may not write a NetworkPolicy there.
-    let deployment = "/apis/apps/v1/namespaces/dev-ovzdusie-apps/deployments/app-air";
+    let deployment = AIR;
     assert!(at(NS) < at(deployment));
     let policy =
         "/apis/networking.k8s.io/v1/namespaces/dev-ovzdusie-apps/networkpolicies/default-deny";
@@ -239,14 +264,47 @@ async fn the_first_pod_backed_app_creates_its_projects_namespace_before_its_obje
 
     // The app's objects in the shared namespace go once it runs in its project's.
     let deleted = calls(&requests, "DELETE");
-    assert!(
-        deleted.contains(&"/apis/apps/v1/namespaces/joinedcontext/deployments/app-air".to_owned()),
-        "{deleted:?}"
-    );
+    assert!(deleted.contains(&AIR_LEGACY.to_owned()), "{deleted:?}");
     assert!(
         !deleted.iter().any(|d| d.starts_with(NS)),
         "nothing in the new namespace is removed"
     );
+}
+
+/// The old objects keep serving until the new Deployment has a pod up at its current spec; the
+/// next run removes them (AP-116).
+#[tokio::test]
+async fn the_old_objects_stay_until_the_new_deployment_is_available() {
+    for (state, deployment) in [
+        ("no pod up", rolled_out(1, 1, 0)),
+        ("an older spec up", rolled_out(2, 1, 1)),
+        ("no status yet", json!({ "metadata": { "generation": 1 } })),
+    ] {
+        let api = cluster_where(deployment).await;
+        let (repository, root) = scratch("ready", &[("air", "ovzdusie", "fullstack", "published")]);
+        let report = converger(&api, settings())
+            .converge(&repository, &Default::default())
+            .await;
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(
+            report
+                .iter()
+                .any(|(id, o)| id.contains("air") && matches!(o, Ok(Outcome::Applied))),
+            "{state}: {report:?}"
+        );
+        let requests = api.received_requests().await.expect("recorded");
+        assert!(
+            calls(&requests, "PATCH").contains(&AIR.to_owned()),
+            "{state}"
+        );
+        let deleted = calls(&requests, "DELETE");
+        assert!(
+            !deleted
+                .iter()
+                .any(|d| d.contains("/namespaces/joinedcontext/")),
+            "{state}: {deleted:?}"
+        );
+    }
 }
 
 #[tokio::test]
