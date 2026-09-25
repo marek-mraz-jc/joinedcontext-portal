@@ -42,8 +42,10 @@ for (const app of APPS) {
     const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app.name}/open?lang=en`);
     try {
       const page = steward.page;
-      // The Portal's own page stays around the App: its sidebar and the App's title row.
-      await expect(page.getByRole("navigation").first()).toBeVisible({ timeout: 60_000 });
+      // The Portal stays around the App: its header with the menu that folds the project
+      // navigation away, and the slim bar with the App's name (T-2908).
+      await expect(page.getByRole("banner").getByRole("button", { name: "Menu" })).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       const frameElement = page.locator("iframe[sandbox]");
       // The frame keeps its own origin only on an Apps origin apart from the Portal's (AP-19,
       // T-2840); it never gets the Portal's window.

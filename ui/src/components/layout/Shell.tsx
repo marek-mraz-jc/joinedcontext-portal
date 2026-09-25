@@ -296,9 +296,16 @@ function PageStopped({
 
 export function Shell({
   project,
+  fill = false,
   children,
 }: {
   project: string;
+  /**
+   * The page takes the whole working area (T-2908): no breadcrumb, width cap, padding or footer,
+   * exactly the viewport under the header in height, and the project navigation folded behind
+   * the menu button at every width so the page gets the room. The App's Open page is one.
+   */
+  fill?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -386,7 +393,14 @@ export function Shell({
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg font-sans text-fg">
+    <div
+      className={clsx(
+        "flex flex-col bg-bg font-sans text-fg",
+        // A page that fills the Shell gets exactly the window: the header, then everything else,
+        // and nothing of the Shell's own scrolls (T-2908).
+        fill ? "h-dvh overflow-hidden" : "min-h-screen",
+      )}
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-fg"
@@ -399,7 +413,7 @@ export function Shell({
           ref={menuButton}
           variant="ghost"
           size="sm"
-          className="md:hidden"
+          className={fill ? undefined : "md:hidden"}
           aria-label={t("nav.menu")}
           // An icon-only control says what it is to a pointer as well as to a screen reader
           // (T-1731): the glyph alone is a guess for everybody.
@@ -439,12 +453,12 @@ export function Shell({
         </div>
       </header>
 
-      <div className="flex flex-1">
+      <div className={clsx("flex flex-1", fill && "min-h-0")}>
         {navOpen ? (
           <div
             aria-hidden="true"
             onClick={closeNav}
-            className="fixed inset-0 top-14 z-30 bg-overlay md:hidden"
+            className={clsx("fixed inset-0 top-14 z-30 bg-overlay", !fill && "md:hidden")}
           />
         ) : null}
         <nav
@@ -453,7 +467,7 @@ export function Shell({
           className={clsx(
             "z-40 w-sidebar shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3",
             // The viewport minus the 14 (3.5rem) header: a computed height, so it stays inline.
-            "md:sticky md:top-14 md:flex md:h-[calc(100vh-3.5rem)]",
+            !fill && "md:sticky md:top-14 md:flex md:h-[calc(100vh-3.5rem)]",
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
         >
@@ -570,68 +584,83 @@ export function Shell({
               header, and its page holds every part of it as tabs (owner, 2026-09-24). */}
           <ProfileBlock />
         </nav>
-        <main id="main" className="min-w-0 flex-1">
-          {/* `pb-24` keeps room under the page for the assistant's floating button (56 px at
-              16 px from the corner): it sat on the last column of a table at 1440 with nothing
-              below it to scroll to (T-2760). */}
-          <div className="mx-auto flex max-w-content flex-col gap-section px-4 pb-24 pt-5 sm:px-gutter sm:pt-6">
-            <nav aria-label={t("nav.breadcrumb")} className="text-caption text-fg-muted">
-              <ol className="flex flex-wrap items-center gap-1">
-                <li>
-                  <Link
-                    to="/projects/$project/$plural"
-                    params={{ project, plural: "spaces" }}
-                    className="focus-ring rounded-sm hover:text-fg hover:underline"
-                  >
-                    {project}
-                  </Link>
-                </li>
-                {activeSection ? (
-                  <li className="flex items-center gap-1">
-                    <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                    {detail ? (
-                      <>
-                        <Link
-                          to={detail.to}
-                          params={{ project }}
-                          className="focus-ring rounded-sm hover:text-fg hover:underline"
-                        >
-                          {t(activeSection.labelKey)}
-                        </Link>
-                        <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                        <span aria-current="page" className="font-mono font-medium text-fg">
-                          {detail.name}
-                        </span>
-                      </>
-                    ) : (
-                      <span aria-current="page" className="font-medium text-fg">
-                        {t(activeSection.labelKey)}
-                      </span>
-                    )}
-                  </li>
-                ) : null}
-              </ol>
-            </nav>
-            <WorkspaceBar project={project} />
-            {/* The page, and the panel that takes its place when it throws. `resetKey` is the
-                path, so walking away from a failed page with the sidebar that is still there
-                shows the next page rather than the panel again (T-2426). */}
+        {fill ? (
+          <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ErrorBoundary
               resetKey={pathname}
               fallback={(reference, retry) => (
-                <PageStopped project={project} reference={reference} retry={retry} />
+                <div className="px-4 pt-5 sm:px-gutter">
+                  <PageStopped project={project} reference={reference} retry={retry} />
+                </div>
               )}
             >
               {children}
             </ErrorBoundary>
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main id="main" className="min-w-0 flex-1">
+            {/* `pb-24` keeps room under the page for the assistant's floating button (56 px at
+                16 px from the corner): it sat on the last column of a table at 1440 with nothing
+                below it to scroll to (T-2760). */}
+            <div className="mx-auto flex max-w-content flex-col gap-section px-4 pb-24 pt-5 sm:px-gutter sm:pt-6">
+              <nav aria-label={t("nav.breadcrumb")} className="text-caption text-fg-muted">
+                <ol className="flex flex-wrap items-center gap-1">
+                  <li>
+                    <Link
+                      to="/projects/$project/$plural"
+                      params={{ project, plural: "spaces" }}
+                      className="focus-ring rounded-sm hover:text-fg hover:underline"
+                    >
+                      {project}
+                    </Link>
+                  </li>
+                  {activeSection ? (
+                    <li className="flex items-center gap-1">
+                      <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                      {detail ? (
+                        <>
+                          <Link
+                            to={detail.to}
+                            params={{ project }}
+                            className="focus-ring rounded-sm hover:text-fg hover:underline"
+                          >
+                            {t(activeSection.labelKey)}
+                          </Link>
+                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                          <span aria-current="page" className="font-mono font-medium text-fg">
+                            {detail.name}
+                          </span>
+                        </>
+                      ) : (
+                        <span aria-current="page" className="font-medium text-fg">
+                          {t(activeSection.labelKey)}
+                        </span>
+                      )}
+                    </li>
+                  ) : null}
+                </ol>
+              </nav>
+              <WorkspaceBar project={project} />
+              {/* The page, and the panel that takes its place when it throws. `resetKey` is the
+                  path, so walking away from a failed page with the sidebar that is still there
+                  shows the next page rather than the panel again (T-2426). */}
+              <ErrorBoundary
+                resetKey={pathname}
+                fallback={(reference, retry) => (
+                  <PageStopped project={project} reference={reference} retry={retry} />
+                )}
+              >
+                {children}
+              </ErrorBoundary>
+            </div>
+          </main>
+        )}
         {/* The assistant is on the right of every page a run is remembered: a column beside
             the page, or a bubble at the bottom right when hidden (UI-45). */}
         <AssistantDock project={project} />
       </div>
 
-      {branding.organisation || branding.contactEmail ? (
+      {!fill && (branding.organisation || branding.contactEmail) ? (
         <footer className="border-t border-border bg-surface px-4 py-3 text-caption text-fg-muted sm:px-gutter">
           {branding.organisation ? <span>{branding.organisation}</span> : null}
           {branding.organisation && branding.contactEmail ? (

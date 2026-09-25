@@ -57,7 +57,8 @@ test.describe("an App inside the Portal (AP-122)", () => {
     await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
 
     await expect(page.getByRole("heading", { level: 1, name: "City bikes" })).toBeVisible();
-    await expect(page.getByText("Serving commit 4f2a9c1")).toBeVisible();
+    // The commit is developer information: on the details page's badge, not here (T-2908).
+    await expect(page.getByText(/4f2a9c1/)).toHaveCount(0);
     const frame = page.locator("iframe");
     await expect(frame).toHaveAttribute("title", "City bikes, the application");
     await expect(frame).toHaveAttribute(
@@ -73,6 +74,32 @@ test.describe("an App inside the Portal (AP-122)", () => {
 
     expect(await axeViolations(page)).toEqual([]);
   });
+
+  // T-2908: at every width the frame takes all the window leaves under the header and the slim
+  // bar, and neither the page nor the Portal around the frame scrolls.
+  for (const width of [375, 768, 1440, 2560]) {
+    test(`fills the window under a slim bar at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stub(page);
+      await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
+      const frame = page.locator("iframe");
+      await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
+
+      const box = await frame.boundingBox();
+      const bar = await page.getByRole("heading", { level: 1, name: "City bikes" }).boundingBox();
+      expect(box, "the frame is laid out").not.toBeNull();
+      expect(bar, "the bar is laid out").not.toBeNull();
+      if (!box || !bar) return;
+      // Down to the window's bottom edge, and the full width the navigation leaves.
+      expect(Math.round(box.y + box.height)).toBe(900);
+      expect(box.width).toBeGreaterThan(width - 400);
+      // The bar is slim: the App starts within a few lines of the Portal's header.
+      expect(box.y).toBeLessThan(width < 640 ? 200 : 130);
+      const scrolls = await page.evaluate(() => document.scrollingElement!.scrollHeight > window.innerHeight);
+      expect(scrolls, "the page itself does not scroll").toBe(false);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  }
 
   test("a retired App shows its state and no frame", async ({ page }) => {
     await stub(page);

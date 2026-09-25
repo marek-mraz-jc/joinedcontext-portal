@@ -2202,12 +2202,15 @@
     "openPage": {
       "details": "App details",
       "newWindow": "Open in new window",
-      "served": "Serving commit {commit}",
       "frameTitle": "{title}, the application",
       "notOpen": "There is nothing to open here yet. The App details say what happens next.",
       "signInHint": "Is the app asking you to sign in and staying empty?",
       "signInAgain": "Sign in again",
-      "lead": "The published application, run inside the Portal with your sign-in."
+      "lead": "The published application, run inside the Portal with your sign-in.",
+      "fullscreen": "Full screen",
+      "fullscreenExit": "Leave full screen",
+      "fullscreenUnavailable": "This browser does not offer full screen here.",
+      "fullscreenFailed": "The browser did not switch to full screen: {reason}"
     },
     "retire": {
       "title": "Retire {name}",

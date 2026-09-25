@@ -10,6 +10,8 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from "@tanstack/react-router";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
+import { expectDenied } from "./checks";
 import { AuthProvider } from "../src/auth/AuthProvider";
 import { BrandingProvider } from "../src/branding";
 import { AppOpenPage, OpenAppButton } from "../src/pages/apps/AppOpenPage";
@@ -94,12 +96,20 @@ function renderAt(path: string, stub: Stub = {}) {
   );
 }
 
+const requestFullscreen = HTMLElement.prototype.requestFullscreen;
+const exitFullscreen = document.exitFullscreen;
+
 describe("AppOpenPage", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    // What a full-screen case stubbed goes back to jsdom's own.
+    HTMLElement.prototype.requestFullscreen = requestFullscreen;
+    document.exitFullscreen = exitFullscreen;
+    Reflect.deleteProperty(document, "fullscreenEnabled");
+    Reflect.deleteProperty(document, "fullscreenElement");
   });
 
   it("frames the App's own address in a sandbox without top navigation", async () => {
@@ -113,7 +123,79 @@ describe("AppOpenPage", () => {
     expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation");
     expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(screen.getByRole("heading", { level: 1, name: "City bikes" })).toBeTruthy();
-    expect(screen.getByText("Serving commit 4f2a9c1")).toBeTruthy();
+  });
+
+  // T-2908: a slim bar of the App's name and its actions, and the frame takes everything else.
+  it("gives the frame all the room under a slim bar with the name and the actions alone", async () => {
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
+    const frame = await screen.findByTitle("City bikes, the application");
+    // The commit is developer information, on the App's details page, not a line of this one.
+    expect(screen.queryByText(/4f2a9c1/)).toBeNull();
+    expect(screen.queryByText(en.apps.openPage.lead)).toBeNull();
+    for (const name of [en.apps.openPage.details, en.apps.openPage.fullscreen, en.apps.openPage.signInAgain]) {
+      expect(screen.getByRole("button", { name })).toBeTruthy();
+    }
+    expect(screen.getByRole("link", { name: new RegExp(en.apps.openPage.newWindow) })).toBeTruthy();
+    // No fixed height anywhere: the frame and its area grow into what the page has, and the page
+    // is the Shell's viewport under the header (its `fill`).
+    const area = screen.getByTestId("app-frame-area");
+    expect(area.contains(frame)).toBe(true);
+    for (const element of [area, frame]) {
+      expect(element.className).toMatch(/\bflex-1\b/);
+      expect(element.className).not.toMatch(/\b(min-)?h-(?!0\b)[\w[\]]+/);
+      // No padding, rounding or border that would cage the App in a card; `border-0` takes the
+      // iframe's own default border away.
+      expect(element.className).not.toMatch(/\b(p|px|py)-[1-9]|\brounded\b|\brounded-|\bborder(?!-0\b)/);
+    }
+  });
+
+  it("puts the frame in full screen and back, and follows an Escape the browser handles", async () => {
+    const user = userEvent.setup();
+    let current: Element | null = null;
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => current });
+    const enter = vi.fn(async () => {
+      current = screen.getByTestId("app-frame-area");
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    const leave = vi.fn(async () => {
+      current = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    HTMLElement.prototype.requestFullscreen = enter;
+    document.exitFullscreen = leave;
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
+    await user.click(await screen.findByRole("button", { name: en.apps.openPage.fullscreen }));
+    expect(enter).toHaveBeenCalledTimes(1);
+    expect(enter.mock.contexts[0]).toBe(screen.getByTestId("app-frame-area"));
+    const exit = await screen.findByRole("button", { name: en.apps.openPage.fullscreenExit });
+    expect(exit.getAttribute("aria-pressed")).toBe("true");
+    await user.click(exit);
+    expect(leave).toHaveBeenCalledTimes(1);
+    expect((await screen.findByRole("button", { name: en.apps.openPage.fullscreen })).getAttribute("aria-pressed")).toBe("false");
+    // Escape is the browser's: the page learns it from the document's event alone.
+    await user.click(screen.getByRole("button", { name: en.apps.openPage.fullscreen }));
+    current = null;
+    document.dispatchEvent(new Event("fullscreenchange"));
+    expect((await screen.findByRole("button", { name: en.apps.openPage.fullscreen })).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps full screen in place, disabled with the reason, where the browser offers none", async () => {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => false });
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
+    expectDenied(await screen.findByRole("button", { name: en.apps.openPage.fullscreen }), en.apps.openPage.fullscreenUnavailable);
+  });
+
+  it("says so when the browser refuses full screen", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => null });
+    HTMLElement.prototype.requestFullscreen = vi.fn(async () => {
+      throw new TypeError("Permissions check failed");
+    });
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
+    await user.click(await screen.findByRole("button", { name: en.apps.openPage.fullscreen }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Permissions check failed");
   });
 
   it("frames an App on the apps origin with its own origin, never the Portal's (T-2840)", async () => {

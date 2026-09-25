@@ -2202,12 +2202,15 @@
     "openPage": {
       "details": "App-Details",
       "newWindow": "In neuem Fenster öffnen",
-      "served": "Läuft auf Commit {commit}",
       "frameTitle": "{title}, die Anwendung",
       "notOpen": "Hier gibt es noch nichts zu öffnen. Die App-Details sagen, wie es weitergeht.",
       "signInHint": "Fragt die App nach einer Anmeldung und bleibt leer?",
       "signInAgain": "Erneut anmelden",
-      "lead": "Die veröffentlichte Anwendung, im Portal mit Ihrer Anmeldung ausgeführt."
+      "lead": "Die veröffentlichte Anwendung, im Portal mit Ihrer Anmeldung ausgeführt.",
+      "fullscreen": "Vollbild",
+      "fullscreenExit": "Vollbild verlassen",
+      "fullscreenUnavailable": "Dieser Browser bietet hier kein Vollbild an.",
+      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}"
     },
     "retire": {
       "title": "{name} außer Betrieb nehmen",
