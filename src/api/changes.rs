@@ -1678,6 +1678,7 @@ mod tests {
     fn test_user(email: &str, roles: Vec<&str>) -> CurrentUser {
         CurrentUser(Session {
             identity: Identity {
+                client: None,
                 subject: "sub-approver".into(),
                 username: "jana.kovacova".into(),
                 email: Some(email.into()),

@@ -623,6 +623,11 @@
     "page": {
       "back": "Alle Endpunkte",
       "proposedNotice": "Eine Änderung hier wird vorgeschlagen und von einer Genehmigerin geprüft, bevor etwas veröffentlicht wird.",
+      "stop": {
+        "title": "Diesen Endpoint stoppen",
+        "lead": "Ein Endpoint lässt sich nicht pausieren. Um die Veröffentlichung zu beenden, löschen Sie ihn: Das Löschen wird als Änderung vorgeschlagen und von einer Genehmigerin geprüft. Sobald sie übernommen ist, antwortet die Adresse mit 404 Not Found und wird nie wieder vergeben. Ein neuer Endpoint erhält eine neue Adresse.",
+        "delete": "Diesen Endpoint löschen…"
+      },
       "change": "Diese Einstellungen ändern",
       "whatItIs": "Was er ist",
       "whatItAnswers": "Was er antwortet",
@@ -3467,7 +3472,8 @@
       "roles": "Rollen",
       "groups": "Gruppen",
       "service-accounts": "Dienstkonten",
-      "projects": "Projekte"
+      "projects": "Projekte",
+      "setup": "Einrichtung"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3625,6 +3631,70 @@
         "copy": "Kopieren",
         "copied": "In die Zwischenablage kopiert.",
         "done": "Fertig"
+      }
+    },
+    "setup": {
+      "title": "Einrichtung",
+      "lead": "Was diese Organisation noch braucht, bevor ihre Leute darin arbeiten können. Jeder Schritt öffnet die Seite, auf der er erledigt wird; hier ändert sich nichts.",
+      "loading": "Lese, was die Organisation noch braucht",
+      "hidden": "Nur eine Organisationsadministration sieht, was die Einrichtung der Organisation noch braucht.",
+      "complete": "Die Organisation ist eingerichtet: Jeder Schritt ist erledigt, und die Installation stellt alles bereit, was sie soll.",
+      "done": "Erledigt",
+      "todo": "Offen",
+      "stepNumber": "Schritt {number}:",
+      "continue": "Einrichtung fortsetzen",
+      "reminder": "{count, plural, one {# Punkt der Einrichtung ist noch offen.} other {# Punkte der Einrichtung sind noch offen.}}",
+      "operatorTitle": "Was die Installation bereitstellt",
+      "operatorLead": "Diese Punkte kommen aus der Bereitstellung, nicht von dieser Seite. Bitten Sie den Betrieb der Installation, den bei jedem Punkt genannten Wert zu setzen.",
+      "step": {
+        "organization": {
+          "title": "Organisation benennen",
+          "hint": "Geben Sie der Organisation ihre Domain und die Sprachen, die ihre Leute lesen.",
+          "action": "Einstellungen öffnen"
+        },
+        "domain": {
+          "title": "Domain bestätigen",
+          "hint": "Veröffentlichen Sie den DNS-Eintrag aus den Einstellungen, damit die Adressen der Organisation ihr gehören.",
+          "action": "Domain bestätigen"
+        },
+        "people": {
+          "title": "Leute einladen",
+          "hint": "Fügen Sie mindestens eine weitere Person hinzu, damit keine Änderung nur auf Sie wartet.",
+          "action": "Personen öffnen"
+        },
+        "project": {
+          "title": "Erstes Projekt eröffnen",
+          "hint": "Eröffnen Sie ein Projekt mit einem Context Space, der ein Datenmodell nutzt.",
+          "action": "Projekte öffnen"
+        },
+        "publishers": {
+          "title": "Open-Data-Katalog verbinden",
+          "hint": "Verbinden Sie einen CKAN-Katalog, damit Datensätze veröffentlicht werden können.",
+          "action": "Katalog öffnen"
+        },
+        "policies": {
+          "title": "Projektregeln festlegen",
+          "hint": "Legen Sie fest, wer Projekte eröffnen darf und wer sie liest.",
+          "action": "Einstellungen öffnen"
+        }
+      },
+      "operator": {
+        "branding": {
+          "title": "Markenauftritt",
+          "hint": "Name und Logo der Installation, gesetzt im Branding-Block der Bereitstellung."
+        },
+        "loginTheme": {
+          "title": "Anmeldeseiten",
+          "hint": "Das eigene Anmelde-Theme der Plattform in Keycloak statt des Standards (keycloak.theme)."
+        },
+        "smtp": {
+          "title": "E-Mail",
+          "hint": "Ein SMTP-Server, damit Keycloak Einladungen und Passwort-Rücksetzungen senden kann (keycloak.smtp)."
+        },
+        "backups": {
+          "title": "Sicherungen",
+          "hint": "Geplante Datenbanksicherungen in einen Objektspeicher (postgres.backups)."
+        }
       }
     }
   },

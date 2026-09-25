@@ -33,6 +33,7 @@ fn make_session_cookie(
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: format!("sub-{username}"),
             username: username.to_string(),
             email: email.map(str::to_string),
@@ -1449,6 +1450,7 @@ async fn an_author_who_approves_but_may_not_delete_still_cannot_approve_their_ow
 async fn an_operation_never_approves_its_callers_own_change_even_for_an_administrator() {
     let (server, state) = own_change_of(&["propose", "approve", "delete"]).await;
     let identity = Identity {
+        client: None,
         subject: "sub-jana.kovacova".into(),
         username: "jana.kovacova".into(),
         email: Some("jana.kovacova@banskabystrica.sk".into()),
@@ -2270,6 +2272,7 @@ async fn merged_66(server: &MockServer) -> bool {
 async fn the_operation_refuses_a_public_endpoint_in_the_same_words() {
     let (server, state) = endpoint_change_of("public", steward_rules()).await;
     let identity = Identity {
+        client: None,
         subject: "sub-jana.approver".into(),
         username: "jana.approver".into(),
         email: Some("jana.approver@banskabystrica.sk".into()),

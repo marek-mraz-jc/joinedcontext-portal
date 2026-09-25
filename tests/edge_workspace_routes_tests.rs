@@ -34,6 +34,7 @@ const ELSEWHERE_WS: &str = "/api/v1/projects/doprava/workspaces";
 /// Reads and proposes everywhere: the bootstrap group, which is how the first binding is written.
 fn steward() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }
@@ -42,6 +43,7 @@ fn steward() -> Identity {
 /// Reads `ovzdusie` and proposes nothing.
 fn viewer() -> Identity {
     Identity {
+        client: None,
         groups: vec!["readers".into()],
         ..person("vera")
     }
@@ -51,6 +53,7 @@ fn viewer() -> Identity {
 /// for, because they may open a workspace and may see none of `doprava`'s.
 fn proposer() -> Identity {
     Identity {
+        client: None,
         groups: vec!["editors".into()],
         ..person("emil")
     }

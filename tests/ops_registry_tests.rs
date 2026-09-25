@@ -37,6 +37,7 @@ fn session_cookie(
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: format!("sub-{username}"),
             username: username.to_string(),
             email: email.map(str::to_string),
@@ -539,6 +540,7 @@ async fn the_reads_that_had_only_a_route_answer_through_the_registry() {
     let state = AppState::new(config, None).with_mirror(mirror);
     let caller = ops::Caller {
         identity: joinedcontext_portal::auth::session::Identity {
+            client: None,
             subject: "sub-steward".into(),
             username: "steward".into(),
             email: Some("steward@banskabystrica.sk".into()),
@@ -610,6 +612,7 @@ async fn the_run_operations_answer_and_an_agent_is_refused_by_name() {
     let state = AppState::new(config, None).with_mirror(Arc::new(Mirror::new()));
     let steward = ops::Caller {
         identity: joinedcontext_portal::auth::session::Identity {
+            client: None,
             subject: "sub-steward".into(),
             username: "steward".into(),
             email: Some("steward@banskabystrica.sk".into()),
@@ -767,6 +770,7 @@ async fn a_change_is_never_decided_over_mcp_or_by_an_agent() {
     let state = AppState::new(config, None).with_mirror(Arc::new(Mirror::new()));
     let person = ops::Caller {
         identity: joinedcontext_portal::auth::session::Identity {
+            client: None,
             subject: "sub-steward".into(),
             username: "steward".into(),
             email: Some("steward@banskabystrica.sk".into()),
@@ -822,6 +826,7 @@ async fn a_run_is_offered_its_profile_and_not_its_starter_whole_reach() {
     let config = Config::for_tests();
     let state = AppState::new(config, None).with_mirror(Arc::new(Mirror::new()));
     let identity = joinedcontext_portal::auth::session::Identity {
+        client: None,
         subject: "sub-steward".into(),
         username: "steward".into(),
         email: Some("steward@banskabystrica.sk".into()),

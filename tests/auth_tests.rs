@@ -526,6 +526,7 @@ fn session_cookies_issued(access_in: i64, issued_ago: i64) -> String {
     let now = now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:demo.steward".into(),
             username: "demo.steward".into(),
             email: None,

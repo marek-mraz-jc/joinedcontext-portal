@@ -23,6 +23,7 @@ const CSRF: &str = "test-csrf-token-12345";
 
 fn identity(email: &str, groups: &[&str]) -> Identity {
     Identity {
+        client: None,
         subject: format!("f:1:{email}"),
         username: email.split('@').next().unwrap_or(email).to_owned(),
         email: Some(email.to_owned()),
@@ -924,4 +925,138 @@ async fn a_catalogue_draft_tells_nobody_who_cannot_read_the_endpoints_which_name
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     let (status, body) = ask("editor@hel.fi", "missing").await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+}
+
+/// A ServiceAccount of project `project`, with `roles` as its manifest declares them.
+fn account(project: &str, name: &str, roles: Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: "ServiceAccount".to_owned(),
+        metadata: ObjectMeta::new(name, project),
+        spec: json!({
+            "owner": { "user": "jana@hel.fi" },
+            "purpose": "proposes pipelines from the vendor's CI",
+            "roles": roles,
+            "credentials": [{ "kind": "oauth-client", "name": "main" }]
+        }),
+        status: None,
+    }
+}
+
+/// What a `client_credentials` token of Keycloak client `client` verifies to.
+fn token_of(client: &str, username: &str) -> Identity {
+    Identity {
+        client: Some(client.to_owned()),
+        subject: format!("sa:{client}"),
+        username: username.to_owned(),
+        email: None,
+        name: None,
+        roles: Vec::new(),
+        groups: Vec::new(),
+    }
+}
+
+fn pipeline_admin_role() -> ResourceEnvelope {
+    org(
+        "Role",
+        "pipeline-admin",
+        json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["propose", "approve", "delete"] }] }),
+    )
+}
+
+#[test]
+fn a_service_accounts_declared_roles_are_in_force_for_its_own_client_and_nobody_else() {
+    let now = Utc.with_ymd_and_hms(2026, 9, 25, 12, 0, 0).unwrap();
+    let roles = json!([
+        { "role": "pipeline-admin", "scope": { "project": "ovzdusie" } },
+        // A gateway template: data access through Policies, nothing in the Portal (CC-60).
+        { "role": "space-reader", "scope": { "contextSpace": "ovzdusie" } }
+    ]);
+    let mirror = mirror_with(vec![
+        pipeline_admin_role(),
+        account("ovzdusie", "vendor-ci", roles.clone()),
+    ]);
+    let target = pipeline("aq");
+    let effective_for =
+        |who: &Identity, project: &str| effective(&mirror, "platform-admins", who, project, now);
+
+    let account_token = token_of("ovzdusie-vendor-ci", "service-account-ovzdusie-vendor-ci");
+    let own = effective_for(&account_token, "ovzdusie");
+    assert!(own.check("Pipeline", Verb::Propose, Some(&target)).is_ok());
+    assert!(own.check("Pipeline", Verb::Delete, Some(&target)).is_ok());
+    assert_eq!(
+        own.grants.len(),
+        1,
+        "one Role rule; the template grants nothing: {:?}",
+        own.grants
+    );
+    assert_eq!(own.grants[0].binding, "serviceaccount/vendor-ci");
+    assert!(
+        effective_for(&account_token, "doprava").grants.is_empty(),
+        "the role holds on the scope the manifest wrote beside it and nowhere else"
+    );
+
+    // A person who signed in through the account's client is not the account.
+    let person = token_of("ovzdusie-vendor-ci", "jana");
+    assert!(effective_for(&person, "ovzdusie").grants.is_empty());
+    // A person whose user name looks like the account's, from another client or a cookie.
+    let lookalike = Identity {
+        client: None,
+        ..token_of("x", "service-account-ovzdusie-vendor-ci")
+    };
+    assert!(effective_for(&lookalike, "ovzdusie").grants.is_empty());
+    // A client no manifest derives.
+    let unknown = token_of("ovzdusie-other", "service-account-ovzdusie-other");
+    assert!(effective_for(&unknown, "ovzdusie").grants.is_empty());
+
+    // An id two accounts derive is nobody's (T-1454): `ovzdusie` + `x-ci` and `ovzdusie-x` + `ci`.
+    let twice = mirror_with(vec![
+        pipeline_admin_role(),
+        account("ovzdusie", "x-ci", roles.clone()),
+        account("ovzdusie-x", "ci", roles),
+    ]);
+    let ambiguous = token_of("ovzdusie-x-ci", "service-account-ovzdusie-x-ci");
+    assert!(
+        effective(&twice, "platform-admins", &ambiguous, "ovzdusie", now)
+            .grants
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_service_account_may_propose_and_never_approve() {
+    let now = Utc.with_ymd_and_hms(2026, 9, 25, 12, 0, 0).unwrap();
+    let approve_only = org(
+        "Role",
+        "pipeline-approver",
+        json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["approve"] }] }),
+    );
+    let mirror = mirror_with(vec![
+        pipeline_admin_role(),
+        approve_only,
+        account(
+            "ovzdusie",
+            "vendor-ci",
+            json!([
+                { "role": "pipeline-admin", "scope": { "project": "ovzdusie" } },
+                { "role": "pipeline-approver", "scope": { "organization": "hel" } }
+            ]),
+        ),
+    ]);
+    let token = token_of("ovzdusie-vendor-ci", "service-account-ovzdusie-vendor-ci");
+    let held = effective(&mirror, "platform-admins", &token, "ovzdusie", now);
+    let target = pipeline("aq");
+    assert!(held.check("Pipeline", Verb::Propose, Some(&target)).is_ok());
+    let refused = held
+        .check("Pipeline", Verb::Approve, Some(&target))
+        .expect_err("a workload proposes, a person approves (PF-58)");
+    assert!(refused.to_string().contains("approve"), "{refused}");
+    assert!(
+        held.grants
+            .iter()
+            .all(|grant| !grant.rule.verbs.contains(&Verb::Approve)),
+        "approve is taken out of every rule, and a rule of approve alone is gone: {:?}",
+        held.grants
+    );
+    assert_eq!(held.grants.len(), 1);
 }

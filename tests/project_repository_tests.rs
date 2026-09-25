@@ -17,6 +17,7 @@ const PROJECT_REPO: &str = "/api/v1/repos/test-owner/ovzdusie";
 
 fn steward() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }
