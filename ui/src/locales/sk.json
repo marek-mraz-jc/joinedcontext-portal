@@ -2369,19 +2369,6 @@
     "continueMessage": "Pokračuj v tomto rozhovore.",
     "continues": "pokračuje v staršej konverzácii",
     "empty": "Zatiaľ nič. Opýtajte sa asistenta alebo začnite prácu nižšie.",
-    "newWork": {
-      "title": "Nová práca",
-      "kind": "Čo vytvoriť",
-      "name": "Názov",
-      "nameHint": "Malé písmená, číslice a pomlčky.",
-      "endpoint": "Endpoint",
-      "prompt": "Čo to má robiť?",
-      "start": "Spustiť",
-      "unattended": "Beží bez otázok a na konci čaká na vaše schválenie.",
-      "noTypes": "Beh číta publikované typy tohto endpointu. Vyberte endpoint, ktorý publikuje aspoň jeden typ.",
-      "namePlaceholder": "moja-aplikacia",
-      "dataNeeds": "Dátové typy"
-    },
     "started": "Začiatok",
     "actions": "Akcie",
     "access": {
@@ -2415,7 +2402,10 @@
       "expired": "Skončené"
     },
     "timings": "Časy",
-    "showMore": "Zobraziť ďalších {count} (zostáva {left})"
+    "showMore": "Zobraziť ďalších {count} (zostáva {left})",
+    "table": {
+      "name": "Názov"
+    }
   },
   "activity": {
     "title": "Activity",

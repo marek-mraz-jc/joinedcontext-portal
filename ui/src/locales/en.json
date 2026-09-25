@@ -2369,19 +2369,6 @@
     "continueMessage": "Continue this conversation.",
     "continues": "continues an earlier conversation",
     "empty": "Nothing yet. Ask the assistant or start work below.",
-    "newWork": {
-      "title": "New work",
-      "kind": "What to make",
-      "name": "Name",
-      "nameHint": "Lowercase letters, digits and dashes.",
-      "endpoint": "Endpoint",
-      "prompt": "What should it do?",
-      "start": "Start",
-      "unattended": "It runs without asking you and waits for your approval at the end.",
-      "noTypes": "The run reads this endpoint's published types. Choose an endpoint that publishes at least one type.",
-      "namePlaceholder": "my-app",
-      "dataNeeds": "Data types"
-    },
     "started": "Started",
     "actions": "Actions",
     "access": {
@@ -2415,7 +2402,10 @@
       "expired": "Ended"
     },
     "timings": "Timings",
-    "showMore": "Show {count} more ({left} left)"
+    "showMore": "Show {count} more ({left} left)",
+    "table": {
+      "name": "Name"
+    }
   },
   "activity": {
     "title": "Activity",

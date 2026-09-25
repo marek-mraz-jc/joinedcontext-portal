@@ -151,23 +151,6 @@ describe("a list that failed says so on the Assistant page", () => {
     expect(screen.queryByRole("button", { name: en.form.listRetry })).not.toBeInTheDocument();
   });
 
-  it("a_failed_schema_request_does_not_claim_the_endpoint_publishes_no_types", async () => {
-    // `needs.length === 0` is part of what disables Start, and neither schemaQuery.isError nor
-    // endpointsQuery.isError was read, so a failed request greyed Start out for ever and told
-    // the person a falsehood about their own endpoint.
-    renderPage({ path: "/schema/index.json", status: 502, detail: "the schema store is away" });
-
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("alert").some((node) => node.textContent?.includes("the schema store is away")),
-      ).toBe(true),
-    );
-    expect(
-      screen.queryByText(en.assistantPage.newWork.noTypes),
-      "a failed request is not an endpoint without types",
-    ).not.toBeInTheDocument();
-  });
-
   it("a_run_that_failed_says_why_and_not_only_that_it_did", async () => {
     renderPage(null, false, [
       {

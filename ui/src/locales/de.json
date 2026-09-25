@@ -2369,19 +2369,6 @@
     "continueMessage": "Setze dieses Gespräch fort.",
     "continues": "setzt eine frühere Unterhaltung fort",
     "empty": "Noch nichts. Fragen Sie den Assistenten oder beginnen Sie unten eine Arbeit.",
-    "newWork": {
-      "title": "Neue Arbeit",
-      "kind": "Was entstehen soll",
-      "name": "Name",
-      "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche.",
-      "endpoint": "Endpunkt",
-      "prompt": "Was soll es tun?",
-      "start": "Starten",
-      "unattended": "Es läuft ohne Rückfragen und wartet am Ende auf Ihre Freigabe.",
-      "noTypes": "Der Lauf liest die veröffentlichten Typen dieses Endpunkts. Wählen Sie einen Endpunkt, der mindestens einen Typ veröffentlicht.",
-      "namePlaceholder": "meine-app",
-      "dataNeeds": "Datentypen"
-    },
     "started": "Gestartet",
     "actions": "Aktionen",
     "access": {
@@ -2415,7 +2402,10 @@
       "expired": "Beendet"
     },
     "timings": "Zeiten",
-    "showMore": "{count} weitere zeigen (noch {left})"
+    "showMore": "{count} weitere zeigen (noch {left})",
+    "table": {
+      "name": "Name"
+    }
   },
   "activity": {
     "title": "Activity",

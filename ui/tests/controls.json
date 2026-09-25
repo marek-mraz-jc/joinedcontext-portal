@@ -706,7 +706,7 @@
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
-        "Button": 4,
+        "Button": 3,
         "Checkbox": 1
       },
       "tests": [

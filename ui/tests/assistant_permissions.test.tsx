@@ -109,24 +109,12 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
   it("a viewer meets every control disabled, and the reason names the verb and the kind", async () => {
     renderAssistant(VIEWER);
 
-    // `Start` is disabled by an empty form too, so the guard is what is asserted: the wrapper's
-    // `aria-disabled` and the reason a screen reader reads. The wait is for `permissions/me` —
-    // until it arrives the guard lets the control through on purpose, so an assertion on the
-    // first render would pass whether the guard were there or not.
+    // The wait is for `permissions/me`: until it arrives the guard lets the control through on
+    // purpose, so an assertion on the first render would pass whether the guard were there or not.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: en.assistantPage.newWork.start })).toHaveAttribute(
-        "aria-disabled",
-        "true",
-      ),
-    );
-    const reasons = screen
-      .getAllByRole("button")
-      .map((node) => node.getAttribute("title") ?? "");
-    expect(reasons).toContain(
-      "Disabled: your role does not permit 'propose' on 'App' in this project",
-    );
-    expect(reasons).toContain(
-      "Disabled: your role does not permit 'propose' on 'AgentProfile' in this project",
+      expect(
+        screen.getAllByRole("button").map((node) => node.getAttribute("title") ?? ""),
+      ).toContain("Disabled: your role does not permit 'propose' on 'AgentProfile' in this project"),
     );
 
     for (const label of [en.assistantPage.continue, en.assistantPage.access.edit]) {
@@ -146,9 +134,5 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
     expect(screen.queryAllByRole("button").filter((node) => node.hasAttribute("aria-disabled"))).toEqual(
       [],
     );
-    // `Start` stays disabled until the form is filled — the form's own rule, not a refusal.
-    expect(
-      screen.getByRole("button", { name: en.assistantPage.newWork.start }),
-    ).not.toHaveAttribute("aria-disabled", "true");
   });
 });

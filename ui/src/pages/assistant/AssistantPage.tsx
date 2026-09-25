@@ -1,22 +1,15 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, forPeople, unwrap } from "../../api/client";
-import { asManifests } from "../../api/manifest";
-import { useIdentity } from "../../auth/AuthProvider";
-import { admitsPerson } from "../../components/endpoints/sharing";
-import type { components } from "../../api/schema";
+import { api, forPeople, unwrap } from "../../api/client";
 import { rememberRun, requestOpen } from "../../assistant/state";
 import {
-  Alert,
   Badge,
   Button,
   Card,
   Checkbox,
   EmptyState,
-  Field,
-  Input,
   PageHeader,
   Select,
   Table,
@@ -25,11 +18,9 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
-  Textarea,
 } from "../../components/ui";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { concreteTypes, dataNeeds, endpointSchema } from "../apps/AppGenerator";
 import { appDisplayName, useEndpointTitles } from "../apps/appTitle";
 import { TERMINAL_STATES } from "../apps/useAgentRun";
 import { AgentAccess } from "./AgentAccess";
@@ -69,9 +60,9 @@ const RUNS_PER_PAGE = 20;
  * The central assistant page listing conversations and autonomous work runs (UI-54, AG-71).
  *
  * Displays all visible runs newest first with lifecycle state, performance timings, and continuation
- * links. Supports interactive filtering by kind, state, and ownership ("mine"). Allows opening active
- * or past runs into the assistant panel and initiating unattended agent work (application, dashboard,
- * analysis) via least-privilege creation flows (UI-55, AG-69).
+ * links. Supports interactive filtering by kind, state, and ownership ("mine"), and opens active or
+ * past runs into the assistant panel. Work starts from the assistant's paths, never from a form here
+ * (UI-55, T-2745).
  */
 export function AssistantPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -81,15 +72,9 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
   const [kindFilter, setKindFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   // One page of runs at a time (T-2760): every conversation ever held, listed at once, made the
-  // page ten thousand pixels tall and pushed "New work" out of reach.
+  // page ten thousand pixels tall.
   const [shown, setShown] = useState(RUNS_PER_PAGE);
   const [mineFilter, setMineFilter] = useState<boolean>(false);
-
-  const [newWorkKind, setNewWorkKind] = useState<string>("application");
-  const [newWorkName, setNewWorkName] = useState<string>("");
-  const [endpointName, setEndpointName] = useState<string>("");
-  const [newWorkPrompt, setNewWorkPrompt] = useState<string>("");
-  const [newWorkError, setNewWorkError] = useState<string | null>(null);
 
   const runsKey = ["projects", project, "agent-runs", { kind: kindFilter, mine: mineFilter }];
 
@@ -110,66 +95,6 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
       return anyLive ? 5000 : false;
     },
   });
-
-  const endpointsQuery = useQuery({
-    queryKey: ["projects", project, "endpoints"],
-    queryFn: async () => {
-      const result = await api.GET("/api/v1/projects/{project}/{plural}", {
-        params: { path: { project, plural: "endpoints" } },
-      });
-      return unwrap(result);
-    },
-  });
-
-  const identity = useIdentity();
-  const endpointNames = useMemo(() => {
-    // Only an endpoint whose audience admits this person: another is refused at the gateway
-    // (EP-14), and the page would fetch its schema to meet the 403 (T-2631).
-    const groups = identity?.groups ?? [];
-    const raw = asManifests(endpointsQuery.data?.items ?? []).filter((item) => admitsPerson(item, groups, project));
-    return raw
-      .map((item: unknown) => {
-        if (typeof item === "object" && item !== null) {
-          if (
-            "metadata" in item &&
-            typeof (item as { metadata?: { name?: string } }).metadata?.name === "string"
-          ) {
-            return (item as { metadata: { name: string } }).metadata.name;
-          }
-          if ("name" in item && typeof (item as { name?: string }).name === "string") {
-            return (item as { name: string }).name;
-          }
-        }
-        return "";
-      })
-      .filter(Boolean);
-  }, [endpointsQuery.data?.items, identity?.groups, project]);
-
-  // The first endpoint until the person picks another.
-  const chosenEndpoint = endpointName || (endpointNames[0] ?? "");
-
-  // What the run may read (AP-44): the chosen endpoint's own published types, the same list the
-  // app generator declares, never an empty one — `validate_data_needs` refuses that (T-0835).
-  const chosenManifest = useMemo(
-    () =>
-      asManifests(endpointsQuery.data?.items ?? []).find(
-        (item) => item.metadata.name === chosenEndpoint,
-      ),
-    [endpointsQuery.data?.items, chosenEndpoint],
-  );
-  const slug =
-    typeof chosenManifest?.spec.slug === "string" ? (chosenManifest.spec.slug as string) : undefined;
-  const schemaQuery = useQuery({
-    queryKey: ["endpoint-schema", slug],
-    enabled: Boolean(slug),
-    // `enabled` already holds the query back, but `slug!` asserted that to the compiler instead
-    // of telling it: `skipToken` is the same gate typed.
-    queryFn: slug === undefined ? skipToken : () => endpointSchema(slug),
-  });
-  const needs = useMemo(
-    () => (chosenManifest ? dataNeeds(chosenManifest, concreteTypes(schemaQuery.data), []) : []),
-    [chosenManifest, schemaQuery.data],
-  );
 
   const filteredRuns = useMemo(() => {
     const runs = (runsQuery.data?.items ?? []) as RunRecord[];
@@ -199,59 +124,9 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
     },
   });
 
-  const newWorkMutation = useMutation({
-    // The body the route declares, not a hand-written twin behind `as never`: the cast silenced
-    // the one call that starts unattended agent work, so a field the API renamed or made
-    // required would have been met by a 400 from a live run rather than by the compiler.
-    mutationFn: async (payload: components["schemas"]["CreateRunRequest"]) => {
-      setNewWorkError(null);
-      const result = await api.POST("/api/v1/projects/{project}/agent-runs", {
-        params: { path: { project } },
-        body: payload,
-      });
-      const created = await unwrap(result);
-      return created as { id: string };
-    },
-    onSuccess: (created) => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", project, "agent-runs"] });
-      rememberRun({ project, runId: created.id });
-      requestOpen();
-      setNewWorkName("");
-      setNewWorkPrompt("");
-    },
-    onError: (err) => {
-      const detail =
-        err instanceof ApiError
-          ? (err.problem?.detail ?? err.problem?.title ?? err.message)
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      setNewWorkError(detail);
-    },
-  });
-
   const handleOpen = (run: RunRecord) => {
     rememberRun({ project, runId: run.id });
     requestOpen();
-  };
-
-  const handleStartNewWork = () => {
-    const name = newWorkName.trim();
-    const prompt = newWorkPrompt.trim();
-    const ep = chosenEndpoint;
-    if (!name || !prompt) {
-      return;
-    }
-    newWorkMutation.mutate({
-      appName: name,
-      endpointName: ep,
-      appClass: "static",
-      visibility: "project",
-      prompt,
-      dataNeeds: needs,
-      kind: newWorkKind,
-      unattended: true,
-    });
   };
 
   return (
@@ -329,7 +204,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
         <>
         <Table caption={t("assistantPage.title")}>
           <TableHead>
-            <TableHeaderCell>{t("assistantPage.newWork.name")}</TableHeaderCell>
+            <TableHeaderCell>{t("assistantPage.table.name")}</TableHeaderCell>
             <TableHeaderCell>{t("assistantPage.filters.status")}</TableHeaderCell>
             <TableHeaderCell className="hidden md:table-cell">
               {t("assistantPage.timings")}
@@ -455,124 +330,6 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
         ) : null}
         </>
       )}
-
-      <Card className="space-y-4 p-5" aria-labelledby="new-work-heading">
-        <div className="space-y-1">
-          <h2 id="new-work-heading" className="text-lg font-semibold text-fg">
-            {t("assistantPage.newWork.title")}
-          </h2>
-          <p className="text-caption text-fg-muted">
-            {t("assistantPage.newWork.unattended")}
-          </p>
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleStartNewWork();
-          }}
-          className="space-y-4"
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field id="new-work-kind" label={t("assistantPage.newWork.kind")}>
-              <Select
-                id="new-work-kind"
-                value={newWorkKind}
-                onChange={(e) => setNewWorkKind(e.target.value)}
-              >
-                <option value="application">{t("assistantPage.kinds.application")}</option>
-                <option value="dashboard">{t("assistantPage.kinds.dashboard")}</option>
-                <option value="analysis">{t("assistantPage.kinds.analysis")}</option>
-              </Select>
-            </Field>
-
-            <Field
-              id="new-work-name"
-              label={t("assistantPage.newWork.name")}
-              help={t("assistantPage.newWork.nameHint")}
-            >
-              <Input
-                id="new-work-name"
-                value={newWorkName}
-                onChange={(e) => setNewWorkName(e.target.value)}
-                placeholder={t("assistantPage.newWork.namePlaceholder")}
-                required
-              />
-            </Field>
-
-            <Field id="new-work-endpoint" label={t("assistantPage.newWork.endpoint")}>
-              <Select
-                id="new-work-endpoint"
-                value={chosenEndpoint}
-                onChange={(e) => setEndpointName(e.target.value)}
-                disabled={endpointsQuery.isPending || endpointNames.length === 0}
-              >
-                {endpointNames.length === 0 ? (
-                  <option value="">{t("assistantPage.newWork.endpoint")}</option>
-                ) : (
-                  endpointNames.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))
-                )}
-              </Select>
-            </Field>
-          </div>
-
-          <Field id="new-work-prompt" label={t("assistantPage.newWork.prompt")}>
-            <Textarea
-              id="new-work-prompt"
-              rows={3}
-              value={newWorkPrompt}
-              onChange={(e) => setNewWorkPrompt(e.target.value)}
-              placeholder={t("assistantPage.newWork.prompt")}
-              required
-            />
-          </Field>
-
-          {/* `isError` was never read on either query, and `needs.length === 0` is part of what
-              disables Start. A failed schema or endpoint request therefore told the person their
-              endpoint publishes no types — a falsehood — and left Start greyed out for ever with
-              no way to find out why. A failure now says what failed and offers the retry. */}
-          {schemaQuery.isError || endpointsQuery.isError ? (
-            <ListFailed
-              what={t("assistantPage.newWork.dataNeeds")}
-              reason={reasonOf(
-                schemaQuery.error ?? endpointsQuery.error,
-                t("app.error.generic"),
-              )}
-              onRetry={() => {
-                if (schemaQuery.isError) void schemaQuery.refetch();
-                if (endpointsQuery.isError) void endpointsQuery.refetch();
-              }}
-            />
-          ) : needs.length === 0 && !schemaQuery.isPending ? (
-            <p className="text-caption text-fg-muted">{t("assistantPage.newWork.noTypes")}</p>
-          ) : null}
-
-          {newWorkError ? <Alert tone="danger">{newWorkError}</Alert> : null}
-
-          {/* A run proposes the App it writes, so `App`/`propose` is the permission it needs
-              (`api/agent_runs.rs::create_run`). Without the guard a viewer filled the form and
-              met the 403 only after pressing Start (T-1584, UI-44). */}
-          <PermissionGuard project={project} kind="App" verb="propose">
-            <Button
-              type="submit"
-              variant="primary"
-              loading={newWorkMutation.isPending}
-              disabled={
-                newWorkMutation.isPending ||
-                !newWorkName.trim() ||
-                !newWorkPrompt.trim() ||
-                needs.length === 0
-              }
-            >
-              {t("assistantPage.newWork.start")}
-            </Button>
-          </PermissionGuard>
-        </form>
-      </Card>
 
       <AgentAccess project={project} />
     </div>

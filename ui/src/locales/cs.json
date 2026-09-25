@@ -2369,19 +2369,6 @@
     "continueMessage": "Pokračuj v tomto rozhovoru.",
     "continues": "navazuje na starší konverzaci",
     "empty": "Zatím nic. Zeptejte se asistenta nebo začněte práci níže.",
-    "newWork": {
-      "title": "Nová práce",
-      "kind": "Co vytvořit",
-      "name": "Název",
-      "nameHint": "Malá písmena, číslice a pomlčky.",
-      "endpoint": "Endpoint",
-      "prompt": "Co to má dělat?",
-      "start": "Spustit",
-      "unattended": "Běží bez dotazů a na konci čeká na vaše schválení.",
-      "noTypes": "Běh čte publikované typy tohoto endpointu. Vyberte endpoint, který publikuje alespoň jeden typ.",
-      "namePlaceholder": "moje-aplikace",
-      "dataNeeds": "Datové typy"
-    },
     "started": "Začátek",
     "actions": "Akce",
     "access": {
@@ -2415,7 +2402,10 @@
       "expired": "Skončeno"
     },
     "timings": "Časy",
-    "showMore": "Zobrazit dalších {count} (zbývá {left})"
+    "showMore": "Zobrazit dalších {count} (zbývá {left})",
+    "table": {
+      "name": "Název"
+    }
   },
   "activity": {
     "title": "Activity",

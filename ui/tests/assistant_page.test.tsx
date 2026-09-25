@@ -361,124 +361,17 @@ describe("Assistant page", () => {
     unsub();
   });
 
-  it("posts kind and unattended: true for new work", async () => {
-    const user = userEvent.setup();
+  // T-2745, UI-55: the owner removed the New work form. Work starts from the assistant's paths,
+  // so the page offers no kind, name, endpoint or prompt field and never starts a run itself.
+  it("has no New work form and starts no run of its own", async () => {
     renderAssistantPage();
     await screen.findByRole("heading", { level: 1, name: i18n.t("assistantPage.title") });
-
-    const kindSelect = screen.getByLabelText(i18n.t("assistantPage.newWork.kind"));
-    await user.selectOptions(kindSelect, "dashboard");
-
-    const nameInput = screen.getByLabelText(i18n.t("assistantPage.newWork.name"));
-    await user.type(nameInput, "city-dashboard");
-
-    const endpointSelect = screen.getByLabelText(i18n.t("assistantPage.newWork.endpoint"));
-    await user.selectOptions(endpointSelect, "bikes-endpoint");
-
-    const promptInput = screen.getByLabelText(i18n.t("assistantPage.newWork.prompt"));
-    await user.type(promptInput, "Create bike dashboard");
-
-    const startButton = screen.getByRole("button", {
-      name: i18n.t("assistantPage.newWork.start"),
-    });
-    await user.click(startButton);
-
-    await waitFor(() => {
-      const postReq = fetchCalls().find(
-        (req) => req.method === "POST" && req.url.endsWith("/agent-runs"),
-      );
-      expect(postReq).toBeDefined();
-    });
-
-    const postReq = fetchCalls().find(
-      (req) => req.method === "POST" && req.url.endsWith("/agent-runs"),
-    )!;
-    const body = (await postReq.json()) as {
-      kind: string;
-      unattended: boolean;
-      appName: string;
-      endpointName: string;
-      prompt: string;
-      appClass: string;
-      visibility: string;
-      dataNeeds: unknown[];
-    };
-    expect(body.kind).toBe("dashboard");
-    expect(body.unattended).toBe(true);
-    expect(body.appName).toBe("city-dashboard");
-    expect(body.endpointName).toBe("bikes-endpoint");
-    expect(body.prompt).toBe("Create bike dashboard");
-    // AP-44: a run with no dataNeeds is refused 400 before it starts (T-0835).
-    expect(body.dataNeeds).toEqual([
-      {
-        contextSpaceRef: { kind: "ContextSpace", name: "bikes" },
-        types: ["BikeHireDockingStation"],
-        attrs: ["availableBikeNumber", "name"],
-        operations: ["queryEntity", "retrieveEntity"],
-        representations: ["ngsi-ld"],
-      },
-    ]);
-  });
-
-  it("does not start work on an endpoint that publishes no type", async () => {
-    const user = userEvent.setup();
-    renderAssistantPage([CONV_RUN, WORK_RUN], undefined, { $defs: { Entity: { properties: {} } } });
-    await screen.findByText(i18n.t("assistantPage.newWork.title"));
-    await user.type(
-      screen.getByLabelText(i18n.t("assistantPage.newWork.name")),
-      "city-dashboard",
-    );
-    await user.type(
-      screen.getByLabelText(i18n.t("assistantPage.newWork.prompt")),
-      "Create bike dashboard",
-    );
-    expect(await screen.findByText(i18n.t("assistantPage.newWork.noTypes"))).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: i18n.t("assistantPage.newWork.start") }),
-    ).toBeDisabled();
+    expect(screen.queryByText("New work")).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Start/ })).toBeNull();
     expect(
       fetchCalls().find((req) => req.method === "POST" && req.url.endsWith("/agent-runs")),
     ).toBeUndefined();
-  });
-
-  it("shows the problem detail when new work is refused with 409", async () => {
-    const conflictResponse = {
-      type: "https://joinedcontext.com/errors/conflict",
-      title: "Conflict",
-      status: 409,
-      detail: "application 'city-dashboard' already has a live run: run-work-1",
-    };
-    const user2 = userEvent.setup();
-    renderAssistantPage(
-      [CONV_RUN, WORK_RUN],
-      async () =>
-        new Response(JSON.stringify(conflictResponse), {
-          status: 409,
-          headers: { "Content-Type": "application/problem+json" },
-        }),
-    );
-    await screen.findByRole("heading", { level: 1, name: i18n.t("assistantPage.title") });
-
-    const kindSelect2 = screen.getByLabelText(i18n.t("assistantPage.newWork.kind"));
-    await user2.selectOptions(kindSelect2, "dashboard");
-
-    const nameInput2 = screen.getByLabelText(i18n.t("assistantPage.newWork.name"));
-    await user2.type(nameInput2, "city-dashboard");
-
-    const endpointSelect2 = screen.getByLabelText(i18n.t("assistantPage.newWork.endpoint"));
-    await user2.selectOptions(endpointSelect2, "bikes-endpoint");
-
-    const promptInput2 = screen.getByLabelText(i18n.t("assistantPage.newWork.prompt"));
-    await user2.type(promptInput2, "Create bike dashboard");
-
-    const startButton2 = screen.getByRole("button", {
-      name: i18n.t("assistantPage.newWork.start"),
-    });
-    await user2.click(startButton2);
-
-    expect(
-      await screen.findByText("application 'city-dashboard' already has a live run: run-work-1"),
-    ).toBeInTheDocument();
   });
 });
 
