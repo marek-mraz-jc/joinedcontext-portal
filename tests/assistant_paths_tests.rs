@@ -1505,3 +1505,62 @@ async fn a_choice_the_person_answered_is_not_asked_again() {
     let told = model_call_with(&started.proxy, "already answered this choice").await;
     assert!(told.contains("'air'"), "the model is told the answer");
 }
+
+/// T-2769: on dev one 502 from the model provider ended an answer and had the person send the
+/// question again. A gateway failure is asked once more before anyone is told.
+#[tokio::test]
+async fn a_model_call_that_failed_at_a_gateway_is_asked_once_more() {
+    let proxy = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(502))
+        .up_to_n_times(1)
+        .mount(&proxy)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "chatcmpl-1", "object": "chat.completion",
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": "Two stations are empty." }, "finish_reason": "stop" }],
+            "usage": { "total_tokens": 100 }
+        })))
+        .mount(&proxy)
+        .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    let (status, body) = send(
+        &state,
+        &config,
+        READER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "path": "find-data", "message": "which stations are empty?" }),
+    )
+    .await;
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("stations are empty") || t.contains("model service"))
+    })
+    .await;
+    let said: Vec<&str> = of_kind(&events, "thought")
+        .iter()
+        .filter_map(|t| t["text"].as_str())
+        .collect();
+    assert!(
+        said.iter().any(|t| t.contains("Two stations are empty.")),
+        "{said:?}"
+    );
+    assert!(
+        !said.iter().any(|t| t.contains("model service")),
+        "{said:?}"
+    );
+}

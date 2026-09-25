@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// The pause before a model call that failed at a gateway is asked again.
+const RETRY_AFTER_MS: u64 = 1000;
+
 impl Driver {
     /// One call through the proxy, asked twice when the first answer carries no text: a
     /// provider answers empty now and then, and a second call is cheaper than a failed run.
@@ -41,20 +44,32 @@ impl Driver {
 
     /// Common HTTP execution for model calls through the proxy, handling 402 credits and budget cuts.
     async fn post_llm(&self, path: &str, body: &Value, budget: u32) -> Result<Value, CallError> {
-        let response = self
-            .http
-            .post(format!("{}{path}", self.proxy_base))
-            .bearer_auth(&self.bearer)
-            .json(body)
-            .send()
-            .await
-            .map_err(|err| {
-                CallError::Failed(format!(
-                    "the model call did not go through the proxy: {err}"
-                ))
-            })?;
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
+        // A gateway that failed for a moment is asked once more before the person is told: on
+        // dev one 502 from the provider ended an answer and had the person send it again.
+        let mut tries = 0;
+        let (status, text) = loop {
+            tries += 1;
+            let response = self
+                .http
+                .post(format!("{}{path}", self.proxy_base))
+                .bearer_auth(&self.bearer)
+                .json(body)
+                .send()
+                .await
+                .map_err(|err| {
+                    CallError::Failed(format!(
+                        "the model call did not go through the proxy: {err}"
+                    ))
+                })?;
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            if tries == 1 && matches!(status.as_u16(), 502..=504) {
+                tracing::warn!(%status, "the model call failed at a gateway; asking once more");
+                tokio::time::sleep(std::time::Duration::from_millis(RETRY_AFTER_MS)).await;
+                continue;
+            }
+            break (status, text);
+        };
         if status == reqwest::StatusCode::PAYMENT_REQUIRED {
             return Err(CallError::Credit {
                 affordable: affordable_tokens(&text),

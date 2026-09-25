@@ -328,12 +328,12 @@ pub fn reading_notes(call: &QueryCall, answer: &Value) -> String {
     }
 }
 
-/// The read tools every endpoint's façade offers, for a conversation that has not opened one yet.
+/// The read tools an endpoint's façade offers to any read grant, for a conversation that has
+/// not opened one yet. `list_types` and `list_attributes` need their own operation in the grant:
+/// listed here, the model called `list_types` first on endpoints that do not offer it (T-2769).
 fn facade_tools() -> Value {
     json!([
-        { "name": "list_types", "arguments": {} },
         { "name": "describe_schema", "arguments": { "type": "<entity type>" } },
-        { "name": "list_attributes", "arguments": { "type": "<entity type>" } },
         { "name": "query_entities", "arguments": { "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true, "cursor": 0 } },
         { "name": "get_entity", "arguments": { "id": "<entity id>" } }
     ])
@@ -359,7 +359,8 @@ pub fn section(endpoints: &[RunEndpoint], tools: &[Vec<Value>], openable: &[Open
 You work the data yourself, as an agent. A question about what the data says (how many, which,
 where, the latest, one entity, the attributes of a type), and any indicator or pipeline you
 draft, is grounded in the data, never in memory or an endpoint's title. Look before you draft:
-list the types, describe the schema, read a page of entities.
+describe the schema, read a page of entities, with the tools the endpoint's own list
+names and no other.
 
 Say only what you read (T-2459):
 
@@ -861,5 +862,14 @@ mod tests {
             compact_geometry(&empty),
             json!({ "type": "Polygon", "positions": 0 })
         );
+    }
+
+    /// T-2769: the pack named list_types as every endpoint's, and the model called it first on
+    /// helsinki-events, which does not offer it; only the tools a read grant opens are named.
+    #[test]
+    fn the_pack_names_only_the_tools_a_read_grant_opens() {
+        let pack = section(&[], &[], &[]);
+        assert!(!pack.contains("list_types") && !pack.contains("list_attributes"));
+        assert!(pack.contains("describe_schema") && pack.contains("query_entities"));
     }
 }
