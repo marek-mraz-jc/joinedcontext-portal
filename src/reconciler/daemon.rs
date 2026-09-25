@@ -2182,11 +2182,6 @@ impl Drop for Scratch {
     }
 }
 
-/// What a Live stream's counters say when it is not writing (T-0914).
-///
-/// Errors and nothing sent is a stream that runs and never lands: a source that refuses the
-/// runner's token, a mapping that throws on every message. Errors beside writes are the ordinary
-/// weather of a stream — a page that failed and was retried — and say nothing on their own.
 /// What a Live stream's counters say about its writing: errors and nothing ever sent
 /// (`NothingWritten`), else records in and nothing out for the stall window (`Stalled`, T-2967).
 /// `body` is the runner's scrape, absent when it did not answer; `bento` the author's file, whose
@@ -2211,6 +2206,11 @@ fn writing_verdict(
         .map(|said| ("Stalled", said))
 }
 
+/// What a Live stream's counters say when it is not writing (T-0914).
+///
+/// Errors and nothing sent is a stream that runs and never lands: a source that refuses the
+/// runner's token, a mapping that throws on every message. Errors beside writes are the ordinary
+/// weather of a stream — a page that failed and was retried — and say nothing on their own.
 fn failing(metrics: &str, pipeline: &str) -> Option<String> {
     let counters = crate::api::pipelines::scrape(metrics, pipeline, String::new());
     let errors = counters.errors?;
