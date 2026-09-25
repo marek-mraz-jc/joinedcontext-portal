@@ -182,6 +182,21 @@ describe("the picked station", () => {
     expect(temporal.path).toContain("timerel=");
   });
 
+  // T-2991: the day is a coloured line under the App's own heading, the values in Slovak with
+  // one decimal, and the station's URN is nowhere on the panel.
+  it("draws the day as a chart a person reads", async () => {
+    show();
+    const heading = `${LOCALES.sk.historyOf} ${LOCALES.sk.pm10}`;
+    const chart = await screen.findByRole("img", { name: heading });
+    expect(chart.querySelector("polyline")?.getAttribute("stroke")).not.toBe("currentColor");
+    expect(within(chart).getByText(LOCALES.sk.unit)).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: heading });
+    expect(panel.textContent).not.toContain("urn:ngsi-ld");
+    const values = [...within(panel).getByRole("table").querySelectorAll("tbody td:nth-child(2)")];
+    expect(values.length).toBeGreaterThan(0);
+    for (const cell of values) expect(cell.textContent).toMatch(/^\d+(,\d)?$/);
+  });
+
   // T-2972: the endpoint answers an addressed temporal read of an entity with no instances (or
   // none its grants reach) with 404; the panel says nothing was recorded, never the raw error.
   it("says no value was recorded when the station has no history yet", async () => {

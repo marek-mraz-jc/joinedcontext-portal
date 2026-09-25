@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { RichRow, RichCell } from "./model";
+import { cellText } from "./model";
 import type { MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { useEntityGrid } from "./useEntityGrid";
 import { opsForKind, valuesNeeded } from "./filters";
@@ -117,7 +118,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
-  const [history, setHistory] = useState<{ attr: string; id: string } | null>(null);
+  const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
   // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
@@ -461,9 +462,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                           onClick={() => {
                             // The row the person is on, else the first: history belongs to one
                             // entity, and the panel names which.
+                            const row = rows[state.activeCell?.row ?? 0] ?? rows[0];
+                            // Named as a person reads it: the column's label and the row's name,
+                            // never the id (T-2991).
+                            const name = cellText(row?.cells.name);
+                            const title = hookOptions.labels?.historyLabels?.title ?? labels.history;
                             setHistory({
                               attr: col.attr!,
-                              id: (rows[state.activeCell?.row ?? 0] ?? rows[0])?.id ?? "",
+                              id: row?.id ?? "",
+                              heading: `${title}: ${col.label}${name ? ` — ${name}` : ""}`,
                             });
                             setOpenMenu(null);
                           }}
@@ -585,6 +592,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           source={hookOptions.source}
           id={history.id}
           attr={history.attr}
+          heading={history.heading}
           maxPoints={hookOptions.config.history.maxPoints}
           labels={hookOptions.labels?.historyLabels}
           onClose={() => setHistory(null)}

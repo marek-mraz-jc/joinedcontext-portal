@@ -335,9 +335,32 @@
   padding: 0;
 }
 
-.jc-grid-history svg {
+.jc-grid-history-plot {
   width: 100%;
-  height: 6rem;
+}
+
+.jc-grid-history-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.jc-grid-history-chart text {
+  font-size: 12px;
+  fill: var(--jc-color-muted, #475569);
+}
+
+.jc-grid-history-chart .jc-grid-history-unit {
+  fill: var(--jc-color-ink, #0f172a);
+  font-weight: 600;
+}
+
+.jc-grid-history-grid {
+  stroke: var(--jc-color-line, #e2e8f0);
+}
+
+.jc-grid-history-axis {
+  stroke: var(--jc-color-muted, #475569);
 }
 
 .jc-grid-history table {
