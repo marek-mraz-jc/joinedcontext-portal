@@ -218,8 +218,7 @@ pub async fn get_health(
     State(state): State<AppState>,
 ) -> Result<Json<ValidationHealth>, ApiError> {
     let effective = crate::permissions::for_request(&state, &user.0.identity, ORG_NAMESPACE);
-    if !(effective.may("RoleBinding", Verb::Approve) && effective.may("RoleBinding", Verb::Delete))
-    {
+    if !effective.administers_organization() {
         return Err(ApiError::Denied(
             "only an administrator of the organization reads the validation health: it needs \
              approve and delete on RoleBinding at organization scope (OPS-53, PF-03)"

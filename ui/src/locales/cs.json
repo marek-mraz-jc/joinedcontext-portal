@@ -61,7 +61,6 @@
     "flows": "Toky",
     "models": "Datové modely",
     "ckan": "Otevřená data",
-    "allEndpoints": "Všechny koncové body",
     "explore": "Procházet data",
     "assistant": "Asistent",
     "sync": "Synchronizace",
@@ -3619,7 +3618,8 @@
       "agentprofiles": "Profily agentů",
       "dataspaceparticipants": "Datový prostor",
       "environments": "Prostředí",
-      "health": "Stav ověření"
+      "health": "Stav ověření",
+      "endpoints": "Všechny koncové body"
     },
     "settings": {
       "title": "Nastavení",

@@ -61,7 +61,6 @@
     "flows": "Flows",
     "models": "Data models",
     "ckan": "Open data",
-    "allEndpoints": "All endpoints",
     "explore": "Explore data",
     "assistant": "Assistant",
     "sync": "Sync",
@@ -3619,7 +3618,8 @@
       "agentprofiles": "Agent profiles",
       "dataspaceparticipants": "Data space",
       "environments": "Environments",
-      "health": "Health"
+      "health": "Health",
+      "endpoints": "All endpoints"
     },
     "settings": {
       "title": "Settings",

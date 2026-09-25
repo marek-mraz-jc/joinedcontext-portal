@@ -61,7 +61,6 @@
     "flows": "Abläufe",
     "models": "Datenmodelle",
     "ckan": "Offene Daten",
-    "allEndpoints": "Alle Endpunkte",
     "explore": "Daten erkunden",
     "assistant": "Assistent",
     "sync": "Sync",
@@ -3619,7 +3618,8 @@
       "agentprofiles": "Agentenprofile",
       "dataspaceparticipants": "Datenraum",
       "environments": "Umgebungen",
-      "health": "Prüfstatus"
+      "health": "Prüfstatus",
+      "endpoints": "Alle Endpunkte"
     },
     "settings": {
       "title": "Einstellungen",
