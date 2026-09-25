@@ -1259,7 +1259,7 @@ impl Syncer {
                 .into_iter()
                 .map(|env| env.metadata.name)
                 .collect();
-            for (name, state) in hosts.converge(&published, &settings.host).await {
+            for (name, state) in hosts.converge(&published, &settings.apex).await {
                 let (reason, message) = match state {
                     super::app_hosts::HostState::Ready => continue,
                     super::app_hosts::HostState::Pending(message) => {

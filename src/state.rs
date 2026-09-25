@@ -453,7 +453,7 @@ impl AppState {
                     .config
                     .app_settings
                     .as_ref()
-                    .map(|settings| settings.host.clone()),
+                    .map(|settings| settings.apex.clone()),
             ) {
                 (Some(oidc), Some(host)) => {
                     match crate::reconciler::app_clients::AppClientSync::new(
