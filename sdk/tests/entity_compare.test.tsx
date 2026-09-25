@@ -67,7 +67,7 @@ describe("the space beside an endpoint", () => {
     const projected = IN_SPACE.map(({ source: _source, ...rest }) => rest);
     show(fixtureSource(projected));
 
-    await waitFor(() => expect(screen.getAllByText("12 GQ").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByText("12 µg/m³").length).toBe(2));
     const left = sideOf(L.left);
     const shaded = within(left)
       .getAllByRole("gridcell")
@@ -83,7 +83,7 @@ describe("the space beside an endpoint", () => {
   it("strikes through an entity the endpoint does not answer", async () => {
     show(fixtureSource([IN_SPACE[0]]));
 
-    await waitFor(() => expect(screen.getAllByText("12 GQ").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByText("12 µg/m³").length).toBe(2));
     const rows = within(sideOf(L.left)).getAllByRole("row");
     const struck = rows.filter((row) => row.getAttribute("data-mark") === "row");
     expect(struck).toHaveLength(1);
@@ -119,7 +119,7 @@ describe("the space beside an endpoint", () => {
 
     expect(await screen.findByText(L.leftRefused)).toBeInTheDocument();
     // The endpoint half is still there, whole.
-    await waitFor(() => expect(within(sideOf(L.right)).getByText("12 GQ")).toBeInTheDocument());
+    await waitFor(() => expect(within(sideOf(L.right)).getByText("12 µg/m³")).toBeInTheDocument());
     expect(screen.queryByText(L.same)).toBeNull();
   });
 
@@ -147,7 +147,7 @@ describe("the space beside an endpoint", () => {
 
   it("stacks the two sides on a narrow screen", async () => {
     show(fixtureSource(IN_SPACE));
-    await waitFor(() => expect(screen.getAllByText("12 GQ").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByText("12 µg/m³").length).toBe(2));
     // Both sides are children of one CSS grid, so the stacking is one rule and not a second layout.
     const split = document.querySelector(".jc-compare") as HTMLElement;
     expect(split.children).toHaveLength(2);

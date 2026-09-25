@@ -1,47 +1,12 @@
-import list from "./generated/units.json";
-
 /**
- * One UN/CEFACT unit of measure (DM-06, DM-59): UNECE Recommendation 20 joined with QUDT.
- *
- * The list is the platform's one code list, `crates/jc-core/data/unece-rec20.json`, generated in
- * the platform repository by `tools/units/generate.py` and copied here byte for byte; CI compares
- * the copy with the source. Nothing in this repository maps a unit by hand.
+ * The unit code list for the Portal: the SDK's one copy of it (DM-06) and the search the pickers
+ * run over it.
  */
-export interface Unit {
-  /** The Rec 20 common code NGSI-LD puts on the wire as `unitCode` (`GQ`). */
-  code: string;
-  name: string;
-  /** What a person reads (`µg/m³`); empty where Rec 20 gives none (`piece`). */
-  symbol: string;
-  /** Still a valid code on the wire, not offered to a new model. */
-  deprecated: boolean;
-  ucum: string | null;
-  qudt: string | null;
-  quantityKinds: string[];
-  dimension: string | null;
-  /** To the SI unit of the dimension: `si = (value + offset) × factor`; null never converts. */
-  factor: number | null;
-  offset: number;
-  /** In the municipal set a picker shows first. */
-  frequent: boolean;
-}
+import { UNITS } from "@joinedcontext/sdk";
+import type { Unit } from "@joinedcontext/sdk";
 
-const source: { units: Unit[] } = list;
-
-/** Every unit, sorted by code. */
-export const UNITS: readonly Unit[] = source.units;
-
-const BY_CODE = new Map(UNITS.map((unit) => [unit.code, unit]));
-
-/** The unit of a Rec 20 code; codes are case-sensitive, as on the wire. */
-export function unitOf(code: string | undefined): Unit | undefined {
-  return code === undefined ? undefined : BY_CODE.get(code);
-}
-
-/** How a person reads a unit: its symbol and name, or the name alone where it has no symbol. */
-export function unitLabel(unit: Unit): string {
-  return unit.symbol ? `${unit.symbol} — ${unit.name}` : unit.name;
-}
+export { UNITS, conversion, convertible, formatValue, unitLabel, unitOf, unitSymbol, unitTitle } from "@joinedcontext/sdk";
+export type { Unit } from "@joinedcontext/sdk";
 
 const SUPERSCRIPT: Record<string, string> = { "²": "2", "³": "3", "⁻": "-", "¹": "1" };
 
@@ -120,36 +85,4 @@ function sortByKind(found: { unit: Unit; score: number }[]): Unit[] {
       return a.score - b.score || a.unit.code.localeCompare(b.unit.code);
     })
     .map(({ unit }) => unit);
-}
-
-/**
- * Whether a value in one unit can be written in the other (DM-06): both carry a factor, share
- * QUDT's dimension and at least one quantity kind. A percent and a minute of arc are both
- * dimensionless and still not one thing.
- */
-export function convertible(from: Unit, to: Unit): boolean {
-  if (from.code === to.code) return true;
-  return (
-    from.factor !== null &&
-    to.factor !== null &&
-    from.dimension !== null &&
-    from.dimension === to.dimension &&
-    from.quantityKinds.some((kind) => to.quantityKinds.includes(kind))
-  );
-}
-
-/** Twelve significant digits: what a factor is written with, without a float's last-digit noise. */
-function tidy(value: number): number {
-  return Number(value.toPrecision(12));
-}
-
-/**
- * The linear conversion from one unit to another, `to = from × factor + offset`, or undefined
- * when they do not convert (DM-06, T-2811). Read from the code list's QUDT factors, never typed.
- */
-export function conversion(from: Unit, to: Unit): { factor: number; offset: number } | undefined {
-  if (!convertible(from, to)) return undefined;
-  if (from.code === to.code || from.factor === null || to.factor === null) return { factor: 1, offset: 0 };
-  const factor = from.factor / to.factor;
-  return { factor: tidy(factor), offset: tidy(from.offset * factor - to.offset) };
 }
