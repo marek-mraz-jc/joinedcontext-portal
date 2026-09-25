@@ -2229,6 +2229,11 @@
         "use": "Použít tuto adresu",
         "invalid": "Zadejte celou adresu začínající http:// nebo https://."
       }
+    },
+    "prose": {
+      "copyId": "Kopírovat celý identifikátor",
+      "copied": "Zkopírováno",
+      "table": "Tabulka v odpovědi"
     }
   },
   "assistant": {
@@ -2345,6 +2350,19 @@
         "noWrite": "Vaše role přes tento endpoint nezapisuje."
       },
       "pathLeft": "Ne při volbě {preset}: zapněte to ve Schopnostech."
+    },
+    "full": {
+      "conversations": "Konverzace",
+      "search": "Hledat v konverzacích",
+      "none": "Zatím tu nejsou žádné konverzace.",
+      "noMatch": "Žádná konverzace se neptá na „{words}“.",
+      "untitled": "Konverzace začatá z cesty",
+      "more": "Zobrazit dalších {count}",
+      "showList": "Zobrazit konverzace",
+      "hideList": "Skrýt konverzace",
+      "data": "Data a schopnosti",
+      "showData": "Zobrazit data a schopnosti",
+      "hideData": "Skrýt data a schopnosti"
     }
   },
   "permissions": {
