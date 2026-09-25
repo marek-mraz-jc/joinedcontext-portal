@@ -7,7 +7,7 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
 import { useBranding } from "../../branding";
-import { Button, buttonClass, EmptyState, ExternalLink, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, buttonClass, EmptyState, ExternalLink, PageHeader, PageLoading, ResourcePageFailed } from "../../components/ui";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
 import { appDisplayName } from "./appTitle";
@@ -118,22 +118,26 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   if (app.isPending) {
     return (
       <div className="space-y-4">
-        <PageHeader title={fallbackTitle} actions={details} />
+        <PageHeader title={fallbackTitle} description={t("apps.openPage.lead")} actions={details} />
         <PageLoading label={t("app.loading")} />
       </div>
     );
   }
   if (app.isError) {
     return (
-      <div className="space-y-4">
-        <PageHeader title={fallbackTitle} actions={details} />
-        <PageFailed
-          error={app.error}
-          onRetry={() => {
-            void app.refetch();
-          }}
-        />
-      </div>
+      <ResourcePageFailed
+        title={fallbackTitle}
+        description={t("apps.openPage.lead")}
+        error={app.error}
+        onRetry={() => {
+          void app.refetch();
+        }}
+        back={
+          <Button onClick={() => void navigate({ to: "/projects/$project/$plural", params: { project, plural: "apps" } })}>
+            {t("apps.back")}
+          </Button>
+        }
+      />
     );
   }
 
@@ -148,7 +152,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   if (blocked) {
     return (
       <div className="space-y-4">
-        <PageHeader title={title} actions={details} />
+        <PageHeader title={title} description={t("apps.openPage.lead")} actions={details} />
         <EmptyState title={blocked} description={t("apps.openPage.notOpen")} icon="apps" />
       </div>
     );
@@ -158,7 +162,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
     <div className="flex h-full min-h-0 flex-col gap-3">
       <PageHeader
         title={title}
-        description={commit ? t("apps.openPage.served", { commit: commit.slice(0, 7) }) : undefined}
+        description={commit ? t("apps.openPage.served", { commit: commit.slice(0, 7) }) : t("apps.openPage.lead")}
         actions={
           <>
             {details}

@@ -94,11 +94,11 @@ describe("the gallery while it has nothing to show yet", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("gives the server's own reason when the blueprints are refused, and a way to ask again", async () => {
-    gallery({ fails: { status: 403, detail: "Your role may not list blueprints." } });
+  it("gives the server's own reason when the blueprints are unreachable, and a way to ask again", async () => {
+    gallery({ fails: { status: 503, detail: "The blueprint store is not answering." } });
 
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByText("Your role may not list blueprints.")).toBeInTheDocument();
+    expect(within(alert).getByText("The blueprint store is not answering.")).toBeInTheDocument();
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
     // The heading stays: the page is the gallery either way.
     expect(screen.getByRole("heading", { level: 1, name: en.flows.title })).toBeInTheDocument();
