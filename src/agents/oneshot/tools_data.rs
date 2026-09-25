@@ -87,6 +87,9 @@ impl Driver {
         }
         let openable = self.openable_endpoints(chosen);
         if !openable.iter().any(|o| o.name == name) {
+            if let Some(why) = self.not_live(name).await {
+                return Err(why);
+            }
             return Err(format!(
                 "'{name}' is not an endpoint the person may read in this project; they may open: {}",
                 openable
@@ -191,6 +194,42 @@ impl Driver {
         }
         self.event("tool", payload).await?;
         Ok(text)
+    }
+
+    /// Why `name` answers nothing yet, when it is an endpoint on its way (T-2763): its Change
+    /// waits for approval, or it is only a draft. A test of what was just drafted is then an
+    /// honest "not live", never a query that failed for no reason the person can act on.
+    async fn not_live(&self, name: &str) -> Option<String> {
+        // A forge that cannot be read leaves the draft to say what it can.
+        let open =
+            crate::api::changes::list_changes_readable(&self.state, &self.identity, &self.project)
+                .await
+                .map(|list| list.items)
+                .unwrap_or_default();
+        if let Some(why) = pending_endpoint(&open, name) {
+            return Some(why);
+        }
+        let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
+        let drafted = self
+            .state
+            .drafts
+            .list(&self.project)
+            .await
+            .ok()?
+            .into_iter()
+            .any(|draft| {
+                draft.workspace.is_none()
+                    && draft.kind == "Endpoint"
+                    && draft.name == name
+                    && effective.may_read_manifest(&draft.kind, &draft.manifest)
+            });
+        drafted.then(|| {
+            format!(
+                "the endpoint '{name}' is a draft, not a live endpoint: nothing reads through it \
+                 until the person proposes it from the endpoint form and its change is approved. \
+                 Tell the person so, and query it once it is live; nothing was tested"
+            )
+        })
     }
 
     /// One JSON-RPC request to an endpoint of the conversation through the proxy, with the
@@ -349,6 +388,29 @@ impl Driver {
             "entities": entities,
         }))
     }
+}
+
+/// The Change an endpoint of `name` waits on, as the sentence the model reads (T-2763).
+fn pending_endpoint(open: &[crate::api::changes::ChangeProposal], name: &str) -> Option<String> {
+    use crate::change::ChangePhase;
+    let change = open.iter().find(|change| {
+        matches!(
+            change.status.phase,
+            ChangePhase::PendingApproval | ChangePhase::Deploying
+        ) && change.summary.params.get("kind").and_then(Value::as_str) == Some("Endpoint")
+            && change.summary.params.get("name").and_then(Value::as_str) == Some(name)
+    })?;
+    let waits = if change.status.phase == ChangePhase::Deploying {
+        "is approved and still deploying"
+    } else {
+        "waits for approval"
+    };
+    Some(format!(
+        "the endpoint '{name}' is not live yet: its change {} {waits}, and nothing reads through \
+         it before it is deployed. Tell the person so, name the change, and query it once it is \
+         live; nothing was tested",
+        change.metadata.name
+    ))
 }
 
 #[cfg(test)]
@@ -649,5 +711,65 @@ mod tests {
             Ok(1)
         );
         assert_eq!(tools[1], Vec::<Value>::new());
+    }
+
+    fn proposal(
+        kind: &str,
+        name: &str,
+        phase: crate::change::ChangePhase,
+    ) -> crate::api::changes::ChangeProposal {
+        let mut params = serde_json::Map::new();
+        params.insert("kind".into(), json!(kind));
+        params.insert("name".into(), json!(name));
+        crate::api::changes::ChangeProposal {
+            api_version: API_VERSION.to_owned(),
+            kind: "Change".to_owned(),
+            metadata: crate::change::ChangeMeta::from_merge_request(0x22e, "helsinki"),
+            status: crate::change::ChangeStatus::new(
+                crate::change::Lane::Yellow,
+                phase,
+                crate::change::PlanSummary::new(1, 0, 0),
+            ),
+            summary: crate::api::changes::ChangeSummary {
+                key: "change.summary.create".to_owned(),
+                params,
+            },
+            author: crate::api::changes::ChangeAuthor {
+                name: "Piper".to_owned(),
+                email: None,
+            },
+            created_at: "2026-09-25T02:00:00Z".to_owned(),
+            plan_fields: None,
+            files: None,
+            file_count: None,
+            workspace: None,
+        }
+    }
+
+    /// T-2763: an endpoint on its way names the change it waits on; a merged one, another kind
+    /// or another name is not what the person asked to test.
+    #[test]
+    fn an_endpoint_on_its_way_names_the_change_it_waits_on() {
+        use crate::change::ChangePhase;
+        let open = [
+            proposal("Endpoint", "sample-endpoint", ChangePhase::PendingApproval),
+            proposal("Endpoint", "bikes", ChangePhase::Deploying),
+            proposal("Endpoint", "air", ChangePhase::Merged),
+            proposal("ContextSpace", "trams", ChangePhase::PendingApproval),
+        ];
+        let waits = pending_endpoint(&open, "sample-endpoint").expect("waits");
+        assert!(
+            waits.contains("its change chg-0000022e waits for approval")
+                && waits.contains("nothing was tested"),
+            "{waits}"
+        );
+        let deploying = pending_endpoint(&open, "bikes").expect("deploying");
+        assert!(
+            deploying.contains("is approved and still deploying"),
+            "{deploying}"
+        );
+        for name in ["air", "trams", "unknown"] {
+            assert_eq!(pending_endpoint(&open, name), None, "{name}");
+        }
     }
 }

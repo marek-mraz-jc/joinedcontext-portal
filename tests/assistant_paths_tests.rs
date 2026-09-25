@@ -1230,3 +1230,63 @@ async fn a_draft_opens_on_the_page_of_its_own_kind() {
         }
     }
 }
+
+/// T-2763: "test that" on the endpoint just drafted is an honest "not live yet", never a query
+/// that failed for a reason the person cannot act on: a draft is no endpoint until its change
+/// is approved, and the step says so.
+#[tokio::test]
+async fn testing_a_drafted_endpoint_says_it_is_not_live() {
+    let query = "```json\n{\"tool\":\"query_endpoint\",\"endpoint\":\"sample-endpoint\",\"name\":\"query_entities\",\"arguments\":{\"type\":\"BikeHireDockingStation\",\"limit\":5}}\n```\n";
+    let proxy = model(&[
+        r#"{"path": null, "reason": "a question"}"#,
+        query,
+        "It is not live yet: propose it from the form first.",
+    ])
+    .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    state
+        .drafts
+        .put(
+            "helsinki",
+            "Endpoint",
+            "sample-endpoint",
+            json!({ "kind": "Endpoint", "metadata": { "name": "sample-endpoint" } }),
+            None,
+            BUILDER,
+            "assistant",
+        )
+        .await
+        .expect("a draft");
+    let (status, body) = send(
+        &state,
+        &config,
+        BUILDER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "message": "test the sample endpoint" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    let events = events_until(&started, |e| {
+        e.kind == "tool" && e.payload["tool"] == "query_endpoint"
+    })
+    .await;
+    let step = of_kind(&events, "tool")
+        .into_iter()
+        .find(|tool| tool["tool"] == "query_endpoint")
+        .expect("the step");
+    assert_eq!(step["status"], "failed", "{step}");
+    let error = step["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("'sample-endpoint' is a draft, not a live endpoint")
+            && error.contains("nothing was tested"),
+        "{step}"
+    );
+}
