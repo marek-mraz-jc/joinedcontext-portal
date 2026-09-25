@@ -6,6 +6,7 @@ import { readCsrfToken } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
 import { Field, Input, RadioGroup } from "../../components/ui";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 /**
  * An indicator the assistant computed (UI-17, PF-54, PF-55): the value large, its unit, the
@@ -281,13 +282,14 @@ export function KpiCard({
             />
           </Field>
           <Field id={`keep-${kpi.name}-space`} label={t("agentRun.kpi.keepSpace")}>
-            <Input
+            <ResourceNamePicker
               id={`keep-${kpi.name}-space`}
+              label={t("agentRun.kpi.keepSpace")}
+              labelled
+              from={{ project, plural: "spaces" }}
               value={space}
-              className="font-mono"
-              onChange={(event) => {
-                setSpace(event.target.value);
-              }}
+              onChange={setSpace}
+              create
             />
           </Field>
           <div>

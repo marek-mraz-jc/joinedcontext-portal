@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Cell, Row } from "../ngsi";
 import { columnKind, format } from "../ngsi";
-import type { Field, TypeSchema, WriteResult } from "../write";
+import type { Field, Schema, TypeSchema, WriteResult } from "../write";
 import { fieldOf } from "../write";
+import { optionLabel } from "../enums";
 
 /**
  * The selected entity as a window of inputs, or a new one (AP-61, AP-62). Each input is what
@@ -10,7 +11,7 @@ import { fieldOf } from "../write";
  * bounds, a pattern, a required mark. A save writes through the endpoint; a refusal stays on
  * the form beside the inputs with the reason, and nothing reloads.
  */
-export function Form({ row, rows, fields, title, schema, creating, onSave, onClose }: { row: Row | null; rows: Row[]; fields: string[]; title?: string; schema?: TypeSchema; creating: boolean; onSave: (id: string | null, patch: Record<string, Cell>) => Promise<WriteResult>; onClose: () => void }) {
+export function Form({ row, rows, fields, title, schema, defs, creating, onSave, onClose }: { row: Row | null; rows: Row[]; fields: string[]; title?: string; schema?: TypeSchema; defs?: Schema; creating: boolean; onSave: (id: string | null, patch: Record<string, Cell>) => Promise<WriteResult>; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -27,7 +28,9 @@ export function Form({ row, rows, fields, title, schema, creating, onSave, onClo
     if (open && !element.open) element.showModal();
     if (!open && element.open) element.close();
   }, [row, fields, open]);
-  const specs: Record<string, Field> = Object.fromEntries(fields.map((f) => [f, fieldOf(f, schema, columnKind(rows, f))]));
+  // The titles of an enum's values in the language the page is in (UI-86).
+  const language = document.documentElement.lang || navigator.language;
+  const specs: Record<string, Field> = Object.fromEntries(fields.map((f) => [f, fieldOf(f, schema, columnKind(rows, f), defs, language)]));
   const idPrefix = rows[0]?.id.includes(":") ? rows[0].id.slice(0, rows[0].id.lastIndexOf(":") + 1) : "";
 
   // The app runs in a frame sandboxed without `allow-forms` (AP-63), where the browser never
@@ -67,15 +70,20 @@ export function Form({ row, rows, fields, title, schema, creating, onSave, onClo
       case "geo":
       case "language":
         return <input value={value} readOnly />;
-      case "select":
+      case "select": {
+        // A stored value the enum does not list is shown as it is and marked, never swapped for
+        // the first option: the save skips an unchanged field, so it stays until someone picks.
+        const outside = value !== "" && !spec.options?.some((option) => option.value === value);
         return (
-          <select value={value} required={spec.required} onChange={(e) => set(e.target.value)}>
+          <select value={value} required={spec.required} aria-invalid={outside || undefined} onChange={(e) => set(e.target.value)}>
             <option value="">—</option>
+            {outside && <option value={value}>{`${value} (not in the list)`}</option>}
             {spec.options?.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value} title={option.description}>{optionLabel(option)}</option>
             ))}
           </select>
         );
+      }
       case "number":
         return <input type="number" step="any" min={spec.min} max={spec.max} required={spec.required} value={value} onChange={(e) => set(e.target.value)} />;
       case "checkbox":

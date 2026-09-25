@@ -4,6 +4,8 @@
 export type { Cell, Column, Geo, LanguageMap, Row } from "../ngsi";
 export { isLanguageMap } from "../ngsi";
 export { fieldOf } from "../write";
+export { enumOptions, enumsOf, optionLabel } from "../enums";
+export type { EnumOption } from "../enums";
 export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 
 // Client
@@ -38,7 +40,7 @@ export type { Agg, Group } from "./helpers";
 export { EntityGrid } from "../grid/EntityGrid";
 export type { EntityGridProps } from "../grid/EntityGrid";
 export { DEFAULT_LABELS, useEntityGrid } from "../grid/useEntityGrid";
-export type { GridLabels, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";
+export type { GridLabels, GridLabelsInput, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";
 export { DEFAULT_PAGE_SIZE, gridConfigSchema, MAX_PAGE_SIZE, parseGridConfig } from "../grid/config";
 export type { ConfigFinding, EntityGridConfig, GridColumn, GridSource, ResolvedGridConfig } from "../grid/config";
 export { DEFAULT_GRID_MAP_LABELS, GridMap, summaryOf } from "../grid/GridMap";
@@ -67,6 +69,10 @@ export { asCsv, EntityHistory, MAX_POINTS } from "../grid/EntityHistory";
 export type { HistoryLabels } from "../grid/EntityHistory";
 // The host's own transport, for a page that renders the grid itself (T-1439).
 export { originTransport, transportFor } from "./transport";
+
+// Layout primitives: every screen responsive without the app writing CSS (T-2777, UI-84)
+export { Card, Grid, Header, Page, Sidebar, Split, Tabs } from "./layout";
+export type { Tab } from "./layout";
 
 // Tables, maps, exports: what the template's components stand on
 export { compare } from "../views/Table";

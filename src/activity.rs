@@ -37,6 +37,7 @@ pub const KINDS: &[&str] = &[
     "federation.forward",
     "federation.error",
     "catalogue.published",
+    "person.changed",
 ];
 
 /// Which component said so.

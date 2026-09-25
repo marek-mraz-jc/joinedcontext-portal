@@ -14,6 +14,22 @@ impl Driver {
     ) -> Result<(), String> {
         self.status(AgentRunStatus::Starting).await?;
         let mut files = preview::template_files();
+        // A look of its own, inside the branding and unlike the project's other Apps (AP-123).
+        let others: Vec<String> = self
+            .state
+            .mirror
+            .matching(|env| {
+                env.kind == "App"
+                    && env.metadata.namespace.as_deref() == Some(self.project.as_str())
+            })
+            .into_iter()
+            .map(|env| env.metadata.name)
+            .collect();
+        let look = crate::agents::theme::tokens(&self.state.branding(), &self.app_name, &others);
+        files.insert(
+            crate::agents::theme::PATH.to_owned(),
+            serde_json::to_string_pretty(&look).unwrap_or_else(|_| look.to_string()),
+        );
         match self.jc_types().await {
             Ok(types) => {
                 files.insert(code::TYPES.to_owned(), types);
@@ -559,6 +575,12 @@ impl Driver {
             let fence = path.rsplit('.').next().unwrap_or("text");
             pack.push_str(&format!("### {path}\n```{fence}\n{content}\n```\n"));
         }
+        // The example of the request's kind, for writing and completing; a repair stays on its problems.
+        if matches!(fix, None | Some(Fix::Complete)) {
+            if let Some(sample) = crate::agents::samples::section(&self.prompt) {
+                pack.push_str(&sample);
+            }
+        }
         pack.push_str(
             "\n## THE DATA\n\nData needs (types and attributes the person asked for):\n```json\n",
         );
@@ -645,8 +667,8 @@ impl Driver {
             ),
             None if conversation.is_empty() && instruction == self.prompt => pack.push_str(
                 "Write the FIRST VERSION of the application for the request above, which goes on \
-                 screen at once: `src/App.tsx`, the design (`src/design-tokens.json`, \
-                 `src/app.css`) and the one page the request is most about, complete and working \
+                 screen at once: `src/App.tsx`, the layout (`src/app.css`; \
+                 `src/design-tokens.json` is already this application's look) and the one page the request is most about, complete and working \
                  with the real data. No tests, no other page and no function unless that page \
                  needs it: a second call adds them while the person already looks at this \
                  version. Keep the whole answer under 6,000 tokens. Begin your sentences with \

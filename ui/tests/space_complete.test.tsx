@@ -17,6 +17,20 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 
+/**
+ * The space field lists the project's spaces (T-2702): that read is answered here, and every other
+ * request reaches the test's own stub, so what a test counts on it is still the completion alone.
+ */
+function withSpaceList(inner: (input: RequestInfo | URL, init?: RequestInit) => unknown) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+    if (url.pathname === "/api/v1/projects/helsinki/spaces") {
+      return Promise.resolve(Response.json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", metadata: {}, items: [] }));
+    }
+    return inner(input, init);
+  };
+}
+
 function renderComponent(strict = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const page = (
@@ -69,7 +83,7 @@ describe("SpaceComplete page", () => {
         headers: { "content-type": "application/json" },
       }),
     );
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSpaceList(fetchMock));
 
     renderComponent();
 
@@ -90,7 +104,7 @@ describe("SpaceComplete page", () => {
 
   it("reads each draft without kind names: a label, what it is, whether it is new and whether its check passed", async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSpaceList(fetchMock));
     window.history.replaceState(null, "", "/projects/helsinki/spaces/complete?space=city-bikes");
     const draft = (kind: string, name: string, spec: Record<string, unknown>, ok = true, inferred = true) => ({
       kind,
@@ -152,7 +166,7 @@ describe("SpaceComplete page", () => {
 
   it("opens with the drafts the assistant completed, ready to propose, without running again (AG-73)", async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSpaceList(fetchMock));
     window.history.replaceState(null, "", "/projects/helsinki/spaces/complete?space=city-bikes");
     rememberPrefill("/projects/helsinki/spaces/complete?space=city-bikes", {
       url: "https://example.com/free_bike_status.json",
@@ -183,7 +197,7 @@ describe("SpaceComplete page", () => {
   });
 
   it("keeps the handed drafts when React renders the page twice before it commits (T-0894)", async () => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", withSpaceList(vi.fn()));
     window.history.replaceState(null, "", "/projects/helsinki/spaces/complete?space=city-bikes");
     rememberPrefill("/projects/helsinki/spaces/complete?space=city-bikes", {
       url: "https://example.com/free_bike_status.json",
@@ -214,7 +228,7 @@ describe("SpaceComplete page", () => {
 
   it("opens each draft on its kind's page with the draft in hand (T-0771)", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", withSpaceList(vi.fn()));
     navigate.mockClear();
     const source = "id: https://example.com/bikes\nname: bikes\n";
     const draft = (kind: string, name: string, spec: Record<string, unknown> = {}) => ({
@@ -273,11 +287,13 @@ describe("the complete-a-space page against the UI contract", () => {
   function stubFetch(body: unknown, status = 200) {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(body), {
-          status,
-          headers: { "content-type": "application/json" },
-        }),
+      withSpaceList(
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { "content-type": "application/json" },
+          }),
+        ),
       ),
     );
   }

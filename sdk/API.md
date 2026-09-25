@@ -2,7 +2,7 @@
 
 ### How an app is built
 `src/main.tsx` calls `startApp(App, { tokens })`.
-Pages compose the template's components with this package's hooks. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
+Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
 Backend functions live in `functions/{name}.ts` using `@joinedcontext/sdk/server`.
 Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
@@ -60,15 +60,33 @@ function useFunction<T = unknown>(name: string, body?: unknown, options?: { enab
 ```
 Invokes a backend server function and manages its response lifecycle.
 
+### Layout (T-2777, UI-84)
+```ts
+function Page(props: { children; width?: "narrow" | "wide" | "full"; label? }): JSX.Element
+function Header(props: { title; subtitle?; actions?; level?: 1 | 2 | 3 }): JSX.Element
+function Grid(props: { children; columns?: 1 | 2 | 3 | 4 }): JSX.Element
+function Card(props: { title?; actions?; children; level?: 1 | 2 | 3; label? }): JSX.Element
+function Split(props: { children: [ReactNode, ReactNode]; ratio?: "1:1" | "2:1" | "1:2" }): JSX.Element
+function Sidebar(props: { label: string; side: ReactNode; children; position?: "start" | "end" }): JSX.Element
+function Tabs(props: { tabs: { id; label; render: () => ReactNode }[]; label: string; initial?; onChange? }): JSX.Element
+```
+Build every screen from these and the app is responsive at 375 to 2560 px without CSS of its own. Each one lays out by the width it is given (container queries), so a `Grid` inside a `Split` or a framed app adapts to its own box: `Grid` is 1 column, then 2 from 40rem, 3 from 64rem, `columns` (at most 4) from 90rem; `Split` stacks under 48rem; `Sidebar` is a column beside the content from 48rem and a drawer behind a button named `label` on a phone (Escape closes it); `Tabs` follows the WAI-ARIA pattern (arrow keys, Home, End) and scrolls sideways on a phone. `--jc-gutter` and `--jc-font-size-title` grow with the window; `--jc-target` (44 px) is the least height of a control on a phone or a touch screen.
+
 ### Tables, forms, maps, exports
 ```ts
 function compare(a: Row, b: Row, attr: string, dir: "asc" | "desc"): number
 ```
 Orders two rows by one attribute: numbers as numbers, text in the document's locale, empty last.
 ```ts
-function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column): Field
+function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column, defs?: Record<string, unknown>, language?: string): Field
 ```
-The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox, geo or language (a LanguageProperty).
+The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox, geo or language (a LanguageProperty). Pass the merged `Schema` from `useSchema` as `defs`, so an enum the model writes as a `$ref` becomes a select too.
+```ts
+function enumOptions(property: unknown, defs?: Record<string, unknown>, language?: string): EnumOption[] | null
+function enumsOf(type: unknown, defs?: Record<string, unknown>, language?: string): Record<string, EnumOption[]>
+function optionLabel(option: EnumOption): string
+```
+The permissible values of an attribute (UI-86): a direct `enum`, or one behind `$ref`, `allOf`, `anyOf` with `null`, or a `oneOf` of `const`s; each `{ value, title?, description? }`, the title in `language` where the model has one. `null` when the attribute is not an enum. `optionLabel` is what a picker shows: the title, else the value. `enumsOf` reads every enum attribute of one type's schema, which is what the grid's `enums` prop takes: such a column is then edited and filtered by picking.
 ```ts
 function isLanguageMap(value: unknown): value is LanguageMap
 ```
@@ -345,7 +363,10 @@ Backend functions run in QuickJS without browser Web APIs: no `fetch`, `URLSearc
 ```ts
 function stubTransport(fixture?: Fixture): StubTransport
 ```
-Creates an in-memory transport holding entity fixtures and recording request calls.
+Creates an in-memory transport holding entity fixtures and recording request calls. The fixture
+carries `entities`, `schema`, `access`, `functions`, `temporal` (the temporal read's answer as the
+broker's `temporalValues` bodies, filtered by the asked type) and `refuse` (a response to send
+instead, per request).
 ```ts
 function stubClient(fixture?: Fixture, config?: Partial<JcConfig>): Client & { transport: StubTransport }
 ```

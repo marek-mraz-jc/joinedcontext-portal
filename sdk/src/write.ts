@@ -6,6 +6,8 @@
  * comes back as its answer; a published app on the platform origin sends it itself.
  */
 import type { Cell, Column } from "./ngsi";
+import { enumOptions } from "./enums";
+import type { EnumOption } from "./enums";
 import { bridgeTransport } from "./sdk/transport";
 
 /** One attribute as the endpoint's schema describes it: a JSON Schema property, trimmed. */
@@ -15,6 +17,11 @@ export interface FieldSchema {
   /** The NGSI-LD kind Model Tools annotates every property with (DM-05). */
   "x-ngsi-ld-kind"?: string;
   enum?: string[];
+  /** A LinkML enum as `gen-json-schema` writes it: a reference, or one inside `anyOf`/`allOf` (UI-86). */
+  $ref?: string;
+  anyOf?: unknown[];
+  oneOf?: unknown[];
+  allOf?: unknown[];
   minimum?: number;
   maximum?: number;
   pattern?: string;
@@ -34,22 +41,28 @@ export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo" |
 export interface Field {
   name: string;
   input: Input;
-  options?: string[];
+  /** The permissible values, with the title a person reads for each where the model has one. */
+  options?: EnumOption[];
   min?: number;
   max?: number;
   pattern?: string;
   required: boolean;
 }
 
-/** The input one attribute gets: the schema decides when it names the attribute, the rows otherwise. */
-export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column): Field {
+/**
+ * The input one attribute gets: the schema decides when it names the attribute, the rows otherwise.
+ * `defs` resolve a `$ref` (the merged `Schema` holds the enums beside the types), and `language`
+ * picks the title of each permissible value (UI-86).
+ */
+export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column, defs?: Record<string, unknown>, language?: string): Field {
   const property = schema?.properties?.[name];
   const required = schema?.required?.includes(name) ?? false;
   if (!property) {
     return { name, input: kind === "number" ? "number" : kind === "geo" ? "geo" : kind === "date" ? "date" : "text", required };
   }
-  if (Array.isArray(property.enum) && property.enum.length > 0) {
-    return { name, input: "select", options: property.enum.map(String), required };
+  const options = enumOptions(property, defs, language);
+  if (options) {
+    return { name, input: "select", options, required };
   }
   const types = Array.isArray(property.type) ? property.type : property.type ? [property.type] : [];
   const ngsiKind = property["x-ngsi-ld-kind"];

@@ -22,6 +22,7 @@ pub mod openapi;
 pub mod ops;
 pub use ops::drafts;
 pub use ops::verdict;
+pub mod people;
 pub mod permissions;
 pub mod pipeline_secrets;
 pub mod plan;

@@ -22,7 +22,10 @@ use jc_core::kinds::{AppLifecycle, AppSpec, EndpointSlug};
 use jcctl::loader::{RawManifest, Repository};
 use serde_json::Value;
 
+use std::collections::BTreeSet;
+
 use super::kube::{KubeClient, KubeError};
+use super::project_namespace;
 use super::reconciler::{generate_slug, render, RenderError, Settings};
 
 /// What no manifest names and no transfer may carry: jc-core refuses both on an `App`, and the
@@ -76,6 +79,10 @@ pub enum Outcome {
     Deleted,
     /// Nothing was attempted, and this is why.
     Skipped(String),
+    /// A project's apps namespace is in place with its policy, pull Secret and binding (AP-116).
+    NamespaceReady,
+    /// A project's last pod-backed App was retired, so its namespace is gone (AP-116).
+    NamespaceDeleted,
 }
 
 /// Why one app could not be converged.
@@ -87,6 +94,14 @@ pub enum ConvergeError {
     /// The API server refused or could not be reached.
     #[error("{0}")]
     Kube(#[from] KubeError),
+    /// The pull Secret the project's namespace needs is not in the Portal's namespace.
+    #[error("the pull secret {name} is not in {namespace}, or holds no data, so no node could pull an app image (AP-108)")]
+    NoPullSecret {
+        /// The Secret's name.
+        name: String,
+        /// Where it was looked for.
+        namespace: String,
+    },
     /// The Secret exists and is not the one this reconciler wrote.
     #[error(
         "the secret app-{name}-endpoint exists without the key endpoint-slug, so it is not this reconciler's"
@@ -121,6 +136,27 @@ impl Converger {
         beyond: &std::collections::HashSet<(String, String)>,
     ) -> Vec<(String, ConvergeResult)> {
         let mut report = Vec::new();
+        // Each project with a pod-backed App gets its namespace before the Apps go into it; a
+        // project whose pod-backed Apps are all retired loses it. Only an App retired in the
+        // repository ends a namespace, so a repository read that comes back short never
+        // removes one (AP-116).
+        // ponytail: a project removed from Git with a live App keeps its namespace; a label
+        // sweep against the project list is the upgrade when projects are deleted in practice.
+        let (running, retired) = pod_backed_projects(repository);
+        let mut ready = BTreeSet::new();
+        for project in &running {
+            let outcome = self.ensure_namespace(project).await;
+            if matches!(outcome, Ok(Outcome::NamespaceReady)) {
+                ready.insert(project.clone());
+            }
+            report.push((format!("namespace {project}"), outcome));
+        }
+        for project in retired.difference(&running) {
+            report.push((
+                format!("namespace {project}"),
+                self.remove_namespace(project).await,
+            ));
+        }
         for (id, resource) in repository.iter() {
             if resource.manifest.kind != "App" {
                 continue;
@@ -137,6 +173,23 @@ impl Converger {
                     Ok(Outcome::Skipped(
                         "the project's app quota is used up, so this one is not deployed \
                          (PF-73, PF-74)"
+                            .to_owned(),
+                    )),
+                ));
+                continue;
+            }
+            let project = resource
+                .manifest
+                .metadata
+                .namespace
+                .as_deref()
+                .unwrap_or_default();
+            if running.contains(project) && !ready.contains(project) {
+                report.push((
+                    id.to_string(),
+                    Ok(Outcome::Skipped(
+                        "the project's apps namespace is not ready, so the app waits for it \
+                         (AP-116)"
                             .to_owned(),
                     )),
                 ));
@@ -164,6 +217,11 @@ impl Converger {
         committed: Option<&EndpointSlug>,
     ) -> ConvergeResult {
         let name = manifest.metadata.name.clone();
+        let project = manifest
+            .metadata
+            .namespace
+            .clone()
+            .ok_or(ConvergeError::Render(RenderError::NoProject))?;
         let spec: AppSpec = match serde_json::from_value(manifest.spec.clone()) {
             Ok(spec) => spec,
             Err(err) => {
@@ -176,7 +234,12 @@ impl Converger {
         // A retired app is the one lifecycle that acts without rendering: there is nothing to
         // compile, only four objects to remove (AP-21).
         if spec.lifecycle == AppLifecycle::Retired {
-            self.delete_objects(&name).await?;
+            // Where it ran before projects had namespaces, and where it runs now; a namespace
+            // that cannot be named held nothing of it.
+            self.delete_objects(&self.settings.namespace, &name).await?;
+            if let Ok(namespace) = self.settings.apps_namespace(&project) {
+                self.delete_objects(&namespace, &name).await?;
+            }
             return Ok(Outcome::Deleted);
         }
         if !matches!(
@@ -215,9 +278,10 @@ impl Converger {
             ));
         };
 
+        let namespace = self.settings.apps_namespace(&project)?;
         let slug = match committed {
             Some(slug) => slug.clone(),
-            None => self.slug_of(&name).await?,
+            None => self.slug_of(&namespace, &name).await?,
         };
         let rendered = render(manifest, Some(&image), &slug, &self.settings)?;
         let Some(workload) = rendered.workload else {
@@ -237,17 +301,74 @@ impl Converger {
         ] {
             self.kube.apply(object).await?;
         }
+        // The app ran in the Portal's namespace before its project had one: once a pod of it
+        // is up in the project's, the old objects go, which is what empties the shared namespace
+        // (AP-116). Until then they keep serving, and a later run removes them.
+        if namespace != self.settings.namespace && self.available(&namespace, &name).await? {
+            self.delete_objects(&self.settings.namespace, &name).await?;
+        }
         Ok(Outcome::Applied)
     }
 
+    /// The project's apps namespace with its policy, pull Secret and binding (AP-116). Applying
+    /// is idempotent, so a namespace in place costs one no-op per object.
+    async fn ensure_namespace(&self, project: &str) -> ConvergeResult {
+        let namespace = self.settings.apps_namespace(project)?;
+        let (Some(release), Some(service_account)) = (
+            self.settings.release.as_deref(),
+            self.settings.service_account.as_deref(),
+        ) else {
+            return Ok(Outcome::Skipped(
+                "no ServiceAccount is configured (JC_PORTAL_SERVICE_ACCOUNT), so the Portal cannot \
+                 be bound in the project's apps namespace (AP-116)"
+                    .to_owned(),
+            ));
+        };
+        let objects = project_namespace::objects(
+            project,
+            &namespace,
+            release,
+            service_account,
+            &self.settings,
+        );
+        for object in &objects {
+            self.kube.apply(object).await?;
+        }
+        if let Some(pull) = self.settings.pull_secret.as_deref() {
+            let copy = self
+                .kube
+                .get("v1", "Secret", &self.settings.namespace, pull)
+                .await?
+                .and_then(|source| project_namespace::pull_secret_copy(&source, pull, &namespace))
+                .ok_or_else(|| ConvergeError::NoPullSecret {
+                    name: pull.to_owned(),
+                    namespace: self.settings.namespace.clone(),
+                })?;
+            self.kube.apply(&copy).await?;
+        }
+        Ok(Outcome::NamespaceReady)
+    }
+
+    /// Removes a project's apps namespace and everything in it; one already gone succeeds.
+    async fn remove_namespace(&self, project: &str) -> ConvergeResult {
+        let namespace = self.settings.apps_namespace(project)?;
+        self.kube.delete("v1", "Namespace", "", &namespace).await?;
+        Ok(Outcome::NamespaceDeleted)
+    }
+
     /// The endpoint slug this app already has, or a fresh one the first time it is deployed.
-    async fn slug_of(&self, name: &str) -> Result<EndpointSlug, ConvergeError> {
+    /// Read in the project's namespace, then in the Portal's, where an app deployed before
+    /// projects had namespaces kept it (AP-116, EP-02).
+    async fn slug_of(&self, namespace: &str, name: &str) -> Result<EndpointSlug, ConvergeError> {
         let secret_name = format!("app-{name}-endpoint");
-        let Some(secret) = self
-            .kube
-            .get("v1", "Secret", &self.settings.namespace, &secret_name)
-            .await?
-        else {
+        let mut found = None;
+        for place in [namespace, self.settings.namespace.as_str()] {
+            found = self.kube.get("v1", "Secret", place, &secret_name).await?;
+            if found.is_some() {
+                break;
+            }
+        }
+        let Some(secret) = found else {
             return Ok(generate_slug());
         };
         let slug = secret_value(&secret, "endpoint-slug").ok_or(ConvergeError::ForeignSecret {
@@ -256,19 +377,68 @@ impl Converger {
         EndpointSlug::new(&slug).map_err(|err| ConvergeError::Render(RenderError::Slug(err)))
     }
 
-    /// Removes the four objects of one app; removing what is not there succeeds (CC-18).
-    async fn delete_objects(&self, name: &str) -> Result<(), ConvergeError> {
+    /// Whether the app's Deployment in `namespace` has a pod up at its current spec.
+    async fn available(&self, namespace: &str, name: &str) -> Result<bool, ConvergeError> {
+        let Some(deployment) = self
+            .kube
+            .get("apps/v1", "Deployment", namespace, &format!("app-{name}"))
+            .await?
+        else {
+            return Ok(false);
+        };
+        let number = |pointer: &str| deployment.pointer(pointer).and_then(Value::as_u64);
+        Ok(
+            match (
+                number("/metadata/generation"),
+                number("/status/observedGeneration"),
+                number("/status/availableReplicas"),
+            ) {
+                (Some(generation), Some(observed), Some(available)) => {
+                    observed >= generation && available >= 1
+                }
+                _ => false,
+            },
+        )
+    }
+
+    /// Removes the four objects of one app from one namespace; removing what is not there
+    /// succeeds (CC-18).
+    async fn delete_objects(&self, namespace: &str, name: &str) -> Result<(), ConvergeError> {
         for (api_version, kind) in OBJECTS {
             let object_name = match kind {
                 "Secret" => format!("app-{name}-endpoint"),
                 _ => format!("app-{name}"),
             };
             self.kube
-                .delete(api_version, kind, &self.settings.namespace, &object_name)
+                .delete(api_version, kind, namespace, &object_name)
                 .await?;
         }
         Ok(())
     }
+}
+
+/// The projects with a pod-backed App that runs, and those with one that is retired (AP-116).
+fn pod_backed_projects(repository: &Repository) -> (BTreeSet<String>, BTreeSet<String>) {
+    let mut running = BTreeSet::new();
+    let mut retired = BTreeSet::new();
+    for (_, resource) in repository.iter() {
+        let manifest = &resource.manifest;
+        let (Some(project), Ok(spec)) = (
+            manifest.metadata.namespace.as_deref(),
+            serde_json::from_value::<AppSpec>(manifest.spec.clone()),
+        ) else {
+            continue;
+        };
+        if manifest.kind != "App" || spec.class == jc_core::kinds::AppClass::Static {
+            continue;
+        }
+        match spec.lifecycle {
+            AppLifecycle::Preview | AppLifecycle::Published => running.insert(project.to_owned()),
+            AppLifecycle::Retired => retired.insert(project.to_owned()),
+            _ => false,
+        };
+    }
+    (running, retired)
 }
 
 /// What one app's convergence produced.

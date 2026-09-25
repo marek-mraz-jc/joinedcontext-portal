@@ -114,6 +114,9 @@ pub struct Syncer {
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
     /// and served, and the realm is written by nobody (PF-63).
     groups: Option<Arc<GroupSync>>,
+    /// The realm's people and the database of their pending removals (PF-93). `None` leaves a
+    /// removal pending until a Portal with both runs.
+    people: Option<(Arc<crate::people::People>, sqlx::PgPool)>,
     /// The Keycloak client of every published App (ADR-N-030, AP-111). `None` without an admin
     /// client or an apps host: the Apps are served, and nobody's client is written.
     app_clients: Option<Arc<super::app_clients::AppClientSync>>,
@@ -173,6 +176,7 @@ impl Syncer {
             drift: None,
             subscriptions: None,
             groups: None,
+            people: None,
             app_clients: None,
             app_client_secrets: Arc::default(),
             activity: None,
@@ -257,6 +261,12 @@ impl Syncer {
     /// Makes each run bring the realm's managed groups to what the manifests say (PF-63).
     pub fn with_groups(mut self, groups: Arc<GroupSync>) -> Self {
         self.groups = Some(groups);
+        self
+    }
+
+    /// Makes each run delete the people whose removal Change has been merged (PF-93).
+    pub fn with_people(mut self, people: Arc<crate::people::People>, pool: sqlx::PgPool) -> Self {
+        self.people = Some((people, pool));
         self
     }
 
@@ -1016,6 +1026,13 @@ impl Syncer {
             self.say_group_drift(&outcomes).await;
         }
 
+        // 5c'. People whose removal Change has been decided (PF-93): merged, the Keycloak user
+        //      goes; closed unmerged, the pending removal is dropped and the person stays
+        //      disabled for an administrator to enable.
+        if let Some((people, pool)) = self.people.as_ref() {
+            crate::api::people::finish_deletions(people, pool, &self.gitea).await;
+        }
+
         // 5d. Every published App's own Keycloak client (ADR-N-030, AP-111). The secrets it reads
         //     back replace the last run's, so a retired App's secret is gone with its client.
         if let Some(clients) = self.app_clients.as_ref() {
@@ -1029,6 +1046,9 @@ impl Syncer {
                         tracing::info!(app = %outcome.app, drift = %outcome.drift.join("; "), "app client brought back to the App")
                     }
                     (None, true) => {}
+                }
+                for warning in &outcome.warnings {
+                    tracing::info!(app = %outcome.app, warning = %warning, "app role waits for the realm");
                 }
             }
             // A run that failed as a whole (no token, no list) keeps the last secrets, so a
@@ -1077,6 +1097,8 @@ impl Syncer {
                 match outcome {
                     Ok(Outcome::Applied) => tracing::info!(%app, "app objects applied"),
                     Ok(Outcome::Deleted) => tracing::info!(%app, "app objects deleted"),
+                    Ok(Outcome::NamespaceReady) => tracing::debug!(%app, "apps namespace in place"),
+                    Ok(Outcome::NamespaceDeleted) => tracing::info!(%app, "apps namespace deleted"),
                     Ok(Outcome::Skipped(why)) => {
                         tracing::debug!(%app, reason = %why, "app deploys nothing")
                     }

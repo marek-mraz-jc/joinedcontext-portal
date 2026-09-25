@@ -1230,8 +1230,16 @@ async fn propose_engine(
     let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
         .in_repository(&pr.repository)
-        .with_merge_request(pr.url);
+        .with_merge_request(pr.url.clone());
     let change = Change::new(change_meta, change_status);
+
+    // 10. The build lane's write, checked and published in 8b, is approved by the Portal: a person
+    //     approved the source, the lane approves nothing (AP-73, AP-104, AG-11).
+    let change = if build_write {
+        crate::api::changes::approve_build(state, gitea, &pr, &repo_path, change).await
+    } else {
+        change
+    };
 
     Ok(ProposeOutcome::Change(change))
 }

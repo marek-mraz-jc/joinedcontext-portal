@@ -19,7 +19,10 @@ use crate::api::changes::{ChangeAuthor, ChangeList, ChangeProposal, ChangeSummar
 use crate::api::ckan::{
     CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
 };
-use crate::api::datamodels::{ModelChange as DatamodelChange, SourceDryRunResult};
+use crate::api::datamodels::{
+    CatalogueEntry, ModelChange as DatamodelChange, OrganizationModel, OrganizationModels,
+    SourceDryRunResult,
+};
 use crate::api::drafts::{DraftList, PutDraftRequest};
 use crate::api::dry_run::DryRunResult;
 use crate::api::export::{Revision, RevisionList};
@@ -74,6 +77,7 @@ use crate::tools::model_tools::{
         crate::api::blueprints::list_blueprints,
         crate::api::forms::list_forms,
         crate::api::blueprints::start_flow,
+        crate::api::datamodels::list_organization_datamodels,
         crate::api::datamodels::get_source,
         crate::api::datamodels::put_source,
         crate::api::resources::get_resource,
@@ -104,6 +108,16 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
+        crate::api::people::list_people,
+        crate::api::people::create_person,
+        crate::api::people::get_person,
+        crate::api::people::edit_person,
+        crate::api::people::disable_person,
+        crate::api::people::enable_person,
+        crate::api::people::reset_password,
+        crate::api::people::remove_second_factor,
+        crate::api::people::sign_out_person,
+        crate::api::people::delete_person,
         crate::api::service_accounts::list_keys,
         crate::api::service_accounts::create_key,
         crate::api::service_accounts::rotate_key,
@@ -253,6 +267,9 @@ use crate::tools::model_tools::{
         FieldChange,
         DryRunResult,
         SourceDryRunResult,
+        OrganizationModels,
+        OrganizationModel,
+        CatalogueEntry,
         DatamodelChange,
         OperationSummary,
         OperationAnnotations,
@@ -297,6 +314,7 @@ use crate::tools::model_tools::{
         (name = "system", description = "System operations"),
         (name = "auth", description = "Sign-in, sign-out and the current identity"),
         (name = "resources", description = "Resource operations"),
+        (name = "people", description = "The people of the organization's realm (PF-90)"),
         (name = "permissions", description = "What the caller may do in a project (PF-50)"),
         (name = "tools", description = "Model Tools schema generation and preview"),
         (name = "ops", description = "One operation registry behind every door (AG-59, ADR-N-021)"),

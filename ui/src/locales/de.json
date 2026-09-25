@@ -342,7 +342,12 @@
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
       "operations": "Operationen",
-      "copyId": "Die ID {id} kopieren"
+      "copyId": "Die ID {id} kopieren",
+      "model": "Datenmodell",
+      "modelEmpty": "Dieser Raum hat noch kein Datenmodell",
+      "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
+      "modelCreate": "Datenmodell anlegen",
+      "modelImport": "Smart Data Model importieren"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -1005,7 +1010,8 @@
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
-    "noCredential": "Keine"
+    "noCredential": "Keine",
+    "writesType": "Schreibt"
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -1269,6 +1275,49 @@
       "publish": "Veröffentlichen Sie diesen TXT-Eintrag im DNS der Domain:",
       "copy": "Eintrag kopieren",
       "copied": "Eintrag kopiert"
+    },
+    "groupPage": {
+      "lead": "Wer in dieser Gruppe ist und was die Gruppe darf.",
+      "back": "Alle Gruppen",
+      "notFound": "Die Gruppe {name} gibt es in der Organisation nicht.",
+      "deleteCascade": "Wer diese Gruppe löscht, nimmt sie mit derselben Änderung auch aus {bindings} Rollenzuweisung(en) der Plattform und {apps} Anwendungsrolle(n).",
+      "members": "Mitglieder",
+      "email": "E-Mail der Person",
+      "addMember": "Mitglied hinzufügen",
+      "removeMember": "{member} aus der Gruppe entfernen",
+      "remove": "Entfernen",
+      "needEmail": "Geben Sie zuerst die E-Mail-Adresse der Person ein.",
+      "already": "Schon vorhanden.",
+      "platformRoles": "Plattformrollen",
+      "platformLead": "Die Rollenzuweisungen, die diese Gruppe nennen: welche Rolle und wo sie gilt.",
+      "noPlatformRole": "Noch keine Zuweisung nennt diese Gruppe.",
+      "roleAt": "{role}, {where}",
+      "removeRole": "Gruppe aus {role} nehmen",
+      "onlySubject": "Die Zuweisung nennt nur diese Gruppe; wer sie entfernt, löscht die Zuweisung.",
+      "where": "Wo",
+      "organization": "Ganze Organisation",
+      "space": "Kontextraum",
+      "wholeProject": "Das ganze Projekt",
+      "role": "Rolle",
+      "pickRole": "Rolle wählen",
+      "projectRole": "{role} (Rolle des Projekts {project})",
+      "needRole": "Wählen Sie zuerst eine Rolle.",
+      "refused": {
+        "projectRoleAtOrganization": "{role} ist eine Rolle eines Projekts und kann nicht für die ganze Organisation vergeben werden. Wählen Sie dieses Projekt oder eine Rolle der Organisation.",
+        "projectRoleElsewhere": "{role} gehört zu einem anderen Projekt und gilt nur dort."
+      },
+      "addRole": "Rolle vergeben",
+      "appRoles": "Anwendungsrollen",
+      "appLead": "Die Rollen von Anwendungen, die {group} hat.",
+      "noAppRole": "Noch keine Anwendung gibt dieser Gruppe eine Rolle.",
+      "appRole": "{role} in {app} ({project})",
+      "removeAppRole": "Gruppe aus {role} nehmen",
+      "project": "Projekt",
+      "pickProject": "Projekt wählen",
+      "app": "Anwendung",
+      "pickApp": "Anwendung wählen",
+      "needAppRole": "Wählen Sie zuerst ein Projekt, eine Anwendung und eine ihrer Rollen.",
+      "addAppRole": "Anwendungsrolle vergeben"
     }
   },
   "flows": {
@@ -1356,6 +1405,7 @@
     "newSlot": "Neues Attribut",
     "newEnum": "Neue Werteliste",
     "newEnumValue": "Neuer Wert von {name}",
+    "removeEnumValue": "Wert {value} entfernen",
     "classUri": "Klassen-IRI",
     "description": "Beschreibung",
     "titleIn": "Titel ({locale})",
@@ -1450,7 +1500,9 @@
       "file": "Wird als {name}.linkml.yaml gespeichert",
       "taken": "Das Projekt hat bereits ein Modell namens {name}. Wählen Sie einen anderen Namen.",
       "held": "Als gemeinsamer Entwurf {name} gehalten; er ist nach einem Neuladen noch da, bis Sie das Modell speichern.",
-      "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten."
+      "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten.",
+      "spaceHas": "{space} (hat schon {model})",
+      "spaceTaken": "Der Space {space} hat schon das Modell {model}, und ein Space hat ein Modell. Wählen Sie einen anderen Space, oder öffnen Sie {model} und fügen Sie Ihre Klassen dort hinzu."
     },
     "infer": {
       "title": "Modell aus einer Datei",
@@ -1497,10 +1549,12 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt.",
+      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
-      "more": "und {count} weitere"
+      "more": "und {count} weitere",
+      "from": "aus {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1515,6 +1569,73 @@
       "published": "Veröffentlicht",
       "deprecated": "Veraltet",
       "retired": "Zurückgezogen"
+    },
+    "page": {
+      "listLead": "Jedes Datenmodell dieses Projekts: eines je Context Space, und was darauf aufbaut.",
+      "listCaption": "Die Datenmodelle des Projekts",
+      "new": {
+        "blank": "Neues leeres Modell",
+        "file": "Neues Modell aus einer Datei",
+        "sdm": "Neues Modell aus Smart Data Models"
+      },
+      "emptyTitle": "Noch kein Datenmodell",
+      "emptyLead": "Legen Sie eines für einen Space an: leer beginnen, aus einer Datei ableiten oder ein Smart Data Model importieren.",
+      "search": "Nach Name, Titel oder Klasse suchen",
+      "everySpace": "Alle Spaces",
+      "lastChange": "Letzte Änderung",
+      "usedBy": "Verwendet von",
+      "noMatch": "Kein Modell passt zur Suche und zum gewählten Space.",
+      "unused": "Noch nichts",
+      "uses": {
+        "Endpoint": "{count, plural, one {# Endpoint} other {# Endpoints}}",
+        "Pipeline": "{count, plural, one {# Pipeline} other {# Pipelines}}",
+        "App": "{count, plural, one {# App} other {# Apps}}",
+        "Dashboard": "{count, plural, one {# Dashboard} other {# Dashboards}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Context Space",
+        "Endpoint": "Endpoints",
+        "Pipeline": "Pipelines",
+        "Subscription": "Abonnements",
+        "App": "Anwendungen",
+        "Dashboard": "Dashboards",
+        "Mapping": "Mappings"
+      },
+      "unusedLead": "Noch nichts in diesem Projekt verwendet das Modell: kein Space, Endpoint, keine Pipeline, App oder Dashboard nennt es.",
+      "back": "Alle Datenmodelle",
+      "edit": "Modell bearbeiten",
+      "notFound": "Kein Datenmodell namens {name}",
+      "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
+      "sourceFailed": "Das LinkML des Modells konnte nicht gelesen werden: {reason}",
+      "views": "Ansichten des Modells",
+      "view": {
+        "overview": "Übersicht",
+        "diagram": "Diagramm",
+        "form": "Formular",
+        "yaml": "YAML",
+        "used": "Verwendung",
+        "history": "Verlauf",
+        "mappings": "Mappings"
+      },
+      "class": "Klasse",
+      "relationship": "Beziehung",
+      "enum": "Auswahlliste",
+      "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
+      "formClass": "Klasse",
+      "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
+      "yaml": "Das LinkML des Modells",
+      "copyYaml": "YAML kopieren",
+      "downloadYaml": "YAML herunterladen",
+      "copied": "Kopiert.",
+      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
+    },
+    "hints": {
+      "title": "Dieses Modell hat noch keine Klasse. Drei Wege zum Anfang:",
+      "sdm": "Ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
+      "sdmAction": "Smart Data Model importieren",
+      "klass": "Eine Klasse hinzufügen: im Feld unter Klassen benennen, zum Beispiel School.",
+      "klassAction": "Die erste Klasse benennen",
+      "relation": "Eine Beziehung hinzufügen: sobald es zwei Klassen gibt, einer einen Slot geben, dessen Range die andere ist, zum Beispiel School hat users der Klasse User."
     }
   },
   "apps": {
@@ -1936,6 +2057,7 @@
       "isEmpty": "ist leer",
       "present": "hat einen Wert",
       "pattern": "passt auf",
+      "anyOf": "ist eine von",
       "gt": "ist größer als",
       "gte": "ist mindestens",
       "lt": "ist kleiner als",
@@ -1971,6 +2093,7 @@
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
+    "notInList": "nicht in der Liste",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",
@@ -2030,7 +2153,8 @@
     "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
-    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:"
+    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
+    "typeInModel": "Dieser Typ in seinem Datenmodell:"
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -2289,6 +2413,43 @@
         "use": "Diese Adresse verwenden",
         "invalid": "Geben Sie eine vollständige Adresse an, die mit http:// oder https:// beginnt."
       }
+    },
+    "prose": {
+      "copyId": "Ganze Kennung kopieren",
+      "copied": "Kopiert",
+      "table": "Tabelle in der Antwort"
+    },
+    "follow": {
+      "title": "Wie {name} live geht",
+      "aChange": "eine Änderung",
+      "proposed": "{kind} {name} vorgeschlagen",
+      "reading": "Änderung wird gelesen…",
+      "unread": "Die Änderung konnte nicht gelesen werden",
+      "rejected": "Abgelehnt: nichts wurde geändert",
+      "approved": "Genehmigt",
+      "waiting": "Wartet auf eine Person, die {kind}-Änderungen in diesem Projekt genehmigen darf",
+      "red": "Eine Änderung der roten Spur wird auf ihrer eigenen Seite genehmigt, wo ihr Name erneut eingegeben wird.",
+      "approve": "Genehmigen",
+      "deploy": "Geht nach der Genehmigung live",
+      "deploying": "Wird bereitgestellt…",
+      "live": "Live",
+      "open": "{kind} ist live: öffnen",
+      "stage": {
+        "done": "Erledigt",
+        "working": "Läuft",
+        "waiting": "Wartet",
+        "failed": "Fehlgeschlagen",
+        "later": "Noch nicht"
+      },
+      "test": {
+        "later": "Wird getestet, sobald live",
+        "reading": "Einige Zeilen von {name} werden als Sie gelesen…",
+        "read": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} {type} aus {name} gelesen",
+        "empty": "{name} ist live und enthält noch keine Entitäten",
+        "failed": "Das Testlesen ist fehlgeschlagen",
+        "again": "Erneut lesen",
+        "explore": "Im Explorer öffnen"
+      }
     }
   },
   "assistant": {
@@ -2341,7 +2502,8 @@
       "meaning": "Bedeutung",
       "document": "Das {format}-Dokument",
       "model": "{types}, aus dem Datenmodell {name} {semver}",
-      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen"
+      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen",
+      "fromModel": "aus dem Datenmodell"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
@@ -2405,6 +2567,19 @@
         "noWrite": "Ihre Rolle schreibt über diesen Endpunkt nicht."
       },
       "pathLeft": "Nicht mit {preset}: in Fähigkeiten einschalten."
+    },
+    "full": {
+      "conversations": "Unterhaltungen",
+      "search": "Unterhaltungen durchsuchen",
+      "none": "Hier gibt es noch keine Unterhaltungen.",
+      "noMatch": "Keine Unterhaltung fragt nach „{words}“.",
+      "untitled": "Eine über einen Pfad begonnene Unterhaltung",
+      "more": "{count} weitere anzeigen",
+      "showList": "Unterhaltungen anzeigen",
+      "hideList": "Unterhaltungen ausblenden",
+      "data": "Daten und Fähigkeiten",
+      "showData": "Daten und Fähigkeiten anzeigen",
+      "hideData": "Daten und Fähigkeiten ausblenden"
     }
   },
   "permissions": {
@@ -2973,6 +3148,7 @@
     "tabsLabel": "Bereiche der Organisation",
     "tab": {
       "settings": "Einstellungen",
+      "people": "Personen",
       "members": "Mitglieder",
       "roles": "Rollen",
       "groups": "Gruppen",
@@ -3014,6 +3190,127 @@
       "own": "{count, plural, =0 {Keine eigenen} one {# eigene} other {# eigene}}",
       "throughOrganization": "{count, plural, one {# über die Organisation} other {# über die Organisation}}",
       "settings": "Einstellungen"
+    },
+    "people": {
+      "title": "Personen",
+      "lead": "Die Personen der Anmeldedomäne der Organisation. Was jede darf, geben die Bindungen und Gruppen vor, die sie nennen.",
+      "new": "Neue Person",
+      "hidden": "Diese Liste sieht nur, wessen Rolle Personen liest. Eine Organisationsadministration kann sie vergeben.",
+      "invited": "Die Domäne hat {email} eine E-Mail zum Bestätigen der Adresse und Setzen eines Passworts geschickt.",
+      "search": "Personen suchen",
+      "searchPlaceholder": "Name oder E-Mail",
+      "searchButton": "Suchen",
+      "caption": "Personen der Organisation",
+      "name": "Name",
+      "email": "E-Mail",
+      "state": "Status",
+      "lastSeen": "Zuletzt aktiv",
+      "noMatch": "Niemand passt zu „{search}“.",
+      "empty": "Die Domäne hat noch keine Personen.",
+      "noSession": "Keine offene Sitzung",
+      "pages": "Seiten der Personen",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "enabled": "Aktiv",
+      "disabled": "Deaktiviert",
+      "verified": "E-Mail bestätigt",
+      "unverified": "E-Mail nicht bestätigt",
+      "removalPending": "Entfernung wartet auf Freigabe",
+      "newTitle": "Neue Person",
+      "newLead": "Die Domäne schickt der Person einen Link zum Bestätigen der Adresse und Setzen eines Passworts. Ohne E-Mail zeigt sie einmal ein vorläufiges Passwort.",
+      "create": "Person anlegen",
+      "back": "Zurück zu Personen",
+      "notFound": "Die Domäne kennt diese Person nicht.",
+      "account": "Konto",
+      "created": "Angelegt",
+      "pendingSteps": "Schritte bei der nächsten Anmeldung",
+      "edit": "Bearbeiten",
+      "groups": "Gruppen",
+      "noGroups": "In keiner Gruppe.",
+      "platformRoles": "Plattformrollen",
+      "appRoles": "Anwendungsrollen",
+      "noRoles": "Keine.",
+      "viaGroup": "über die Gruppe {group}",
+      "direct": "direkt genannt",
+      "editTitle": "{name} bearbeiten",
+      "editLead": "Eine geänderte E-Mail-Adresse muss vor der Anmeldung erneut bestätigt werden.",
+      "save": "Speichern",
+      "form": {
+        "email": "E-Mail",
+        "emailHelp": "Die Adresse, mit der sich die Person anmeldet und an die die Einladung geht.",
+        "firstName": "Vorname",
+        "firstNameHelp": "Der Vorname, wie die Person ihn schreibt, angezeigt im Portal und in E-Mails.",
+        "lastName": "Nachname",
+        "lastNameHelp": "Der Nachname, wie die Person ihn schreibt, angezeigt im Portal und in E-Mails.",
+        "locale": "Sprache",
+        "localeHelp": "Die Sprache der Anmeldeseiten und der E-Mails der Domäne für diese Person.",
+        "localeRealm": "Standard der Domäne",
+        "emailInvalid": "Geben Sie eine E-Mail-Adresse ein, etwa jana.novakova@example.org.",
+        "required": "Pflichtfeld."
+      },
+      "language": {
+        "en": "English",
+        "sk": "Slovenčina",
+        "cs": "Čeština",
+        "de": "Deutsch"
+      },
+      "step": {
+        "VERIFY_EMAIL": "E-Mail bestätigen",
+        "UPDATE_PASSWORD": "Passwort setzen",
+        "CONFIGURE_TOTP": "zweiten Faktor einrichten",
+        "UPDATE_PROFILE": "Profil ergänzen"
+      },
+      "action": {
+        "disable": "Deaktivieren",
+        "enable": "Aktivieren",
+        "reset-password": "Passwort zurücksetzen",
+        "remove-second-factor": "Zweiten Faktor entfernen",
+        "sign-out": "Überall abmelden",
+        "delete": "Löschen"
+      },
+      "done": {
+        "disable": "Deaktiviert. Jede Sitzung der Person ist beendet.",
+        "enable": "Aktiviert. Die Person kann sich wieder anmelden.",
+        "reset-password": "Die Domäne hat der Person einen Link für ein neues Passwort geschickt.",
+        "remove-second-factor": "Zweiter Faktor entfernt. Die Person richtet bei der nächsten Anmeldung einen neuen ein.",
+        "sign-out": "Jede Sitzung der Person ist beendet.",
+        "delete": "Gelöscht."
+      },
+      "confirm": {
+        "disable": {
+          "title": "{name} deaktivieren?",
+          "body": "Die Person kann sich nicht mehr anmelden, jede offene Sitzung endet. Gruppen und Rollen bleiben."
+        },
+        "enable": {
+          "title": "{name} aktivieren?",
+          "body": "Die Person kann sich wieder anmelden, mit den Rechten aus ihren Gruppen und Bindungen."
+        },
+        "reset-password": {
+          "title": "Passwort von {name} zurücksetzen?",
+          "body": "Die Domäne schickt einen Link für ein neues Passwort. Ohne E-Mail erhalten Sie einmal ein vorläufiges Passwort."
+        },
+        "remove-second-factor": {
+          "title": "Zweiten Faktor von {name} entfernen?",
+          "body": "Der Authenticator gilt hier nicht mehr; bei der nächsten Anmeldung wird ein neuer eingerichtet."
+        },
+        "sign-out": {
+          "title": "{name} überall abmelden?",
+          "body": "Jede offene Sitzung endet. Die Person kann sich wieder anmelden."
+        },
+        "delete": {
+          "title": "{name} löschen?",
+          "body": "Die Person wird sofort deaktiviert. Nennen Gruppen oder Bindungen sie, nimmt eine Änderung sie aus jeder heraus; das Konto verschwindet, sobald diese Änderung freigegeben ist. Das lässt sich nicht rückgängig machen."
+        }
+      },
+      "password": {
+        "title": "Vorläufiges Passwort",
+        "lead": "Die Domäne kann keine E-Mails senden, geben Sie dieses Passwort {email} selbst weiter.",
+        "warning": "Es wird nur jetzt angezeigt und nirgends sonst. Die Person muss es bei der ersten Anmeldung ersetzen. Senden Sie es über einen Kanal, den nur sie liest.",
+        "label": "Vorläufiges Passwort",
+        "copy": "Kopieren",
+        "copied": "In die Zwischenablage kopiert.",
+        "done": "Fertig"
+      }
     }
   },
   "projectDelete": {
@@ -3261,5 +3558,35 @@
       "NEVER": "Nie, er ist abgeschlossen",
       "UNKNOWN": "Unbekannt"
     }
+  },
+  "picker": {
+    "search": "Suchen",
+    "chosen": "Gewählt: {label}",
+    "remove": "{name} entfernen",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "Kein Datenmodell passt.",
+      "create": "Neues Datenmodell „{name}“",
+      "catalogueUnavailable": "Smart Data Models lassen sich gerade nicht durchsuchen: {reason}",
+      "catalogueHint": "Ab zwei Buchstaben wird auch in Smart Data Models gesucht.",
+      "lifecycle": {
+        "draft": "Entwurf",
+        "published": "veröffentlicht",
+        "deprecated": "veraltet",
+        "retired": "ausgemustert",
+        "mirrored": "gespiegelt"
+      }
+    },
+    "type": {
+      "local": "Typen von {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Importiert aus {name}",
+      "none": "Das Modell von {space} deklariert noch keinen Typ.",
+      "noneInProject": "Kein Datenmodell dieses Projekts deklariert bisher einen Typ.",
+      "create": "Neuer Typ „{name}“"
+    },
+    "createNamed": "Neu: „{name}“",
+    "list": "Auswahl"
   }
 }

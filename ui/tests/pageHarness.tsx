@@ -8,11 +8,14 @@
  * mounts through `App`, so the route, the shell, the landmarks and the providers are the real
  * ones; only the API is answered from here.
  */
+import { createContext, useContext, useState } from "react";
+import type { JSX, ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import axe from "axe-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
+import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
 import { expect, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
@@ -171,4 +174,23 @@ export async function expectOneH1(text?: string | RegExp): Promise<HTMLElement> 
     expect(headings[0]).toHaveTextContent(text);
   }
   return headings[0];
+}
+
+const Slot = createContext<ReactNode>(null);
+
+function SlotOutlet(): JSX.Element {
+  return <>{useContext(Slot)}</>;
+}
+
+/**
+ * A component under test inside a router of one route, for a part that renders links (a type
+ * that opens its model, T-2766) but is mounted without the App. Its children follow re-renders.
+ */
+export function InRouter({ children }: { children: ReactNode }): JSX.Element {
+  const [router] = useState(() => createRouter({ routeTree: createRootRoute({ component: SlotOutlet }) }));
+  return (
+    <Slot.Provider value={children}>
+      <RouterProvider router={router} />
+    </Slot.Provider>
+  );
 }

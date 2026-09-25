@@ -13,9 +13,10 @@ import {
   portalTemplates,
   portalThemeWidgets,
 } from "./theme";
-import { FormDataContext, portalFields, portalWidgets } from "./widgets";
+import { FormDataContext, FormProjectContext, portalFields, portalWidgets } from "./widgets";
 import { TouchedContext, hasAnyError } from "./touched";
 import { DNS1123, ENTITY_TYPE_PATTERN } from "../../schemas/kinds";
+import { withPickers } from "../../schemas/pickers";
 
 /** The theme's widgets and the Portal's own (`secretRef`, `entityPicker`), which a uiSchema names. */
 const widgets = { ...portalThemeWidgets, ...portalWidgets };
@@ -43,6 +44,10 @@ export interface SchemaFormProps<T> {
   extraErrors?: ErrorSchema;
   onSubmit: (data: T) => void;
   onChange?: (data: T | undefined) => void;
+  /** The project the form writes into: what the model and type pickers list from. */
+  project?: string;
+  /** The manifest kind the form edits: its reference fields become pickers (ADR-N-033). */
+  kind?: string;
 }
 
 const ajvErrorKeyMap: Record<string, string> = {
@@ -134,6 +139,8 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
     extraErrors,
     onSubmit,
     onChange,
+    project,
+    kind,
   } = props;
   const { t } = useTranslation();
   // What the form still wants, beside its buttons (T-1607): a long form with a folded group has to
@@ -159,7 +166,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
 
   const effectiveUiSchema = React.useMemo(
     () => ({
-      ...uiSchema,
+      ...withPickers(kind, schema, uiSchema),
       "ui:submitButtonOptions": {
         ...(uiSchema?.["ui:submitButtonOptions"] as
           Record<string, unknown> | undefined),
@@ -171,7 +178,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
         submitText: submitLabel ?? t("form.submit"),
       },
     }),
-    [uiSchema, submitLabel, t],
+    [kind, schema, uiSchema, submitLabel, t],
   );
 
   const submitState = React.useMemo(
@@ -212,6 +219,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
     >
       <FormAfterFieldsContext.Provider value={afterFields ?? null}>
         <FormSubmitStateContext.Provider value={submitState}>
+          <FormProjectContext.Provider value={project}>
           <FormDataContext.Provider value={held ?? formData}>
           <TouchedContext.Provider value={touched}>
           <Form<T>
@@ -244,6 +252,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
           />
           </TouchedContext.Provider>
           </FormDataContext.Provider>
+          </FormProjectContext.Provider>
         </FormSubmitStateContext.Provider>
       </FormAfterFieldsContext.Provider>
     </FormActionsContext.Provider>

@@ -3,7 +3,9 @@ import type { JSX } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { rememberPrefill } from "../../assistant/state";
+import { refName } from "../../api/manifest";
 import { AUDIENCE_TONE } from "../../components/endpoints/sharing";
+import { TypeLink } from "../models/ModelLinks";
 import { Badge } from "../../components/ui/Badge";
 import type { BadgeTone } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -138,7 +140,11 @@ export function EndpointProposalCard({
         {types.length > 0 ? (
           <>
             <dt className="text-fg-muted">{t("agentRun.proposal.types")}</dt>
-            <dd className="font-mono">{[...new Set(types)].join(", ")}</dd>
+            <dd className="flex flex-wrap gap-x-2 font-mono">
+              {[...new Set(types)].map((type) => (
+                <TypeLink key={type} project={project} type={type} space={refName(spec.contextSpaceRef) || undefined} />
+              ))}
+            </dd>
           </>
         ) : null}
       </dl>

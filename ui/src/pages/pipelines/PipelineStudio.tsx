@@ -42,6 +42,8 @@ import { PipelineTest } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
 import { FormHeading } from "../../components/forms/FormRoute";
+import { TypePicker } from "../../components/pickers/TypePicker";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 /** How many rows one sample shows: enough to tick a handful, small enough to read. */
 export const SAMPLE_LIMIT = 20;
@@ -694,11 +696,19 @@ export function PipelineStudio({
               />
             </Field>
             <Field id="studio-kpi-type" label={t("pipelines.studio.kpi.type")}>
-              <Input
+              {/* The type is one the endpoint's space models (ADR-N-033), never typed. */}
+              <TypePicker
                 id="studio-kpi-type"
-                value={kpiType}
-                onChange={(event) => {
-                  const nextType = event.target.value;
+                label={t("pipelines.studio.kpi.type")}
+                labelled
+                project={project}
+                space={(() => {
+                  const ep = endpoints.find((e) => e.metadata.name === kpiEndpoint);
+                  return ep ? spaceOf(ep) : undefined;
+                })()}
+                value={kpiType ? [kpiType] : []}
+                onChange={(types) => {
+                  const nextType = types[0] ?? "";
                   setKpiType(nextType);
                   emitKpi({
                     endpointName: kpiEndpoint,
@@ -890,17 +900,19 @@ export function PipelineStudio({
                       </Field>
                     ) : draft?.compute?.kind === "mapping" ? (
                       <Field id="flow-mapping-field" label={t("pipelines.field.mappingRef")}>
-                        <Input
+                        <ResourceNamePicker
                           id="flow-mapping-field"
-                          data-testid="flow-mapping-ref"
+                          label={t("pipelines.field.mappingRef")}
+                          labelled
+                          from={{ project, plural: "mappings" }}
                           value={draft?.compute?.mappingRef ?? ""}
-                          onChange={(e) => {
+                          onChange={(mappingRef) => {
                             onChange({
                               ...draft,
                               compute: {
                                 ...draft?.compute,
                                 kind: "mapping",
-                                mappingRef: e.target.value,
+                                mappingRef,
                               },
                             });
                           }}

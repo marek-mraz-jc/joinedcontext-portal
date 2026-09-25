@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { columnKind, fieldOf, format, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
+import { columnKind, fieldOf, format, optionLabel, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
 import type { Cell, Field, LanguageMap, Row } from "@joinedcontext/sdk";
 import { Problem } from "./states";
 
@@ -35,8 +35,8 @@ export function parseInput(field: Field, text: string): { value: Cell } | { erro
     return { error: 'must be "lat, lon"' };
   }
   if (field.input === "select") {
-    if (field.options && !field.options.includes(text)) {
-      return { error: `must be one of ${field.options.join(", ")}` };
+    if (field.options && !field.options.some((option) => option.value === text)) {
+      return { error: `must be one of ${field.options.map(optionLabel).join(", ")}` };
     }
     return { value: text };
   }
@@ -97,7 +97,7 @@ export function EntityForm({
   onSaved?: (id: string) => void;
   onCancel?: () => void;
 }): React.JSX.Element {
-  const { typeSchema } = useSchema(type);
+  const { schema, typeSchema } = useSchema(type);
   const save = useSave();
   const { can } = useAccess();
   const client = useClient();
@@ -129,10 +129,11 @@ export function EntityForm({
     const contextRows = rows ?? (row ? [row] : []);
     const map: Record<string, Field> = {};
     for (const name of fieldNames) {
-      map[name] = fieldOf(name, typeSchema ?? undefined, columnKind(contextRows, name));
+      // The merged schema resolves an enum's `$ref`, and the titles come in the app's language (UI-86).
+      map[name] = fieldOf(name, typeSchema ?? undefined, columnKind(contextRows, name), schema ?? undefined, language);
     }
     return map;
-  }, [fieldNames, typeSchema, rows, row]);
+  }, [fieldNames, typeSchema, schema, language, rows, row]);
 
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     getInitialDraft(row, fieldNames, fieldSpecs),
@@ -224,7 +225,9 @@ export function EntityForm({
         errors[name] = `${name} is required`;
         continue;
       }
-      if (text.trim() !== "") {
+      // A value the edit leaves as it was is not sent, so it is not judged either: a stored value
+      // an enum no longer lists must not stop a save of the other fields (UI-86).
+      if (text.trim() !== "" && !(isEdit && text === (initialDraft[name] ?? ""))) {
         const parsed = parseInput(spec, text);
         if ("error" in parsed) {
           errors[name] = `${name} ${parsed.error}`;
@@ -360,24 +363,29 @@ export function EntityForm({
               />
             );
             break;
-          case "select":
+          case "select": {
+            // A stored value the enum does not list stays shown and marked, never replaced.
+            const outside = val !== "" && !spec.options?.some((opt) => opt.value === val);
             inputElement = (
               <select
                 aria-label={name}
+                aria-invalid={outside || undefined}
                 value={val}
                 disabled={disabled}
                 title={reason}
                 onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
               >
                 <option value="">—</option>
+                {outside && <option value={val}>{`${val} (not in the list)`}</option>}
                 {spec.options?.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={opt.value} value={opt.value} title={opt.description}>
+                    {optionLabel(opt)}
                   </option>
                 ))}
               </select>
             );
             break;
+          }
           case "date":
             inputElement = (
               <input

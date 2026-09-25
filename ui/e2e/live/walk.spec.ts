@@ -11,6 +11,9 @@ import { APPROVER, STEWARD, VIEWER, signIn } from "./portal";
 
 const PROJECTS = ["helsinki", "banskabystrica"];
 
+/** One seeded model of each project, whose own page the walk opens (T-2765). */
+const MODELS: Record<string, string> = { helsinki: "helsinki", banskabystrica: "bb-air-quality" };
+
 interface Finding {
   who: string;
   route: string;
@@ -37,6 +40,7 @@ function expected(who: string, response: Response): boolean {
 }
 
 async function routesOf(page: Page, project: string): Promise<string[]> {
+  const model = MODELS[project];
   await page.goto(`/projects/${project}/spaces?lang=en`, { waitUntil: "load" });
   const nav = page.getByRole("navigation", { name: "Main navigation" });
   const hrefs = await nav.locator("a[href^='/']").evaluateAll((links) =>
@@ -53,6 +57,7 @@ async function routesOf(page: Page, project: string): Promise<string[]> {
       `/projects/${project}/assistant`,
       `/projects/${project}/explore`,
       `/projects/${project}/models`,
+      `/projects/${project}/models/${model}`,
     ]),
   ].filter((href) => href.startsWith("/"));
 }
