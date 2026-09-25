@@ -383,7 +383,7 @@ export interface paths {
         put?: never;
         /**
          * Create Person
-         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.
+         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.
          */
         post: operations["create_person"];
         delete?: never;

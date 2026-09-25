@@ -79,6 +79,15 @@ pub const CHECKED_BY_THE_ROUTE: &[&str] = &[
     "jc_service_account_key_mint",
     "jc_service_account_key_rotate",
     "jc_service_account_key_revoke",
+    // People live in the realm: the route checks the verb on Person at organization scope and
+    // every right the person holds (PF-91, PF-93).
+    "jc_person_list",
+    "jc_person_get",
+    "jc_person_create",
+    "jc_person_edit",
+    "jc_person_disable",
+    "jc_person_enable",
+    "jc_person_sign_out",
 ];
 
 /// The catalogue row of a kind an input names; an unknown kind is answered with the kinds there are.
