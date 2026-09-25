@@ -1143,7 +1143,8 @@ impl Syncer {
                 .clone();
             let (apps, mut skipped) =
                 super::edge_file::edge_apps(&fresh_mirror, &secrets, settings);
-            let (outcome, refused) = edge_file.converge(&apps).await;
+            let limits = crate::api::organization_limits::limits_in(&fresh_mirror);
+            let (outcome, refused) = edge_file.converge(&apps, limits.as_ref()).await;
             skipped.extend(refused);
             for (app, reason) in &skipped {
                 tracing::warn!(%app, %reason, "published App has no route at the edge");

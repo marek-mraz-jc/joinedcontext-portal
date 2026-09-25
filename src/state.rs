@@ -407,9 +407,12 @@ impl AppState {
                                 ),
                             }
                             syncer = syncer.with_edge_file(
-                                Arc::new(crate::reconciler::edge_file::EdgeFile::new(
-                                    edge_kube, namespace,
-                                )),
+                                Arc::new(
+                                    crate::reconciler::edge_file::EdgeFile::new(
+                                        edge_kube, namespace,
+                                    )
+                                    .with_bounds(state.config.organization_bounds.clone()),
+                                ),
                                 settings.clone(),
                             );
                         }

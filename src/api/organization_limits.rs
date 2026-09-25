@@ -33,8 +33,14 @@ pub(crate) fn organization_spec(state: &AppState) -> Option<OrganizationSpec> {
 /// read, so a field this Portal does not know yet elsewhere in the manifest never turns the
 /// organization's own limits back into the defaults.
 fn organization_limits(state: &AppState) -> Option<jc_core::kinds::OrganizationLimits> {
-    state
-        .mirror
+    limits_in(&state.mirror)
+}
+
+/// [`organization_limits`] for a caller that holds a mirror and no state: the reconciler.
+pub(crate) fn limits_in(
+    mirror: &crate::store::Mirror,
+) -> Option<jc_core::kinds::OrganizationLimits> {
+    mirror
         .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
         .items
         .into_iter()
