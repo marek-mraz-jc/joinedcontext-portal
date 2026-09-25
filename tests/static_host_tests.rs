@@ -10,6 +10,7 @@ use axum::http::{header, Request, StatusCode};
 use http_body_util::BodyExt;
 use joinedcontext_portal::apps::static_host::sri_sha384;
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::reconciler::transitions::Transitions;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
@@ -1125,7 +1126,11 @@ async fn a_published_app_without_a_build_reads_pending_not_live() {
 
     let apps_dir = empty.path().to_string_lossy().into_owned();
     assert_eq!(
-        joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror),
+        joinedcontext_portal::apps::static_host::report_unbuilt(
+            Some(&apps_dir),
+            &mirror,
+            &Transitions::default()
+        ),
         vec!["air-quality".to_owned()]
     );
     let written = app_status(&mirror);
@@ -1159,10 +1164,12 @@ async fn only_a_published_app_with_nothing_to_serve_is_marked() {
     let mirror = mirror_live_without_build(app_spec("published"));
     let (status, _) = get_with(shipped.path(), mirror.clone(), "/apps/air-quality/").await;
     assert_eq!(status, StatusCode::OK, "the shipped bundle serves");
-    assert!(
-        joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror)
-            .is_empty()
-    );
+    assert!(joinedcontext_portal::apps::static_host::report_unbuilt(
+        Some(&apps_dir),
+        &mirror,
+        &Transitions::default()
+    )
+    .is_empty());
     assert_eq!(
         app_status(&mirror).phase,
         joinedcontext_portal::resource::Phase::Live
@@ -1174,13 +1181,40 @@ async fn only_a_published_app_with_nothing_to_serve_is_marked() {
         mirror_with_build(app_spec("published"), "8c56954a1f0e"),
         mirror_live_without_build(app_spec("draft")),
     ] {
-        assert!(
-            joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror)
-                .is_empty()
-        );
+        assert!(joinedcontext_portal::apps::static_host::report_unbuilt(
+            Some(&apps_dir),
+            &mirror,
+            &Transitions::default()
+        )
+        .is_empty());
         assert_eq!(
             app_status(&mirror).phase,
             joinedcontext_portal::resource::Phase::Live
         );
     }
+}
+
+/// T-2989: run after run the App still has no build, so its `Ready` condition keeps the time
+/// the first run said it; nothing transitioned.
+#[tokio::test]
+async fn a_second_run_keeps_the_time_the_app_first_had_no_build() {
+    let empty = tempdir::Dir::new("no-build-twice");
+    let apps_dir = empty.path().to_string_lossy().into_owned();
+    let mirror = mirror_live_without_build(app_spec("published"));
+    joinedcontext_portal::apps::static_host::report_unbuilt(
+        Some(&apps_dir),
+        &mirror,
+        &Transitions::default(),
+    );
+    let first = app_status(&mirror).conditions[0].last_transition_time;
+    assert!(first.is_some());
+
+    // The next run: the sync writes Live with no conditions, then the step says it again.
+    let before = Transitions::of(&mirror);
+    let next = mirror_live_without_build(app_spec("published"));
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &next, &before);
+    let again = app_status(&next);
+    assert_eq!(again.phase, joinedcontext_portal::resource::Phase::Pending);
+    assert_eq!(again.conditions[0].last_transition_time, first);
 }
