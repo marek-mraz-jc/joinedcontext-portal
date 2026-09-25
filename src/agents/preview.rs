@@ -25,6 +25,9 @@ struct Runtime;
 #[folder = "sdk/template"]
 #[exclude = "dist/*"]
 #[exclude = "node_modules/*"]
+// The runner image installs from it (AP-127); an app never installs, and a run's model reads the
+// template as its context, where 2 000 lines of resolutions would crowd out the code.
+#[exclude = "pnpm-lock.yaml"]
 pub struct Template;
 
 /// The entry the Portal owns (SDK-11): whatever the run holds, the preview starts here.
@@ -236,6 +239,10 @@ mod tests {
         assert!(files
             .keys()
             .all(|p| !p.starts_with("dist/") && !p.starts_with("node_modules/")));
+        assert!(
+            !files.contains_key("pnpm-lock.yaml"),
+            "the runner image's lockfile is not a run's context (AP-127)"
+        );
     }
 
     #[test]

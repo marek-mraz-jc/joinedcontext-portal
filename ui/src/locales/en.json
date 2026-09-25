@@ -2270,6 +2270,21 @@
       "title": "Progress",
       "usage": "{steps} steps, {tokens} tokens used."
     },
+    "timeSpent": {
+      "title": "Where the time went",
+      "model": "Model",
+      "tools": "Tools",
+      "waiting": "Waiting for you",
+      "modelCall": "Model call",
+      "modelCallOf": "Model call ({model})",
+      "waitingStep": "Waiting for your answer",
+      "failed": "failed",
+      "slowest": "Slowest step: {step}, {took}.",
+      "caption": "Every timed step of the run, in order",
+      "started": "Started",
+      "step": "Step",
+      "took": "Took"
+    },
     "conversation": {
       "details": "{count, plural, one {Details (# line)} other {Details (# lines)}}",
       "title": "Conversation",

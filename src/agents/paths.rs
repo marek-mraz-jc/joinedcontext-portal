@@ -306,6 +306,19 @@ impl Path {
     }
 }
 
+/// The conversation's tools no path offers: an entity change is prepared on no path (AG-78).
+const OFF_PATH_TOOLS: &[&str] = &["write_entities", "navigate"];
+
+/// A tool of the conversation by its name, as the static name a metric may label a step with;
+/// none for a name the model made up (T-2771).
+pub fn known_tool(name: &str) -> Option<&'static str> {
+    Path::ALL
+        .iter()
+        .flat_map(|path| path.tools())
+        .chain(OFF_PATH_TOOLS.iter().copied())
+        .find(|tool| *tool == name)
+}
+
 /// The paths as `choose_path` offers them to the model: one line each.
 pub fn menu() -> String {
     Path::ALL

@@ -2286,6 +2286,9 @@ pub(crate) async fn publish_event(
     kind: &str,
     payload: serde_json::Value,
 ) -> Result<AgentRunEvent, ApiError> {
+    if kind == "tool" {
+        crate::telemetry::tool_step(&payload);
+    }
     let event = state
         .agents
         .append_event(run_id, kind, payload)
@@ -2296,16 +2299,26 @@ pub(crate) async fn publish_event(
 }
 
 fn sse(event: &AgentRunEvent) -> Event {
-    let mut data = event.payload.clone();
-    // The sequence number is on the frame as its id and in the body, because the API examples
-    // show a client reading `seq` out of the payload without parsing the frame (API/04 §4).
-    if let Some(object) = data.as_object_mut() {
-        object.insert("seq".to_owned(), serde_json::json!(event.seq));
-    }
     Event::default()
         .id(event.seq.to_string())
         .event(event.kind.clone())
-        .data(data.to_string())
+        .data(frame_data(event).to_string())
+}
+
+/// The data of one event's frame: its payload with `seq` and `timestamp`.
+fn frame_data(event: &AgentRunEvent) -> serde_json::Value {
+    let mut data = event.payload.clone();
+    // The sequence number is on the frame as its id and in the body, because the API examples
+    // show a client reading `seq` out of the payload without parsing the frame (API/04 §4).
+    // Every frame carries the instant the Portal recorded it, so a client reads where a run's
+    // seconds went from the stream alone (T-2771); a `status` frame's own is that instant too.
+    if let Some(object) = data.as_object_mut() {
+        object.insert("seq".to_owned(), serde_json::json!(event.seq));
+        object
+            .entry("timestamp")
+            .or_insert_with(|| serde_json::json!(event.created_at));
+    }
+    data
 }
 
 pub(crate) fn status_payload(status: AgentRunStatus) -> serde_json::Value {
@@ -2836,6 +2849,40 @@ mod tests {
             caller_token(&state, &edge(&[("x-access-token", "edge")])).as_deref(),
             Some("edge")
         );
+    }
+}
+
+#[cfg(test)]
+mod frame_tests {
+    use super::{frame_data, AgentRunEvent};
+
+    fn event(kind: &str, payload: serde_json::Value) -> AgentRunEvent {
+        AgentRunEvent {
+            run_id: "run-1".into(),
+            seq: 7,
+            kind: kind.into(),
+            payload,
+            created_at: "2026-09-25T08:14:03.412Z".into(),
+        }
+    }
+
+    /// T-2771: every frame carries the instant the Portal recorded it, whatever its kind, and a
+    /// `status` frame keeps its own.
+    #[test]
+    fn every_frame_carries_its_timestamp() {
+        for kind in [
+            "tool", "thought", "usage", "navigate", "message", "partial", "path",
+        ] {
+            let data = frame_data(&event(kind, serde_json::json!({ "text": "x" })));
+            assert_eq!(data["timestamp"], "2026-09-25T08:14:03.412Z", "{kind}");
+            assert_eq!(data["seq"], 7, "{kind}");
+            assert_eq!(data["text"], "x", "{kind}");
+        }
+        let status = frame_data(&event(
+            "status",
+            serde_json::json!({ "status": "interviewing", "timestamp": "2026-09-25T08:14:03.400Z" }),
+        ));
+        assert_eq!(status["timestamp"], "2026-09-25T08:14:03.400Z");
     }
 }
 
