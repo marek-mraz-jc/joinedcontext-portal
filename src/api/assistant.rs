@@ -536,7 +536,9 @@ pub async fn execute_propose_endpoint(
         content = Object,
         description = "What to share and with whom: `contextSpace`, `name`, and optionally \
                        `title`, `audience`, `allowedProjects`, `representations`, \
-                       `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
+                       `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, \
+                       `update`, `full`) for an endpoint Build an app proposes inline (AP-132). \
+                       API/04.",
         content_type = "application/json",
         example = json!({
             "contextSpace": "mobility",
