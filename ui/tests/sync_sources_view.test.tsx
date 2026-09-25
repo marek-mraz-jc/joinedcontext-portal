@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { digestOf } from "../src/api/digest";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { findFormPage } from "./formPage";
@@ -92,6 +93,23 @@ function renderSyncSources(status: Record<string, unknown> = PENDING) {
     }
     if (path.endsWith("/syncsources")) {
       return json(SOURCES);
+    }
+    // The form's Check saves its shared draft, and the Portal answers with a verdict fresh for the
+    // manifest it holds; under strict validation nothing is proposed without it (PF-57, T-2731).
+    const draft = /\/drafts\/SyncSource\/([^/]+)$/.exec(path);
+    if (request.method === "PUT" && draft) {
+      const { manifest } = JSON.parse(body ?? "{}") as { manifest: unknown };
+      return json({
+        kind: "SyncSource",
+        name: draft[1],
+        project: "helsinki",
+        manifest,
+        touchedBy: IDENTITY.username,
+        touchedKind: "person",
+        updatedAt: new Date().toISOString(),
+        verdict: { ok: true, findings: [], checkedAt: new Date().toISOString(), inputDigest: digestOf(manifest) },
+        version: 1,
+      });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -240,7 +258,11 @@ describe("sync sources view", () => {
     );
     await userEvent.clear(within(dialog).getByLabelText(/^Branch, tag or commit/));
     await userEvent.type(within(dialog).getByLabelText(/^Branch, tag or commit/), "main");
-    await userEvent.click(within(dialog).getByRole("button", { name: en.syncSources.propose }));
+    // Checked first, as every kind's form is (PF-57): Propose opens on a fresh green verdict.
+    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    const propose = within(dialog).getByRole("button", { name: en.syncSources.propose });
+    await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled", "true"));
+    await userEvent.click(propose);
 
     await waitFor(() => {
       const posted = calls.find((call) => call.method === "POST" && call.path.endsWith("/syncsources"));

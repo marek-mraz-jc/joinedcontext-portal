@@ -33,11 +33,11 @@
           "spec": "organization.spec.ts",
           "test": "an administrator reads the organization and grants a role that reaches the person"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_resource_get"
       },
       "edit-settings": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}"
         ]
@@ -47,7 +47,7 @@
           "spec": "organization.spec.ts",
           "test": "a viewer is told who can see the members, and the list is never fetched for them"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_resource_propose"
       }
     },
     "people": {
@@ -221,7 +221,10 @@
         ]
       },
       "from-git": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "import-git.spec.ts",
+          "test": "a steward checks a project's Git export as a new project, and nothing is created"
+        },
         "assistant": "jc_project_import",
         "routes": [
           "POST /api/v1/projects/{project}/import"
@@ -322,21 +325,30 @@
         "assistant": "jc_model_propose"
       },
       "infer-from-sample": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward drafts a model from a CSV sample into the editor"
+        },
         "assistant": "jc_model_infer",
         "routes": [
           "POST /api/v1/tools/infer-schema"
         ]
       },
       "import-smart-data-model": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward imports a Smart Data Model into a model being built"
+        },
         "assistant": "jc_catalog_search",
         "routes": [
           "POST /api/v1/tools/import-sdm"
         ]
       },
       "add-class-enum-relation": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it"
+        },
         "assistant": "jc_model_source_put",
         "routes": [
           "PUT /api/v1/projects/{project}/datamodels/{name}/source"
@@ -360,14 +372,20 @@
         "assistant": "jc_model_source_get"
       },
       "edit-source": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it"
+        },
         "assistant": "jc_model_source_put",
         "routes": [
           "PUT /api/v1/projects/{project}/datamodels/{name}/source"
         ]
       },
       "retire": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward proposes removing a model, and the rejected removal keeps it"
+        },
         "assistant": "jc_resource_delete",
         "routes": [
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
@@ -905,12 +923,15 @@
         ]
       },
       "status": {
-        "liveOwed": "T-2729",
+        "liveOwed": "T-2849",
         "assistant": "jc_ckan_status"
       },
       "publish-dataset": {
         "liveOwed": "T-2726",
-        "assistantOwed": "T-2726"
+        "assistantOwed": "T-2726",
+        "routes": [
+          "POST /api/v1/projects/{project}/catalogue/drafts"
+        ]
       },
       "refused-no-permission": {
         "live": {
@@ -1028,11 +1049,17 @@
         ]
       },
       "compare": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "copy-employee.spec.ts",
+          "test": "an employee copies the project, edits in the copy, and brings it back as one change"
+        },
         "assistant": "jc_workspace_compare"
       },
       "update-from-main": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "copy-lifecycle.spec.ts",
+          "test": "the owner updates a copy from the project and discards it from the list"
+        },
         "assistant": "jc_workspace_update_from_main",
         "routes": [
           "POST /api/v1/projects/{project}/workspaces/{name}/update"
@@ -1069,7 +1096,10 @@
         ]
       },
       "discard": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "copy-lifecycle.spec.ts",
+          "test": "the owner updates a copy from the project and discards it from the list"
+        },
         "personOnly": "throwing a copy away loses the work in it, and an agent never does (AG-11)",
         "routes": [
           "DELETE /api/v1/projects/{project}/workspaces/{name}"
@@ -1083,7 +1113,10 @@
         "assistant": "jc_workspace_propose"
       },
       "refused-no-permission": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "copy-lifecycle.spec.ts",
+          "test": "a viewer is refused a copy with the reason, and the API refuses the same"
+        },
         "assistant": "jc_workspace_open"
       }
     },
@@ -1186,7 +1219,10 @@
     },
     "assistant": {
       "open-and-ask": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "assistant-page.spec.ts",
+          "test": "a steward asks from the assistant page, gets an answer, and finds the conversation listed"
+        },
         "assistant": "jc_ask",
         "routes": [
           "POST /api/v1/projects/{project}/assistant/conversations"

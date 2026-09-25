@@ -162,12 +162,15 @@ export async function reject(
 
 /**
  * Proposes the deletion of one resource the way a person does (a Red Change, CC-19): its row's
- * Delete on the kind's list, the name typed back, Propose removal; returns the change's id.
+ * menu on the kind's list, Remove, the name typed back, Propose removal; returns the change's id.
+ * The row offers no "Delete …" button: the removal is one item of "More actions for …"
+ * (`ResourceRowActions`), and the old selector matched nothing (T-2729).
  */
 export async function proposeDelete(page: Page, project: string, plural: string, name: string): Promise<string> {
-  await page.goto(`/projects/${project}/${plural}`);
+  await page.goto(`/projects/${project}/${plural}?lang=en`);
   const row = page.locator("tr, li").filter({ hasText: name }).first();
-  await row.getByRole("button", { name: /^Delete / }).click();
+  await row.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Remove" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(`Type ${name} to confirm`).fill(name);
   await dialog.getByRole("button", { name: "Propose removal" }).click();

@@ -28,6 +28,8 @@ export function BringBackPage({
     Record<string, "ours" | "theirs">
   >({});
   const [updateError, setUpdateError] = useState<string | null>(null);
+  /** How many files the last update took in from the project; `null` before the first. */
+  const [updatedFiles, setUpdatedFiles] = useState<number | null>(null);
   const [proposeError, setProposeError] = useState<string | null>(null);
   const [proposedChange, setProposedChange] = useState<string | null>(null);
 
@@ -75,8 +77,10 @@ export function BringBackPage({
         ),
       );
     },
-    onSuccess: () => {
+    onSuccess: (report) => {
       setUpdateError(null);
+      // What the update did, in words: a click that changes nothing on screen reads as broken.
+      setUpdatedFiles(report.taken.length + report.merged.length);
       // The merge moved the base: what was chosen answered the conflicts that are gone now.
       setResolutions({});
       void queryClient.invalidateQueries({
@@ -185,6 +189,12 @@ export function BringBackPage({
       {proposeError ? (
         <Alert tone="danger" role="alert">
           {proposeError}
+        </Alert>
+      ) : null}
+
+      {updatedFiles !== null ? (
+        <Alert tone="success" role="status">
+          {t("workspaces.bringBack.updated", { count: updatedFiles })}
         </Alert>
       ) : null}
 

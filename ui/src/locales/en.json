@@ -3278,6 +3278,7 @@
       "keepOurs": "Keep the copy's",
       "takeTheirs": "Take the project's",
       "update": "Update from the project",
+      "updated": "{count, plural, =0 {The copy already has everything the project changed.} one {Updated from the project: # file taken in.} other {Updated from the project: # files taken in.}}",
       "updateBlocked": "Answer every field that the project changed too before updating from it.",
       "propose": "Propose as one change",
       "proposeBlocked": "Resolve the files the project changed too before proposing the copy as one change.",
