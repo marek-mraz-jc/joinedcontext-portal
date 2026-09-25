@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { ApiError } from "../../api/client";
+import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../../components/endpoints/links";
 import {
   Alert,
@@ -36,6 +37,14 @@ export interface FilterDraft {
   /** The non-empty conditions only: `q`, `scopeQ`, `geoQ`, `temporalQ`. */
   filter: Record<string, string>;
   hiddenAttributes: string[];
+}
+
+/** The projection's classes with the slots each keeps (MP-01). */
+export function classesWithSlots(projection: Manifest): { name: string; slots: string[] }[] {
+  const classes = (projection.spec as { classes?: Array<{ name?: string; slots?: string[] }> }).classes ?? [];
+  return classes
+    .filter((klass): klass is { name: string; slots?: string[] } => typeof klass.name === "string" && klass.name !== "")
+    .map((klass) => ({ name: klass.name, slots: klass.slots ?? [] }));
 }
 
 /** One row of the proof, aligned on the entity id. */

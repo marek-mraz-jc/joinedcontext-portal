@@ -31,7 +31,7 @@ import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
-import { FilterProof } from "./FilterProof";
+import { FilterProof, classesWithSlots } from "./FilterProof";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
 import {
@@ -722,13 +722,6 @@ function sameSet(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((name) => right.includes(name));
 }
 
-/** The projection's classes with the slots each keeps (MP-01). */
-export function classesWithSlots(projection: Manifest): { name: string; slots: string[] }[] {
-  const classes = (projection.spec as { classes?: Array<{ name?: string; slots?: string[] }> }).classes ?? [];
-  return classes
-    .filter((klass): klass is { name: string; slots?: string[] } => typeof klass.name === "string" && klass.name !== "")
-    .map((klass) => ({ name: klass.name, slots: klass.slots ?? [] }));
-}
 
 /** The results count header of a counted NGSI-LD read (CIM 009 6.3.13). */
 const RESULTS_COUNT = "NGSILD-Results-Count";

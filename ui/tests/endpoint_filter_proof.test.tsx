@@ -307,4 +307,20 @@ describe("the endpoint's filter editor and its proof", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("shows the same proof in the endpoint's form, for the classes and hidden attributes it holds", async () => {
+    window.history.pushState({}, "", `/projects/${PROJECT}/endpoints/${NAME}/edit`);
+    const sent = renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByText(en.endpoints.proof.title, { selector: "summary" }, { timeout: 3000 }));
+    expect(
+      await screen.findByText("Serving 1 of 2 Event · hidden attributes: 1", {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    const last = previews(sent).at(-1);
+    expect(last?.body.hiddenAttributes).toEqual(["source"]);
+    expect((last?.body.projection as { classes?: { name: string }[] }).classes?.map((klass) => klass.name)).toEqual([
+      "Event",
+    ]);
+  });
 });
