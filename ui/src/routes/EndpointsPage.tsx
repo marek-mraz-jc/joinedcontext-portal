@@ -18,7 +18,7 @@ import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { ResourceList } from "../components/ResourceList";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
-import { EditResourceAction } from "../components/EditResourceDialog";
+import { EditResourceAction, EditResourceDialog } from "../components/EditResourceDialog";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { RowActions } from "../components/ui/RowActions";
 import type { RowAction } from "../components/ui/RowActions";
@@ -437,6 +437,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const queryClient = useQueryClient();
   const permissions = usePermissions(project);
   const usage = useProjectUsage(project);
+  const viewOnly = !permissions.isLoading && !permissions.can("Endpoint", "propose");
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // The language a catalogue text the form shows is written back in (UI-50).
   const language = locale.slice(0, 2);
@@ -1458,6 +1459,21 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         ) : null}
       </section>
 
+      {editing !== null && !isNew && base && viewOnly ? (
+        // A person who may not propose an endpoint still opens one: filled and closed, not the
+        // editor whose proposal the server would refuse (T-2875).
+        <EditResourceDialog
+          readOnly
+          open
+          target={{ project, kind: "Endpoint", plural: "endpoints", name: base.metadata.name }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditing(null);
+              setUrlDraftName(undefined);
+            }
+          }}
+        />
+      ) : (
       <ResourceFormDialog<EndpointForm>
         kind="Endpoint"
         open={editing !== null}
@@ -1633,6 +1649,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           <p className="text-xs text-fg-subtle">{t("endpoints.slugHint")}</p>
         </div>
       </ResourceFormDialog>
+      )}
 
       {/* The endpoint's own answer, read with this person's session: the Endpoint's Policy decides
           what is in it, and the Portal adds no right of its own (EP-07). */}

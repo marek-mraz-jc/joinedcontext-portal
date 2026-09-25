@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { takeEditRequest, takePrefill } from "../../assistant/state";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { EditResourceDialog } from "../../components/EditResourceDialog";
+import { usePermissions } from "../../api/permissions";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, plainTitle, prune } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
@@ -467,6 +469,10 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   // On a routed list the forms are pages at `/datasources/new` and `/datasources/{name}/edit`
   // (T-2474): the controls go to the address, and the address opens the editor.
   const formRoute = useFormRoute();
+  // A person who may not propose a data source still opens one: filled and closed, not the editor
+  // whose proposal the server would refuse (T-2875).
+  const permissions = usePermissions(project);
+  const viewOnly = !permissions.isLoading && !permissions.can("DataSource", "propose");
   useOpenFromAddress(list.data ? sources : undefined, (source) => source.metadata.name, {
     create: openCreate,
     edit: openEdit,
@@ -613,6 +619,18 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
         })}
       </ResourceList>
 
+      {dialogOpen && editing && viewOnly ? (
+        <EditResourceDialog
+          readOnly
+          open
+          target={{ project, kind: "DataSource", plural: PLURAL, name: editing.metadata.name }}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeDialog();
+            }
+          }}
+        />
+      ) : (
       <SecretRefContext.Provider
         value={{
           knownSecretNames: secrets,
@@ -738,6 +756,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
         </div>
       </ResourceFormDialog>
       </SecretRefContext.Provider>
+      )}
     </div>
   );
 }

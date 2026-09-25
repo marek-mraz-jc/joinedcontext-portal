@@ -380,6 +380,41 @@ describe("a person who may not change a record still opens it, read only", () =>
     expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
   });
 
+  // Pipelines, data sources and endpoints open their own editors, not the generic dialog; a reader
+  // gets the record there too, never the editor whose proposal the server would refuse.
+  const OWN_EDITORS = [
+    { plural: "pipelines", record: manifest("Pipeline", "ingest", { class: "resident" }), kind: "kind: Pipeline" },
+    {
+      plural: "datasources",
+      record: manifest("DataSource", "feed", { type: "http", http: { url: "https://example.org/feed.json" } }),
+      kind: "kind: DataSource",
+    },
+    {
+      plural: "endpoints",
+      record: manifest("Endpoint", "public-air", { contextSpaceRef: "air", audience: "public" }),
+      kind: "kind: Endpoint",
+    },
+  ];
+  for (const one of OWN_EDITORS) {
+    it(`a reader opens a record of ${one.plural} as its manifest, not its editor`, async () => {
+      const name = one.record.metadata.name;
+      await renderRoute({
+        path: `/projects/helsinki/${one.plural}/${name}/edit?lang=en`,
+        answer: (path, request) => {
+          if (request.method !== "GET") return undefined;
+          if (path === `/api/v1/projects/helsinki/${one.plural}`) return jsonResponse(list([one.record]));
+          if (path === `/api/v1/projects/helsinki/${one.plural}/${name}`) return jsonResponse(one.record);
+          return undefined;
+        },
+        permissions: READER,
+      });
+      const text = await screen.findByRole("group", { name: `The manifest of ${name}` });
+      expect(text).toHaveTextContent(one.kind);
+      expect(screen.getAllByText(`View ${name}`).length).toBeGreaterThan(0);
+      expect(screen.queryByRole("button", { name: /^Propose/ })).toBeNull();
+    });
+  }
+
   it("a steward still gets the form to change", async () => {
     await renderRoute({ path: "/projects/helsinki/subscriptions/alerts/edit?lang=en", answer });
     expect((await screen.findAllByText("Edit alerts")).length).toBeGreaterThan(0);

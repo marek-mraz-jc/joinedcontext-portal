@@ -20,6 +20,8 @@ import type { PipelineForm, toEnvelope } from "../pages/pipelines/PipelineEditor
 import { takeEditRequest, takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { EditResourceDialog } from "../components/EditResourceDialog";
+import { usePermissions } from "../api/permissions";
 import {
   Alert,
   Badge,
@@ -341,6 +343,10 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   // On a routed list the editor is a page at `/pipelines/new` and `/pipelines/{name}/edit`
   // (T-2474): the controls go to the address, and the address opens the editor.
   const formRoute = useFormRoute();
+  // A person who may not propose a pipeline still opens one: filled and closed, not the editor
+  // whose proposal the server would refuse (T-2875).
+  const permissions = usePermissions(project);
+  const viewOnly = !permissions.isLoading && !permissions.can("Pipeline", "propose");
   useOpenFromAddress(list.data ? pipelines : undefined, (pipeline) => pipeline.metadata.name, {
     create: () => openEditor(null),
     edit: openEditor,
@@ -539,7 +545,19 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         <PipelineRunsDialog project={project} name={runsOf} onClose={() => setRunsOf(null)} />
       ) : null}
 
-      {dialogOpen ? (
+      {dialogOpen && editing && viewOnly ? (
+        <EditResourceDialog
+          readOnly
+          open
+          target={{ project, kind: "Pipeline", plural: "pipelines", name: editing.metadata.name }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDialogOpen(false);
+              setEditing(null);
+            }
+          }}
+        />
+      ) : dialogOpen ? (
         <PipelineEditorDialog
           project={project}
           onOpenChange={(open) => {
