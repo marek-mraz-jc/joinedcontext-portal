@@ -75,6 +75,12 @@ pub struct Branding {
     /// request the Portal makes.
     #[serde(default)]
     pub documentation_base_url: String,
+    /// The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are
+    /// served on the Portal's own. Never taken from the branding file: the route overwrites it
+    /// from the Portal's configuration on every answer, and the in-Portal page of an App frames
+    /// it there (AP-122, T-2840).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apps_origin: Option<String>,
 }
 
 /// The five colours a page is built from. Each is validated as a hex triplet or sextet before
@@ -138,6 +144,7 @@ impl Default for Branding {
             validation: Validation::default(),
             // An installation that says nothing serves no guide, so no form offers a link.
             documentation_base_url: String::new(),
+            apps_origin: None,
         }
     }
 }
