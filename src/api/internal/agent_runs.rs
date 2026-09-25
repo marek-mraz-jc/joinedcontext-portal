@@ -219,6 +219,7 @@ pub async fn internal_post_event(
 
     match relayed.kind.as_str() {
         "usage" => {
+            crate::telemetry::model_call(&run.kind, &relayed.payload);
             let tokens = relayed
                 .payload
                 .get("tokensThisStep")
