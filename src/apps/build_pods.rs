@@ -351,7 +351,7 @@ pub async fn dispatch_once(
         .namespaces()
         .iter()
         .flat_map(|namespace| mirror.list(namespace, "App", &ListOptions::default()).items)
-        .filter(|app| builds(app))
+        .filter(builds)
         .map(|app| app.metadata.name)
         .collect();
     // ponytail: a mirror that holds no App at all is read as "not loaded yet" and sweeps
