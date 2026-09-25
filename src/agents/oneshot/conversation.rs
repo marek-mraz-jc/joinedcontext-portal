@@ -2644,6 +2644,59 @@ mod tests {
         assert!(said(&state).await.iter().all(|(_, failed)| !failed));
     }
 
+    /// T-2997, AG-51: the proxy's 429 for a spent profile limit is not asked again, and the
+    /// person reads which limit the run reached; a 429 without one stays a busy provider.
+    #[tokio::test]
+    async fn a_run_at_its_profile_limit_is_not_asked_again_and_names_the_limit() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        for (detail, limit) in [
+            ("token budget exhausted", "maxTokensPerRun"),
+            ("step limit exceeded (stepsPerRun)", "stepsPerRun"),
+        ] {
+            let proxy = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(429).set_body_json(json!({
+                    "type": "about:blank", "title": "Too Many Requests", "status": 429,
+                    "detail": detail,
+                })))
+                .mount(&proxy)
+                .await;
+            let (driver, state) = chatting_with(&proxy.uri(), std::time::Duration::from_secs(10));
+            let mut conversation = Vec::new();
+            driver
+                .turn(&mut conversation, "how many bikes are free?".into())
+                .await;
+            assert!(conversation.is_empty(), "{detail}");
+            assert_eq!(
+                proxy.received_requests().await.unwrap_or_default().len(),
+                1,
+                "{detail}: a spent limit is refused again, so it is not asked again"
+            );
+            let said = said(&state).await;
+            let (text, failed) = said
+                .last()
+                .unwrap_or_else(|| panic!("{detail}: nothing said"));
+            assert!(failed, "{text}");
+            assert!(text.contains(limit), "{detail}: {text}");
+        }
+        // Another 429 body is a busy provider: asked once more.
+        let busy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .insert_header("retry-after", "0")
+                    .set_body_json(json!({ "detail": "rate limited upstream" })),
+            )
+            .mount(&busy)
+            .await;
+        let (driver, _) = chatting_with(&busy.uri(), std::time::Duration::from_secs(10));
+        driver
+            .turn(&mut Vec::new(), "how many bikes are free?".into())
+            .await;
+        assert_eq!(busy.received_requests().await.unwrap_or_default().len(), 2);
+    }
+
     /// T-2772 chaos: a model that fails twice, answers garbage, answers too slowly or is not
     /// there at all yields a failed answer in the chat within the turn's time, with a reason a
     /// person acts on and never the provider's body.
