@@ -3826,6 +3826,209 @@
         "stale": "{count, plural, one {# check stale} other {# checks stale}}",
         "unreadable": "{count, plural, one {# result unreadable} other {# results unreadable}}"
       }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Context spaces per project",
+            "hint": "How many context spaces one project may hold."
+          },
+          "residentPipelines": {
+            "label": "Resident pipelines per project",
+            "hint": "How many pipelines of one project the runner keeps running at once."
+          },
+          "publicEndpoints": {
+            "label": "Public endpoints per project",
+            "hint": "How many endpoints of one project may be open to everyone."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Ingested events per second",
+            "hint": "How fast one project may write data in."
+          },
+          "apps": {
+            "label": "Apps per project",
+            "hint": "How many apps of one project may be in preview or published."
+          },
+          "agentRunsPerDay": {
+            "label": "Assistant runs per day",
+            "hint": "How many assistant runs one project may start each day."
+          },
+          "entitiesPerSpace": {
+            "label": "Entities per space",
+            "hint": "How many entities one context space may hold."
+          },
+          "requestsPerMinute": {
+            "label": "Requests per minute per project",
+            "hint": "The most requests per minute the endpoints of one project serve."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Name cooldown (days)",
+          "hint": "How long a removed project's name waits before anyone may use it again."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Web requests per minute",
+              "hint": "Requests per minute one visitor may make to the Portal and the apps."
+            },
+            "api": {
+              "label": "API requests per minute",
+              "hint": "Requests per minute one client may make to the Portal API."
+            },
+            "dataRead": {
+              "label": "Data reads per minute",
+              "hint": "Reads per minute one client may make through an endpoint."
+            },
+            "dataWrite": {
+              "label": "Data writes per minute",
+              "hint": "Writes per minute one client may make through an endpoint."
+            },
+            "publicEndpoint": {
+              "label": "Public endpoint requests per minute",
+              "hint": "Requests per minute an anonymous visitor may make to a public endpoint."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Largest request (MiB)",
+            "hint": "The edge refuses a larger request body before anything reads it."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Largest data write (MiB)",
+            "hint": "The gateway refuses a larger write; at most the edge's limit."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Sign-out after inactivity (minutes)",
+            "hint": "A session ends after this long without activity."
+          },
+          "sessionMaxHours": {
+            "label": "Longest session (hours)",
+            "hint": "After this long a person signs in again, active or not."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Invitation valid (hours)",
+            "hint": "How long an invitation link works."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Model spend per day",
+            "hint": "Whole currency units the assistant may spend on models each day."
+          },
+          "spendPerMonth": {
+            "label": "Model spend per month",
+            "hint": "Whole currency units the assistant may spend on models each month."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Rejected records kept",
+            "hint": "How many refused records a pipeline keeps for review."
+          },
+          "sampleMegabytes": {
+            "label": "Test sample size (MiB)",
+            "hint": "The largest sample a pipeline test reads."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Largest upload (MiB)",
+            "hint": "The largest file a person may upload; at most the edge's limit."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Shortest password",
+              "hint": "How many characters a password needs at least."
+            },
+            "history": {
+              "label": "Password history",
+              "hint": "How many earlier passwords a new one may not repeat."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Policies",
+      "policiesHint": "What the organization allows.",
+      "apps": "Applications",
+      "appsHint": "Who may see the apps projects publish.",
+      "agents": "Assistant",
+      "agentsHint": "What the assistant may use and spend.",
+      "limits": "Limits",
+      "limitsHint": "How much the platform does for the organization.",
+      "edge": "Edge",
+      "edgeHint": "What the edge lets through, per client.",
+      "requestsPerMinute": "Requests per minute",
+      "requestsPerMinuteHint": "One rate per kind of traffic.",
+      "gateway": "Gateway",
+      "gatewayHint": "What one write through an endpoint may carry.",
+      "signIn": "Sign-in",
+      "signInHint": "Sessions and passwords.",
+      "password": "Passwords",
+      "passwordHint": "What a password must be.",
+      "people": "People",
+      "peopleHint": "Invitations into the organization.",
+      "pipelines": "Pipelines",
+      "pipelinesHint": "What pipelines keep and read.",
+      "data": "Data",
+      "dataHint": "What a person may upload."
+    },
+    "limits": {
+      "title": "Policies and limits",
+      "lead": "Every limit the organization sets, the value in force and the range the operator allows. Edit changes them through an approved change.",
+      "atLeast": "at least {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (default)",
+      "noLimit": "no limit",
+      "defaultNone": "By default there is no limit.",
+      "defaultIs": "The default is {value}.",
+      "allowed": "Allowed: {bound}.",
+      "usedOf": "{used} of {limit}",
+      "setting": "Setting",
+      "inForce": "In force",
+      "range": "Allowed range",
+      "perProject": "Quota per project",
+      "perProjectLead": "Whose quota each project runs on and what it uses; projects you cannot read are not listed.",
+      "project": "Project",
+      "whose": "Quota from",
+      "noProjects": "No project you can read.",
+      "section": {
+        "projects": "Projects",
+        "applications": "Applications",
+        "edge": "Edge",
+        "signIn": "Sign-in",
+        "people": "People",
+        "agents": "Assistant",
+        "pipelinesAndData": "Pipelines and data"
+      },
+      "origin": {
+        "project": "the project",
+        "organization": "the organization",
+        "default": "nobody (no limit)"
+      }
+    },
+    "policy": {
+      "publicApps": "Public apps",
+      "publicAppsHint": "Whether a project may publish an app everyone can open without signing in.",
+      "publicApps_allowed": "Allowed",
+      "publicApps_refused": "Refused",
+      "models": "Models the assistant may use",
+      "modelsHint": "Leave empty to allow every model the installation offers.",
+      "everyModel": "Every model of the installation"
     }
   },
   "projectDelete": {

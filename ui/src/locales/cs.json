@@ -3826,6 +3826,209 @@
         "stale": "{count, plural, one {# kontrola neaktuální} few {# kontroly neaktuální} other {# kontrol neaktuálních}}",
         "unreadable": "{count, plural, one {# výsledek nečitelný} few {# výsledky nečitelné} other {# výsledků nečitelných}}"
       }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Kontextové prostory na projekt",
+            "hint": "Kolik kontextových prostorů smí mít jeden projekt."
+          },
+          "residentPipelines": {
+            "label": "Trvale běžící pipeliny na projekt",
+            "hint": "Kolik pipelinů jednoho projektu nechá runner běžet najednou."
+          },
+          "publicEndpoints": {
+            "label": "Veřejné endpointy na projekt",
+            "hint": "Kolik endpointů jednoho projektu smí být otevřeno všem."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Přijaté události za sekundu",
+            "hint": "Jak rychle smí jeden projekt zapisovat data."
+          },
+          "apps": {
+            "label": "Aplikace na projekt",
+            "hint": "Kolik aplikací jednoho projektu smí být v náhledu nebo zveřejněno."
+          },
+          "agentRunsPerDay": {
+            "label": "Běhy asistenta za den",
+            "hint": "Kolik běhů asistenta smí jeden projekt spustit za den."
+          },
+          "entitiesPerSpace": {
+            "label": "Entity na prostor",
+            "hint": "Kolik entit smí mít jeden kontextový prostor."
+          },
+          "requestsPerMinute": {
+            "label": "Požadavky za minutu na projekt",
+            "hint": "Nejvíce požadavků za minutu, které obslouží endpointy jednoho projektu."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Blokace názvu (dny)",
+          "hint": "Jak dlouho čeká název odstraněného projektu, než ho někdo znovu použije."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Webové požadavky za minutu",
+              "hint": "Požadavky za minutu, které smí jeden návštěvník poslat Portálu a aplikacím."
+            },
+            "api": {
+              "label": "Požadavky na API za minutu",
+              "hint": "Požadavky za minutu, které smí jeden klient poslat API Portálu."
+            },
+            "dataRead": {
+              "label": "Čtení dat za minutu",
+              "hint": "Čtení za minutu, která smí jeden klient provést přes endpoint."
+            },
+            "dataWrite": {
+              "label": "Zápisy dat za minutu",
+              "hint": "Zápisy za minutu, které smí jeden klient provést přes endpoint."
+            },
+            "publicEndpoint": {
+              "label": "Požadavky na veřejný endpoint za minutu",
+              "hint": "Požadavky za minutu, které smí anonymní návštěvník poslat veřejnému endpointu."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Největší požadavek (MiB)",
+            "hint": "Okraj odmítne větší tělo požadavku dřív, než ho cokoli přečte."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Největší zápis dat (MiB)",
+            "hint": "Brána odmítne větší zápis; nejvýše limit okraje."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Odhlášení po nečinnosti (minuty)",
+            "hint": "Relace skončí po takové době bez aktivity."
+          },
+          "sessionMaxHours": {
+            "label": "Nejdelší relace (hodiny)",
+            "hint": "Po takové době se člověk přihlásí znovu, aktivní nebo ne."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Platnost pozvánky (hodiny)",
+            "hint": "Jak dlouho funguje odkaz v pozvánce."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Výdaje na modely za den",
+            "hint": "Celé jednotky měny, které smí asistent utratit za modely za den."
+          },
+          "spendPerMonth": {
+            "label": "Výdaje na modely za měsíc",
+            "hint": "Celé jednotky měny, které smí asistent utratit za modely za měsíc."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Uchované odmítnuté záznamy",
+            "hint": "Kolik odmítnutých záznamů si pipeline ponechá ke kontrole."
+          },
+          "sampleMegabytes": {
+            "label": "Velikost testovacího vzorku (MiB)",
+            "hint": "Největší vzorek, který test pipelinu přečte."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Největší nahrání (MiB)",
+            "hint": "Největší soubor, který smí člověk nahrát; nejvýše limit okraje."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Nejkratší heslo",
+              "hint": "Kolik znaků musí heslo mít nejméně."
+            },
+            "history": {
+              "label": "Historie hesel",
+              "hint": "Kolik předchozích hesel nové heslo nesmí zopakovat."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Pravidla",
+      "policiesHint": "Co organizace povoluje.",
+      "apps": "Aplikace",
+      "appsHint": "Kdo smí vidět aplikace, které projekty zveřejní.",
+      "agents": "Asistent",
+      "agentsHint": "Co smí asistent používat a utratit.",
+      "limits": "Limity",
+      "limitsHint": "Kolik platforma pro organizaci udělá.",
+      "edge": "Okraj",
+      "edgeHint": "Co okraj propustí, na klienta.",
+      "requestsPerMinute": "Požadavky za minutu",
+      "requestsPerMinuteHint": "Jeden limit na každý druh provozu.",
+      "gateway": "Brána",
+      "gatewayHint": "Co smí nést jeden zápis přes endpoint.",
+      "signIn": "Přihlášení",
+      "signInHint": "Relace a hesla.",
+      "password": "Hesla",
+      "passwordHint": "Jaké musí být heslo.",
+      "people": "Lidé",
+      "peopleHint": "Pozvánky do organizace.",
+      "pipelines": "Pipeliny",
+      "pipelinesHint": "Co pipeliny uchovávají a čtou.",
+      "data": "Data",
+      "dataHint": "Co smí člověk nahrát."
+    },
+    "limits": {
+      "title": "Pravidla a limity",
+      "lead": "Každý limit, který organizace nastavuje, hodnota v platnosti a rozsah, který povoluje provozovatel. Úprava je mění přes schválenou změnu.",
+      "atLeast": "nejméně {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (výchozí)",
+      "noLimit": "bez limitu",
+      "defaultNone": "Ve výchozím stavu není žádný limit.",
+      "defaultIs": "Výchozí hodnota je {value}.",
+      "allowed": "Povoleno: {bound}.",
+      "usedOf": "{used} z {limit}",
+      "setting": "Nastavení",
+      "inForce": "V platnosti",
+      "range": "Povolený rozsah",
+      "perProject": "Kvóta na projekt",
+      "perProjectLead": "Z čí kvóty každý projekt běží a co využívá; projekty, které nemůžete číst, zde nejsou.",
+      "project": "Projekt",
+      "whose": "Kvóta od",
+      "noProjects": "Žádný projekt, který můžete číst.",
+      "section": {
+        "projects": "Projekty",
+        "applications": "Aplikace",
+        "edge": "Okraj",
+        "signIn": "Přihlášení",
+        "people": "Lidé",
+        "agents": "Asistent",
+        "pipelinesAndData": "Pipeliny a data"
+      },
+      "origin": {
+        "project": "projekt",
+        "organization": "organizace",
+        "default": "nikdo (bez limitu)"
+      }
+    },
+    "policy": {
+      "publicApps": "Veřejné aplikace",
+      "publicAppsHint": "Zda smí projekt zveřejnit aplikaci, kterou otevře kdokoli bez přihlášení.",
+      "publicApps_allowed": "Povoleno",
+      "publicApps_refused": "Zakázáno",
+      "models": "Modely, které smí asistent používat",
+      "modelsHint": "Nechte prázdné, aby byly povoleny všechny modely instalace.",
+      "everyModel": "Všechny modely instalace"
     }
   },
   "projectDelete": {

@@ -934,6 +934,38 @@
         }
       }
     },
+    "/api/v1/organization/limits": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Organization Limits",
+        "description": "Every policy and limit of the catalog with the operator's bound, the value in force and where it comes from, and the quota of each project the caller may read (PF-96…PF-102, ADR-N-035).",
+        "operationId": "get_limits",
+        "responses": {
+          "200": {
+            "description": "The catalog and the values in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationLimits"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people": {
       "get": {
         "tags": [
@@ -13337,6 +13369,77 @@
           "info"
         ]
       },
+      "LimitEntry": {
+        "type": "object",
+        "description": "One entry of the catalog as the settings page shows it (PF-102).",
+        "required": [
+          "path",
+          "section",
+          "security",
+          "min",
+          "origin"
+        ],
+        "properties": {
+          "default": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The catalog's default; `null` is no limit.",
+            "minimum": 0
+          },
+          "max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The largest value the organization may set; `null` where nobody sets a ceiling.",
+            "minimum": 0
+          },
+          "min": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The smallest value the organization may set.",
+            "minimum": 0
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin",
+            "description": "`organization` or `default`."
+          },
+          "path": {
+            "type": "string",
+            "description": "The manifest path, e.g. `spec.limits.edge.requestsPerMinute.web`."
+          },
+          "section": {
+            "type": "string",
+            "description": "The settings section: `projects`, `applications`, `edge`, `signIn`, `people`, `agents`,\n`pipelinesAndData`."
+          },
+          "security": {
+            "type": "boolean",
+            "description": "Whether the operator may only tighten the bound (ADR-N-035 §3.2)."
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "What the Organization manifest sets; `null` when it sets nothing.",
+            "minimum": 0
+          }
+        }
+      },
+      "LimitOrigin": {
+        "type": "string",
+        "description": "Where a value in force comes from (PF-101).",
+        "enum": [
+          "project",
+          "organization",
+          "default"
+        ]
+      },
       "ListMeta": {
         "type": "object",
         "properties": {
@@ -13907,6 +14010,27 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "OrganizationLimits": {
+        "type": "object",
+        "required": [
+          "entries",
+          "projects"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LimitEntry"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectQuota"
+            }
           }
         }
       },
@@ -14916,6 +15040,32 @@
           }
         }
       },
+      "ProjectQuota": {
+        "type": "object",
+        "description": "The quota in force for one project the caller may read.",
+        "required": [
+          "project",
+          "origin",
+          "quota"
+        ],
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin"
+          },
+          "project": {
+            "type": "string"
+          },
+          "quota": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuotaUse"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ProjectStatus": {
         "type": "object",
         "required": [
@@ -15025,6 +15175,30 @@
           "manifest": {}
         },
         "additionalProperties": false
+      },
+      "QuotaUse": {
+        "type": "object",
+        "description": "One quota dimension of a project.",
+        "properties": {
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "`null` is no limit.",
+            "minimum": 0
+          },
+          "used": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The manifest count for a countable dimension (PF-75); `null` for a runtime limit.",
+            "minimum": 0
+          }
+        }
       },
       "Readiness": {
         "type": "object",

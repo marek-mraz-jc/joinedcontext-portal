@@ -13,6 +13,8 @@ import {
   IRI_PATTERN,
   SPATIAL_PATTERN,
 } from "../pages/endpoints/catalog";
+import { withCatalog } from "../pages/organization/limits";
+import type { LimitEntry } from "../pages/organization/limits";
 
 /**
  * Draft-07 schemas for the kinds the Portal writes, mirroring jc-core's `ContextSpaceSpec`
@@ -2597,19 +2599,22 @@ export const QUOTA_DIMENSIONS = [
   "requestsPerMinute",
 ] as const;
 
+/** `spec.policies.apps.public` (ADR-N-035): whether a project may publish an app to everyone. */
+const PUBLIC_APPS = ["allowed", "refused"] as const;
+
 /**
  * The `Organization` manifest's `spec` as a form (T-2605, PF-01, PF-25, PF-41, PF-61, PF-65,
  * PF-73, PF-78), field for field jc-core's `OrganizationSpec`. `gitRepositoryUrl` is the
  * installation's and not offered; the form keeps it from the stored manifest.
  */
-export function organizationSchema(t: (key: string) => string): JsonSchema {
+export function organizationSchema(t: (key: string) => string, entries: readonly LimitEntry[] = []): JsonSchema {
   const quota = Object.fromEntries(
     QUOTA_DIMENSIONS.map((dimension) => [
       dimension,
       { type: "integer", minimum: 0, title: t(`organization.field.quota.${dimension}`) },
     ]),
   );
-  return {
+  const schema = {
     type: "object",
     required: ["domain", "locales", "defaultLocale"],
     properties: {
@@ -2690,8 +2695,53 @@ export function organizationSchema(t: (key: string) => string): JsonSchema {
           },
         },
       },
+      // Every limit comes from the catalog below, held to the operator's bound.
+      limits: {
+        type: "object",
+        title: t("organization.limitGroup.limits"),
+        description: t("organization.limitGroup.limitsHint"),
+        properties: {},
+      },
+      // The two policies that are no number; every numeric one comes from the catalog below.
+      policies: {
+        type: "object",
+        title: t("organization.limitGroup.policies"),
+        description: t("organization.limitGroup.policiesHint"),
+        properties: {
+          apps: {
+            type: "object",
+            title: t("organization.limitGroup.apps"),
+            description: t("organization.limitGroup.appsHint"),
+            properties: {
+              public: {
+                type: "string",
+                title: t("organization.policy.publicApps"),
+                description: t("organization.policy.publicAppsHint"),
+                oneOf: PUBLIC_APPS.map((value) => ({ const: value, title: t(`organization.policy.publicApps_${value}`) })),
+              },
+            },
+          },
+          agents: {
+            type: "object",
+            title: t("organization.limitGroup.agents"),
+            description: t("organization.limitGroup.agentsHint"),
+            properties: {
+              models: {
+                type: "array",
+                title: t("organization.policy.models"),
+                description: t("organization.policy.modelsHint"),
+                minItems: 1,
+                uniqueItems: true,
+                items: { type: "string", minLength: 1, maxLength: 200 },
+              },
+            },
+          },
+        },
+      },
     },
   } as JsonSchema;
+  // Every numeric policy and limit, held to the operator's bound (PF-97, PF-102).
+  return withCatalog(schema, entries, t);
 }
 
 /**
