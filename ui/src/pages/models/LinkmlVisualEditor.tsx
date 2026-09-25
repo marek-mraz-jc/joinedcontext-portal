@@ -31,6 +31,7 @@ import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
 import { UnitPicker } from "../../components/pickers/UnitPicker";
 import type { Operation, SlotField } from "./operations";
+import { RelationshipEditor } from "./RelationshipEditor";
 
 /**
  * The structured view of the model: classes, slots, enums (DM-13).
@@ -77,6 +78,8 @@ export function LinkmlVisualEditor({
   // drops the keystroke would fight the person editing it.
   const [iriDraft, setIriDraft] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+  // The class the range picker chose opens Add a relationship on it; a new key per pick.
+  const [prefill, setPrefill] = useState<{ target: string; key: number } | undefined>(undefined);
 
   const activeClass =
     model.classes.find((klass) => klass.name === selectedClass) ?? model.classes[0];
@@ -84,12 +87,18 @@ export function LinkmlVisualEditor({
 
   /** One operation, the same way an assistant would send it; a refusal is shown, not swallowed. */
   const run = (operation: Operation): boolean => {
+    const reason = runQuietly(operation);
+    setRefusal(reason);
+    return reason === null;
+  };
+
+  /** The same, answering the refusal to the section that shows it beside its own fields. */
+  const runQuietly = (operation: Operation): string | null => {
     const applied = applyOperations(source, [operation]);
-    setRefusal(applied.refused[0]?.reason ?? null);
     if (applied.refused.length === 0) {
       onChange(applied.source);
     }
-    return applied.refused.length === 0;
+    return applied.refused[0]?.reason ?? null;
   };
 
   /** Opening another slot starts its IRI field from the document, not from the last draft. */
@@ -179,21 +188,22 @@ export function LinkmlVisualEditor({
           </h2>
           <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-body">
             <li>
-              {t("models.hints.sdm")}
-              {onImport ? (
-                <Button size="sm" variant="secondary" className="ml-2" onClick={onImport}>
-                  {t("models.hints.sdmAction")}
-                </Button>
-              ) : null}
-            </li>
-            <li>
               {t("models.hints.klass")}
               <Button size="sm" variant="secondary" className="ml-2" onClick={() => newClassInput.current?.focus()}>
                 {t("models.hints.klassAction")}
               </Button>
             </li>
+            <li>{t("models.hints.field")}</li>
             <li>{t("models.hints.relation")}</li>
           </ol>
+          <p className="mt-2 text-body">
+            {t("models.hints.sdm")}
+            {onImport ? (
+              <Button size="sm" variant="secondary" className="ml-2" onClick={onImport}>
+                {t("models.hints.sdmAction")}
+              </Button>
+            ) : null}
+          </p>
         </section>
       ) : null}
       {refusal ? (
@@ -521,19 +531,42 @@ export function LinkmlVisualEditor({
                 <Select
                   id="slot-range"
                   value={activeSlot.range ?? ""}
-                  onChange={(event) => setSlotField(activeSlot.name, "range", event.target.value)}
+                  onChange={(event) => {
+                    const range = event.target.value;
+                    // A class is the other end of a relationship: never a one-sided slot (DM-64).
+                    if (model.classes.some((klass) => klass.name === range)) {
+                      setPrefill((last) => ({ target: range, key: (last?.key ?? 0) + 1 }));
+                      return;
+                    }
+                    setSlotField(activeSlot.name, "range", range);
+                  }}
                 >
                   <option value="">—</option>
-                  {RANGES.map((range) => (
-                    <option key={range} value={range}>
-                      {range}
-                    </option>
-                  ))}
-                  {model.enums.map((entry) => (
-                    <option key={entry.name} value={entry.name}>
-                      {entry.name}
-                    </option>
-                  ))}
+                  <optgroup label={t("models.rangeBasic")}>
+                    {RANGES.map((range) => (
+                      <option key={range} value={range}>
+                        {range}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {model.enums.length > 0 ? (
+                    <optgroup label={t("models.rangeEnums")}>
+                      {model.enums.map((entry) => (
+                        <option key={entry.name} value={entry.name}>
+                          {entry.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {model.classes.length > 0 ? (
+                    <optgroup label={t("models.rangeClasses")}>
+                      {model.classes.map((klass) => (
+                        <option key={klass.name} value={klass.name}>
+                          {klass.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
                 </Select>
               </Field>
               <Field id="slot-kind" label={t("models.kind")} help={t("models.kindHint")}>
@@ -616,6 +649,16 @@ export function LinkmlVisualEditor({
               </p>
             ))}
           </section>
+        ) : null}
+
+        {activeClass ? (
+          <RelationshipEditor
+            source={source}
+            model={model}
+            klass={activeClass.name}
+            run={runQuietly}
+            prefill={prefill}
+          />
         ) : null}
       </div>
     </div>

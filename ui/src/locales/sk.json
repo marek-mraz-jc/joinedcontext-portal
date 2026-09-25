@@ -1693,6 +1693,7 @@
       },
       "willBecome": "Uloží sa ako verzia {version}",
       "refused": "Zmena bola odmietnutá: {reason}",
+      "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
       "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:"
     },
@@ -1708,7 +1709,19 @@
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}",
       "from": "z {name}",
-      "enumBox": "Výčet {name}: {values}"
+      "enumBox": "Výčet {name}: {values}",
+      "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
+      "zoomIn": "Priblížiť",
+      "zoomOut": "Oddialiť",
+      "fit": "Prispôsobiť",
+      "zoomLevel": "Priblíženie {percent} %",
+      "openRelationship": "Otvoriť vzťah {name} / {inverse} medzi {source} a {target}",
+      "addRelationship": "Pridať vzťah z {name}",
+      "table": "Vzťahy v nákrese",
+      "tableRelationship": "Vzťah",
+      "tableField": "Pole",
+      "tableInverse": "Inverzné pole",
+      "tableMultiplicity": "Násobnosť"
     },
     "field": {
       "name": "Názov",
@@ -1784,12 +1797,78 @@
       "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
     },
     "hints": {
-      "title": "Tento model zatiaľ nemá triedu. Tri spôsoby, ako začať:",
-      "sdm": "Importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
+      "title": "Tento model zatiaľ nemá triedu. Tri kroky na začiatok:",
+      "sdm": "Alebo importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
       "sdmAction": "Importovať Smart Data Model",
       "klass": "Pridajte triedu: pomenujte ju v poli pod Triedami, napríklad School.",
       "klassAction": "Pomenovať prvú triedu",
-      "relation": "Pridajte vzťah: keď sú dve triedy, dajte jednej slot, ktorého rozsah je tá druhá, napríklad School má users triedy User."
+      "relation": "Pridajte vzťah: pod Vzťahmi vyberte cieľovú triedu a kardinalitu, napríklad jedna School má veľa entít User.",
+      "field": "Pridajte pole: pri otvorenej triede ho pomenujte pod Atribútmi, napríklad name."
+    },
+    "rangeBasic": "Základné typy",
+    "rangeEnums": "Enumy",
+    "rangeClasses": "Triedy (otvorí Pridať vzťah)",
+    "relationships": {
+      "title": "Vzťahy",
+      "intro": "Odkazy z {owner} na entity triedy. Entity ukladajú jeden koniec; inverzný sa počíta pri čítaní.",
+      "none": "{owner} zatiaľ nemá vzťah.",
+      "name": "Názov",
+      "other": "Druhá trieda",
+      "cardinality": "Kardinalita",
+      "inverse": "Inverzný",
+      "required": "Povinný",
+      "onDelete": "Pri zmazaní",
+      "actions": "Akcie",
+      "remove": "Odstrániť",
+      "removeLabel": "Odstrániť vzťah {name}",
+      "cardinalityOf": "Kardinalita vzťahu {name}",
+      "onDeleteOf": "Pri zmazaní, vzťah {name}",
+      "confirmTitle": "Odstrániť vzťah {name}?",
+      "confirmBody": "Z modelu odídu oba konce: {source}.{sourceSlot} a {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "Jedna {source} má jednu {target}",
+        "one-to-many": "Jedna {source} má veľa entít {target}",
+        "many-to-one": "Veľa entít {source} zdieľa jednu {target}",
+        "many-to-many": "Veľa entít {source} má veľa entít {target}"
+      },
+      "cardinalityName": {
+        "one-to-one": "Jedna k jednej",
+        "one-to-many": "Jedna k mnohým",
+        "many-to-one": "Mnohé k jednej",
+        "many-to-many": "Mnohé k mnohým"
+      },
+      "onDeleteName": {
+        "restrict": "Zakázať",
+        "cascade": "Kaskádovo",
+        "set-null": "Vyprázdniť"
+      },
+      "onDeleteHint": {
+        "restrict": "Zmazanie entity sa odmietne, kým na ňu iné ešte odkazujú.",
+        "cascade": "Zmazanie entity zmaže aj entity, ktoré na ňu odkazujú.",
+        "set-null": "Zmazanie entity odstráni vzťah z entít, ktoré na ňu odkazovali."
+      },
+      "missingInverse": "{name} odkazuje na {target}, ale neuvádza inverzný koniec, takže ešte nie je vzťahom.",
+      "addInverse": "Pridať inverzný {inverse} na {target}",
+      "add": {
+        "title": "Pridať vzťah z {owner}",
+        "cardinalityHint": "Čítaná z {owner} k cieľovej triede.",
+        "target": "Cieľová trieda",
+        "targetHint": "Trieda tohto modelu; inverzný koniec sa zapíše na ňu.",
+        "targetNone": "Vyberte triedu",
+        "name": "Názov na {owner}",
+        "nameHint": "Pole na {owner}, ktoré odkazuje na cieľ, navrhnuté podľa cieľa.",
+        "inverse": "Inverzný na {target}",
+        "inverseHint": "Pole na cieli, ktoré odkazuje späť. Každý vzťah ho má.",
+        "requiredOn": "Povinný na {owner}",
+        "requiredStored": "Každá entita {owner} musí jednu uviesť.",
+        "requiredComputed": "Počíta sa pri čítaní z druhého konca, preto nemôže byť povinný.",
+        "onDeleteHint": "Čo sa stane s entitami, ktoré odkazujú na zmazanú.",
+        "submit": "Pridať vzťah",
+        "nameEmpty": "Pomenujte pole.",
+        "nameInvalid": "Len písmená, číslice a _, na začiatku písmeno.",
+        "nameTaken": "Pole s názvom {name} už existuje.",
+        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov."
+      }
     }
   },
   "apps": {
