@@ -863,7 +863,7 @@ fn organization_model(
 }
 
 /// `GET /api/v1/organization/datamodels` (DM-63, ADR-N-033): every model of every project the
-/// caller may read, by the read rule of `GET /api/v1/endpoints`, and the catalogue entries a
+/// caller may read, project by project and space by space (PF-60), and the catalogue entries a
 /// search matches. What the caller may not read is not in it, and nobody is refused (R20).
 #[utoipa::path(
     get,

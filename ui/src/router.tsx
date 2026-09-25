@@ -14,7 +14,6 @@ import { BrandMark, Shell } from "./components/layout/Shell";
 import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
-import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
 import { FormRouteHost } from "./components/forms/FormRoute";
@@ -134,16 +133,6 @@ function NotFound(): React.JSX.Element {
       <NotFoundState />
     </Bare>
   );
-}
-
-/** The shell around a page that belongs to no single project: it opens on the one last worked in (T-2753). */
-function AnyProjectShell({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const projects = useProjects();
-  const first = preferredProject(projects.data);
-  if (!first) {
-    return <NoProject projects={projects} />;
-  }
-  return <Shell project={first}>{children}</Shell>;
 }
 
 /** `/` goes to the spaces of the project last worked in, else the first visible one (T-2753). */
@@ -405,16 +394,16 @@ const playgroundRoute = createRoute({
   },
 });
 
-/** Every endpoint of every project in one table (EP-08, EP-44). */
+/**
+ * Every endpoint of every project is the Organization page's Endpoints tab, an administration
+ * view (PF-61, T-2877); the old address keeps opening it, and the tab sends anyone else to
+ * Settings.
+ */
 const allEndpointsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/endpoints",
-  component: function AllEndpointsRoute() {
-    return (
-      <AnyProjectShell>
-        <AllEndpointsPage />
-      </AnyProjectShell>
-    );
+  beforeLoad: () => {
+    throw redirect({ to: "/organization/$tab", params: { tab: "endpoints" } });
   },
 });
 

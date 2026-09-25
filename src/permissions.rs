@@ -119,6 +119,14 @@ pub fn effective(
 }
 
 impl Effective {
+    /// Whether the caller administers the organization (PF-03): `approve` and `delete` on
+    /// `RoleBinding`, as `org-admin` holds them, asked of the permissions at [`ORG_NAMESPACE`].
+    /// What only an administrator reads asks this one question: the validation health (OPS-53)
+    /// and the organization-level Endpoints page (PF-61).
+    pub fn administers_organization(&self) -> bool {
+        self.may("RoleBinding", Verb::Approve) && self.may("RoleBinding", Verb::Delete)
+    }
+
     /// Whether the caller may read anything in this project (PF-59): a binding whose scope
     /// covers it, or the bootstrap group. What is not readable is `404` and not `403`, so a
     /// project nobody bound the caller to reads like a project that is not there (R20).

@@ -355,7 +355,6 @@ export function Shell({
     matchRoute({ to: "/projects/$project/assistant", params: { project } }),
   );
 
-  const allEndpointsActive = Boolean(matchRoute({ to: "/endpoints" }));
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
@@ -518,20 +517,10 @@ export function Shell({
               );
             })}
           </ul>
-          {/* Not sections of the resource API: every endpoint across projects, the model editor
-              that writes LinkML into the repository, the explorer and the CKAN view hang below
-              the list. */}
+          {/* Not sections of the resource API: the model editor that writes LinkML into the
+              repository, the explorer and the CKAN view hang below the list. Every endpoint
+              across projects is the Organization page's, for administrators (T-2877). */}
           <ul className="flex flex-col gap-0.5 border-t border-border pt-3">
-            <li>
-              <Link
-                to="/endpoints"
-                onClick={closeNav}
-                aria-current={allEndpointsActive ? "page" : undefined}
-                className={navLinkClass(allEndpointsActive)}
-              >
-                <NavLabel icon="globe" label={t("nav.allEndpoints")} />
-              </Link>
-            </li>
             <li>
               <Link
                 to="/projects/$project/models"

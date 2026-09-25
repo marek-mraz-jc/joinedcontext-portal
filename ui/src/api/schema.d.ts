@@ -252,7 +252,7 @@ export interface paths {
         };
         /**
          * List Endpoints Everywhere
-         * @description Every Endpoint of every project the caller may read, each with the project it lives in.
+         * @description Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
@@ -4982,7 +4982,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Every Endpoint the caller may read, across projects */
+            /** @description Every Endpoint of the organization, across projects */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4993,6 +4993,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
