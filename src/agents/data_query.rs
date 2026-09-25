@@ -372,6 +372,17 @@ entity, not from the first page: ask with `"count": true`, and while an answer c
 `nextCursor`, call again with `"cursor"` set to it. Several small targeted calls beat one wide
 one. If the calls of this message run out first, say how many of the total you read.
 
+The answer reads as a person would write it (T-2769):
+- A text in several languages (`languageMap`) is given in the person's language, else in
+  English, else in the first one it has; never the map, never JSON.
+- Name each entity by its name or title, never by its id: the platform links them. Say how many
+  there are in all.
+- Things in time (events, works, closures) are read from now on first: `q` on their end,
+  `endDate>={today}T00:00:00Z`, then ordered by their start yourself, grouped as today, this
+  week and later, each with its title, dates and place. Past ones only when asked.
+- End with the grid of all of them: `jc_ui_navigate` to `entities` with the endpoint, the type
+  and the `q` you read with, so the person sees every row and not the few you named.
+
 Find the data yourself too. Search the project's catalog with your own words, as often as you
 need:
 
@@ -434,7 +445,8 @@ applies the change themselves. You never write an entity.
 "#,
         serde_json::to_string_pretty(&listed).unwrap_or_default(),
         serde_json::to_string_pretty(&others).unwrap_or_default(),
-        facade_tools()
+        facade_tools(),
+        today = chrono::Utc::now().format("%Y-%m-%d"),
     )
 }
 
@@ -736,6 +748,25 @@ mod tests {
             text.contains("never complete, correct or translate it into a fact"),
             "{text}"
         );
+    }
+
+    /// T-2769: "what are the events" listed 26 URNs from 2020 on. The answer reads from today,
+    /// in the person's language, by name, and ends on the grid of all of them.
+    #[test]
+    fn a_data_answer_reads_from_today_by_name_and_ends_on_the_grid() {
+        let text = section(&[], &[], &[]);
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        assert!(
+            text.contains(&format!("`endDate>={today}T00:00:00Z`")),
+            "{text}"
+        );
+        for rule in [
+            "in the person's language",
+            "never by its id",
+            "`jc_ui_navigate` to `entities`",
+        ] {
+            assert!(text.contains(rule), "{rule}: {text}");
+        }
     }
 
     /// T-2460: one page of 20 of the alerts was read and six were named, and every row carried a
