@@ -15,16 +15,30 @@ const SOURCE = "stations";
 /** Helsinki, where the `helsinki` space's stations are, when no station has a position. */
 const HELSINKI: [number, number] = [24.94, 60.17];
 
+/**
+ * The project's basemap style, from the `#jc-config` the Portal writes into an App's page (AP-67,
+ * T-2928); `undefined` when the page has none or it does not parse, and the map keeps the page's
+ * plain background.
+ */
+export function basemapOf(doc: Document = document): string | undefined {
+  try {
+    const config = JSON.parse(doc.getElementById("jc-config")?.textContent || "{}") as { basemap?: unknown };
+    return typeof config.basemap === "string" && config.basemap.trim() !== "" ? config.basemap : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function StationMap({
   stations,
   selected,
   onSelect,
-  basemap,
+  basemap = basemapOf(),
 }: {
   stations: Station[];
   selected: string | null;
   onSelect: (id: string) => void;
-  /** A style URL; without one the map is the page's plain background with the stations on it. */
+  /** A style URL; the page's `#jc-config` by default, else the plain background. */
   basemap?: string;
 }): JSX.Element {
   const holder = useRef<HTMLDivElement>(null);
