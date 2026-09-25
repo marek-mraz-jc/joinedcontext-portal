@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
-const NAME = "hsl-transport";
-const ORIGIN = "http://portal.test";
-export const BASE = `${ORIGIN}/apps/${NAME}/`;
+// The App is the whole of its own host, `{name}.apps.{domain}`, and built with base `/` (AP-133).
+const ORIGIN = "http://hsl-transport.apps.test";
+export const BASE = `${ORIGIN}/`;
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 
 /** Six buses on four lines around the centre, in the shape the backend's snapshot answers. */
@@ -26,7 +26,7 @@ export interface Served {
 }
 
 /**
- * Serves the built bundle under its published path the way the binary does, with its snapshot and
+ * Serves the built bundle at the root of the App's host the way the binary does, with its snapshot and
  * one frame of its stream answered from `FLEET`. Other hosts (the basemap's tiles) are refused.
  */
 export async function serve(page: Page): Promise<Served> {
@@ -36,11 +36,7 @@ export async function serve(page: Page): Promise<Served> {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== ORIGIN) return route.abort();
-    const path = url.pathname.slice(`/apps/${NAME}/`.length);
-    if (!url.pathname.startsWith(`/apps/${NAME}/`)) {
-      served.missing.push(url.pathname);
-      return route.fulfill({ status: 404, body: "" });
-    }
+    const path = url.pathname.slice(1);
     if (path === "api/vehicles") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(FLEET) });
     if (path === "api/stream") {
       return route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: vehicles\ndata: ${JSON.stringify(FLEET)}\n\n` });
