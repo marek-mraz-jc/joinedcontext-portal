@@ -8,7 +8,8 @@ import { ALERTS } from "../src/fixtures/alerts";
 import { SCHEMA } from "../src/fixtures/schema";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
-const APP = "/apps/helsinki-alerts/";
+/** The App is served at the root of its own host (T-2838). */
+const APP = "/";
 export const SLUG = "helsinkialerts";
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
 
@@ -42,8 +43,8 @@ export async function serve(page: Page, role: "viewer" | "steward", access: Acce
       outside.push(url.href);
       return route.abort();
     }
-    // A published app calls its endpoint under its own path, where the edge sets the session as
-    // the bearer and strips the prefix (T-2670); the stub answers the gateway's path.
+    // A published app calls its endpoint unprefixed on its own host, where the edge sets the
+    // session as the bearer (T-2670, T-2838); the stub answers the gateway's path.
     if (url.pathname.startsWith(`${APP}api/endpoint/${SLUG}/`)) {
       const raw = request.postData();
       const body = raw ? JSON.parse(raw) : undefined;
@@ -52,7 +53,6 @@ export async function serve(page: Page, role: "viewer" | "steward", access: Acce
       const answer = await transport({ method: request.method() as "GET", path: path + url.search, body });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
-    if (!url.pathname.startsWith(APP)) return route.fulfill({ status: 404, body: "" });
     const file = normalize(url.pathname.slice(APP.length) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) return route.fulfill({ status: 404, body: "" });
     let body = readFileSync(join(DIST, file));

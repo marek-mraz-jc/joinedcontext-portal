@@ -17,7 +17,7 @@ for (const view of VIEWS) {
       await page.setViewportSize(size);
       await page.goto(`${BASE}${view.hash}`);
       if (view.hash === "#overview") {
-        await expect(page.getByText("Bikes available")).toBeVisible();
+        await expect(page.getByText("Bikes available", { exact: true })).toBeVisible();
         // T-2924: the map and the three charts are drawn on the first screen, in colour.
         const overview = page.getByRole("region", { name: "Overview" });
         await expect(overview.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
