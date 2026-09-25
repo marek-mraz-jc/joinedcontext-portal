@@ -120,6 +120,14 @@ impl Driver {
                     }
                 }
                 "message" if sent_by_person(&event) => {
+                    // The page the person sent this from is the one they ask about now (T-2763).
+                    if let Some(page) = event
+                        .payload
+                        .get("page")
+                        .and_then(|page| serde_json::from_value(page.clone()).ok())
+                    {
+                        *self.page.lock().unwrap_or_else(PoisonError::into_inner) = Some(page);
+                    }
                     let text = event
                         .payload
                         .get("text")
@@ -547,6 +555,14 @@ impl Driver {
     /// `jc_draft_put`. The open form is watching that draft and shows what the assistant wrote, so
     /// the person sees the fields change and decides. Nothing here is proposed.
     fn looking_at(&self, pack: &mut String) {
+        if let Some(page) = self
+            .page
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            pack.push_str(&page.section());
+        }
         if self.form.is_empty() {
             return;
         }

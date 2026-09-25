@@ -288,6 +288,8 @@ struct Driver {
     /// The path the conversation is on (AG-89): the one the person picked, the one `choose_path`
     /// or a hand-over took, or none. It changes during a turn, so it is behind a lock.
     path: std::sync::Mutex<Option<crate::agents::paths::Path>>,
+    /// The newest page the person was on as they spoke (T-2763).
+    page: std::sync::Mutex<Option<crate::agents::page::PageContext>>,
     /// When the request that started this run arrived, for the `elapsedMs` of its steps (AG-91).
     started: std::time::Instant,
 }
@@ -320,6 +322,8 @@ pub struct FormContext {
 pub struct Opening {
     pub form: FormContext,
     pub path: Option<crate::agents::paths::Path>,
+    /// The page the person was on (T-2763).
+    pub page: Option<crate::agents::page::PageContext>,
 }
 
 impl FormContext {
@@ -338,7 +342,7 @@ pub fn spawn(
     settings: &crate::config::AgentSettings,
     opening: Opening,
 ) {
-    let Opening { form, path } = opening;
+    let Opening { form, path, page } = opening;
     let http = reqwest::Client::builder()
         .timeout(CALL_TIMEOUT)
         .build()
@@ -378,6 +382,7 @@ pub fn spawn(
         transcript_budget: transcript_budget(profile.max_tokens_per_run),
         form,
         path: std::sync::Mutex::new(path),
+        page: std::sync::Mutex::new(page),
         started: std::time::Instant::now(),
     };
     tokio::spawn(async move {
@@ -433,6 +438,7 @@ impl Driver {
             transcript_budget: transcript_budget(400_000),
             form: FormContext::default(),
             path: std::sync::Mutex::new(None),
+            page: std::sync::Mutex::new(None),
             started: std::time::Instant::now(),
         }
     }
@@ -1286,6 +1292,7 @@ mod tests {
             transcript_budget: transcript_budget(400_000),
             form: FormContext::default(),
             path: std::sync::Mutex::new(None),
+            page: std::sync::Mutex::new(None),
             started: std::time::Instant::now(),
         };
         let pack = driver

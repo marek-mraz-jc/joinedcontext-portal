@@ -218,6 +218,23 @@ describe("the data bar (AG-75)", () => {
     expect(add).toHaveAttribute("aria-expanded", "false");
   });
 
+  // T-2763: "and this one?" is about the page the person is on as they send it.
+  it("in a running conversation sends the page each message was written on", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", `/projects/${PROJECT}/endpoints/helsinki-all`);
+    rememberRun({ project: PROJECT, runId: RUN_ID });
+    const { messages } = renderDock();
+    await waitFor(() => expect(chipNames()).toEqual(["helsinki-all"]));
+    await user.type(screen.getByLabelText(en.agentRun.conversation.placeholder), "what is on this page?");
+    await user.click(screen.getByRole("button", { name: en.agentRun.conversation.send }));
+    await waitFor(() => expect(messages).toHaveLength(1));
+    expect(messages[0]).toEqual({
+      text: "what is on this page?",
+      pageContext: { route: `/projects/${PROJECT}/endpoints/helsinki-all` },
+    });
+    window.history.pushState({}, "", "/");
+  });
+
   it("in a running conversation sends a changed list with the next message only, follows the run's endpoints events, and takes a found endpoint by Use", async () => {
     const user = userEvent.setup();
     rememberRun({ project: PROJECT, runId: RUN_ID });

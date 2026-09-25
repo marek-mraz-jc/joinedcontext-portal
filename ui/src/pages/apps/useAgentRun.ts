@@ -41,6 +41,8 @@ export const EVENT_KINDS = [
 export interface AgentRun {
   id: string;
   project: string;
+  /** `conversation` for the assistant, an application run otherwise (API/04). */
+  kind?: string;
   appName: string;
   /** What the application is called on screen; the name is its id (absent from older runs). */
   title?: string;
@@ -240,7 +242,7 @@ export function useAgentRun(project: string, runId: string | null) {
 
   const send = useMutation({
     // A message may change the endpoints a conversation queries (AG-75): they travel with it.
-    mutationFn: async (message: string | { text: string; endpointNames?: string[] }) =>
+    mutationFn: async (message: string | { text: string; endpointNames?: string[]; pageContext?: { route: string } }) =>
       unwrap(
         await api.POST("/api/v1/projects/{project}/agent-runs/{id}/messages", {
           params: { path: { project, id: runId ?? "" } },

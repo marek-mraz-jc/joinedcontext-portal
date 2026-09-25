@@ -583,6 +583,10 @@ pub struct StartConversation {
     /// person's own draft with `jc_draft_get` under their own grants.
     #[serde(default)]
     pub form_context: Option<FormContextRequest>,
+    /// The page the person is on (T-2763, API/04 §"Start or Continue"): its route, read against
+    /// the Portal's page table, names only.
+    #[serde(default)]
+    pub page_context: Option<PageContextRequest>,
     #[serde(default)]
     pub profile: Option<String>,
     #[serde(default)]
@@ -602,6 +606,24 @@ pub struct FormContextRequest {
     pub name: Option<String>,
     #[serde(default)]
     pub field: Option<String>,
+}
+
+/// The page the question was asked from, as the browser sends it: the route only.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PageContextRequest {
+    pub route: String,
+}
+
+/// The page a request names, read against the Portal's page table; `400` when it is none.
+pub(crate) fn page_context(
+    asked: Option<&PageContextRequest>,
+    project: &str,
+) -> Result<Option<crate::agents::page::PageContext>, ApiError> {
+    asked
+        .map(|asked| crate::agents::page::parse(&asked.route, project))
+        .transpose()
+        .map_err(ApiError::BadRequest)
 }
 
 /// The longest field path a form may name: deeper than any kind has, shorter than a payload.
@@ -697,6 +719,7 @@ pub async fn start_conversation(
     crate::api::agent_runs::within_runs_per_day(&state, &project).await?;
 
     let form = form_context(&request)?;
+    let page = page_context(request.page_context.as_ref(), &project)?;
 
     let profile_name = request.profile.clone().unwrap_or_else(default_profile);
     let profile = Profile::load(&state.mirror, &profile_name)?;
@@ -833,6 +856,7 @@ pub async fn start_conversation(
         oneshot::Opening {
             form,
             path: request.path,
+            page,
         },
     );
 
@@ -1097,6 +1121,7 @@ mod tests {
                 profile: None,
                 continues: None,
                 endpoint_names: Vec::new(),
+                page_context: None,
                 form_context: Some(FormContextRequest {
                     kind: kind.map(str::to_owned),
                     name: name.map(str::to_owned),
@@ -1144,6 +1169,7 @@ mod tests {
             continues: None,
             endpoint_names: Vec::new(),
             form_context: None,
+            page_context: None,
         })
         .expect("a question from a page is fine")
         .is_empty());

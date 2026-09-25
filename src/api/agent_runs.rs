@@ -165,6 +165,9 @@ pub struct MessageRequest {
     /// On a conversation: the endpoints the assistant may query from this message on (AG-75).
     #[serde(default, rename = "endpointNames")]
     pub endpoint_names: Option<Vec<String>>,
+    /// On a conversation: the page the person is on as they send it (T-2763).
+    #[serde(default, rename = "pageContext")]
+    pub page_context: Option<crate::api::assistant::PageContextRequest>,
 }
 
 /// A runtime error the preview frame posted as `jc-error`, relayed by the page that frames it.
@@ -1109,6 +1112,12 @@ pub async fn post_message(
             "text is longer than {MAX_MESSAGE_CHARS} characters"
         )));
     }
+    if request.page_context.is_some() && run.kind != "conversation" {
+        return Err(ApiError::BadRequest(
+            "pageContext is the page of a conversation only".into(),
+        ));
+    }
+    let page = crate::api::assistant::page_context(request.page_context.as_ref(), &project)?;
     if let Some(names) = &request.endpoint_names {
         if run.kind != "conversation" {
             return Err(ApiError::BadRequest(
@@ -1157,6 +1166,7 @@ pub async fn post_message(
         serde_json::json!({
             "text": text,
             "sentBy": user.0.identity.username,
+            "page": page,
         }),
     )
     .await?;

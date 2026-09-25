@@ -261,6 +261,19 @@ describe("where the assistant's input sits", () => {
     await waitFor(() => expect(screen.queryByTestId("assistant-paths")).toBeNull());
   });
 
+  // T-2763: the run is told the page the person started it from.
+  it("sends the page the person is on with the conversation it starts", async () => {
+    window.history.pushState({}, "", `/projects/${PROJECT}/spaces/helsinki?tab=inside`);
+    const { started } = renderDock();
+    const person = await openDock();
+    const share = await screen.findByRole("button", { name: pathName("share-data") });
+    await waitFor(() => expect(share).not.toHaveAttribute("aria-disabled"));
+    await person.click(share);
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0]).toMatchObject({ pageContext: { route: `/projects/${PROJECT}/spaces/helsinki?tab=inside` } });
+    window.history.pushState({}, "", "/");
+  });
+
   it("disables every path the caller's role cannot take, with the reason on it", async () => {
     const { started } = renderDock({ mayPropose: false });
     const person = await openDock();

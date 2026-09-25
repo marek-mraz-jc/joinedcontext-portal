@@ -14,6 +14,7 @@ pub mod kube;
 pub mod model_change;
 pub mod needs;
 pub mod oneshot;
+pub mod page;
 pub mod patch;
 pub mod paths;
 pub mod preview;

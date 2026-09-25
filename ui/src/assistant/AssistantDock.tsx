@@ -31,6 +31,7 @@ import {
   onAskRequest,
   formContext,
   onOpenRequest,
+  pageContext,
   parseRun,
   rememberNavigated,
   rememberPrefill,
@@ -271,6 +272,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             message: promptText,
             endpointNames: chosenEndpoints,
             formContext: formContext(),
+            pageContext: pageContext(activeProject),
             path,
           },
         }),
@@ -652,12 +654,16 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
             }}
             // `mutateAsync`, so the panel knows whether the message left: it empties the box on
             // success and keeps every word of it, with the reason, when the send failed (T-1761).
+            // Each message of a conversation says the page it was sent from: "and this one?" is
+            // about where the person is now (T-2763). An application run takes no page.
             onSend={(text) =>
-              send.mutateAsync(
-                pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
-                  ? { text, endpointNames: pendingEndpoints }
-                  : text,
-              )
+              send.mutateAsync({
+                text,
+                pageContext: record.data?.kind === "conversation" ? pageContext(activeProject) : undefined,
+                ...(pendingEndpoints !== null && !sameEndpoints(pendingEndpoints, runEndpoints)
+                  ? { endpointNames: pendingEndpoints }
+                  : {}),
+              })
             }
             onCancel={() => cancel.mutate()}
             onRetry={retry}

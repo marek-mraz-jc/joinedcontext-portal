@@ -10386,6 +10386,17 @@
             },
             "description": "On a conversation: the endpoints the assistant may query from this message on (AG-75)."
           },
+          "pageContext": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageContextRequest",
+                "description": "On a conversation: the page the person is on as they send it (T-2763)."
+              }
+            ]
+          },
           "text": {
             "type": "string"
           }
@@ -10868,6 +10879,19 @@
             "type": "string"
           }
         }
+      },
+      "PageContextRequest": {
+        "type": "object",
+        "description": "The page the question was asked from, as the browser sends it: the route only.",
+        "required": [
+          "route"
+        ],
+        "properties": {
+          "route": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "PartialSuccess": {
         "type": "object",
@@ -12113,6 +12137,17 @@
           "message": {
             "type": "string",
             "description": "Required unless `path` is given (API/04 §8)."
+          },
+          "pageContext": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageContextRequest",
+                "description": "The page the person is on (T-2763, API/04 §\"Start or Continue\"): its route, read against\nthe Portal's page table, names only."
+              }
+            ]
           },
           "path": {
             "oneOf": [

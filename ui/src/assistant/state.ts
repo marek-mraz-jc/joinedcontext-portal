@@ -325,6 +325,25 @@ export function formContext(): FormContext | undefined {
   return { ...openForm };
 }
 
+/** A route segment the Portal takes as a page, a name or a tab: a DNS-1123 label. */
+const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * The page the person is on, to send with a question (T-2763, API/04): the route, and only a
+ * route the Portal reads as a page of this project, so a question asked anywhere else starts
+ * without one rather than being refused. The Portal reads it again; names only, never values.
+ */
+export function pageContext(project: string, location: Pick<Location, "pathname" | "search"> = window.location): { route: string } | undefined {
+  const segments = location.pathname.replace(/\/+$/, "").split("/").slice(1);
+  const [root, on, ...rest] = segments;
+  if (root !== "projects" || on !== project || rest.length < 1 || rest.length > 3 || !rest.every((one) => LABEL.test(one))) {
+    return undefined;
+  }
+  const tab = new URLSearchParams(location.search).get("tab");
+  const route = `/projects/${project}/${rest.join("/")}${tab !== null && LABEL.test(tab) ? `?tab=${tab}` : ""}`;
+  return route.length <= 300 ? { route } : undefined;
+}
+
 /**
  * Opens the assistant with a question already written, which the person sends (or edits) themselves
  * — the dock never asks on its own behalf (AG-73).

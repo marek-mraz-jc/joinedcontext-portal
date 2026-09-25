@@ -406,6 +406,7 @@ pub fn operations() -> Vec<Operation> {
                         Json(crate::api::agent_runs::MessageRequest {
                             text: input.text,
                             endpoint_names: input.endpoint_names,
+                            page_context: None,
                         }),
                     )
                     .await?;
