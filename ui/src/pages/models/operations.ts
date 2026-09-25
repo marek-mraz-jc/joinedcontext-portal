@@ -7,7 +7,6 @@ import {
   NGSI_LD_KINDS,
   ON_DELETE_RULES,
   RANGES,
-  UNIT_CODES,
   edit,
   flagsOf,
   parseModel,
@@ -17,6 +16,7 @@ import {
   storedEnd,
 } from "./linkml";
 import type { Cardinality, LinkmlModel, LinkmlSlot, NgsiLdKind, OnDelete, Relationship } from "./linkml";
+import { unitOf } from "../../units";
 
 /**
  * The operations the editor can perform on a model, as plain data (DM-13, DM-31, DM-32).
@@ -313,18 +313,21 @@ function setSlotField(
         document.deleteIn([...path, "unit"]);
         return;
       }
-      const unit = UNIT_CODES.find((entry) => entry.code === trimmed);
+      const unit = unitOf(trimmed);
       if (!unit) {
-        refuse(`unit '${trimmed}' of slot '${name}' is not a known UN/CEFACT common code`);
+        refuse(
+          `unit '${trimmed}' of slot '${name}' is not a UN/CEFACT Recommendation 20 code; codes are case-sensitive, such as GQ for µg/m³ or CEL for °C`,
+        );
       }
       // The wire value and the anchor together (DM-06, DM-59): NGSI-LD puts the UN/CEFACT code
       // on the wire as `unitCode`, and the QUDT unit is what a federated reader dereferences
       // to align this measurement with somebody else's. The quantity kind says what dimension
       // is being measured, which is what makes two units comparable at all.
+      // Every field comes from the code list; one it does not carry is left out, not guessed.
       document.setIn([...path, "unit"], {
-        ucum_code: unit.ucum,
-        exact_mappings: [`ucefact:${unit.code}`, `qudt-unit:${unit.qudt}`],
-        has_quantity_kind: `qudt-quantkind:${unit.quantityKind}`,
+        ...(unit.ucum ? { ucum_code: unit.ucum } : {}),
+        exact_mappings: [`ucefact:${unit.code}`, ...(unit.qudt ? [`qudt-unit:${unit.qudt}`] : [])],
+        ...(unit.quantityKinds.length > 0 ? { has_quantity_kind: `qudt-quantkind:${unit.quantityKinds[0]}` } : {}),
       });
       declarePrefixes(document);
       return;

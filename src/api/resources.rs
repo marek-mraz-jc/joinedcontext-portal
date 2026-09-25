@@ -190,7 +190,15 @@ pub async fn get_resource(
         ))
     };
     let kind_info = by_plural(&plural).ok_or_else(not_found)?;
+    // An App's default group is read by whoever may read the App (AP-119).
     if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read(kind_info.kind)
+        && !crate::groups::may_read_as_app_group(
+            &state,
+            &user.0.identity,
+            &project,
+            kind_info.kind,
+            &name,
+        )
     {
         return Err(not_found());
     }

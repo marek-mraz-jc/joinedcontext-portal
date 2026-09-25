@@ -7,6 +7,7 @@
  * the authoritative artifacts come from Model Tools (DM-18).
  */
 import { parseDocument, type Document } from "yaml";
+import { unitOf } from "../../units";
 
 /** The NGSI-LD kinds a slot may declare (DM-05), in the annotation Model Tools reads. */
 export const NGSI_LD_KINDS = [
@@ -43,48 +44,6 @@ export const RESERVED_NAMESPACES = [
 
 /** A slot carrying this annotation cites an upstream term, so a reserved IRI is a citation. */
 export const UPSTREAM_ANNOTATION = "upstream_source";
-
-/**
- * UN/CEFACT common codes for the units a municipal model actually measures in (DM-06).
- *
- * The full CEFACT recommendation 20 is thousands of codes; this is the working set the unit
- * picker offers, and any other code can still be typed. `ucum` is what LinkML's `unit.ucum_code`
- * takes, `code` is the CEFACT common code that travels in `exact_mappings`, and `qudt` and
- * `quantityKind` are the anchor beside it (DM-59): the IRI a federated reader dereferences, and
- * the dimension that lets two organisations' measurements be aligned rather than two opaque
- * codes compared.
- *
- * This is the crosswalk, and it is here because here is where a person picks a unit; the model
- * records the choice and every generator reads the model. Model Tools keeps the same table for
- * the one path with no person in it — inferring a model from a sample —
- * (`tools/model-tools/src/infer_schema.py`, `UNIT_UCUM` and `UNIT_QUDT`, in the other
- * repository). Nothing can compare the two from inside one checkout, so a code added here
- * belongs there in the same change. Both were read out of QUDT's own vocabulary by
- * `qudt:ucumCode`, never written from memory: `ug/m3` is `MassDensity` to QUDT, not the
- * `MassConcentration` a person would guess.
- */
-export const UNIT_CODES = [
-  { code: "GQ", ucum: "ug/m3", label: "microgram per cubic metre", qudt: "MicroGM-PER-M3", quantityKind: "MassDensity" },
-  { code: "M1", ucum: "mg/L", label: "milligram per litre", qudt: "MilliGM-PER-L", quantityKind: "MassConcentration" },
-  { code: "CEL", ucum: "Cel", label: "degree Celsius", qudt: "DEG_C", quantityKind: "Temperature" },
-  { code: "P1", ucum: "%", label: "percent", qudt: "PERCENT", quantityKind: "DimensionlessRatio" },
-  { code: "MTR", ucum: "m", label: "metre", qudt: "M", quantityKind: "Length" },
-  { code: "KMT", ucum: "km", label: "kilometre", qudt: "KiloM", quantityKind: "Length" },
-  { code: "MTS", ucum: "m/s", label: "metre per second", qudt: "M-PER-SEC", quantityKind: "Speed" },
-  { code: "KMH", ucum: "km/h", label: "kilometre per hour", qudt: "KiloM-PER-HR", quantityKind: "LinearVelocity" },
-  { code: "SEC", ucum: "s", label: "second", qudt: "SEC", quantityKind: "Time" },
-  { code: "HUR", ucum: "h", label: "hour", qudt: "HR", quantityKind: "Time" },
-  { code: "KGM", ucum: "kg", label: "kilogram", qudt: "KiloGM", quantityKind: "Mass" },
-  { code: "TNE", ucum: "t", label: "tonne", qudt: "TONNE", quantityKind: "Mass" },
-  { code: "LTR", ucum: "L", label: "litre", qudt: "L", quantityKind: "Volume" },
-  { code: "MTQ", ucum: "m3", label: "cubic metre", qudt: "M3", quantityKind: "Volume" },
-  { code: "KWH", ucum: "kW.h", label: "kilowatt hour", qudt: "KiloW-HR", quantityKind: "Energy" },
-  { code: "WTT", ucum: "W", label: "watt", qudt: "W", quantityKind: "Power" },
-  { code: "A24", ucum: "cd/m2", label: "candela per square metre", qudt: "CD-PER-M2", quantityKind: "Luminance" },
-  { code: "2N", ucum: "dB", label: "decibel", qudt: "DeciB", quantityKind: "SoundPressureLevel" },
-  { code: "HPA", ucum: "hPa", label: "hectopascal", qudt: "HectoPA", quantityKind: "ForcePerArea" },
-  { code: "C62", ucum: "1", label: "one (dimensionless)", qudt: "NUM", quantityKind: "Dimensionless" },
-] as const;
 
 /** The LinkML ranges the editor offers, and how a dashboard may use each of them (DM-20). */
 export const RANGES = [
@@ -508,17 +467,30 @@ export function diagnose(
         path: `slots.${slot.name}`,
       });
     }
-    if (slot.unit && !slot.unit.ucum_code && !unitCode(slot.unit)) {
-      found.push({
-        ...where,
-        severity: "warning",
-        message: `slot '${slot.name}' declares a unit without a UN/CEFACT common code, so exports and dashboards cannot label it`,
-        path: `slots.${slot.name}`,
-      });
-    }
+    found.push(...unitProblems(slot, where));
     found.push(
       ...missingLocales(slot.title, locales, `slot '${slot.name}'`, where, `slots.${slot.name}`),
     );
+  }
+
+  // One IRI means one thing: two slots bound to it in different units would put two numbers
+  // for the same measurement on the wire, and a federated reader could not tell which is right.
+  const unitsByIri = new Map<string, LinkmlSlot>();
+  for (const slot of model.slots) {
+    const code = unitCode(slot.unit);
+    if (!slot.slot_uri || code === undefined) continue;
+    const first = unitsByIri.get(slot.slot_uri);
+    const firstCode = unitCode(first?.unit);
+    if (first === undefined) {
+      unitsByIri.set(slot.slot_uri, slot);
+    } else if (firstCode !== code) {
+      found.push({
+        ...at(["slots", slot.name]),
+        severity: "error",
+        message: `slots '${first.name}' and '${slot.name}' are both bound to '${slot.slot_uri}' but measure in ${firstCode ?? ""} and ${code}; one IRI takes one unit`,
+        path: `slots.${slot.name}`,
+      });
+    }
   }
 
   // The annotation is free text in YAML, so a typo would only surface at generation.
@@ -557,10 +529,66 @@ export function diagnose(
   return found;
 }
 
-/** The CEFACT common code a unit carries in `exact_mappings`, per DM-06. */
+/**
+ * The CEFACT common code a unit carries in `exact_mappings` (DM-06): the `ucefact:` mapping,
+ * whichever position it has, and the `unece:` spelling older models used.
+ */
 export function unitCode(unit: LinkmlUnit | undefined): string | undefined {
-  const mapping = unit?.exact_mappings?.find((entry) => entry.includes(":"));
-  return mapping?.split(":").pop() || undefined;
+  const mapping = unit?.exact_mappings?.find((entry) => /^(ucefact|unece):/.test(entry));
+  return mapping?.slice(mapping.indexOf(":") + 1) || undefined;
+}
+
+const NUMERIC_RANGES = ["integer", "float", "double", "decimal"];
+
+/**
+ * A slot name that reads as a measured quantity (DM-06): a number of such a slot without a unit
+ * is a number nobody can compare. A heuristic, so what it finds is a warning.
+ */
+const QUANTITY_NAME =
+  /temperature|concentration|speed|velocity|pressure|humidity|precipitation|rainfall|distance|length|height|depth|width|weight|mass|energy|power|volume|duration|flow|level|pm10|pm25|pm2_5|no2|so2|co2|o3/i;
+
+/** What is wrong with a slot's unit, if anything (DM-06, DM-59). */
+function unitProblems(slot: LinkmlSlot, where: Pick<Diagnostic, "line" | "column">): Diagnostic[] {
+  const path = `slots.${slot.name}`;
+  const code = unitCode(slot.unit);
+  const numeric = NUMERIC_RANGES.includes(slot.range ?? "");
+  if (slot.unit === undefined) {
+    return numeric && slot.kind === "Property" && QUANTITY_NAME.test(slot.name)
+      ? [
+          {
+            ...where,
+            severity: "warning",
+            message: `slot '${slot.name}' is a number that reads as a measured quantity but declares no unit; pick one, or every reader guesses`,
+            path,
+          },
+        ]
+      : [];
+  }
+  const found: Diagnostic[] = [];
+  if (code === undefined) {
+    found.push({
+      ...where,
+      severity: "warning",
+      message: `slot '${slot.name}' declares a unit without a UN/CEFACT common code, so exports and dashboards cannot label it`,
+      path,
+    });
+  } else if (unitOf(code) === undefined) {
+    found.push({
+      ...where,
+      severity: "error",
+      message: `slot '${slot.name}' declares unit '${code}', which is not a UN/CEFACT Recommendation 20 code; pick one from the unit list`,
+      path,
+    });
+  }
+  if (!numeric) {
+    found.push({
+      ...where,
+      severity: "error",
+      message: `slot '${slot.name}' declares a unit but its range is '${slot.range ?? "string"}'; a unit belongs on a number (integer, float, double or decimal)`,
+      path,
+    });
+  }
+  return found;
 }
 
 function missingLocales(

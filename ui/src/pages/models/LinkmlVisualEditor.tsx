@@ -21,7 +21,6 @@ import {
   EMPTY_MODEL,
   NGSI_LD_KINDS,
   RANGES,
-  UNIT_CODES,
   parseModel,
   reservedNamespace,
   slotAffordance,
@@ -30,6 +29,7 @@ import {
 } from "./linkml";
 import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
+import { UnitPicker } from "../../components/pickers/UnitPicker";
 import type { Operation, SlotField } from "./operations";
 import { RelationshipEditor } from "./RelationshipEditor";
 
@@ -606,18 +606,14 @@ export function LinkmlVisualEditor({
                 />
               </Field>
               <Field id="slot-unit" label={t("models.unit")} help={t("models.unitHint")}>
-                <Select
+                <UnitPicker
                   id="slot-unit"
+                  label={t("models.unit")}
+                  labelled
+                  clearable
                   value={unitCode(activeSlot.unit) ?? ""}
-                  onChange={(event) => setSlotField(activeSlot.name, "unit", event.target.value)}
-                >
-                  <option value="">—</option>
-                  {UNIT_CODES.map((unit) => (
-                    <option key={unit.code} value={unit.code}>
-                      {`${unit.code} · ${unit.ucum} · ${unit.label}`}
-                    </option>
-                  ))}
-                </Select>
+                  onChange={(code) => setSlotField(activeSlot.name, "unit", code)}
+                />
               </Field>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">

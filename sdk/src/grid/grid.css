@@ -141,8 +141,10 @@
   color: var(--jc-color-danger, #cc0000);
 }
 
+/* It wraps on a phone: centred and on one line it spilled past both edges of the grid. */
 .jc-grid-pager {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--jc-space-2, 8px);
@@ -266,8 +268,10 @@
   padding: 0.5rem 0.75rem;
 }
 
+/* One line: a wrapping column stretches its items to the widest one's content, not to the grid. */
 .jc-grid-review {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
 }
 
@@ -276,9 +280,27 @@
   border-collapse: collapse;
 }
 
+/* The changes scroll in their own box, and their cells wrap where the grid's stay on one line:
+   an entity id has no break of its own, and unbroken it pushed the panel and its save button past
+   the grid's edge. */
+.jc-grid-review-rows {
+  overflow-x: auto;
+}
+
+.jc-grid-review :is(th, td) {
+  white-space: normal;
+}
+
+.jc-grid-review td {
+  overflow-wrap: anywhere;
+}
+
+/* A fieldset is as wide as its content by default; the two choices wrap on a phone instead. */
 .jc-grid-review fieldset {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  min-inline-size: 0;
   border: 0;
   padding: 0;
 }

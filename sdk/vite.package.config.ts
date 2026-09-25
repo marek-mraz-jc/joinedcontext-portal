@@ -9,7 +9,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 /**
- * The published `@joinedcontext/sdk` (SDK-17, AP-11): the three entry points a generated
+ * The published `@joinedcontext/sdk` (SDK-17, AP-11): the entry points a generated
  * application imports, built as ES modules beside their type declarations, with the stylesheet
  * and the tokens copied as they are.
  *
@@ -35,6 +35,7 @@ export default defineConfig({
         index: fileURLToPath(new URL("./src/sdk/index.ts", import.meta.url)),
         server: fileURLToPath(new URL("./src/sdk/server.ts", import.meta.url)),
         testing: fileURLToPath(new URL("./src/sdk/testing.ts", import.meta.url)),
+        responsive: fileURLToPath(new URL("./src/sdk/responsive.ts", import.meta.url)),
       },
       formats: ["es"],
     },
