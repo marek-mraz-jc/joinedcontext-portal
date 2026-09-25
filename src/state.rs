@@ -79,6 +79,9 @@ pub struct AppState {
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
+    /// What the last data-quality run found, by space (DM-70). Empty until the leader has run
+    /// one, which the API answers as "not checked yet".
+    pub quality: Arc<crate::quality::Store>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
@@ -153,6 +156,7 @@ impl AppState {
             activity_events,
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
+            quality: Arc::new(crate::quality::Store::default()),
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
@@ -569,6 +573,14 @@ impl AppState {
                     // One watch, two readers: the reconciler scans with it and a resolution
                     // writes through it, so the buttons cannot reach a surface the scan did not.
                     state.drift_watch = Some(Arc::clone(&watch));
+                    // The daily data-quality run reads through the same client (DM-70).
+                    syncer = syncer.with_quality(Arc::new(crate::quality::Scanner {
+                        watch: Arc::clone(&watch),
+                        schemas: Arc::clone(&state.model_schemas),
+                        mirror: Arc::clone(&state.mirror),
+                        org_domain: state.config.org_domain.clone().unwrap_or_default(),
+                        store: Arc::clone(&state.quality),
+                    }));
                     syncer = syncer.with_drift(watch, Arc::clone(&state.drift));
                 }
                 _ => tracing::info!(

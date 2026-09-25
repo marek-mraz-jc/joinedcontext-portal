@@ -368,6 +368,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Validation Health
+         * @description The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).
+         */
+        get: operations["get_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people": {
         parameters: {
             query?: never;
@@ -875,6 +895,26 @@ export interface paths {
          * @description Proposes the application a finished run built; a person approves the change.
          */
         post: operations["publish_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/app-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Checks
+         * @description The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).
+         */
+        get: operations["list_app_checks"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1721,6 +1761,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Data Quality
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).
+         */
+        get: operations["get_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
         parameters: {
             query?: never;
@@ -2299,6 +2359,19 @@ export interface components {
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
         };
+        /** @description The last probe of one App (AP-136). */
+        AppCheck: {
+            /** Format: date-time */
+            at: string;
+            name: string;
+            reason?: string | null;
+            state: components["schemas"]["AppCheckState"];
+        };
+        /** @enum {string} */
+        AppCheckState: "green" | "red" | "amber";
+        AppChecks: {
+            checks: components["schemas"]["AppCheck"][];
+        };
         /**
          * @description The caller as a published App sees them: the object the static host writes into
          *     `#jc-config` as `user` (AP-95).
@@ -2792,6 +2865,13 @@ export interface components {
             key: string;
             params: Record<string, never>;
         };
+        CheckHealth: {
+            check: string;
+            result?: null | components["schemas"]["Digest"];
+            state: components["schemas"]["CheckState"];
+        };
+        /** @enum {string} */
+        CheckState: "green" | "red" | "stale" | "unreadable";
         /** @description The CKAN picture of one project. */
         CkanStatus: {
             /** @description Every catalogue this project can publish to. */
@@ -2872,6 +2952,17 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        /** @description How many results of one run ended in each verdict. */
+        Counts: {
+            /** Format: int32 */
+            error: number;
+            /** Format: int32 */
+            fail: number;
+            /** Format: int32 */
+            pass: number;
+            /** Format: int32 */
+            skip: number;
+        };
         CreatePerson: {
             email: string;
             firstName: string;
@@ -2927,6 +3018,23 @@ export interface components {
             refresh: string;
             /** @description The tabular representation the rows are read through. */
             representation: string;
+        };
+        /** @description What `scripts/publish-health.py` writes for one check. */
+        Digest: {
+            /** Format: date-time */
+            at: string;
+            check: string;
+            counts: components["schemas"]["Counts"];
+            /** Format: int32 */
+            everyHours: number;
+            failures?: components["schemas"]["Failure"][];
+            history?: components["schemas"]["Point"][];
+            /**
+             * @description The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for
+             *     every other check.
+             */
+            passed?: string[];
+            run?: string | null;
         };
         /** @description `status.domainVerification` of an Organization (PF-41, Architecture/03 §3). */
         DomainVerification: {
@@ -3062,6 +3170,15 @@ export interface components {
             /** Format: int32 */
             status: number;
         };
+        /** @description One result of the last run that did not pass, and the open task it filed. */
+        Failure: {
+            key: string;
+            task?: string | null;
+            title: string;
+            verdict: components["schemas"]["FailureVerdict"];
+        };
+        /** @enum {string} */
+        FailureVerdict: "fail" | "error";
         /** @description The federation of one project (UI-27). */
         FederationGraph: {
             /** @description Directed edges, each naming the manifest it was read from. */
@@ -3136,14 +3253,19 @@ export interface components {
             kind?: string | null;
             name?: string | null;
         };
-        /** @description The runner's counters for the pipeline that feeds an endpoint, read when the search ran. */
+        /** @enum {string} */
+        FreshState: "fresh" | "stale" | "empty" | "untargeted";
+        /** @description How recent the data of one pipeline is. */
         Freshness: {
-            /** Format: int64 */
-            errors?: number | null;
+            /** Format: date-time */
+            newest?: string | null;
+            paused: boolean;
             pipeline: string;
+            state: components["schemas"]["FreshState"];
             /** Format: int64 */
-            received?: number | null;
-            scrapedAt: string;
+            targetSeconds?: number | null;
+            /** @description The pipeline's output type; empty when it names none and the whole space counts. */
+            type: string;
         };
         /**
          * @description How a request authenticated: what `GET /api/v1/auth/me` reports so the UI knows whose
@@ -3725,6 +3847,19 @@ export interface components {
             /** @description `{ "user": … }` or `{ "group": … }`. */
             via: Record<string, never>;
         };
+        /** @description One earlier run, for the trend. */
+        Point: {
+            /** Format: date-time */
+            at: string;
+            /** Format: int32 */
+            error: number;
+            /** Format: int32 */
+            fail: number;
+            /** Format: int32 */
+            pass: number;
+            /** Format: int32 */
+            skip: number;
+        };
         Preferences: {
             /**
              * @description Whether manifest forms show the fields a `UiSchema` marks `advanced` (CC-29, UI-02).
@@ -4039,6 +4174,15 @@ export interface components {
              */
             overlapHours?: number | null;
         };
+        /** @description One failing rule of a space: a SHACL component and the path it is about. */
+        RuleCount: {
+            /** Format: int64 */
+            count: number;
+            /** @description At most five ids of entities that break it. */
+            examples: string[];
+            path: string;
+            rule: string;
+        };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
          *
@@ -4143,6 +4287,18 @@ export interface components {
         SpaceMapping: {
             from: string;
             to: string;
+        };
+        /** @description What one run found in one space. */
+        SpaceQuality: {
+            /** Format: int64 */
+            checked: number;
+            freshness: components["schemas"]["Freshness"][];
+            /** Format: int64 */
+            invalid: number;
+            /** Format: date-time */
+            observedAt: string;
+            rules: components["schemas"]["RuleCount"][];
+            truncated: boolean;
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
@@ -4272,6 +4428,9 @@ export interface components {
          * @enum {string}
          */
         Validation: "strict" | "lax";
+        ValidationHealth: {
+            checks: components["schemas"]["CheckHealth"][];
+        };
         Verdict: {
             /** Format: date-time */
             checkedAt: string;
@@ -5009,6 +5168,53 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every published check */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationHealth"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The results directory cannot be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6941,6 +7147,56 @@ export interface operations {
             };
             /** @description Git forge unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_app_checks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The App checks of the project */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChecks"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks read on App */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9933,6 +10189,49 @@ export interface operations {
             };
             /** @description No key database configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_quality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report, or `{}` when the space was not checked yet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceQuality"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

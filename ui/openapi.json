@@ -882,6 +882,58 @@
         }
       }
     },
+    "/api/v1/organization/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Validation Health",
+        "description": "The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Every published check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationHealth"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The results directory cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people": {
       "get": {
         "tags": [
@@ -3443,6 +3495,69 @@
           },
           "503": {
             "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/app-checks": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List App Checks",
+        "description": "The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).",
+        "operationId": "list_app_checks",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The App checks of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppChecks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
             "content": {
               "application/json": {
                 "schema": {
@@ -7535,6 +7650,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Data Quality",
+        "description": "The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).",
+        "operationId": "get_quality",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report, or `{}` when the space was not checked yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceQuality"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
       "post": {
         "tags": [
@@ -10236,6 +10413,55 @@
           }
         }
       },
+      "AppCheck": {
+        "type": "object",
+        "description": "The last probe of one App (AP-136).",
+        "required": [
+          "name",
+          "state",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/AppCheckState"
+          }
+        }
+      },
+      "AppCheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "amber"
+        ]
+      },
+      "AppChecks": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppCheck"
+            }
+          }
+        }
+      },
       "AppMe": {
         "type": "object",
         "description": "The caller as a published App sees them: the object the static host writes into\n`#jc-config` as `user` (AP-95).",
@@ -11567,6 +11793,40 @@
           }
         }
       },
+      "CheckHealth": {
+        "type": "object",
+        "required": [
+          "check",
+          "state"
+        ],
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/CheckState"
+          }
+        }
+      },
+      "CheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "stale",
+          "unreadable"
+        ]
+      },
       "CkanStatus": {
         "type": "object",
         "description": "The CKAN picture of one project.",
@@ -11725,6 +11985,39 @@
           "rename"
         ]
       },
+      "Counts": {
+        "type": "object",
+        "description": "How many results of one run ended in each verdict.",
+        "required": [
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
       "CreatePerson": {
         "type": "object",
         "required": [
@@ -11869,6 +12162,59 @@
             "description": "The tabular representation the rows are read through."
           }
         }
+      },
+      "Digest": {
+        "type": "object",
+        "description": "What `scripts/publish-health.py` writes for one check.",
+        "required": [
+          "check",
+          "at",
+          "everyHours",
+          "counts"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "check": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "everyHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Failure"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "passed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for\nevery other check."
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "DomainVerification": {
         "type": "object",
@@ -12293,6 +12639,40 @@
         },
         "additionalProperties": false
       },
+      "Failure": {
+        "type": "object",
+        "description": "One result of the last run that did not pass, and the open task it filed.",
+        "required": [
+          "key",
+          "verdict",
+          "title"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FailureVerdict"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailureVerdict": {
+        "type": "string",
+        "enum": [
+          "fail",
+          "error"
+        ]
+      },
       "FederationGraph": {
         "type": "object",
         "description": "The federation of one project (UI-27).",
@@ -12462,26 +12842,42 @@
         },
         "additionalProperties": false
       },
+      "FreshState": {
+        "type": "string",
+        "enum": [
+          "fresh",
+          "stale",
+          "empty",
+          "untargeted"
+        ]
+      },
       "Freshness": {
         "type": "object",
-        "description": "The runner's counters for the pipeline that feeds an endpoint, read when the search ran.",
+        "description": "How recent the data of one pipeline is.",
         "required": [
           "pipeline",
-          "scrapedAt"
+          "type",
+          "state",
+          "paused"
         ],
         "properties": {
-          "errors": {
+          "newest": {
             "type": [
-              "integer",
+              "string",
               "null"
             ],
-            "format": "int64",
-            "minimum": 0
+            "format": "date-time"
+          },
+          "paused": {
+            "type": "boolean"
           },
           "pipeline": {
             "type": "string"
           },
-          "received": {
+          "state": {
+            "$ref": "#/components/schemas/FreshState"
+          },
+          "targetSeconds": {
             "type": [
               "integer",
               "null"
@@ -12489,8 +12885,9 @@
             "format": "int64",
             "minimum": 0
           },
-          "scrapedAt": {
-            "type": "string"
+          "type": {
+            "type": "string",
+            "description": "The pipeline's output type; empty when it names none and the whole space counts."
           }
         }
       },
@@ -14110,6 +14507,44 @@
           }
         }
       },
+      "Point": {
+        "type": "object",
+        "description": "One earlier run, for the trend.",
+        "required": [
+          "at",
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
       "Preferences": {
         "type": "object",
         "properties": {
@@ -14979,6 +15414,36 @@
         },
         "additionalProperties": false
       },
+      "RuleCount": {
+        "type": "object",
+        "description": "One failing rule of a space: a SHACL component and the path it is about.",
+        "required": [
+          "rule",
+          "path",
+          "count",
+          "examples"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most five ids of entities that break it."
+          },
+          "path": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          }
+        }
+      },
       "RunContext": {
         "type": "object",
         "description": "Everything the proxy needs to decide one request, and nothing a workspace may see.\n\nThis is the one place the ticket hash leaves the Portal, and it leaves on the internal\nlistener alone. The budgets are read from the profile at answer time rather than copied into\nthe run row, so lowering a profile's ceiling takes effect on the runs already in flight.",
@@ -15275,6 +15740,49 @@
           }
         },
         "additionalProperties": false
+      },
+      "SpaceQuality": {
+        "type": "object",
+        "description": "What one run found in one space.",
+        "required": [
+          "observedAt",
+          "checked",
+          "invalid",
+          "truncated",
+          "rules",
+          "freshness"
+        ],
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "freshness": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Freshness"
+            }
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleCount"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
       },
       "StartConversation": {
         "type": "object",
@@ -15636,6 +16144,20 @@
           "strict",
           "lax"
         ]
+      },
+      "ValidationHealth": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckHealth"
+            }
+          }
+        }
       },
       "Verdict": {
         "type": "object",

@@ -12,7 +12,8 @@
 //! every `spec.access[]` subject a role mapping this wave writes, a group mapping for a `group`
 //! and a user mapping for a `user`. It is the only writer of both, so a role or a mapping made in
 //! the console is removed and reported. Audience mappers put `app-{name}` and the slug of every
-//! Endpoint the App reads into the client's tokens, so the gateway admits them there.
+//! Endpoint the App reads into the client's tokens, so the gateway admits them there; every other
+//! protocol mapper on the client is removed and named on the App (T-2857).
 //!
 //! Keycloak generates each secret. The wave reads it back for the edge file (AP-112) and holds
 //! it in [`ClientSecret`], whose `Debug` never shows the value; it is never logged, stored in a
@@ -72,6 +73,9 @@ pub struct ClientOutcome {
     /// A subject the realm has no group or user for yet: its mapping is written once it does
     /// (a group the group wave creates, a person at their first login), so never a failure.
     pub warnings: Vec<String>,
+    /// Mappers the App does not declare that were on its client and have been removed, as
+    /// [`mapper_label`]s (T-2857); the App's status names them.
+    pub removed_mappers: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -81,6 +85,7 @@ impl ClientOutcome {
             app: app.to_owned(),
             drift: Vec::new(),
             warnings: Vec::new(),
+            removed_mappers: Vec::new(),
             error: None,
         }
     }
@@ -225,6 +230,37 @@ pub fn audience_mapper(audience: &str) -> Value {
             "introspection.token.claim": "true",
         },
     })
+}
+
+/// Whether a mapper held on an App's client is one the App asks for: the audience mapper of one
+/// of its `audiences` (T-2857). Everything else is removed, whatever its type or name.
+fn allowed_mapper(mapper: &Value, audiences: &[String]) -> bool {
+    mapper["protocolMapper"] == "oidc-audience-mapper"
+        && mapper["name"].as_str().is_some_and(|name| {
+            audiences
+                .iter()
+                .any(|audience| name == format!("{AUDIENCE_MAPPER}{audience}"))
+        })
+}
+
+/// A mapper as a report names it: its type and name, never its config (a claim value can be
+/// anything). Both come from the realm, so they are cut short and stripped of control
+/// characters before they reach a log line or a condition.
+pub fn mapper_label(mapper: &Value) -> String {
+    let clean = |value: &Value| -> String {
+        value
+            .as_str()
+            .unwrap_or("unnamed")
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(64)
+            .collect()
+    };
+    format!(
+        "{} mapper {}",
+        clean(&mapper["protocolMapper"]),
+        clean(&mapper["name"])
+    )
 }
 
 /// The fields of `want` the realm holds otherwise, as sentences for the drift report. Only the
@@ -587,22 +623,50 @@ impl AppClientSync {
             }
         }
 
+        // The client's mappers are the App's audiences and nothing else (T-2857): FGAP bounds
+        // which clients may be managed, never what a mapper writes into a token, so a hardcoded
+        // claim, role or audience added by hand or through a leaked credential would mint tokens
+        // the App never asked for. Every other mapper goes first, so a foreign one that took one
+        // of the wanted names cannot block writing ours.
         let mappers: Vec<Value> = self
             .get(token, &format!("{client}/protocol-mappers/models"))
             .await?;
-        let ours = |mapper: &&Value| {
-            mapper["protocolMapper"] == "oidc-audience-mapper"
-                && mapper["name"]
-                    .as_str()
-                    .is_some_and(|name| name.starts_with(AUDIENCE_MAPPER))
-        };
+        let (ours, others): (Vec<&Value>, Vec<&Value>) = mappers
+            .iter()
+            .partition(|mapper| allowed_mapper(mapper, audiences));
+        for mapper in others {
+            let Some(id) = mapper["id"].as_str() else {
+                return Err(format!(
+                    "the {} has no id, so it cannot be removed",
+                    mapper_label(mapper)
+                ));
+            };
+            self.send(
+                token,
+                Method::DELETE,
+                &format!("{client}/protocol-mappers/models/{id}"),
+                None,
+            )
+            .await?;
+            let name = mapper["name"].as_str().unwrap_or_default();
+            if mapper["protocolMapper"] == "oidc-audience-mapper"
+                && name.starts_with(AUDIENCE_MAPPER)
+            {
+                outcome.drift.push(format!(
+                    "the client put the audience {} in its tokens, which the App does not read; the mapper was removed",
+                    name.trim_start_matches(AUDIENCE_MAPPER)
+                ));
+            } else {
+                let label = mapper_label(mapper);
+                outcome.drift.push(format!(
+                    "the {label}, which the App does not declare, was removed"
+                ));
+                outcome.removed_mappers.push(label);
+            }
+        }
         for audience in audiences {
             let want = audience_mapper(audience);
-            match mappers
-                .iter()
-                .filter(ours)
-                .find(|m| m["name"] == want["name"])
-            {
+            match ours.iter().find(|m| m["name"] == want["name"]) {
                 None => {
                     self.send(
                         token,
@@ -637,29 +701,6 @@ impl AppClientSync {
                     }
                 }
             }
-        }
-        for mapper in mappers.iter().filter(ours) {
-            let name = mapper["name"].as_str().unwrap_or_default();
-            if audiences
-                .iter()
-                .any(|a| name == format!("{AUDIENCE_MAPPER}{a}"))
-            {
-                continue;
-            }
-            let Some(id) = mapper["id"].as_str() else {
-                continue;
-            };
-            self.send(
-                token,
-                Method::DELETE,
-                &format!("{client}/protocol-mappers/models/{id}"),
-                None,
-            )
-            .await?;
-            outcome.drift.push(format!(
-                "the client put the audience {} in its tokens, which the App does not read; the mapper was removed",
-                name.trim_start_matches(AUDIENCE_MAPPER)
-            ));
         }
         Ok(())
     }
@@ -902,6 +943,38 @@ impl AppClientSync {
                 (outcome, None)
             }
         }
+    }
+}
+
+/// The mappers a run removed, on the App itself (T-2857): a condition `ClientSynced` with the
+/// reason `MapperRemoved` naming each by type and name, so the owner sees that something wrote
+/// into the App's client and what it was. The App's other conditions stay as they are.
+pub fn record(mirror: &Mirror, outcomes: &[ClientOutcome]) {
+    for outcome in outcomes {
+        if outcome.removed_mappers.is_empty() {
+            continue;
+        }
+        let Some(mut envelope) =
+            mirror.find(|env| env.kind == "App" && env.metadata.name == outcome.app)
+        else {
+            continue;
+        };
+        let Some(status) = envelope.status.as_mut() else {
+            continue;
+        };
+        status
+            .conditions
+            .retain(|condition| condition.r#type != "ClientSynced");
+        status.conditions.push(super::streams::make_condition(
+            "ClientSynced",
+            "True",
+            "MapperRemoved",
+            &format!(
+                "removed from the App's login client: {}",
+                outcome.removed_mappers.join("; ")
+            ),
+        ));
+        mirror.upsert(envelope);
     }
 }
 

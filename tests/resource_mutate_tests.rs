@@ -63,9 +63,37 @@ fn session_and_csrf_cookies(config: &Config) -> String {
     format!("{session}; {CSRF_COOKIE}={TEST_CSRF_TOKEN}")
 }
 
+/// A new space's Change carries its empty draft model beside the manifest (T-2699, DM-61, DM-62):
+/// the forge of a space create answers the model's manifest and its LinkML source, and each is
+/// written exactly once.
+async fn mount_space_model(server: &MockServer) {
+    for file in ["mobility.yaml", "mobility.linkml.yaml"] {
+        let model = format!(
+            "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/datamodels/{file}"
+        );
+        Mock::given(method("GET"))
+            .and(path(model.as_str()))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })),
+            )
+            .mount(server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path(model.as_str()))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(json!({ "commit": { "sha": "commit-sha-model" } })),
+            )
+            .expect(1)
+            .mount(server)
+            .await;
+    }
+}
+
 #[tokio::test]
 async fn create_returns_202_with_change_and_commits_to_gitea() {
     let server = MockServer::start().await;
+    mount_space_model(&server).await;
     let base_url = server.uri().parse().expect("valid mock server url");
     let client =
         GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
@@ -1105,6 +1133,7 @@ async fn an_open_change_on_a_suffixed_branch_still_blocks_a_proposal() {
 #[tokio::test]
 async fn an_open_change_elsewhere_does_not_block_a_proposal() {
     let server = MockServer::start().await;
+    mount_space_model(&server).await;
     let base_url = server.uri().parse().expect("valid mock server url");
     let client =
         GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
@@ -1191,6 +1220,7 @@ async fn an_open_change_elsewhere_does_not_block_a_proposal() {
 #[tokio::test]
 async fn a_stale_proposal_branch_is_recreated_from_main() {
     let server = MockServer::start().await;
+    mount_space_model(&server).await;
     let base_url = server.uri().parse().expect("valid mock server url");
     let client =
         GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
