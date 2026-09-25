@@ -2499,6 +2499,14 @@ export interface components {
              */
             fonts: components["schemas"]["Fonts"];
             /**
+             * @description The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`
+             *     is not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so
+             *     what a branding file says is overwritten; always sent, so the UI never mistakes a shown
+             *     section for one it has not heard about.
+             * @default []
+             */
+            hiddenSections: string[];
+            /**
              * @description Full name: page titles and the login page.
              * @default joinedcontext
              */

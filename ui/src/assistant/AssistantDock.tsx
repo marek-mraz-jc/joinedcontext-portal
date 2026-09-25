@@ -5,6 +5,8 @@ import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useHiddenSections } from "../branding";
+import { isHiddenSection } from "../components/layout/navigation";
 import { api, ApiError, unwrap } from "../api/client";
 import { ConversationPanel } from "../pages/apps/ConversationPanel";
 import { TERMINAL_STATES, useAgentRun } from "../pages/apps/useAgentRun";
@@ -91,6 +93,9 @@ const PATHS = [
 
 type PathId = (typeof PATHS)[number][0];
 
+/** The section a path works in, where an installation may hide that section (T-2874). */
+const PATH_SECTION: Partial<Record<PathId, string>> = { "build-dashboard": "dashboards" };
+
 /**
  * The paths, as the empty assistant offers them (T-2692, UI-45).
  *
@@ -113,9 +118,15 @@ function Paths({
   onPick: (path: PathId) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const hiddenSections = useHiddenSections();
+  // A hidden section's path is not offered at all: disabling it would name a page nobody sees.
+  const offered = PATHS.filter(([path]) => {
+    const section = PATH_SECTION[path];
+    return section === undefined || !isHiddenSection(section, hiddenSections);
+  });
   return (
     <ul data-testid="assistant-paths" className="flex flex-col gap-2">
-      {PATHS.map(([path, icon, kind]) => {
+      {offered.map(([path, icon, kind]) => {
         // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
         // `disabledReason`, which only that control knows what to do with.
         const left = capabilities !== null && !PRESET_PATHS[capabilities.preset].includes(path);

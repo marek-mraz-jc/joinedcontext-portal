@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -7,10 +8,13 @@ import {
   Outlet,
   redirect,
   useChildMatches,
+  useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
+import { isHiddenSection } from "./components/layout/navigation";
+import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
@@ -832,6 +836,8 @@ const sectionRoute = createRoute({
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
     const { edit } = sectionRoute.useSearch();
+    const hiddenSections = useHiddenSections();
+    const navigate = useNavigate();
     const child = useChildMatches({
       select: (matches) => {
         const first = matches[0];
@@ -840,6 +846,20 @@ const sectionRoute = createRoute({
           : null;
       },
     });
+    // A section this installation hides is no page at any of its addresses, a bookmark
+    // included: it goes to the project's spaces, and waits for the branding before drawing
+    // anything that might be taken away (T-2874). One navigation per decision, not one per
+    // render: `<Navigate>` fires again on every render of the route it leaves.
+    const hidden = isHiddenSection(plural, hiddenSections);
+    const leave = hidden && hiddenSections !== undefined;
+    useEffect(() => {
+      if (leave) {
+        void navigate({ to: "/projects/$project/$plural", params: { project, plural: "spaces" }, replace: true });
+      }
+    }, [leave, navigate, project]);
+    if (hidden) {
+      return null;
+    }
     if (child?.routeId === sectionDetailRoute.id && child.name !== undefined) {
       return <DetailPage project={project} plural={plural} name={child.name} />;
     }
