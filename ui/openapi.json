@@ -7839,6 +7839,78 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/usage": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Space Usage",
+        "description": "The entity count of one space, read from the broker that holds it and kept for five minutes. `0` for a space the broker has no tenant for yet. The same count for everyone who reads the space.",
+        "operationId": "get_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The space's usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceUsage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker is configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
       "post": {
         "tags": [
@@ -16065,6 +16137,27 @@
           },
           "truncated": {
             "type": "boolean"
+          }
+        }
+      },
+      "SpaceUsage": {
+        "type": "object",
+        "description": "What one space holds.",
+        "required": [
+          "entities",
+          "observedAt"
+        ],
+        "properties": {
+          "entities": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The entities of the space's tenant, as the broker counts them.",
+            "minimum": 0
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the broker answered."
           }
         }
       },

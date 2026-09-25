@@ -335,6 +335,7 @@
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
   },
   "spaces": {
+    "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
     "title": "Kontexträume",
     "empty": "Dieses Projekt hat noch keinen Kontextraum.",
@@ -351,10 +352,12 @@
       "ttlDays": "Lebensdauer in Tagen",
       "phase": "Zustand",
       "source": "Quelle",
+      "entities": "Entitäten",
       "inside": "Inhalt",
       "missingUnitCode": "Fehlende Einheit"
     },
     "inside": {
+      "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
       "dataLead": "Alles, was dieser Raum hält, soweit Ihre Rechte es zulassen. Ein Endpunkt zeigt dasselbe, durch seine Policy verengt.",

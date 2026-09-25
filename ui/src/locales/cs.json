@@ -335,6 +335,7 @@
     "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář."
   },
   "spaces": {
+    "entitiesUnknown": "Počet není k dispozici: {reason}",
     "lead": "Pojmenované kolekce kontextových dat tohoto projektu; každá entita patří právě do jedné.",
     "title": "Kontextové prostory",
     "empty": "Projekt zatím nemá kontextový prostor.",
@@ -351,10 +352,12 @@
       "ttlDays": "Životnost ve dnech",
       "phase": "Stav",
       "source": "Zdroj",
+      "entities": "Entity",
       "inside": "Obsah",
       "missingUnitCode": "Chybějící jednotka"
     },
     "inside": {
+      "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "open": "Prohlédnout obsah",
       "data": "Data",
       "dataLead": "Vše, co tento prostor drží, nakolik to vaše oprávnění dovolí. Endpoint zobrazuje totéž, zúžené jeho politikou.",
