@@ -965,7 +965,10 @@
         ]
       },
       "answer-question": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-app.spec.ts",
+          "test": "the assistant's Build an app path makes an app that opens in the Portal and on its own, behind a login"
+        },
         "personOnly": "the run asks the person, and an agent answering its own question would decide for them (AG-11)",
         "routes": [
           "POST /api/v1/projects/{project}/agent-runs/{id}/answers"
