@@ -23,7 +23,11 @@ test.describe("who may edit a station record", () => {
     await expect(page.getByRole("heading", { name: "Kallio", exact: true })).toBeVisible();
     await expect(page.getByText("34.2 µg/m³")).toBeVisible();
     await expect(page.getByText("You are viewing anonymously.")).toBeVisible();
-    await expect(page.getByRole("button")).toHaveCount(0);
+    // Nothing that writes: no form and no Add, Edit, Save, Remove or Confirm. The station picker
+    // beside the map (T-2925) is reading, and an anonymous reader has it like everyone else.
+    await expect(page.getByRole("form")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^(Add|Edit|Save|Remove|Confirm)\b/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Kallio/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("a signed-in viewer is named on the page and sees Edit disabled with the reason", async ({ page }) => {
