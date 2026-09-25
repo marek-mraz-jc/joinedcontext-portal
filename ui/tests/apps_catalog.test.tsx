@@ -530,14 +530,45 @@ describe("apps catalog", () => {
     expect(draftState("starting")).toBe("building");
     expect(draftState("building")).toBe("building");
     expect(draftState("testing")).toBe("building");
-    expect(draftState("previewing")).toBe("building");
+    expect(draftState("previewing")).toBe("readyToPublish");
     expect(draftState("interviewing")).toBe("needsYou");
-    expect(draftState("awaiting_approval")).toBe("readyToPublish");
-    expect(draftState("awaitingApproval")).toBe("readyToPublish");
+    expect(draftState("awaiting_approval")).toBe("waitingApproval");
+    expect(draftState("awaitingApproval")).toBe("waitingApproval");
     expect(draftState("failed")).toBe("failed");
     expect(draftState("cancelled")).toBe("failed");
     expect(draftState("expired")).toBe("failed");
     expect(draftState("published")).toBeNull();
+  });
+
+  /// T-2772: a build whose change waits for an approver says so on its tile and once above the
+  /// grid, with the way to the approvals; nothing is said when none waits.
+  it("says which builds wait for approval and links the approvals", async () => {
+    const run = (id: string, appName: string, status: string) => ({
+      id,
+      project: "banskabystrica",
+      appName,
+      status,
+      createdAt: "2026-09-12T08:00:00Z",
+    });
+    renderCatalog([], undefined, [
+      run("r1", "mapa-vystavby", "awaiting_approval"),
+      run("r2", "ovzdusie-dnes", "previewing"),
+    ]);
+    expect(await screen.findByText(en.apps.drafts.state.waitingApproval)).toBeInTheDocument();
+    expect(screen.getByText(en.apps.drafts.state.readyToPublish)).toBeInTheDocument();
+    expect(screen.getByText(/One application waits for its change to be approved/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.apps.drafts.openApprovals })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/approvals",
+    );
+  });
+
+  it("says nothing about approvals when no build waits for one", async () => {
+    renderCatalog([], undefined, [
+      { id: "r3", project: "banskabystrica", appName: "mapa", status: "building", createdAt: "2026-09-12T08:00:00Z" },
+    ]);
+    expect(await screen.findByText(en.apps.drafts.state.building)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: en.apps.drafts.openApprovals })).toBeNull();
   });
 
   it("shows an ended build as nothing: no tile, no builds list, only the apps and the drafts still going", async () => {

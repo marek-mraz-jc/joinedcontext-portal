@@ -414,9 +414,10 @@ fn is_registry_host(value: &str) -> bool {
 ///
 /// `JC_AGENTS_NAMESPACE` and `JC_AGENT_PROXY_BASE` are set together or not at all;
 /// `JC_PORTAL_NAMESPACE` (default: the workspaces' own namespace), `JC_INTERNAL_BIND` (default
-/// `0.0.0.0:9090`) and `JC_AGENT_RUN_TTL` (whole seconds, default `1200`) tune the rest. None
-/// of them is a secret: the proxy presents its own ServiceAccount token, which is why
-/// `JC_AGENT_PROXY_TOKEN` is gone (T-2271).
+/// `0.0.0.0:9090`), `JC_AGENT_RUN_TTL` (whole seconds, default `1200`) and
+/// `JC_AGENT_APPROVAL_TTL` (whole seconds a run waits for its change's approval, default
+/// `604800`) tune the rest. None of them is a secret: the proxy presents its own ServiceAccount
+/// token, which is why `JC_AGENT_PROXY_TOKEN` is gone (T-2271).
 ///
 /// The namespace and the proxy are needed together: a workspace with no proxy has no way to
 /// reach the model, the data or the forge, and a proxy with no namespace has nothing to serve.
@@ -440,6 +441,10 @@ pub struct AgentSettings {
     /// Wall clock of one run, in seconds. The Job carries the same number as its
     /// `activeDeadlineSeconds`, so the two cannot disagree about when a run is over.
     pub run_ttl_secs: i64,
+    /// How long a run that built an application waits for its change's approval, in seconds
+    /// (`JC_AGENT_APPROVAL_TTL`, T-2772): the run's own wall clock stops when it proposes, and
+    /// an approver has days, not what was left of the build's twenty minutes.
+    pub approval_ttl_secs: i64,
 }
 
 impl std::fmt::Debug for AgentSettings {
@@ -450,6 +455,7 @@ impl std::fmt::Debug for AgentSettings {
             .field("proxy_base", &self.proxy_base)
             .field("internal_bind", &self.internal_bind)
             .field("run_ttl_secs", &self.run_ttl_secs)
+            .field("approval_ttl_secs", &self.approval_ttl_secs)
             .finish()
     }
 }
@@ -511,6 +517,20 @@ fn agent_settings(
         });
     }
 
+    let approval_ttl_secs = match lookup("JC_AGENT_APPROVAL_TTL") {
+        Some(value) => value.parse::<i64>().map_err(|e| ConfigError::Invalid {
+            var: "JC_AGENT_APPROVAL_TTL",
+            reason: e.to_string(),
+        })?,
+        None => Config::DEFAULT_APPROVAL_TTL_SECS,
+    };
+    if approval_ttl_secs <= 0 {
+        return Err(ConfigError::Invalid {
+            var: "JC_AGENT_APPROVAL_TTL",
+            reason: "a run waiting for approval needs a positive lease".to_string(),
+        });
+    }
+
     let portal_namespace = lookup("JC_PORTAL_NAMESPACE")
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| namespace.clone());
@@ -521,6 +541,7 @@ fn agent_settings(
         proxy_base: proxy_base.trim_end_matches('/').to_owned(),
         internal_bind,
         run_ttl_secs,
+        approval_ttl_secs,
     }))
 }
 
@@ -728,6 +749,8 @@ impl Config {
     /// Wall clock of one builder run when the deployment names none: twenty minutes, the
     /// window AG-43 gives a run before it expires.
     pub const DEFAULT_RUN_TTL_SECS: i64 = 1_200;
+    /// Seven days: a change proposed on Friday is still there to approve on Monday (T-2772).
+    pub const DEFAULT_APPROVAL_TTL_SECS: i64 = 604_800;
     /// `Key::from` panics below 64 bytes, so the length is checked before it is called.
     pub const MIN_COOKIE_KEY_LEN: usize = 64;
 
@@ -1106,6 +1129,26 @@ mod config_documentation_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-2772: a run waiting for approval has seven days unless `JC_AGENT_APPROVAL_TTL` says
+    /// otherwise, and a lease that is not a positive number of seconds is refused at start.
+    #[test]
+    fn the_approval_lease_defaults_to_a_week_and_refuses_nonsense() {
+        let with = |ttl: Option<&'static str>| {
+            agent_settings(&move |name: &str| match name {
+                "JC_AGENTS_NAMESPACE" => Some("agents".to_owned()),
+                "JC_AGENT_PROXY_BASE" => Some("http://proxy:8080".to_owned()),
+                "JC_AGENT_APPROVAL_TTL" => ttl.map(str::to_owned),
+                _ => None,
+            })
+        };
+        let settings = |ttl| with(ttl).ok().flatten().map(|s| s.approval_ttl_secs);
+        assert_eq!(settings(None), Some(604_800));
+        assert_eq!(settings(Some("172800")), Some(172_800));
+        for bad in ["0", "-5", "a week"] {
+            assert!(with(Some(bad)).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn the_apps_origin_is_an_origin_and_nothing_else() {

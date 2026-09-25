@@ -1794,10 +1794,13 @@
         "building": "Staví se",
         "needsYou": "Čeká na vás",
         "failed": "Selhalo",
-        "readyToPublish": "Připraveno k publikování"
+        "readyToPublish": "Připraveno k publikování",
+        "waitingApproval": "Čeká na schválení"
       },
       "open": "Otevřít",
-      "conflict": "{name} se již staví. Otevřete ji místo toho."
+      "conflict": "{name} se již staví. Otevřete ji místo toho.",
+      "waiting": "{count, plural, one {Jedna aplikace čeká na schválení své změny.} few {# aplikace čekají na schválení svých změn.} other {# aplikací čeká na schválení svých změn.}} Během čekání si běh ponechá náhled.",
+      "openApprovals": "Otevřít schvalování"
     },
     "kpi": {
       "badge": "KPI"
@@ -2275,7 +2278,8 @@
       "newConversation": "Nová konverzace",
       "sendFailed": "Zpráva se neodeslala: {reason}. To, co jste napsali, je pořád tady.",
       "tryAgain": "Zkusit znovu",
-      "unanswered": "Vaše poslední zpráva nedostala odpověď. Nic se nezměnilo."
+      "unanswered": "Vaše poslední zpráva nedostala odpověď. Nic se nezměnilo.",
+      "endedBecause": "Důvod: {reason}."
     },
     "line": {
       "status": "Nyní {status}.",

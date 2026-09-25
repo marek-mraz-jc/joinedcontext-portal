@@ -23,7 +23,7 @@ import { AppBuildState, runState, useAppBuild, useRebuild } from "./AppBuildPane
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
+import { Alert, Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
 
 interface DataNeed {
   contextSpaceRef?: string | { name?: string };
@@ -55,19 +55,24 @@ export function isServed(app: Manifest): boolean {
   return Boolean(app.status?.build) || app.metadata.annotations?.["joinedcontext.com/shipped-with"] === "portal";
 }
 
-export function draftState(status: string): "building" | "needsYou" | "failed" | "readyToPublish" | null {
+export function draftState(
+  status: string,
+): "building" | "needsYou" | "failed" | "readyToPublish" | "waitingApproval" | null {
   switch (status) {
     case "queued":
     case "starting":
     case "building":
     case "testing":
-    case "previewing":
       return "building";
+    // A preview is what a person publishes (AP-46); once proposed, the change waits for an
+    // approver, which is not the same thing and not the person's to do (T-2772).
+    case "previewing":
+      return "readyToPublish";
     case "interviewing":
       return "needsYou";
     case "awaiting_approval":
     case "awaitingApproval":
-      return "readyToPublish";
+      return "waitingApproval";
     case "failed":
     case "cancelled":
     case "expired":
@@ -313,6 +318,10 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
     }
   }
 
+  // The builds whose change waits for an approver, said once above the grid (T-2772): a run
+  // that proposed used to expire twenty minutes later with nobody told.
+  const waiting = draftRuns.filter((draft) => draftState(draft.status) === "waitingApproval").length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -329,6 +338,18 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
       </div>
 
       {change && <ChangeNotice change={change} project={project} />}
+      {waiting > 0 ? (
+        <Alert
+          tone="info"
+          actions={
+            <Link to="/projects/$project/approvals" params={{ project }} className={buttonClass("secondary", "sm")}>
+              {t("apps.drafts.openApprovals")}
+            </Link>
+          }
+        >
+          {t("apps.drafts.waiting", { count: waiting })}
+        </Alert>
+      ) : null}
       {error && (
         <p role="alert" className="text-danger">
           {error}

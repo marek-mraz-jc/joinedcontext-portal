@@ -771,6 +771,9 @@ impl Driver {
             .set_status(&self.run_id, status, None)
             .await
             .map_err(|err| err.to_string())?;
+        if status == AgentRunStatus::AwaitingApproval {
+            crate::api::agent_runs::lease_for_approval(&self.state, &self.run_id).await;
+        }
         self.event(
             "status",
             json!({ "status": status.as_str(), "timestamp": now_rfc3339() }),

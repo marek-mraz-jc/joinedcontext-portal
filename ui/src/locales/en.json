@@ -1794,10 +1794,13 @@
         "building": "Building",
         "needsYou": "Needs you",
         "failed": "Failed",
-        "readyToPublish": "Ready to publish"
+        "readyToPublish": "Ready to publish",
+        "waitingApproval": "Waiting for approval"
       },
       "open": "Open",
-      "conflict": "{name} is already being built. Open it instead."
+      "conflict": "{name} is already being built. Open it instead.",
+      "waiting": "{count, plural, one {One application waits for its change to be approved.} other {# applications wait for their changes to be approved.}} The run keeps its preview while it waits.",
+      "openApprovals": "Open approvals"
     },
     "kpi": {
       "badge": "KPI"
@@ -2275,7 +2278,8 @@
       "newConversation": "New conversation",
       "sendFailed": "The message was not sent: {reason}. What you typed is still here.",
       "tryAgain": "Try again",
-      "unanswered": "Your last message was not answered. Nothing was changed."
+      "unanswered": "Your last message was not answered. Nothing was changed.",
+      "endedBecause": "Why: {reason}."
     },
     "line": {
       "status": "Now {status}.",

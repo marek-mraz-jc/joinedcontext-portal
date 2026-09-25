@@ -352,6 +352,30 @@ describe("the conversation panel", () => {
     expect(screen.queryByText(en.agentRun.conversation.unanswered)).toBeNull();
   });
 
+  /// T-2772: an ended conversation says who or what ended it, as the status said.
+  it("says why an ended conversation ended", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ConversationPanel
+          project="helsinki"
+          events={[
+            { seq: 1, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+            { seq: 2, kind: "status", payload: { status: "cancelled", reason: "cancelled by jana.kovacova" } },
+          ]}
+          streaming
+          answering={false}
+          sending={false}
+          live={false}
+          onAnswer={() => {}}
+          onSend={sent}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("ended-because")).toHaveTextContent(
+      en.agentRun.conversation.endedBecause.replace("{reason}", "cancelled by jana.kovacova"),
+    );
+  });
+
   it("will not send whitespace", async () => {
     const user = userEvent.setup();
     panel([]);

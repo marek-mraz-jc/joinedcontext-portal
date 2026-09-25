@@ -1794,10 +1794,13 @@
         "building": "Wird gebaut",
         "needsYou": "Wartet auf Sie",
         "failed": "Fehlgeschlagen",
-        "readyToPublish": "Bereit zur Veröffentlichung"
+        "readyToPublish": "Bereit zur Veröffentlichung",
+        "waitingApproval": "Wartet auf Freigabe"
       },
       "open": "Öffnen",
-      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen."
+      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen.",
+      "waiting": "{count, plural, one {Eine Anwendung wartet auf die Freigabe ihrer Änderung.} other {# Anwendungen warten auf die Freigabe ihrer Änderungen.}} Der Lauf behält seine Vorschau, solange er wartet.",
+      "openApprovals": "Freigaben öffnen"
     },
     "kpi": {
       "badge": "KPI"
@@ -2275,7 +2278,8 @@
       "newConversation": "Neues Gespräch",
       "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
       "tryAgain": "Erneut versuchen",
-      "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert."
+      "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert.",
+      "endedBecause": "Grund: {reason}."
     },
     "line": {
       "status": "Jetzt {status}.",

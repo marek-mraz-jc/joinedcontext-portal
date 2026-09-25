@@ -433,6 +433,10 @@ export function ConversationPanel({
               event.kind === "message" && event.payload.sentBy !== "agent" && typeof event.payload.text === "string",
           )?.payload.text as string | undefined)
       : undefined;
+  const endedBecause = [...events]
+    .reverse()
+    .find((event) => event.kind === "status" && typeof event.payload.reason === "string" && event.payload.reason !== "")
+    ?.payload.reason as string | undefined;
   const sendAgain = (text: string): void => {
     setFailed(null);
     const answer = onSend(text);
@@ -747,7 +751,14 @@ export function ConversationPanel({
         </form>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3">
-          <p className="text-sm text-fg-muted">{t("agentRun.conversation.closed")}</p>
+          <div className="text-sm text-fg-muted">
+            <p>{t("agentRun.conversation.closed")}</p>
+            {/* Who or what ended it, as the Portal said on the status (T-2772): a conversation
+                that says only "cancelled" between two steps leaves the person guessing. */}
+            {endedBecause !== undefined ? (
+              <p data-testid="ended-because">{t("agentRun.conversation.endedBecause", { reason: endedBecause })}</p>
+            ) : null}
+          </div>
           {/* An ended run reads nothing more; without this the only way back to a working chat
               was the dock's close button, which nobody reads as "start again" (T-2463). */}
           {onNewConversation ? (
