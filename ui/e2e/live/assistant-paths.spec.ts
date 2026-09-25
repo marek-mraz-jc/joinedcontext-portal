@@ -42,7 +42,7 @@ async function runEvents(page: Page): Promise<Event[]> {
   }, PROJECT);
 }
 
-test("Integrate a pipeline from a CSV stays within its budgets (T-2697)", async ({ browser }) => {
+test("Integrate a pipeline from a CSV and its feed stays within its budgets (T-2695, T-2697)", async ({ browser }) => {
   test.setTimeout(180_000);
   const { page, context } = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
   const name = `journey-paths-${Date.now().toString(36)}`;
@@ -60,12 +60,19 @@ test("Integrate a pipeline from a CSV stays within its budgets (T-2697)", async 
       buffer: Buffer.from("station,name,bikes,lat,lon\n1,Kamppi,4,60.169,24.931\n2,Kallio,0,60.184,24.950\n"),
     });
     await page.getByRole("radio", { name: /^A new context space/ }).click();
+    // The file is a sample of a feed (T-2695): the pipeline reads the address and is tested on the
+    // file, so the address is never fetched while drafting.
+    await page.getByLabel("Or the address of a feed").last().fill(`https://feed.example.org/${name}.json`);
+    await page.getByRole("button", { name: "Use this address" }).last().click();
     await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/spaces/complete\\?space=${name}`), { timeout: 120_000 });
 
     const events = await runEvents(page);
     const question = events.find((event) => event.kind === "question");
     const profiled = events.find((event) => event.kind === "tool" && event.payload.tool === "profile_sample");
     const opened = events.find((event) => event.kind === "navigate");
+    const drafted = events.find((event) => event.kind === "tool" && event.payload.tool === "space_complete");
+    const kinds = ((drafted?.payload.output as { drafts?: { kind: string }[] } | undefined)?.drafts ?? []).map((draft) => draft.kind);
+    expect(kinds, "the drafts the person proposes").toEqual(expect.arrayContaining(["DataSource", "Pipeline"]));
     const ms = (value: unknown) => (typeof value === "number" ? value : Number.NaN);
     const times = {
       firstStep: ms(question?.payload.elapsedMs),
