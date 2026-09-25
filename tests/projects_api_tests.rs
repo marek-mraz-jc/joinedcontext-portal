@@ -17,6 +17,7 @@ fn make_session_cookie(config: &Config) -> String {
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:demo.steward".into(),
             username: "demo.steward".into(),
             email: None,
@@ -123,6 +124,7 @@ async fn a_caller_with_no_grant_is_shown_no_project() {
     let now = session::now_unix();
     let outsider = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:passer.by".into(),
             username: "passer.by".into(),
             email: None,

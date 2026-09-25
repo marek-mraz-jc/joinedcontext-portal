@@ -197,6 +197,17 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
     );
 }
 
+/**
+ * Check, then Propose once the verdict is green: a form that holds a draft proposes only what its
+ * check passed (PF-57, T-0779), and the dashboard and layer forms have their Check since T-2731.
+ */
+async function checkAndPropose(dialog: HTMLElement): Promise<void> {
+  await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+  const propose = within(dialog).getByRole("button", { name: en.dashboards.propose });
+  await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled", "true"));
+  await userEvent.click(propose);
+}
+
 async function openLayerEditor() {
   await userEvent.click(await screen.findByRole("button", { name: `${en.dashboards.editLayer}: bikes` }));
   return findFormPage();
@@ -246,7 +257,7 @@ describe("dashboard editors", () => {
     await userEvent.type(within(dialog).getByRole("spinbutton", { name: en.entities.value }), "0");
     await waitFor(() => expect(within(dialog).getByLabelText(en.entities.q)).toHaveValue("availableBikeNumber>0"));
 
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    await checkAndPropose(dialog);
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
     expect(request.method).toBe("PUT");
@@ -268,7 +279,7 @@ describe("dashboard editors", () => {
 
     const dialog = await findFormPage();
     expect(writes(fetchMock)).toHaveLength(0);
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    await checkAndPropose(dialog);
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
     expect(new URL(request.url).pathname).toBe("/api/v1/projects/helsinki/layers/bikes");
@@ -335,7 +346,7 @@ describe("dashboard editors", () => {
         }),
       ).toBe(true),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    await checkAndPropose(dialog);
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
     expect(request.method).toBe("POST");
@@ -358,7 +369,7 @@ describe("dashboard editors", () => {
     await openDashboardEditor();
     const dialog = await findFormPage();
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(`^${en.dashboards.field.visibility}`)), en.choice.visibility.public);
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    await checkAndPropose(dialog);
 
     expect(await within(dialog).findByText(/whose audience is organization/)).toBeInTheDocument();
   });
@@ -408,7 +419,7 @@ describe("dashboard editors", () => {
       expect(drafted).toBeDefined();
     });
 
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    await checkAndPropose(dialog);
 
     // `propose_draft` knows no dashboards, so the proposal is the manifest and not a draft
     // reference: a `draft` in the body would be a 400 (src/api/mutate.rs).

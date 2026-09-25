@@ -20,6 +20,7 @@ import { EndpointLink } from "../src/components/endpoints/links";
 import { SourceLink } from "../src/components/ui";
 import { clearBrowserState } from "../src/auth/browserState";
 import { previewSrc } from "../src/pages/apps/previewBridge";
+import { appAddress, appFrameSandbox } from "../src/pages/apps/AppOpenPage";
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -66,7 +67,11 @@ describe("a_preview_frame_cannot_reach_the_portal_origin", () => {
           for (const tag of text.matchAll(/<iframe\b[\s\S]*?\/>/g)) {
             const line = `${relative(ui, full)}:${text.slice(0, tag.index).split("\n").length}`;
             const sandbox = /sandbox="([^"]*)"/.exec(tag[0])?.[1];
-            if (sandbox === undefined) frames.push(`${line} has no sandbox`);
+            // The one sandbox that is not a literal: `appFrameSandbox` adds allow-same-origin only
+            // for a frame on another origin than the Portal's, which its own tests below hold.
+            const decided = /sandbox=\{appFrameSandbox\(/.test(tag[0]);
+            if (sandbox === undefined && !decided) frames.push(`${line} has no sandbox`);
+            else if (sandbox === undefined) continue;
             else if (sandbox.includes("allow-scripts") && sandbox.includes("allow-same-origin"))
               frames.push(`${line} joins allow-scripts to allow-same-origin`);
             if (!/\btitle=/.test(tag[0])) frames.push(`${line} has no title`);
@@ -78,6 +83,40 @@ describe("a_preview_frame_cannot_reach_the_portal_origin", () => {
     };
     walk(join(ui, "src"));
     expect(frames).toEqual([]);
+  });
+});
+
+describe("the App's frame keeps an origin only when it is not the Portal's (AP-122, AP-19, T-2840)", () => {
+  const portal = "https://portal.dev.example.org";
+
+  it("never joins allow-same-origin for a document on the Portal's own origin", () => {
+    for (const src of [
+      "/apps/air/",
+      "apps/air/",
+      "https://portal.dev.example.org/apps/air/",
+      "//portal.dev.example.org/apps/air/",
+      "data:text/html,<script>1</script>",
+      "javascript:alert(1)",
+      "about:blank",
+      "http://[bad",
+    ]) {
+      expect(appFrameSandbox(src, portal), src).not.toContain("allow-same-origin");
+      expect(appFrameSandbox(src, portal), src).toContain("allow-scripts");
+    }
+  });
+
+  it("gives an App on the apps origin its own origin, and nothing more", () => {
+    const sandbox = appFrameSandbox("https://dev.example.org/apps/air/", portal).split(" ");
+    expect(sandbox.sort()).toEqual(
+      ["allow-downloads", "allow-forms", "allow-popups", "allow-same-origin", "allow-scripts"],
+    );
+  });
+
+  it("frames the App at the apps origin the Portal names, or on its own path", () => {
+    expect(appAddress("air quality", "https://dev.example.org")).toBe("https://dev.example.org/apps/air%20quality/");
+    expect(appAddress("air", null)).toBe("/apps/air/");
+    expect(appAddress("air", "javascript:alert(1)")).toBe("/apps/air/");
+    expect(appAddress("air", "not a url")).toBe("/apps/air/");
   });
 });
 

@@ -87,6 +87,11 @@ pub struct Identity {
     /// not permission: a `RoleBinding` names a group, the Portal checks the binding (PF-50).
     #[serde(default)]
     pub groups: Vec<String>,
+    /// The Keycloak client that obtained a verified bearer token (`azp`), which is how a
+    /// `ServiceAccount` is recognised (PF-46, PF-49). Never stored in the session cookie and
+    /// never rendered: a cookie session is a person's and has none.
+    #[serde(skip)]
+    pub client: Option<String>,
 }
 
 /// The session payload. `Debug` redacts the tokens so none reaches a log line.
@@ -361,6 +366,7 @@ mod tests {
         let now = now_unix();
         Session {
             identity: Identity {
+                client: None,
                 subject: "f:1:demo.steward".into(),
                 username: "demo.steward".into(),
                 email: Some("demo.steward@banskabystrica.sk".into()),

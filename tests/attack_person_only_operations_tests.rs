@@ -117,6 +117,7 @@ fn attack_input(operation: &str) -> Value {
 
 fn steward() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:jana".into(),
         username: "jana".into(),
         email: Some("jana@banskabystrica.sk".into()),

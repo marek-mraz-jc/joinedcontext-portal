@@ -654,6 +654,7 @@ mod tests {
 
         // Principal without bindings
         let viewer_id = Identity {
+            client: None,
             subject: "f:1:viewer".into(),
             username: "viewer".into(),
             email: Some("viewer@example.sk".into()),
@@ -695,6 +696,7 @@ mod tests {
         state.mirror.upsert(binding);
 
         let dev_id = Identity {
+            client: None,
             subject: "f:1:dev".into(),
             username: "dev".into(),
             email: Some("dev@example.sk".into()),

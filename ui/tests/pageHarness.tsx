@@ -55,7 +55,7 @@ export function problem(status: number, detail: string): Response {
 export interface RouteOptions {
   path: string;
   /** What the API answers for a path under `/api/v1`; `undefined` falls through to an empty list. */
-  answer?: (path: string, request: Request) => Response | undefined;
+  answer?: (path: string, request: Request) => Response | Promise<Response> | undefined;
   identity?: Record<string, unknown> | null;
   permissions?: Record<string, unknown>;
   /** The page's own requests never settle, so it stays in its loading state for the assertion. */

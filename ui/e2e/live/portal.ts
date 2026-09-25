@@ -17,6 +17,48 @@ export const EDITOR = { user: "demo.editor@hel.fi", password: process.env.EDITOR
  * journey- and take-named resources of helsinki, so the sweep needs no demo person's delete.
  */
 export const JANITOR = { user: "demo.janitor@hel.fi", password: process.env.JANITOR_PASSWORD ?? "" };
+/**
+ * The seeded workload on the Portal's side (T-2245, PF-45, PF-49): ServiceAccount
+ * `helsinki/pipeline-proposer`, whose Keycloak client `helsinki-pipeline-proposer` mints a
+ * `portal-api` token and holds `pipeline-editor` (propose DataSource and Pipeline) without approve
+ * (PF-58). Its secret is Secret `keycloak-client-helsinki-pipeline-proposer`, key `client-secret`.
+ */
+export const PROPOSER = { client: "helsinki-pipeline-proposer", secret: process.env.PROPOSER_CLIENT_SECRET ?? "" };
+
+/**
+ * A `client_credentials` token of the proposer account, found the way an MCP client finds it: the
+ * Portal's protected-resource metadata names the authorization server (RFC 9728), whose discovery
+ * document names the token endpoint. Plain `fetch`, never the Playwright request context: the
+ * journey header of the live config is refused beside a bearer token.
+ */
+export async function serviceAccountToken(baseURL: string): Promise<string> {
+  if (!PROPOSER.secret) {
+    throw new Error(`no PROPOSER_CLIENT_SECRET in the environment for ${PROPOSER.client}`);
+  }
+  const metadata = await fetch(new URL("/.well-known/oauth-protected-resource/api/v1/mcp", baseURL));
+  expect(metadata.ok, "the Portal's protected-resource metadata").toBe(true);
+  const issuer = ((await metadata.json()) as { authorization_servers?: string[] }).authorization_servers?.[0];
+  if (!issuer) {
+    throw new Error("the protected-resource metadata names no authorization server");
+  }
+  const discovery = await fetch(`${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`);
+  expect(discovery.ok, `the discovery document of ${issuer}`).toBe(true);
+  const { token_endpoint: tokenEndpoint } = (await discovery.json()) as { token_endpoint: string };
+  const answer = await fetch(tokenEndpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: PROPOSER.client,
+      client_secret: PROPOSER.secret,
+    }),
+  });
+  if (!answer.ok) {
+    // Keycloak's error names the cause (unauthorized_client, invalid_client); the secret is not in it.
+    throw new Error(`the token endpoint refused ${PROPOSER.client}: ${answer.status} ${await answer.text()}`);
+  }
+  return ((await answer.json()) as { access_token: string }).access_token;
+}
 
 /**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
@@ -156,12 +198,15 @@ export async function reject(
 
 /**
  * Proposes the deletion of one resource the way a person does (a Red Change, CC-19): its row's
- * Delete on the kind's list, the name typed back, Propose removal; returns the change's id.
+ * menu on the kind's list, Remove, the name typed back, Propose removal; returns the change's id.
+ * The row offers no "Delete …" button: the removal is one item of "More actions for …"
+ * (`ResourceRowActions`), and the old selector matched nothing (T-2729).
  */
 export async function proposeDelete(page: Page, project: string, plural: string, name: string): Promise<string> {
-  await page.goto(`/projects/${project}/${plural}`);
+  await page.goto(`/projects/${project}/${plural}?lang=en`);
   const row = page.locator("tr, li").filter({ hasText: name }).first();
-  await row.getByRole("button", { name: /^Delete / }).click();
+  await row.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Remove" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(`Type ${name} to confirm`).fill(name);
   await dialog.getByRole("button", { name: "Propose removal" }).click();
