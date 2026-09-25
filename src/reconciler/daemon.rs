@@ -2101,20 +2101,31 @@ fn pipeline_references(
         .and_then(crate::api::assistant::ref_name);
     if let Some(name) = data_source {
         if let Some(source) = mirror.get(namespace, "DataSource", &name) {
-            // Every credential the connector reads (an HTTP source's `authorization.headerRef`,
-            // an MQTT password, a TLS CA), under the name its compiled stream expects: reading
-            // `spec.secrets` alone left praha's Golemio key out of the runner (T-2880).
-            match serde_json::from_value::<jc_core::kinds::data_source::DataSourceSpec>(
-                source.spec.clone(),
-            ) {
-                Ok(spec) => references.extend(spec.secret_refs().into_iter().map(|reference| {
-                    let mut named = reference.clone();
-                    named.env_var.get_or_insert_with(|| {
-                        jc_core::kinds::data_source::env_var_of(&name, reference)
-                    });
-                    named
-                })),
-                Err(_) => references.extend(list(source.spec.get("secrets"))),
+            // The connector's `spec.secrets` (PL-50), and every credential its typed fields
+            // name (an HTTP source's `authorization.headerRef`, an MQTT password, a TLS CA)
+            // under the name its compiled stream expects: `spec.secrets` alone left praha's
+            // Golemio key out of the runner (T-2957, T-2880).
+            let declared = list(source.spec.get("secrets"));
+            let typed: Vec<jc_core::envelope::SecretRef> = serde_json::from_value::<
+                jc_core::kinds::data_source::DataSourceSpec,
+            >(source.spec.clone())
+            .map(|spec| {
+                spec.secret_refs()
+                    .into_iter()
+                    .map(|reference| {
+                        let mut named = reference.clone();
+                        named.env_var.get_or_insert_with(|| {
+                            jc_core::kinds::data_source::env_var_of(&name, reference)
+                        });
+                        named
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+            for reference in declared.into_iter().chain(typed) {
+                if !references.contains(&reference) {
+                    references.push(reference);
+                }
             }
         }
     }
