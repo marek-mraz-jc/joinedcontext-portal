@@ -128,7 +128,8 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 
 /** rjsf renders an array editor: one "Add" button, and items that carry an id, not a label. */
 async function addAllowedProject(dialog: HTMLElement, name: string) {
-  await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+  // The catalogue section has lists of its own, so the allowed projects' add button is named by id.
+  await userEvent.click(dialog.querySelector("#root_allowedProjects__add") as HTMLButtonElement);
   const input = dialog.querySelector("#root_allowedProjects_0") as HTMLInputElement;
   await userEvent.type(input, name);
 }
@@ -285,6 +286,8 @@ describe("endpoint editor toggles", () => {
     expect(body.spec.rateLimits).toEqual({ requestsPerMinute: RATE_LIMIT_CLASSES.standard });
     expect(body.spec.caching).toBeUndefined();
     expect(body.spec.projection).toBeUndefined();
+    // No catalogue description was written, and the Organization names no open-data desk here.
+    expect(body.spec.catalog).toBeUndefined();
     // A new endpoint defaults to `project-list`, where the list is required.
     expect(body.spec.allowedProjects).toEqual(["doprava"]);
   });

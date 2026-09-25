@@ -926,6 +926,12 @@ async fn propose_engine(
         )?;
     }
 
+    // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own
+    //       address is refused at every door (EP-80, T-2789).
+    if operation != Operation::Delete {
+        crate::catalog::check_contact(&state.mirror, identity, kind_info.kind, &envelope.spec)?;
+    }
+
     // 4c. Who may propose this kind here, with this content (T-0526, PF-50): the bindings of
     //     the organization repository, before a Change exists. 403 names the verb or the field.
     //     A build write was judged by `build_lane_write`: the lane's rule, the App on main and
@@ -979,6 +985,14 @@ async fn propose_engine(
         crate::references::check(&state.mirror, project, kind_info.kind, &envelope.spec)?;
     }
 
+    // 4d. A new space comes with its one model, in the same Change (DM-61, DM-62, ADR-N-033),
+    //     whoever creates it: the form, the API, the assistant or MCP.
+    let space_model = if kind_info.kind == "ContextSpace" && operation == Operation::Create {
+        space_model(state, project, &mut envelope)
+    } else {
+        Vec::new()
+    };
+
     // 5. Diff against current mirror state
     let current = state
         .mirror
@@ -987,7 +1001,15 @@ async fn propose_engine(
 
     // The same folder as the manifest, so a path is checked against where it will be written.
     let manifest_path = resolve_repo_path(&envelope, kind_info, project)?;
-    let sidecars = sidecars(sidecar_files, &manifest_path)?;
+    let mut sidecars = sidecars(sidecar_files, &manifest_path)?;
+    let folder = manifest_path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    for (relative, content) in space_model {
+        let full = format!("{folder}/{relative}");
+        // A caller that sent the model's files itself keeps its own.
+        if !sidecars.iter().any(|(path, _)| *path == full) {
+            sidecars.push((full, content));
+        }
+    }
     for (path, content) in &sidecars {
         plan.fields.push(plan::FieldChange {
             path: format!("files.{path}"),
@@ -1523,6 +1545,87 @@ fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, St
         written.push((full, content.to_owned()));
     }
     Ok(written)
+}
+
+/// The empty model a new space is created with, as files beside the space manifest, and the
+/// space's `spec.dataModelRef` naming it (DM-61, DM-62).
+///
+/// A space that already names a model keeps it, and a space the project already holds a model
+/// for gets no second one: the model is named by the space, so reusing another project's types
+/// is an `imports` entry of this model, never a second model (ADR-N-033). The model is a draft
+/// with no classes, the shape DM-57 gives a model created by name; its first class is written
+/// in the model editor.
+fn space_model(
+    state: &AppState,
+    project: &str,
+    envelope: &mut ResourceEnvelope,
+) -> Vec<(String, String)> {
+    let space = envelope.metadata.name.clone();
+    let named = envelope
+        .spec
+        .get("dataModelRef")
+        .is_some_and(|reference| !reference.is_null());
+    let held = state
+        .mirror
+        .find(|model| {
+            model.kind == "DataModel"
+                && model.metadata.namespace.as_deref() == Some(project)
+                && crate::api::assistant::ref_name(&model.spec["contextSpaceRef"]).as_deref()
+                    == Some(space.as_str())
+        })
+        .is_some();
+    if named || held {
+        return Vec::new();
+    }
+    let Some(spec) = envelope.spec.as_object_mut() else {
+        return Vec::new();
+    };
+    spec.insert(
+        "dataModelRef".into(),
+        serde_json::json!({ "kind": "DataModel", "name": space }),
+    );
+    let manifest = serde_json::json!({
+        "apiVersion": resource::API_VERSION,
+        "kind": "DataModel",
+        "metadata": { "name": space, "namespace": project },
+        "spec": {
+            "contextSpaceRef": space,
+            "linkml": format!("./{space}.linkml.yaml"),
+            "version": "0.1.0",
+            "lifecycle": "draft",
+            "classes": [],
+        }
+    });
+    let base = match state.config.org_domain.as_deref() {
+        Some(domain) if !domain.is_empty() => format!("https://{domain}/models/{project}/{space}"),
+        _ => format!("urn:joinedcontext:model:{project}:{space}"),
+    };
+    // A prefix is an NCName, which a DNS label that starts with a digit is not.
+    let prefix = if project.starts_with(|c: char| c.is_ascii_alphabetic()) {
+        project.to_owned()
+    } else {
+        "local".to_owned()
+    };
+    let source = format!(
+        "id: {base}\n\
+         name: {space}\n\
+         description: The types of the {space} space, one class per entity type (DM-61).\n\
+         prefixes:\n\
+         \x20 linkml: https://w3id.org/linkml/\n\
+         \x20 ngsi-ld: https://uri.etsi.org/ngsi-ld/\n\
+         \x20 {prefix}: {base}/\n\
+         default_prefix: {prefix}\n\
+         default_range: string\n\
+         imports:\n\
+         \x20 - linkml:types\n\
+         \x20 - ngsi-ld-core\n\
+         classes: {{}}\n"
+    );
+    let manifest = serde_yaml_ng::to_string(&manifest).unwrap_or_default();
+    vec![
+        (format!("datamodels/{space}.yaml"), manifest),
+        (format!("datamodels/{space}.linkml.yaml"), source),
+    ]
 }
 
 /// What a proposal of one resource sends: the manifest, and beside it the draft the form holds
