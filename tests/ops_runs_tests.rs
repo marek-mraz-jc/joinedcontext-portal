@@ -43,7 +43,7 @@ fn a_run(created_by: &str, status: &str) -> AgentRun {
         "profile": "app-builder",
         "kind": "conversation",
         "unattended": false,
-        "appClass": "static",
+        "appClass": "ui",
         "visibility": "project",
         "prompt": "p",
         "promptDigest": digest_prompt("p"),

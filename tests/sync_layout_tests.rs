@@ -246,3 +246,134 @@ async fn a_project_taken_out_of_the_registry_has_its_repository_archived() {
         "nothing is removed"
     );
 }
+
+/// A cluster holding the edge's Ingress and Certificate and the host (Certificate and Ingress)
+/// the Portal once made for the App `luft`, answering every delete.
+async fn cluster_with_app_host() -> MockServer {
+    const CERTS: &str = "/apis/cert-manager.io/v1/namespaces/apisix/certificates";
+    const INGRESSES: &str = "/apis/networking.k8s.io/v1/namespaces/apisix/ingresses";
+    let cluster = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{INGRESSES}/apisix")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "metadata": { "name": "apisix" },
+            "spec": { "rules": [{ "host": "city.example", "http": { "paths": [{
+                "path": "/", "pathType": "Prefix",
+                "backend": { "service": { "name": "apisix-gateway", "port": { "number": 80 } } },
+            }] } }] },
+        })))
+        .mount(&cluster)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{CERTS}/apisix-edge")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "spec": { "issuerRef": { "name": "letsencrypt-prod", "kind": "ClusterIssuer" } },
+        })))
+        .mount(&cluster)
+        .await;
+    for (collection, kind) in [(CERTS, "Certificate"), (INGRESSES, "Ingress")] {
+        let held = json!({ "kind": kind, "metadata": { "name": "app-luft", "labels": {
+            "app.kubernetes.io/managed-by": "joinedcontext-portal",
+            "app.kubernetes.io/component": "app-host",
+            "joinedcontext.com/app": "luft",
+        } } });
+        Mock::given(method("GET"))
+            .and(path(collection))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [held] })))
+            .mount(&cluster)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path(format!("{collection}/app-luft")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&cluster)
+            .await;
+    }
+    cluster
+}
+
+/// A syncer with the edge and the App hosts on `cluster`, as a replica that just started.
+fn syncer_on_cluster(server: &MockServer, cluster: &MockServer) -> (Syncer, Arc<Mirror>) {
+    use joinedcontext_portal::apps::kube::KubeClient;
+    use joinedcontext_portal::apps::reconciler::Settings;
+    use joinedcontext_portal::reconciler::app_hosts::AppHosts;
+    use joinedcontext_portal::reconciler::edge_file::EdgeFile;
+    let kube = || KubeClient::with_token(&cluster.uri(), "token").expect("a kube client");
+    let settings = Settings {
+        host: "city.example".into(),
+        apex: "city.example".into(),
+        gateway_url: None,
+        namespace: "jc".into(),
+        org_domain: "banskabystrica.sk".into(),
+        apisix_namespace: "apisix".into(),
+        image_repository: None,
+        pull_secret: None,
+        release: None,
+        service_account: None,
+    };
+    let (syncer, mirror) = syncer(server);
+    let syncer = syncer
+        .with_edge_file(
+            Arc::new(EdgeFile::new(kube(), "apisix".to_owned())),
+            settings,
+        )
+        .with_app_hosts(Arc::new(AppHosts::new(kube(), "apisix".to_owned())));
+    (syncer, mirror)
+}
+
+async fn deletes(cluster: &MockServer) -> usize {
+    cluster
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|request| request.method.as_str() == "DELETE")
+        .count()
+}
+
+/// AP-133: a replica whose first run cannot read a project's repository holds none of that
+/// project's Apps, which is not the same as their being retired: their certificates stay, or
+/// every restart during a forge hiccup re-requests them against Let's Encrypt's weekly limit.
+#[tokio::test]
+async fn an_unstaged_project_keeps_its_app_hosts() {
+    let server = MockServer::start().await;
+    organization(&server).await;
+    let cluster = cluster_with_app_host().await;
+    let (syncer, _mirror) = syncer_on_cluster(&server, &cluster);
+
+    syncer
+        .sync_once()
+        .await
+        .expect("the organization syncs without the project");
+    assert_eq!(
+        deletes(&cluster).await,
+        0,
+        "no App host is removed while a project's repository did not stage"
+    );
+}
+
+/// AP-133: once every project stages, an App host no published App names is removed.
+#[tokio::test]
+async fn a_complete_run_retires_an_unpublished_app_host() {
+    let server = MockServer::start().await;
+    organization(&server).await;
+    repository(
+        &server,
+        "ovzdusie",
+        "main",
+        &[
+            (".jc/layout", "2\n"),
+            ("project.yaml", PROJECT),
+            ("spaces/ovzdusie/space.yaml", SPACE),
+        ],
+    )
+    .await;
+    let cluster = cluster_with_app_host().await;
+    let (syncer, _mirror) = syncer_on_cluster(&server, &cluster);
+
+    syncer.sync_once().await.expect("the organization syncs");
+    assert_eq!(
+        deletes(&cluster).await,
+        2,
+        "the Certificate and the Ingress of an App no project publishes"
+    );
+}

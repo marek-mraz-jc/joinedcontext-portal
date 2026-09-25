@@ -16,10 +16,14 @@ export interface Declaration {
   enum?: (string | number | boolean)[];
 }
 
-/** What the dry run of a git import answers: the repositories and the declarations. */
+/**
+ * What the dry run of a git import answers: the repositories, the declarations, and what the
+ * import does with each organization model the archive carries (MF-50).
+ */
 interface Plan {
   repositories: { name: string; role: string; repository: string; head: string }[];
   parameters: Record<string, Declaration>;
+  models?: { name: string; version: string; action: "map" | "land" }[];
 }
 
 /**
@@ -245,6 +249,21 @@ export function ImportProjectDialog({
                   </li>
                 ))}
               </ul>
+              {plan.models?.length ? (
+                <>
+                  <h3 className="text-body font-semibold text-fg">{t("projectImport.models")}</h3>
+                  <ul className="list-disc pl-5 text-body text-fg">
+                    {plan.models.map((model) => (
+                      <li key={model.name}>
+                        {t(model.action === "map" ? "projectImport.modelMap" : "projectImport.modelLand", {
+                          name: model.name,
+                          version: model.version,
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
               <h3 className="text-body font-semibold text-fg">{t("projectImport.parameters")}</h3>
               {declarations.length === 0 ? (
                 <p className="text-body text-fg-muted">{t("projectImport.noParameters")}</p>

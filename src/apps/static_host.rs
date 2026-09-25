@@ -642,6 +642,7 @@ mod tests {
         let mut spec = spec();
         spec.embeddable = true;
         spec.csp = Some(ContentSecurityPolicy {
+            frame_src: Vec::new(),
             connect_src: vec!["self".into()],
             frame_ancestors: vec![
                 "https://city.example.sk".into(),
@@ -679,6 +680,7 @@ mod tests {
         // spec.embeddable is the switch (AP-12); a frameAncestors list alone must not open it.
         let mut spec = spec();
         spec.csp = Some(ContentSecurityPolicy {
+            frame_src: Vec::new(),
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://elsewhere.example".into()],
         });
@@ -694,6 +696,7 @@ mod tests {
         spec.embeddable = true;
         assert!(content_security_policy(&spec, None, None).ends_with("frame-ancestors 'self'"));
         spec.csp = Some(ContentSecurityPolicy {
+            frame_src: Vec::new(),
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://city.example.sk".into()],
         });

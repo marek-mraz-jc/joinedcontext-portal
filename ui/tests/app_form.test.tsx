@@ -34,7 +34,7 @@ const schema = () => appSchema(t);
 /** The air-quality map the generator wrote: a folder source, one need, a CSP, a limit. */
 const FILLED: AppForm = {
   name: "ovzdusie-mapa",
-  kind: "static",
+  kind: "ui",
   visibility: "organization",
   embeddable: true,
   source: { from: "path", path: "apps/ovzdusie-mapa" },
@@ -296,7 +296,7 @@ describe("the App manifest the form writes", () => {
     const back = fromAppEnvelope({
       metadata: { name: "rucna" },
       spec: {
-        kind: "service",
+        kind: "ui-rust",
         visibility: "project",
         source: { path: "apps/rucna" },
         build: { rust: "1.85.0" },
@@ -306,6 +306,37 @@ describe("the App manifest the form writes", () => {
     expect(back.dataNeeds[0]?.contextSpaceRef).toBe("ovzdusie");
     expect(back.build).toEqual([{ tool: "rust", version: "1.85.0" }]);
     expect(errorsOf(back)).toBe("");
+  });
+});
+
+/** AP-124: the shapes are `ui` and `ui-rust`; an App written with the old names opens as them. */
+describe("the App shapes", () => {
+  it("offers ui and ui-rust, ui first, and no withdrawn or unbuilt shape", () => {
+    const kind = (appSchema(i18n.t.bind(i18n)).properties as Record<string, { default?: unknown; oneOf?: { const: string }[] }>).kind;
+    expect(kind.default).toBe("ui");
+    expect(kind.oneOf?.map((option) => option.const)).toEqual(["ui", "ui-rust"]);
+  });
+
+  it.each([
+    ["static", "ui"],
+    ["fullstack", "ui-rust"],
+    ["ui", "ui"],
+    ["ui-rust", "ui-rust"],
+  ])("opens a manifest of kind %s as %s", (written, read) => {
+    const back = fromAppEnvelope({
+      metadata: { name: "stara" },
+      spec: { kind: written, visibility: "project", source: { path: "./src" }, build: {} },
+    });
+    expect(back.kind).toBe(read);
+  });
+
+  it("keeps a withdrawn shape as written, for the form to refuse", () => {
+    const back = fromAppEnvelope({
+      metadata: { name: "stara" },
+      spec: { kind: "service", visibility: "project", source: { path: "./src" }, build: {} },
+    });
+    expect(back.kind).toBe("service");
+    expect(errorsOf(back)).not.toBe("");
   });
 });
 

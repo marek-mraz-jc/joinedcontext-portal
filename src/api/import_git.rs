@@ -56,6 +56,8 @@ pub struct GitImportPlan {
     /// `spec.parameters` of the project's own file, name to declaration.
     #[schema(value_type = Object)]
     pub parameters: Value,
+    /// What the import does with each organization model the archive carries (MF-50).
+    pub models: Vec<crate::api::bundle_models::PlannedModel>,
 }
 
 /// The archive's files by path. An entry that leaves the root, or an archive past the upload
@@ -332,6 +334,9 @@ pub async fn import(
         });
     }
 
+    // Map or land, per carried model, decided before anything is created (MF-50).
+    let (models, artifacts) = crate::api::bundle_models::plan(state, &index, &files).await?;
+
     // PF-57: the dry run is the check, over the archive as sent, the slug and the values.
     let subject = serde_json::json!({
         "bundle": format!("{:x}", Sha256::digest(bytes)),
@@ -346,6 +351,7 @@ pub async fn import(
             repositories: planned,
             parameters: serde_json::to_value(&own.spec.parameters)
                 .map_err(|e| ApiError::Internal(e.to_string()))?,
+            models,
         };
         return Ok((
             StatusCode::OK,
@@ -385,6 +391,8 @@ pub async fn import(
         files: &files,
         planned: &planned,
         clients: &clients,
+        models: &models,
+        artifacts: &artifacts,
     };
     let landed = land(state, identity, &landing, &mut created, entry_files).await;
     match landed {
@@ -415,6 +423,8 @@ struct Landing<'a> {
     files: &'a BTreeMap<String, Vec<u8>>,
     planned: &'a [PlannedRepository],
     clients: &'a [GiteaClient],
+    models: &'a [crate::api::bundle_models::PlannedModel],
+    artifacts: &'a BTreeMap<String, crate::tools::model_tools::Artifacts>,
 }
 
 /// Creates, fills and verifies every repository, remounts the project, and proposes the
@@ -433,6 +443,8 @@ async fn land<'a>(
         files,
         planned,
         clients,
+        models,
+        artifacts,
     } = *landing;
     let mut verified = Vec::new();
     let mut refused_tags = Vec::new();
@@ -538,6 +550,10 @@ async fn land<'a>(
         },
     )
     .await?;
+    // The carried models the destination does not hold land in the project, before `main` is
+    // protected; the organization repository is never written (MF-50).
+    crate::api::bundle_models::land(&mounted, identity, project, index, files, models, artifacts)
+        .await?;
     for client in clients {
         client.protect_branch("main").await?;
     }

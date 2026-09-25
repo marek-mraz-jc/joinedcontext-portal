@@ -72,7 +72,7 @@ fn run() -> AgentRun {
         kind: "application".into(),
         unattended: false,
         continues: None,
-        app_class: "static".into(),
+        app_class: "ui".into(),
         visibility: "project".into(),
         prompt: "a live bike availability dashboard".into(),
         prompt_digest: "sha256:abc".into(),

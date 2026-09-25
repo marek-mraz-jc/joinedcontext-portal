@@ -8,9 +8,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
-import { JcProvider } from "@joinedcontext/sdk";
+import { currentTokens, JcProvider } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
-import App from "./App";
+import App, { bodyColor } from "./App";
 import region from "./fixtures/bbsk-kpi.json";
 import city from "./fixtures/banskabystrica-kpi.json";
 import { LOCALES } from "./locales";
@@ -274,5 +274,77 @@ describe("what a screen reader and an audit find", () => {
     }
     expect(sectionOf(LOCALES.sk.body.bbsk)).toBeInTheDocument();
     expect(sectionOf(LOCALES.sk.body.banskabystrica)).toBeInTheDocument();
+  });
+});
+
+describe("colour, charts and the details a reader opens (T-2922)", () => {
+  const measured = (key: string) =>
+    region.filter(
+      (entity) =>
+        String(entity.name.value).startsWith(`${key}-okres-`) &&
+        typeof (entity as { currentValue?: { value?: unknown } }).currentValue?.value === "number",
+    ).length;
+
+  it("charts each region indicator's districts, one bar per measured district", async () => {
+    show(both);
+    const bbsk = sectionOf(LOCALES.sk.body.bbsk);
+    await waitFor(() => expect(within(bbsk).getAllByRole("figure")).toHaveLength(2));
+
+    for (const key of ["obyvatelstvo-stav", "emisie-tuhe-km2"]) {
+      const title = LOCALES.sk.indicator[key].title;
+      const chart = within(bbsk).getByRole("figure", { name: `${LOCALES.sk.districtsCompared}: ${title}` });
+      const bars = within(chart).getAllByRole("listitem");
+      expect(bars).toHaveLength(measured(key));
+      // Every bar says its district and its number with the written unit, not only a length.
+      expect(bars[0].textContent).toContain(LOCALES.sk.indicator[key].unit);
+      expect(
+        bars.every((bar) =>
+          Object.values(LOCALES.sk.territory).some((name) => bar.textContent?.startsWith(name)),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("draws no chart where a body publishes only its whole territory", async () => {
+    show(both);
+    const mesto = sectionOf(LOCALES.sk.body.banskabystrica);
+    await waitFor(() => expect(within(mesto).getAllByRole("article").length).toBe(city.length));
+    expect(within(mesto).queryAllByRole("figure")).toHaveLength(0);
+  });
+
+  it("colours each body from the design tokens, never from what an entity says", async () => {
+    show(both);
+    const bbsk = sectionOf(LOCALES.sk.body.bbsk);
+    const mesto = sectionOf(LOCALES.sk.body.banskabystrica);
+    const tokens = currentTokens();
+    expect(bbsk.style.getPropertyValue("--body")).toBe(tokens.color.accent);
+    expect(mesto.style.getPropertyValue("--body")).toBe(tokens.chart.palette[1]);
+    expect(bodyColor("bbsk")).not.toBe(bodyColor("banskabystrica"));
+  });
+
+  it("keeps the window and the formula in a disclosure, off the main view", async () => {
+    show(both);
+    const bbsk = sectionOf(LOCALES.sk.body.bbsk);
+    await waitFor(() => expect(within(bbsk).getAllByRole("article").length).toBe(region.length));
+    for (const card of within(bbsk).getAllByRole("article")) {
+      const details = card.querySelector("details");
+      expect(details).toBeTruthy();
+      expect(details?.open).toBe(false);
+      expect(details?.querySelector("summary")?.textContent).toBe(LOCALES.sk.details);
+      expect(card.querySelector(".formula")?.closest("details")).toBe(details);
+    }
+  });
+
+  it("marks the whole region as the headline card of its indicator", async () => {
+    show(both);
+    const bbsk = sectionOf(LOCALES.sk.body.bbsk);
+    await waitFor(() => expect(within(bbsk).getAllByRole("article").length).toBe(region.length));
+    const whole = within(bbsk)
+      .getAllByRole("article")
+      .filter((card) => card.classList.contains("whole"));
+    expect(whole).toHaveLength(2);
+    for (const card of whole) {
+      expect(card.textContent).toContain(LOCALES.sk.territory.kraj);
+    }
   });
 });

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { Card, Grid, Page, useClient, useEntities, useFunction } from "@joinedcontext/sdk";
 import type { Schema, TypeSchema } from "@joinedcontext/sdk";
 import { navigate } from "../components/AppShell";
-import { BarChartCard } from "../components/charts";
+import { BarChartCard, TimeSeriesCard } from "../components/charts";
+import { EntityMap } from "../components/EntityMap";
 import { Loading, Problem } from "../components/states";
 import { StatTiles } from "../components/StatTiles";
 import type { Summary } from "../../functions/summary";
@@ -32,13 +33,19 @@ function TypeCard({ source, schema }: { source: TypeSource; schema?: TypeSchema 
         loading={loading}
         tiles={[{ label: t("overview.entities"), agg: "count" }, ...(measure ? [{ label: t("stat.average", { attr: measure }), agg: "avg" as const, attr: measure }] : [])]}
       />
-      {shape.categories[0] && <BarChartCard rows={rows} x={shape.categories[0]} y={measure} agg={measure ? "avg" : "count"} top={10} />}
+      {shape.geo && <EntityMap rows={rows} location={shape.geo} label={shape.label} color={measure} height={240} onSelect={() => navigate(source.id)} />}
+      {shape.categories[0] ? (
+        <BarChartCard rows={rows} x={shape.categories[0]} y={measure} agg={measure ? "avg" : "count"} top={10} />
+      ) : (
+        shape.time && <TimeSeriesCard rows={rows} time={shape.time} y={measure} />
+      )}
     </Card>
   );
 }
 
 /**
- * A card per entity type from the rows, and the same counts computed by the `summary` function.
+ * A card per entity type from the rows, each with a chart and, for located data, a map (AP-138),
+ * and the same counts computed by the `summary` function, as a chart.
  * An application reading several endpoints (SDK-02) names on each card the endpoint its type is
  * read through: the client picks it by type, so a page only names the type.
  */
@@ -58,14 +65,13 @@ export function Overview({ schema }: { schema: Schema }) {
         {summary.loading && <Loading />}
         <Problem error={summary.error} onRetry={summary.reload} />
         {summary.data && (
-          <ul>
-            {summary.data.types.map((item) => (
-              <li key={item.type}>
-                {item.type}: {item.count}
-                {Object.entries(item.averages).map(([attr, value]) => ` · ${attr} ${value}`)}
-              </li>
-            ))}
-          </ul>
+          <BarChartCard
+            rows={summary.data.types.map((item) => ({ id: item.type, type: item.type, count: item.count }))}
+            x="type"
+            y="count"
+            agg="sum"
+            title={t("overview.perType")}
+          />
         )}
       </Card>
     </Page>

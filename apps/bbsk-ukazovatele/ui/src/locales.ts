@@ -29,6 +29,10 @@ export interface Strings {
   empty: string;
   noEndpoint: string;
   rawUnit: string;
+  /** The disclosure that holds a card's window, computation time and formula. */
+  details: string;
+  /** The caption over the bar chart of one indicator's districts. */
+  districtsCompared: string;
 }
 
 const TERRITORY_SK: Record<string, string> = {
@@ -102,6 +106,8 @@ const SK: Strings = {
   empty: "Tento vydavateľ zatiaľ nezverejnil žiadny ukazovateľ.",
   noEndpoint: "Táto aplikácia nemá prístup k údajom tohto vydavateľa.",
   rawUnit: "Jednotka zo záznamu",
+  details: "Obdobie a výpočet",
+  districtsCompared: "Okresy v porovnaní",
 };
 
 const EN: Strings = {
@@ -139,6 +145,8 @@ const EN: Strings = {
   empty: "This publisher has not published an indicator yet.",
   noEndpoint: "This application has no access to this publisher's data.",
   rawUnit: "Unit as recorded",
+  details: "Window and computation",
+  districtsCompared: "Districts compared",
 };
 
 export const LOCALES: Readonly<Record<string, Strings>> = { sk: SK, en: EN };

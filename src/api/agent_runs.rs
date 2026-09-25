@@ -93,7 +93,8 @@ pub struct CreateRunRequest {
     /// Which `AgentProfile` runs. Defaults to the builder profile the platform ships.
     #[serde(default = "default_profile")]
     pub profile: String,
-    /// `static`, `service` or `fullstack`, as the `App` kind spells them.
+    /// `ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are
+    /// read as them for one release, and `ui-node` is refused until it is built.
     pub app_class: String,
     /// Who may reach the published application. `public` is refused (AP-42).
     #[serde(default = "default_visibility")]
@@ -405,7 +406,7 @@ pub struct CreatedRun {
         example = json!({
             "appName": "city-bikes-overview",
             "endpointName": "helsinki-bikes",
-            "appClass": "fullstack",
+            "appClass": "ui-rust",
             "visibility": "project",
             "prompt": "A live bike availability dashboard with station filtering",
             "dataNeeds": [{
@@ -460,14 +461,9 @@ pub async fn create_run(
         )));
     }
     // The two enumerations are jc-core's, not a second copy of them: what the `App` kind
-    // accepts is what a run may be started for.
-    serde_json::from_value::<jc_core::kinds::AppClass>(serde_json::json!(request.app_class))
-        .map_err(|_| {
-            ApiError::BadRequest(format!(
-                "appClass '{}' is not one of static, service, fullstack",
-                request.app_class
-            ))
-        })?;
+    // accepts is what a run may be started for, in jc-core's words for what it refuses (AP-124).
+    let app_class = jc_core::kinds::AppClass::parse(&request.app_class)
+        .map_err(|refusal| ApiError::BadRequest(format!("appClass: {refusal}")))?;
     serde_json::from_value::<jc_core::kinds::AppVisibility>(serde_json::json!(request.visibility))
         .map_err(|_| {
             ApiError::BadRequest(format!(
@@ -503,7 +499,7 @@ pub async fn create_run(
     };
     // A static application is its own repository on the forge (AP-75): a name the forge would
     // refuse is refused here, before anything is recorded.
-    let own_repository = repository::owns_repository(&request.app_class, &request.kind);
+    let own_repository = repository::owns_repository(&app_class.to_string(), &request.kind);
     if own_repository {
         if let Some(refusal) = repository::name_refusal(&project, &request.app_name) {
             return Err(ApiError::BadRequest(refusal));
@@ -588,7 +584,8 @@ pub async fn create_run(
         kind: request.kind.clone(),
         unattended,
         continues: None,
-        app_class: request.app_class.clone(),
+        // Recorded in the new name, whichever the caller wrote (AP-124).
+        app_class: app_class.to_string(),
         visibility: request.visibility.clone(),
         prompt: request.prompt.clone(),
         prompt_digest: digest_prompt(&request.prompt),
@@ -643,10 +640,9 @@ pub async fn create_run(
     )
     .await?;
 
-    // A static application is the kit pass: the Portal drives it itself, in this process, and
-    // the ticket stays with the driver (AP-56, AG-54). The workspace Job is what the other two
-    // classes get.
-    if request.app_class == "static" {
+    // A `ui` application is the kit pass: the Portal drives it itself, in this process, and
+    // the ticket stays with the driver (AP-56, AG-54). The workspace Job is what `ui-rust` gets.
+    if app_class == jc_core::kinds::AppClass::Ui {
         oneshot::spawn(
             state.clone(),
             &run,
@@ -2269,7 +2265,9 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
             },
         },
         "spec": {
-            "kind": run.app_class,
+            // A run recorded before AP-124 holds the old name; the manifest gets the new one.
+            "kind": jc_core::kinds::AppClass::parse(&run.app_class)
+                .map_or_else(|_| run.app_class.clone(), |class| class.to_string()),
             // Where the run committed it: the application's repository at the commit it
             // published, or beside the manifest (`path_prefix`).
             "source": source,
@@ -2296,10 +2294,10 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
     manifest
 }
 
-/// The toolchains CI pins for a generated application (AP-11). A `static` application is a Vite
-/// build and nothing else; the other two classes carry a Rust binary with the build embedded.
+/// The toolchains CI pins for a generated application (AP-11). A `ui` application is a Vite
+/// build and nothing else; a `ui-rust` one carries a Rust binary with the build embedded.
 fn build_toolchains(app_class: &str) -> serde_json::Value {
-    if app_class == "static" {
+    if jc_core::kinds::AppClass::parse(app_class) == Ok(jc_core::kinds::AppClass::Ui) {
         serde_json::json!({ "node": NODE_TOOLCHAIN })
     } else {
         serde_json::json!({ "rust": RUST_TOOLCHAIN, "node": NODE_TOOLCHAIN })
