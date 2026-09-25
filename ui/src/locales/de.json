@@ -175,7 +175,12 @@
     "noneMatch": "Keine Änderung passt zu diesen Filtern.",
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
-    "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste."
+    "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste.",
+    "waitsOn": {
+      "pending": "Wartet auf {change}: Geben Sie zuerst diese Änderung frei, dann diese hier.",
+      "merged": "{change}, auf die diese Änderung wartet, ist zusammengeführt.",
+      "rejected": "{change}, auf die diese Änderung wartet, wurde abgelehnt: Was diese Änderung nennt, entsteht nicht. Lehnen Sie sie ab oder schlagen Sie sie neu vor."
+    }
   },
   "lane": {
     "green": "Grün",
@@ -2877,7 +2882,8 @@
       "none": "Noch nicht geprüft",
       "green": "Geprüft {age}",
       "red": "Prüfung fehlgeschlagen {age}",
-      "stale": "Seit der Prüfung geändert"
+      "stale": "Seit der Prüfung geändert",
+      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}"
     },
     "proposeReason": {
       "none": "Führen Sie zuerst die Prüfung aus: Ohne frisches grünes Urteil wird nichts vorgeschlagen.",

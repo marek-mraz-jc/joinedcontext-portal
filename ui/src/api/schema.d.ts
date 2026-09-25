@@ -2235,6 +2235,11 @@ export interface components {
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
         };
+        /** @description A change another one waits on (MF-48). */
+        AwaitedChange: {
+            name: string;
+            phase: components["schemas"]["ChangePhase"];
+        };
         /** @description The provider's back-channel logout call: one signed token, no session and no bearer (AP-29). */
         BackChannelLogoutForm: {
             /** @description The JWT the provider signed, carrying the `logout_events` claim. */
@@ -2488,6 +2493,11 @@ export interface components {
             planFields?: components["schemas"]["FieldChange"][] | null;
             status: components["schemas"]["ChangeStatus"];
             summary: components["schemas"]["ChangeSummary"];
+            /**
+             * @description The changes this one waits on, each with where it stands (MF-48): it names what they
+             *     create, so it merges after them, and a `Rejected` one flags it.
+             */
+            waitsOn?: components["schemas"]["AwaitedChange"][];
             /**
              * @description The workspace this Change brings back, so the approver reads that it was worked on as a
              *     copy first, and whose (UI-63, CC-79).
@@ -3957,6 +3967,11 @@ export interface components {
             inputDigest: string;
             ok: boolean;
             trace?: unknown;
+            /**
+             * @description The open changes whose resources this manifest names (MF-48): it resolves once they are
+             *     approved, and its own change cannot merge before them. Empty for every other verdict.
+             */
+            waitsOn?: string[];
         };
         /** @description One file of a bundle as the import verified it (MF-42). */
         Verified: {

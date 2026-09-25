@@ -175,7 +175,12 @@
     "noneMatch": "No change matches these filters.",
     "workspace": "From a copy",
     "fromWorkspace": "From the copy {name} by {author}, brought back on {date}: worked on apart from the live project, checked again before it was proposed.",
-    "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list."
+    "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list.",
+    "waitsOn": {
+      "pending": "Waits on {change}: approve that change first, then this one.",
+      "merged": "{change}, which this change waits on, is merged.",
+      "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
+    }
   },
   "lane": {
     "green": "Green",
@@ -2877,7 +2882,8 @@
       "none": "Not checked yet",
       "green": "Checked {age}",
       "red": "Check failed {age}",
-      "stale": "Changed since the check"
+      "stale": "Changed since the check",
+      "waiting": "Passes once {changes} is approved · checked {age}"
     },
     "proposeReason": {
       "none": "Run the check first: nothing is proposed without a fresh green verdict.",
