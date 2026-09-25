@@ -314,7 +314,8 @@
       "ttlDays": "Lifetime in days",
       "phase": "State",
       "source": "Source",
-      "inside": "Inside"
+      "inside": "Inside",
+      "missingUnitCode": "Missing unit"
     },
     "inside": {
       "open": "Look inside",
@@ -3849,6 +3850,10 @@
       "IRREG": "Irregularly",
       "NEVER": "Never, it is final",
       "UNKNOWN": "Not known"
+    },
+    "missingUnitCode": {
+      "fill": "Fill in the model's unit",
+      "refuse": "Refuse the write"
     }
   },
   "picker": {

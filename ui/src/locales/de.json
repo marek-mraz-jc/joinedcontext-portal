@@ -314,7 +314,8 @@
       "ttlDays": "Lebensdauer in Tagen",
       "phase": "Zustand",
       "source": "Quelle",
-      "inside": "Inhalt"
+      "inside": "Inhalt",
+      "missingUnitCode": "Fehlende Einheit"
     },
     "inside": {
       "open": "Inhalt ansehen",
@@ -3849,6 +3850,10 @@
       "IRREG": "Unregelmäßig",
       "NEVER": "Nie, er ist abgeschlossen",
       "UNKNOWN": "Unbekannt"
+    },
+    "missingUnitCode": {
+      "fill": "Einheit des Modells ergänzen",
+      "refuse": "Schreibvorgang ablehnen"
     }
   },
   "picker": {

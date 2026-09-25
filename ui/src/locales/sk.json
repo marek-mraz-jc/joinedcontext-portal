@@ -314,7 +314,8 @@
       "ttlDays": "Životnosť v dňoch",
       "phase": "Stav",
       "source": "Zdroj",
-      "inside": "Obsah"
+      "inside": "Obsah",
+      "missingUnitCode": "Chýbajúca jednotka"
     },
     "inside": {
       "open": "Pozrieť obsah",
@@ -3849,6 +3850,10 @@
       "IRREG": "Nepravidelne",
       "NEVER": "Nikdy, je konečný",
       "UNKNOWN": "Neznáme"
+    },
+    "missingUnitCode": {
+      "fill": "Doplniť jednotku z modelu",
+      "refuse": "Odmietnuť zápis"
     }
   },
   "picker": {
