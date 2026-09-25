@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Row } from "@joinedcontext/sdk";
 import { STATIONS } from "./fixtures/stations";
-import { bikes, hasBikes, isEmpty, totals } from "./stations";
+import { BANDS, SHARE, bikes, hasBikes, histogram, isEmpty, ranked, share, totals, withShare } from "./stations";
 
 const row = (availableBikeNumber: unknown): Row => ({ id: "urn:x", type: "BikeHireDockingStation", availableBikeNumber }) as Row;
 
@@ -20,5 +20,39 @@ describe("stations", () => {
     }
     expect(isEmpty(row(0))).toBe(true);
     expect(hasBikes(row(1))).toBe(true);
+  });
+
+  // T-2924: the map colours by the share of docks with a bike; a station missing a count has none.
+  it("computes the share of docks holding a bike, and none without both counts", () => {
+    const [kaivopuisto, laivasillankatu, kapteeninpuistikko, viiskulma] = STATIONS;
+    expect(share(kaivopuisto)).toBeCloseTo(4 / 30);
+    expect(share(laivasillankatu)).toBe(0);
+    expect(share(viiskulma)).toBeNull();
+    expect(share({ ...kapteeninpuistikko, totalSlotNumber: 0 })).toBeNull();
+    expect(share({ ...kapteeninpuistikko, availableBikeNumber: 40, totalSlotNumber: 16 })).toBe(1);
+    const shaded = withShare(STATIONS);
+    expect(shaded[0][SHARE]).toBe(13);
+    expect(SHARE in shaded[3]).toBe(false);
+  });
+
+  it("puts each station with a count in one band of the histogram", () => {
+    expect(histogram(STATIONS)).toEqual([2, 0, 1, 0, 1, 0]);
+    expect(histogram([])).toEqual(BANDS.map(() => 0));
+    expect(histogram([row(1), row(2), row(21), row(500), row(undefined)])).toEqual([0, 2, 0, 0, 0, 2]);
+  });
+
+  it("ranks the fullest and the emptiest stations, leaving out one without counts", () => {
+    expect(ranked(STATIONS, 2, "fullest")).toEqual([
+      { name: "Kapteeninpuistikko", percent: 69, bikes: 11 },
+      { name: "Kaivopuisto", percent: 13, bikes: 4 },
+    ]);
+    expect(ranked(STATIONS, 10, "emptiest").map((s) => s.name)).toEqual([
+      "Laivasillankatu",
+      "Sepänkatu",
+      "Kaivopuisto",
+      "Kapteeninpuistikko",
+    ]);
+    expect(ranked(STATIONS, 0, "fullest")).toEqual([]);
+    expect(ranked([], 10, "emptiest")).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import bikes from "./fixtures/bikes.json";
 import parking from "./fixtures/parking.json";
 import air from "./fixtures/air.json";
 import { LOCALES } from "./locales";
+import { drawn } from "../test-setup";
 
 const SLUG = "k3pq7vwyxz2a4b5c6d7e8f9g0h1j2m3n";
 const ENDPOINTS = [{ name: "app-praha-mesto", slug: SLUG, space: "praha-mesto", types: ["BikeHireDockingStation"] }];
@@ -36,7 +37,7 @@ function serving(override: Record<string, () => Response> = {}) {
   });
 }
 
-function show(options: { override?: Record<string, () => Response>; language?: string; endpoints?: typeof ENDPOINTS } = {}) {
+function show(options: { override?: Record<string, () => Response>; language?: string; endpoints?: typeof ENDPOINTS; basemap?: string } = {}) {
   const fetch = serving(options.override);
   vi.stubGlobal("fetch", fetch);
   const client = stubClient(undefined, {
@@ -47,6 +48,7 @@ function show(options: { override?: Record<string, () => Response>; language?: s
     appName: "praha-mesto",
     language: options.language ?? "cs",
     endpoints: options.endpoints ?? ENDPOINTS,
+    basemap: options.basemap,
   });
   render(
     <JcProvider client={client}>
@@ -65,21 +67,42 @@ afterEach(() => {
 });
 
 describe("Prague right now", () => {
+  it("draws the stations on the served basemap in the ramp's colours, with a legend and a chart", async () => {
+    drawn.data.length = 0;
+    drawn.style.length = 0;
+    const located = bikes.map((entity, i) => ({
+      ...entity,
+      location: { type: "GeoProperty", value: { type: "Point", coordinates: [14.4 + i / 100, 50.07] } },
+    }));
+    show({ basemap: "https://tiles.example/style.json", override: { BikeHireDockingStation: () => answer(located) } });
+    const bikesSection = section(cs.bikes.title);
+    await waitFor(() => expect(drawn.data.length).toBeGreaterThan(0));
+    expect(drawn.style).toEqual(["https://tiles.example/style.json"]);
+    const last = drawn.data.at(-1) as { features: { geometry: { coordinates: number[] }; properties: { colour: string } }[] };
+    // Three named stations in service, each at its own point, coloured by its step.
+    expect(last.features).toHaveLength(3);
+    expect(new Set(last.features.map((feature) => feature.properties.colour)).size).toBe(2);
+    expect(within(bikesSection).getAllByRole("listitem").filter((item) => item.closest(".legend"))).toHaveLength(5);
+    expect(within(bikesSection).getByRole("img", { name: /0: 2, 1–2: 1/ })).toBeInTheDocument();
+    await waitFor(() => expect(within(section(cs.parking.title)).getByRole("img", { name: cs.parking.chart(2) })).toBeInTheDocument());
+    await waitFor(() => expect(within(section(cs.air.title)).getByRole("img", { name: cs.air.chart(2) })).toBeInTheDocument());
+  });
+
   it("shows the bikes, the car parks and the air from the space, each under its own heading", async () => {
     show();
     const bikesSection = section(cs.bikes.title);
-    await waitFor(() => expect(within(bikesSection).getByText("P10-Čechovo náměstí")).toBeInTheDocument());
+    await waitFor(() => expect(within(bikesSection).getByRole("rowheader", { name: "P10-Čechovo náměstí" })).toBeInTheDocument());
     // Three named stations in service: one bike to rent, 29 free docks.
     expect(within(bikesSection).getByText("29").closest("li")).toHaveTextContent(cs.bikes.docks);
     const parks = section(cs.parking.title);
-    await waitFor(() => expect(within(parks).getByText("P+R Běchovice")).toBeInTheDocument());
-    const counted = within(parks).getByText("P+R Běchovice").closest("tr");
+    await waitFor(() => expect(within(parks).getByRole("rowheader", { name: "P+R Běchovice" })).toBeInTheDocument());
+    const counted = within(parks).getByRole("rowheader", { name: "P+R Běchovice" }).closest("tr");
     expect(counted).toHaveTextContent("92");
     expect(counted).toHaveTextContent("23");
-    expect(within(parks).getByText("P+R Černý Most II").closest("tr")).toHaveTextContent(cs.parking.noLive);
+    expect(within(parks).getByRole("rowheader", { name: "P+R Černý Most II" }).closest("tr")).toHaveTextContent(cs.parking.noLive);
     const airSection = section(cs.air.title);
-    await waitFor(() => expect(within(airSection).getByText("Praha 4-Libuš")).toBeInTheDocument());
-    expect(within(airSection).getByText("Praha 4-Libuš").closest("tr")).toHaveTextContent("4,9");
+    await waitFor(() => expect(within(airSection).getByRole("rowheader", { name: "Praha 4-Libuš" })).toBeInTheDocument());
+    expect(within(airSection).getByRole("rowheader", { name: "Praha 4-Libuš" }).closest("tr")).toHaveTextContent("4,9");
   });
 
   it("narrows the stations by a search typed without diacritics", async () => {

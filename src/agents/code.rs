@@ -120,6 +120,10 @@ application, then repairs; the section THIS CALL of the user message says what t
   design needs it. Rewrite `src/App.tsx` and the pages freely; delete a template page, component
   or function the application does not use, together with its test.
 - A later instruction may change the design as freely as the first answer did.
+- Colour and a picture of the data (AP-138): the screen a person lands on shows the data in at
+  least one chart in the look's palette and, when the data has a location, on a map coloured by a
+  value with its legend (`EntityMap` with `color`). Never a screen of number tiles only, a plain
+  list or unstyled text; replace a chart or the map with a better one, never remove the last.
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,
@@ -245,6 +249,8 @@ mod tests {
         assert!(system.contains("The template is scaffolding, not the design."));
         assert!(system.contains("`src/design-tokens.json`"));
         assert!(system.contains("must not look alike"));
+        assert!(system.contains("Colour and a picture of the data (AP-138)"));
+        assert!(system.contains("never remove the last"));
         // The look is generated per application (AP-123); the model keeps it.
         assert!(system.contains("generated within the organization's branding"));
         assert!(system.contains("Raw HTML or a static page"));

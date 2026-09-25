@@ -148,8 +148,9 @@ impl AppHosts {
     }
 
     /// Brings the hosts to the published Apps, `apex` the domain their hosts sit under: creates
-    /// what a newly published App lacks, reads what an App's certificate says, and removes the
-    /// hosts of Apps no longer published.
+    /// what a newly published App lacks and reads what an App's certificate says. Removing the
+    /// hosts of Apps no longer published is [`AppHosts::retire`], which the caller runs only
+    /// when `published` is the whole organization's.
     pub async fn converge(
         &self,
         published: &BTreeSet<String>,
@@ -197,7 +198,6 @@ impl AppHosts {
             let state = self.host(&template, &issuer, app, &host).await;
             states.insert(app.clone(), state);
         }
-        self.retire(published).await;
         states
     }
 
@@ -251,9 +251,13 @@ impl AppHosts {
 
     /// Deletes the host of every App this wave made one for that is no longer published. A
     /// failure is logged and tried again on the next run.
+    ///
+    /// `published` must be complete: an App missing from it only because its project's
+    /// repository did not stage would lose its certificate, and every re-request counts against
+    /// Let's Encrypt's five duplicate certificates per host and week.
     // ponytail: the TLS Secret stays behind; cert-manager's --enable-certificate-owner-ref
     // removes it with its Certificate, and the Portal holds no right to delete Secrets here.
-    async fn retire(&self, published: &BTreeSet<String>) {
+    pub async fn retire(&self, published: &BTreeSet<String>) {
         let ns = self.namespace.as_str();
         let selector = format!("{MANAGED_BY}={MANAGED_VALUE},{COMPONENT}={COMPONENT_VALUE}");
         for (api, kind) in [(CERTIFICATE_API, "Certificate"), (INGRESS_API, "Ingress")] {

@@ -15,12 +15,81 @@ main {
   margin: 0 0 var(--jc-space-3, 0.75rem);
 }
 
+/* Each body carries its own colour, `--body`, set from the design tokens by the component (AP-123):
+   the region's sections, bars and headline cards in one, the city's in another. */
+.body {
+  --body: var(--jc-color-accent, #0f766e);
+  margin-block-end: var(--jc-space-8, 2rem);
+}
+
 .body h2 {
   margin-block: var(--jc-space-4, 1rem) var(--jc-space-2, 0.5rem);
+  padding: var(--jc-space-2, 0.5rem) var(--jc-space-3, 0.75rem);
+  border-inline-start: 6px solid var(--body);
+  background: color-mix(in srgb, var(--body) 10%, var(--jc-color-surface, #fff));
+  border-radius: var(--jc-radius-sm, 4px);
 }
 
 .group h3 {
   margin-block: var(--jc-space-4, 1rem) var(--jc-space-2, 0.5rem);
+  color: color-mix(in srgb, var(--body) 75%, var(--jc-color-ink, #0f172a));
+}
+
+/* The bar chart of one indicator's districts: label, bar, value on one row on a wide screen, the
+   label above its bar on a phone, so neither the name nor the number is ever cut. */
+.district-chart {
+  margin: 0 0 var(--jc-space-4, 1rem);
+}
+
+.district-chart figcaption {
+  font-size: 0.875rem;
+  color: var(--jc-color-muted, #64748b);
+  margin-block-end: var(--jc-space-2, 0.5rem);
+}
+
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--jc-space-1, 0.25rem);
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr auto;
+  align-items: center;
+  gap: var(--jc-space-2, 0.5rem);
+  font-size: 0.875rem;
+}
+
+.bar-track {
+  height: 1.1rem;
+  background: var(--jc-color-card, #f8fafc);
+  border-radius: var(--jc-radius-sm, 4px);
+  overflow: hidden;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  width: calc(var(--share, 0) * 100%);
+  background: var(--body);
+  border-radius: var(--jc-radius-sm, 4px);
+}
+
+.bar-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .bar-row {
+    grid-template-columns: 1fr auto;
+  }
+  .bar-label {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Border-box: with the padding and the border outside a full-height box, a card ran 26 px into the
@@ -28,10 +97,16 @@ main {
 .card {
   box-sizing: border-box;
   border: 1px solid var(--jc-color-border, #d0d0d0);
+  border-block-start: 4px solid var(--body);
   border-radius: var(--jc-radius-md, 0.5rem);
   padding: var(--jc-space-3, 0.75rem);
   background: var(--jc-color-surface, #fff);
   height: 100%;
+}
+
+/* The whole region or the whole city: the headline number of its indicator. */
+.card.whole {
+  background: color-mix(in srgb, var(--body) 8%, var(--jc-color-surface, #fff));
 }
 
 .territory {
@@ -93,6 +168,12 @@ main {
 
 .failed {
   color: var(--jc-color-danger-text, #b3261e);
+}
+
+.more summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--jc-color-muted, #64748b);
 }
 
 .facts {

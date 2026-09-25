@@ -9,14 +9,26 @@ export interface Strings {
   empty: string;
   noEndpoint: string;
   unavailable: string;
-  bikes: { title: string; note: string; stations: string; working: string; bikes: string; docks: string };
+  bikes: {
+    title: string;
+    note: string;
+    stations: string;
+    working: string;
+    bikes: string;
+    docks: string;
+    map: string;
+    legend: string;
+    histogram: (counts: string) => string;
+    histogramAxis: string;
+  };
+  noMap: string;
   search: string;
   shown: (shown: number, of: number) => string;
   station: string;
   outOfService: string;
-  parking: { title: string; note: string; capacity: string; free: string; occupied: string; noLive: string };
+  parking: { title: string; note: string; capacity: string; free: string; occupied: string; noLive: string; chart: (parks: number) => string };
   carPark: string;
-  air: { title: string; note: string; station: string; unit: string };
+  air: { title: string; note: string; station: string; unit: string; chart: (stations: number) => string };
   pollutant: Record<Pollutant, string>;
   reported: string;
   source: string;
@@ -38,7 +50,12 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       working: "v provozu",
       bikes: "kol k vypůjčení",
       docks: "volných stojanů",
+      map: "Mapa stanic nextbike, barva podle počtu kol",
+      legend: "Kol na stanici",
+      histogram: (counts) => `Stanice v provozu podle počtu kol: ${counts}`,
+      histogramAxis: "stanic",
     },
+    noMap: "Mapu tento prohlížeč nevykreslí; stanice jsou v seznamu níže.",
     search: "Hledat stanici",
     shown: (shown, of) => `Zobrazeno ${shown} z ${of} stanic`,
     station: "Stanice",
@@ -50,6 +67,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       free: "Volno",
       occupied: "Obsazeno",
       noLive: "bez počítadla",
+      chart: (parks) => `Obsazenost ${parks} parkovišť P+R s počítadlem, jinak jejich kapacita`,
     },
     carPark: "Parkoviště",
     air: {
@@ -57,6 +75,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       note: "Hodinové průměry stanic ČHMÚ v Praze.",
       station: "Stanice",
       unit: "µg/m³",
+      chart: (stations) => `Hodinové koncentrace na ${stations} stanicích, µg/m³`,
     },
     pollutant: { pm10: "PM10", pm25: "PM2,5", no2: "NO₂", o3: "O₃" },
     reported: "Stav z",
@@ -77,7 +96,12 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       working: "in service",
       bikes: "bikes to rent",
       docks: "free docks",
+      map: "Map of the nextbike stations, coloured by the bikes each holds",
+      legend: "Bikes at the station",
+      histogram: (counts) => `Stations in service by the bikes they hold: ${counts}`,
+      histogramAxis: "stations",
     },
+    noMap: "This browser cannot draw the map; the stations are in the list below.",
     search: "Find a station",
     shown: (shown, of) => `Showing ${shown} of ${of} stations`,
     station: "Station",
@@ -89,6 +113,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       free: "Free",
       occupied: "Occupied",
       noLive: "no counter",
+      chart: (parks) => `Occupancy of ${parks} park-and-ride car parks with a counter, capacity otherwise`,
     },
     carPark: "Car park",
     air: {
@@ -96,6 +121,7 @@ export const LOCALES: Record<"cs" | "en", Strings> = {
       note: "Hourly averages of ČHMÚ's stations in Prague.",
       station: "Station",
       unit: "µg/m³",
+      chart: (stations) => `Hourly concentrations at ${stations} stations, µg/m³`,
     },
     pollutant: { pm10: "PM10", pm25: "PM2.5", no2: "NO₂", o3: "O₃" },
     reported: "As of",
