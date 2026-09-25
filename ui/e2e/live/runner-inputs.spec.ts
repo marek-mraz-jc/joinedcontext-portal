@@ -2,7 +2,7 @@
  * Any input the runner ships, through the real UI on dev (T-0477, PL-50): for a file (`csv`),
  * a database (`sql_select`) and a broker (`nats`) a steward declares the data source from the
  * runner's own form, proposes it, an approver approves; the steward builds the pipeline in the
- * studio, tests the mapping on a dropped sample, proposes it; the approver approves; the
+ * workbench, which tries the mapping on a dropped sample and checks it, proposes it; the approver approves; the
  * entities arrive through the endpoint and the pipeline's counter moves.
  *
  * What the runner reads sits on dev beforehand: the two files in the runner's files volume
@@ -186,24 +186,23 @@ for (const c of CASES) {
     await page.goto(`/projects/${PROJECT}/pipelines?lang=en`, { waitUntil: "load" });
     await page.getByRole("button", { name: "New pipeline" }).click();
     const studio = page.getByTestId("form-page");
-    await studio.locator("#studio-source-kind").selectOption("datasource");
-    await studio.locator("#studio-datasource").selectOption({ value: c.source });
+    // The workbench (T-2709): the sample file is its sample, the case's mapping its mapping.
+    await studio.locator("#workbench-source-pick").selectOption(`datasource:${c.source}`);
     await studio.locator("#root_name").fill(c.pipeline);
-    // The field is a text box until the project's endpoints load, then a picker of them.
-    await studio.locator("select#root_targetEndpoint").selectOption({ label: c.endpoint });
-    await studio.getByLabel("Sample file").setInputFiles({
+    await studio.locator("#workbench-target-pick").selectOption({ label: c.endpoint });
+    await studio.getByLabel("Choose a sample file").setInputFiles({
       name: c.sample.name,
       mimeType: c.sample.mimeType,
       buffer: Buffer.from(c.sample.text),
     });
+    await studio.getByText("More options").click();
     await studio.locator("#root_compute_kind").selectOption("bloblang");
-    await studio.locator("#root_compute_bloblang").fill(c.mapping);
+    await studio.locator("#workbench-bloblang").fill(c.mapping);
     await studio.locator("#root_output_type").fill(c.type);
     await studio.locator("#root_output_mode").selectOption("upsert");
     const propose = studio.getByRole("button", { name: "Propose change" });
     await expect(propose).toBeDisabled();
-    await studio.getByRole("button", { name: "Test mapping" }).click();
-    const ready = studio.getByText(/All \d+ messages map to entities/);
+    const ready = studio.getByText(/(All \d+ records are|1 record is) valid against|names no data model/);
     await expect(ready).toBeVisible({ timeout: 60_000 });
     info.annotations.push({ type: "test", description: (await ready.textContent()) ?? "" });
     // Propose opens on the dialog's own fresh check (PF-57), after the mapping's test (PL-49).

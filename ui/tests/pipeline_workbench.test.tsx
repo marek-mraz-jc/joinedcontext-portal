@@ -285,6 +285,26 @@ describe("the pipeline workbench", () => {
     ).toBeInTheDocument();
   });
 
+  it("a_space_without_a_model_says_so_and_does_not_hold_the_proposal", async () => {
+    const verdicts: { ok: boolean; bloblang: string }[] = [];
+    stub(
+      {
+        sample: SAMPLE,
+        mapping: MAPPED,
+        validate: new Response(
+          JSON.stringify({ error: "no_model", space: "ovzdusie", detail: "space 'ovzdusie' names no data model, so nothing checks what lands in it; name its model in spec.dataModelRef (DM-61)" }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        ),
+      },
+      { ops: [] },
+    );
+    show({ targetEndpoint: URN, source: { dataSourceRef: "shmu-csv" }, compute: { kind: "bloblang", bloblang: MAPPING } }, verdicts);
+    expect(
+      await within(step(en.pipelines.workbench.validation.title)).findByText(/names no data model/, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(verdicts.at(-1)).toEqual({ ok: true, bloblang: MAPPING }));
+  });
+
   it("a_sample_the_source_refuses_says_why_and_the_mapping_waits", async () => {
     const seen: Seen = { ops: [] };
     stub(

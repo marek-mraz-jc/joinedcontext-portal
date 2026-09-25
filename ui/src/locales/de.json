@@ -1074,12 +1074,10 @@
       "running": "Läuft auf der Stichprobe…",
       "advanced": "Erweiterter Editor",
       "advancedHint": "Der Ablauf, mehrere Quellen, Prozessorschritte und eine KPI, auf demselben Entwurf.",
-      "more": "Weitere Optionen",
-      "moreHint": "Zeitplan, Art des Schritts, Ausgabe, Rückmeldung, Geheimnisse und Kontingente; die Vorgaben sind sicher.",
       "source": {
         "title": "Quelle",
         "hint": "Wählen Sie, woher die Datensätze kommen, oder geben Sie eine Datei davon an.",
-        "pick": "Lesen aus",
+        "pick": "Woher die Datensätze kommen",
         "none": "Datenquelle oder Endpunkt wählen",
         "type": "Zu lesender Entitätstyp",
         "pickType": "Typ wählen",

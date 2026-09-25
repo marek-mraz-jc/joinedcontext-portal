@@ -328,28 +328,17 @@ export function shownFor(form: PipelineForm | undefined): PipelineShown {
 }
 
 /**
- * The form under the workbench (PL-58): the workbench owns the source, the mapping and the
- * target, so the form keeps the name and the title in the open and folds the rest (the schedule,
- * the kind of step, the output, feedback, secrets and quotas) behind "More options".
+ * The form under the workbench (PL-58): the workbench owns the target and the Bloblang mapping,
+ * so the form does not ask them twice. How the rest is grouped and folded is the Pipeline's
+ * UiSchema manifest's (UI-02).
  */
-export function workbenchUiSchema(base: UiSchema, t: (key: string) => string): UiSchema {
-  const compute = (base.compute ?? {}) as Record<string, unknown>;
+export function workbenchUiSchema(base: UiSchema): UiSchema {
+  const compute = ((base as Record<string, unknown>).compute ?? {}) as Record<string, unknown>;
   return {
     ...base,
     targetEndpoint: { "ui:widget": "hidden" },
     compute: { ...compute, bloblang: { "ui:widget": "hidden" } },
-    "ui:options": {
-      ...((base["ui:options"] as Record<string, unknown> | undefined) ?? {}),
-      groups: [
-        {
-          title: t("pipelines.workbench.more"),
-          description: t("pipelines.workbench.moreHint"),
-          folded: true,
-          fields: ["class", "schedule", "period", "source", "compute", "output", "allowFeedback", "secretRefs", "quotas"],
-        },
-      ],
-    },
-  };
+  } as UiSchema;
 }
 
 /** The known values plus the one already chosen, so an edit never loses its own reference. */
@@ -470,8 +459,8 @@ export function PipelineEditorDialog({
   // RJSF rebuild the input being typed into.
   const shownKey = JSON.stringify(shownFor(draft));
   const uiSchema = useMemo(
-    () => workbenchUiSchema(pipelineUiSchemaFor(JSON.parse(shownKey) as PipelineShown), t),
-    [shownKey, t],
+    () => workbenchUiSchema(pipelineUiSchemaFor(JSON.parse(shownKey) as PipelineShown)),
+    [shownKey],
   );
   const source = useMemo<ManifestSource<PipelineForm>>(
     () => ({

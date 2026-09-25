@@ -1074,12 +1074,10 @@
       "running": "Running on the sample…",
       "advanced": "Advanced editor",
       "advancedHint": "The flow, several sources, processor steps and a KPI, on the same draft.",
-      "more": "More options",
-      "moreHint": "Schedule, the kind of step, output, feedback, secrets and quotas; the defaults are safe.",
       "source": {
         "title": "Source",
         "hint": "Pick where the records come from, or give a file of them.",
-        "pick": "Read from",
+        "pick": "Where the records come from",
         "none": "Choose a data source or an endpoint",
         "type": "Entity type to read",
         "pickType": "Choose a type",

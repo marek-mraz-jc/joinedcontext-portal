@@ -1074,12 +1074,10 @@
       "running": "Beží na vzorke…",
       "advanced": "Rozšírený editor",
       "advancedHint": "Tok, viac zdrojov, kroky procesora a KPI, na tom istom koncepte.",
-      "more": "Ďalšie možnosti",
-      "moreHint": "Plán, druh kroku, výstup, spätná väzba, tajomstvá a kvóty; predvolené hodnoty sú bezpečné.",
       "source": {
         "title": "Zdroj",
         "hint": "Vyberte, odkiaľ záznamy prichádzajú, alebo dajte ich súbor.",
-        "pick": "Čítať z",
+        "pick": "Odkiaľ prichádzajú záznamy",
         "none": "Vyberte zdroj dát alebo endpoint",
         "type": "Typ entít na čítanie",
         "pickType": "Vyberte typ",

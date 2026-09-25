@@ -83,27 +83,22 @@ test("a data source and a pipeline, checked, tested, proposed and approved throu
   start = Date.now();
   await page.getByRole("button", { name: "New pipeline" }).click();
   const studio = page.getByTestId("form-page");
-  await studio.locator("#studio-source-kind").selectOption("datasource");
-  await studio.locator("#studio-datasource").selectOption({ value: SOURCE });
+  // The workbench (T-2709): source, name, target and mapping in its steps, the rest under More options.
+  await studio.locator("#workbench-source-pick").selectOption(`datasource:${SOURCE}`);
   await studio.locator("#root_name").fill(PIPELINE);
+  await studio.getByText("More options").click();
   await studio.locator("#root_period").fill("60s");
-  const target = studio.locator("#root_targetEndpoint");
-  if ((await target.evaluate((el) => el.tagName)) === "SELECT") {
-    // The options carry the endpoint's name; the value is the URN the org domain completes.
-    await target.selectOption({ label: "helsinki-all" });
-  } else {
-    await target.fill(TARGET);
-  }
+  // The options carry the endpoint's name; the value is the URN the org domain completes.
+  await studio.locator("#workbench-target-pick").selectOption(TARGET);
   await studio.locator("#root_compute_kind").selectOption("bloblang");
-  await studio.locator("#root_compute_bloblang").fill(MAPPING);
+  await studio.locator("#workbench-bloblang").fill(MAPPING);
   await studio.locator("#root_output_type").fill("Vehicle");
   await studio.locator("#root_output_mode").selectOption("upsert");
-  // Propose is closed until the test is green for this mapping (PL-49).
+  // Propose is closed until the mapping that ran made records the space's model takes (PL-49,
+  // PL-58): the workbench samples the source, tries the mapping and checks it by itself.
   const propose = studio.getByRole("button", { name: "Propose change" });
   await expect(propose).toBeDisabled();
-  await studio.getByRole("button", { name: "Test on the source's URL" }).click();
-  await studio.getByRole("button", { name: "Test mapping" }).click();
-  const ready = studio.getByText(/All \d+ messages map to entities/);
+  const ready = studio.getByText(/(All \d+ records are|1 record is) valid against|names no data model/);
   await expect(ready).toBeVisible({ timeout: 60_000 });
   info.annotations.push({ type: "test", description: (await ready.textContent()) ?? "" });
   // Propose opens on the dialog's own fresh check (PF-57): the test above is the mapping's gate

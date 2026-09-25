@@ -215,10 +215,23 @@ async function run<T>(
 ): Promise<T> {
   const answer = await callOperation(project, name, input);
   if (!answer.ok) {
-    throw new Error(answer.reason ?? failed);
+    throw new StepFailed(answer.status, answer.reason ?? failed);
   }
   return read(answer.output);
 }
+
+/** A step the Portal refused, with the status it refused with. */
+export class StepFailed extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** A target space that names no model answers 409: nothing narrows what lands there (DM-61). */
+const unmodelled = (error: unknown): boolean => error instanceof StepFailed && error.status === 409;
 
 function cell(value: unknown): string {
   const text = typeof value === "string" ? value : JSON.stringify(value);
@@ -372,6 +385,8 @@ export function PipelineWorkbench({
     queryKey: ["pipeline-workbench", project, "sample", source],
     enabled: source !== undefined,
     retry: false,
+    // Each run reaches the project's runner: a person coming back to the tab asks it nothing new.
+    refetchOnWindowFocus: false,
     queryFn: () =>
       run(project, "jc_pipeline_sample_source", source ?? {}, t("pipelines.workbench.failed"), readSample),
   });
@@ -389,6 +404,7 @@ export function PipelineWorkbench({
     queryKey: ["pipeline-workbench", project, "mapping", manifest, sample],
     enabled: quiet.trim() !== "" && sample !== undefined && manifest !== undefined,
     retry: false,
+    refetchOnWindowFocus: false,
     queryFn: () =>
       run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample }, t("pipelines.workbench.failed"), readMapping),
   });
@@ -401,6 +417,7 @@ export function PipelineWorkbench({
     queryKey: ["pipeline-workbench", project, "validate", manifest, records],
     enabled: records.length > 0 && Boolean(draft?.targetEndpoint),
     retry: false,
+    refetchOnWindowFocus: false,
     queryFn: () =>
       run(
         project,
@@ -412,9 +429,13 @@ export function PipelineWorkbench({
   });
   const verdictOf = (index: number) => validated.data?.verdicts.find((verdict) => verdict.index === index);
 
-  const settled = tried.isSuccess && validated.isSuccess && quiet === bloblang;
+  const noModel = validated.isError && unmodelled(validated.error);
+  const settled = tried.isSuccess && (validated.isSuccess || noModel) && quiet === bloblang;
   const ok =
-    settled && tried.data?.errors.length === 0 && records.length > 0 && validated.data?.rejected === 0;
+    settled &&
+    tried.data?.errors.length === 0 &&
+    records.length > 0 &&
+    (noModel || validated.data?.rejected === 0);
   // The verdict belongs to the mapping it ran on; a new callback from the dialog is no new verdict.
   const report = useRef(onVerdict);
   useEffect(() => {
@@ -696,6 +717,10 @@ export function PipelineWorkbench({
           <p role="status" className="text-caption text-fg-subtle">
             {t("pipelines.workbench.running")}
           </p>
+        ) : noModel ? (
+          <Alert role="status" tone="info">
+            {failedText(validated.error)}
+          </Alert>
         ) : validated.isError ? (
           <Alert role="alert" tone="danger">
             {failedText(validated.error)}

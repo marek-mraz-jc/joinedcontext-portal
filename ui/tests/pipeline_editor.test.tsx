@@ -732,9 +732,10 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const geo = () => formField("source_query_geoQ");
     const trigger = () => formField("source_trigger_subscription_type");
     // The form's own fields sit folded under More options, shut when the dialog opens (PL-58).
-    const more = within(dialog).getByText(en.pipelines.workbench.more).closest("details");
+    const summary = [...dialog.querySelectorAll("summary")].find((one) => one.textContent?.startsWith("More options"));
+    const more = summary?.closest("details");
     expect(more).not.toHaveAttribute("open");
-    await userEvent.click(within(dialog).getByText(en.pipelines.workbench.more));
+    await userEvent.click(summary as HTMLElement);
     expect(more).toHaveAttribute("open");
 
     // Nothing chosen: no source fields, no compute fields, no schedule.
