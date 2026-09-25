@@ -489,7 +489,28 @@ impl Driver {
             if let Some(call) = tools_registry::ask_call(&answer) {
                 match call {
                     Ok(call) => match self.fill_options(call).await {
-                        Ok(call) => return self.ask_person(&call, None).await,
+                        Ok(call) => {
+                            let events = self
+                                .state
+                                .agents
+                                .events_since(&self.run_id, 0)
+                                .await
+                                .map_err(|err| err.to_string())?;
+                            let Some(given) = answered_before(&events, &call) else {
+                                return self.ask_person(&call, None).await;
+                            };
+                            drafts += 1;
+                            results.push((
+                                drafted("jc_ask", None),
+                                format!(
+                                    "error: the person already answered this choice with \
+                                     {given} and has written nothing since; go on from that \
+                                     answer, and when it does not serve, say why instead of \
+                                     asking again"
+                                ),
+                            ));
+                            continue;
+                        }
                         Err(reason) => {
                             drafts += 1;
                             results.push((drafted("jc_ask", None), format!("error: {reason}")));
@@ -1642,6 +1663,59 @@ fn cut(text: &str, limit: usize) -> String {
 /// How much of one tool result the transcript carries.
 const TOOL_LINE: usize = 400;
 
+/// The answer the person already gave to the same choice (the same options) since they last
+/// wrote or took a path, when the model asks it again (T-2696): an endpoint that served no read
+/// tool had the model ask "Which endpoint?" three times over.
+fn answered_before(events: &[AgentRunEvent], call: &tools_registry::AskCall) -> Option<String> {
+    let values = |options: &mut dyn Iterator<Item = String>| {
+        let mut values: Vec<String> = options.collect();
+        values.sort();
+        values
+    };
+    let asked = values(&mut call.options.iter().map(|option| option.value.clone()));
+    if asked.is_empty() {
+        return None;
+    }
+    let since = events
+        .iter()
+        .rposition(|event| {
+            event.kind == "path" || (event.kind == "message" && sent_by_person(event))
+        })
+        .map_or(0, |at| at + 1);
+    let recent = &events[since..];
+    recent
+        .iter()
+        .rev()
+        .filter(|event| event.kind == "question")
+        .filter(|event| {
+            let options = event.payload.get("options").and_then(Value::as_array);
+            values(&mut options.into_iter().flatten().filter_map(|option| {
+                option
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            })) == asked
+        })
+        .filter_map(|question| {
+            let id = question.payload.get("questionId")?;
+            let answer = recent.iter().find(|event| {
+                event.kind == "answer" && event.payload.get("questionId") == Some(id)
+            })?;
+            match answer.payload.get("answers")?.get("answer")? {
+                Value::String(one) => Some(format!("'{one}'")),
+                Value::Array(many) if !many.is_empty() => Some(
+                    many.iter()
+                        .filter_map(Value::as_str)
+                        .map(|one| format!("'{one}'"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ),
+                _ => None,
+            }
+        })
+        .next()
+}
+
 /// The prior conversation as the model reads it when a run continues another (AG-68).
 ///
 /// A `message` from the person opens a turn and an `answer` opens the next one, because that is
@@ -2145,5 +2219,83 @@ mod tests {
         )
         .conversation_pack(&[], "make jana a steward", None);
         assert!(pack.contains("roles are steward. A role"), "{pack}");
+    }
+
+    /// T-2696: "Which endpoint should the dashboard read?" was asked three times, each after the
+    /// person had answered it, because the endpoint served no read tool. The same choice since
+    /// the person last wrote is answered from what they said; a new message or path asks anew.
+    #[test]
+    fn a_choice_the_person_answered_is_not_asked_again_until_they_write() {
+        let option = |value: &str| tools_registry::AskOption {
+            value: value.to_owned(),
+            title: value.to_owned(),
+            description: None,
+            disabled: None,
+        };
+        let call = |values: &[&str]| tools_registry::AskCall {
+            question: "Which endpoint should the dashboard read?".to_owned(),
+            options: values.iter().map(|value| option(value)).collect(),
+            default: None,
+            pick: Some("endpoints"),
+            multiple: false,
+            min: None,
+            max: None,
+            input: tools_registry::AskInput::default(),
+            step: None,
+        };
+        let question = |id: &str, values: &[&str]| {
+            let options: Vec<Value> = values.iter().map(|v| json!({ "value": v })).collect();
+            event("question", json!({ "questionId": id, "options": options }))
+        };
+        let answer = |id: &str, given: Value| {
+            event(
+                "answer",
+                json!({ "questionId": id, "answers": { "answer": given } }),
+            )
+        };
+        let mut events = vec![
+            event("path", json!({ "path": "build-dashboard" })),
+            question("q-1", &["air", "bikes"]),
+            answer("q-1", json!("air")),
+            event(
+                "tool",
+                json!({ "tool": "query_endpoint", "status": "failed" }),
+            ),
+        ];
+        // The same options in another order are the same choice.
+        assert_eq!(
+            answered_before(&events, &call(&["bikes", "air"])).as_deref(),
+            Some("'air'")
+        );
+        assert_eq!(
+            answered_before(&events, &call(&["air", "bikes", "events"])),
+            None
+        );
+        assert_eq!(answered_before(&events, &call(&[])), None);
+
+        events.push(question("q-2", &["a", "b", "c"]));
+        events.push(answer("q-2", json!(["a", "c"])));
+        assert_eq!(
+            answered_before(&events, &call(&["c", "b", "a"])).as_deref(),
+            Some("'a', 'c'")
+        );
+
+        // A question asked and not answered yet is no answer.
+        events.push(question("q-3", &["x", "y"]));
+        assert_eq!(answered_before(&events, &call(&["x", "y"])), None);
+
+        // The person wrote since: they may be asked again.
+        events.push(asked("use another one"));
+        assert_eq!(answered_before(&events, &call(&["air", "bikes"])), None);
+        // The agent's own message is not the person writing.
+        let mut agent = vec![question("q-4", &["air"]), answer("q-4", json!("air"))];
+        agent.push(event(
+            "message",
+            json!({ "text": "noted", "sentBy": AGENT }),
+        ));
+        assert_eq!(
+            answered_before(&agent, &call(&["air"])).as_deref(),
+            Some("'air'")
+        );
     }
 }

@@ -1457,3 +1457,47 @@ async fn read_refuses_a_change_until_the_person_switches_on_propose() {
         .expect("the message");
     assert_eq!(message["access"]["preset"], "propose");
 }
+
+/// T-2696: on dev, "Which endpoint should the dashboard read?" was asked three times after the
+/// person had answered it, because the endpoint served no read tool. The model asking a choice
+/// the person already answered is told the answer, and the person is not asked twice.
+#[tokio::test]
+async fn a_choice_the_person_answered_is_not_asked_again() {
+    let again = "```json\n{ \"tool\": \"jc_ask\", \"arguments\": { \"question\": \"Which endpoint do you share?\", \"pick\": \"endpoints\" } }\n```";
+    let started = start(
+        BUILDER,
+        json!({ "path": "share-data" }),
+        &[again, "I go on with air, as you chose."],
+    )
+    .await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| e.kind == "question").await;
+    let question = of_kind(&events, "question")[0]["questionId"]
+        .as_str()
+        .expect("question id")
+        .to_owned();
+    let run = started.body["id"].as_str().expect("run id");
+    let (status, body) = send(
+        &started.state,
+        &started.config,
+        BUILDER,
+        &format!("/api/v1/projects/helsinki/agent-runs/{run}/answers"),
+        json!({ "questionId": question, "answers": { "answer": "air" } }),
+    )
+    .await;
+    assert!(status.is_success(), "{status} {body}");
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("as you chose"))
+    })
+    .await;
+    assert_eq!(
+        of_kind(&events, "question").len(),
+        1,
+        "the person is asked the choice once"
+    );
+    let told = model_call_with(&started.proxy, "already answered this choice").await;
+    assert!(told.contains("'air'"), "the model is told the answer");
+}

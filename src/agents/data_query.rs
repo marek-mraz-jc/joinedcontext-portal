@@ -79,7 +79,14 @@ pub fn not_offered(tools: &[Value], name: &str, endpoint: &str) -> String {
         .filter_map(|tool| tool.get("name").and_then(Value::as_str))
         .collect();
     if offered.is_empty() {
-        format!("'{name}' is not a read tool endpoint '{endpoint}' offers: it offers you no read tool, so read another endpoint")
+        // The person chose the endpoint: "read another" had the model ask them the same choice
+        // again (T-2696).
+        format!(
+            "'{name}' is not a read tool endpoint '{endpoint}' offers: it offers you no read \
+             tool, so its entities cannot be read in this conversation; work from its manifest \
+             and its space's data model, or tell the person so, and do not ask for another \
+             endpoint in its place"
+        )
     } else {
         format!(
             "'{name}' is not a read tool endpoint '{endpoint}' offers; it offers: {}",
