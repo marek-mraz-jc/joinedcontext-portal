@@ -76,14 +76,16 @@ describe("Prague right now", () => {
     }));
     show({ basemap: "https://tiles.example/style.json", override: { BikeHireDockingStation: () => answer(located) } });
     const bikesSection = section(cs.bikes.title);
-    await waitFor(() => expect(drawn.data.length).toBeGreaterThan(0));
+    // A draw before the stations are read carries none; wait for the one that carries them (T-2994).
+    type Drawn = { features: { geometry: { coordinates: number[] }; properties: { colour: string } }[] };
+    await waitFor(() => expect((drawn.data.at(-1) as Drawn | undefined)?.features).toHaveLength(3));
     expect(drawn.style).toEqual(["https://tiles.example/style.json"]);
-    const last = drawn.data.at(-1) as { features: { geometry: { coordinates: number[] }; properties: { colour: string } }[] };
+    const last = drawn.data.at(-1) as Drawn;
     // Three named stations in service, each at its own point, coloured by its step.
     expect(last.features).toHaveLength(3);
     expect(new Set(last.features.map((feature) => feature.properties.colour)).size).toBe(2);
     expect(within(bikesSection).getAllByRole("listitem").filter((item) => item.closest(".legend"))).toHaveLength(5);
-    expect(within(bikesSection).getByRole("img", { name: /0: 2, 1–2: 1/ })).toBeInTheDocument();
+    expect(await within(bikesSection).findByRole("img", { name: /0: 2, 1–2: 1/ })).toBeInTheDocument();
     await waitFor(() => expect(within(section(cs.parking.title)).getByRole("img", { name: cs.parking.chart(2) })).toBeInTheDocument());
     await waitFor(() => expect(within(section(cs.air.title)).getByRole("img", { name: cs.air.chart(2) })).toBeInTheDocument());
   });

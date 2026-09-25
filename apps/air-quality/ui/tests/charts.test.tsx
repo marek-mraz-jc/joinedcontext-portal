@@ -134,8 +134,12 @@ describe("the page", () => {
     render(<App />);
     expect(await screen.findByRole("img", { name: /at Kallio/ })).toBeInTheDocument();
 
-    const [map] = FakeMap.built;
-    await waitFor(() => expect(map.sources.stations).toBeDefined());
+    // The map is built after the chart shows, a beat later on a loaded runner (T-2994).
+    const map = await waitFor(() => {
+      const [built] = FakeMap.built;
+      expect((built?.sources.stations?.data as StationCollection | undefined)?.features).toHaveLength(2);
+      return built!;
+    });
     const drawn = map.sources.stations.data as StationCollection;
     expect(drawn.features).toHaveLength(2);
     expect(map.layers[0]).toMatchObject({ type: "circle", paint: { "circle-color": ["get", "colour"] } });
