@@ -1243,6 +1243,20 @@ async fn approve_every_file(
         if access {
             crate::permissions::within_own_rights(state, identity, &manifest, "approver")?;
         }
+        // The bounds are the operator's and may have tightened since the proposal (PF-97).
+        crate::api::mutate::organization_within_bounds(
+            state,
+            &envelope.kind,
+            &envelope.spec,
+            ApiError::Conflict,
+        )?;
+        // And the public-app policy may have been set since (PF-103).
+        crate::api::mutate::public_app_allowed(
+            state,
+            envelope.metadata.namespace.as_deref().unwrap_or_default(),
+            &envelope,
+            ApiError::Conflict,
+        )?;
         lane = crate::api::import::riskiest(
             lane,
             change::classify(&envelope.kind, Operation::Create, &envelope.spec),

@@ -136,7 +136,8 @@
     "entry": "Položka {number}",
     "dropOne": "Přetáhněte sem soubor nebo jej vyberte",
     "dropMany": "Přetáhněte sem soubory nebo je vyberte",
-    "chosenFiles": "Vybráno: {names}"
+    "chosenFiles": "Vybráno: {names}",
+    "advancedModeHint": "Zobrazí i pole, která většina manifestů nechává na výchozích hodnotách; volba se vám zapamatuje."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -195,7 +196,8 @@
       "pending": "Čeká na {change}: nejprve schvalte tu změnu, potom tuto.",
       "merged": "{change}, na kterou tato změna čeká, je sloučená.",
       "rejected": "{change}, na kterou tato změna čeká, byla zamítnuta: to, co tato změna jmenuje, nevznikne. Zamítněte ji nebo ji navrhněte znovu."
-    }
+    },
+    "back": "Všechna schvalování"
   },
   "lane": {
     "green": "Zelená",
@@ -210,6 +212,8 @@
     "draftHelp": "Zatím nenavrženo, uloženo jen lokálně.",
     "pendingApproval": "Čeká na schválení",
     "pendingApprovalHelp": "Čeká na schválení nebo zamítnutí schvalovatelem.",
+    "notDeployed": "Nenasazeno",
+    "notDeployedHelp": "Sloučeno, ale neběží: kvóta je vyčerpaná, je pozastaveno nebo jde o druh, který platforma nespouští. Podrobnosti uvádějí důvod.",
     "deploying": "Nasazuje se",
     "deployingHelp": "Schváleno a sloučeno; rekonciliátor změnu nasazuje.",
     "live": "Aktivní",
@@ -305,7 +309,10 @@
     "button": "Upravit",
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",
-    "unreadable": "{name} se nepodařilo načíst."
+    "unreadable": "{name} se nepodařilo načíst.",
+    "viewTitle": "Zobrazit {name}",
+    "readOnly": "Vaše role zde nedovoluje měnit {kind}, proto je tento formulář jen pro čtení. Správce projektu vám to může udělit.",
+    "manifest": "Manifest {name}"
   },
   "resourceList": {
     "name": "Název",
@@ -590,7 +597,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "zdroj modelu",
       "jsonSchema": "JSON Schema",
       "access": "přístup",
       "catalogue": "katalog"
@@ -858,7 +865,8 @@
       "caCert": "Odkaz na certifikační autoritu",
       "secretName": "Název tajemství",
       "secretKey": "Klíč v tajemství",
-      "input": "Konfigurace vstupu"
+      "input": "Konfigurace vstupu",
+      "typeHint": "Jak se platforma ke zdroji dostane; pole níže se podle toho mění a uložený zdroj si typ ponechá."
     },
     "probe": {
       "title": "Jedno stažení feedu",
@@ -1023,7 +1031,8 @@
       "preset": {
         "title": "Předvolba",
         "load": "Načtení (DataSource)",
-        "kpi": "Analýza (KPI)"
+        "kpi": "Analýza (KPI)",
+        "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },
       "kpi": {
         "title": "Analýza (KPI)",
@@ -1037,8 +1046,18 @@
         "test": "Otestovat na stránce koncového bodu",
         "testing": "Testuje se…",
         "computedValue": "Vypočtená hodnota",
-        "nothingRead": "Z tohoto koncového bodu se pro tento typ a atribut nic nepřečetlo, takže není co vypočítat."
-      }
+        "nothingRead": "Z tohoto koncového bodu se pro tento typ a atribut nic nepřečetlo, takže není co vypočítat.",
+        "endpointHint": "Endpoint, ze kterého se ukazatel počítá, čtený podle jeho politiky.",
+        "nameHint": "Malá písmena, číslice a pomlčky; pojmenovává ukazatel i jeho pipeline.",
+        "typeHint": "Typ entity, jehož hodnoty se agregují; modeluje ho prostor endpointu.",
+        "attributeHint": "Číselný atribut toho typu, který agregace čte.",
+        "aggregateHint": "Jak se hodnoty jednoho období sloučí do jednoho čísla.",
+        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h."
+      },
+      "sourceKindHint": "Externí zdroj, ke kterému se projekt připojuje, nebo kontextový prostor, který projekt už plní.",
+      "dataSourceHint": "Připojení zdroje, jak je uložené ve Zdrojích dat; nový zdroj přidáte nejprve tam.",
+      "spaceHint": "Prostor, který pipeline čte, přes jeden z jeho endpointů a politiku toho endpointu.",
+      "attributeHint": "Atribut, se kterým pracuje úryvek níže."
     },
     "test": {
       "title": "Vyzkoušet na vzorku",
@@ -1100,7 +1119,10 @@
       "addSource": "+ Zdroj",
       "removeSource": "Odstranit zdroj",
       "sourceReads": "Tento zdroj čte",
-      "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem."
+      "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem.",
+      "mappingRefHint": "Mapování tohoto projektu; krok ho použije na každý záznam.",
+      "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
+      "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -1176,7 +1198,9 @@
         "pickType": "Vyberte typ",
         "file": "Vybrat soubor se vzorkem",
         "fileTaken": "Vzorek: {name}",
-        "fileDrop": "Přetáhněte soubor CSV nebo JSON, nebo jej vyberte"
+        "fileDrop": "Přetáhněte soubor CSV nebo JSON, nebo jej vyberte",
+        "pickHint": "Záznamy, které pipeline čte: zdroj dat nebo endpoint tohoto projektu. Se vzorovým souborem níže si mapování vyzkoušíte i bez nich.",
+        "typeHint": "Typ entity endpointu, který pipeline čte; vzorek ukáže jeho první záznamy."
       },
       "sample": {
         "title": "Vzorek",
@@ -1201,7 +1225,8 @@
         "measuredIn": "Měří se v {symbol} ({code}); pokud záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v jiné jednotce?",
         "sourceUnitOf": "Jednotka zdroje pro {slot}",
-        "addConversion": "Přidat do mapování"
+        "addConversion": "Přidat do mapování",
+        "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -1586,7 +1611,7 @@
     "format": "Formát",
     "formats": {
       "whole": "Celý projekt (konfigurace, schémata a datové modely)",
-      "wholeHelp": "Archiv ZIP: každý manifest a soubory vedle něj, JSON Schema každého druhu, zdroj LinkML a JSON Schema každého datového modelu a README, které vysvětluje, co který soubor znamená.",
+      "wholeHelp": "Archiv ZIP: každý manifest a soubory vedle něj, JSON Schema každého druhu, zdroj a JSON Schema každého datového modelu a README, které vysvětluje, co který soubor znamená.",
       "yaml": "YAML",
       "yamlHelp": "Jeden manifest na dokument, připravený k opětovnému nasazení; celý projekt končí indexem se schématy.",
       "json": "Seznam JSON",
@@ -1607,7 +1632,7 @@
     "download": "Stáhnout"
   },
   "models": {
-    "title": "Editor modelů LinkML",
+    "title": "Editor modelů",
     "version": "Verze {version}",
     "add": "Přidat",
     "classes": "Třídy",
@@ -1780,10 +1805,14 @@
     "dimensionLabel": "Použití v dashboardu",
     "graph": {
       "title": "Třídy modelu a co je spojuje",
-      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu.",
+      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
-      "more": "a dalších {count}",
+      "row": {
+        "pk": "{name}: {type}, klíč, který identifikuje každou entitu",
+        "fk": "{name}: {type}, odkaz na jinou třídu",
+        "plain": "{name}: {type}"
+      },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
       "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
@@ -1803,7 +1832,7 @@
       "name": "Název",
       "space": "Kontextový prostor",
       "version": "Verze",
-      "linkml": "Zdroj LinkML",
+      "linkml": "Zdroj modelu",
       "lifecycle": "Životní cyklus",
       "openWorld": "Přijímat nedeklarované atributy"
     },
@@ -1849,7 +1878,7 @@
       "edit": "Upravit model",
       "notFound": "Datový model {name} neexistuje",
       "notFoundLead": "Možná byl přejmenován nebo odstraněn, nebo patří jinému projektu. Seznam ukazuje každý model, který smíte číst.",
-      "sourceFailed": "LinkML modelu se nepodařilo načíst: {reason}",
+      "sourceFailed": "Zdroj modelu se nepodařilo načíst: {reason}",
       "views": "Pohledy na model",
       "view": {
         "overview": "Přehled",
@@ -1866,7 +1895,7 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
-      "yaml": "LinkML modelu",
+      "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",
       "downloadYaml": "Stáhnout YAML",
       "copied": "Zkopírováno.",
@@ -2116,7 +2145,11 @@
       "frameAncestors": "Smí ji vložit",
       "limits": "Limity",
       "requestsPerMinute": "Požadavky za minutu",
-      "maxFileRows": "Řádky na stažení souboru"
+      "maxFileRows": "Řádky na stažení souboru",
+      "egress": "Odchozí sítě",
+      "egressCidr": "Síť",
+      "egressPorts": "Porty",
+      "needRoles": "Jen pro role"
     },
     "build": {
       "title": "Sestavení ve forge",
@@ -2158,7 +2191,9 @@
       "retired": "Tato aplikace je vyřazena",
       "building": "Sestavuje se…",
       "failed": "Sestavení selhalo",
-      "notBuilt": "Zatím se neposkytuje žádné sestavení"
+      "notBuilt": "Zatím se neposkytuje žádné sestavení",
+      "certificate": "Adresa aplikace se zabezpečuje, trvá to asi minutu",
+      "host": "Adresu aplikace se nepodařilo připravit; důvod vidí správce"
     },
     "openPage": {
       "details": "Podrobnosti aplikace",
@@ -2167,7 +2202,8 @@
       "frameTitle": "{title}, aplikace",
       "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
       "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
-      "signInAgain": "Přihlásit se znovu"
+      "signInAgain": "Přihlásit se znovu",
+      "lead": "Zveřejněná aplikace spuštěná v Portálu s vaším přihlášením."
     },
     "retire": {
       "title": "Vyřadit {name}",
@@ -3828,6 +3864,209 @@
         "stale": "{count, plural, one {# kontrola neaktuální} few {# kontroly neaktuální} other {# kontrol neaktuálních}}",
         "unreadable": "{count, plural, one {# výsledek nečitelný} few {# výsledky nečitelné} other {# výsledků nečitelných}}"
       }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Kontextové prostory na projekt",
+            "hint": "Kolik kontextových prostorů smí mít jeden projekt."
+          },
+          "residentPipelines": {
+            "label": "Trvale běžící pipeliny na projekt",
+            "hint": "Kolik pipelinů jednoho projektu nechá runner běžet najednou."
+          },
+          "publicEndpoints": {
+            "label": "Veřejné endpointy na projekt",
+            "hint": "Kolik endpointů jednoho projektu smí být otevřeno všem."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Přijaté události za sekundu",
+            "hint": "Jak rychle smí jeden projekt zapisovat data."
+          },
+          "apps": {
+            "label": "Aplikace na projekt",
+            "hint": "Kolik aplikací jednoho projektu smí být v náhledu nebo zveřejněno."
+          },
+          "agentRunsPerDay": {
+            "label": "Běhy asistenta za den",
+            "hint": "Kolik běhů asistenta smí jeden projekt spustit za den."
+          },
+          "entitiesPerSpace": {
+            "label": "Entity na prostor",
+            "hint": "Kolik entit smí mít jeden kontextový prostor."
+          },
+          "requestsPerMinute": {
+            "label": "Požadavky za minutu na projekt",
+            "hint": "Nejvíce požadavků za minutu, které obslouží endpointy jednoho projektu."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Blokace názvu (dny)",
+          "hint": "Jak dlouho čeká název odstraněného projektu, než ho někdo znovu použije."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Webové požadavky za minutu",
+              "hint": "Požadavky za minutu, které smí jeden návštěvník poslat Portálu a aplikacím."
+            },
+            "api": {
+              "label": "Požadavky na API za minutu",
+              "hint": "Požadavky za minutu, které smí jeden klient poslat API Portálu."
+            },
+            "dataRead": {
+              "label": "Čtení dat za minutu",
+              "hint": "Čtení za minutu, která smí jeden klient provést přes endpoint."
+            },
+            "dataWrite": {
+              "label": "Zápisy dat za minutu",
+              "hint": "Zápisy za minutu, které smí jeden klient provést přes endpoint."
+            },
+            "publicEndpoint": {
+              "label": "Požadavky na veřejný endpoint za minutu",
+              "hint": "Požadavky za minutu, které smí anonymní návštěvník poslat veřejnému endpointu."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Největší požadavek (MiB)",
+            "hint": "Okraj odmítne větší tělo požadavku dřív, než ho cokoli přečte."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Největší zápis dat (MiB)",
+            "hint": "Brána odmítne větší zápis; nejvýše limit okraje."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Odhlášení po nečinnosti (minuty)",
+            "hint": "Relace skončí po takové době bez aktivity."
+          },
+          "sessionMaxHours": {
+            "label": "Nejdelší relace (hodiny)",
+            "hint": "Po takové době se člověk přihlásí znovu, aktivní nebo ne."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Platnost pozvánky (hodiny)",
+            "hint": "Jak dlouho funguje odkaz v pozvánce."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Výdaje na modely za den",
+            "hint": "Celé jednotky měny, které smí asistent utratit za modely za den."
+          },
+          "spendPerMonth": {
+            "label": "Výdaje na modely za měsíc",
+            "hint": "Celé jednotky měny, které smí asistent utratit za modely za měsíc."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Uchované odmítnuté záznamy",
+            "hint": "Kolik odmítnutých záznamů si pipeline ponechá ke kontrole."
+          },
+          "sampleMegabytes": {
+            "label": "Velikost testovacího vzorku (MiB)",
+            "hint": "Největší vzorek, který test pipelinu přečte."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Největší nahrání (MiB)",
+            "hint": "Největší soubor, který smí člověk nahrát; nejvýše limit okraje."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Nejkratší heslo",
+              "hint": "Kolik znaků musí heslo mít nejméně."
+            },
+            "history": {
+              "label": "Historie hesel",
+              "hint": "Kolik předchozích hesel nové heslo nesmí zopakovat."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Pravidla",
+      "policiesHint": "Co organizace povoluje.",
+      "apps": "Aplikace",
+      "appsHint": "Kdo smí vidět aplikace, které projekty zveřejní.",
+      "agents": "Asistent",
+      "agentsHint": "Co smí asistent používat a utratit.",
+      "limits": "Limity",
+      "limitsHint": "Kolik platforma pro organizaci udělá.",
+      "edge": "Okraj",
+      "edgeHint": "Co okraj propustí, na klienta.",
+      "requestsPerMinute": "Požadavky za minutu",
+      "requestsPerMinuteHint": "Jeden limit na každý druh provozu.",
+      "gateway": "Brána",
+      "gatewayHint": "Co smí nést jeden zápis přes endpoint.",
+      "signIn": "Přihlášení",
+      "signInHint": "Relace a hesla.",
+      "password": "Hesla",
+      "passwordHint": "Jaké musí být heslo.",
+      "people": "Lidé",
+      "peopleHint": "Pozvánky do organizace.",
+      "pipelines": "Pipeliny",
+      "pipelinesHint": "Co pipeliny uchovávají a čtou.",
+      "data": "Data",
+      "dataHint": "Co smí člověk nahrát."
+    },
+    "limits": {
+      "title": "Pravidla a limity",
+      "lead": "Každý limit, který organizace nastavuje, hodnota v platnosti a rozsah, který povoluje provozovatel. Úprava je mění přes schválenou změnu.",
+      "atLeast": "nejméně {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (výchozí)",
+      "noLimit": "bez limitu",
+      "defaultNone": "Ve výchozím stavu není žádný limit.",
+      "defaultIs": "Výchozí hodnota je {value}.",
+      "allowed": "Povoleno: {bound}.",
+      "usedOf": "{used} z {limit}",
+      "setting": "Nastavení",
+      "inForce": "V platnosti",
+      "range": "Povolený rozsah",
+      "perProject": "Kvóta na projekt",
+      "perProjectLead": "Z čí kvóty každý projekt běží a co využívá; projekty, které nemůžete číst, zde nejsou.",
+      "project": "Projekt",
+      "whose": "Kvóta od",
+      "noProjects": "Žádný projekt, který můžete číst.",
+      "section": {
+        "projects": "Projekty",
+        "applications": "Aplikace",
+        "edge": "Okraj",
+        "signIn": "Přihlášení",
+        "people": "Lidé",
+        "agents": "Asistent",
+        "pipelinesAndData": "Pipeliny a data"
+      },
+      "origin": {
+        "project": "projekt",
+        "organization": "organizace",
+        "default": "nikdo (bez limitu)"
+      }
+    },
+    "policy": {
+      "publicApps": "Veřejné aplikace",
+      "publicAppsHint": "Zda smí projekt zveřejnit aplikaci, kterou otevře kdokoli bez přihlášení.",
+      "publicApps_allowed": "Povoleno",
+      "publicApps_refused": "Zakázáno",
+      "models": "Modely, které smí asistent používat",
+      "modelsHint": "Nechte prázdné, aby byly povoleny všechny modely instalace.",
+      "everyModel": "Všechny modely instalace"
     }
   },
   "projectDelete": {

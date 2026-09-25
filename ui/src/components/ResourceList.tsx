@@ -53,7 +53,7 @@ export function ResourceList({
     );
   }
   return (
-    <Table caption={caption} status={query.isPending ? t("app.loading") : undefined}>
+    <Table data-records="" caption={caption} status={query.isPending ? t("app.loading") : undefined}>
       {head}
       {query.isPending ? (
         <TableSkeleton columns={columns} />

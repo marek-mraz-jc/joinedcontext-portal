@@ -88,6 +88,27 @@ describe("lifecycle badge", () => {
     expect(screen.getByText("Nasadzuje sa")).toBeInTheDocument();
   });
 
+  it("never says a merged resource the reconciler has not deployed is waiting for an approver", () => {
+    // T-2873: ten praha pipelines over their resident quota read "Pending approval" while the
+    // Approvals page, rightly, had no open change. Only a Change waits for an approver (CC-33).
+    renderBadges(<LifecycleBadge kind="phase" value="Pending" />);
+    const chip = screen.getByText(en.phase.notDeployed);
+    expect(chip).toHaveAttribute("title", en.phase.notDeployedHelp);
+    expect(screen.queryByText(en.phase.pendingApproval)).not.toBeInTheDocument();
+  });
+
+  it("says pending approval only for a phase that has a proposal in Approvals", () => {
+    // Every phase a resource reports (jc-core `Phase`) against the one a Change reports while
+    // its proposal is open: only the latter may send a person to the Approvals page.
+    for (const phase of ["Draft", "Pending", "Deploying", "Live", "Error", "Drifted"]) {
+      const { unmount } = renderBadges(<LifecycleBadge kind="phase" value={phase} />);
+      expect(screen.queryByText(en.phase.pendingApproval), phase).not.toBeInTheDocument();
+      unmount();
+    }
+    renderBadges(<LifecycleBadge kind="phase" value="PendingApproval" />);
+    expect(screen.getByText(en.phase.pendingApproval)).toBeInTheDocument();
+  });
+
   it("shows an unknown status verbatim instead of an empty chip", () => {
     renderBadges(<LifecycleBadge kind="phase" value="Hibernating" />);
     const chip = screen.getByText("Hibernating");

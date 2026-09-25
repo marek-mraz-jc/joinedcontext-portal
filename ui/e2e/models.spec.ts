@@ -105,7 +105,7 @@ test.describe("the data models", () => {
     await expect(page.getByLabel("category").locator("option:checked")).toHaveText("weather");
 
     await page.getByRole("tab", { name: "YAML" }).click();
-    await expect(page.getByLabel("The model's LinkML")).toContainText("permissible_values:");
+    await expect(page.getByLabel("The model's source (LinkML YAML)")).toContainText("permissible_values:");
 
     await page.getByRole("tab", { name: "Where used" }).click();
     await expect(page.getByRole("tabpanel").getByRole("link", { name: "helsinki-alerts" })).toHaveAttribute(
@@ -123,7 +123,7 @@ test.describe("the data models", () => {
     const model = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: "Data model" }) });
     await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
     await model.getByRole("tab", { name: "YAML" }).click();
-    await expect(model.getByLabel("The model's LinkML")).toContainText("permissible_values:");
+    await expect(model.getByLabel("The model's source (LinkML YAML)")).toContainText("permissible_values:");
     await model.getByRole("link", { name: "Helsinki city context" }).click();
     await expect(page).toHaveURL(/\/projects\/helsinki\/models\/helsinki$/);
   });

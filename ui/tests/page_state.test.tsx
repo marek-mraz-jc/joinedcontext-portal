@@ -115,6 +115,22 @@ describe("the page's failed state", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  // T-2834: the pages passed `onRetry` for every failure, so a 404 offered a Retry that could
+  // only answer 404 again. The rule lives here now, for every caller.
+  it("drops a page's Retry for a failure that answers the same the second time", () => {
+    const retry = vi.fn();
+    for (const status of [400, 403, 404, 409, 422]) {
+      const problem = { type: "about:blank", status, title: "No", detail: `answered ${status}` };
+      const { unmount } = show(<PageFailed error={new ApiError(status, "No", problem)} onRetry={retry} />);
+      expect(screen.getByText(`answered ${status}`)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: en.app.error.retry }), String(status)).toBeNull();
+      unmount();
+    }
+    const problem = { type: "about:blank", status: 503, title: "Away", detail: "the store is away" };
+    show(<PageFailed error={new ApiError(503, "Away", problem)} onRetry={retry} />);
+    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
   it("says Retry in every locale the Portal ships", async () => {
     const retry = vi.fn();
     await inEveryLocale(async (locale) => {

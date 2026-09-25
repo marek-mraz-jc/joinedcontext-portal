@@ -28,6 +28,8 @@ interface FormRouteValue {
   form: FormTarget | null;
   openNew: () => void;
   openEdit: (name: string) => void;
+  /** The address `openEdit` goes to, for a real link to it (T-2875). */
+  editHref: (name: string) => string;
   /** Back to the list, the way the list was left. */
   close: () => void;
   /**
@@ -351,6 +353,8 @@ export function FormRouteHost({
           params: { project, plural, name },
         });
       },
+      editHref: (name) =>
+        `${base ?? `/projects/${encodeURIComponent(project)}/${encodeURIComponent(plural)}`}/${encodeURIComponent(name)}/edit`,
       close: () => {
         if (base) {
           void navigate({ href: base });

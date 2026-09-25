@@ -196,6 +196,9 @@ slots:
       to: "Device",
       kind: "range",
       label: "refDevice",
+      // T-2881: how many at both ends; nothing limits how many Vehicles share one Device.
+      fromMultiplicity: "*",
+      toMultiplicity: "0..1",
     });
     // A slot whose range is a primitive is inside the box, not a line.
     expect(edges.some((edge) => edge.label === "speed")).toBe(false);

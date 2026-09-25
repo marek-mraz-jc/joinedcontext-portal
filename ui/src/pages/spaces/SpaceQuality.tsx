@@ -31,7 +31,7 @@ function isReport(value: unknown): value is Report {
 }
 
 /**
- * Data quality of one space (DM-70, T-2796): the last daily run's share of valid entities, the
+ * Data quality of one space (DM-74, T-2796): the last daily run's share of valid entities, the
  * rules they break with example ids (for whoever reads the entities), and how fresh the data of
  * each pipeline writing into the space is. Before the first run it says so, never "all valid".
  */

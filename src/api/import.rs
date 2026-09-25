@@ -34,9 +34,9 @@ use crate::git::{Author, FileWrite};
 use crate::resource::{self, ResourceEnvelope};
 use crate::state::AppState;
 
-/// Largest upload the endpoint reads. A project's whole configuration is manifests and a few
-/// native files; anything past this is not a bundle.
-pub(crate) const MAX_UPLOAD_BYTES: usize = 32 * 1024 * 1024;
+/// Largest upload the endpoint reads: the edge's largest body (ADR-N-035). The organization's
+/// `spec.limits.data.uploadMegabytes` is the limit in force below it (`within_upload_limit`).
+pub(crate) const MAX_UPLOAD_BYTES: usize = 64 * 1024 * 1024;
 
 /// Entries an archive may hold. A bundle carrying a thousand files is a mistake or an attack,
 /// and either way it must not become a thousand forge calls.
@@ -1219,6 +1219,14 @@ pub async fn import(
     if !resource::is_dns1123(&project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
+    // The organization's upload size judges the body as it arrived: a JSON import is re-encoded
+    // before the bundle is read, and a git archive is unpacked (ADR-N-035).
+    let (parts, body) = request.into_parts();
+    let raw = axum::body::to_bytes(body, MAX_UPLOAD_BYTES + 64 * 1024)
+        .await
+        .map_err(|err| ApiError::BadRequest(format!("the upload could not be read: {err}")))?;
+    crate::api::organization_limits::within_upload_limit(&state, raw.len())?;
+    let request = Request::from_parts(parts, axum::body::Body::from(raw));
     match query.format.as_deref() {
         None => {}
         Some("git") => {
@@ -1267,6 +1275,7 @@ pub async fn import_bundle(
         ));
     }
 
+    crate::api::organization_limits::within_upload_limit(state, bytes.len())?;
     let incoming = parse(bytes)?;
     authorize(state, identity, &project, &incoming)?;
     well_formed(&incoming, state.config.apps_dir.as_deref())?;
@@ -2264,7 +2273,9 @@ mod upload_gate_tests {
     #[test]
     fn entries_that_add_up_past_the_import_limit_are_refused_together() {
         let each = vec![b'b'; 4 * 1024 * 1024];
-        let names: Vec<String> = (0..12)
+        // Each entry under the limit, together past it, whatever the limit is.
+        let count = MAX_ARCHIVE_BYTES as usize / each.len() + 1;
+        let names: Vec<String> = (0..count)
             .map(|index| format!("projects/helsinki/pipelines/p{index}/bento.yaml"))
             .collect();
         let entries: Vec<(&str, &[u8])> = names

@@ -43,6 +43,13 @@ import { useShownErrors } from "./touched";
 export const FormActionsContext = createContext<ReactNode>(null);
 /** What a caller puts under the last field and above the submit line (a panel, a preview). */
 export const FormAfterFieldsContext = createContext<ReactNode>(null);
+/**
+ * The description of the list a scalar item belongs to (UI-16). An item of `urls` or `kinds` has
+ * no description of its own, so its control named a `__description` that was not there and a
+ * screen reader read a bare "Broker URLs-1". The list's sentence is shown once above it and read
+ * with each item; an object item's own fields are described by their own schema, never by this.
+ */
+const ArrayHintContext = createContext<string | undefined>(undefined);
 
 /**
  * The state of the submit button itself: in flight, and why it is closed (T-2322, PL-49, UI-44).
@@ -183,6 +190,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   const { id, label, children, rawErrors, rawDescription, description, rawHelp, displayLabel, required, hidden, schema, fieldPathId } =
     props;
   const errors = useShownErrors(id, rawErrors);
+  const listHint = useContext(ArrayHintContext);
 
   if (hidden) {
     // `hidden` rather than an inline `display: none`: the attribute is what the platform has for
@@ -201,6 +209,11 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   // the sentence stood above the box and again below it (T-2754).
   const inWidget = schema.type === "boolean" && !showLabel;
   const descText = ownHeading || inWidget ? undefined : forPeople ?? description ?? rawDescription;
+  const inherited =
+    // rjsf hands `description` over as an element even when the schema has none to say.
+    !forPeople && !rawDescription && !ownHeading && !inWidget && listHint ? (
+      <span className="sr-only">{listHint}</span>
+    ) : undefined;
 
   return (
     <Field
@@ -208,7 +221,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       label={label}
       hideLabel={!showLabel}
       required={required}
-      description={descText}
+      description={inherited ?? descText}
       help={inWidget ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={errors}
       aside={
@@ -342,6 +355,14 @@ function itemTitle(
 }
 
 export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.Element {
+  return (
+    <ArrayHintContext.Provider value={undefined}>
+      <ObjectFields {...props} />
+    </ArrayHintContext.Provider>
+  );
+}
+
+function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   const { t } = useTranslation();
   const { title, description, properties, fieldPathId, uiSchema } = props;
   const isRoot = fieldPathId.$id === "root";
@@ -398,6 +419,10 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
   } = registry.templates;
   const heading = (uiOptions.title as string | undefined) || title;
   const description = (uiOptions.description as string | undefined) || schema.description;
+  // The words written for people first, as FieldTemplate reads them; the list's FieldTemplate
+  // shows its `help` under the list, and each item reads it as its own hint.
+  const help = typeof uiOptions.help === "string" && uiOptions.help.trim() !== "" ? uiOptions.help : undefined;
+  const listHint = help ?? description;
   return (
     <fieldset id={fieldPathId.$id} className="flex flex-col gap-2">
       {heading ? (
@@ -410,8 +435,16 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
           ) : null}
         </legend>
       ) : null}
-      {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
-      {items.length > 0 ? <div className="flex flex-col gap-2">{items}</div> : null}
+      {description ? (
+        <p id={`${fieldPathId.$id}__description`} className="text-caption text-fg-muted">
+          {description}
+        </p>
+      ) : null}
+      {items.length > 0 ? (
+        <ArrayHintContext.Provider value={listHint || undefined}>
+          <div className="flex flex-col gap-2">{items}</div>
+        </ArrayHintContext.Provider>
+      ) : null}
       {canAdd ? (
         <div>
           <AddButton

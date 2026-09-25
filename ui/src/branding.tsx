@@ -40,6 +40,7 @@ export const NEUTRAL_BRANDING: Branding = {
   // An installation that serves no User Guide; no form offers a link (UI-02).
   documentationBaseUrl: "",
   appsOrigin: null,
+  hiddenSections: [],
 };
 
 const BrandingContext = createContext<Branding>(NEUTRAL_BRANDING);
@@ -159,6 +160,26 @@ export function offeredLocales(branding: Branding): string[] {
   return offered.length > 0 ? offered : NEUTRAL_BRANDING.languages!.offered!;
 }
 
+const brandingQuery = {
+  queryKey: ["branding"],
+  queryFn: async () => unwrap(await api.GET("/api/v1/branding")),
+  staleTime: 5 * 60 * 1000,
+};
+
+/**
+ * The project sections this installation hides (T-2874), or `undefined` while the answer is on
+ * its way, so a page that may be hidden is not drawn before it is known. A branding answer that
+ * failed hides nothing: the flag tidies the navigation, it guards nothing.
+ */
+export function useHiddenSections(): readonly string[] | undefined {
+  const { data, isPending } = useQuery(brandingQuery);
+  if (isPending) {
+    return undefined;
+  }
+  const hidden = (data as { hiddenSections?: unknown } | undefined)?.hiddenSections;
+  return Array.isArray(hidden) ? hidden.filter((section): section is string => typeof section === "string") : [];
+}
+
 /**
  * Fetches the branding once, applies it, and hands it to the tree.
  *
@@ -166,11 +187,7 @@ export function offeredLocales(branding: Branding): string[] {
  * branded too. A failure is not an error state, it is the neutral look.
  */
 export function BrandingProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const { data } = useQuery({
-    queryKey: ["branding"],
-    queryFn: async () => unwrap(await api.GET("/api/v1/branding")),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data } = useQuery(brandingQuery);
   // The answer is merged into the neutral block rather than replacing it: a field the API
   // did not send must not blank out a name or a colour the page needs.
   const branding: Branding = useMemo(() => ({ ...NEUTRAL_BRANDING, ...(data ?? {}) }), [data]);

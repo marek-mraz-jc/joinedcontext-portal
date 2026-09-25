@@ -1,5 +1,5 @@
 /**
- * T-2796 (DM-70): the Data quality section of a space. The last daily run in words: the share
+ * T-2796 (DM-74): the Data quality section of a space. The last daily run in words: the share
  * valid, the failing rules with their example ids, and each pipeline's freshness; before the
  * first run it says so rather than "all valid".
  */
@@ -48,8 +48,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("the Data quality section (DM-70)", () => {
-  it("says the share valid, the rules failing and the freshness in one line (DM-70)", async () => {
+describe("the Data quality section (DM-74)", () => {
+  it("says the share valid, the rules failing and the freshness in one line (DM-74)", async () => {
     const { container } = renderQuality(() => json(REPORT));
     expect(await screen.findByText("98.7% valid · 2 rules failing · 1 pipeline stale")).toBeInTheDocument();
     const rules = screen.getByRole("table", { name: en.spaces.quality.rulesCaption });

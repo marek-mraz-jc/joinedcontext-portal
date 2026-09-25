@@ -18,6 +18,7 @@ import {
   Field,
   Input,
   PageHeader,
+  ResourcePageFailed,
   Skeleton,
   Textarea,
 } from "../components/ui";
@@ -170,27 +171,24 @@ export function ApprovalDetailPage({
   }
 
   if (detailQuery.isError) {
-    const message =
-      detailQuery.error instanceof ApiError
-        ? detailQuery.error.problem?.detail ?? detailQuery.error.message
-        : t("app.error.generic");
     return (
-      <Alert
-        role="alert"
-        tone="danger"
-        actions={
-          <Button
-            size="sm"
-            onClick={() => {
-              void detailQuery.refetch();
-            }}
+      <ResourcePageFailed
+        title={id}
+        description={t("approvals.lead")}
+        error={detailQuery.error}
+        onRetry={() => {
+          void detailQuery.refetch();
+        }}
+        back={
+          <Link
+            to="/projects/$project/approvals"
+            params={{ project }}
+            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
           >
-            {t("app.error.retry")}
-          </Button>
+            {t("approvals.back")}
+          </Link>
         }
-      >
-        {message}
-      </Alert>
+      />
     );
   }
 

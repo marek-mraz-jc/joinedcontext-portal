@@ -1891,3 +1891,55 @@ async fn a_projection_that_names_the_served_major_is_imported() {
         "{detail}"
     );
 }
+
+/// T-2870 (ADR-N-035): the organization's `spec.limits.data.uploadMegabytes` is the import's
+/// limit. A bundle past it is refused before anything is read or written, naming its size, the
+/// limit and the setting; the same bundle under a larger limit is imported.
+async fn post_padded_space(upload_megabytes: u32) -> (StatusCode, Value, MockServer) {
+    let server = forge().await;
+    let (state, cookie) = state_as(
+        &server,
+        vec![],
+        &["portal-approver"],
+        vec![json!({
+            "apiVersion": API_VERSION,
+            "kind": "Organization",
+            "metadata": { "name": "bb", "namespace": ORG_NAMESPACE },
+            "spec": {
+                "displayName": { "en": "Banska Bystrica" },
+                "domain": "banskabystrica.sk",
+                "limits": { "data": { "uploadMegabytes": upload_megabytes } },
+            },
+        })],
+    );
+    let manifest: Value = serde_yaml_ng::from_str(SPACE).expect("the space parses");
+    let mut body = serde_json::to_vec(&json!({ "manifests": { "apiVersion": API_VERSION,
+                                      "kind": "List", "items": [manifest] } }))
+    .expect("body");
+    // One and a half MiB, most of it the whitespace JSON allows after the value.
+    body.resize(3 * 512 * 1024, b' ');
+    let (status, answer) = post(state, &cookie, "application/json", body).await;
+    (status, answer, server)
+}
+
+#[tokio::test]
+async fn an_import_past_the_organizations_upload_size_is_refused_naming_the_setting() {
+    let (status, answer, server) = post_padded_space(1).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{answer}");
+    let detail = answer["detail"].as_str().unwrap_or_default();
+    for part in [
+        "1.5 MiB",
+        "at most 1 MiB",
+        "spec.limits.data.uploadMegabytes",
+    ] {
+        assert!(detail.contains(part), "{part}: {detail}");
+    }
+    assert!(written(&server).await.is_empty());
+}
+
+#[tokio::test]
+async fn an_import_inside_the_organizations_upload_size_is_imported() {
+    let (status, answer, server) = post_padded_space(2).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{answer}");
+    assert_eq!(written(&server).await.len(), 1);
+}

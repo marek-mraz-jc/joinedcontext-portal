@@ -217,7 +217,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                 </Select>
               </Field>
             </div>
-            <Table caption={t("models.page.listCaption")}>
+            <Table data-records="" caption={t("models.page.listCaption")}>
               <TableHead>
                 <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
                 <TableHeaderCell>{t("models.field.space")}</TableHeaderCell>
@@ -239,6 +239,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                     <TableRow key={row.model.metadata.name}>
                       <TableCell primary>
                         <Link
+                          data-row-link=""
                           to="/projects/$project/models/$name"
                           params={{ project, name: row.model.metadata.name }}
                           className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
