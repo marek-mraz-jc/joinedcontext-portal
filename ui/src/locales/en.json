@@ -3790,5 +3790,12 @@
     },
     "createNamed": "New: “{name}”",
     "list": "Choices"
+  },
+  "units": {
+    "search": "Search by code, symbol, name or quantity",
+    "frequent": "Frequently used",
+    "none": "No unit",
+    "noMatch": "No UN/CEFACT unit matches. Try the symbol (µg/m³), the name or the code (GQ).",
+    "more": "Showing {shown} of {total} units. Type more to narrow the list."
   }
 }

@@ -61,9 +61,9 @@ describe("LinkML operations", () => {
       // The wire value and the anchor together (DM-59): the UN/CEFACT code NGSI-LD carries and
       // the QUDT unit a federated reader dereferences, with the dimension beside it.
       unit: {
-        ucum_code: "ug/m3",
+        ucum_code: "ug.m-3",
         exact_mappings: ["ucefact:GQ", "qudt-unit:MicroGM-PER-M3"],
-        has_quantity_kind: "qudt-quantkind:MassDensity",
+        has_quantity_kind: "qudt-quantkind:Density",
       },
       kind: "Property",
       minimum_value: 0,
@@ -79,6 +79,27 @@ describe("LinkML operations", () => {
       { op: "setSlot", name: "pm10", field: "kind", value: "GeoProperty" },
     ]).source;
     expect(slotNamed(cleared, "pm10")).toMatchObject({ required: false, unit: undefined, kind: "GeoProperty" });
+  });
+
+  it("takes any Rec 20 code, writes only what the code list carries, and refuses a code by the wrong case", () => {
+    const { source, refused } = applyOperations(SOURCE, [
+      { op: "setSlot", name: "pm10", field: "unit", value: "A97" },
+      { op: "addSlot", name: "bikes", range: "integer" },
+      { op: "setSlot", name: "bikes", field: "unit", value: "H87" },
+    ]);
+    expect(refused).toEqual([]);
+    const wrongCase = applyOperations(SOURCE, [{ op: "setSlot", name: "pm10", field: "unit", value: "gq" }]);
+    expect(wrongCase.source).toBe(SOURCE);
+    expect(wrongCase.refused.map((refusal) => refusal.reason)).toEqual([
+      "unit 'gq' of slot 'pm10' is not a UN/CEFACT Recommendation 20 code; codes are case-sensitive, such as GQ for µg/m³ or CEL for °C",
+    ]);
+    expect(slotNamed(source, "pm10")?.unit).toEqual({
+      ucum_code: "hPa",
+      exact_mappings: ["ucefact:A97", "qudt-unit:HectoPA"],
+      has_quantity_kind: "qudt-quantkind:ForcePerArea",
+    });
+    // A piece has no UCUM code, QUDT unit or quantity kind in the list: none is invented.
+    expect(slotNamed(source, "bikes")?.unit).toEqual({ exact_mappings: ["ucefact:H87"] });
   });
 
   it("removes, attaches and detaches, and enums get their values", () => {
@@ -166,7 +187,7 @@ describe("LinkML operations", () => {
       "unknown slot 'pm25'",
       "slot 'pm10' would mint 'sdm:pm10' under https://smartdatamodels.org/, which belongs to someone else",
       "range 'Nowhere' of slot 'pm10' is neither a type, an enum nor a class of this model",
-      "unit 'XX' of slot 'pm10' is not a known UN/CEFACT common code",
+      "unit 'XX' of slot 'pm10' is not a UN/CEFACT Recommendation 20 code; codes are case-sensitive, such as GQ for µg/m³ or CEL for °C",
       "'not a name' is not a valid class name: letters, digits and _ only, starting with a letter, " +
         "because the name becomes the entity type in every URN. Put the readable name in its title.",
       "slot 'pm10' already exists",

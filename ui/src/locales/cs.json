@@ -3790,5 +3790,12 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
+  },
+  "units": {
+    "search": "Hledat podle kódu, značky, názvu nebo veličiny",
+    "frequent": "Často používané",
+    "none": "Bez jednotky",
+    "noMatch": "Žádná jednotka UN/CEFACT neodpovídá. Zkuste značku (µg/m³), název nebo kód (GQ).",
+    "more": "Zobrazeno {shown} z {total} jednotek. Pište dál a seznam se zúží."
   }
 }
