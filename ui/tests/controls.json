@@ -1126,6 +1126,14 @@
         "space_complete.test.tsx"
       ]
     },
+    "src/pages/spaces/SpaceDrift.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_drift.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
         "Button": 2

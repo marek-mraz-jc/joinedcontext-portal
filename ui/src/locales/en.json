@@ -3183,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Drift from the repository",
+      "notYet": "No drift scan has run yet: the platform compares this space's seed entities with the repository on its next pass.",
+      "clean": "The space holds what the repository declares.",
+      "found": "{count, plural, one {# entity differs from the repository.} other {# entities differ from the repository.}}",
+      "observed": "Scanned {when}.",
+      "caption": "Entities of {space} that differ from the repository",
+      "entity": "Entity",
+      "kind": "Drift",
+      "attributes": "Attributes",
+      "resolution": "Resolution",
+      "resolve": "Resolve",
+      "resolveLabel": "Resolve the drift of {id}",
+      "mayNotResolve": "Resolving needs the right to propose entities in this project.",
+      "wholeEntity": "The whole entity"
+    },
     "modal": {
       "title": "What changed in ‘{id}’",
       "lead": {
