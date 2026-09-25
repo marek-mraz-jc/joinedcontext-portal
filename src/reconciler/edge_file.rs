@@ -162,10 +162,11 @@ fn rewrite_uri(plugins: &mut Value, from: String, to: String) {
     plugins["proxy-rewrite"]["regex_uri"] = json!([from, to]);
 }
 
-/// Only the Portal frames an App (AP-122): the App route adds `frame-ancestors` for the Portal's
-/// host and drops `X-Frame-Options`, whose `SAMEORIGIN` would refuse the Portal. The header is
-/// added beside the App's own policy, never over it: a browser enforces both, so the App's
-/// `connect-src` and the rest stay as its upstream sent them.
+/// Only the App's own origin and the Portal frame an App (AP-122, OPS-34): the App route adds
+/// `frame-ancestors 'self'` plus the Portal's host and drops `X-Frame-Options`, whose
+/// `SAMEORIGIN` would refuse the Portal. The header is added beside the App's own policy, never
+/// over it: a browser enforces both, so the App's `connect-src` and the rest stay as its
+/// upstream sent them.
 fn framed_by_portal(plugins: &mut Value, host: &str) {
     if !plugins["response-rewrite"].is_object() {
         plugins["response-rewrite"] = json!({});
@@ -181,7 +182,7 @@ fn framed_by_portal(plugins: &mut Value, host: &str) {
     // No scheme: APISIX refuses an `add` entry with a second `:` (its pattern is
     // `^[^:]+:[^:]*[^/]$`) and drops the whole plugin config, so every App route answered 503.
     // A source without a scheme takes the App page's own, https.
-    let policy = format!("Content-Security-Policy: frame-ancestors portal.{host}");
+    let policy = format!("Content-Security-Policy: frame-ancestors 'self' portal.{host}");
     push(headers, "add", json!(policy));
     push(headers, "remove", json!("X-Frame-Options"));
 }
@@ -793,7 +794,7 @@ routes:
             );
             assert_eq!(
                 headers["add"],
-                json!(["Content-Security-Policy: frame-ancestors portal.city.example"]),
+                json!(["Content-Security-Policy: frame-ancestors 'self' portal.city.example"]),
                 "{id}"
             );
             // APISIX's schema for `response-rewrite.headers.add`: one `:` and no trailing `/`.
@@ -827,7 +828,7 @@ routes:
         assert_eq!(headers["remove"], json!(["X-Frame-Options"]));
         assert!(headers["add"][0]
             .as_str()
-            .is_some_and(|value| value.ends_with("frame-ancestors portal.city.example")));
+            .is_some_and(|value| value.ends_with("frame-ancestors 'self' portal.city.example")));
     }
 
     #[test]

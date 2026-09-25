@@ -996,7 +996,10 @@
         ]
       },
       "status": {
-        "liveOwed": "T-2849",
+        "live": {
+          "spec": "ckan.spec.ts",
+          "test": "ckan/status: a steward reads each catalogue and each published endpoint the status names"
+        },
         "assistant": "jc_ckan_status"
       },
       "publish-dataset": {
