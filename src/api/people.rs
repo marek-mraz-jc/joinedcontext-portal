@@ -399,7 +399,7 @@ async fn target<'a>(
     get,
     path = "/api/v1/organization/people",
     summary = "List People",
-    description = "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.",
+    description = "Searches the organization's people, a page at a time.",
     tag = "people",
     params(
         ("search" = Option<String>, Query, description = "A substring of the name or e-mail"),
@@ -466,7 +466,7 @@ pub async fn list_people(
     post,
     path = "/api/v1/organization/people",
     summary = "Create Person",
-    description = "Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.",
+    description = "Creates a person and sends the sign-up e-mail.",
     tag = "people",
     request_body(content = CreatePerson, example = json!({ "email": "jana.kovacova@example.org", "firstName": "Jana", "lastName": "Kováčová", "locale": "sk" })),
     responses(
@@ -543,7 +543,7 @@ async fn invite(
     get,
     path = "/api/v1/organization/people/{id}",
     summary = "Get Person",
-    description = "One person with their groups, platform roles and application roles. Needs `read` on Person.",
+    description = "One person with their groups and roles.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -616,7 +616,7 @@ pub async fn get_person(
     patch,
     path = "/api/v1/organization/people/{id}",
     summary = "Edit Person",
-    description = "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.",
+    description = "Edits a person's name, e-mail or language.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     request_body(content = EditPerson, example = json!({ "lastName": "Nováková" })),
@@ -737,7 +737,7 @@ async fn set_enabled(
     post,
     path = "/api/v1/organization/people/{id}/disable",
     summary = "Disable Person",
-    description = "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.",
+    description = "Disables a person and ends their sessions; never the caller or the last Organization Administrator.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -760,7 +760,7 @@ pub async fn disable_person(
     post,
     path = "/api/v1/organization/people/{id}/enable",
     summary = "Enable Person",
-    description = "Enables a disabled person. Needs `disable` on Person.",
+    description = "Enables a disabled person.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
@@ -847,7 +847,7 @@ pub async fn remove_second_factor(
     post,
     path = "/api/v1/organization/people/{id}/sign-out",
     summary = "Sign Person Out",
-    description = "Ends every session of the person. Needs `disable` on Person and every right the person holds.",
+    description = "Ends every session of a person.",
     tag = "people",
     params(("id" = String, Path, description = "The Keycloak user id")),
     responses(
