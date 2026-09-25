@@ -13,6 +13,7 @@ use crate::state::AppState;
 
 pub mod agent_runs;
 pub mod domain_verifications;
+pub mod pipeline_rejected;
 pub mod pipeline_tests;
 pub mod previews;
 
@@ -20,6 +21,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .merge(agent_runs::router())
         .merge(pipeline_tests::router())
+        .merge(pipeline_rejected::router())
         .merge(previews::router())
         .merge(domain_verifications::router())
 }
