@@ -592,7 +592,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "zdroj modelu",
       "jsonSchema": "JSON Schema",
       "access": "prístup",
       "catalogue": "katalóg"
@@ -1588,7 +1588,7 @@
     "format": "Formát",
     "formats": {
       "whole": "Celý projekt (konfigurácia, schémy a dátové modely)",
-      "wholeHelp": "Archív ZIP: každý manifest a súbory vedľa neho, JSON Schema každého druhu, LinkML zdroj a JSON Schema každého dátového modelu a README, ktoré vysvetľuje, čo ktorý súbor znamená.",
+      "wholeHelp": "Archív ZIP: každý manifest a súbory vedľa neho, JSON Schema každého druhu, zdroj a JSON Schema každého dátového modelu a README, ktoré vysvetľuje, čo ktorý súbor znamená.",
       "yaml": "YAML",
       "yamlHelp": "Jeden manifest na dokument, pripravený na opätovné nasadenie; celý projekt končí indexom so schémami.",
       "json": "Zoznam JSON",
@@ -1609,7 +1609,7 @@
     "download": "Stiahnuť"
   },
   "models": {
-    "title": "Editor modelov LinkML",
+    "title": "Editor modelov",
     "version": "Verzia {version}",
     "add": "Pridať",
     "classes": "Triedy",
@@ -1809,7 +1809,7 @@
       "name": "Názov",
       "space": "Kontextový priestor",
       "version": "Verzia",
-      "linkml": "Zdroj LinkML",
+      "linkml": "Zdroj modelu",
       "lifecycle": "Životný cyklus",
       "openWorld": "Prijímať nedeklarované atribúty"
     },
@@ -1855,7 +1855,7 @@
       "edit": "Upraviť model",
       "notFound": "Dátový model {name} neexistuje",
       "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
-      "sourceFailed": "LinkML modelu sa nepodarilo načítať: {reason}",
+      "sourceFailed": "Zdroj modelu sa nepodarilo načítať: {reason}",
       "views": "Pohľady na model",
       "view": {
         "overview": "Prehľad",
@@ -1872,7 +1872,7 @@
       "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
       "formClass": "Trieda",
       "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
-      "yaml": "LinkML modelu",
+      "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovať YAML",
       "downloadYaml": "Stiahnuť YAML",
       "copied": "Skopírované.",
