@@ -325,21 +325,30 @@
         "assistant": "jc_model_propose"
       },
       "infer-from-sample": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward drafts a model from a CSV sample into the editor"
+        },
         "assistant": "jc_model_infer",
         "routes": [
           "POST /api/v1/tools/infer-schema"
         ]
       },
       "import-smart-data-model": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward imports a Smart Data Model into a model being built"
+        },
         "assistant": "jc_catalog_search",
         "routes": [
           "POST /api/v1/tools/import-sdm"
         ]
       },
       "add-class-enum-relation": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it"
+        },
         "assistant": "jc_model_source_put",
         "routes": [
           "PUT /api/v1/projects/{project}/datamodels/{name}/source"
@@ -363,14 +372,20 @@
         "assistant": "jc_model_source_get"
       },
       "edit-source": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it"
+        },
         "assistant": "jc_model_source_put",
         "routes": [
           "PUT /api/v1/projects/{project}/datamodels/{name}/source"
         ]
       },
       "retire": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "models.spec.ts",
+          "test": "a steward proposes removing a model, and the rejected removal keeps it"
+        },
         "assistant": "jc_resource_delete",
         "routes": [
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
