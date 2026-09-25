@@ -26,6 +26,7 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
 pub mod doors;
+pub mod routes;
 
 pub const CSRF: &str = "test-csrf-token-permissions";
 

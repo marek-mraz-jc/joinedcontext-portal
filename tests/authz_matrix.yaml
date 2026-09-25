@@ -1,0 +1,476 @@
+# The authorization matrix (T-2797, PF-52, AC-01): every route the Portal serves and what each
+# role of the taxonomy gets from it. tests/authz_matrix_tests.rs holds every cell on every push
+# against a mocked forge; joinedcontext-conformance tests/authz sends the cells dev can answer
+# nightly. A new route without a row fails the gate.
+#
+# Cells: `allow` (the caller passes the check: never 401 or 403, and no 404 on a row where
+# somebody else's refusal is 404), or the status the caller gets instead. Anonymous writes answer
+# 403: the CSRF check runs before anyone is asked who they are. A 404 for a role the rule
+# allows, a 409, 422 or 503 is the fixture's (an object, a body or a service it lacks); the note
+# says which.
+roles: [anonymous, viewer, editor, steward, approver, org-admin, other-member, service-account]
+routes:
+  - route: GET /.well-known/oauth-protected-resource
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /.well-known/oauth-protected-resource/api/v1/mcp
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /activity
+    rule: "workload:activity-ingest"
+    expect: [403, 403, 403, 403, 403, 403, 403, 403]
+  - route: GET /apps/{name}/
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /apps/{name}/{*path}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: POST /apps/{name}/api/functions/{fn}
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: POST /auth/backchannel-logout
+    rule: "signature:keycloak-backchannel"
+    expect: [503, 503, 503, 503, 503, 503, 503, 503]
+    form: "logout_token=not-a-signed-token"
+    note: "the route answers 503 before it asks about the caller"
+  - route: GET /auth/callback
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /auth/login
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /auth/logout
+    rule: "public"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /auth/me
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /blueprints
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /branding
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /branding/{asset}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "public; the fixture configures no basemap or branding asset"
+  - route: GET /forms
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /health
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /internal/agent-runs/events
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/agent-runs/{id}
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/agent-runs/{id}/diagnostics/{component}/{name}
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/outcomes
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/rejected
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/agent-runs/{id}/inbox
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/agent-runs/{id}/mcp
+    rule: "workload:agent-proxy"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipeline-tests/{id}
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/domain-verifications
+    rule: "workload:gateway"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/previews
+    rule: "workload:gateway"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /mcp
+    rule: "public"
+    expect: [405, 405, 405, 405, 405, 405, 405, 405]
+  - route: POST /mcp
+    rule: "mcp-dispatch"
+    expect: [401, 401, 401, 401, 401, 401, 401, allow]
+  - route: GET /metrics
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /openapi.json
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /organization/people
+    rule: "people-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/people/{id}
+    rule: "people-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: PATCH /organization/people/{id}
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: DELETE /organization/people/{id}
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/disable
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/enable
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/remove-second-factor
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/reset-password
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/{id}/sign-out
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /preferences
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: PUT /preferences
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /endpoints
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /projects
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /projects
+    rule: "org-setting:projects.creation"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+    body: {"name": "helsinki"}
+  - route: GET /projects/{project}
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: DELETE /projects/{project}
+    rule: "project-verb:delete:Project"
+    expect: [403, 403, 403, 403, 403, 404, 404, 403]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: POST /projects/{project}/duplicate
+    rule: "org-setting:projects.creation"
+    expect: [403, 403, 403, 403, 403, allow, 404, 403]
+    body: {"name": "helsinki-copy"}
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/activity
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/activity/stream
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/drift
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/drift/{space}/{id}/revert
+    rule: "project-verb:propose:Entity"
+    expect: [403, 403, 403, 404, 403, 404, 404, 403]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: POST /projects/{project}/drift/{space}/{id}/adopt
+    rule: "project-verb:propose:Entity"
+    expect: [403, 403, 403, 404, 403, 404, 404, 403]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/agent-runs
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/agent-runs
+    rule: "project-verb:propose:App"
+    expect: [403, 403, 403, allow, 403, allow, 403, 403]
+    body: {"appName": "a", "appClass": "static", "prompt": "x", "dataNeeds": []}
+  - route: GET /projects/{project}/agent-runs/{id}
+    rule: "run-owner"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/answers
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    body: {"questionId": "q", "answers": {}}
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/cancel
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: GET /projects/{project}/agent-runs/{id}/events
+    rule: "run-owner"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/functions/{fn}
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/messages
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    body: {"text": "x"}
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: GET /projects/{project}/agent-runs/{id}/preview
+    rule: "run-owner"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/preview-errors
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    body: {"message": "x"}
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/preview-observations
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    body: {"version": 0, "pages": []}
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: POST /projects/{project}/agent-runs/{id}/publish
+    rule: "run-owner"
+    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
+  - route: GET /projects/{project}/apps/{name}/build
+    rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/apps/{name}/me
+    rule: "app-edge"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /projects/{project}/apps/{name}/rebuild
+    rule: "project-verb:propose:App"
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
+  - route: GET /projects/{project}/assistant/access
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /projects/{project}/assistant/catalog
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "q=air"
+  - route: POST /projects/{project}/assistant/conversations
+    rule: "project-verb:propose:App"
+    expect: [403, 403, 403, allow, 403, allow, 403, 403]
+  - route: POST /projects/{project}/assistant/propose-endpoint
+    rule: "project-verb:propose:Endpoint"
+    expect: [403, 400, allow, allow, 400, allow, 400, 400]
+    note: "the route answers 400 before it asks about the caller"
+  - route: GET /projects/{project}/basemap/{style}/style.json
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "public; the fixture configures no basemap or branding asset"
+  - route: GET /projects/{project}/basemap/{style}/{z}/{x}/{tile}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "public; the fixture configures no basemap or branding asset"
+  - route: GET /projects/{project}/changes
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/changes/{id}
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/changes/{id}/approve
+    rule: "project-verb:approve:<change kind>"
+    expect: [403, 403, allow, allow, allow, allow, 403, 403]
+    live: true
+    note: "live on dev against an id that does not exist, so a loose check changes nothing"
+  - route: POST /projects/{project}/changes/{id}/reject
+    rule: "project-verb:approve:<change kind>"
+    expect: [403, 403, allow, allow, allow, allow, 403, 403]
+    live: true
+    note: "live on dev against an id that does not exist, so a loose check changes nothing"
+  - route: GET /projects/{project}/ckan/status
+    rule: "project-verb:read:CkanInstance"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /organization/datamodels
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /projects/{project}/datamodels/{name}/source
+    rule: "project-verb:read:DataModel"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: PUT /projects/{project}/datamodels/{name}/source
+    rule: "project-verb:propose:DataModel"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+  - route: GET /projects/{project}/drafts
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/drafts/events
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/drafts/{kind}/{name}
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: PUT /projects/{project}/drafts/{kind}/{name}
+    rule: "project-verb:propose:<kind>"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    body: {"manifest": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint", "metadata": {"name": "existing"}, "spec": {}}}
+  - route: DELETE /projects/{project}/drafts/{kind}/{name}
+    rule: "project-verb:propose:<kind>"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+  - route: GET /projects/{project}/export
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/federation-graph
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/flows
+    rule: "project-verb:propose:*"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    body: {"blueprint": "existing", "version": "1.0.0", "parameters": {}}
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: POST /projects/{project}/import
+    rule: "project-verb:propose:*"
+    expect: [403, 400, allow, allow, 400, allow, 400, 400]
+    note: "the route answers 400 before it asks about the caller"
+  - route: GET /projects/{project}/ops
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /projects/{project}/ops/{name}
+    rule: "mcp-dispatch"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    values: {"name": "jc_endpoint_list"}
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/permissions/me
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelines/test
+    rule: "project-verb:propose:Pipeline"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
+  - route: GET /projects/{project}/pipelines/{name}/metrics
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/pipelines/{name}/rejected
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelines/{name}/rejected/retry
+    rule: "project-verb:propose:Pipeline"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+    body: {"ids": []}
+  - route: GET /projects/{project}/pipelines/{name}/runs
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/pipelines/{name}/runs/{run}/log
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/revisions
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/serviceaccounts/{name}/keys
+    rule: "run-owner"
+    expect: [401, 404, 404, allow, 404, allow, 404, 404]
+    note: "a ServiceAccount's keys: its owner or a proposer, anyone else 404 (PF-36)"
+  - route: POST /projects/{project}/serviceaccounts/{name}/keys
+    rule: "run-owner"
+    expect: [403, 404, 404, allow, 404, allow, 404, 404]
+    note: "a ServiceAccount's keys: its owner or a proposer, anyone else 404 (PF-36)"
+  - route: DELETE /projects/{project}/serviceaccounts/{name}/keys/{keyId}
+    rule: "run-owner"
+    expect: [403, 404, 404, allow, 404, allow, 404, 404]
+    note: "a ServiceAccount's keys: its owner or a proposer, anyone else 404 (PF-36)"
+  - route: POST /projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate
+    rule: "run-owner"
+    expect: [403, 404, 404, allow, 404, allow, 404, 404]
+    note: "a ServiceAccount's keys: its owner or a proposer, anyone else 404 (PF-36)"
+  - route: POST /projects/{project}/syncsources/{name}/detach
+    rule: "project-verb:delete:SyncSource"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /projects/{project}/syncsources/{name}/pause
+    rule: "project-verb:propose:SyncSource"
+    expect: [403, 403, 403, allow, 403, allow, 403, 403]
+    body: {"paused": true}
+  - route: GET /projects/{project}/syncsources/{name}/status
+    rule: "project-verb:read:SyncSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/syncsources/{name}/sync
+    rule: "project-verb:propose:SyncSource"
+    expect: [403, 403, 403, allow, 403, allow, 403, 403]
+  - route: GET /projects/{project}/workspaces
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/workspaces
+    rule: "project-verb:propose:*"
+    expect: [403, 403, 404, 404, 403, 404, 404, 403]
+    body: {"name": "x"}
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: GET /projects/{project}/workspaces/{name}
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: DELETE /projects/{project}/workspaces/{name}
+    rule: "run-owner"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: GET /projects/{project}/workspaces/{name}/compare
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: POST /projects/{project}/workspaces/{name}/update
+    rule: "run-owner"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: POST /projects/{project}/workspaces/{name}/propose
+    rule: "run-owner"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: POST /projects/{project}/workspaces/{name}/preview
+    rule: "run-owner"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: GET /projects/{project}/workspaces/{name}/preview
+    rule: "project-read"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: DELETE /projects/{project}/workspaces/{name}/preview
+    rule: "run-owner"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "no workspace in the fixture: the owner rule is held by workspace_security_tests"
+  - route: GET /projects/{project}/{plural}
+    rule: "project-verb:read:<kind of plural>"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/{plural}
+    rule: "project-verb:propose:<kind of plural>"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    live: true
+  - route: GET /projects/{project}/{plural}/{name}
+    rule: "project-verb:read:<kind of plural>"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: PUT /projects/{project}/{plural}/{name}
+    rule: "project-verb:propose:<kind of plural>"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    live: true
+  - route: PATCH /projects/{project}/{plural}/{name}
+    rule: "project-verb:propose:<kind of plural>"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    live: true
+  - route: DELETE /projects/{project}/{plural}/{name}
+    rule: "project-verb:delete:<kind of plural>"
+    expect: [403, 403, 403, 403, 403, 404, 404, 403]
+    live: true
+    note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /ready
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /sync
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /tools/generate
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+    body: {"source": ""}
+  - route: POST /tools/import-sdm
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+    body: {"model": "dataModel.Environment/AirQualityObserved"}
+  - route: POST /tools/infer-schema
+    rule: "signed-in"
+    expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /tools/sdm-catalog
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: POST /webhooks/gitea
+    rule: "signature:gitea-webhook"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /webhooks/sync/{project}/{name}
+    rule: "signature:sync-source-webhook"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
