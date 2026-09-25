@@ -281,6 +281,22 @@ describe("the verdict chip (UI-15, UI-30)", () => {
     expect(findings.textContent).not.toContain(`${en.drafts.findings}:`);
     expect(findings).toHaveTextContent("The space names a data model nobody declared.");
   });
+
+  // MF-48: a verdict that passes once another change is approved says so and names it, in its own
+  // tone, and the proposal stays open with the warning listed.
+  it("names_the_change_a_waiting_verdict_waits_on", async () => {
+    const message = "DataModel 'air' resolves once chg-0000002a is approved";
+    show({
+      draft: true,
+      initial,
+      verdict: { ...verdict(true, [{ level: "warning", path: "spec.dataModelRef", message }]), waitsOn: ["chg-0000002a"] },
+    });
+    const chip = await screen.findByTestId("draft-verdict");
+    expect(chip).toHaveTextContent("Passes once chg-0000002a is approved · checked 2 min ago");
+    expect(chip.className).toContain("bg-info-soft");
+    expect(screen.getByTestId("draft-findings")).toHaveTextContent(message);
+    expect(screen.getByRole("button", { name: "Propose space" })).not.toHaveAttribute("aria-disabled", "true");
+  });
 });
 
 describe("the dialog meets the UI contract", () => {

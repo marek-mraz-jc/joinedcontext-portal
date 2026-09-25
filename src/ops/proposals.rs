@@ -841,12 +841,15 @@ pub fn operations() -> Vec<Operation> {
                             message: "plan validation failed".into(),
                         });
                     }
-                    let verdict = Verdict::new(
+                    // A reference an open change creates passes and names the change (MF-48).
+                    findings.extend(res.awaited.iter().map(crate::references::Awaited::finding));
+                    let mut verdict = Verdict::new(
                         ok,
                         findings,
                         Some(serde_json::to_value(&res.plan).unwrap_or_default()),
                         &manifest,
                     );
+                    verdict.waits_on = res.awaited.iter().map(|a| a.change.clone()).collect();
                     if let Some(d) = &draft_ref {
                         record_verdict(caller, state, project, d, &manifest, &verdict).await;
                     }

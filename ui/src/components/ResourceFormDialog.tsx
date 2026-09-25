@@ -102,10 +102,15 @@ type View = "form" | "yaml";
 
 const VIEWS: View[] = ["form", "yaml"];
 
-/** The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30). */
-const VERDICT_TONE: Record<"none" | "green" | "red" | "stale", BadgeTone> = {
+/**
+ * The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30).
+ * `waiting` passes and names a resource an open change creates (MF-48): proposable, and its change
+ * merges after that one.
+ */
+const VERDICT_TONE: Record<"none" | "green" | "waiting" | "red" | "stale", BadgeTone> = {
   none: "neutral",
   green: "success",
+  waiting: "info",
   red: "danger",
   stale: "warning",
 };
@@ -535,10 +540,11 @@ export function ResourceFormDialog<T>({
     return () => clearInterval(timer);
   }, [open, hasVerdict]);
 
-  const verdictState = useMemo<"none" | "green" | "red" | "stale">(() => {
+  const verdictState = useMemo<"none" | "green" | "waiting" | "red" | "stale">(() => {
     if (!internalVerdict) return "none";
     if (internalVerdict.inputDigest !== currentDigest) return "stale";
-    return internalVerdict.ok ? "green" : "red";
+    if (!internalVerdict.ok) return "red";
+    return (internalVerdict.waitsOn ?? []).length > 0 ? "waiting" : "green";
   }, [internalVerdict, currentDigest]);
 
   /**
@@ -856,6 +862,8 @@ export function ResourceFormDialog<T>({
     <Badge data-testid="draft-verdict" tone={VERDICT_TONE[verdictState]}>
       {verdictState === "none" && t("drafts.verdict.none")}
       {verdictState === "green" && t("drafts.verdict.green", { age: verdictAge })}
+      {verdictState === "waiting" &&
+        t("drafts.verdict.waiting", { changes: (internalVerdict?.waitsOn ?? []).join(", "), age: verdictAge })}
       {verdictState === "red" && t("drafts.verdict.red", { age: verdictAge })}
       {verdictState === "stale" && t("drafts.verdict.stale")}
     </Badge>

@@ -19,6 +19,8 @@ export interface UnitPickerProps {
   disabled?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** Only the units this keeps are offered (a source unit that converts to the model's). */
+  among?: (unit: Unit) => boolean;
 }
 
 /**
@@ -36,10 +38,15 @@ export function UnitPicker({
   disabled,
   invalid,
   describedBy,
+  among,
 }: UnitPickerProps): JSX.Element {
   const { t } = useTranslation();
   const [typed, setTyped] = useState("");
-  const found = useMemo(() => searchUnits(typed), [typed]);
+  const found = useMemo(() => {
+    if (!among) return searchUnits(typed);
+    const kept = searchUnits(typed, Infinity).units.filter(among);
+    return { units: kept.slice(0, 100), total: kept.length };
+  }, [typed, among]);
 
   const options = useMemo(() => {
     const option = (unit: Unit): PickerOption => ({

@@ -359,7 +359,8 @@ it("shows what a value is measured in, and when it was observed", async () => {
   await i18n.changeLanguage("en");
   await openDetail(() => new Response("", { status: 204 }), undefined, MEASURED);
 
-  expect(screen.getByText("5 C62")).toBeInTheDocument();
+  // A count is in "one" (C62), which has no symbol: the number alone, the unit named on hover.
+  expect(screen.getByText("5").closest("td")).toHaveAttribute("title", "one (C62)");
   await userEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
   await userEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
   await waitFor(() =>
@@ -435,7 +436,7 @@ describe("correcting a value from the explorer", () => {
     await i18n.changeLanguage("en");
     await openWith(["queryEntity", "retrieveEntity"]);
     // The value is read, with its unit, and there is no cell to type in anywhere on the page.
-    expect(screen.getByText("5 C62")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.queryByLabelText(CELL)).toBeNull();
   });
 });

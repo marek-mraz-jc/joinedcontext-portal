@@ -3,7 +3,7 @@
  * joined with QUDT, generated in the platform repository and copied here byte for byte.
  */
 import { describe, expect, it } from "vitest";
-import { UNITS, searchUnits, unitLabel, unitOf } from "../src/units";
+import { UNITS, conversion, convertible, searchUnits, unitLabel, unitOf } from "../src/units";
 
 describe("the code list", () => {
   it("is the whole recommendation, sorted and unique, with the frequent set in it", () => {
@@ -73,5 +73,25 @@ describe("searchUnits", () => {
     expect(deprecated).toBeDefined();
     expect(searchUnits(deprecated!.name).units).not.toContain(deprecated);
     expect(searchUnits(deprecated!.code).units[0]).toBe(deprecated);
+  });
+});
+
+describe("conversion", () => {
+  const unit = (code: string) => unitOf(code)!;
+
+  it("reads the factor and offset from the list", () => {
+    expect(conversion(unit("GP"), unit("GQ"))).toEqual({ factor: 1000, offset: 0 });
+    expect(conversion(unit("KMH"), unit("MTS"))).toEqual({ factor: 0.277777777778, offset: 0 });
+    const fahrenheit = conversion(unit("FAH"), unit("CEL"))!;
+    expect(212 * fahrenheit.factor + fahrenheit.offset).toBeCloseTo(100, 9);
+    expect(32 * fahrenheit.factor + fahrenheit.offset).toBeCloseTo(0, 9);
+    expect(conversion(unit("CEL"), unit("CEL"))).toEqual({ factor: 1, offset: 0 });
+  });
+
+  it("refuses units of different quantities and units without a factor", () => {
+    expect(conversion(unit("CEL"), unit("GQ"))).toBeUndefined();
+    expect(conversion(unit("D61"), unit("P1"))).toBeUndefined();
+    expect(conversion(unit("2N"), unit("P1"))).toBeUndefined();
+    expect(convertible(unit("H87"), unit("H87"))).toBe(true);
   });
 });
