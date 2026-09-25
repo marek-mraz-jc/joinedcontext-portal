@@ -600,19 +600,29 @@ fn listed(body: &str) -> Vec<String> {
         .collect()
 }
 
-/// PF-60, PF-61, R20: `GET /api/v1/endpoints` is the organization-level page. What each caller
-/// sees is what their binding reaches — the whole organization, one project, one context space
-/// — and a person no binding names sees an empty list rather than a refusal.
+/// PF-61, PF-03, R20, T-2877: `GET /api/v1/endpoints` is the organization-level page, an
+/// administration view. An administrator bound at organization scope reads every project's
+/// endpoints; a reader of Endpoints bound to the whole organization, one project or one context
+/// space is not an administrator and is answered `404`, like a person no binding names.
 #[tokio::test]
-async fn the_organization_endpoint_list_answers_what_each_binding_reaches() {
+async fn the_organization_endpoint_list_answers_an_administrator_and_nobody_else() {
     let config = Config::for_tests();
     let reader = org(
         "Role",
         "endpoint-reader",
         json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
     );
+    let administrator = org(
+        "Role",
+        "administrator",
+        json!({ "rules": [
+            { "kinds": ["RoleBinding"], "verbs": ["approve", "delete"] },
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+        ] }),
+    );
     let world = vec![
         reader,
+        administrator,
         endpoint_in("ovzdusie", "air-public", "vzduch"),
         endpoint_in("ovzdusie", "traffic-public", "doprava"),
         endpoint_in("helsinki", "bikes", "mobility"),
@@ -625,11 +635,11 @@ async fn the_organization_endpoint_list_answers_what_each_binding_reaches() {
             status: None,
         },
     ];
-    let bound = |name: &str, scope: Value| {
+    let bound = |name: &str, role: &str, scope: Value| {
         let mut envelopes = world.clone();
         envelopes.push(binding(
             name,
-            "endpoint-reader",
+            role,
             json!([{ "user": "jana@hel.fi" }]),
             scope,
             None,
@@ -641,41 +651,49 @@ async fn the_organization_endpoint_list_answers_what_each_binding_reaches() {
         let config = config.clone();
         let who = who.clone();
         async move {
-            let (status, body) = get(
+            get(
                 app_with(&config, envelopes),
                 &config,
                 who,
                 "/api/v1/endpoints",
             )
-            .await;
-            assert_eq!(status, StatusCode::OK, "{body}");
-            listed(&body)
+            .await
         }
     };
 
-    // The whole organization: every endpoint of every project, each with its project.
-    let everywhere = read_all(bound("org-wide", json!({ "organization": "bb" }))).await;
+    // The administrator: every endpoint of every project, each with its project.
+    let (status, body) = read_all(bound(
+        "admins",
+        "administrator",
+        json!({ "organization": "bb" }),
+    ))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(
-        everywhere,
+        listed(&body),
         vec![
             "helsinki/bikes",
             "ovzdusie/air-public",
             "ovzdusie/traffic-public"
         ],
-        "an organization binding reads every project"
+        "an administrator reads every project"
     );
 
-    // One project: its own, and nothing of the sibling project.
-    let one = read_all(bound("project-wide", json!({ "project": "ovzdusie" }))).await;
-    assert_eq!(one, vec!["ovzdusie/air-public", "ovzdusie/traffic-public"]);
-
-    // One context space: not the sibling space's endpoint, even in the same project.
-    let space = read_all(bound("space-wide", json!({ "contextSpace": "vzduch" }))).await;
-    assert_eq!(space, vec!["ovzdusie/air-public"]);
-
-    // No binding at all: an empty list, never a 403 (R20).
-    let none = read_all(world.clone()).await;
-    assert!(none.is_empty(), "{none:?}");
+    // A reader of Endpoints at any scope, and a person no binding names: `404`, nothing listed.
+    for scope in [
+        Some(json!({ "organization": "bb" })),
+        Some(json!({ "project": "ovzdusie" })),
+        Some(json!({ "contextSpace": "vzduch" })),
+        None,
+    ] {
+        let envelopes = match &scope {
+            Some(scope) => bound("readers", "endpoint-reader", scope.clone()),
+            None => world.clone(),
+        };
+        let (status, body) = read_all(envelopes).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{scope:?}: {body}");
+        assert!(listed(&body).is_empty(), "{scope:?}: {body}");
+    }
 }
 
 /// PF-61: each grant says where it comes from, so the page can read "steward, inherited from the

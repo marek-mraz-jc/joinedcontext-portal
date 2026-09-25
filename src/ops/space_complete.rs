@@ -881,10 +881,12 @@ pub async fn run(
     }
 
     // 5. A map of the records over that endpoint, when they carry a position (AG-79): a Layer
-    // and a Dashboard with one full-map page, proposed with the rest.
+    // and a Dashboard with one full-map page, proposed with the rest. None while the
+    // installation hides dashboards (T-2874).
     let map_manifests = match (&feed, &map_endpoint, &model_linkml_text) {
         (Some(records), Some(endpoint), Some(linkml))
-            if records.position().is_some()
+            if state.config.dashboards
+                && records.position().is_some()
                 && !manifests.contains_key("Dashboard")
                 && !manifests.contains_key("Layer") =>
         {

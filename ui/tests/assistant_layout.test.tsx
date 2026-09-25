@@ -76,7 +76,10 @@ function permissions(mayPropose: boolean) {
   };
 }
 
-function renderDock({ mayPropose = true }: { mayPropose?: boolean } = {}) {
+function renderDock({
+  mayPropose = true,
+  hiddenSections = [],
+}: { mayPropose?: boolean; hiddenSections?: string[] } = {}) {
   const messages: unknown[] = [];
   const started: unknown[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -89,6 +92,9 @@ function renderDock({ mayPropose = true }: { mayPropose?: boolean } = {}) {
     }
     if (url.pathname.endsWith("/permissions/me")) {
       return json(permissions(mayPropose));
+    }
+    if (url.pathname === "/api/v1/branding") {
+      return json({ hiddenSections });
     }
     if (request.method === "POST" && url.pathname.endsWith("/assistant/conversations")) {
       started.push(JSON.parse(await request.text()));
@@ -253,6 +259,18 @@ describe("where the assistant's input sits", () => {
     await person.click(screen.getByRole("button", { name: en.assistant.newConversation }));
     const paths = await screen.findByTestId("assistant-paths");
     expect(within(paths).getAllByRole("button").map((button) => button.dataset.path)).toEqual(PATH_IDS);
+  });
+
+  // T-2874: an installation that hides dashboards does not offer their path; showing them brings it back.
+  it("leaves out the path of a section the installation hides", async () => {
+    renderDock({ hiddenSections: ["dashboards"] });
+    await openDock();
+    const paths = await screen.findByTestId("assistant-paths");
+    await waitFor(() =>
+      expect(within(paths).getAllByRole("button").map((button) => button.dataset.path)).toEqual(
+        PATH_IDS.filter((path) => path !== "build-dashboard"),
+      ),
+    );
   });
 
   // T-2692, AG-91: a path starts with nothing typed; the Portal asks its first question itself.

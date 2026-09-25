@@ -215,37 +215,50 @@ async fn the_catalogue_status_is_read_where_the_instances_may_be_read() {
     }
 }
 
-/// PF-60, R20: every endpoint of every project the caller may read, and none of a project she may
-/// not: a stranger is answered an empty list, never a refusal.
+/// PF-61, PF-03, R20, T-2877: every endpoint of every project, for an administrator of the
+/// organization at every door; a project's steward and viewer and a stranger are answered `404`,
+/// the same answer the REST route gives.
 #[tokio::test]
-async fn endpoints_everywhere_lists_only_the_projects_the_caller_reads() {
+async fn endpoints_everywhere_answers_an_administrator_of_the_organization_only() {
     let world = world().await;
+    world.state.mirror.upsert(envelope(
+        "Role",
+        "administrator",
+        ORG_NAMESPACE,
+        json!({ "rules": [
+            { "kinds": ["RoleBinding"], "verbs": ["approve", "delete"] },
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+        ] }),
+    ));
+    world.state.mirror.upsert(envelope(
+        "RoleBinding",
+        "administrators",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "group": "org-admins" }],
+            "role": "administrator",
+            "scope": { "organization": "banskabystrica" },
+        }),
+    ));
+    let admin = || doors::member("ada", "org-admins");
     for caller in [
-        session(viewer()),
-        mcp(steward()),
-        run(steward(), &["jc_endpoint_list_all"]),
+        session(admin()),
+        mcp(admin()),
+        run(admin(), &["jc_endpoint_list_all"]),
     ] {
         let listed = doors::call("jc_endpoint_list_all", &caller, &world.state, json!({})).await;
         assert_eq!(StatusCode::OK, listed.status, "{}", listed.text());
         assert!(listed.text().contains("air-public"), "{}", listed.text());
-        assert!(
-            !listed.text().contains("buses"),
-            "another project's endpoint: {}",
-            listed.text()
-        );
+        assert!(listed.text().contains("buses"), "{}", listed.text());
     }
-    let nothing = doors::call(
-        "jc_endpoint_list_all",
-        &session(stranger()),
-        &world.state,
-        json!({}),
-    )
-    .await;
-    assert_eq!(StatusCode::OK, nothing.status, "{}", nothing.text());
-    assert!(!nothing.text().contains("air-public"), "{}", nothing.text());
+    for caller in [session(viewer()), mcp(steward()), session(stranger())] {
+        let refused = doors::call("jc_endpoint_list_all", &caller, &world.state, json!({})).await;
+        assert_eq!(StatusCode::NOT_FOUND, refused.status, "{}", refused.text());
+        assert!(!refused.text().contains("air-public"), "{}", refused.text());
+    }
 
-    let rest = doors::http(&world.state, stranger(), "GET", "/api/v1/endpoints", None).await;
-    assert_eq!(nothing.status, rest.status, "{}", rest.text());
+    let rest = doors::http(&world.state, steward(), "GET", "/api/v1/endpoints", None).await;
+    assert_eq!(StatusCode::NOT_FOUND, rest.status, "{}", rest.text());
 }
 
 /// DM-55: inference is a read of the project: a reader infers a draft model from a sample at every

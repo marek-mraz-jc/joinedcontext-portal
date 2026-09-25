@@ -404,6 +404,24 @@ async fn an_unknown_path_and_a_path_the_person_may_not_take_are_refused() {
     assert_eq!(empty.status, StatusCode::BAD_REQUEST, "{}", empty.body);
 }
 
+/// T-2874: an installation that hides dashboards does not take a person down their path, even
+/// one who may propose a Dashboard.
+#[tokio::test]
+async fn a_hidden_section_is_no_path() {
+    let hidden = start(
+        BUILDER,
+        json!({ "path": "build-dashboard" }),
+        &["never asked"],
+    )
+    .await;
+    assert_eq!(hidden.status, StatusCode::BAD_REQUEST, "{}", hidden.body);
+    assert!(
+        hidden.body.to_string().contains("hides dashboards"),
+        "{}",
+        hidden.body
+    );
+}
+
 #[tokio::test]
 async fn a_tool_outside_the_path_goes_back_to_the_model_with_the_paths_tools() {
     let off_path = "```json\n{ \"tool\": \"change_resource\", \"arguments\": { \"kind\": \"Endpoint\", \"name\": \"bikes\", \"delete\": true } }\n```";

@@ -76,6 +76,47 @@ pub enum Operation {
         name: String,
         subsets: Vec<String>,
     },
+    /// A relationship, both ends in one step (DM-64): `name` on `from` points at `to`, `inverse`
+    /// on `to` points back. The cardinality reads from `from` to `to`; `required` is allowed on
+    /// the stored end only (DM-65), and `onDelete` is written on the source, `restrict` by default.
+    AddRelationship {
+        from: String,
+        to: String,
+        name: String,
+        inverse: String,
+        cardinality: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        required: Option<bool>,
+        #[serde(
+            default,
+            rename = "inverseRequired",
+            skip_serializing_if = "Option::is_none"
+        )]
+        inverse_required: Option<bool>,
+        #[serde(default, rename = "onDelete", skip_serializing_if = "Option::is_none")]
+        on_delete: Option<String>,
+    },
+    /// Both ends' `multivalued` together; `name` is either end.
+    SetCardinality {
+        name: String,
+        cardinality: String,
+    },
+    /// The delete rule, on the source end; `name` is either end.
+    SetOnDelete {
+        name: String,
+        #[serde(rename = "onDelete")]
+        on_delete: String,
+    },
+    /// Both ends from every class and from the model; `name` is either end.
+    RemoveRelationship {
+        name: String,
+    },
+    /// The inverse a relationship saved before inverses were required lacks (DM-73): multivalued,
+    /// on the target class, so the stored end stays the slot that holds the data today.
+    AddInverse {
+        name: String,
+        inverse: String,
+    },
 }
 
 /// LinkML element names: what the generators accept as a class or slot name.
@@ -106,6 +147,15 @@ const KINDS: [&str; 7] = [
     "JsonProperty",
     "VocabProperty",
 ];
+
+/// The cardinalities of a relationship, read from its source to its target (DM-64).
+const CARDINALITIES: [&str; 4] = ["one-to-one", "one-to-many", "many-to-one", "many-to-many"];
+
+/// What deleting a target does to the entities pointing at it (DM-66).
+const ON_DELETE_RULES: [&str; 3] = ["restrict", "cascade", "set-null"];
+
+/// The slot fields only the relationship operations change, so both ends change together.
+const RELATIONSHIP_FIELDS: [&str; 2] = ["range", "multivalued"];
 
 /// The slot fields a conversation sets; units, IRIs and bounds are set in the editor.
 const SET_FIELDS: [&str; 4] = ["range", "required", "multivalued", "description"];
@@ -414,6 +464,7 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
         }
         Operation::SetSlot { name, field, value } => {
             existing(model, "slots", name, "slot")?;
+            refuse_one_sided_edit(model, name, field, value)?;
             let value = set_value(model, name, field, value)?;
             let slot = section_mut(model, "slots")
                 .get_mut(name)
@@ -427,6 +478,330 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
                 None => fields.remove(field),
             };
         }
+        Operation::AddRelationship {
+            from,
+            to,
+            name,
+            inverse,
+            cardinality,
+            required,
+            inverse_required,
+            on_delete,
+        } => {
+            let (source_many, target_many) = flags_of(cardinality)?;
+            let on_delete = on_delete.as_deref().unwrap_or("restrict");
+            delete_rule(on_delete)?;
+            existing(model, "classes", from, "class")?;
+            if !has(model, "classes", to) {
+                return Err(format!("unknown class '{to}': a relationship's inverse is written on its target, so the target is a class of this model"));
+            }
+            if inverse.trim().is_empty() {
+                return Err(format!("the relationship '{name}' needs an inverse: the slot on {to} that points back (DM-64)"));
+            }
+            if inverse == name {
+                return Err(format!(
+                    "'{name}' cannot be its own inverse: the two ends are two slots"
+                ));
+            }
+            let stored_on_source = stored_on_source(cardinality);
+            if (stored_on_source && *inverse_required == Some(true))
+                || (!stored_on_source && *required == Some(true))
+            {
+                let computed = if stored_on_source { inverse } else { name };
+                return Err(format!("as {cardinality}, {computed} is computed on read and cannot be required; require the other end (DM-65)"));
+            }
+            add_end(
+                model,
+                End {
+                    name,
+                    owner: from,
+                    range: to,
+                    inverse,
+                    multivalued: source_many,
+                    required: *required == Some(true),
+                    on_delete: Some(on_delete),
+                },
+            )?;
+            add_end(
+                model,
+                End {
+                    name: inverse,
+                    owner: to,
+                    range: from,
+                    inverse: name,
+                    multivalued: target_many,
+                    required: *inverse_required == Some(true),
+                    on_delete: None,
+                },
+            )?;
+        }
+        Operation::SetCardinality { name, cardinality } => {
+            let (source_many, target_many) = flags_of(cardinality)?;
+            let pair = relationship_named(model, name)?;
+            let computed = if stored_on_source(cardinality) {
+                &pair.target
+            } else {
+                &pair.source
+            };
+            if slot_flag(model, computed, "required") {
+                return Err(format!("as {cardinality}, {computed} would be computed on read, and it is required; clear required on {computed} first (DM-65)"));
+            }
+            for (slot, many) in [(&pair.source, source_many), (&pair.target, target_many)] {
+                set_slot_field(model, slot, "multivalued", many.then_some(json!(true)));
+            }
+        }
+        Operation::SetOnDelete { name, on_delete } => {
+            delete_rule(on_delete)?;
+            let pair = relationship_named(model, name)?;
+            let slot = slot_object(model, &pair.source);
+            let annotations = slot.entry("annotations").or_insert_with(|| json!({}));
+            if !annotations.is_object() {
+                *annotations = json!({});
+            }
+            annotations["on_delete"] = json!(on_delete);
+        }
+        Operation::RemoveRelationship { name } => {
+            let pair = relationship_named(model, name)?;
+            for end in [&pair.source, &pair.target] {
+                section_mut(model, "slots").remove(end);
+                for class in section_mut(model, "classes").values_mut() {
+                    let slots = slots_of(class);
+                    if slots.contains(end) {
+                        set_slots(class, slots.into_iter().filter(|s| s != end).collect());
+                    }
+                }
+            }
+        }
+        Operation::AddInverse { name, inverse } => {
+            existing(model, "slots", name, "slot")?;
+            let slot = &model["slots"][name];
+            let range = slot.get("range").and_then(Value::as_str).unwrap_or("");
+            if kind_of(slot) != Some("Relationship") || !has(model, "classes", range) {
+                return Err(format!(
+                    "slot '{name}' is not a Relationship pointing at a class of this model"
+                ));
+            }
+            if let Some(named) = slot.get("inverse").and_then(Value::as_str) {
+                return Err(format!("slot '{name}' already names the inverse '{named}'"));
+            }
+            let range = range.to_owned();
+            let owners = owners_of(model, name);
+            let [owner] = owners.as_slice() else {
+                return Err(format!(
+                    "slot '{name}' is used by {} classes; a relationship starts on one",
+                    owners.len()
+                ));
+            };
+            let owner = owner.clone();
+            add_end(
+                model,
+                End {
+                    name: inverse,
+                    owner: &range,
+                    range: &owner,
+                    inverse: name,
+                    multivalued: true,
+                    required: false,
+                    on_delete: None,
+                },
+            )?;
+            let slot = slot_object(model, name);
+            slot.insert("inverse".to_owned(), json!(inverse));
+            slot.insert("inlined".to_owned(), json!(false));
+            // The slot holding the data today is the source, so its entities do not change (DM-73).
+            let annotations = slot.entry("annotations").or_insert_with(|| json!({}));
+            if annotations.get("on_delete").is_none() {
+                annotations["on_delete"] = json!("restrict");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each end's `multivalued`, source then target, for a cardinality read from source to target.
+fn flags_of(cardinality: &str) -> Result<(bool, bool), String> {
+    if !CARDINALITIES.contains(&cardinality) {
+        return Err(format!(
+            "'{cardinality}' is not a cardinality: {}",
+            CARDINALITIES.join(", ")
+        ));
+    }
+    Ok((
+        matches!(cardinality, "one-to-many" | "many-to-many"),
+        matches!(cardinality, "many-to-one" | "many-to-many"),
+    ))
+}
+
+/// Where the foreign key would be: the "many" side, or the source of 1:1 and N:M (DM-67).
+fn stored_on_source(cardinality: &str) -> bool {
+    cardinality != "one-to-many"
+}
+
+fn delete_rule(rule: &str) -> Result<(), String> {
+    if ON_DELETE_RULES.contains(&rule) {
+        Ok(())
+    } else {
+        Err(format!(
+            "'{rule}' is not a delete rule: {}",
+            ON_DELETE_RULES.join(", ")
+        ))
+    }
+}
+
+fn kind_of(slot: &Value) -> Option<&str> {
+    slot.pointer("/annotations/ngsi_ld_kind")
+        .and_then(Value::as_str)
+}
+
+fn owners_of(model: &Value, slot: &str) -> Vec<String> {
+    section(model, "classes")
+        .map(|classes| {
+            classes
+                .iter()
+                .filter(|(_, class)| slots_of(class).iter().any(|s| s == slot))
+                .map(|(name, _)| name.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn slot_flag(model: &Value, slot: &str, field: &str) -> bool {
+    model["slots"][slot].get(field).and_then(Value::as_bool) == Some(true)
+}
+
+/// A declared slot's fields; the caller has checked the slot exists.
+fn slot_object<'a>(model: &'a mut Value, name: &str) -> &'a mut Map<String, Value> {
+    let slot = section_mut(model, "slots")
+        .entry(name)
+        .or_insert_with(|| json!({}));
+    if !slot.is_object() {
+        *slot = json!({});
+    }
+    slot.as_object_mut().expect("an object")
+}
+
+fn set_slot_field(model: &mut Value, name: &str, field: &str, value: Option<Value>) {
+    let slot = slot_object(model, name);
+    match value {
+        Some(value) => slot.insert(field.to_owned(), value),
+        None => slot.remove(field),
+    };
+}
+
+/// One end of a relationship written as a slot of its owner (DM-64).
+struct End<'a> {
+    name: &'a str,
+    owner: &'a str,
+    range: &'a str,
+    inverse: &'a str,
+    multivalued: bool,
+    required: bool,
+    on_delete: Option<&'a str>,
+}
+
+fn add_end(model: &mut Value, end: End<'_>) -> Result<(), String> {
+    valid_name(end.name, "slot")?;
+    if has(model, "slots", end.name) {
+        return Err(format!(
+            "slot '{}' already exists; a relationship's ends are slots of their own",
+            end.name
+        ));
+    }
+    existing(model, "classes", end.owner, "class")?;
+    let mut slot = json!({ "range": end.range, "inverse": end.inverse, "inlined": false });
+    if end.multivalued {
+        slot["multivalued"] = json!(true);
+    }
+    if end.required {
+        slot["required"] = json!(true);
+    }
+    if let Some(prefix) = own_prefix(model) {
+        slot["slot_uri"] = json!(format!("{prefix}:{}", end.name));
+    }
+    slot["annotations"] = json!({ "ngsi_ld_kind": "Relationship" });
+    if let Some(rule) = end.on_delete {
+        slot["annotations"]["on_delete"] = json!(rule);
+    }
+    section_mut(model, "slots").insert(end.name.to_owned(), slot);
+    let class = section_mut(model, "classes")
+        .get_mut(end.owner)
+        .expect("checked above");
+    let mut slots = slots_of(class);
+    slots.push(end.name.to_owned());
+    set_slots(class, slots);
+    Ok(())
+}
+
+/// The two ends of a relationship, by slot name: the source is the end that carries the delete
+/// rule, the target the one that points back.
+struct Pair {
+    source: String,
+    target: String,
+}
+
+/// The relationship `name` is an end of: a Relationship slot whose `inverse` names it back.
+fn relationship_of(model: &Value, name: &str) -> Option<Pair> {
+    let slot = model.get("slots")?.get(name)?;
+    let other = slot.get("inverse")?.as_str()?;
+    let back = model.get("slots")?.get(other)?;
+    if kind_of(slot) != Some("Relationship")
+        || kind_of(back) != Some("Relationship")
+        || back.get("inverse").and_then(Value::as_str) != Some(name)
+    {
+        return None;
+    }
+    let marks = |one: &Value| one.pointer("/annotations/on_delete").is_some();
+    // ponytail: a pair neither end marks with on_delete is sourced by declaration order in the
+    // editor; the parsed model keeps no order, so the name that sorts first stands in. Every
+    // pair these operations write carries the mark.
+    let this_is_source = marks(slot) || (!marks(back) && name <= other);
+    let (source, target) = if this_is_source {
+        (name, other)
+    } else {
+        (other, name)
+    };
+    Some(Pair {
+        source: source.to_owned(),
+        target: target.to_owned(),
+    })
+}
+
+fn relationship_named(model: &Value, name: &str) -> Result<Pair, String> {
+    existing(model, "slots", name, "slot")?;
+    relationship_of(model, name)
+        .ok_or_else(|| format!("slot '{name}' is not an end of a relationship"))
+}
+
+/// A `setSlot` may not change one end of a relationship alone, nor require the computed end.
+fn refuse_one_sided_edit(
+    model: &Value,
+    name: &str,
+    field: &str,
+    value: &Value,
+) -> Result<(), String> {
+    let Some(pair) = relationship_of(model, name) else {
+        return Ok(());
+    };
+    if RELATIONSHIP_FIELDS.contains(&field) {
+        return Err(format!(
+            "slot '{name}' is an end of the relationship {}.{} ↔ {}.{}; change its cardinality with setCardinality, or remove the relationship with removeRelationship",
+            owners_of(model, &pair.source).join("/"),
+            pair.source,
+            owners_of(model, &pair.target).join("/"),
+            pair.target
+        ));
+    }
+    let source_many = slot_flag(model, &pair.source, "multivalued");
+    let target_many = slot_flag(model, &pair.target, "multivalued");
+    // one-to-many is the one cardinality whose target end holds the data (DM-67).
+    let stored_on_target = source_many && !target_many;
+    let (computed, stored) = if stored_on_target {
+        (&pair.source, &pair.target)
+    } else {
+        (&pair.target, &pair.source)
+    };
+    if field == "required" && value == &Value::Bool(true) && computed == name {
+        return Err(format!("slot '{name}' is computed on read from {stored} and cannot be required; make the stored end required (DM-65)"));
     }
     Ok(())
 }
@@ -722,6 +1097,184 @@ mod tests {
         assert!(cleared["classes"]["Vehicle"].get("is_a").is_none());
         assert!(cleared["classes"]["Vehicle"].get("mixins").is_none());
         assert!(cleared["slots"]["name"].get("subsets").is_none());
+    }
+
+    fn school() -> Value {
+        serde_yaml_ng::from_str(
+            "name: learning\nid: https://example.org/learning\nclasses:\n  School:\n    slots: [name]\n  User:\n    slots: [name]\n  Course:\n    slots: []\n  Profile:\n    slots: []\n  Person:\n    slots: []\nslots:\n  name:\n    range: string\n",
+        )
+        .expect("a model")
+    }
+
+    /// DM-64, T-2742: the four cardinalities the assistant builds, each as two ends that name
+    /// each other, the stored end required where the person said so, the delete rule on the source.
+    #[test]
+    fn every_cardinality_is_two_ends_naming_each_other_with_the_rule_on_the_source() {
+        let changed = apply(
+            &school(),
+            &ops(json!([
+                { "op": "addRelationship", "from": "School", "to": "User", "name": "users", "inverse": "school", "cardinality": "one-to-many", "inverseRequired": true },
+                { "op": "addRelationship", "from": "User", "to": "Course", "name": "courses", "inverse": "students", "cardinality": "many-to-many" },
+                { "op": "addRelationship", "from": "User", "to": "Profile", "name": "profile", "inverse": "owner", "cardinality": "one-to-one", "onDelete": "cascade" },
+                { "op": "addRelationship", "from": "Person", "to": "Person", "name": "manager", "inverse": "reports", "cardinality": "many-to-one", "onDelete": "set-null" }
+            ])),
+        )
+        .expect("applied");
+        let slot = |name: &str| changed["slots"][name].clone();
+        assert_eq!(
+            slot("users"),
+            json!({ "range": "User", "multivalued": true, "inverse": "school", "inlined": false, "slot_uri": "learning:users", "annotations": { "ngsi_ld_kind": "Relationship", "on_delete": "restrict" } })
+        );
+        assert_eq!(
+            slot("school"),
+            json!({ "range": "School", "required": true, "inverse": "users", "inlined": false, "slot_uri": "learning:school", "annotations": { "ngsi_ld_kind": "Relationship" } })
+        );
+        assert_eq!(slot("courses")["multivalued"], json!(true));
+        assert_eq!(slot("students")["multivalued"], json!(true));
+        assert!(
+            slot("profile").get("multivalued").is_none()
+                && slot("owner").get("multivalued").is_none()
+        );
+        assert_eq!(
+            slot("profile")["annotations"]["on_delete"],
+            json!("cascade")
+        );
+        assert_eq!(slot("reports")["multivalued"], json!(true));
+        assert!(slot("manager").get("multivalued").is_none());
+        assert_eq!(
+            changed["classes"]["User"]["slots"],
+            json!(["name", "school", "courses", "profile"])
+        );
+        assert_eq!(
+            changed["classes"]["Person"]["slots"],
+            json!(["manager", "reports"])
+        );
+    }
+
+    /// DM-64, DM-65: what the editor refuses, the conversation is refused too, by index.
+    #[test]
+    fn a_relationship_the_model_cannot_hold_is_refused_by_index() {
+        let rel = |extra: Value| {
+            let mut op = json!({ "op": "addRelationship", "from": "School", "to": "User", "name": "users", "inverse": "school", "cardinality": "one-to-many" });
+            op.as_object_mut()
+                .expect("an object")
+                .extend(extra.as_object().expect("an object").clone());
+            op
+        };
+        for (op, reason) in [
+            (rel(json!({ "inverse": "" })), "operation 0: the relationship 'users' needs an inverse: the slot on User that points back (DM-64)"),
+            (rel(json!({ "inverse": "users" })), "operation 0: 'users' cannot be its own inverse: the two ends are two slots"),
+            (rel(json!({ "to": "Nowhere" })), "operation 0: unknown class 'Nowhere': a relationship's inverse is written on its target, so the target is a class of this model"),
+            (rel(json!({ "cardinality": "several" })), "operation 0: 'several' is not a cardinality: one-to-one, one-to-many, many-to-one, many-to-many"),
+            (rel(json!({ "onDelete": "ignore" })), "operation 0: 'ignore' is not a delete rule: restrict, cascade, set-null"),
+            (rel(json!({ "required": true })), "operation 0: as one-to-many, users is computed on read and cannot be required; require the other end (DM-65)"),
+            (rel(json!({ "name": "name" })), "operation 0: slot 'name' already exists; a relationship's ends are slots of their own"),
+        ] {
+            assert_eq!(apply(&school(), &ops(json!([op]))), Err(reason.to_owned()));
+        }
+    }
+
+    #[test]
+    fn a_relationship_changes_both_ends_together_and_leaves_as_a_pair() {
+        let built = apply(
+            &school(),
+            &ops(json!([{ "op": "addRelationship", "from": "School", "to": "User", "name": "users", "inverse": "school", "cardinality": "one-to-many", "inverseRequired": true }])),
+        )
+        .expect("applied");
+        // One end alone is refused: the two would stop agreeing.
+        assert_eq!(
+            apply(&built, &ops(json!([{ "op": "setSlot", "name": "school", "field": "multivalued", "value": true }]))),
+            Err("operation 0: slot 'school' is an end of the relationship School.users ↔ User.school; change its cardinality with setCardinality, or remove the relationship with removeRelationship".to_owned())
+        );
+        assert_eq!(
+            apply(&built, &ops(json!([{ "op": "setSlot", "name": "users", "field": "required", "value": true }]))),
+            Err("operation 0: slot 'users' is computed on read from school and cannot be required; make the stored end required (DM-65)".to_owned())
+        );
+        // As many-to-many the stored end moves to users, and school, required, would be computed.
+        assert_eq!(
+            apply(&built, &ops(json!([{ "op": "setCardinality", "name": "school", "cardinality": "many-to-many" }]))),
+            Err("operation 0: as many-to-many, school would be computed on read, and it is required; clear required on school first (DM-65)".to_owned())
+        );
+        let changed = apply(
+            &built,
+            &ops(json!([
+                { "op": "setSlot", "name": "school", "field": "required", "value": false },
+                { "op": "setCardinality", "name": "school", "cardinality": "many-to-many" },
+                { "op": "setOnDelete", "name": "school", "onDelete": "cascade" }
+            ])),
+        )
+        .expect("applied");
+        assert_eq!(changed["slots"]["users"]["multivalued"], json!(true));
+        assert_eq!(changed["slots"]["school"]["multivalued"], json!(true));
+        assert_eq!(
+            changed["slots"]["users"]["annotations"]["on_delete"],
+            json!("cascade")
+        );
+        assert!(changed["slots"]["school"]["annotations"]
+            .get("on_delete")
+            .is_none());
+
+        let removed = apply(
+            &changed,
+            &ops(json!([{ "op": "removeRelationship", "name": "users" }])),
+        )
+        .expect("applied");
+        assert!(
+            removed["slots"].get("users").is_none() && removed["slots"].get("school").is_none()
+        );
+        assert_eq!(removed["classes"]["School"]["slots"], json!(["name"]));
+        assert_eq!(removed["classes"]["User"]["slots"], json!(["name"]));
+        assert_eq!(
+            apply(
+                &school(),
+                &ops(json!([{ "op": "setOnDelete", "name": "name", "onDelete": "cascade" }]))
+            ),
+            Err("operation 0: slot 'name' is not an end of a relationship".to_owned())
+        );
+    }
+
+    /// DM-73: a relationship saved without an inverse gets a multivalued one on its target, and
+    /// the slot holding the data stays the stored end.
+    #[test]
+    fn an_inverse_is_added_to_a_relationship_saved_without_one() {
+        let old = apply(
+            &school(),
+            &ops(json!([{ "op": "addSlot", "name": "school", "class": "User", "range": "School", "kind": "Relationship" }])),
+        )
+        .expect("applied");
+        let fixed = apply(
+            &old,
+            &ops(json!([{ "op": "addInverse", "name": "school", "inverse": "users" }])),
+        )
+        .expect("applied");
+        assert_eq!(fixed["slots"]["school"]["inverse"], json!("users"));
+        assert_eq!(
+            fixed["slots"]["school"]["annotations"]["on_delete"],
+            json!("restrict")
+        );
+        assert_eq!(fixed["slots"]["users"]["multivalued"], json!(true));
+        assert_eq!(fixed["slots"]["users"]["range"], json!("User"));
+        assert_eq!(
+            fixed["classes"]["School"]["slots"],
+            json!(["name", "users"])
+        );
+        assert_eq!(
+            apply(
+                &fixed,
+                &ops(json!([{ "op": "addInverse", "name": "school", "inverse": "pupils" }]))
+            ),
+            Err("operation 0: slot 'school' already names the inverse 'users'".to_owned())
+        );
+        assert_eq!(
+            apply(
+                &school(),
+                &ops(json!([{ "op": "addInverse", "name": "name", "inverse": "x" }]))
+            ),
+            Err(
+                "operation 0: slot 'name' is not a Relationship pointing at a class of this model"
+                    .to_owned()
+            )
+        );
     }
 
     #[test]

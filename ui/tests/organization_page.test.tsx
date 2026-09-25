@@ -94,6 +94,7 @@ function renderAt(tab: OrganizationTab, world: World = {}) {
       if (url.pathname.endsWith("/permissions/me")) return json(permissions);
       if (url.pathname === "/api/v1/projects") return json(list([{ name: "helsinki" }, { name: "espoo" }]));
       if (url.pathname === "/api/v1/projects/org/organizations") return json(list([ORGANIZATION]));
+      if (url.pathname === "/api/v1/organization/limits") return json({ entries: [], projects: [] });
       if (url.pathname === "/api/v1/projects/org/rolebindings") return json(list(BINDINGS));
       if (url.pathname === "/api/v1/projects/org/roles") {
         return json(list([role("viewer", "org"), role("air-analyst", "org")]));
@@ -127,9 +128,10 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers the nine tabs, the address's one selected", async () => {
+  it("names itself once and offers an administrator the fourteen tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
+    await screen.findByRole("tab", { name: en.organization.tab.endpoints });
     const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       en.organization.tab.settings,
@@ -138,12 +140,46 @@ describe("the Organization page", () => {
       en.organization.tab.roles,
       en.organization.tab.groups,
       en.organization.tab["service-accounts"],
+      en.organization.tab.blueprints,
+      en.organization.tab.agentprofiles,
+      en.organization.tab.dataspaceparticipants,
+      en.organization.tab.environments,
       en.organization.tab.projects,
       en.organization.tab.setup,
       en.organization.tab.health,
+      en.organization.tab.endpoints,
     ]);
     expect(screen.getByRole("tab", { name: en.organization.tab.roles })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "organization-tab-roles");
+  });
+
+  // PF-61, T-2877: every endpoint of every project is an administration view. An administrator
+  // has the tab and the table; anyone else has no tab, and its address lands on Settings without
+  // asking the server for the list.
+  it("gives the Endpoints tab to an administrator and to nobody else", async () => {
+    const admin = renderAt("endpoints");
+    expect(await screen.findByRole("table", { name: en.allEndpoints.title })).toBeInTheDocument();
+    expect(admin.requests).toContain("GET /api/v1/endpoints");
+    cleanup();
+
+    const viewer = renderAt("endpoints", { permissions: VIEWER });
+    await waitFor(() => expect(window.location.pathname).toBe("/organization/settings"));
+    expect(screen.queryByRole("tab", { name: en.organization.tab.endpoints })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: en.allEndpoints.title })).not.toBeInTheDocument();
+    expect(viewer.requests).not.toContain("GET /api/v1/endpoints");
+    cleanup();
+
+    // Approving bindings without deleting them is not administering the organization (PF-03).
+    renderAt("settings", {
+      permissions: {
+        project: "org",
+        bootstrap: false,
+        grants: [{ role: "binding-approver", binding: "approvers", rule: { kinds: ["RoleBinding"], verbs: ["approve"] } }],
+      } as unknown as Effective,
+    });
+    await screen.findByRole("tab", { name: en.organization.tab.settings });
+    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(13));
+    expect(screen.queryByRole("tab", { name: en.organization.tab.endpoints })).not.toBeInTheDocument();
   });
 
   it("moves to the tab a person picks, at the tab's own address", async () => {
@@ -159,7 +195,6 @@ describe("the Organization page", () => {
     expect((await screen.findAllByText("hel.fi")).length).toBeGreaterThan(0);
     expect(screen.getByText("The members of the group project-leads open projects.")).toBeInTheDocument();
     expect(screen.getByText(en.organization.visibility.members)).toBeInTheDocument();
-    expect(screen.getByText("14 days")).toBeInTheDocument();
     expect(screen.getByText(/Data protection: Tietosuoja/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Edit hel\.fi/ })).toBeInTheDocument();
   });

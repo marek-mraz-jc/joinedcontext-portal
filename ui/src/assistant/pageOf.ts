@@ -28,8 +28,8 @@ export function pageOf(route: string, t: Translate): string {
   const search = new URLSearchParams(query);
   let named = HAND_OFF.map((key) => search.get(key)).find((value) => value !== null && value !== "");
   let title: string | undefined;
-  if (path === "/endpoints") {
-    title = t("nav.allEndpoints");
+  if (path === "/endpoints" || path === "/organization/endpoints") {
+    title = t("allEndpoints.title");
   } else if (segments[0] === "projects" && segments.length >= 3) {
     const [, , section, inside] = segments;
     if (section === "spaces" && inside === "complete") {

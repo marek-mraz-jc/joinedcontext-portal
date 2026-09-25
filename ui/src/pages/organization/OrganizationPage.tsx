@@ -1,13 +1,14 @@
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, ORG_NAMESPACE } from "../../api/manifest";
-import { mayRead, usePermissions } from "../../api/permissions";
+import { administersOrganization, mayRead, usePermissions } from "../../api/permissions";
 import { useProjects } from "../../api/projects";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { NewProjectButton } from "../../components/layout/NewProject";
+import { AllEndpointsPage } from "../../routes/AllEndpointsPage";
 import {
   Alert,
   buttonClass,
@@ -31,6 +32,7 @@ import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
+import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
@@ -41,9 +43,14 @@ export const ORGANIZATION_TABS = [
   "roles",
   "groups",
   "service-accounts",
+  "blueprints",
+  "agentprofiles",
+  "dataspaceparticipants",
+  "environments",
   "projects",
   "setup",
   "health",
+  "endpoints",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -166,6 +173,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={t("organization.projects.caption")}
           status={projects.isPending ? t("app.loading") : undefined}
         >
@@ -193,6 +201,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                       {/* Underlined like every other link of a list: plain text read as a name
                           one could not open (T-2759). */}
                       <Link
+                        data-row-link=""
                         to="/projects/$project/$plural"
                         params={{ project: name, plural: "spaces" }}
                         className="focus-ring rounded-sm font-medium text-primary-soft-fg underline underline-offset-2 hover:no-underline"
@@ -238,10 +247,19 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
  *
  * `anchor` is the project the shell around the page shows in its menu; nothing on the page
  * belongs to it.
+ *
+ * Endpoints, every endpoint of every project, is an administration view (PF-61, T-2877): only an
+ * administrator of the organization has the tab, anyone else opening its address lands on
+ * Settings, and the server answers them `404` anyway.
  */
 export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const permissions = usePermissions(ORG_NAMESPACE);
+  const administers = administersOrganization(permissions.data);
+  if (tab === "endpoints" && !permissions.isLoading && !administers) {
+    return <Navigate to="/organization/$tab" params={{ tab: "settings" }} replace />;
+  }
   return (
     <div className="space-y-6">
       <PageHeader title={t("organization.title")} description={t("organization.lead")} />
@@ -251,7 +269,10 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         label={t("organization.tabsLabel")}
         value={tab}
         onChange={(next) => void navigate({ to: "/organization/$tab", params: { tab: next } })}
-        tabs={ORGANIZATION_TABS.map((value) => ({ value, label: t(`organization.tab.${value}`) }))}
+        tabs={ORGANIZATION_TABS.filter((value) => value !== "endpoints" || administers).map((value) => ({
+          value,
+          label: t(`organization.tab.${value}`),
+        }))}
       />
       <div {...tabPanelProps("organization", tab)} className="space-y-8">
         {tab === "settings" ? <OrganizationSettings /> : null}
@@ -260,9 +281,16 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
+        {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
+        {tab === "agentprofiles" ? <KindList project={ORG_NAMESPACE} plural="agentprofiles" embedded /> : null}
+        {tab === "dataspaceparticipants" ? (
+          <KindList project={ORG_NAMESPACE} plural="dataspaceparticipants" embedded />
+        ) : null}
+        {tab === "environments" ? <KindList project={ORG_NAMESPACE} plural="environments" embedded /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
         {tab === "health" ? <ValidationHealth /> : null}
+        {tab === "endpoints" && administers ? <AllEndpointsPage /> : null}
       </div>
     </div>
   );

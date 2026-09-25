@@ -280,26 +280,35 @@ async fn mirror_at(
     Ok(mirror)
 }
 
-/// `GET /api/v1/endpoints` (PF-60, PF-61): every Endpoint of every project this caller may
-/// read, each carrying the project it lives in. An `org-admin` bound at organization scope sees
-/// all of them, a project's steward those of their projects, a binding scoped to one context
-/// space only that space's, and a person no binding names an empty list — never a 403, because
-/// what is not readable is not there (R20).
+/// `GET /api/v1/endpoints` (PF-61, T-2877): the organization-level Endpoints page, an
+/// administration view. An administrator of the organization (PF-03) reads every Endpoint of
+/// every project, each carrying the project it lives in; anyone else is answered `404`, the
+/// answer for a page that is not theirs (R20). A project's own Endpoints stay under its `read`.
 #[utoipa::path(
     get,
     path = "/api/v1/endpoints",
     summary = "List Endpoints Everywhere",
-    description = "Every Endpoint of every project the caller may read, each with the project it lives in.",
+    description = "Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).",
     tag = "resources",
     responses(
-        (status = 200, description = "Every Endpoint the caller may read, across projects", body = ResourceList),
-        (status = 401, description = "Unauthorized", body = ProblemDetails)
+        (status = 200, description = "Every Endpoint of the organization, across projects", body = ResourceList),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Not an administrator of the organization", body = ProblemDetails)
     )
 )]
 pub async fn list_endpoints_everywhere(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<ResourceList>, ApiError> {
+    if !crate::permissions::for_request(&state, &user.0.identity, crate::permissions::ORG_NAMESPACE)
+        .administers_organization()
+    {
+        return Err(ApiError::NotFound(
+            "the organization-level Endpoints page is for administrators of the organization; \
+             a project's own endpoints are under its Endpoints (PF-61)"
+                .into(),
+        ));
+    }
     let mut items = Vec::new();
     for project in state.mirror.namespaces() {
         let effective = crate::permissions::for_request(&state, &user.0.identity, &project);

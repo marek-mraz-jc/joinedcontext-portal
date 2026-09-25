@@ -10,6 +10,7 @@ import { takePrefill } from "../../assistant/state";
 import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
+import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { dns1123 } from "../../components/endpoints/sharing";
@@ -513,6 +514,7 @@ export function RoleBindings({
         </Alert>
       ) : (
         <Table
+          data-records=""
           caption={
             scope === "organization" ? t("organization.members.caption") : t("access.roles.caption", { project })
           }
@@ -551,7 +553,9 @@ export function RoleBindings({
                   const until = spec.validity?.notAfter;
                   return (
                     <TableRow key={binding.metadata.name}>
-                      <TableCell primary>{who(spec)}</TableCell>
+                      <TableCell primary>
+                        <FormRecordLink name={binding.metadata.name}>{who(spec)}</FormRecordLink>
+                      </TableCell>
                       <TableCell>{spec.role}</TableCell>
                       <TableCell>{where(spec.scope)}</TableCell>
                       <TableCell>
@@ -559,7 +563,7 @@ export function RoleBindings({
                       </TableCell>
                       <TableCell align="right">
                         <span className="inline-flex items-center gap-1.5">
-                          <EditResourceAction target={target} />
+                          <EditResourceAction target={target} addressed />
                           <DeleteResourceAction target={target} />
                         </span>
                       </TableCell>

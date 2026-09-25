@@ -27,6 +27,8 @@ const TOKEN: &str = "the-projected-service-account-token-of-the-portal";
 fn settings() -> Settings {
     Settings {
         host: "bb.example.com".into(),
+        apex: "bb.example.com".into(),
+        gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
         namespace: NAMESPACE.into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),
@@ -245,7 +247,9 @@ async fn a_second_run_reuses_the_slug_the_app_already_has() {
     assert_eq!(secret["stringData"]["endpoint-slug"], json!(SLUG));
     let deployment = body_of(applied(&requests, DEPLOYMENT)).to_string();
     assert!(
-        deployment.contains(&format!("https://bb.example.com/api/endpoint/{SLUG}/")),
+        deployment.contains(&format!(
+            "http://context-gateway.jc.svc.cluster.local:8080/api/endpoint/{SLUG}/"
+        )),
         "the pod is pointed at the endpoint it already had: {deployment}"
     );
 }

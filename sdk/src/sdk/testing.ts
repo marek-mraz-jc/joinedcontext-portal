@@ -1,4 +1,5 @@
 import type { Cell, Row } from "../ngsi";
+import { cell } from "../ngsi";
 import type { Schema } from "../write";
 import type { AccessDocument } from "./access";
 import type { Client, DataClient } from "./client";
@@ -49,6 +50,9 @@ function decodeAttrs(body: unknown): Record<string, Cell> {
       if (k === "id" || k === "type") continue;
       if (typeof v === "object" && v !== null && ("type" in v) && "value" in v) {
         decoded[k] = (v as { value: Cell }).value;
+      } else if (typeof v === "object" && v !== null && "object" in v) {
+        // A Relationship in keyValues is its target, or its targets joined as a row shows them.
+        decoded[k] = cell((v as { object: unknown }).object);
       } else if (typeof v === "object" && v !== null && "languageMap" in v) {
         // Kept in its keyValues shape, as a broker answers it; rows read one language of it.
         decoded[k] = { languageMap: (v as { languageMap: unknown }).languageMap } as unknown as Cell;
@@ -92,6 +96,11 @@ export function stubTransport(fixture?: Fixture): StubTransport {
     if (pathname.endsWith("/ngsi-ld/v1/entities") && method === "GET") {
       const type = params.get("type");
       let items = type ? store.filter((r) => r.type === type) : [...store];
+      const idPattern = params.get("idPattern");
+      if (idPattern) {
+        const re = new RegExp(idPattern);
+        items = items.filter((r) => re.test(r.id));
+      }
       const offset = Number(params.get("offset")) || 0;
       const limit = Number(params.get("limit")) || 100;
       const attrsStr = params.get("attrs");

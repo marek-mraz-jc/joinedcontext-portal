@@ -12,6 +12,8 @@ export interface AppDataNeedForm {
   scopeQ?: string;
   within?: string;
   window?: string;
+  /** The App roles this need is granted to; none is every caller (AP-96). */
+  roles?: string[];
 }
 
 export interface AppForm {
@@ -30,6 +32,8 @@ export interface AppForm {
   dataNeeds: AppDataNeedForm[];
   csp?: { connectSrc?: string[]; frameAncestors?: string[] };
   limits?: { requestsPerMinute?: number; maxFileRows?: number };
+  /** Where a server pod may connect besides its endpoint (AP-134). */
+  egress?: { cidr: string; ports: number[] }[];
 }
 
 /** A text worth writing, trimmed, or nothing. */
@@ -58,7 +62,11 @@ function members<T extends Record<string, unknown>>(value: T): T | undefined {
  * its own confirmation (AP-20), and an edit may not quietly draft or publish an app.
  */
 export function toAppEnvelope(project: string, form: AppForm, stored?: unknown): unknown {
-  const lifecycle = (stored as { spec?: { lifecycle?: unknown } } | undefined)?.spec?.lifecycle;
+  const kept = (stored as { spec?: Record<string, unknown> } | undefined)?.spec ?? {};
+  const lifecycle = kept.lifecycle;
+  const egress = (form.egress ?? [])
+    .map((destination) => ({ cidr: destination.cidr.trim(), ports: destination.ports }))
+    .filter((destination) => destination.cidr !== "");
   const source =
     form.source.from === "git"
       ? {
@@ -101,10 +109,16 @@ export function toAppEnvelope(project: string, form: AppForm, stored?: unknown):
           scopeQ: text(need.scopeQ),
           geoQ: text(need.within) ? { within: { scopeRef: text(need.within) } } : undefined,
           temporalQ: text(need.window) ? { window: text(need.window) } : undefined,
+          roles: list(need.roles),
         }),
       ),
       ...(csp ? { csp } : {}),
       ...(limits ? { limits } : {}),
+      ...(egress.length > 0 ? { egress } : {}),
+      // The App's roles and who holds them have no field here; an edit keeps them as stored
+      // rather than dropping them (AP-90, AP-91).
+      ...(kept.roles !== undefined ? { roles: kept.roles } : {}),
+      ...(kept.access !== undefined ? { access: kept.access } : {}),
     },
   };
 }
@@ -148,9 +162,11 @@ export function fromAppEnvelope(manifest: unknown): AppForm {
         ...(need.scopeQ ? { scopeQ: need.scopeQ as string } : {}),
         ...(within ? { within } : {}),
         ...(window ? { window } : {}),
+        ...(Array.isArray(need.roles) && need.roles.length > 0 ? { roles: need.roles as string[] } : {}),
       };
     }),
     ...(spec.csp ? { csp: spec.csp as AppForm["csp"] } : {}),
     ...(spec.limits ? { limits: spec.limits as AppForm["limits"] } : {}),
+    ...(Array.isArray(spec.egress) && spec.egress.length > 0 ? { egress: spec.egress as AppForm["egress"] } : {}),
   };
 }

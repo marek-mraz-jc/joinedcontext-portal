@@ -592,6 +592,9 @@ describe("the endpoint's own settings page", () => {
     renderPage({ endpoint: null });
 
     expect(await screen.findByRole("alert")).toHaveTextContent("no such endpoint");
-    expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    // A 404 answers the same the second time (T-2834): no Retry, the heading and the way back.
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: en.endpoints.page.back }).length).toBeGreaterThan(0);
   });
 });

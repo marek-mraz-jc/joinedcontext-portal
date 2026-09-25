@@ -107,8 +107,9 @@ async fn a_page_reaches_nothing_it_was_not_served_from() {
     assert_eq!(directive(&policy, "object-src"), Some("'none'"));
 }
 
-/// The Open page frames an App from the apps origin (AP-122, T-2871): `frame-src` names that
-/// origin and nothing else, and without an apps origin the Portal frames only itself.
+/// The Open page frames an App from the apps origin or its own host under it (AP-122, AP-133,
+/// T-2871): `frame-src` names those and nothing else, and without an apps origin the Portal
+/// frames only itself.
 #[tokio::test]
 async fn a_page_frames_only_itself_and_the_apps_origin() {
     assert_eq!(directive(&policy().await, "frame-src"), Some("'self'"));
@@ -131,7 +132,7 @@ async fn a_page_frames_only_itself_and_the_apps_origin() {
         .to_owned();
     assert_eq!(
         directive(&policy, "frame-src"),
-        Some("'self' https://apps.city.example")
+        Some("'self' https://apps.city.example https://*.apps.apps.city.example")
     );
     assert_eq!(directive(&policy, "frame-ancestors"), Some("'self'"));
 }

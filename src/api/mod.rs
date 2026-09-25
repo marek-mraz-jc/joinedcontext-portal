@@ -25,6 +25,7 @@ pub mod import_git;
 pub mod internal;
 pub mod mutate;
 pub mod ops;
+pub mod organization_limits;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_test;
@@ -88,6 +89,7 @@ pub fn router() -> Router<AppState> {
         .merge(sync::router())
         .merge(sync_sources::router())
         .merge(validation::router())
+        .merge(organization_limits::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));

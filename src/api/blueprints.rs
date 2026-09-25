@@ -328,6 +328,80 @@ pub(crate) struct PlannedFlow {
 /// Every check a flow makes before it writes: the blueprint the caller may run, its version, the
 /// expansion, and each rendered manifest through the gate a hand-written one passes. The lane is
 /// the stricter of what the blueprint declares and what the kinds themselves are (CC-63).
+/// The widget that names a parameter the Portal fills with an endpoint slug (Development/05
+/// §2.1).
+const MINTED_SLUG: &str = "endpointSlug";
+/// The alphabet of an endpoint slug (EP-02): lowercase RFC 4648 base32.
+const SLUG_ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
+/// What the slug HMAC is keyed for, so the key's other uses never produce the same bytes.
+const SLUG_LABEL: &[u8] = b"jc-blueprint-endpoint-slug";
+
+/// `parameters` with every `endpointSlug` parameter the caller left out filled (EP-02, CC-25).
+///
+/// An Endpoint a blueprint renders needs a slug nobody can guess, and nobody types one. The slug
+/// is 160 bits of an HMAC-SHA-256 under the Portal's key, over the project, the
+/// blueprint, its version, the parameter's name and the submission as it arrived, in base32: an
+/// outsider who knows every parameter still cannot compute it, the same submission always yields
+/// the same slug (so a retry lands on the same branch), and the value is recorded with the other
+/// parameters, so a re-render is byte-identical (CC-27). A value the caller gave is kept; the
+/// schema's pattern judges it like any other parameter.
+fn with_minted_slugs(
+    key: &[u8],
+    project: &str,
+    blueprint: &jc_core::kinds::Blueprint,
+    parameters: &serde_json::Value,
+) -> serde_json::Value {
+    use hmac::{Hmac, Mac};
+    let (Some(given), Some(properties)) = (
+        parameters.as_object(),
+        blueprint
+            .spec
+            .parameter_schema
+            .get("properties")
+            .and_then(serde_json::Value::as_object),
+    ) else {
+        return parameters.clone();
+    };
+    // serde_json keeps members sorted, so this is the canonical form of the submission.
+    let submission = parameters.to_string();
+    let mut filled = given.clone();
+    for (name, property) in properties {
+        if property
+            .get("x-jc-widget")
+            .and_then(serde_json::Value::as_str)
+            != Some(MINTED_SLUG)
+            || given.contains_key(name)
+        {
+            continue;
+        }
+        let Ok(mut mac) = Hmac::<sha2::Sha256>::new_from_slice(key) else {
+            // HMAC takes a key of any length; there is no key this refuses.
+            continue;
+        };
+        for part in [
+            SLUG_LABEL,
+            project.as_bytes(),
+            blueprint.metadata.name.as_bytes(),
+            blueprint.spec.version.as_str().as_bytes(),
+            name.as_bytes(),
+            submission.as_bytes(),
+        ] {
+            // Length-prefixed, so no two different tuples hash as the same byte string.
+            mac.update(&(part.len() as u64).to_be_bytes());
+            mac.update(part);
+        }
+        let digest = mac.finalize().into_bytes();
+        // Five bits of each of the first 32 bytes: 160 bits, without bias.
+        let slug: String = digest
+            .iter()
+            .take(32)
+            .map(|byte| char::from(SLUG_ALPHABET[usize::from(byte & 0x1f)]))
+            .collect();
+        filled.insert(name.clone(), serde_json::Value::String(slug));
+    }
+    serde_json::Value::Object(filled)
+}
+
 pub(crate) fn plan_flow(
     state: &AppState,
     identity: &Identity,
@@ -373,21 +447,26 @@ pub(crate) fn plan_flow(
             ))
         })?;
 
-    let rendered =
-        jcctl::blueprints::expand(&blueprint, &request.parameters).map_err(|e| match e {
-            // CC-24: every violation at once, in `errors[]`, so the form marks all its bad fields
-            // in one pass rather than sending the user round the loop once per mistake.
-            jcctl::blueprints::ExpandError::Parameters(violations) => ApiError::Invalid {
-                detail: format!(
-                    "the parameters do not match blueprint '{}': {}",
-                    request.blueprint,
-                    violations.join("; ")
-                ),
-                errors: violations,
-            },
-            // The blueprint itself is broken; the user filled in nothing wrong.
-            other => ApiError::Internal(other.to_string()),
-        })?;
+    let parameters = with_minted_slugs(
+        state.config.cookie_key.signing(),
+        project,
+        &blueprint,
+        &request.parameters,
+    );
+    let rendered = jcctl::blueprints::expand(&blueprint, &parameters).map_err(|e| match e {
+        // CC-24: every violation at once, in `errors[]`, so the form marks all its bad fields
+        // in one pass rather than sending the user round the loop once per mistake.
+        jcctl::blueprints::ExpandError::Parameters(violations) => ApiError::Invalid {
+            detail: format!(
+                "the parameters do not match blueprint '{}': {}",
+                request.blueprint,
+                violations.join("; ")
+            ),
+            errors: violations,
+        },
+        // The blueprint itself is broken; the user filled in nothing wrong.
+        other => ApiError::Internal(other.to_string()),
+    })?;
 
     let mut lane = declared_lane(blueprint.spec.risk_class);
     let mut summary = PlanSummary::default();
@@ -472,4 +551,120 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/blueprints", get(list_blueprints))
         .route("/projects/{project}/flows", post(start_flow))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A library blueprint in miniature: one Endpoint whose slug the Portal fills.
+    fn blueprint() -> jc_core::kinds::Blueprint {
+        jc_core::kinds::Blueprint::from_yaml(
+            r#"apiVersion: joinedcontext.com/v1alpha1
+kind: Blueprint
+metadata: { name: dataset-publication, namespace: org }
+spec:
+  version: 1.0.0
+  riskClass: red
+  allowedRoles: [portal-approver]
+  parameterSchema:
+    type: object
+    required: [name, endpointSlug]
+    additionalProperties: false
+    properties:
+      name: { type: string, pattern: "^[a-z][a-z0-9-]{1,40}$" }
+      endpointSlug: { type: string, pattern: "^[a-z2-7]{26,64}$", x-jc-widget: endpointSlug }
+  templates:
+    - name: endpoint
+      template: |
+        apiVersion: joinedcontext.com/v1alpha1
+        kind: Endpoint
+        metadata: { name: "{{ name }}" }
+        spec:
+          contextSpaceRef: { kind: ContextSpace, name: air }
+          slug: "{{ endpointSlug }}"
+          audience: public
+          enabledRepresentations: [ngsi-ld]
+"#,
+        )
+        .expect("the blueprint parses")
+    }
+
+    fn slug_of(key: &[u8], project: &str, parameters: serde_json::Value) -> String {
+        with_minted_slugs(key, project, &blueprint(), &parameters)["endpointSlug"]
+            .as_str()
+            .expect("a slug")
+            .to_owned()
+    }
+
+    /// EP-02, CC-25 (T-1571, CC-28): a left-out slug is filled with 32 base32 characters, the same
+    /// for the same submission and different for another project, other parameters or another key.
+    #[test]
+    fn a_left_out_endpoint_slug_is_minted_from_the_submission_under_the_portals_key() {
+        let key = [7u8; 32];
+        let parameters = json!({ "name": "air-open" });
+        let slug = slug_of(&key, "helsinki", parameters.clone());
+        assert_eq!(slug.len(), 32);
+        assert!(slug.bytes().all(|b| SLUG_ALPHABET.contains(&b)), "{slug}");
+        assert_eq!(slug, slug_of(&key, "helsinki", parameters.clone()));
+        assert_ne!(slug, slug_of(&key, "espoo", parameters.clone()));
+        assert_ne!(
+            slug,
+            slug_of(&key, "helsinki", json!({ "name": "air-open-2" }))
+        );
+        assert_ne!(slug, slug_of(&[8u8; 32], "helsinki", parameters));
+    }
+
+    /// A slug the caller gave is theirs, and the schema judges it; nothing else is touched.
+    #[test]
+    fn a_given_slug_and_the_other_parameters_are_kept() {
+        let given = json!({ "name": "air-open", "endpointSlug": "short" });
+        assert_eq!(
+            with_minted_slugs(&[7u8; 32], "helsinki", &blueprint(), &given),
+            given
+        );
+        assert!(matches!(
+            jcctl::blueprints::expand(&blueprint(), &given),
+            Err(jcctl::blueprints::ExpandError::Parameters(_))
+        ));
+        // Not an object: the schema refuses it, and the mint leaves it as it came.
+        assert_eq!(
+            with_minted_slugs(&[7u8; 32], "helsinki", &blueprint(), &json!([1])),
+            json!([1])
+        );
+    }
+
+    /// CC-27: the minted slug renders into the Endpoint and into the recorded parameters, so the
+    /// Endpoint validates and a re-render from the annotation gives the same file.
+    #[test]
+    fn the_minted_slug_renders_a_valid_endpoint_and_is_recorded() {
+        let filled = with_minted_slugs(
+            &[7u8; 32],
+            "helsinki",
+            &blueprint(),
+            &json!({ "name": "air-open" }),
+        );
+        let rendered = jcctl::blueprints::expand(&blueprint(), &filled).expect("expands");
+        let slug = filled["endpointSlug"].as_str().expect("a slug");
+        let mut manifest: serde_json::Value =
+            serde_yaml_ng::from_str(&rendered[0].manifest).expect("a manifest");
+        assert_eq!(manifest["spec"]["slug"], slug);
+        let recorded: serde_json::Value = serde_json::from_str(
+            manifest["metadata"]["annotations"][jcctl::blueprints::ANNOTATION_PARAMETERS]
+                .as_str()
+                .expect("the parameters are recorded"),
+        )
+        .expect("recorded as JSON");
+        assert_eq!(recorded["endpointSlug"], slug);
+        manifest["metadata"]["namespace"] = json!("helsinki");
+        let yaml = serde_yaml_ng::to_string(&manifest).expect("serialises");
+        assert!(
+            matches!(
+                jc_core::registry::validate_yaml("Endpoint", &yaml),
+                Some(Ok(()))
+            ),
+            "{yaml}"
+        );
+    }
 }

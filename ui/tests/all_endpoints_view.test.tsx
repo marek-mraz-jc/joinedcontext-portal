@@ -24,11 +24,19 @@ function endpoint(project: string, space: string, name: string, slug: string, au
   };
 }
 
+/** An administrator of the organization (PF-03): the one person the list is for (PF-61, T-2877). */
+const ADMIN = {
+  project: "org",
+  bootstrap: false,
+  grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding", "Endpoint"], verbs: ["read", "approve", "delete"] } }],
+};
+
 /**
- * The dev repository as the organization-level route answers it (PF-60): every Endpoint this
- * caller may read, in one list, each carrying the project it lives in.
+ * The dev repository as the organization-level route answers an administrator (PF-61): every
+ * Endpoint of every project, in one list, each carrying the project it lives in.
  */
 const BY_PATH: Record<string, unknown> = {
+  "/api/v1/projects/org/permissions/me": ADMIN,
   "/api/v1/projects": { apiVersion: LIST, kind: "List", items: [{ name: "banskabystrica" }, { name: "helsinki" }] },
   "/api/v1/endpoints": {
     apiVersion: LIST,
@@ -81,6 +89,8 @@ describe("all endpoints view", () => {
   it("lists every endpoint of every project with its links and a way inside the space", async () => {
     renderAt();
     const table = await screen.findByRole("table", { name: "All endpoints" });
+    // The old address opens the Organization page's Endpoints tab (T-2877).
+    expect(window.location.pathname).toBe("/organization/endpoints");
     await waitFor(() => {
       expect(within(table).getAllByRole("row")).toHaveLength(4);
     });
@@ -123,7 +133,22 @@ describe("all endpoints view", () => {
     expect(paths).not.toContain("/api/v1/projects/helsinki/endpoints");
   });
 
-  it("says so when the caller may read no endpoint anywhere", async () => {
+  // PF-61, T-2877: anyone but an administrator lands on the organization's Settings and the list
+  // is never asked for.
+  it("sends a person who does not administer the organization to Settings, asking for no list", async () => {
+    responses["/api/v1/projects/org/permissions/me"] = {
+      project: "org",
+      bootstrap: false,
+      grants: [{ role: "viewer", binding: "everyone", rule: { kinds: ["Endpoint"], verbs: ["read"] } }],
+    };
+    renderAt();
+    await waitFor(() => expect(window.location.pathname).toBe("/organization/settings"));
+    expect(screen.queryByRole("table", { name: "All endpoints" })).not.toBeInTheDocument();
+    const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
+    expect(paths).not.toContain("/api/v1/endpoints");
+  });
+
+  it("says so when the organization publishes no endpoint anywhere", async () => {
     responses["/api/v1/endpoints"] = { apiVersion: LIST, kind: "List", items: [] };
     renderAt();
     expect(await screen.findByText("No project publishes an endpoint yet.")).toBeInTheDocument();

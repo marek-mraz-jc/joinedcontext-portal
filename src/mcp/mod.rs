@@ -526,8 +526,9 @@ const UNITS: &[(&str, &str, &str)] = &[
         "Find what a project holds and what of it you may read: the catalogue, then the data.",
         "1. jc_catalog_search with the words you are looking for; each answer carries the space, \
          the endpoint and whether your grant admits you.\n2. jc_resource_get the endpoint to read \
-         what it publishes, or jc_model_source_get its model.\n3. jc_endpoint_list_all across \
-         projects when the space is not this one's.",
+         what it publishes, or jc_model_source_get its model.\n3. When the space is another \
+         project's: jc_resource_list of that project's endpoints, or jc_endpoint_list_all across \
+         projects if you administer the organization.",
     ),
     (
         "build",

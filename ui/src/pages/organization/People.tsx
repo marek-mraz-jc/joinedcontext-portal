@@ -31,6 +31,7 @@ import {
   TableRow,
   TableSkeleton,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/RolesAndMembers";
 
@@ -397,6 +398,7 @@ export function People(): JSX.Element {
             </Alert>
           ) : (
             <Table
+              data-records=""
               caption={t("organization.people.caption")}
               status={people.isPending ? t("app.loading") : undefined}
             >
@@ -423,6 +425,7 @@ export function People(): JSX.Element {
                       <TableRow key={person.id}>
                         <TableCell primary>
                           <Link
+                            data-row-link=""
                             to="/organization/$tab/$"
                             params={{ tab: "people", _splat: encodeURIComponent(person.id) }}
                             className="underline"
@@ -605,11 +608,21 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
   }
   if (detail.error || !detail.data) {
     return (
-      <Alert tone="danger" role="alert">
+      <ResourcePageFailed
+        title={id}
+        description={t("organization.people.lead")}
+        error={detail.error}
+        onRetry={() => void detail.refetch()}
+        back={
+          <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
+            {t("organization.people.back")}
+          </Link>
+        }
+      >
         {detail.error instanceof ApiError && detail.error.status === 404
           ? t("organization.people.notFound")
-          : reasonOf(detail.error, t("app.error.generic"))}
-      </Alert>
+          : undefined}
+      </ResourcePageFailed>
     );
   }
 

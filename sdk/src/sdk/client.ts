@@ -1,6 +1,6 @@
 import type { Cell, Row } from "../ngsi";
-import { cell, isLanguageMap, toRow } from "../ngsi";
-import type { LanguageMap } from "../ngsi";
+import { cell, isLanguageMap, isRelationshipObject, toRow } from "../ngsi";
+import type { WriteValue } from "../ngsi";
 import type { Schema } from "../write";
 import type { AccessDocument } from "./access";
 import { parseAccess } from "./access";
@@ -47,6 +47,8 @@ export interface Query {
   endpoint?: string;
   attrs?: string[];
   q?: string;
+  /** A regular expression the entity id matches (NGSI-LD `idPattern`). */
+  idPattern?: string;
   georel?: string;
   geometry?: string;
   coordinates?: string;
@@ -82,8 +84,8 @@ export interface DataClient {
     list<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     all<T extends Row = Row>(type: string, query?: Query): Promise<T[]>;
     get<T extends Row = Row>(id: string, attrs?: string[], options?: EndpointOption): Promise<T>;
-    create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string>;
-    update(id: string, patch: Record<string, Cell | LanguageMap>, options?: EndpointOption): Promise<void>;
+    create(type: string, attrs: Record<string, WriteValue>, localId?: string, options?: EndpointOption): Promise<string>;
+    update(id: string, patch: Record<string, WriteValue>, options?: EndpointOption): Promise<void>;
     /** Every language of one LanguageProperty, which a row reduces to one; `{}` when it has none. */
     languages(id: string, attr: string, options?: EndpointOption): Promise<Record<string, string>>;
     remove(id: string, options?: EndpointOption): Promise<void>;
@@ -137,14 +139,19 @@ function isGeoJsonGeometry(value: unknown): value is { type: string; coordinates
   return typeof value === "object" && value !== null && "type" in value && "coordinates" in value;
 }
 
-type Encoded = { type: "Property" | "GeoProperty"; value: Cell } | { type: "LanguageProperty"; languageMap: Record<string, string> };
+type Encoded =
+  | { type: "Property" | "GeoProperty"; value: Cell }
+  | { type: "LanguageProperty"; languageMap: Record<string, string> }
+  | { type: "Relationship"; object: string | string[] };
 
-function encodeAttrs(attrs: Record<string, Cell | LanguageMap>): Record<string, Encoded> {
+function encodeAttrs(attrs: Record<string, WriteValue>): Record<string, Encoded> {
   const result: Record<string, Encoded> = {};
   for (const [key, val] of Object.entries(attrs)) {
     if (val === null) continue;
     if (isLanguageMap(val)) {
       result[key] = { type: "LanguageProperty", languageMap: val.languageMap };
+    } else if (isRelationshipObject(val)) {
+      result[key] = { type: "Relationship", object: val.object };
     } else if (isGeoJsonGeometry(val)) {
       result[key] = { type: "GeoProperty", value: val };
     } else {
@@ -245,6 +252,9 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       if (query?.q) {
         params.q = query.q;
       }
+      if (query?.idPattern) {
+        params.idPattern = query.idPattern;
+      }
       if (query?.georel && query?.geometry && query?.coordinates) {
         params.georel = query.georel;
         params.geometry = query.geometry;
@@ -305,7 +315,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       return toRow(resp.body as Record<string, unknown>, config.language) as T;
     },
 
-    async create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string> {
+    async create(type: string, attrs: Record<string, WriteValue>, localId?: string, options?: EndpointOption): Promise<string> {
       if (!TYPE_RE.test(type)) {
         throw new ProblemError(0, { title: `Invalid entity type: '${type}'` });
       }
@@ -331,7 +341,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       return id;
     },
 
-    async update(id: string, patch: Record<string, Cell | LanguageMap>, options?: EndpointOption): Promise<void> {
+    async update(id: string, patch: Record<string, WriteValue>, options?: EndpointOption): Promise<void> {
       const encoded = encodeAttrs(patch);
       if (Object.keys(encoded).length === 0) {
         return;
@@ -523,7 +533,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       const path =
         config.transport === "bridge"
           ? `/functions/${name}`
-          : `/apps/${config.appName ?? ""}/api/functions/${name}`;
+          : `/api/functions/${name}`;
 
       const resp = await transport({ method: "POST", path, body });
       if (resp.status < 200 || resp.status >= 300) {

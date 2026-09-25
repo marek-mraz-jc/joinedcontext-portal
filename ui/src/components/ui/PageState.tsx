@@ -5,6 +5,7 @@ import { ApiError } from "../../api/client";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 import { Icon } from "./icons";
+import { PageHeader } from "./PageHeader";
 import { Skeleton } from "./Skeleton";
 
 /**
@@ -66,8 +67,9 @@ export function failureKind(error: unknown): FailureKind {
  * - a missing object offers the way back the page passes as `back`;
  * - a server failure also names its reference, the edge's request id, to quote when reporting.
  *
- * `onRetry` is left out by the page where asking again cannot help, a 404 or a refusal that
- * will not change, so the page never offers a button that does nothing.
+ * Retry is offered only where asking again can help, a server failure or a lost connection:
+ * a 404, a refusal or a refused request answers the same the second time, so `onRetry` is
+ * dropped for them here, once, rather than left to every page to remember (T-2834).
  */
 export function PageFailed({
   error,
@@ -89,7 +91,7 @@ export function PageFailed({
     children ??
     (kind === "network" ? t("app.error.generic") : kind === "session" ? t("app.error.session") : said);
   // After an ended session the sign-in dialog asks every read again itself.
-  const retry = kind === "session" ? undefined : onRetry;
+  const retry = kind === "server" || kind === "network" ? onRetry : undefined;
   const reference = kind === "server" && error instanceof ApiError ? error.requestId : undefined;
   return (
     <Alert
@@ -115,5 +117,40 @@ export function PageFailed({
         </span>
       ) : null}
     </Alert>
+  );
+}
+
+/**
+ * A resource page that could not read its resource (UI-01, UI-15, UI-16, T-2834): the page's own
+ * heading and purpose line stay, the API's sentence says why, and the way back to the list is
+ * always there, whatever the failure. The heading is the name from the address, which the person
+ * typed or followed, so a refusal tells them nothing about whether it exists.
+ */
+export function ResourcePageFailed({
+  title,
+  description,
+  back,
+  error,
+  onRetry,
+  children,
+}: {
+  title: ReactNode;
+  /** The page's purpose line, the same one it shows when the resource is there. */
+  description: ReactNode;
+  /** The link to the list the resource belongs to. */
+  back: ReactNode;
+  error: unknown;
+  onRetry?: () => void;
+  /** A sentence to show instead of the API's, where the page knows better. */
+  children?: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="flex flex-col gap-4">
+      {/* The way back is the header's action, so it is the first stop of the keyboard too. */}
+      <PageHeader title={title} description={description} actions={back} />
+      <PageFailed error={error} onRetry={onRetry}>
+        {children}
+      </PageFailed>
+    </div>
   );
 }

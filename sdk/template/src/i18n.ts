@@ -48,6 +48,11 @@ const en = {
   "form.point": "must be \"lat, lon\"",
   "form.oneOf": "must be one of {options}",
   "form.pattern": "does not match the expected format",
+  "form.pickSearch": "Search",
+  "form.pickNone": "Nothing found that you can read",
+  "form.pickRemove": "Remove",
+  "form.pickLoading": "Searching…",
+  "form.pickFailed": "The search failed; try again",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -99,6 +104,11 @@ const sk: Catalog = {
   "form.point": "musí mať tvar „šírka, dĺžka“",
   "form.oneOf": "musí byť jedna z hodnôt {options}",
   "form.pattern": "nezodpovedá očakávanému formátu",
+  "form.pickSearch": "Hľadať",
+  "form.pickNone": "Nenašlo sa nič, čo môžete čítať",
+  "form.pickRemove": "Odobrať",
+  "form.pickLoading": "Hľadá sa…",
+  "form.pickFailed": "Hľadanie zlyhalo; skúste to znova",
 };
 
 const de: Catalog = {
@@ -147,6 +157,11 @@ const de: Catalog = {
   "form.point": "muss „Breite, Länge“ sein",
   "form.oneOf": "muss einer der Werte {options} sein",
   "form.pattern": "entspricht nicht dem erwarteten Format",
+  "form.pickSearch": "Suchen",
+  "form.pickNone": "Nichts gefunden, was Sie lesen dürfen",
+  "form.pickRemove": "Entfernen",
+  "form.pickLoading": "Wird gesucht…",
+  "form.pickFailed": "Die Suche ist fehlgeschlagen; bitte erneut versuchen",
 };
 
 const cs: Catalog = {
@@ -195,6 +210,11 @@ const cs: Catalog = {
   "form.point": "musí mít tvar „šířka, délka“",
   "form.oneOf": "musí být jedna z hodnot {options}",
   "form.pattern": "neodpovídá očekávanému formátu",
+  "form.pickSearch": "Hledat",
+  "form.pickNone": "Nenašlo se nic, co můžete číst",
+  "form.pickRemove": "Odebrat",
+  "form.pickLoading": "Hledá se…",
+  "form.pickFailed": "Hledání selhalo; zkuste to znovu",
 };
 
 export const CATALOGS: Readonly<Record<string, Catalog>> = { en, sk, de, cs };

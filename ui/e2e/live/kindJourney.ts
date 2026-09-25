@@ -28,6 +28,8 @@ import {
   approve,
   ask,
   csrf,
+  hiddenSections,
+  inHiddenSection,
   proposedChange,
   removeCompletely,
   signIn,
@@ -58,6 +60,12 @@ export interface KindJourney {
   assistant: { ask: (name: string) => string; opened: (page: Page) => Locator };
   /** The page's write controls by name, where they are not New, Edit, Remove, Delete or Propose. */
   writeControls?: RegExp;
+  /**
+   * The kind lives in the organization namespace `org`, not in the project. The steward administers
+   * the organization and proposes it; the approver approves across the organization (the seed's
+   * `approvers` binding), so the proposer still approves nothing.
+   */
+  organization?: boolean;
 }
 
 const WRITE_CONTROLS = /^(New|Edit|Remove|Delete|Propose)(\b|$)/i;
@@ -152,11 +160,11 @@ export async function editAsYaml(
 }
 
 /** Waits until the resource answers on its route with a phase that is neither pending nor an error. */
-async function settled(page: Page, plural: string, name: string): Promise<void> {
+async function settled(page: Page, project: string, plural: string, name: string): Promise<void> {
   await expect
     .poll(
       async () => {
-        const answer = await page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`);
+        const answer = await page.request.get(`/api/v1/projects/${project}/${plural}/${name}`);
         return answer.ok() ? String((await answer.json()).status?.phase ?? "no phase yet") : `http ${answer.status()}`;
       },
       { timeout: 180_000, message: `${plural}/${name} is live` },
@@ -165,14 +173,19 @@ async function settled(page: Page, plural: string, name: string): Promise<void> 
 }
 
 /** Every change of the project, as the approvals route lists them. */
-async function changes(page: Page): Promise<string> {
-  const answer = await page.request.get(`/api/v1/projects/${PROJECT}/changes`);
+async function changes(page: Page, project: string): Promise<string> {
+  const answer = await page.request.get(`/api/v1/projects/${project}/changes`);
   return answer.ok() ? JSON.stringify((await answer.json()).items ?? []) : "";
 }
 
 export function kindJourney(journey: KindJourney): void {
   const { task, kind, plural } = journey;
+  const project = journey.organization ? "org" : PROJECT;
   test.setTimeout(900_000);
+  // A kind whose page the installation hides has no page to journey through (T-2874).
+  test.beforeEach(async ({ request }) => {
+    test.skip(inHiddenSection(journey.page, await hiddenSections(request)), "the installation hides this section (T-2874)");
+  });
 
   test(`${kind}: created, changed and removed through the page by a person`, async ({ browser }) => {
     const steward = await signIn(browser, STEWARD, `${journey.page}?lang=en`);
@@ -182,21 +195,21 @@ export function kindJourney(journey: KindJourney): void {
       name = (await journey.create(steward.page, name)) || name;
       const change = await proposedChange(steward.page);
       created = true;
-      const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
+      const approver = await signIn(browser, APPROVER, `/projects/${project}/approvals?lang=en`);
       try {
-        await approve(approver.page, PROJECT, change, name);
-        await settled(steward.page, plural, name);
+        await approve(approver.page, project, change, name);
+        await settled(steward.page, project, plural, name);
 
         const { change: edit } = journey;
         if (edit) {
           await steward.page.goto(`${journey.page}?lang=en`, { waitUntil: "load" });
           await edit.apply(steward.page, name);
-          await approve(approver.page, PROJECT, await proposedChange(steward.page), name);
+          await approve(approver.page, project, await proposedChange(steward.page), name);
           await expect
             .poll(
               async () =>
                 JSON.stringify(
-                  await (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).json(),
+                  await (await steward.page.request.get(`/api/v1/projects/${project}/${plural}/${name}`)).json(),
                 ),
               { timeout: 120_000, message: `the change reached ${plural}/${name}` },
             )
@@ -207,15 +220,15 @@ export function kindJourney(journey: KindJourney): void {
       }
     } finally {
       if (created) {
-        await removeCompletely(steward, PROJECT, plural, name);
+        await removeCompletely(steward, project, plural, name);
         await expect
           .poll(
-            async () => (await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${name}`)).status(),
+            async () => (await steward.page.request.get(`/api/v1/projects/${project}/${plural}/${name}`)).status(),
             { timeout: 120_000, message: `${plural}/${name} is removed` },
           )
           .toBe(404);
       }
-      await sweepDrafts(steward.context, steward.page, PROJECT, new RegExp(`^${task}-`));
+      await sweepDrafts(steward.context, steward.page, project, new RegExp(`^${task}-`));
       await steward.context.close();
     }
   });
@@ -227,9 +240,9 @@ export function kindJourney(journey: KindJourney): void {
       await ask(steward.page, journey.assistant.ask(name));
       await expect(journey.assistant.opened(steward.page)).toBeVisible({ timeout: 180_000 });
       // AG-73: the assistant drafts and the person proposes. No change names what it drafted.
-      expect(await changes(steward.page), "the assistant proposed nothing").not.toContain(name);
+      expect(await changes(steward.page, project), "the assistant proposed nothing").not.toContain(name);
     } finally {
-      await sweepDrafts(steward.context, steward.page, PROJECT, new RegExp(`^${task}a-`));
+      await sweepDrafts(steward.context, steward.page, project, new RegExp(`^${task}a-`));
       await steward.context.close();
     }
   });
@@ -258,12 +271,12 @@ export function kindJourney(journey: KindJourney): void {
         );
       }
       expect(seen, `${journey.page} offers the viewer the kind's write controls, disabled`).toBeGreaterThan(0);
-      const answer = await viewer.page.request.post(`/api/v1/projects/${PROJECT}/${plural}`, {
+      const answer = await viewer.page.request.post(`/api/v1/projects/${project}/${plural}`, {
         headers: { "x-csrf-token": await csrf(viewer.context) },
         data: {
           apiVersion: "joinedcontext.com/v1alpha1",
           kind,
-          metadata: { name: journeyName(`${task}v`), namespace: PROJECT },
+          metadata: { name: journeyName(`${task}v`), namespace: project },
           spec: {},
         },
       });
