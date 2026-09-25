@@ -29,6 +29,7 @@ import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
+import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 
@@ -43,6 +44,7 @@ export const ORGANIZATION_TABS = [
   "blueprints",
   "agentprofiles",
   "projects",
+  "setup",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -244,6 +246,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
   return (
     <div className="space-y-6">
       <PageHeader title={t("organization.title")} description={t("organization.lead")} />
+      {tab === "setup" ? null : <SetupReminder />}
       <Tabs
         id="organization"
         label={t("organization.tabsLabel")}
@@ -261,6 +264,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
         {tab === "agentprofiles" ? <KindList project={ORG_NAMESPACE} plural="agentprofiles" embedded /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
+        {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
       </div>
     </div>
   );

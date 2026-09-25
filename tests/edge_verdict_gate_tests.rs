@@ -29,6 +29,7 @@ const SECRET_IN_THE_MANIFEST: &str = "hunter2-not-for-an-answer";
 
 fn identity(username: &str, groups: &[&str]) -> Identity {
     Identity {
+        client: None,
         subject: format!("f:1:{username}"),
         username: username.to_owned(),
         email: Some(format!("{username}@banskabystrica.sk")),

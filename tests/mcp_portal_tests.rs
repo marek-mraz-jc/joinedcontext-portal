@@ -161,6 +161,30 @@ fn sign_token(
     encode(&header, &claims, signer).expect("sign token")
 }
 
+/// A `client_credentials` token of Keycloak client `client`, as Keycloak issues it: `azp` names
+/// the client and the user is the client's own service account.
+fn sign_client_token(
+    signer: &EncodingKey,
+    kid: &str,
+    issuer: &str,
+    audience: &str,
+    client: &str,
+) -> String {
+    let mut header = Header::new(Algorithm::ES256);
+    header.kid = Some(kid.to_string());
+    let now = joinedcontext_portal::auth::session::now_unix();
+    let claims = json!({
+        "iss": issuer,
+        "aud": audience,
+        "azp": client,
+        "sub": format!("sa-{client}"),
+        "preferred_username": format!("service-account-{client}"),
+        "exp": now + 3600,
+        "iat": now,
+    });
+    encode(&header, &claims, signer).expect("sign token")
+}
+
 async fn setup_app_and_keys() -> (axum::Router, String, EncodingKey, String) {
     // Leaked on purpose: the router outlives this function, and a dropped wiremock server goes
     // back to the pool, where a test running beside this one resets its mocks and the forge
@@ -248,6 +272,28 @@ async fn setup_app_and_keys() -> (axum::Router, String, EncodingKey, String) {
         kind: "DataModel".to_string(),
         metadata: ObjectMeta::new("air", "ovzdusie"),
         spec: json!({ "contextSpaceRef": "ovzdusie", "linkml": "./air.linkml.yaml" }),
+        status: None,
+    });
+
+    // A workload's account: its declared role is in force for its own client's token (T-2245,
+    // PF-49), and the approve the role names is not (PF-58).
+    mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "Role".to_string(),
+        metadata: ObjectMeta::new("pipeline-admin", "org"),
+        spec: json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["propose", "approve"] }] }),
+        status: None,
+    });
+    mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "ServiceAccount".to_string(),
+        metadata: ObjectMeta::new("vendor-ci", "ovzdusie"),
+        spec: json!({
+            "owner": { "user": "pipeline.editor" },
+            "purpose": "proposes pipelines from the vendor's CI",
+            "roles": [{ "role": "pipeline-admin", "scope": { "project": "ovzdusie" } }],
+            "credentials": [{ "kind": "oauth-client", "name": "main" }]
+        }),
         status: None,
     });
 
@@ -1883,4 +1929,58 @@ async fn a_verified_token_is_the_caller_whatever_cookie_travels_with_it() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn a_service_account_token_audienced_to_the_portal_reaches_the_mcp_door_and_a_gateway_token_does_not(
+) {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let list = json!({
+        "jsonrpc": "2.0",
+        "id": 40,
+        "method": "tools/list",
+        "params": { "project": "ovzdusie" }
+    });
+    let portal = sign_client_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "ovzdusie-vendor-ci",
+    );
+    let answer = rpc(app.clone(), &portal, list.clone()).await;
+    let names: Vec<&str> = answer["result"]["tools"]
+        .as_array()
+        .expect("tools")
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    assert!(
+        names.contains(&"jc_pipeline_propose"),
+        "the account's declared role is in force: {names:?}"
+    );
+    assert!(!names.contains(&"jc_datasource_propose"), "{names:?}");
+    assert!(!names.contains(&"jc_change_approve"), "{names:?}");
+
+    // The same account's token for an endpoint of the gateway is not a Portal token.
+    let gateway = sign_client_token(
+        &signer,
+        &kid,
+        &issuer,
+        "publicair00000000000000000000",
+        "ovzdusie-vendor-ci",
+    );
+    let refused = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/mcp")
+                .header(header::AUTHORIZATION, format!("Bearer {gateway}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&list).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
 }

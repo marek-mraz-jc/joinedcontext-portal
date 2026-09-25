@@ -267,6 +267,7 @@ fn cookie_for(config: &Config, groups: Vec<String>) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:jana".into(),
             username: "jana.kovacova".into(),
             email: None,

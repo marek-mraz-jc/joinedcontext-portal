@@ -6,7 +6,9 @@ import { defineConfig, devices } from "@playwright/test";
 //     EDITOR_PASSWORD=… npx playwright test --config playwright.live.config.ts
 // Passwords come from the environment only, read from the cluster Secret at run time: each demo
 // person's is Secret `keycloak-user-demo-<name>` (key `password`), so `demo.editor` is
-// `keycloak-user-demo-editor` (T-2231).
+// `keycloak-user-demo-editor` (T-2231). The journeys of a workload's own token (T-1595, T-1596)
+// read PROPOSER_CLIENT_SECRET, the `client-secret` of Secret
+// `keycloak-client-helsinki-pipeline-proposer` (T-2245).
 export default defineConfig({
   testDir: "./e2e/live",
   fullyParallel: false,

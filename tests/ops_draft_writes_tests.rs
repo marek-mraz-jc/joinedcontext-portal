@@ -31,6 +31,7 @@ fn put(manifest: Value) -> Value {
 /// A second steward of the same project, who owns no workspace.
 fn petra() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:petra".into(),
         username: "petra".into(),
         email: Some("petra@banskabystrica.sk".into()),
