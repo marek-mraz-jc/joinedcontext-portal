@@ -146,13 +146,13 @@ impl Watch {
         .await
     }
 
-    /// A token for a run that reads many pages: the data-quality run (DM-70).
+    /// A token for a run that reads many pages: the data-quality run (DM-74).
     pub(crate) async fn scan_token(&self) -> Result<String, String> {
         self.token().await
     }
 
     /// One page of the entities of `entity_type` in `space`, with their system attributes, as
-    /// the space surface answers a client that may read them (DM-70).
+    /// the space surface answers a client that may read them (DM-74).
     pub async fn page(
         &self,
         token: &str,

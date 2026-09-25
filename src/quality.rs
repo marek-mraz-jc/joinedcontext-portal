@@ -1,4 +1,4 @@
-//! The daily data-quality run (DM-70, API/01 §27).
+//! The daily data-quality run (DM-74, API/01 §27).
 //!
 //! A write is checked when it happens (PL-59, DM-61); data written before its model changed, or
 //! by a pipeline that stopped, is not. Once a day the leading replica reads every entity of every

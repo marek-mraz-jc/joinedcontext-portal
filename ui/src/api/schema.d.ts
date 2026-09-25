@@ -1770,7 +1770,7 @@ export interface paths {
         };
         /**
          * Read Data Quality
-         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-74).
          */
         get: operations["get_quality"];
         put?: never;
