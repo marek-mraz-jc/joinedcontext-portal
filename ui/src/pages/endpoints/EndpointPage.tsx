@@ -788,9 +788,14 @@ function FilterForm({
 }
 
 /**
- * A projection of every class of the space's model with every slot it has: what an endpoint with
- * no projection serves already, as the starting point of its first filter (MP-01). It is named
- * after the endpoint, or `{endpoint}-filter` when a projection already has that name.
+ * A projection of every class of the space's model with every slot the class declares, as the
+ * starting point of an endpoint's first filter (MP-01). It is named after the endpoint, or
+ * `{endpoint}-filter` when a projection already has that name.
+ *
+ * A slot a class only inherits (`is_a` an imported `Entity`, whose `location` it carries) is not
+ * listed: the write path checks a projection against the class's own slots (jc-core
+ * `linkml_classes`) and would refuse it. The proof beside the editor strikes such an attribute
+ * before anything is proposed, so the person sees what the first filter would stop serving.
  */
 export function projectionFromModel(
   project: string,
