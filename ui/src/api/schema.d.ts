@@ -5826,7 +5826,7 @@ export interface operations {
                     "application/json": components["schemas"]["SetupState"];
                 };
             };
-            /** @description The caller lacks approve on Organization */
+            /** @description Not an administrator of the organization (PF-03) */
             403: {
                 headers: {
                     [name: string]: unknown;

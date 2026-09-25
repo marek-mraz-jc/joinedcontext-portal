@@ -72,7 +72,7 @@ function renderAccess(verbs: string[]) {
             role: "org-admin",
             binding: "admins",
             scope: "organization",
-            rule: { kinds: ["Organization"], verbs: ["approve"] },
+            rule: { kinds: ["RoleBinding"], verbs: ["approve", "delete"] },
           },
           {
             role: "group-keeper",

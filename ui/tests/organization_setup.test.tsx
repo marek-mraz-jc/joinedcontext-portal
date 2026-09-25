@@ -32,7 +32,7 @@ const ADMIN = {
     {
       role: "org-admin",
       binding: "admins",
-      rule: { kinds: ["Organization", "Project"], verbs: ["propose", "approve", "delete"] },
+      rule: { kinds: ["Organization", "Project", "RoleBinding"], verbs: ["propose", "approve", "delete"] },
     },
   ],
 } as unknown as Effective;
@@ -100,7 +100,17 @@ describe("Organization → Setup", () => {
   });
 
   it("tells anyone else who sees it, and never asks the API", async () => {
-    const { requests } = renderAt("setup", VIEWER, () => json(setup(() => false)));
+    // The page itself answers a non-administrator first (UI-75); the tab keeps its own refusal.
+    const requests: string[] = [];
+    renderPage(<OrganizationSetup anchor="helsinki" />, {
+      path: "/organization/setup",
+      answer: (url, request) => {
+        requests.push(`${request.method} ${url.pathname}`);
+        if (url.pathname.endsWith("/permissions/me")) return json(VIEWER);
+        if (url.pathname === "/api/v1/organization/setup") return json(setup(() => false));
+        return undefined;
+      },
+    });
     expect(await screen.findByText(en.organization.setup.hidden)).toBeInTheDocument();
     expect(requests).not.toContain("GET /api/v1/organization/setup");
   });
@@ -121,8 +131,8 @@ describe("Organization → Setup", () => {
   });
 
   it("shows the API's refusal in its own words", async () => {
-    renderAt("setup", ADMIN, () => problem(403, "You lack approve on Organization"));
-    expect(await screen.findByText(/You lack approve on Organization/)).toBeInTheDocument();
+    renderAt("setup", ADMIN, () => problem(403, "Only an administrator of the organization reads its setup"));
+    expect(await screen.findByText(/Only an administrator of the organization reads its setup/)).toBeInTheDocument();
   });
 });
 

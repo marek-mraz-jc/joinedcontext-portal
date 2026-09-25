@@ -233,7 +233,7 @@ async fn a_whole_project_export_is_for_an_organization_administrator_ui87() {
         "Role",
         "org-admin",
         ORG_NAMESPACE,
-        json!({ "rules": [{ "kinds": ["Organization"], "verbs": ["read", "propose", "approve", "delete"] }] }),
+        json!({ "rules": [{ "kinds": ["Organization", "RoleBinding"], "verbs": ["read", "propose", "approve", "delete"] }] }),
     ));
     state.mirror.upsert(envelope(
         "RoleBinding",

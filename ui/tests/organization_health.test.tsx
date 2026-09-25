@@ -16,10 +16,7 @@ import { expectNoAxeViolations, json, renderPage } from "./page_contract";
 const ADMIN = {
   project: "org",
   bootstrap: false,
-  grants: [
-    { role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding"], verbs: ["propose", "approve", "delete"] } },
-    { role: "org-admin", binding: "admins", rule: { kinds: ["Organization"], verbs: ["approve"] } },
-  ],
+  grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding"], verbs: ["propose", "approve", "delete"] } }],
 } as unknown as Effective;
 
 // A steward approves bindings but deletes none: not an administrator (PF-03).

@@ -76,7 +76,7 @@ function renderPortal(path: string) {
             role: "org-admin",
             binding: "admins",
             scope: "organization",
-            rule: { kinds: ["Organization"], verbs: ["approve"] },
+            rule: { kinds: ["RoleBinding"], verbs: ["approve", "delete"] },
           },
           {
             role: "keeper",

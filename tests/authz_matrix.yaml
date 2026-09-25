@@ -122,7 +122,7 @@ routes:
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
   - route: GET /organization/setup
-    rule: "verb:approve:Organization"
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
   - route: GET /organization/people
     rule: "people-admin"
@@ -333,7 +333,7 @@ routes:
     rule: "project-verb:propose:<kind>"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
   - route: GET /projects/{project}/export
-    rule: "project-read, and verb:approve:Organization for a whole project (UI-87)"
+    rule: "project-read, and org-admin (PF-03) for a whole project (UI-87)"
     expect: [401, 403, 403, 403, 403, 404, 404, 403]
     note: "the row asks for the whole project, which is an organization administrator's (UI-87); the administrator's 404 is the project the fixture does not hold, and a reader who names manifests passes (export_api_tests)"
   - route: GET /projects/{project}/federation-graph

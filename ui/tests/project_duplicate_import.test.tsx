@@ -47,7 +47,7 @@ function renderAt(where: string, spec: Record<string, unknown>, importAnswer?: (
       return json({
         project: "banskabystrica",
         bootstrap: false,
-        grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["Organization"], verbs: ["approve"] } }],
+        grants: [{ role: "org-admin", binding: "admins", rule: { kinds: ["RoleBinding"], verbs: ["approve", "delete"] } }],
         projects: { creation: { allowed: true } },
       });
     }

@@ -79,15 +79,19 @@ export function usePermissions(project: string) {
 
 /** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
 /**
- * Whether the caller administers the organization: `approve` on `Organization`, which the seeded
- * `org-admin` holds (PF-56, UI-75). `known` is false until the permissions document is read.
+ * Whether the caller administers the organization (PF-03, UI-75): `approve` and `delete` on
+ * `RoleBinding` in the organization's permissions, as the seeded `org-admin` holds them and the
+ * server asks. `known` is false until the document is read, and a document that never came means
+ * no: what only an administrator sees is not shown while it is unknown.
  */
 export function useAdministers(): { known: boolean; administers: boolean } {
   const permissions = usePermissions(ORG_NAMESPACE);
   return {
     known: !permissions.isLoading,
-    // No document (the read failed): the page asks and the API decides, as `allows` does.
-    administers: !permissions.isLoading && allows(permissions.data, "Organization", "approve"),
+    administers:
+      permissions.data !== undefined &&
+      allows(permissions.data, "RoleBinding", "approve") &&
+      allows(permissions.data, "RoleBinding", "delete"),
   };
 }
 

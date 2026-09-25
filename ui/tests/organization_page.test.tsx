@@ -86,7 +86,7 @@ const BARE_ADMIN = {
   bootstrap: false,
   grants: [
     { role: "viewer", binding: "everyone", rule: { kinds: ["Pipeline", "Project"], verbs: ["read"] } },
-    { role: "org-approver", binding: "approvers", rule: { kinds: ["Organization"], verbs: ["approve"] } },
+    { role: "org-approver", binding: "approvers", rule: { kinds: ["RoleBinding"], verbs: ["approve", "delete"] } },
   ],
 } as unknown as Effective;
 

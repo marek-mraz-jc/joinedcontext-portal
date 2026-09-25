@@ -207,7 +207,7 @@ async fn world() -> (MockServer, AppState) {
         "Role",
         "org-admin",
         ORG_NAMESPACE,
-        json!({ "rules": [{ "kinds": ["Organization"], "verbs": ["read", "propose", "approve", "delete"] }] }),
+        json!({ "rules": [{ "kinds": ["Organization", "RoleBinding"], "verbs": ["read", "propose", "approve", "delete"] }] }),
     ));
     state.mirror.upsert(envelope(
         "RoleBinding",
