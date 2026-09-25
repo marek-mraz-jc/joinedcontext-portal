@@ -175,6 +175,8 @@ pub struct Syncer {
         Arc<crate::pipeline_outcomes::RejectedStore>,
         Arc<crate::pipeline_log::LogStore>,
     )>,
+    /// Each Live stream's written count and when it last moved, across syncs (T-2967).
+    stalls: super::stall::StallWatch,
 }
 
 impl Syncer {
@@ -195,6 +197,7 @@ impl Syncer {
             leadership: None,
             converger: None,
             streams: None,
+            stalls: super::stall::StallWatch::default(),
             registrations: None,
             drift: None,
             quality: None,
@@ -1178,6 +1181,13 @@ impl Syncer {
                     counters.insert(ns.clone(), deployer.metrics(ns).await);
                 }
             }
+            // The streams Live this run; a paused or deleted one is forgotten by the stall watch.
+            let live: std::collections::BTreeSet<(String, String)> = outcomes
+                .iter()
+                .filter(|(_, _, outcome)| matches!(outcome, StreamOutcome::Live))
+                .map(|(ns, name, _)| (ns.clone(), name.clone()))
+                .collect();
+            let now = std::time::Instant::now();
             for (ns, name, outcome) in outcomes {
                 let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
                     continue;
@@ -1190,19 +1200,25 @@ impl Syncer {
 
                 match outcome {
                     StreamOutcome::Live => {
+                        // Errors and nothing ever sent, else records in and nothing out for the
+                        // stall window (T-2967); an unreachable runner changes neither.
+                        let body = counters.get(&ns).and_then(Option::as_deref);
+                        let verdict = body
+                            .and_then(|body| failing(body, &name))
+                            .map(|said| ("NothingWritten", said))
+                            .or_else(|| {
+                                let metrics =
+                                    crate::api::pipelines::scrape(body?, &name, String::new());
+                                self.stalls
+                                    .observe(&ns, &name, &metrics, now)
+                                    .map(|said| ("Stalled", said))
+                            });
                         if let Some(status) = envelope.status.as_mut() {
                             status.phase = crate::resource::Phase::Live;
-                            status.conditions = match counters
-                                .get(&ns)
-                                .and_then(Option::as_deref)
-                                .and_then(|body| failing(body, &name))
-                            {
-                                Some(said) => vec![make_condition(
-                                    "StreamWriting",
-                                    "False",
-                                    "NothingWritten",
-                                    &said,
-                                )],
+                            status.conditions = match verdict {
+                                Some((reason, said)) => {
+                                    vec![make_condition("StreamWriting", "False", reason, &said)]
+                                }
                                 None => Vec::new(),
                             };
                         }
@@ -1239,6 +1255,7 @@ impl Syncer {
                     }
                 }
             }
+            self.stalls.retain(&live);
         } else {
             mark_streams_pending(
                 &fresh_mirror,

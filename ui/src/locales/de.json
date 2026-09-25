@@ -1145,6 +1145,7 @@
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
     "noCredential": "Keine",
     "writesType": "Schreibt",
+    "notWriting": "Schreibt nichts",
     "rejected": {
       "open": "Abgelehnte Datensätze",
       "title": "Abgelehnte Datensätze von {name}",

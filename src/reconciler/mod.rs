@@ -20,6 +20,7 @@ pub mod leader;
 pub mod project_teams;
 pub mod realm;
 pub mod registrations;
+pub mod stall;
 pub mod streams;
 pub mod subscriptions;
 pub mod workload_clients;

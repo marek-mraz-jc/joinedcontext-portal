@@ -1145,6 +1145,7 @@
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
     "noCredential": "Žádné",
     "writesType": "Zapisuje",
+    "notWriting": "Nezapisuje nic",
     "rejected": {
       "open": "Odmítnuté záznamy",
       "title": "Odmítnuté záznamy pipeliny {name}",
