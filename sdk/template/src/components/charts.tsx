@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import * as echarts from "echarts";
 import { aggregate, currentTokens, echartsTheme, groupBy } from "@joinedcontext/sdk";
 import type { Agg, DesignTokens, ProblemError, Row, TemporalRow } from "@joinedcontext/sdk";
@@ -57,7 +57,7 @@ export function barOption(
 
   const categoryAxis = { type: "category", data: groups.map((g) => g.key) };
   const valueAxis = { type: "value" };
-  const series = [{ type: "bar", name: spec.y ?? "count", data: groups.map((g) => g.value) }];
+  const series = [{ type: "bar", name: spec.y ?? i18n.t("chart.count"), data: groups.map((g) => g.value) }];
 
   return {
     color: t.chart.palette,
@@ -193,6 +193,65 @@ export function timeSeriesOption(
   };
 }
 
+/** What a chart shows, in rows: the first column names the category, slice or instant, and each
+ * series has a column of its own. */
+export interface ChartTable {
+  head: string[];
+  rows: string[][];
+}
+
+type Series = { type?: unknown; name?: unknown; data?: unknown };
+
+/**
+ * The values a chart draws, as a table a screen reader reads (WCAG 1.1.1, T-2974), from the same
+ * option the canvas is drawn from, so the two never disagree. `null` when the option has nothing
+ * a person could read off it.
+ */
+export function chartTable(option: Record<string, unknown>): ChartTable | null {
+  const series = (Array.isArray(option.series) ? option.series : []) as Series[];
+  if (series.length === 0) return null;
+  const number = new Intl.NumberFormat(i18n.language(), { maximumFractionDigits: 2 });
+  const cell = (value: unknown): string =>
+    typeof value === "number" && Number.isFinite(value) ? number.format(value) : "";
+  const named = (s: Series): string => (typeof s.name === "string" && s.name !== "" ? s.name : i18n.t("chart.value"));
+  const data = (s: Series): unknown[] => (Array.isArray(s.data) ? s.data : []);
+
+  if (series[0].type === "pie") {
+    const slices = data(series[0]) as Array<{ name?: unknown; value?: unknown }>;
+    const rows = slices.map((slice) => [String(slice.name ?? ""), cell(slice.value)]);
+    return rows.length > 0 ? { head: [i18n.t("chart.category"), i18n.t("chart.value")], rows } : null;
+  }
+
+  const axes = [option.xAxis, option.yAxis] as Array<{ type?: unknown; data?: unknown } | undefined>;
+  const categories = axes.find((axis) => axis?.type === "category" && Array.isArray(axis.data))?.data as unknown[] | undefined;
+  if (categories) {
+    const rows = categories.map((category, index) => [String(category), ...series.map((s) => cell(data(s)[index]))]);
+    return rows.length > 0 ? { head: [i18n.t("chart.category"), ...series.map(named)], rows } : null;
+  }
+
+  if (axes.some((axis) => axis?.type === "time")) {
+    // Each series carries its own instants; the table holds every instant once, in order.
+    const byInstant = new Map<string, string[]>();
+    series.forEach((s, column) => {
+      for (const point of data(s)) {
+        if (!Array.isArray(point) || typeof point[0] !== "string") continue;
+        const row = byInstant.get(point[0]) ?? series.map(() => "");
+        row[column] = cell(point[1]);
+        byInstant.set(point[0], row);
+      }
+    });
+    const when = new Intl.DateTimeFormat(i18n.language(), { dateStyle: "medium", timeStyle: "short" });
+    const rows = [...byInstant.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([instant, values]) => {
+        const date = new Date(instant);
+        return [Number.isNaN(date.getTime()) ? instant : when.format(date), ...values];
+      });
+    return rows.length > 0 ? { head: [i18n.t("chart.time"), ...series.map(named)], rows } : null;
+  }
+  return null;
+}
+
 export function ChartCard({
   title,
   option,
@@ -220,6 +279,9 @@ export function ChartCard({
   onReadyRef.current = onReady;
 
   const showCanvas = !error && !loading && option !== null;
+  const table = useMemo(() => (option ? chartTable(option) : null), [option]);
+  // Named by its caption outright: not every screen reader, nor jsdom, names a figure from it.
+  const captionId = useId();
 
   useEffect(() => {
     if (!showCanvas) return;
@@ -263,8 +325,8 @@ export function ChartCard({
   }, [option]);
 
   return (
-    <figure className="jc-chart">
-      {title && <figcaption>{title}</figcaption>}
+    <figure className="jc-chart" aria-labelledby={title ? captionId : undefined}>
+      {title && <figcaption id={captionId}>{title}</figcaption>}
       {error ? (
         <Problem error={error} />
       ) : loading ? (
@@ -272,11 +334,38 @@ export function ChartCard({
       ) : option === null ? (
         <Empty>{empty ?? i18n.t("chart.empty")}</Empty>
       ) : (
-        <div
-          className="jc-chart-canvas"
-          style={height === undefined ? undefined : { height }}
-          ref={containerRef}
-        />
+        <>
+          {/* The canvas is a picture of the table under it, which is what a screen reader reads. */}
+          <div
+            className="jc-chart-canvas"
+            aria-hidden="true"
+            style={height === undefined ? undefined : { height }}
+            ref={containerRef}
+          />
+          {table && (
+            <table className="jc-chart-table">
+              <thead>
+                <tr>
+                  {table.head.map((name, index) => (
+                    <th key={index} scope="col">
+                      {name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map(([label, ...values], index) => (
+                  <tr key={index}>
+                    <th scope="row">{label}</th>
+                    {values.map((value, column) => (
+                      <td key={column}>{value}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
     </figure>
   );

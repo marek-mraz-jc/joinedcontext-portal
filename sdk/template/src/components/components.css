@@ -308,6 +308,7 @@ body {
 }
 
 .jc-chart {
+  position: relative;
   margin: 0;
   padding: var(--jc-space-3, 0.75rem);
   background: var(--jc-color-card, #f8fafc);
@@ -542,4 +543,18 @@ body {
   width: 100%;
   border: 1px solid var(--jc-color-line, #e2e8f0);
   border-radius: var(--jc-radius-md, 6px);
+}
+
+/* The chart's values for a screen reader (WCAG 1.1.1, T-2974): read, never seen, since the canvas
+   above draws the same rows. */
+.jc-chart-table {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
