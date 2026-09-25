@@ -46,7 +46,7 @@ export function OrganizationLimitsView({
         const headingId = `organization-limits-${section}`;
         return (
           <section key={section} className="space-y-3" aria-labelledby={headingId}>
-            <h3 id={headingId} className="text-subtitle font-semibold text-fg">
+            <h3 id={headingId} className="text-body font-semibold text-fg">
               {t(`organization.limits.section.${section}`)}
             </h3>
             <Table caption={t(`organization.limits.section.${section}`)}>
@@ -95,7 +95,7 @@ export function OrganizationLimitsView({
       })}
 
       <section className="space-y-3" aria-labelledby="organization-limits-projects-table">
-        <h3 id="organization-limits-projects-table" className="text-subtitle font-semibold text-fg">
+        <h3 id="organization-limits-projects-table" className="text-body font-semibold text-fg">
           {t("organization.limits.perProject")}
         </h3>
         <p className="text-body text-fg-muted">{t("organization.limits.perProjectLead")}</p>
