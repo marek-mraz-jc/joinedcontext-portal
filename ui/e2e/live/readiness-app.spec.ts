@@ -104,3 +104,30 @@ test("the assistant's Build an app path makes an app that opens in the Portal an
     await steward.context.close();
   }
 });
+
+test("a person stops an app run the assistant started, and the run says it was stopped", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  const page = steward.page;
+  const stopped = `rdy-stop-${SUFFIX}`;
+  try {
+    await page.getByRole("button", { name: "Generate your own app" }).first().click();
+    const endpoint = page.getByLabel("Endpoint").first();
+    const bikes = endpoint.locator("option").filter({ hasText: /bike/i }).first();
+    await endpoint.selectOption((await bikes.getAttribute("value")) ?? "");
+    await page.getByLabel("What should the app do?").first().fill(PROMPT);
+    await page.getByText("Details:", { exact: false }).first().click();
+    await page.getByLabel("App name").fill(stopped);
+    await page.getByRole("button", { name: "Generate the app" }).click();
+    await page.waitForURL(new RegExp(`/projects/${PROJECT}/apps/${stopped}`), { timeout: 60_000 });
+    // Stopped as soon as it may be, so the run spends as little of the model as it can.
+    const stop = page.getByRole("button", { name: "Stop the run" });
+    await expect(stop).toBeEnabled({ timeout: 60_000 });
+    await stop.click();
+    await expect(page.getByText("The run was stopped.")).toBeVisible({ timeout: 60_000 });
+    await expect(stop).toBeDisabled();
+  } finally {
+    // Nothing was published, so no App exists; only the run's drafts could be left.
+    await sweepDrafts(steward.context, page, PROJECT, new RegExp(`^${stopped}$`));
+    await steward.context.close();
+  }
+});

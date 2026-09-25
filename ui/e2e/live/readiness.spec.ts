@@ -26,7 +26,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
-import { APPROVER, STEWARD, VIEWER, approve, csrf, goSignedIn, portalReady, proposedChange, removeCompletely, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, VIEWER, approve, csrf, goSignedIn, portalReady, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
 import { proposeFrom } from "./kindJourney";
 
 type Session = { context: BrowserContext; page: Page };
@@ -34,7 +34,9 @@ type Session = { context: BrowserContext; page: Page };
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
 const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
-const PERSON = { email: `readiness-${SUFFIX}@example.org`, first: "Ready", last: `Walk ${SUFFIX}` };
+const PERSON = { email: `readiness-${SUFFIX}@example.org`, first: "Ready", last: `Walk ${SUFFIX}`, edited: `Walked ${SUFFIX}` };
+/** The person's name once step 2 has edited it. */
+const EDITED = `${PERSON.first} ${PERSON.edited}`;
 const GROUP = `rdy-group-${SUFFIX}`;
 const SPACE = `rdy-space-${SUFFIX}`;
 const MODEL = `rdy-model-${SUFFIX}`;
@@ -43,6 +45,9 @@ const PIPELINE = `rdy-pipeline-${SUFFIX}`;
 const READ = `rdy-read-${SUFFIX}`;
 const WRITE = `rdy-write-${SUFFIX}`;
 const KPI = `rdy-kpi-${SUFFIX}`;
+const ACCOUNT = `rdy-sa-${SUFFIX}`;
+const SYNC = `rdy-sync-${SUFFIX}`;
+const FLOW = `rdy-flow-${SUFFIX}`;
 const MINE = new RegExp(`^rdy-[a-z]+-${SUFFIX}$`);
 const ROLE = "model-editor";
 const APP = "helsinki-alerts";
@@ -79,6 +84,10 @@ let personId = "";
 let cleaned = false;
 
 test.describe.configure({ mode: "serial" });
+// The realm on dev sends no e-mail, so a new person's and a reset password is shown on the page
+// once; a trace would keep that page (T-2746 Security). Screenshots are taken only with no
+// password dialog open (`afterEach`).
+test.use({ trace: "off" });
 
 /** Approves a change as `who`, typing the resource's name back when the page asks for it (CC-19). */
 async function approveAsked(who: Session, project: string, change: string): Promise<void> {
@@ -159,6 +168,8 @@ async function newEndpoint(page: Page, name: string, writable: boolean): Promise
 async function cleanUp(keepPerson = false): Promise<void> {
   const page = steward.page;
   await removeCompletely(steward, PROJECT, "pipelines", PIPELINE);
+  await removeCompletely(steward, PROJECT, "syncsources", SYNC);
+  await removeCompletely(steward, PROJECT, "serviceaccounts", ACCOUNT);
   await removeCompletely(steward, PROJECT, "datasources", SOURCE);
   for (const endpoint of [READ, WRITE]) {
     await removeCompletely(steward, PROJECT, "endpoints", endpoint);
@@ -214,6 +225,10 @@ test.afterAll(async () => {
 test.afterEach(async () => {
   const info = test.info();
   if (info.status !== info.expectedStatus && steward) {
+    if (await steward.page.getByRole("dialog", { name: "Temporary password" }).count()) {
+      info.annotations.push({ type: "screenshot", description: "withheld: a temporary password was on the page" });
+      return;
+    }
     // The sweep files the step with this picture of what the person saw (sweep-summary.ts).
     await info.attach("screenshot", { body: await steward.page.screenshot({ fullPage: true }), contentType: "image/png" });
   }
@@ -244,7 +259,7 @@ test("1. the themed sign-in leads to the Portal with the Organization link and t
   }
 });
 
-test("2. the organization: settings, a new person, a group with a role, and the person's page", async () => {
+test("2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page", async () => {
   test.setTimeout(1_200_000);
   const page = steward.page;
   await page.goto(`/projects/${PROJECT}/spaces?lang=en`, { waitUntil: "load" });
@@ -253,6 +268,24 @@ test("2. the organization: settings, a new person, a group with a role, and the 
   await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Settings" })).toBeVisible();
   await expect(page.getByText("Domain", { exact: true }).first()).toBeVisible();
+
+  // An edit of the settings, proposed as a red change, and rejected by the administrator with a
+  // reason, so the organization stays as it was.
+  await page.getByRole("button", { name: /^Edit [a-z0-9.-]+\.[a-z]+$/ }).first().click();
+  const settings = page.getByTestId("form-page");
+  const apps = settings.getByLabel("Apps", { exact: true });
+  const quota = Number.parseInt((await apps.inputValue()) || "0", 10);
+  await apps.fill(String(quota + 1));
+  await proposeFrom(settings);
+  const edit = await proposedChange(page);
+  await reject(page, "org", edit);
+  await expect
+    .poll(async () => {
+      const answer = await page.request.get(`/api/v1/projects/org/changes/${edit}`);
+      return answer.ok() ? (((await answer.json()) as { status?: { phase?: string } }).status?.phase ?? "") : "";
+    }, { timeout: 60_000 })
+    .toBe("Rejected");
+  await page.goto("/organization/settings?lang=en", { waitUntil: "load" });
 
   // A person, created from the People tab; the realm on dev sends no e-mail, so the page hands
   // over a temporary password once, which the walk closes unread.
@@ -279,6 +312,34 @@ test("2. the organization: settings, a new person, a group with a role, and the 
   await page.getByRole("searchbox", { name: "Search people" }).fill(PERSON.email);
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByRole("link", { name: `${PERSON.first} ${PERSON.last}` })).toBeVisible({ timeout: 60_000 });
+
+  // The person's page: edit, disable, enable, reset the password, remove a second factor. Each
+  // goes straight to the realm; the walk acts only on the person it created.
+  await page.goto(`/organization/people/${personId}?lang=en`, { waitUntil: "load" });
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: `Edit ${PERSON.first} ${PERSON.last}` });
+  await editor.getByLabel(/^Last name/).fill(PERSON.edited);
+  await editor.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: EDITED })).toBeVisible({ timeout: 60_000 });
+  const confirmed = async (button: string, said: string | RegExp) => {
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await page.getByTestId("confirm-accept").click();
+    await expect(page.getByText(said).first()).toBeVisible({ timeout: 60_000 });
+  };
+  await confirmed("Disable", "Disabled. Every session of the person ended.");
+  await expect(page.getByRole("button", { name: "Enable", exact: true })).toBeVisible();
+  await confirmed("Enable", "Enabled. The person can sign in again.");
+  await page.getByRole("button", { name: "Reset password", exact: true }).click();
+  await page.getByTestId("confirm-accept").click();
+  const reset = page.getByRole("dialog", { name: "Temporary password" });
+  await expect(reset.or(page.getByText("The realm e-mailed the person a link to set a new password.")).first()).toBeVisible({
+    timeout: 60_000,
+  });
+  if (await reset.count()) {
+    // Closed unread: the walk proves the hand-over, never the password.
+    await reset.getByRole("button", { name: "Done" }).click();
+  }
+  await confirmed("Remove second factor", "Second factor removed.");
 
   // The viewer meets New person refused, with the reason.
   await viewer.page.goto("/organization/people?lang=en", { waitUntil: "load" });
@@ -317,7 +378,7 @@ test("2. the organization: settings, a new person, a group with a role, and the 
       { timeout: 300_000, intervals: [10_000], message: "the person's page shows the group and its role" },
     )
     .toBe(true);
-  await expect(page.getByRole("heading", { level: 1, name: `${PERSON.first} ${PERSON.last}` })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: EDITED })).toBeVisible();
 });
 
 test("3. a space with its model: two classes, an enum, a slot of it and a relationship", async () => {
@@ -568,6 +629,128 @@ test("9. every path of the dock answers its first question", async () => {
   }
 });
 
+test("9a. a service account's API key is minted, rotated and revoked", async () => {
+  test.setTimeout(900_000);
+  const page = steward.page;
+  await page.goto(`/projects/${PROJECT}/settings/service-accounts?lang=en`, { waitUntil: "load" });
+  await page.getByRole("main").getByRole("button", { name: "New service account" }).first().click();
+  const form = page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New service account" })).first();
+  await form.locator("#root_name").fill(ACCOUNT);
+  await form.locator("#root_purpose").fill("Holds the readiness walk's API key");
+  await form.locator("#root_roles_0_role").fill("viewer");
+  await form.locator("#root_credentials_0_name").fill(`${ACCOUNT}-key`);
+  await form.locator("#root_credentials_0_kind").selectOption("api-key");
+  await proposeFrom(form);
+  await approveAsked(approver, PROJECT, await proposedChange(page));
+  await page.goto(`/projects/${PROJECT}/settings/service-accounts?lang=en`, { waitUntil: "load" });
+  await listed(page, PROJECT, "serviceaccounts", ACCOUNT);
+
+  // The key is shown once; the walk checks its shape inside the page and never reads it out.
+  const minted = async () => {
+    const dialog = page.getByRole("dialog", { name: "Your new API key" });
+    await expect(dialog).toBeVisible({ timeout: 60_000 });
+    const shaped = await dialog
+      .getByLabel("API key")
+      .evaluate((input) => /^jc_[A-Za-z0-9]+_[A-Za-z0-9_-]{16,}$/.test((input as HTMLInputElement).value));
+    expect(shaped, "the key is a jc_<id>_<secret>").toBe(true);
+    await dialog.getByRole("button", { name: "Close" }).click();
+  };
+  await page.getByRole("button", { name: `New API key (${ACCOUNT}-key)` }).click();
+  await minted();
+  const keys = page.getByRole("table", { name: `API keys of ${ACCOUNT}` });
+  await expect(keys.getByRole("row")).toHaveCount(2, { timeout: 30_000 });
+  await keys.getByRole("button", { name: "Rotate" }).first().click();
+  await minted();
+  await expect(keys.getByRole("row")).toHaveCount(3, { timeout: 30_000 });
+  // Both keys revoked, so nothing of the account still answers once it is removed.
+  for (let left = 2; left > 0; left -= 1) {
+    await keys.getByRole("button", { name: "Revoke" }).first().click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Revoke now" }).click();
+    await expect(keys.getByRole("button", { name: "Revoke" })).toHaveCount(left - 1, { timeout: 30_000 });
+  }
+  await expect(keys.getByText(/^revoked /).first()).toBeVisible();
+});
+
+test("9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, and is detached", async () => {
+  test.setTimeout(900_000);
+  const page = steward.page;
+  await page.goto(`/projects/${PROJECT}/syncsources?lang=en`, { waitUntil: "load" });
+  await page.getByLabel("Origin").selectOption("git");
+  await page.getByRole("main").getByRole("button", { name: "Add source" }).click();
+  const form = page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New sync source" })).first();
+  await form.locator("#root_name").fill(SYNC);
+  // example.org (RFC 2606): the loop reaches nothing, so the source never opens a merge request.
+  await form.locator("#root_git_url").fill(`https://git.example.org/${SYNC}/config.git`);
+  await form.locator("#root_git_ref").fill("main");
+  await proposeFrom(form);
+  await approveAsked(approver, PROJECT, await proposedChange(page));
+  await listed(page, PROJECT, "syncsources", SYNC);
+
+  const card = page.getByRole("article", { name: SYNC });
+  await card.getByRole("button", { name: "Sync now" }).click();
+  await expect(
+    card
+      .getByText("The run changed nothing: the source has not moved.")
+      .or(card.getByRole("alert"))
+      .or(card.getByText("Last error"))
+      .first(),
+    "Sync now reports what the run did",
+  ).toBeVisible({ timeout: 120_000 });
+  await card.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Sync now" })).toBeDisabled({ timeout: 30_000 });
+  await card.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Pause", exact: true })).toBeVisible({ timeout: 30_000 });
+
+  // A webhook call is verified against the source's own secret: an unsigned one is refused.
+  const unsigned = await page.request.post(`/api/v1/webhooks/sync/${PROJECT}/${SYNC}`, { data: { ref: "refs/heads/main" } });
+  expect(unsigned.status(), "an unsigned webhook is refused").toBe(401);
+
+  await card.getByRole("button", { name: "Detach" }).click();
+  await page.getByTestId("confirm-accept").click();
+  await expect(card.getByText("A merge request that removes the source is open.")).toBeVisible({ timeout: 60_000 });
+  let change = "";
+  await expect
+    .poll(
+      async () => {
+        const open = await items<{ metadata: { name: string } }>(page, `/api/v1/projects/${PROJECT}/changes`);
+        change = open.find((one) => JSON.stringify(one).includes(`detach sync source ${PROJECT}/${SYNC}`))?.metadata.name ?? "";
+        return change;
+      },
+      { timeout: 60_000, message: "the detach is a change to approve" },
+    )
+    .not.toBe("");
+  await approveAsked(steward, PROJECT, change);
+  await expect
+    .poll(() => status(page, `/api/v1/projects/${PROJECT}/syncsources/${SYNC}`), { timeout: 300_000, intervals: [5_000] })
+    .toBe(404);
+});
+
+test("9c. a blueprint proposes a flow from its form, and the approver rejects it", async () => {
+  test.setTimeout(600_000);
+  const page = steward.page;
+  await page.goto(`/projects/${PROJECT}/flows?lang=en`, { waitUntil: "load" });
+  await page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { name: "Poll a JSON feed into a Context Space" }) })
+    .getByRole("button", { name: "Set up" })
+    .click();
+  await expect(page.getByRole("heading", { name: "Set up: Poll a JSON feed into a Context Space" })).toBeVisible();
+  // A fresh name: the defaults could name a seeded pipeline and propose to change it.
+  await page.locator("#root_name").fill(FLOW);
+  await page.locator("#root_url").fill(`https://feeds.example.org/${FLOW}.json`);
+  await page.locator("#root_entityType").fill("Event");
+  await page.getByRole("button", { name: "Propose change" }).click();
+  const change = await proposedChange(page);
+  await reject(approver.page, PROJECT, change);
+  await expect
+    .poll(async () => {
+      const answer = await page.request.get(`/api/v1/projects/${PROJECT}/changes/${change}`);
+      return answer.ok() ? (((await answer.json()) as { status?: { phase?: string } }).status?.phase ?? "") : "";
+    }, { timeout: 60_000 })
+    .toBe("Rejected");
+  expect(await status(page, `/api/v1/projects/${PROJECT}/pipelines/${FLOW}`), "a rejected flow made no pipeline").toBe(404);
+});
+
 test("10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out", async () => {
   test.setTimeout(1_800_000);
   const page = steward.page;
@@ -576,12 +759,25 @@ test("10. nothing of the walk is left, the person is signed out everywhere and r
   await page.getByTestId("confirm-accept").click();
   await expect(page.getByText("Every session of the person ended.")).toBeVisible({ timeout: 30_000 });
 
+  // The group, removed from its own page: the administrator's typed name approves it at once
+  // (PF-58), and the removal takes the group out of the binding that names it.
+  await page.goto(`/organization/groups/${GROUP}?lang=en`, { waitUntil: "load" });
+  await page.getByRole("button", { name: `Remove ${GROUP}`, exact: true }).click();
+  const removal = page.getByRole("dialog", { name: `Remove ${GROUP}` });
+  await removal.getByLabel(`Type ${GROUP} to confirm`).fill(GROUP);
+  await removal.getByRole("button", { name: "Propose removal" }).click();
+  await expect(removal.getByText("Approved as you proposed it, applying:")).toBeVisible({ timeout: 60_000 });
+  await removal.getByRole("button", { name: "Close" }).click();
+  await expect
+    .poll(() => status(page, `/api/v1/projects/org/groups/${GROUP}`), { timeout: 300_000, intervals: [5_000] })
+    .toBe(404);
+
   await cleanUp(true);
 
   // No group names the person any more, so Delete removes them at once.
   await page.goto(`/organization/people/${personId}?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: `Delete ${PERSON.first} ${PERSON.last}?` })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: `Delete ${EDITED}?` })).toBeVisible();
   await page.getByTestId("confirm-accept").click();
   await expect(page).toHaveURL(/\/organization\/people(\?|$)/, { timeout: 60_000 });
   expect(await status(page, `/api/v1/organization/people/${personId}`), "the person is gone").toBe(404);
