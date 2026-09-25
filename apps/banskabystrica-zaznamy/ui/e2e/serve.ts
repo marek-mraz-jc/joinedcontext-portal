@@ -46,10 +46,13 @@ export async function serve(page: Page): Promise<Served> {
       return route.abort();
     }
     if (url.pathname.includes("/api/endpoint/")) {
+      // A chart's read names one cube (`q=dataSet=="…"`, T-2966); the table's page names none.
+      const cube = /dataSet=="([^"]+)"/.exec(url.searchParams.get("q") ?? "")?.[1];
+      const rows = answer(CITY).filter((entity) => !cube || (entity.dataSet as { value: string }).value === cube);
       return route.fulfill({
         status: 200,
-        headers: { "content-type": "application/ld+json", "ngsild-results-count": String(CITY.length) },
-        body: JSON.stringify(answer(CITY)),
+        headers: { "content-type": "application/ld+json", "ngsild-results-count": String(rows.length) },
+        body: JSON.stringify(rows),
       });
     }
     if (!url.pathname.startsWith(`/apps/${NAME}/`)) {

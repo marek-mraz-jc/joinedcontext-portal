@@ -99,22 +99,23 @@ describe("the endpoint link pill", () => {
 });
 
 describe("what an endpoint serves", () => {
-  // EP-24, T-2901: MCP is on for every Endpoint, public or internal, without being listed.
-  it("adds_mcp_to_every_endpoint_that_does_not_opt_out", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "mcp"]);
-    expect(servedRepresentations({ enabledRepresentations: ["mcp", "ngsi-ld"] })).toEqual(["mcp", "ngsi-ld"]);
-    expect(servedRepresentations({})).toEqual(["mcp"]);
+  // EP-10, EP-24, T-2901, T-2939: NGSI-LD, GeoJSON and MCP are on for every Endpoint, public or
+  // internal, without being listed.
+  it("adds_ngsi_ld_geojson_and_mcp_to_every_endpoint", () => {
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "geojson", "mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["mcp", "geojson", "ngsi-ld"] })).toEqual(["mcp", "geojson", "ngsi-ld"]);
+    expect(servedRepresentations({})).toEqual(["ngsi-ld", "geojson", "mcp"]);
   });
 
   it("leaves_mcp_out_only_when_the_manifest_says_mcp_false", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: false })).toEqual(["ngsi-ld"]);
+    expect(servedRepresentations({ enabledRepresentations: ["csv"], mcp: false })).toEqual(["csv", "ngsi-ld", "geojson"]);
     // Anything but the boolean false is not an opt-out: the gateway would serve the instance.
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: "false" })).toEqual(["ngsi-ld", "mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: "false" })).toEqual(["ngsi-ld", "geojson", "mcp"]);
   });
 
   it("drops_a_list_entry_that_is_not_a_name", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld"]);
-    expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(["mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld", "geojson"]);
+    expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(["ngsi-ld", "geojson", "mcp"]);
   });
 });
 

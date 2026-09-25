@@ -245,9 +245,8 @@ mod tests {
     fn every_entry_round_trips_plural_kind_plural() {
         for entry in kinds() {
             let by_p = by_plural(entry.plural).expect("find by plural");
-            // Policy and ScopeDefinition deliberately share the plural "policies"; every other
-            // kind must come back as itself.
-            assert!(by_p.plural == entry.plural);
+            // Every kind has a plural of its own (R19, T-2954), so each comes back as itself.
+            assert_eq!(by_p.kind, entry.kind);
             let by_k = by_kind(entry.kind).expect("find by kind");
             assert_eq!(by_k.kind, entry.kind);
             assert_eq!(by_k.plural, entry.plural);

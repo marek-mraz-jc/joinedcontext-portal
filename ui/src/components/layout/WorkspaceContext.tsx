@@ -22,7 +22,7 @@ export function setActiveWorkspace(name: string | null): void {
  * non-resource routes.
  */
 const RESOURCE_PATH_RE =
-  /^\/api\/v1\/projects\/[^/]+\/(spaces|endpoints|datasources|pipelines|dashboards|apps|syncsources|datamodels|mappings|policies|subscriptions|csrs|shared|serviceaccounts|layers|uischemas|projections|dataoffers|dataagreements|dataspaceparticipants|ckaninstances|blueprints|agentprofiles|bundles|roles|rolebindings|groups|environments)(\/[^/]+)?$/;
+  /^\/api\/v1\/projects\/[^/]+\/(spaces|endpoints|datasources|pipelines|dashboards|apps|syncsources|datamodels|mappings|policies|subscriptions|csrs|shared|serviceaccounts|layers|uischemas|projections|scopedefinitions|dataoffers|dataagreements|dataspaceparticipants|ckaninstances|blueprints|agentprofiles|bundles|roles|rolebindings|groups|environments)(\/[^/]+)?$/;
 
 /**
  * The shared drafts of a copy (T-2267): unproposed work made inside a copy belongs to that copy,

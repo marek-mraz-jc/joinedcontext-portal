@@ -48,6 +48,13 @@ dd {
   color: #b3261e;
 }
 
+/* The same red on the dark card is unreadable (axe color-contrast): a lighter one of the hue. */
+@media (prefers-color-scheme: dark) {
+  [role="alert"] {
+    color: #ff8a80;
+  }
+}
+
 /* One label above its field, the buttons in a row that wraps, every control a finger's size. */
 .note {
   display: grid;

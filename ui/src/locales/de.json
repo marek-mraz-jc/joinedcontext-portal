@@ -77,6 +77,7 @@
     "blueprints": "Vorlagen",
     "agentprofiles": "Agentenprofile",
     "dataoffers": "Datenangebote",
+    "scopedefinitions": "Bereichsdefinitionen",
     "dataspaceparticipants": "Datenraum",
     "environments": "Umgebungen",
     "projections": "Modellprojektionen"
@@ -2232,7 +2233,10 @@
       "fullscreen": "Vollbild",
       "fullscreenExit": "Vollbild verlassen",
       "fullscreenUnavailable": "Dieser Browser bietet hier kein Vollbild an.",
-      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}"
+      "fullscreenFailed": "Der Browser hat nicht in den Vollbildmodus gewechselt: {reason}",
+      "silentTitle": "Die App hat nicht geantwortet.",
+      "silentBody": "Bleibt sie leer, ist ihre Anmeldung wahrscheinlich abgelaufen. Melden Sie sich in diesem Fenster erneut an oder öffnen Sie die App in einem eigenen Fenster.",
+      "silentDismiss": "Diese Meldung ausblenden"
     },
     "retire": {
       "title": "{name} außer Betrieb nehmen",
@@ -4718,6 +4722,12 @@
       "verbs": "Was er tun darf",
       "endpoints": "Endpunkte",
       "endpoint": "Endpunkt"
+    }
+  },
+  "scopedefinitions": {
+    "field": {
+      "name": "Name",
+      "scopeString": "Bereichspfad"
     }
   },
   "dataoffers": {

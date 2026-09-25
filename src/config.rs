@@ -446,6 +446,7 @@ fn build_pod_settings(
 fn app_settings(
     lookup: &impl Fn(&str) -> Option<String>,
     public_base_url: &Url,
+    basemap: bool,
 ) -> Result<Option<crate::apps::reconciler::Settings>, ConfigError> {
     let set = |var: &str| {
         lookup(var)
@@ -523,6 +524,7 @@ fn app_settings(
         pull_secret,
         release,
         service_account,
+        basemap_base: basemap.then(|| public_base_url.as_str().to_owned()),
     }))
 }
 
@@ -1214,11 +1216,11 @@ impl Config {
         let apps_cache_dir =
             lookup("JC_PORTAL_APPS_CACHE_DIR").filter(|dir| !dir.trim().is_empty());
         let apps_url = apps_url(&lookup)?;
-        let app_settings = app_settings(&lookup, &public_base_url)?;
+        let basemap = basemap_config(&lookup)?;
+        let app_settings = app_settings(&lookup, &public_base_url, basemap.is_some())?;
         let build_pods = build_pod_settings(&lookup)?;
         let agent_settings = agent_settings(&lookup)?;
         let app_tests = app_tests(&lookup)?;
-        let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
         let health_dir = lookup("JC_HEALTH_DIR").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
@@ -1807,6 +1809,20 @@ mod tests {
             ("JC_PORTAL_APPS_URL", "https://city.example.org"),
         ]);
         assert_eq!(named.apex, "city.example.org");
+
+        // AP-67: a pod App is handed its basemap only where the Portal proxies one.
+        assert_eq!(settings.basemap_base, None);
+        let mapped = apex(&[
+            (
+                "JC_BASEMAP_URL",
+                "https://tiles.example.com/{z}/{x}/{y}.png",
+            ),
+            ("JC_BASEMAP_ATTRIBUTION", "OpenStreetMap"),
+        ]);
+        assert_eq!(
+            mapped.basemap_base.as_deref(),
+            Some("https://bb.example.sk/")
+        );
 
         for missing in ["JC_PORTAL_APPS_NAMESPACE", "JC_PORTAL_ORG_DOMAIN"] {
             let config = Config::from_vars(|k| match k == missing {

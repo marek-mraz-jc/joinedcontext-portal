@@ -77,6 +77,7 @@
     "blueprints": "Šablony",
     "agentprofiles": "Profily agentů",
     "dataoffers": "Datové nabídky",
+    "scopedefinitions": "Definice rozsahů",
     "dataspaceparticipants": "Datový prostor",
     "environments": "Prostředí",
     "projections": "Projekce modelů"
@@ -2232,7 +2233,10 @@
       "fullscreen": "Celá obrazovka",
       "fullscreenExit": "Opustit celou obrazovku",
       "fullscreenUnavailable": "Tento prohlížeč zde celou obrazovku nenabízí.",
-      "fullscreenFailed": "Prohlížeč nepřepnul na celou obrazovku: {reason}"
+      "fullscreenFailed": "Prohlížeč nepřepnul na celou obrazovku: {reason}",
+      "silentTitle": "Aplikace neodpověděla.",
+      "silentBody": "Pokud zůstává prázdná, pravděpodobně vypršelo její přihlášení. Přihlaste se znovu v tomto okně, nebo aplikaci otevřete v samostatném okně.",
+      "silentDismiss": "Skrýt tuto zprávu"
     },
     "retire": {
       "title": "Vyřadit {name}",
@@ -4718,6 +4722,12 @@
       "verbs": "Co smí dělat",
       "endpoints": "Koncové body",
       "endpoint": "Koncový bod"
+    }
+  },
+  "scopedefinitions": {
+    "field": {
+      "name": "Název",
+      "scopeString": "Cesta rozsahu"
     }
   },
   "dataoffers": {

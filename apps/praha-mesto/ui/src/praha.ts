@@ -198,6 +198,11 @@ export function between(low: string, high: string, t: number): string {
   return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** The histogram's bars, each in its step's legend colour, so a bar and the map dots of its step match. */
+export function histogramBars(counts: number[], legend: { colour: string }[]): { value: number; itemStyle: { color: string } }[] {
+  return counts.map((value, i) => ({ value, itemStyle: { color: legend[i]?.colour ?? legend[legend.length - 1]?.colour ?? "" } }));
+}
+
 /** One legend entry per step, from `low` to `high` on the branding ramp. */
 export function legendOf(steps: number[], low: string, high: string): { from: number; label: string; colour: string }[] {
   const labels = stepLabels(steps);

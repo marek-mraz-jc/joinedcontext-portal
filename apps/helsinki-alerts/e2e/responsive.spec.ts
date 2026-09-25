@@ -21,7 +21,7 @@ for (const view of VIEWS) {
       const { alerts, outside, problems } = await serve(page, view.role, view.access);
       await expect(alerts.getByTestId("jc-map").locator("canvas")).toHaveCount(1);
       if (view.open === "overview") {
-        await page.goto("http://portal.test/apps/helsinki-alerts/#overview");
+        await page.goto("http://portal.test/#overview");
         await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible();
       } else if (view.open === "new") {
         await alerts.getByRole("button", { name: "New alert" }).click();

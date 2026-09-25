@@ -6,7 +6,7 @@ import { stubTransport } from "@joinedcontext/sdk/testing";
 import { STATIONS } from "../src/fixtures/stations";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
-export const BASE = "http://portal.test/apps/helsinki-bikes/";
+export const BASE = "http://portal.test/";
 const SLUG = "helsinkibikes";
 const CONFIG = { slug: SLUG, orgDomain: "hel.fi", space: "helsinki", transport: "origin", appName: "helsinki-bikes" };
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml" };
@@ -18,7 +18,7 @@ export interface Served {
   problems: string[];
 }
 
-/** Serves the built bundle under its published path, with the SDK's stub answering its endpoint. */
+/** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
 export async function serve(page: Page): Promise<Served> {
   const transport = stubTransport({
     entities: STATIONS,
@@ -33,16 +33,15 @@ export async function serve(page: Page): Promise<Served> {
       served.outside.push(url.href);
       return route.abort();
     }
-    // A published app calls its endpoint under its own path, where the edge sets the session as
-    // the bearer and strips the prefix (T-2670); the stub answers the gateway's path.
-    if (url.pathname.startsWith(`/apps/helsinki-bikes/api/endpoint/${SLUG}/`)) {
+    // A published app is served at the root of its own host and calls its endpoint unprefixed,
+    // where the edge sets the session as the bearer (T-2670, T-2838); the stub answers that path.
+    if (url.pathname.startsWith(`/api/endpoint/${SLUG}/`)) {
       const body = route.request().postData();
-      const path = url.pathname.slice("/apps/helsinki-bikes".length) + url.search;
+      const path = url.pathname + url.search;
       const answer = await transport({ method: route.request().method() as "GET", path, body: body ? JSON.parse(body) : undefined });
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body ?? null) });
     }
-    if (!url.pathname.startsWith("/apps/helsinki-bikes/")) return route.fulfill({ status: 404, body: "" });
-    const file = normalize(url.pathname.slice("/apps/helsinki-bikes/".length) || "index.html");
+    const file = normalize(url.pathname.slice(1) || "index.html");
     if (file.startsWith("..") || !existsSync(join(DIST, file))) {
       served.missing.push(url.pathname);
       return route.fulfill({ status: 404, body: "" });

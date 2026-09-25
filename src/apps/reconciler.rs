@@ -85,6 +85,9 @@ pub struct Settings {
     /// The `dockerconfigjson` Secret in [`Settings::namespace`] a node pulls app images with, a
     /// forge token that reads packages and nothing else (AP-108).
     pub pull_secret: Option<String>,
+    /// The Portal's public base URL when it proxies a basemap (AP-67): a pod App's
+    /// `JC_APP_CONFIG` names its project's style under it. `None`: no basemap is configured.
+    pub basemap_base: Option<String>,
 }
 
 /// The context gateway as an App pod's NetworkPolicy names it: its namespace, from the
@@ -269,13 +272,21 @@ pub enum RenderError {
         /// The reference as written.
         image: String,
     },
-    /// Data needs reaching into two spaces cannot become one endpoint (AP-04).
-    #[error("an app reads through one endpoint, but its data needs name the spaces {first} and {second} (AP-04)")]
+    /// Data needs reaching into a space the App cannot read: a pod-backed App reads its own space
+    /// alone, a `ui` App one further space besides (AP-04).
+    #[error("an app reads its own space {first}, and only a `ui` app one further space besides; its data needs also name {second} (AP-04)")]
     SeveralSpaces {
         /// The space the first need names.
         first: String,
         /// The first space that differs from it.
         second: String,
+    },
+    /// A need on the further space writes or names a role: that space is read through its public
+    /// Endpoints and granted nothing (AP-04).
+    #[error("the further space {space} is read only through its public endpoints: a need on it names read operations and no roles (AP-04)")]
+    FurtherSpace {
+        /// The further space.
+        space: String,
     },
     /// No release name is configured, so a project's apps namespace cannot be named (AP-116).
     #[error("no release name is configured (JC_PORTAL_RELEASE), so the project's apps namespace cannot be named (AP-116)")]
@@ -315,7 +326,7 @@ pub fn render(
             let image = image.ok_or_else(|| RenderError::NoImage {
                 class: class.to_string(),
             })?;
-            let config = app_config(name, &endpoint, &spec, slug, &settings.org_domain)?;
+            let config = app_config(name, project, &endpoint, &spec, slug, settings)?;
             Some(render_workload(
                 name, project, &spec, image, slug, settings, &config,
             )?)
@@ -375,8 +386,14 @@ fn compiled_grants(
     slug: &EndpointSlug,
     org_domain: &str,
 ) -> Result<(RawManifest, Vec<RawManifest>), RenderError> {
-    let space = single_space(spec)?;
-    let mut endpoint = endpoint(name, project, space, spec, slug);
+    let (space, own) = own_needs(spec)?;
+    // The endpoint is rendered from the own space's needs alone: a further need's representations
+    // are served by that space's public endpoints, not added to this one.
+    let own_spec = AppSpec {
+        data_needs: own.iter().map(|(_, need)| (*need).clone()).collect(),
+        ..spec.clone()
+    };
+    let mut endpoint = endpoint(name, project, space, &own_spec, slug);
     // The endpoints list named it `app-{name}` and nothing else (T-2759): it carries its App's
     // title, which is what a person knows the app by.
     if let Some(title) = manifest.metadata.rest.get("title") {
@@ -387,23 +404,57 @@ fn compiled_grants(
     }
     Ok((
         endpoint,
-        spec.data_needs
-            .iter()
-            .enumerate()
+        own.into_iter()
             .flat_map(|(index, need)| policies(name, project, index, need, org_domain))
             .collect(),
     ))
 }
 
+/// The App's own space and its needs, each with its position in `dataNeeds`.
+type OwnNeeds<'a> = (&'a str, Vec<(usize, &'a DataNeed)>);
+
+/// The App's own space, the first need's, with the needs on it and their positions (AP-04). A
+/// `ui` App may name one further space of its project, read only and holding no role: those needs
+/// compile into nothing, since the page reads that space through its public Endpoints, which
+/// answer anyone already (Architecture/16 §2).
+fn own_needs(spec: &AppSpec) -> Result<OwnNeeds<'_>, RenderError> {
+    let own = spec.data_needs[0].context_space_ref.name();
+    let mut further: Option<&str> = None;
+    let mut needs = Vec::new();
+    for (index, need) in spec.data_needs.iter().enumerate() {
+        let space = need.context_space_ref.name();
+        if space == own {
+            needs.push((index, need));
+            continue;
+        }
+        if spec.class != AppClass::Ui || further.is_some_and(|seen| seen != space) {
+            return Err(RenderError::SeveralSpaces {
+                first: own.to_owned(),
+                second: space.to_owned(),
+            });
+        }
+        if need.has_write() || !need.roles.is_empty() {
+            return Err(RenderError::FurtherSpace {
+                space: space.to_owned(),
+            });
+        }
+        further = Some(space);
+    }
+    Ok((own, needs))
+}
+
 /// The `#jc-config` the static host writes for a `ui` App (AP-95), without `user`, for a pod
 /// App's backend to write into its own page with `user` from its `/me` (Architecture/16 §13,
-/// AP-126). A pod App reads through its one endpoint, so the list holds that one.
+/// AP-126). A pod App reads through its one endpoint, so the list holds that one. The project's
+/// basemap style goes in as the static host writes it, so a pod App's map draws on the platform's
+/// basemap too (AP-67).
 fn app_config(
     name: &str,
+    project: &str,
     endpoint: &RawManifest,
     spec: &AppSpec,
     slug: &EndpointSlug,
-    org_domain: &str,
+    settings: &Settings,
 ) -> Result<Value, RenderError> {
     let space = single_space(spec)?;
     let endpoints = [crate::agents::endpoints::RunEndpoint {
@@ -412,15 +463,19 @@ fn app_config(
         space: space.to_owned(),
     }];
     let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
-    Ok(json!({
+    let mut config = json!({
         "slug": slug.as_str(),
-        "orgDomain": org_domain,
+        "orgDomain": settings.org_domain,
         "space": space,
         "transport": "origin",
         "appName": name,
         "endpointName": endpoint.metadata.name,
         "endpoints": crate::agents::endpoints::config(&endpoints, &needs),
-    }))
+    });
+    if let Some(base) = &settings.basemap_base {
+        config["basemap"] = json!(crate::api::basemap::style_url_at(base, project));
+    }
+    Ok(config)
 }
 
 /// The one space every data need must name; two spaces cannot become one endpoint (AP-04).
@@ -585,7 +640,7 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
 /// - `JC_APP_CONFIG` — the `#jc-config` object the static host writes for a `ui` App, without
-///   `user`: the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
+///   `user` and with the project's `basemap` style URL when one is configured (AP-67): the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
 ///   `ui/` reads its endpoints as it does on the static host (AP-95, AP-126).
 ///
 /// Never a credential: an application calls its Endpoint with the caller's own token.

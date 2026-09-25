@@ -25,7 +25,7 @@ the Portal repository's `sdk/` and add the tarball (`pnpm add ./joinedcontext-sd
 | `src/App.tsx`             | the pages: the overview and one page per entity type; add a page here   |
 | `src/components/AppShell.tsx` | the header and the routing between pages (`#/{page}`, `navigate(id)`) |
 | `src/pages/TypePage.tsx`  | one type: filters, tiles, map, charts, table, export, detail, edit form |
-| `src/components/`         | `EntityTable` (the grid), `EntityMap` (maplibre), `charts` (echarts), `EntityForm`, filters, states |
+| `src/components/`         | `EntityTable` (the grid), `EntityMap` (maplibre), `charts` (echarts), `EntityForm`, filters, states, `EmbeddedFrame` |
 | `src/endpoints.ts`        | which endpoint each type is read through, when the app reads several    |
 | `src/i18n.ts`             | every text the app shows, in English, Slovak, German and Czech          |
 | `src/jc-types.ts`         | the row types of the endpoint, rendered from its model: never edit      |
@@ -55,3 +55,18 @@ Interface code imports its own files, `react`, `react-dom/client`, `@joinedconte
 `echarts`, `recharts`, `maplibre-gl` and `@deck.gl/*`; a function its own files under
 `functions/` and `@joinedcontext/sdk/server`; a test also `vitest`, `@testing-library/react` and
 `@joinedcontext/sdk/testing`. The Portal refuses any other import before the preview (SDK-12).
+
+## A page of another site
+
+`<EmbeddedFrame src="https://…" title="…" />` shows an https page of another site inside the App
+(a map embed, a video). The browser draws it only when the App's manifest names the origin:
+
+```yaml
+spec:
+  csp:
+    frameSrc: ["https://www.openstreetmap.org"]
+```
+
+The Portal writes those origins into the App's `frame-src`, beside `'self'` and nothing else; an
+origin that is not one https address is left out (AP-12). A page of the App's own origin is never
+framed this way (AP-19).

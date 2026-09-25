@@ -77,6 +77,7 @@
     "blueprints": "Blueprints",
     "agentprofiles": "Agent profiles",
     "dataoffers": "Data offers",
+    "scopedefinitions": "Scope definitions",
     "dataspaceparticipants": "Data space",
     "environments": "Environments",
     "projections": "Model projections"
@@ -2232,7 +2233,10 @@
       "fullscreen": "Full screen",
       "fullscreenExit": "Leave full screen",
       "fullscreenUnavailable": "This browser does not offer full screen here.",
-      "fullscreenFailed": "The browser did not switch to full screen: {reason}"
+      "fullscreenFailed": "The browser did not switch to full screen: {reason}",
+      "silentTitle": "The app has not answered.",
+      "silentBody": "If it stays empty, its sign-in has probably run out. Sign in again in this window, or open the app in a window of its own.",
+      "silentDismiss": "Hide this message"
     },
     "retire": {
       "title": "Retire {name}",
@@ -4718,6 +4722,12 @@
       "verbs": "What it may do",
       "endpoints": "Endpoints",
       "endpoint": "Endpoint"
+    }
+  },
+  "scopedefinitions": {
+    "field": {
+      "name": "Name",
+      "scopeString": "Scope path"
     }
   },
   "dataoffers": {

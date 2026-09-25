@@ -416,7 +416,7 @@ const KIND_ABOUT: &[(&str, &str)] = &[
     ("DataModel", "The entity types of a space, authored in LinkML; its JSON Schema and JSON-LD context are generated from it."),
     ("Mapping", "How a source's records become the model's entities, compiled to Bloblang."),
     ("Policy", "Who may read or write which entities and attributes of a space."),
-    ("ScopeDefinition", "A named OAuth scope and the policy grants it stands for."),
+    ("ScopeDefinition", "One node of the scope tree (/geo, /domain, /admin) that policies grant by."),
     ("Endpoint", "A published door onto a space: its address, audience, formats and limits."),
     ("ModelProjection", "A reduced or reshaped view of a data model that an endpoint serves."),
     ("SharedSpaceReference", "A space another project or instance shares with this one."),

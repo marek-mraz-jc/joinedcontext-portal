@@ -158,6 +158,8 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - if: steps.has.outputs.ui == 'yes'
         name: the reference app flows
+        # Built first: the SDK-template apps serve their own `dist/` (their playwright config says
+        # so), and without it every flow met an empty page (T-2946).
         run: |
           set -eu
           for app in apps/*/ui; do
@@ -166,7 +168,7 @@ jobs:
             # template does, pointed here at this checkout as the fast lane does (T-2912).
             (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
               npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
-              && pnpm install --no-frozen-lockfile; fi \
+              && pnpm install --no-frozen-lockfile; fi && pnpm build \
               && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
       # The same flows for an application at the root of its own repository (T-2596), built from

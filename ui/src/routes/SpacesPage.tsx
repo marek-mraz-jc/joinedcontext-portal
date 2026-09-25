@@ -263,7 +263,8 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
       <TableHeaderCell secondary>{t("spaces.field.dataModel")}</TableHeaderCell>
       <TableHeaderCell>{t("spaces.field.phase")}</TableHeaderCell>
-      <TableHeaderCell align="right" aria-sort={bySize ? "descending" : "none"}>
+      {/* A phone keeps the name, the state and the way inside (UI-27): the count is on the space's page. */}
+      <TableHeaderCell align="right" secondary aria-sort={bySize ? "descending" : "none"}>
         {/* The biggest space is one click away (T-2889); a second click puts the list back. */}
         <Button size="sm" variant="ghost" aria-pressed={bySize} onClick={() => setBySize(!bySize)}>
           {t("spaces.field.entities")}
@@ -417,7 +418,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               <TableCell>
                 <LifecycleBadge kind="phase" value={space.status?.phase} />
               </TableCell>
-              <TableCell align="right" className="font-mono">
+              <TableCell align="right" secondary className="font-mono">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
               </TableCell>
               <TableCell align="right">
