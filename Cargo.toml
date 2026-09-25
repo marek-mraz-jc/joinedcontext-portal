@@ -14,6 +14,7 @@ exclude = [
   "apps/helsinki-alerts",
   "apps/helsinki-bikes",
   "apps/helsinki-events",
+  "apps/praha-mesto",
 ]
 
 [package]

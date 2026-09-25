@@ -1,0 +1,14 @@
+.section { margin-block: 2rem; }
+.note { color: var(--jc-color-fg-muted, #555); }
+.failed { color: var(--jc-color-danger, #b00020); }
+.totals { display: flex; flex-wrap: wrap; gap: 1rem 2rem; list-style: none; padding: 0; margin: 1rem 0; }
+.totals .figure { font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.search { display: block; margin-top: 1rem; font-weight: 600; }
+input[type="search"] { width: 100%; max-width: 24rem; padding: 0.5rem; font: inherit; margin-block: 0.25rem 0.5rem; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--jc-color-border, #ddd); text-align: left; }
+tbody th { font-weight: 400; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.off { color: var(--jc-color-fg-muted, #555); }
+caption { text-align: left; caption-side: top; }
