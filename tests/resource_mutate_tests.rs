@@ -1822,3 +1822,182 @@ fn mapping_proposal(config: &Config, files: serde_json::Value) -> Request<Body> 
         ))
         .expect("request")
 }
+
+// --- T-2855: a kind filed once per scope (DS-07) ---------------------------------------------
+
+const PARTICIPANT_PATH: &str =
+    "/api/v1/repos/test-owner/test-repo/contents/dataspace/participant.yaml";
+
+fn participant(name: &str, connector: &str) -> serde_json::Value {
+    json!({
+        "apiVersion": API_VERSION,
+        "kind": "DataSpaceParticipant",
+        "metadata": { "name": name, "namespace": "org" },
+        "spec": {
+            "did": "did:web:banskabystrica.sk",
+            "credentialIssuer": "https://auth.banskabystrica.sk/realms/organization",
+            "connectorUrl": connector,
+            "engine": "rainbow"
+        }
+    })
+}
+
+/// The forge of these cases: main, and a branch create that must never be reached by a refusal.
+async fn participant_forge(branches: u64, on_main: Option<&serde_json::Value>) -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .expect(branches)
+        .mount(&server)
+        .await;
+    let file = match on_main {
+        Some(manifest) => ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "sha-participant",
+            "content": STANDARD.encode(serde_yaml_ng::to_string(manifest).expect("yaml")),
+        })),
+        None => ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })),
+    };
+    Mock::given(method("GET"))
+        .and(path(PARTICIPANT_PATH))
+        .respond_with(file)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path(PARTICIPANT_PATH))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "sha": "c1" } })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 7, "html_url": "https://gitea.example.sk/pulls/7",
+            "state": "open", "mergeable": true, "merged": false
+        })))
+        .mount(&server)
+        .await;
+    server
+}
+
+fn participant_state(
+    server: &MockServer,
+    held: Option<&serde_json::Value>,
+) -> (Config, axum::Router) {
+    let client = GiteaClient::new(
+        server.uri().parse().expect("mock url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
+    if let Some(held) = held {
+        state
+            .mirror
+            .upsert(serde_json::from_value(held.clone()).expect("an envelope"));
+    }
+    (config, server::app(state))
+}
+
+fn participant_request(
+    config: &Config,
+    method_name: &str,
+    uri: &str,
+    body: &serde_json::Value,
+) -> Request<Body> {
+    Request::builder()
+        .method(method_name)
+        .uri(uri)
+        .header(header::COOKIE, session_and_csrf_cookies(config))
+        .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_vec(body).expect("json")))
+        .expect("request")
+}
+
+async fn detail_of(response: axum::response::Response) -> (StatusCode, String) {
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("bytes")
+        .to_bytes();
+    (status, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// DS-07, T-2855: the organization has one participant file. Creating another name is refused
+/// naming the one there, in the dry run and in the proposal, and no branch is made.
+#[tokio::test]
+async fn a_second_participant_is_refused_naming_the_one_the_mirror_holds_and_no_branch_is_made() {
+    let held = participant("a", "https://connector.banskabystrica.sk");
+    let server = participant_forge(0, Some(&held)).await;
+    let (config, app) = participant_state(&server, Some(&held));
+    let second = participant("b", "https://evil.example");
+    for uri in [
+        "/api/v1/projects/org/dataspaceparticipants?dryRun=All",
+        "/api/v1/projects/org/dataspaceparticipants",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(participant_request(&config, "POST", uri, &second))
+            .await
+            .expect("response");
+        let (status, body) = detail_of(response).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{uri}: {body}");
+        assert!(body.contains("DataSpaceParticipant 'a'"), "{uri}: {body}");
+        assert!(body.contains("dataspace/participant.yaml"), "{uri}: {body}");
+    }
+}
+
+/// The mirror may not have read main yet: the file on main is what decides, before a branch.
+#[tokio::test]
+async fn a_create_over_a_file_main_already_holds_is_refused_before_a_branch() {
+    let on_main = participant("a", "https://connector.banskabystrica.sk");
+    let server = participant_forge(0, Some(&on_main)).await;
+    let (config, app) = participant_state(&server, None);
+    let response = app
+        .oneshot_checked(participant_request(
+            &config,
+            "POST",
+            "/api/v1/projects/org/dataspaceparticipants",
+            &participant("b", "https://evil.example"),
+        ))
+        .await
+        .expect("response");
+    let (status, body) = detail_of(response).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("DataSpaceParticipant 'a'"), "{body}");
+}
+
+/// The participant there is still changed the ordinary way.
+#[tokio::test]
+async fn the_participant_there_is_still_updated() {
+    let held = participant("a", "https://connector.banskabystrica.sk");
+    let server = participant_forge(1, Some(&held)).await;
+    let (config, app) = participant_state(&server, Some(&held));
+    let response = app
+        .oneshot_checked(participant_request(
+            &config,
+            "PUT",
+            "/api/v1/projects/org/dataspaceparticipants/a",
+            &participant("a", "https://connector2.banskabystrica.sk"),
+        ))
+        .await
+        .expect("response");
+    let (status, body) = detail_of(response).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+}
