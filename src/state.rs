@@ -88,6 +88,9 @@ pub struct AppState {
     /// Where a workspace Job is written. `None` outside a cluster, exactly like
     /// `app_settings`: a run is then refused rather than scheduled nowhere (AG-33).
     pub kube: Option<Arc<crate::apps::kube::KubeClient>>,
+    /// Where a run tests each version before it offers publication (SDK-38). `None` without the
+    /// sandbox's settings or outside a cluster: the run says its tests were not run.
+    pub app_tests: Option<Arc<crate::agents::sandbox::Sandbox>>,
     /// `sub` → unix second of the last back-channel logout for that user. Sessions issued
     /// at or before the mark are refused.
     /// ponytail: per-replica map; move it to the preferences database when the portal
@@ -157,11 +160,18 @@ impl AppState {
             foreign_names: Arc::default(),
             people: None,
             kube: None,
+            app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
             mcp_elicitations: crate::mcp::elicitation::McpElicitations::new(),
         }
+    }
+
+    /// A run's test sandbox (SDK-38), as a test gives it one.
+    pub fn with_app_tests(mut self, sandbox: Arc<crate::agents::sandbox::Sandbox>) -> Self {
+        self.app_tests = Some(sandbox);
+        self
     }
 
     pub fn with_mirror(mut self, mirror: Arc<Mirror>) -> Self {
@@ -258,6 +268,23 @@ impl AppState {
                 Err(err) => tracing::warn!(
                     error = %err,
                     "the ServiceAccount mount is unreadable, so no builder workspace is scheduled"
+                ),
+            }
+        }
+        // The run's test sandbox (SDK-38): its own client, in the namespace that fences it.
+        if let Some(settings) = state.config.app_tests.clone() {
+            match crate::apps::kube::KubeClient::in_cluster() {
+                Ok(Some(kube)) => {
+                    state.app_tests = Some(Arc::new(crate::agents::sandbox::Sandbox::new(
+                        kube, settings,
+                    )))
+                }
+                Ok(None) => tracing::info!(
+                    "no ServiceAccount mount: a run's tests are left to the build lane"
+                ),
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "the ServiceAccount mount is unreadable, so a run's tests are left to the build lane"
                 ),
             }
         }

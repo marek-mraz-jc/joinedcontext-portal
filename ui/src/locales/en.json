@@ -2286,7 +2286,12 @@
       "previewLink": "Open the preview",
       "chose": "You chose: {choice}",
       "file": "You handed over {name}",
-      "url": "The data is at {url}"
+      "url": "The data is at {url}",
+      "testsRunning": "Testing version {version}…",
+      "testsPassed": "Version {version}: all {passed} tests pass.",
+      "testsFailed": "Version {version}: {failed} tests fail. {names}",
+      "testsError": "The tests of version {version} could not run: {reason}",
+      "testsSkipped": "Version {version} was not tested here: {reason}"
     },
     "preview": {
       "title": "Preview",
@@ -2516,6 +2521,10 @@
         "again": "Read again",
         "explore": "Open it in Explore"
       }
+    },
+    "testsHold": {
+      "running": "Publish waits until the tests of version {version} have run.",
+      "failed": "Version {version} is not published while {failed} of its tests fail: {names}. Ask the assistant to fix them."
     }
   },
   "assistant": {

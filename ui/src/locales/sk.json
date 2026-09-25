@@ -2286,7 +2286,12 @@
       "previewLink": "Otvoriť náhľad",
       "chose": "Vybrali ste: {choice}",
       "file": "Odovzdali ste {name}",
-      "url": "Dáta sú na {url}"
+      "url": "Dáta sú na {url}",
+      "testsRunning": "Testuje sa verzia {version}…",
+      "testsPassed": "Verzia {version}: všetkých {passed} testov prechádza.",
+      "testsFailed": "Verzia {version}: {failed} testov zlyháva. {names}",
+      "testsError": "Testy verzie {version} nemohli prebehnúť: {reason}",
+      "testsSkipped": "Verzia {version} tu nebola testovaná: {reason}"
     },
     "preview": {
       "title": "Náhľad",
@@ -2516,6 +2521,10 @@
         "again": "Čítať znova",
         "explore": "Otvoriť v Prieskumníkovi"
       }
+    },
+    "testsHold": {
+      "running": "Zverejnenie počká, kým prebehnú testy verzie {version}.",
+      "failed": "Verzia {version} sa nezverejní, kým zlyháva {failed} jej testov: {names}. Požiadajte asistenta o opravu."
     }
   },
   "assistant": {

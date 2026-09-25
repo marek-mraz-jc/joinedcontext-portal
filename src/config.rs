@@ -146,6 +146,11 @@ pub struct Config {
     /// (AG-33, AG-40). `None` leaves every agent-run route answering 503: without a namespace
     /// to schedule into and a proxy for the workspace to speak to, a run has nowhere to happen.
     pub agent_settings: Option<AgentSettings>,
+    /// Where a run tests each version before it offers publication (SDK-38): the sandbox
+    /// namespace (`JC_PORTAL_APP_TESTS_NAMESPACE`) and the lane's builder image pinned by digest
+    /// (`JC_PORTAL_APP_TESTS_IMAGE`), both or neither. `None` runs no tests in the run, says so on
+    /// it, and leaves the build lane's check as the only one (SDK-24).
+    pub app_tests: Option<crate::agents::sandbox::SandboxSettings>,
     /// Where basemap tiles and styles come from (AP-67). `None` disables the basemap route:
     /// tile requests answer 404 and generated maps render on a plain canvas.
     pub basemap: Option<BasemapConfig>,
@@ -391,6 +396,61 @@ fn app_settings(
         release,
         service_account,
     }))
+}
+
+/// The run's test sandbox (SDK-38): `JC_PORTAL_APP_TESTS_NAMESPACE`, a Kubernetes name, and
+/// `JC_PORTAL_APP_TESTS_IMAGE`, an image reference pinned by `@sha256:` digest, both or neither.
+fn app_tests(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<crate::agents::sandbox::SandboxSettings>, ConfigError> {
+    let set = |var: &str| {
+        lookup(var)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    match (
+        set("JC_PORTAL_APP_TESTS_NAMESPACE"),
+        set("JC_PORTAL_APP_TESTS_IMAGE"),
+    ) {
+        (None, None) => Ok(None),
+        (Some(namespace), Some(image)) => {
+            if !crate::resource::is_dns1123(&namespace) {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APP_TESTS_NAMESPACE",
+                    reason: format!(
+                        "'{namespace}' is not a Kubernetes name (lowercase letters, digits, '-')"
+                    ),
+                });
+            }
+            // The model's code runs on it, so it is the lane's own image and nothing a tag
+            // could move (non-negotiable: images by digest).
+            let pinned = image.split_once("@sha256:").is_some_and(|(name, hex)| {
+                !name.is_empty()
+                    && hex.len() == 64
+                    && hex
+                        .bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            });
+            if !pinned || image.chars().any(char::is_whitespace) {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_APP_TESTS_IMAGE",
+                    reason: format!(
+                        "'{image}' is not an image pinned by digest, such as \
+                         ghcr.io/org/joinedcontext-app-builder@sha256:<64 hex>"
+                    ),
+                });
+            }
+            Ok(Some(crate::agents::sandbox::SandboxSettings {
+                namespace,
+                image,
+            }))
+        }
+        (Some(_), None) | (None, Some(_)) => Err(ConfigError::Invalid {
+            var: "JC_PORTAL_APP_TESTS_NAMESPACE",
+            reason: "JC_PORTAL_APP_TESTS_NAMESPACE and JC_PORTAL_APP_TESTS_IMAGE go together"
+                .to_owned(),
+        }),
+    }
 }
 
 /// `forge.example.org` or `forge.example.org:5000`: lowercase DNS labels and an optional port.
@@ -973,6 +1033,7 @@ impl Config {
         let apps_url = apps_url(&lookup)?;
         let app_settings = app_settings(&lookup, &public_base_url)?;
         let agent_settings = agent_settings(&lookup)?;
+        let app_tests = app_tests(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
@@ -1042,6 +1103,7 @@ impl Config {
             keycloak_admin,
             app_settings,
             agent_settings,
+            app_tests,
             basemap,
             artifact_store,
             pipeline_secrets,
@@ -1074,6 +1136,7 @@ impl Config {
             functions_url: None,
             app_settings: None,
             agent_settings: None,
+            app_tests: None,
             basemap: None,
             apps_dir: None,
             apps_cache_dir: None,
@@ -1106,6 +1169,38 @@ mod config_documentation_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_test_sandbox_is_a_namespace_and_an_image_pinned_by_digest_or_nothing() {
+        let with = |namespace: &'static str, image: &'static str| {
+            Config::from_vars(move |name| match name {
+                "JC_PORTAL_APP_TESTS_NAMESPACE" => Some(namespace.to_owned()),
+                "JC_PORTAL_APP_TESTS_IMAGE" => Some(image.to_owned()),
+                _ => None,
+            })
+        };
+        let digest = "a".repeat(64);
+        let image: &'static str = Box::leak(
+            format!("ghcr.io/x/joinedcontext-app-builder:main@sha256:{digest}").into_boxed_str(),
+        );
+        let settings = with("dev-app-tests", image).unwrap().app_tests.unwrap();
+        assert_eq!(settings.namespace, "dev-app-tests");
+        assert_eq!(settings.image, image);
+        assert_eq!(Config::from_vars(|_| None).unwrap().app_tests, None);
+        assert_eq!(with(" ", " ").unwrap().app_tests, None);
+        for (namespace, image) in [
+            ("dev-app-tests", "ghcr.io/x/joinedcontext-app-builder:main"),
+            ("dev-app-tests", "ghcr.io/x/builder@sha256:ABC"),
+            ("Dev_Tests", image),
+            ("dev-app-tests", ""),
+            ("", image),
+        ] {
+            assert!(
+                with(namespace, image).is_err(),
+                "{namespace} {image} was accepted"
+            );
+        }
+    }
 
     #[test]
     fn the_apps_origin_is_an_origin_and_nothing_else() {

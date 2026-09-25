@@ -38,14 +38,16 @@ pub const FIELD_MANAGER: &str = "portal-app-reconciler";
 /// Server-side apply's content type; the body is JSON, which is YAML.
 const APPLY_PATCH: &str = "application/apply-patch+yaml";
 
-/// The kinds an App and its agent runs compile into (AP-13, AP-15, AP-26, AG-33, EP-02).
-const KINDS: [(&str, &str, &str); 8] = [
+/// The kinds an App and its agent runs compile into (AP-13, AP-15, AP-26, AG-33, EP-02), and
+/// the ConfigMap that carries a version into its test sandbox (SDK-38).
+const KINDS: [(&str, &str, &str); 9] = [
     ("apps/v1", "Deployment", "deployments"),
     ("v1", "Service", "services"),
     ("v1", "Secret", "secrets"),
     ("networking.k8s.io/v1", "NetworkPolicy", "networkpolicies"),
     ("batch/v1", "Job", "jobs"),
     ("v1", "ServiceAccount", "serviceaccounts"),
+    ("v1", "ConfigMap", "configmaps"),
     // A project's apps namespace and the Portal's binding in it (AP-116); an admission policy
     // keeps both to `{release}-{project}-apps` (AP-117).
     ("v1", "Namespace", "namespaces"),
@@ -224,7 +226,98 @@ impl KubeClient {
         self.checked(response, path).await.map(|_| ())
     }
 
+    /// Creates one object that must not exist yet, for a namespace whose Role grants `create` and
+    /// not `patch` (SDK-38): a name already taken is the API server's `409`.
+    pub async fn create(&self, object: &Value) -> Result<(), KubeError> {
+        let plural = object_kind(object)?;
+        let namespace = namespace_of(object)?;
+        let path = path_of(plural, namespace, name_of(object)?)?;
+        let collection = path
+            .rsplit_once('/')
+            .map(|(collection, _)| collection.to_owned())
+            .unwrap_or_default();
+        let response = self
+            .http
+            .post(self.url(&collection)?)
+            .headers(self.headers("application/json")?)
+            .body(object.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        self.checked(response, collection).await.map(|_| ())
+    }
+
+    /// The names of the pods in `namespace` a label selector picks, such as a Job's
+    /// `job-name={name}` (SDK-38).
+    pub async fn pod_names(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<String>, KubeError> {
+        jc_core::names::validate_dns1123_label(namespace).map_err(|_| KubeError::NotAName {
+            field: "metadata.namespace",
+            value: namespace.to_owned(),
+        })?;
+        let path = format!("/api/v1/namespaces/{namespace}/pods");
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("labelSelector", label_selector);
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let list = self.checked(response, path).await?;
+        Ok(list["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|pod| pod["metadata"]["name"].as_str().map(str::to_owned))
+            .collect())
+    }
+
+    /// The end of one pod's log, at most `limit_bytes` of it, as text (SDK-38).
+    pub async fn pod_log(
+        &self,
+        namespace: &str,
+        pod: &str,
+        limit_bytes: u64,
+    ) -> Result<String, KubeError> {
+        let path = format!("{}/log", path_of("pods", namespace, pod)?);
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("limitBytes", &limit_bytes.to_string())
+            .append_pair("tailLines", "200");
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        if status.is_success() {
+            return Ok(body);
+        }
+        Err(KubeError::Api {
+            status: status.as_u16(),
+            path,
+            message: serde_json::from_str::<Value>(&body)
+                .ok()
+                .and_then(|value| value.get("message")?.as_str().map(str::to_owned))
+                .unwrap_or(body),
+        })
+    }
+
     /// Removes one object; removing what is not there succeeds, so a retirement is re-runnable.
+    /// Its dependents go with it in the background: a Job's pods included, which the API server
+    /// would otherwise orphan.
     pub async fn delete(
         &self,
         api_version: &str,
@@ -237,6 +330,7 @@ impl KubeClient {
             .http
             .delete(self.url(&path)?)
             .headers(self.headers("application/json")?)
+            .body(r#"{"kind":"DeleteOptions","apiVersion":"v1","propagationPolicy":"Background"}"#)
             .send()
             .await
             .map_err(|err| KubeError::Transport(err.to_string()))?;
@@ -269,9 +363,8 @@ impl KubeClient {
         Ok(Some(body))
     }
 
-    /// Reads one ConfigMap, or `None` when it does not exist. The one kind the Portal reads and
-    /// never writes: the base of the edge file (ADR-N-030, AP-112), so it stays out of the kinds
-    /// [`KubeClient::apply`] accepts.
+    /// Reads one ConfigMap, or `None` when it does not exist: the base of the edge file
+    /// (ADR-N-030, AP-112), in a namespace where the Portal may read it and nothing more.
     pub async fn get_config_map(
         &self,
         namespace: &str,

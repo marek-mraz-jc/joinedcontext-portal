@@ -24,6 +24,7 @@ pub mod reaper;
 pub mod repository;
 pub mod run;
 pub mod samples;
+pub mod sandbox;
 pub mod share;
 pub mod store;
 pub mod theme;

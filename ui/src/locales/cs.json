@@ -2286,7 +2286,12 @@
       "previewLink": "Otevřít náhled",
       "chose": "Vybrali jste: {choice}",
       "file": "Předali jste {name}",
-      "url": "Data jsou na {url}"
+      "url": "Data jsou na {url}",
+      "testsRunning": "Testuje se verze {version}…",
+      "testsPassed": "Verze {version}: všech {passed} testů prochází.",
+      "testsFailed": "Verze {version}: {failed} testů selhává. {names}",
+      "testsError": "Testy verze {version} nemohly proběhnout: {reason}",
+      "testsSkipped": "Verze {version} zde nebyla testována: {reason}"
     },
     "preview": {
       "title": "Náhled",
@@ -2516,6 +2521,10 @@
         "again": "Číst znovu",
         "explore": "Otevřít v Průzkumníku"
       }
+    },
+    "testsHold": {
+      "running": "Zveřejnění počká, až proběhnou testy verze {version}.",
+      "failed": "Verze {version} se nezveřejní, dokud selhává {failed} jejích testů: {names}. Požádejte asistenta o opravu."
     }
   },
   "assistant": {

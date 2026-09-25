@@ -18,13 +18,18 @@
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
+//   node lane.mjs test-project <project.json.gz> <work-dir>
+//                                      a run's sandbox (SDK-38): writes the version's files, links
+//                                      the template, runs vitest as the lane does and prints one
+//                                      line `JC-TESTS {json}` the Portal reads from the pod's log
 //
 // Lives beside /opt/template/node_modules in the image, so `vite` resolves to the template's.
 
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { gzipSync } from "node:zlib";
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 
 const TEMPLATE = new URL("./package.json", import.meta.url);
 // The name a function is called by, the same rule the Portal applies to a run's functions.
@@ -68,6 +73,135 @@ export function vitestConfig(appDir) {
   const path = join(appDir, VITEST_CONFIG);
   writeFileSync(path, lines.join("\n") + "\n");
   return path;
+}
+
+/** A path of a run's project: relative, plain segments, never `node_modules` (SDK-11, SDK-38). */
+const PROJECT_PATH = /^[A-Za-z0-9_@+-][A-Za-z0-9_.@+-]*(\/[A-Za-z0-9_@+-][A-Za-z0-9_.@+-]*)*$/;
+
+/**
+ * Writes a run's version into `dir` (SDK-38). The files are untrusted: a path that is absolute,
+ * climbs out with `..`, hides in a dot folder or names `node_modules` is refused before anything
+ * is written, so the sandbox links nothing the model chose.
+ */
+export function writeProject(files, dir) {
+  if (files === null || typeof files !== "object" || Array.isArray(files)) {
+    throw new Error("the project is not an object of paths to file contents");
+  }
+  const entries = Object.entries(files);
+  for (const [path, content] of entries) {
+    if (!PROJECT_PATH.test(path) || path.split("/")[0] === "node_modules") {
+      throw new Error(`${JSON.stringify(path)} is not a path a project may hold`);
+    }
+    if (typeof content !== "string") throw new Error(`${path} is not text`);
+  }
+  for (const [path, content] of entries) {
+    const target = join(dir, path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, content);
+  }
+}
+
+/**
+ * The template's installed packages linked into `dir/node_modules`, as `build-app` links them: a
+ * writable folder of links, since Vite writes its cache there (AP-82).
+ */
+export function linkTemplate(dir, store = join(dirname(new URL(import.meta.url).pathname), "node_modules")) {
+  const modules = join(dir, "node_modules");
+  rmSync(modules, { recursive: true, force: true });
+  mkdirSync(modules);
+  for (const entry of readdirSync(store)) {
+    symlinkSync(join(store, entry), join(modules, entry));
+  }
+}
+
+const MAX_FAILURES = 20;
+const MAX_MESSAGE = 2000;
+const ANSI = /\u001b\[[0-9;]*m/g;
+const cut = (text, limit) => {
+  const plain = String(text ?? "").replace(ANSI, "").trim();
+  return plain.length > limit ? `${plain.slice(0, limit)}…` : plain;
+};
+
+/**
+ * What vitest's JSON report says, as the Portal reads it (SDK-38, API/04 §4): the counts, and up
+ * to 20 failures with the file relative to the project, the test's full name and its message cut
+ * at 2,000 characters. A file that fails before any test runs (a syntax error, an import the SDK
+ * does not have) is a failure of its own.
+ */
+export function testSummary(report, appDir) {
+  const failures = [];
+  let passed = 0;
+  let failed = 0;
+  for (const file of report?.testResults ?? []) {
+    const name = typeof file.name === "string" ? relative(appDir, file.name) : "";
+    const tests = file.assertionResults ?? [];
+    for (const one of tests) {
+      if (one.status === "passed") passed += 1;
+      if (one.status !== "failed") continue;
+      failed += 1;
+      failures.push({ file: name, name: cut(one.fullName ?? one.title, 300), message: cut((one.failureMessages ?? []).join("\n"), MAX_MESSAGE) });
+    }
+    if (file.status === "failed" && !tests.some((one) => one.status === "failed")) {
+      failed += 1;
+      failures.push({ file: name, name: "(the file did not load)", message: cut(file.message, MAX_MESSAGE) });
+    }
+  }
+  return {
+    outcome: failed > 0 ? "failed" : "passed",
+    passed,
+    failed,
+    failures: failures.slice(0, MAX_FAILURES),
+  };
+}
+
+/**
+ * One run of a version's tests in the sandbox (SDK-38): the project from the Portal's gzipped
+ * JSON, the template linked, the lane's vitest config, one `vitest run` with a JSON report. The
+ * answer is the summary, or `{outcome: "error", reason}` when the tests could not run at all.
+ */
+export function testProject(input, work, { store, timeoutMs = 100_000 } = {}) {
+  const started = Date.now();
+  let files;
+  try {
+    files = JSON.parse(gunzipSync(readFileSync(input)).toString("utf8"));
+  } catch (err) {
+    return { outcome: "error", reason: `the project could not be read: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  rmSync(work, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  try {
+    writeProject(files, work);
+  } catch (err) {
+    return { outcome: "error", reason: err instanceof Error ? err.message : String(err) };
+  }
+  const packageJson = join(work, "package.json");
+  if (existsSync(packageJson)) {
+    const refused = refusedDependencies(JSON.parse(readFileSync(packageJson, "utf8")), JSON.parse(readFileSync(TEMPLATE, "utf8")));
+    if (refused.length > 0) return { outcome: "error", reason: `the SDK template installs no ${refused.join(", ")} (SDK-12)` };
+  }
+  linkTemplate(work, store);
+  const config = vitestConfig(work);
+  const report = join(work, ".jc-tests.json");
+  const run = spawnSync(join(work, "node_modules", ".bin", "vitest"), ["run", "--config", config, "--reporter=json", `--outputFile=${report}`, "--passWithNoTests"], {
+    cwd: work,
+    // Nothing of the pod's environment reaches the model's code beyond what node needs.
+    env: { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: work, CI: "true", NODE_ENV: "test" },
+    encoding: "utf8",
+    timeout: timeoutMs,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const durationMs = Date.now() - started;
+  if (run.error?.code === "ETIMEDOUT" || run.signal) {
+    return { outcome: "error", reason: `the tests did not finish within ${Math.round(timeoutMs / 1000)} s`, durationMs };
+  }
+  if (!existsSync(report)) {
+    return { outcome: "error", reason: `vitest wrote no report: ${cut(run.stderr || run.stdout, MAX_MESSAGE)}`, durationMs };
+  }
+  try {
+    return { ...testSummary(JSON.parse(readFileSync(report, "utf8")), work), durationMs };
+  } catch (err) {
+    return { outcome: "error", reason: `the report could not be read: ${err instanceof Error ? err.message : String(err)}`, durationMs };
+  }
 }
 
 /** The functions of `functions/`, by name; a test file is not a function. */
@@ -408,6 +542,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `sbom-${build.commit}`, readFileSync(join(appDir, "sbom.cdx.json")));
       appendFileSync(env.GITHUB_OUTPUT, outputs);
       console.log(`uploaded the build of ${build.commit} as ${build.digest}`);
+    } else if (command === "test-project" && appDir && outDir) {
+      // One line the Portal reads from the pod's log, whatever happened (SDK-38).
+      const timeoutMs = Number.parseInt(process.env.JC_TEST_TIMEOUT_MS ?? "", 10);
+      console.log(`JC-TESTS ${JSON.stringify(testProject(appDir, outDir, { timeoutMs: timeoutMs > 0 ? timeoutMs : 100_000 }))}`);
     } else if (command === "seed" && appDir && outDir) {
       console.log(seed(appDir, outDir));
     } else if (command === "propose" && appDir) {
