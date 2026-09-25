@@ -221,7 +221,7 @@ fn record_id(record: &Value) -> String {
 }
 
 /// The local name of the space the pipeline's first output writes into.
-fn target_space(state: &AppState, project: &str, spec: &Value) -> Option<String> {
+pub(crate) fn target_space(state: &AppState, project: &str, spec: &Value) -> Option<String> {
     let spec: jc_core::kinds::pipeline::PipelineSpec = serde_json::from_value(spec.clone()).ok()?;
     let output = spec.outputs().into_iter().next()?;
     let endpoint = state
