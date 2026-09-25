@@ -29,10 +29,10 @@ pub struct GiteaClient {
     token: String,
     /// The organization the generated applications' repositories live in and the token that
     /// writes them: another organization and another machine user than the configuration's
-    /// (PF-105). `None`: beside the configuration.
+    /// (PF-106). `None`: beside the configuration.
     apps: Option<(String, String)>,
     /// The forge user the Context Gateway reads the configuration as (`JC_GITEA_READER`,
-    /// PF-105): a repository the Portal opens for a project it reads too. `None`: nobody is
+    /// PF-106): a repository the Portal opens for a project it reads too. `None`: nobody is
     /// added.
     reader: Option<String>,
     pub http: reqwest::Client,
@@ -644,7 +644,7 @@ impl GiteaClient {
     /// `JC_GITEA_APPS_TOKEN` (a secret, the applications' machine user's) and
     /// `JC_GITEA_APPS_OWNER` move the generated applications' repositories, their packages and
     /// their build queue into an organization of their own, written by a machine user of their
-    /// own (PF-105); both or neither.
+    /// own (PF-106); both or neither.
     ///
     /// Fail-closed: returns `Ok(None)` if all four are absent, or an error if partially set.
     pub fn from_env(lookup: impl Fn(&str) -> Option<String>) -> Result<Option<Self>, GitError> {
@@ -803,7 +803,7 @@ impl GiteaClient {
     }
 
     /// A generated application's own repository `repo` (AP-75): in the applications'
-    /// organization, with their token, when the installation keeps one (PF-105); beside the
+    /// organization, with their token, when the installation keeps one (PF-106); beside the
     /// configuration otherwise.
     pub fn for_application(&self, repo: impl Into<String>) -> Self {
         let mut client = self.for_repository(repo);
@@ -1566,7 +1566,7 @@ impl GiteaClient {
     }
 
     /// `PUT /collaborators/{reader}` with `read` — the gateway reads a project repository the
-    /// Portal opened (PF-105): its machine user is a collaborator on the repositories it reads
+    /// Portal opened (PF-106): its machine user is a collaborator on the repositories it reads
     /// and nothing more, so a new one has to name it. Nothing without `JC_GITEA_READER`.
     pub async fn let_the_reader_in(&self) -> Result<(), GitError> {
         let Some(reader) = &self.reader else {
@@ -2035,7 +2035,7 @@ impl GiteaClient {
 
     /// `POST /pulls/{number}/update?style=merge` — merges the base branch into the pull
     /// request's branch: the configuration's branch rule merges nothing over an outdated base
-    /// (PF-104). The forge answers 500 for a branch that is not behind, and 409 when the base
+    /// (PF-105). The forge answers 500 for a branch that is not behind, and 409 when the base
     /// does not merge into it.
     pub async fn update_pull_request(&self, number: u64) -> Result<(), GitError> {
         let mut url = self.repo_url(&format!("pulls/{number}/update"))?;
@@ -2148,7 +2148,7 @@ mod application_repository_tests {
         }
     }
 
-    /// PF-105: an application's repository, its packages and its builds are the applications'
+    /// PF-106: an application's repository, its packages and its builds are the applications'
     /// organization's, written with their machine user's token; the configuration keeps its own.
     #[test]
     fn an_application_lives_in_its_own_organization_with_its_own_token() {

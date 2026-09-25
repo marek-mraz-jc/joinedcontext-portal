@@ -1406,7 +1406,7 @@ pub async fn approve_change_for(
 /// script's, the build lane's) waits it out instead of failing. The forge refuses to merge a
 /// commit other than `head_sha`, and a branch that no longer merges into the base; both come back
 /// 409 and both mean the same thing to whoever approved (T-1683, CC-80). A branch another merge
-/// overtook is brought up to date first (PF-104, `bring_up_to_date`).
+/// overtook is brought up to date first (PF-105, `bring_up_to_date`).
 async fn merge_when_ready(
     gitea: &GiteaClient,
     pr_number: u64,
@@ -1443,14 +1443,14 @@ fn moved_on(id: &str) -> ApiError {
     ))
 }
 
-/// The forge's refusal of a branch that is behind its base (PF-104): a 405 like "not checked
+/// The forge's refusal of a branch that is behind its base (PF-105): a 405 like "not checked
 /// yet", told apart only by its message.
 fn behind_base(err: &GitError) -> bool {
     matches!(err, GitError::Api { status: 405, message } if message.contains("behind the base branch"))
 }
 
 /// Merges `main` into a Change's branch that fell behind it, and answers the branch's new head
-/// (PF-104). The approval read the files at `approved`; it still covers the updated head only
+/// (PF-105). The approval read the files at `approved`; it still covers the updated head only
 /// when every file the Change touches reads the same there, so a file `main` changed meanwhile
 /// sends the Change back to its reviewer, naming the file.
 async fn bring_up_to_date(
@@ -1481,7 +1481,7 @@ async fn bring_up_to_date(
         return Err(ApiError::Conflict(format!(
             "change proposal '{id}' fell behind main, and main has changed {} since it was \
              reviewed. Open the change again, read what it says now, and approve that (PF-57, \
-             PF-104).",
+             PF-105).",
             changed.join(", ")
         )));
     }
