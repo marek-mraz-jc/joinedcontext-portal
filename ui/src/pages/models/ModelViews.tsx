@@ -171,7 +171,7 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
       <pre
         aria-label={t("models.page.yaml")}
         tabIndex={0}
-        className="focus-ring max-h-[70vh] overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
+        className="focus-ring max-h-96 overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
       >
         {lines.map((line, index) => {
           const parts = yamlParts(line);
