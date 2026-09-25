@@ -309,7 +309,10 @@
     "button": "Bearbeiten",
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",
-    "unreadable": "{name} konnte nicht gelesen werden."
+    "unreadable": "{name} konnte nicht gelesen werden.",
+    "viewTitle": "{name} ansehen",
+    "readOnly": "Ihre Rolle erlaubt hier keine Änderung an {kind}, daher ist dieses Formular schreibgeschützt. Eine Administratorin oder ein Administrator des Projekts kann das erteilen.",
+    "manifest": "Manifest von {name}"
   },
   "resourceList": {
     "name": "Name",

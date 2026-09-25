@@ -7,6 +7,7 @@ import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from 
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
+import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { useCreateForm } from "../../components/forms/FormRoute";
@@ -808,7 +809,9 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                 <Card>
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="font-medium text-fg">
-                      {localized(account.metadata.title, locale, account.metadata.name)}
+                      <FormRecordLink name={account.metadata.name}>
+                        {localized(account.metadata.title, locale, account.metadata.name)}
+                      </FormRecordLink>
                     </h3>
                     {account.metadata.title ? (
                       <span className="font-mono text-caption text-fg-muted">
@@ -818,6 +821,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                     <span className="flex items-center gap-1.5">
                       <EditResourceAction
                         target={accountTarget}
+                        addressed
                         form={{
                           schema,
                           uiSchema: serviceAccountUiSchema,

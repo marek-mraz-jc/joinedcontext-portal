@@ -398,6 +398,7 @@ export function People(): JSX.Element {
             </Alert>
           ) : (
             <Table
+              data-records=""
               caption={t("organization.people.caption")}
               status={people.isPending ? t("app.loading") : undefined}
             >
@@ -424,6 +425,7 @@ export function People(): JSX.Element {
                       <TableRow key={person.id}>
                         <TableCell primary>
                           <Link
+                            data-row-link=""
                             to="/organization/$tab/$"
                             params={{ tab: "people", _splat: encodeURIComponent(person.id) }}
                             className="underline"

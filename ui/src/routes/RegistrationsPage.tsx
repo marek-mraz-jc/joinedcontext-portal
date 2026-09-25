@@ -1,4 +1,5 @@
 import { useCreateFormFromDraft } from "../components/forms/FormRoute";
+import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -307,7 +308,11 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
           const branch = targetOf(shape);
           return (
             <TableRow key={registration.metadata.name}>
-              <TableCell primary>{title}</TableCell>
+              <TableCell primary>
+                <RecordLink project={project} plural="csrs" name={registration.metadata.name}>
+                  {title}
+                </RecordLink>
+              </TableCell>
               <TableCell>
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
               </TableCell>

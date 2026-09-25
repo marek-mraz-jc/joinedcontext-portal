@@ -5,6 +5,7 @@
  * class generates, the LinkML, who uses it, what changed it, and its Mappings. Read-only: Edit
  * opens the editor for a person who may propose a DataModel and says why not to anyone else.
  */
+import { RecordLink } from "../../components/RecordLink";
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -44,9 +45,6 @@ import type { ModelUse } from "./modelUsage";
 type View = "overview" | "form" | "yaml" | "used" | "history" | "mappings";
 const VIEWS: View[] = ["overview", "form", "yaml", "used", "history", "mappings"];
 
-/** Pages that have a page of their own; everything else opens on its edit form. */
-const DETAIL = new Set(["spaces", "endpoints", "apps"]);
-
 /** The source of a model: the manifest's own text, else the file the repository keeps (DM-56). */
 export function useSourceOf(project: string, model: Manifest | undefined) {
   const inline = typeof model?.spec.linkml === "string" && model.spec.linkml.includes("\n") ? model.spec.linkml : undefined;
@@ -62,16 +60,7 @@ export function useSourceOf(project: string, model: Manifest | undefined) {
 
 /** A link to one user of the model: its own page where it has one, else its edit form. */
 export function UseLink({ project, use }: { project: string; use: Pick<ModelUse, "plural" | "name"> }): JSX.Element {
-  const className = "focus-ring font-mono text-primary-soft-fg underline-offset-2 hover:underline";
-  return DETAIL.has(use.plural) ? (
-    <Link to="/projects/$project/$plural/$name" params={{ project, plural: use.plural, name: use.name }} className={className}>
-      {use.name}
-    </Link>
-  ) : (
-    <Link to="/projects/$project/$plural/$name/edit" params={{ project, plural: use.plural, name: use.name }} className={className}>
-      {use.name}
-    </Link>
-  );
+  return <RecordLink project={project} plural={use.plural} name={use.name} className="font-mono" />;
 }
 
 /** The classes with their fields: what each slot is, and which class a relationship points at. */

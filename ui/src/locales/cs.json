@@ -309,7 +309,10 @@
     "button": "Upravit",
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",
-    "unreadable": "{name} se nepodařilo načíst."
+    "unreadable": "{name} se nepodařilo načíst.",
+    "viewTitle": "Zobrazit {name}",
+    "readOnly": "Vaše role zde nedovoluje měnit {kind}, proto je tento formulář jen pro čtení. Správce projektu vám to může udělit.",
+    "manifest": "Manifest {name}"
   },
   "resourceList": {
     "name": "Název",
