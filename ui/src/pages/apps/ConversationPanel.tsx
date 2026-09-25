@@ -457,6 +457,16 @@ export function ConversationPanel({
         <ol className="space-y-2 text-sm" aria-label={t("agentRun.conversation.title")}>
           {rowsOf(events).map((row) => {
             if ("details" in row) {
+              const [only] = row.details;
+              // One line behind a toggle named "Details (1 line)" says nothing: the line itself
+              // does (T-2769). A preview stays a link, behind the toggle as before.
+              if (row.details.length === 1 && only.kind !== "preview") {
+                return (
+                  <li key={`details-${only.seq}`} className="text-xs text-fg-muted">
+                    {line(only, t)}
+                  </li>
+                );
+              }
               return (
                 <li key={`details-${row.details[0].seq}`} className="text-xs text-fg-muted">
                   <details>

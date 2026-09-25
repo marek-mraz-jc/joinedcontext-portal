@@ -2074,7 +2074,10 @@
         "space_complete": "Zkontroloval zdroj a připravil prostor",
         "profile_sample": "Přečetl řádky a sloupce souboru",
         "compute_kpi": "Spočítal ukazatel",
-        "draft_kpi_pipeline": "Připravil pipeline"
+        "draft_kpi_pipeline": "Připravil pipeline",
+        "entities": "entit",
+        "readSome": "Přečteno {shown} z {total} ({type}) z {endpoint}",
+        "readAll": "Přečteno {count} ({type}) z {endpoint}"
       },
       "ok": "Úspěšný",
       "failed": "Selhal",

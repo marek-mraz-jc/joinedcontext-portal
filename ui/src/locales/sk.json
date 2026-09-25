@@ -2074,7 +2074,10 @@
         "space_complete": "Skontroloval zdroj a pripravil priestor",
         "profile_sample": "Prečítal riadky a stĺpce súboru",
         "compute_kpi": "Vypočítal ukazovateľ",
-        "draft_kpi_pipeline": "Pripravil pipeline"
+        "draft_kpi_pipeline": "Pripravil pipeline",
+        "entities": "entít",
+        "readSome": "Prečítaných {shown} z {total} ({type}) z {endpoint}",
+        "readAll": "Prečítaných {count} ({type}) z {endpoint}"
       },
       "ok": "Úspešný",
       "failed": "Zlyhal",

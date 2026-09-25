@@ -2074,7 +2074,10 @@
         "space_complete": "Quelle geprüft und Raum entworfen",
         "profile_sample": "Zeilen und Spalten der Datei gelesen",
         "compute_kpi": "Kennzahl berechnet",
-        "draft_kpi_pipeline": "Pipeline entworfen"
+        "draft_kpi_pipeline": "Pipeline entworfen",
+        "entities": "Entitäten",
+        "readSome": "{shown} von {total} ({type}) aus {endpoint} gelesen",
+        "readAll": "{count} ({type}) aus {endpoint} gelesen"
       },
       "ok": "Erfolgreich",
       "failed": "Fehlgeschlagen",

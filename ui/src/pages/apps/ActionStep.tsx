@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../components/ui";
 import type { RunEvent } from "./useAgentRun";
+import { viewOf } from "./QueryResultCard";
 
 /**
  * Why a step failed, on one line, or "" when the step says nothing: a plain error, a runtime
@@ -54,16 +55,27 @@ const LABELLED = new Set([
 
 function labelOf(
   tool: string,
-  input: unknown,
+  payload: Record<string, unknown>,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
   if (!LABELLED.has(tool)) {
     return null;
   }
-  const endpoint = (input as { endpoint?: unknown } | null | undefined)?.endpoint;
-  return tool === "query_endpoint" && typeof endpoint === "string" && endpoint !== ""
-    ? t("agentRun.step.label.readEndpoint", { endpoint })
-    : t(`agentRun.step.label.${tool}`);
+  const input = payload.input as { endpoint?: unknown; arguments?: { type?: unknown } } | null | undefined;
+  const endpoint = input?.endpoint;
+  if (tool !== "query_endpoint" || typeof endpoint !== "string" || endpoint === "") {
+    return t(`agentRun.step.label.${tool}`);
+  }
+  // What was read, by the count and the type, not only where from (T-2769).
+  const view = payload.status === "failed" || payload.output === undefined ? null : viewOf(payload.output);
+  if (view?.kind !== "table") {
+    return t("agentRun.step.label.readEndpoint", { endpoint });
+  }
+  const asked = input?.arguments?.type;
+  const type = typeof asked === "string" && asked !== "" ? asked : t("agentRun.step.label.entities");
+  return view.total > view.rows.length
+    ? t("agentRun.step.label.readSome", { shown: view.rows.length, total: view.total, type, endpoint })
+    : t("agentRun.step.label.readAll", { count: view.total, type, endpoint });
 }
 
 /**
@@ -97,7 +109,7 @@ export function ActionStep({
     payload.error !== undefined ||
     (exitCode !== undefined && exitCode !== 0);
   const duration = typeof payload.durationMs === "number" ? payload.durationMs : undefined;
-  const label = labelOf(tool, payload.input, t);
+  const label = labelOf(tool, payload, t);
   const reason = failed ? errorText(payload, t) : "";
   const refused = Array.isArray(payload.refused) && payload.refused.length > 0 ? payload.refused : undefined;
   const sections: Array<[string, unknown]> = [

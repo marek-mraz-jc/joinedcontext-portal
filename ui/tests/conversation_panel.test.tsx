@@ -237,6 +237,40 @@ describe("the conversation panel", () => {
     expect(screen.getByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) })).toBeVisible();
   });
 
+  it("shows a single machinery line as itself, never as an empty Details (T-2769)", () => {
+    panel([
+      { seq: 1, kind: "thought", payload: { text: "Drafted the endpoint." } },
+      { seq: 2, kind: "usage", payload: { tokensThisStep: 3120 } },
+    ]);
+    expect(screen.getByText("3120 tokens this step.")).toBeVisible();
+    expect(screen.queryByText(/^Details/)).toBeNull();
+  });
+
+  it("names what a read read: how many of how many, of which type, from where (T-2769)", () => {
+    const entities = (count: number) =>
+      Array.from({ length: count }, (_, at) => ({ id: `urn:ngsi-ld:Event:hel.fi:helsinki:e${at}`, type: "Event" }));
+    const read = (seq: number, output: unknown, type?: string) => ({
+      seq,
+      kind: "tool",
+      payload: {
+        tool: "query_endpoint",
+        status: "ok",
+        input: { endpoint: "helsinki-events", name: "query_entities", arguments: type ? { type } : {} },
+        output,
+      },
+    });
+    panel([
+      read(1, { structuredContent: { entities: entities(10), total: 110 } }, "Event"),
+      { seq: 2, kind: "thought", payload: { text: "Here they are." } },
+      read(3, { structuredContent: { entities: entities(3) } }),
+      { seq: 4, kind: "thought", payload: { text: "And these." } },
+      read(5, { structuredContent: { count: 110 } }),
+    ]);
+    expect(screen.getByText("Read 10 of 110 Event from helsinki-events")).toBeInTheDocument();
+    expect(screen.getByText("Read 3 entities from helsinki-events")).toBeInTheDocument();
+    expect(screen.getByText("Read helsinki-events")).toBeInTheDocument();
+  });
+
   it("names the assistant's own steps by what they did", () => {
     panel([
       { seq: 1, kind: "tool", payload: { tool: "query_endpoint", status: "ok", input: { endpoint: "helsinki-all" } } },

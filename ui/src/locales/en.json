@@ -2074,7 +2074,10 @@
         "space_complete": "Checked the feed and drafted the space",
         "profile_sample": "Read the file's rows and columns",
         "compute_kpi": "Computed the indicator",
-        "draft_kpi_pipeline": "Drafted the pipeline"
+        "draft_kpi_pipeline": "Drafted the pipeline",
+        "entities": "entities",
+        "readSome": "Read {shown} of {total} {type} from {endpoint}",
+        "readAll": "Read {count} {type} from {endpoint}"
       },
       "ok": "Succeeded",
       "failed": "Failed",
