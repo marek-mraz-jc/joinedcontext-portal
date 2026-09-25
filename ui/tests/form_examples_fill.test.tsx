@@ -1,11 +1,10 @@
 /**
- * A form filled from nothing but its own examples ends up complete (T-2257, T-1606; UI-02, PF-57).
+ * A list field's example fills the list's item, never the list itself (T-2257; UI-02).
  *
- * The live journey `ui/e2e/live/forms-examples.spec.ts` measured this on dev on 2026-09-19 and the
- * data source form failed it: two array fields answered "Invalid type" and their manifest had no
- * `spec.mqtt.urls` at all, because a list example was written at the array while the control a
- * person types into is the array's *item*. This is that journey's shape in jsdom, on the kind it
- * failed on, so the next list field is covered before it reaches the cluster.
+ * The live journey measured this on dev on 2026-09-19: two array fields of the data source form
+ * answered "Invalid type" because a list example was written at the array while the control a
+ * person types into is the array's *item*. Since T-2882 a form carries one example at most; the
+ * Group form's is on a list item (a member's address), so it is the case this file keeps.
  */
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/components/forms/widgets/index.ts, src/schemas/forms/index.ts through the page they belong to; each was confirmed by
@@ -21,7 +20,7 @@ import { arrange, index, paths } from "../src/components/forms/uischema";
 import { portalThemeWidgets } from "../src/components/forms/theme";
 import { portalWidgets } from "../src/components/forms/widgets";
 import { shippedForms } from "../src/schemas/forms";
-import { dataSourceSchema } from "../src/schemas/kinds";
+import { groupSchema } from "../src/schemas/kinds";
 import type { JsonSchema } from "../src/components/forms/types";
 
 /** The arrangement a dialog would hand the form for one kind and schema. */
@@ -33,30 +32,15 @@ function arranged(kind: string, schema: JsonSchema) {
     properties: paths(schema),
     required: schema.required,
     widgets: [...Object.keys(portalThemeWidgets), ...Object.keys(portalWidgets)],
+    examples: { project: "air", orgDomain: "city.example" },
   });
 }
 
-/** Clicks every offered example until none is left, the way a person works down the form. */
-async function takeEveryExample(user: ReturnType<typeof userEvent.setup>): Promise<number> {
-  let taken = 0;
-  for (let round = 0; round < 40; round += 1) {
-    const offers = screen
-      .queryAllByRole("button", { name: en.form.useExample })
-      .filter((button) => !button.hasAttribute("disabled"));
-    if (offers.length === 0) {
-      return taken;
-    }
-    await user.click(offers[0]);
-    taken += 1;
-  }
-  return taken;
-}
-
-describe("a form filled from its own examples", () => {
-  it("fills a list field's first item, not the list itself", async () => {
+describe("a list field's example", () => {
+  it("fills the first item, not the list itself", async () => {
     const user = userEvent.setup();
-    const schema = dataSourceSchema((key: string) => key, "mqtt");
-    const { uiSchema, problems } = arranged("DataSource", schema);
+    const schema = groupSchema((key: string) => key);
+    const { uiSchema, problems } = arranged("Group", schema);
     expect(problems).toEqual([]);
 
     render(
@@ -64,38 +48,25 @@ describe("a form filled from its own examples", () => {
         <SchemaForm
           schema={schema}
           uiSchema={uiSchema}
-          formData={{ name: "hsl-mqtt", mqtt: { urls: [""], topics: [""] } }}
+          formData={{ name: "project-leads", members: [{ user: "" }] }}
           submitLabel="Check"
           onSubmit={() => {}}
         />
       </I18nextProvider>,
     );
 
-    const taken = await takeEveryExample(user);
-    expect(taken, "the form offers examples to take").toBeGreaterThan(2);
+    const offers = screen.getAllByRole("button", { name: en.form.useExample });
+    expect(offers, "the form offers one example").toHaveLength(1);
+    await user.click(offers[0]);
 
-    // The item holds the example, and nothing holds the list's own JSON.
-    const urls = screen.getAllByRole("textbox").map((field) => (field as HTMLInputElement).value);
+    const values = screen.getAllByRole("textbox").map((field) => (field as HTMLInputElement).value);
     expect(
-      urls.some((value) => value === "wss://mqtt.example.org:443/"),
-      `an item of Broker URLs holds the example: ${JSON.stringify(urls)}`,
+      values.some((value) => /^name\.surname@city\.example$/.test(value)),
+      `the member's address holds the example: ${JSON.stringify(values)}`,
     ).toBe(true);
     expect(
-      urls.some((value) => value.startsWith("[") || value.includes("object Object")),
-      `no field holds the list itself: ${JSON.stringify(urls)}`,
+      values.some((value) => value.startsWith("[") || value.includes("object Object")),
+      `no field holds the list itself: ${JSON.stringify(values)}`,
     ).toBe(false);
-
-    // And every required field the form shows is filled by the end of it.
-    const empty = screen
-      .getAllByRole("textbox")
-      .filter((field) => {
-        const input = field as HTMLInputElement;
-        return (
-          input.value === "" &&
-          (input.required || input.getAttribute("aria-required") === "true")
-        );
-      })
-      .map((field) => (field as HTMLInputElement).id);
-    expect(empty, "a required field its own examples cannot fill").toEqual([]);
   });
 });

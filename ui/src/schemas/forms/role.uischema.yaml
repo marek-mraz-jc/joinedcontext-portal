@@ -50,7 +50,6 @@ spec:
       fields: [rules]
   fields:
     name:
-      placeholder: pipeline-editor
       help:
         en: The short name bindings give this role by; lowercase letters, digits and hyphens.
         sk: Krátky názov, pod ktorým rolu udeľujú väzby; malé písmená, číslice a spojovníky.

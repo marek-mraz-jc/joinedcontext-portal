@@ -219,7 +219,6 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             value={spaceName}
             onChange={setSpaceName}
             create
-            placeholder={t("spaces.complete.spacePlaceholder")}
           />
         </Field>
 

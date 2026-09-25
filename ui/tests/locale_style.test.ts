@@ -64,4 +64,42 @@ describe("locale style", () => {
     expect(copy.length).toBeGreaterThan(40);
     expect(copy.filter(([, text]) => git.test(text))).toEqual([]);
   });
+
+  // One example per form (T-2882): an "e.g." on field after field drowns the one that helps. A
+  // form's strings share a parent key, so a group holding two examples is a form holding two.
+  const EXAMPLE_MARKERS: Record<string, RegExp> = {
+    en: /\be\.g\.|\bfor example\b/i,
+    sk: /\bnapr\.|\bnapríklad\b/i,
+    cs: /\bnapř\.|\bnapříklad\b/i,
+    de: /\bz\. ?B\.|\bzum Beispiel\b|\bbeispielsweise\b/i,
+  };
+  // Not forms: the model editor's first-steps tips each show their own step, and the assistant's
+  // empty search answers suggest what to type instead.
+  const NOT_A_FORM = new Set(["models.hints", "agentRun.catalog"]);
+
+  function examplesPerGroup(bundle: Record<string, unknown>, marker: RegExp): Record<string, string[]> {
+    const groups: Record<string, string[]> = {};
+    for (const [key, text] of strings(bundle)) {
+      const group = key.slice(0, key.lastIndexOf("."));
+      if (marker.test(text) && !NOT_A_FORM.has(group)) {
+        (groups[group] ??= []).push(key);
+      }
+    }
+    return groups;
+  }
+
+  it.each([
+    ["en", en],
+    ["sk", sk],
+    ["cs", cs],
+    ["de", de],
+  ])("gives no form of the %s strings more than one example (T-2882)", (lang, bundle) => {
+    const crowded = Object.entries(examplesPerGroup(bundle, EXAMPLE_MARKERS[lang])).filter(([, keys]) => keys.length > 1);
+    expect(crowded).toEqual([]);
+  });
+
+  it("counts two examples in one form as crowded", () => {
+    const form = { form: { nameHint: "Lowercase, e.g. bikes-app.", typeHint: "Entity type, e.g. Vehicle", other: "Plain." } };
+    expect(examplesPerGroup(form, EXAMPLE_MARKERS.en)).toEqual({ form: ["form.nameHint", "form.typeHint"] });
+  });
 });

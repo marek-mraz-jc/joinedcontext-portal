@@ -778,7 +778,6 @@ function NeedsChecklist({
           <Input
             id={writeRoleId}
             value={writeRole}
-            placeholder="steward"
             autoComplete="off"
             spellCheck={false}
             onChange={(event) => {

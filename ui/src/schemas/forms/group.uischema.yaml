@@ -50,14 +50,12 @@ spec:
       fields: [members]
   fields:
     name:
-      placeholder: project-leads
       help:
         en: The short name a role binding gives this group by; it cannot be renamed later.
         sk: Krátky názov, ktorým skupinu pomenuje väzba roly; neskôr sa nedá premenovať.
         cs: Krátký název, kterým skupinu pojmenuje vazba role; později jej nelze přejmenovat.
         de: Der kurze Name, unter dem eine Rollenbindung die Gruppe gibt; später unveränderlich.
     description:
-      placeholder: The people who lead the city's projects
       help:
         en: What this group is, for whoever reviews a binding that names it.
         sk: Čo je táto skupina, pre toho, kto posudzuje väzbu, ktorá ju menuje.

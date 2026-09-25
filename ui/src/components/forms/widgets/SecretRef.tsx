@@ -153,7 +153,7 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
             id={`${id}__key`}
             disabled={disabled}
             readOnly={readonly}
-            placeholder={t("datasources.secretRef.key", { defaultValue: "Key (e.g. password)" })}
+            placeholder={t("datasources.secretRef.key", { defaultValue: "Key" })}
             value={secretKey}
             onChange={handleKeyChange}
             aria-describedby={ariaDescribedByIds(id)}

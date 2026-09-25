@@ -173,7 +173,7 @@ function PersonFields({
 }): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
-  const text = (key: "email" | "firstName" | "lastName", type: string, example: string, auto: string) => (
+  const text = (key: "email" | "firstName" | "lastName", type: string, example: string | undefined, auto: string) => (
     <Field
       id={`${id}-${key}`}
       label={t(`organization.people.form.${key}`)}
@@ -194,8 +194,8 @@ function PersonFields({
   return (
     <div className="space-y-4">
       {text("email", "email", "firstname.lastname@example.org", "off")}
-      {text("firstName", "text", "Jana", "off")}
-      {text("lastName", "text", "Nováková", "off")}
+      {text("firstName", "text", undefined, "off")}
+      {text("lastName", "text", undefined, "off")}
       <Field
         id={`${id}-locale`}
         label={t("organization.people.form.locale")}

@@ -265,7 +265,6 @@ function Instances({
               fields.current.name = node;
             }}
             value={draft.name}
-            placeholder="open-data"
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
           />
         </Field>
@@ -295,7 +294,6 @@ function Instances({
           <Input
             id="ckan-instance-org"
             value={draft.organizationDefault}
-            placeholder="city-office"
             onChange={(event) => setDraft({ ...draft, organizationDefault: event.target.value })}
           />
         </Field>
@@ -312,7 +310,6 @@ function Instances({
               fields.current.secretName = node;
             }}
             value={draft.secretName}
-            placeholder="ckan-api-token"
             onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
           />
         </Field>

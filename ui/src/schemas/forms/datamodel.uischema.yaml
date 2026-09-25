@@ -58,21 +58,18 @@ spec:
         cs: Krátký název, pod nímž je model uložen; jakmile model existuje, nemění se.
         de: Der kurze Name des Modells; er ändert sich nicht mehr, sobald das Modell besteht.
     contextSpaceRef:
-      placeholder: "{project}"
       help:
         en: The context space that owns the model; with the project it is the model's address.
         sk: Kontextový priestor, ktorý model vlastní; spolu s projektom je to adresa modelu.
         cs: Kontextový prostor, který model vlastní; spolu s projektem je to adresa modelu.
         de: Der Kontextraum, dem das Modell gehört; mit dem Projekt ist er die Adresse des Modells.
     version:
-      placeholder: 1.2.0
       help:
         en: The semantic version the source was saved as; its major is the served schema version.
         sk: Sémantická verzia, pod ktorou bol zdroj uložený; hlavné číslo je obsluhovaná verzia schémy.
         cs: Sémantická verze, pod kterou byl zdroj uložen; hlavní číslo je obsluhovaná verze schématu.
         de: Die semantische Version der gespeicherten Quelle; die Hauptversion ist die bereitgestellte.
     linkml:
-      placeholder: "sensor-readings.linkml.yaml"
       help:
         en: The LinkML file beside the manifest that this version was generated from.
         sk: Súbor LinkML vedľa manifestu, z ktorého bola táto verzia vytvorená.
