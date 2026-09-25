@@ -8,6 +8,7 @@
  */
 import type { GridLabels } from "@joinedcontext/sdk";
 import { NOTE } from "./records";
+import type { ChartWords } from "./SeriesChart";
 
 /** The raw space of each publisher (`Development/10` §2). */
 export const SPACE_OF = {
@@ -42,6 +43,23 @@ export interface Strings {
   unknownSpace: string;
   source: Record<Body, string>;
   grid: Partial<GridLabels>;
+  /** The charts above the table (T-2966). */
+  overview: string;
+  pickDataset: string;
+  chartsLoading: string;
+  chartsFailed: string;
+  chartsEmpty: string;
+  /** The table's heading and why it shows the publisher's codes. */
+  records: string;
+  recordsWhy: string;
+  /** The disclosure the full identifier of a record sits behind. */
+  showId: string;
+  latestOf: (period: string) => string;
+  /** Per cube: the names this App gives what the office's code lists do not hold. */
+  datasetNames: Record<string, string>;
+  keyAxis: Record<string, string>;
+  codeNames: Record<string, Record<string, string>>;
+  chart: ChartWords;
 }
 
 const SK: Strings = {
@@ -133,6 +151,26 @@ const SK: Strings = {
     refusedHere: "zamietnuté",
     notInList: "nie je v zozname",
   },
+  overview: "Ukazovatele v grafoch",
+  pickDataset: "Súbor údajov",
+  chartsLoading: "Načítavajú sa grafy…",
+  chartsFailed: "Grafy sa nepodarilo načítať. Záznamy sú v tabuľke nižšie.",
+  chartsEmpty: "Tento súbor údajov zatiaľ nemá žiadne záznamy.",
+  records: "Všetky záznamy s poznámkami správcu",
+  showId: "Identifikátor",
+  recordsWhy:
+    "Tabuľka ukazuje riadky tak, ako ich zverejnil vydavateľ: pri názve ukazovateľa a územia je aj jeho kód, lebo filter v stĺpci sa pýta na tieto kódy.",
+  latestOf: (period) => `obdobie ${period}`,
+  datasetNames: { "mesto-obyvatelia-vek": "Obyvatelia mesta podľa veku" },
+  keyAxis: { "mesto-obyvatelia-vek": "podľa veku" },
+  codeNames: { "mesto-obyvatelia-vek": { POCET: "Počet obyvateľov" } },
+  chart: {
+    locale: "sk-SK",
+    latest: "naposledy",
+    values: "Hodnoty grafu",
+    axis: { line: "Obdobie", areas: "Územie", keys: "Skupina" },
+    value: "Hodnota",
+  },
 };
 
 const EN: Strings = {
@@ -223,6 +261,26 @@ const EN: Strings = {
     applying: "Saving…",
     refusedHere: "refused",
     notInList: "not in the list",
+  },
+  overview: "Indicators in charts",
+  pickDataset: "Dataset",
+  chartsLoading: "Loading the charts…",
+  chartsFailed: "The charts could not be loaded. The records are in the table below.",
+  chartsEmpty: "This dataset has no records yet.",
+  records: "All records, with the steward's notes",
+  showId: "Identifier",
+  recordsWhy:
+    "The table shows the rows as the publisher released them: each indicator and territory keeps its code beside its name, because a column filter asks about those codes.",
+  latestOf: (period) => `period ${period}`,
+  datasetNames: { "mesto-obyvatelia-vek": "Residents of the city by age" },
+  keyAxis: { "mesto-obyvatelia-vek": "by age" },
+  codeNames: { "mesto-obyvatelia-vek": { POCET: "Number of residents" } },
+  chart: {
+    locale: "en-GB",
+    latest: "latest",
+    values: "Values of the chart",
+    axis: { line: "Period", areas: "Territory", keys: "Group" },
+    value: "Value",
   },
 };
 
