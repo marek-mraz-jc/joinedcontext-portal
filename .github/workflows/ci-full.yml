@@ -158,11 +158,14 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - if: steps.has.outputs.ui == 'yes'
         name: the reference app flows
+        # Built first: the SDK-template apps serve their own `dist/` (their playwright config says
+        # so), and without it every flow met an empty page (T-2946).
         run: |
           set -eu
           for app in apps/*/ui; do
             [ -f "$app/playwright.config.ts" ] || continue
-            (cd "$app" && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium && pnpm e2e)
+            (cd "$app" && pnpm install --frozen-lockfile && pnpm build \
+              && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
       # The same flows for an application at the root of its own repository (T-2596), built from
       # the tree copied out with the SDK linked from this checkout, as the fast lane tests it.

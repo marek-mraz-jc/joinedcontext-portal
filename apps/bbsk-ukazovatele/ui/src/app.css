@@ -245,10 +245,11 @@ button.bar-label {
   color: var(--jc-color-danger-text, #b3261e);
 }
 
+/* The card's own text colour: the muted grey read 4.26:1 on a whole card's body tint (WCAG 1.4.3,
+   T-2946), and a control is read before it is opened. */
 .more summary {
   cursor: pointer;
   font-size: 0.875rem;
-  color: var(--jc-color-muted, #64748b);
 }
 
 .facts {
