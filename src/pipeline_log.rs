@@ -155,6 +155,11 @@ pub const TICK: &str = r#"meta jc_run = now().ts_format("2006-01-02T15:04:05Z", 
 /// The output a stream writes through, followed by the outcome sink once it has taken a batch
 /// (PL-62): the sink only runs after the write succeeded, and a sink that fails is dropped, so the
 /// log never holds back or repeats a write.
+///
+/// The broker fails fast (T-2983): a write that fails after its own retries goes back to the
+/// input as a nack, which replays it. Plain `fan_out_sequential` retried it inside the broker
+/// without end and without heeding a stop, so a stream whose target failed could be neither
+/// replaced nor deleted, and only a runner restart (all its streams) freed it.
 pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value {
     let sink = serde_json::json!({
         "label": SINK_LABEL,
@@ -180,7 +185,7 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
         ) }],
     });
     serde_json::json!({ "broker": {
-        "pattern": "fan_out_sequential",
+        "pattern": "fan_out_sequential_fail_fast",
         "outputs": [output, sink],
     }})
 }
