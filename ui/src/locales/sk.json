@@ -61,7 +61,6 @@
     "flows": "Toky",
     "models": "Dátové modely",
     "ckan": "Otvorené dáta",
-    "allEndpoints": "Všetky koncové body",
     "explore": "Prehliadať dáta",
     "assistant": "Asistent",
     "sync": "Synchronizácia",
@@ -3602,7 +3601,8 @@
       "service-accounts": "Servisné účty",
       "projects": "Projekty",
       "setup": "Nastavenie",
-      "health": "Stav overenia"
+      "health": "Stav overenia",
+      "endpoints": "Všetky koncové body"
     },
     "settings": {
       "title": "Nastavenia",

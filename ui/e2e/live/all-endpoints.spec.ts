@@ -1,13 +1,13 @@
 /**
- * T-2729 — /endpoints on dev: every endpoint of every project the person may read, in one table
- * (EP-08, EP-44, PF-60, R20).
+ * T-2729, T-2877 — every endpoint of every project on dev, in one table, for an administrator of
+ * the organization only (EP-08, EP-44, PF-61, R20).
  *
- * dev holds more than one project now (`helsinki`, and the region's `bbsk` and the city's
- * `banskabystrica`, T-2455), which is what the page needed to be walked. `demo.steward`
- * administers the organization and reads every project, so the table holds more than one; a
- * project name opens that project's own Endpoints page. `demo.viewer` reads fewer, and the page
- * lists exactly the projects the Portal lets them read and nothing of any other: the table is the
- * organization route's answer, and that route decides what is in it.
+ * dev holds more than one project (`helsinki`, the region's `bbsk` and the city's
+ * `banskabystrica`, T-2455). `demo.steward` administers the organization: the Organization page
+ * gives them the Endpoints tab, the old `/endpoints` address opens it, the table holds every
+ * project's endpoints and a project name opens that project's own Endpoints page. `demo.viewer`
+ * does not administer it: no tab and no menu entry offer the table, both addresses land on
+ * Settings, the API answers `404`, and the viewer's own project Endpoints still answer.
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -23,13 +23,6 @@ async function projectsServed(page: Page): Promise<string[]> {
   return [...new Set(items.map((item) => item.metadata.namespace ?? ""))].sort();
 }
 
-/** The projects this person may read, as the Portal lists them. */
-async function readable(page: Page): Promise<string[]> {
-  const answer = await page.request.get("/api/v1/projects");
-  expect(answer.ok(), "the person's projects are read").toBe(true);
-  return ((await answer.json()) as { items: { name: string }[] }).items.map((item) => item.name).sort();
-}
-
 /** The project column of the table, as a person reads it. */
 async function projectsShown(page: Page): Promise<string[]> {
   const table = page.getByRole("table", { name: "All endpoints" });
@@ -41,7 +34,10 @@ async function projectsShown(page: Page): Promise<string[]> {
 test("an administrator reads every project's endpoints in one table and opens one project's", async ({ browser }) => {
   const { context, page } = await signIn(browser, STEWARD, "/endpoints?lang=en");
   try {
-    await expect(page.getByRole("heading", { level: 1, name: "All endpoints" })).toBeVisible();
+    await expect(page).toHaveURL(/\/organization\/endpoints/);
+    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "All endpoints" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { level: 2, name: "All endpoints" })).toBeVisible();
     const served = await projectsServed(page);
     expect(served.length, "the organization publishes endpoints in more than one project").toBeGreaterThan(1);
     expect(await projectsShown(page), "the table is what the route answers").toEqual(served);
@@ -55,17 +51,24 @@ test("an administrator reads every project's endpoints in one table and opens on
   }
 });
 
-test("a viewer sees the endpoints of the projects they may read, and of no other", async ({ browser }) => {
+test("a person who does not administer the organization is offered no cross-project table", async ({ browser }) => {
   const { context, page } = await signIn(browser, VIEWER, "/endpoints?lang=en");
   try {
-    await expect(page.getByRole("heading", { level: 1, name: "All endpoints" })).toBeVisible();
-    const mine = await readable(page);
-    const served = await projectsServed(page);
-    expect(served.filter((project) => !mine.includes(project)), "no endpoint of a project the viewer may not read").toEqual([]);
-    const shown = await projectsShown(page);
-    expect(shown).toEqual(served);
-    // Nothing on the page offers to publish: a viewer publishes nothing (UI-44).
-    await expect(page.getByRole("main").getByRole("button", { name: /^New / })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/organization\/settings/, { timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "All endpoints" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "All endpoints" })).toHaveCount(0);
+
+    await page.goto("/organization/endpoints?lang=en");
+    await expect(page).toHaveURL(/\/organization\/settings/, { timeout: 60_000 });
+    await expect(page.getByRole("table", { name: "All endpoints" })).toHaveCount(0);
+
+    const refused = await page.request.get("/api/v1/endpoints");
+    expect(refused.status(), "the server refuses the list, not only the menu").toBe(404);
+    // The viewer's own project keeps its Endpoints, as before.
+    const own = await page.request.get("/api/v1/projects/helsinki/endpoints");
+    expect(own.ok(), "a project's own endpoints stay readable").toBe(true);
   } finally {
     await context.close();
   }

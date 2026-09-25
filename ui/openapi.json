@@ -658,11 +658,11 @@
           "resources"
         ],
         "summary": "List Endpoints Everywhere",
-        "description": "Every Endpoint of every project the caller may read, each with the project it lives in.",
+        "description": "Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).",
         "operationId": "list_endpoints_everywhere",
         "responses": {
           "200": {
-            "description": "Every Endpoint the caller may read, across projects",
+            "description": "Every Endpoint of the organization, across projects",
             "content": {
               "application/json": {
                 "schema": {
@@ -673,6 +673,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not an administrator of the organization",
             "content": {
               "application/json": {
                 "schema": {

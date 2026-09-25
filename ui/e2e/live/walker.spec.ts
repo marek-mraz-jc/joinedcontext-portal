@@ -63,13 +63,20 @@ async function firstName(page: Page, section: string): Promise<string | undefine
   return items[0]?.metadata?.name;
 }
 
-/** Every route of the router, with a real item for each name it takes. */
-async function visits(page: Page): Promise<Visit[]> {
+/**
+ * Every route of the router, with a real item for each name it takes. The Organization page's
+ * Endpoints tab is an administration view (PF-61, T-2877): the steward, who administers the
+ * organization on dev, visits it; the viewer is checked not to reach it (`endpointsRefused`).
+ */
+async function visits(page: Page, who: string): Promise<Visit[]> {
   const found: Visit[] = [
     { route: "/", address: "/" },
     { route: "/endpoints", address: "/endpoints" },
     { route: "/organization", address: "/organization" },
-    ...ORGANIZATION_TABS.map((tab) => ({ route: "/organization/$tab", address: `/organization/${tab}` })),
+    ...[...ORGANIZATION_TABS, ...(who === "steward" ? ["endpoints"] : [])].map((tab) => ({
+      route: "/organization/$tab",
+      address: `/organization/${tab}`,
+    })),
     { route: "/organization/$tab/$", address: "/organization/people/new" },
     { route: "/organization/$tab/$", address: "/organization/groups/new" },
     ...["workspaces", "activity", "approvals", "settings", "models", "explore", "ckan", "import", "assistant"].map((page) => ({
@@ -112,6 +119,30 @@ async function visits(page: Page): Promise<Visit[]> {
   return found;
 }
 
+/**
+ * PF-61, T-2877: what a person who does not administer the organization meets at the
+ * cross-project Endpoints — both addresses land on Settings, no tab and no menu entry offers it,
+ * and the API answers `404`. Each line returned is a finding.
+ */
+async function endpointsRefused(page: Page): Promise<string[]> {
+  const found: string[] = [];
+  for (const address of ["/endpoints", "/organization/endpoints"]) {
+    await page.goto(`${address}?lang=en`, { waitUntil: "load" });
+    await page.waitForURL(/\/organization\/settings/, { timeout: 30_000 }).catch(() => undefined);
+    if (!new URL(page.url()).pathname.endsWith("/organization/settings")) {
+      found.push(`admin-only: ${address} stayed at ${new URL(page.url()).pathname}`);
+    }
+    if ((await page.getByRole("table", { name: "All endpoints" }).count()) > 0) {
+      found.push(`admin-only: ${address} shows the table`);
+    }
+  }
+  if ((await page.getByRole("tab", { name: "All endpoints" }).count()) > 0) found.push("admin-only: the tab is offered");
+  if ((await page.getByRole("link", { name: "All endpoints" }).count()) > 0) found.push("admin-only: a link is offered");
+  const answer = await page.request.get("/api/v1/endpoints");
+  if (answer.status() !== 404) found.push(`admin-only: GET /api/v1/endpoints answered ${answer.status()}`);
+  return found;
+}
+
 /** A 4xx a person may meet with nothing wrong (the same rule as `walk.spec.ts`). */
 function expected(who: string, response: Response): boolean {
   const status = response.status();
@@ -148,6 +179,7 @@ for (const [who, person] of [
     const { context, page } = await signIn(browser, person, `${P}/spaces?lang=en`);
     const report: { route: string; address: string; width: number; findings: string[]; screenshot: string }[] = [];
     let current: string[] = [];
+    let refused: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
         current.push(`console: ${message.text().slice(0, 200)}`);
@@ -163,7 +195,7 @@ for (const [who, person] of [
     try {
       // A section the installation hides is no page to walk (T-2874).
       const hidden = await hiddenSections(page.request);
-      const all = (await visits(page)).filter((visit) => !inHiddenSection(visit.address, hidden));
+      const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden));
       for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const visit of all) {
@@ -185,10 +217,12 @@ for (const [who, person] of [
           report.push({ ...visit, width: size.width, findings: unexcused(visit.route, findings, allow.excused), screenshot });
         }
       }
+      if (who === "viewer") refused = await endpointsRefused(page);
     } finally {
       await test.info().attach(`walker-${who}.json`, { body: JSON.stringify(report, null, 2), contentType: "application/json" });
       await context.close();
     }
+    expect(refused, "the cross-project Endpoints reach no one but an administrator").toEqual([]);
     expect(report.length, "the walker opened the pages").toBeGreaterThan(40);
     expect(report.filter((entry) => entry.findings.length > 0).map(({ address, width, findings }) => ({ address, width, findings }))).toEqual([]);
   });
