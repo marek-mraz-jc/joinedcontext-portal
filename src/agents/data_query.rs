@@ -381,7 +381,8 @@ The answer reads as a person would write it (T-2769):
   `endDate>={today}T00:00:00Z`, then ordered by their start yourself, grouped as today, this
   week and later, each with its title, dates and place. Past ones only when asked.
 - End with the grid of all of them: `jc_ui_navigate` to `entities` with the endpoint, the type
-  and the `q` you read with, so the person sees every row and not the few you named.
+  and the `q` you read with, so the person sees every row and not the few you named. The grid
+  never replaces the answer: "Found 98 events" answers nothing; name the first ten in words.
 
 Find the data yourself too. Search the project's catalog with your own words, as often as you
 need:
@@ -764,6 +765,7 @@ mod tests {
             "in the person's language",
             "never by its id",
             "`jc_ui_navigate` to `entities`",
+            "name the first ten in words",
         ] {
             assert!(text.contains(rule), "{rule}: {text}");
         }

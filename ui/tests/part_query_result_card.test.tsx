@@ -245,7 +245,7 @@ describe("a model's schema in the card (T-2769)", () => {
       ],
     });
     renderPart(
-      <QueryResultCard result={{ endpoint: "helsinki-events", tool: "describe_schema", view: viewOf({ structuredContent: { format: "linkml", document: LINKML } }) }} />,
+      <QueryResultCard result={{ endpoint: "helsinki-events", tool: "describe_schema", view: viewOf({ structuredContent: { schema: { format: "linkml", mediaType: "text/yaml", document: LINKML }, restricted: true } }) }} />,
     );
     const table = screen.getByRole("table", { name: "The attributes of Event" });
     expect(within(table).getByText("When the event begins.")).toBeTruthy();

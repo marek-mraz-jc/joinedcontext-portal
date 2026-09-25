@@ -246,7 +246,10 @@ function said(value: unknown): string {
  * its classes and their attributes, any other kept as the document with its own line breaks —
  * never a JSON string of `\n` escapes (T-2769). `null` for any other answer.
  */
-export function schemaOf(answer: unknown): QueryView | null {
+export function schemaOf(given: unknown): QueryView | null {
+  // The gateway answers `{ schema: {format, mediaType, document} }` (its result key), beside
+  // `restricted` or `jc:source` when they apply.
+  const answer = isRecord(given) && isRecord(given.schema) ? given.schema : given;
   if (!isRecord(answer) || typeof answer.document !== "string" || typeof answer.format !== "string") {
     return null;
   }
