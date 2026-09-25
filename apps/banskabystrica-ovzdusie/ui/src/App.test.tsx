@@ -171,7 +171,7 @@ describe("the stations of the city", () => {
 });
 
 describe("the picked station", () => {
-  it("opens on the freshest station and reads one day of it through queryTemporal", async () => {
+  it("opens on the freshest station and reads one day of it through retrieveTemporal", async () => {
     show();
     await waitFor(() => expect(screen.getByRole("region", { name: /Stanica 4/ })).toBeInTheDocument());
     await waitFor(() =>
@@ -180,6 +180,18 @@ describe("the picked station", () => {
     const temporal = calls.find((call) => call.path.includes("/temporal/entities/"))!;
     expect(temporal.path).toContain("attrs=pm10");
     expect(temporal.path).toContain("timerel=");
+  });
+
+  // T-2972: the endpoint answers an addressed temporal read of an entity with no instances (or
+  // none its grants reach) with 404; the panel says nothing was recorded, never the raw error.
+  it("says no value was recorded when the station has no history yet", async () => {
+    show({
+      entities: () => json([sk0263a(NOW, 40)]),
+      temporal: () => problem(404, "Resource Not Found"),
+    });
+    const panel = await screen.findByRole("region", { name: /Stanica SK0263A/ });
+    expect(await within(panel).findByText(LOCALES.sk.history.empty)).toBeInTheDocument();
+    expect(within(panel).queryByText(/Resource Not Found/)).toBeNull();
   });
 
   it("changes to the station a person picks", async () => {
