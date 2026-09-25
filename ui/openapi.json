@@ -661,6 +661,719 @@
         }
       }
     },
+    "/api/v1/organization/people": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "List People",
+        "description": "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.",
+        "operationId": "list_people",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "A substring of the name or e-mail",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "first",
+            "in": "query",
+            "description": "Offset, default 0",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "description": "Page size, default 50, at most 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of people",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Create Person",
+        "description": "Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.",
+        "operationId": "create_person",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePerson"
+              },
+              "example": {
+                "email": "jana.kovacova@example.org",
+                "firstName": "Jana",
+                "lastName": "Kováčová",
+                "locale": "sk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created; the only answer that may carry a temporary password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks create on Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The e-mail is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Get Person",
+        "description": "One person with their groups, platform roles and application roles. Needs `read` on Person.",
+        "operationId": "get_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person and where they are granted something",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Delete Person",
+        "description": "Proposes one Change taking the person out of every Group and RoleBinding and disables them; the Keycloak user is deleted once it is merged. A person nothing names is deleted at once. Needs `delete` on Person and every right the person holds.",
+        "operationId": "delete_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The Change the deletion waits for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted: no manifest named the person"
+          },
+          "403": {
+            "description": "The caller lacks delete on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client, forge or database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Edit Person",
+        "description": "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.",
+        "operationId": "edit_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditPerson"
+              },
+              "example": {
+                "lastName": "Nováková"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The person as edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks update on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The e-mail is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/disable": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Disable Person",
+        "description": "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.",
+        "operationId": "disable_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person, disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller themselves, or the last Organization Administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/enable": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Enable Person",
+        "description": "Enables a disabled person. Needs `disable` on Person.",
+        "operationId": "enable_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person, enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/remove-second-factor": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Remove Second Factor",
+        "description": "Removes every OTP and WebAuthn credential of the person. Needs `disable` on Person and every right the person holds.",
+        "operationId": "remove_second_factor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/reset-password": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Reset Password",
+        "description": "Sends the realm's password reset; without SMTP answers a temporary password once. Needs `update` on Person and every right the person holds.",
+        "operationId": "reset_password",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The realm cannot send mail: a temporary password, once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordReset"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The reset e-mail went",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordReset"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks update on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/sign-out": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Sign Person Out",
+        "description": "Ends every session of the person. Needs `disable` on Person and every right the person holds.",
+        "operationId": "sign_out_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out everywhere"
+          },
+          "403": {
+            "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preferences": {
       "get": {
         "tags": [
@@ -8558,6 +9271,30 @@
           }
         }
       },
+      "AppRole": {
+        "type": "object",
+        "description": "An application role the person holds (PF-94).",
+        "required": [
+          "project",
+          "app",
+          "role",
+          "via"
+        ],
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "via": {
+            "type": "object"
+          }
+        }
+      },
       "ApproveBody": {
         "type": "object",
         "description": "Request body for approving or rejecting a change proposal.",
@@ -9356,6 +10093,32 @@
           "rename"
         ]
       },
+      "CreatePerson": {
+        "type": "object",
+        "required": [
+          "email",
+          "firstName",
+          "lastName"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateRunRequest": {
         "type": "object",
         "description": "What a person asks for when they start a run (AP-51).",
@@ -9415,6 +10178,28 @@
           }
         },
         "additionalProperties": false
+      },
+      "CreatedPerson": {
+        "type": "object",
+        "description": "The one answer that may carry a temporary password, once (PF-92).",
+        "required": [
+          "person",
+          "emailSent"
+        ],
+        "properties": {
+          "emailSent": {
+            "type": "boolean"
+          },
+          "person": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "temporaryPassword": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "CreatedRun": {
         "allOf": [
@@ -9755,6 +10540,36 @@
           "consumes",
           "publishes"
         ]
+      },
+      "EditPerson": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "Effective": {
         "type": "object",
@@ -10098,6 +10913,17 @@
               "null"
             ],
             "description": "Set when the binding is scoped to one context space: the rule then applies only to a\nmanifest whose `spec.contextSpaceRef` names it."
+          }
+        }
+      },
+      "GroupRef": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -11102,6 +11928,23 @@
           }
         }
       },
+      "PasswordReset": {
+        "type": "object",
+        "required": [
+          "emailSent"
+        ],
+        "properties": {
+          "emailSent": {
+            "type": "boolean"
+          },
+          "temporaryPassword": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PauseRequest": {
         "type": "object",
         "description": "Whether syncing is on or off.",
@@ -11112,6 +11955,127 @@
           "paused": {
             "type": "boolean",
             "description": "`true` switches the loop off, `false` switches it back on."
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "description": "A person as the Portal shows one (API/01 §24).",
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName",
+          "enabled",
+          "emailVerified",
+          "requiredActions"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the realm created the person (RFC 3339)."
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "lastSeen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last access of the person's newest open session; `null` when none is open."
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pendingDeletion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Change a deletion waits for; `null` when none is pending."
+          },
+          "requiredActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PersonDetail": {
+        "type": "object",
+        "required": [
+          "person",
+          "groups",
+          "platformRoles",
+          "appRoles"
+        ],
+        "properties": {
+          "appRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppRole"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupRef"
+            }
+          },
+          "person": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "platformRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformRole"
+            }
+          }
+        }
+      },
+      "PersonPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            }
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "`first` of the following page, when there is one.",
+            "minimum": 0
           }
         }
       },
@@ -11297,6 +12261,31 @@
           "update": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "PlatformRole": {
+        "type": "object",
+        "description": "A platform role the person holds, and the binding and the way it reaches them (PF-94).",
+        "required": [
+          "role",
+          "binding",
+          "scope",
+          "via"
+        ],
+        "properties": {
+          "binding": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "object"
+          },
+          "via": {
+            "type": "object",
+            "description": "`{ \"user\": … }` or `{ \"group\": … }`."
           }
         }
       },
@@ -12848,6 +13837,10 @@
     {
       "name": "resources",
       "description": "Resource operations"
+    },
+    {
+      "name": "people",
+      "description": "The people of the organization's realm (PF-90)"
     },
     {
       "name": "permissions",

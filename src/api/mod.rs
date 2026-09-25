@@ -23,6 +23,7 @@ pub mod import_git;
 pub mod internal;
 pub mod mutate;
 pub mod ops;
+pub mod people;
 pub mod permissions;
 pub mod pipeline_test;
 pub mod pipelines;
@@ -68,6 +69,7 @@ pub fn router() -> Router<AppState> {
         .merge(resources::router())
         .merge(ops::router())
         .merge(permissions::router())
+        .merge(people::router())
         .merge(pipelines::router())
         .merge(preferences::router())
         .merge(projects::router())
