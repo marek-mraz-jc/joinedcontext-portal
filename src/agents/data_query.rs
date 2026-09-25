@@ -333,7 +333,9 @@ pub fn reading_notes(call: &QueryCall, answer: &Value) -> String {
 /// listed here, the model called `list_types` first on endpoints that do not offer it (T-2769).
 fn facade_tools() -> Value {
     json!([
-        { "name": "describe_schema", "arguments": { "type": "<entity type>" } },
+        // LinkML at once: without `format` the gateway answers with its index of formats, and
+        // the model spent a second call asking for the one it recommends (T-2769).
+        { "name": "describe_schema", "arguments": { "format": "linkml", "entityType": "<entity type>" } },
         { "name": "query_entities", "arguments": { "type": "<entity type>", "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true, "cursor": 0 } },
         { "name": "get_entity", "arguments": { "id": "<entity id>" } }
     ])
@@ -871,5 +873,7 @@ mod tests {
         let pack = section(&[], &[], &[]);
         assert!(!pack.contains("list_types") && !pack.contains("list_attributes"));
         assert!(pack.contains("describe_schema") && pack.contains("query_entities"));
+        // The gateway's own argument names: `type` is not one of describe_schema's.
+        assert!(pack.contains(r#""format": "linkml""#) && pack.contains(r#""entityType""#));
     }
 }
