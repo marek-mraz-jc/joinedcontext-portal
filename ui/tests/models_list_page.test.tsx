@@ -139,7 +139,7 @@ describe("the list of data models", () => {
   });
 });
 
-/** The organization's list (DM-63, DM-78): one organization model and one of this project. */
+/** The organization's list (DM-63, DM-79): one organization model and one of this project. */
 const ORGANIZATION = {
   items: [
     { name: "stations", level: "organization", project: "org", version: "2.1.0", lifecycle: "published", classes: ["Station", "Dock"] },
@@ -153,7 +153,7 @@ const withOrganization =
   (path: string): Response | undefined =>
     path === "/api/v1/organization/datamodels" ? jsonResponse(organization) : answer(path);
 
-describe("organization models beside the project's (T-2883, DM-74, DM-78)", () => {
+describe("organization models beside the project's (T-2883, DM-75, DM-79)", () => {
   it("shows two sections, the organization's read-only with the name a model imports it by", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer: withOrganization(ORGANIZATION) });
     expect(await screen.findByRole("heading", { level: 2, name: en.models.page.projectSection })).toBeInTheDocument();

@@ -34,7 +34,7 @@ export interface DataModelPickerProps {
 
 /**
  * Every data model the person may read, grouped by level, project and space with the version, and
- * the Smart Data Models entries a search matches (ADR-N-033, DM-63, DM-78). The list is the
+ * the Smart Data Models entries a search matches (ADR-N-033, DM-63, DM-79). The list is the
  * server's, which holds nothing the caller cannot read.
  */
 export function DataModelPicker({

@@ -1207,13 +1207,13 @@ async fn approve_every_file(
             continue;
         };
         // An organization model is every project's schema: a person approves it, never a
-        // service account's token (PF-58, DM-76).
+        // service account's token (PF-58, DM-77).
         if envelope.kind == "DataModel"
             && envelope.metadata.namespace.as_deref() == Some(crate::permissions::ORG_NAMESPACE)
             && identity.client.is_some()
         {
             return Err(ApiError::Denied(format!(
-                "'{}' changes an organization data model, which a person approves in the Portal, never a service account (PF-58, DM-76)",
+                "'{}' changes an organization data model, which a person approves in the Portal, never a service account (PF-58, DM-77)",
                 file.path
             )));
         }

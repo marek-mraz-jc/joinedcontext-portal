@@ -1095,7 +1095,7 @@ async fn get_source_with_read_on_datamodel_answers_the_source() {
     assert_eq!(answer.text, PUBLISHED_LINKML);
 }
 
-/// An organization model (DM-74): `namespace: org`, no space, its source in its own folder.
+/// An organization model (DM-75): `namespace: org`, no space, its source in its own folder.
 const STATIONS_LINKML: &str = "id: https://example.org/models/stations\nname: stations\nimports: [linkml:types]\nclasses:\n  Station:\n    attributes:\n      capacity: { range: integer }\n";
 
 fn seed_spaceless(state: &AppState, namespace: &str, name: &str, version: &str, lifecycle: &str) {
@@ -1192,7 +1192,7 @@ async fn dry_run(
     (status, serde_json::from_slice(&bytes).unwrap_or_default())
 }
 
-/// DM-75: a space model importing an organization model compiles with that model's source,
+/// DM-76: a space model importing an organization model compiles with that model's source,
 /// which the Portal reads and hands Model Tools itself.
 #[tokio::test]
 async fn a_space_model_importing_an_organization_model_compiles_with_its_source() {
@@ -1216,7 +1216,7 @@ async fn a_space_model_importing_an_organization_model_compiles_with_its_source(
     );
 }
 
-/// DM-75, R20: another project's model has no import name, a pin to another major and a draft
+/// DM-76, R20: another project's model has no import name, a pin to another major and a draft
 /// are refused naming why, and none of them reaches Model Tools.
 #[tokio::test]
 async fn an_import_of_another_projects_model_or_the_wrong_major_is_refused() {
@@ -1258,7 +1258,7 @@ async fn an_import_of_another_projects_model_or_the_wrong_major_is_refused() {
     );
 }
 
-/// DM-75: an organization model a space imports is not deleted; the refusal names the importer.
+/// DM-76: an organization model a space imports is not deleted; the refusal names the importer.
 #[tokio::test]
 async fn deleting_an_imported_organization_model_is_refused_naming_its_importers() {
     let (forge, _tools, state, cookie) = importing_world().await;

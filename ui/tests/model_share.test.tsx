@@ -1,5 +1,5 @@
 /**
- * T-2884 (DM-76, DM-77): a published model is shared with the organization from its page, and once
+ * T-2884 (DM-77, DM-78): a published model is shared with the organization from its page, and once
  * the organization holds the copy the page offers to import it in place of the model's own classes.
  */
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
@@ -81,7 +81,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("using the organization's copy (DM-77)", () => {
+describe("using the organization's copy (DM-78)", () => {
   it("imports the copy in place of what it defines, keeping the rest and every IRI", () => {
     const adopted = parse(adoptOrganizationCopy(SOURCE, SHARED, "org.air.v1")) as Record<string, Record<string, unknown>>;
     expect(adopted.imports).toEqual(["linkml:types", "org.air.v1"]);
@@ -139,7 +139,7 @@ describe("using the organization's copy (DM-77)", () => {
   });
 });
 
-describe("sharing a model with the organization (DM-76)", () => {
+describe("sharing a model with the organization (DM-77)", () => {
   it("asks first, proposes the share and links the Change that waits for the organization", async () => {
     const { sent, answer } = world({});
     await renderRoute({ path: "/projects/helsinki/models/air", answer });

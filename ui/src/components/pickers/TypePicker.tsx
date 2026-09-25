@@ -29,7 +29,7 @@ export interface TypePickerProps {
   describedBy?: string;
 }
 
-/** A platform-model import (DM-75): `org.{name}.v{major}` or `project.{name}.v{major}`. */
+/** A platform-model import (DM-76): `org.{name}.v{major}` or `project.{name}.v{major}`. */
 const MODEL_IMPORT = /^(org|project)\.([a-z0-9](?:[-a-z0-9]*[a-z0-9])?)\.v(?:0|[1-9][0-9]*)$/;
 
 /** A model one source imports: by its platform name with its level, or by a file or URL's name. */
@@ -39,7 +39,7 @@ export interface ImportedModel {
 }
 
 /**
- * The models a LinkML source imports: `org.`/`project.` names with their level (DM-75), and the
+ * The models a LinkML source imports: `org.`/`project.` names with their level (DM-76), and the
  * last segment of any other file or URL import. LinkML's own `linkml:` imports and a source that
  * does not parse import nothing here.
  */

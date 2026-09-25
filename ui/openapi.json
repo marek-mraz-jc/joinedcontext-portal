@@ -4896,7 +4896,7 @@
           "datamodels"
         ],
         "summary": "Share Model with the Organization",
-        "description": "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-76). Only an organization-scope approver of DataModel approves it.",
+        "description": "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-77). Only an organization-scope approver of DataModel approves it.",
         "operationId": "share_model",
         "parameters": [
           {
@@ -13828,7 +13828,7 @@
       },
       "ModelLevel": {
         "type": "string",
-        "description": "Where a model lives (DM-74, DM-78).",
+        "description": "Where a model lives (DM-75, DM-79).",
         "enum": [
           "organization",
           "project"
@@ -14259,7 +14259,7 @@
       },
       "OrganizationModel": {
         "type": "object",
-        "description": "One `DataModel` of the organization as the pickers list it (DM-63, DM-78).",
+        "description": "One `DataModel` of the organization as the pickers list it (DM-63, DM-79).",
         "required": [
           "name",
           "level",
@@ -14291,7 +14291,7 @@
               },
               {
                 "$ref": "#/components/schemas/SharedFrom",
-                "description": "The project model an organization model was shared from (DM-76); absent on every other."
+                "description": "The project model an organization model was shared from (DM-77); absent on every other."
               }
             ]
           },
@@ -14304,7 +14304,7 @@
               "string",
               "null"
             ],
-            "description": "The space whose model it is; absent for a model no space owns (DM-74)."
+            "description": "The space whose model it is; absent for a model no space owns (DM-75)."
           },
           "version": {
             "type": "string"
@@ -16127,7 +16127,7 @@
       },
       "SharedFrom": {
         "type": "object",
-        "description": "Where an organization model was shared from (DM-76): what lets that project offer to use the\norganization's copy instead of its own (DM-77).",
+        "description": "Where an organization model was shared from (DM-77): what lets that project offer to use the\norganization's copy instead of its own (DM-78).",
         "required": [
           "project",
           "name",

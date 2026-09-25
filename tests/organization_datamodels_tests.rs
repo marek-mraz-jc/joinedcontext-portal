@@ -361,7 +361,7 @@ async fn a_missing_catalogue_still_lists_the_organizations_models() {
     );
 }
 
-/// DM-74, DM-78: an organization model is listed first, with `level: organization` and no space,
+/// DM-75, DM-79: an organization model is listed first, with `level: organization` and no space,
 /// to every person holding any binding in the organization; a project model no space owns is its
 /// project's readers' alone, not a space-scoped reader's; a stranger sees neither.
 #[tokio::test]

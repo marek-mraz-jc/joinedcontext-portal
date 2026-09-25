@@ -125,7 +125,7 @@ pub fn confine_linkml_path(linkml: &str) -> Result<String, ApiError> {
     Ok(trimmed.to_string())
 }
 
-/// The folder a DataModel's manifest, source and artifacts live in (DM-01, DM-74): a space's
+/// The folder a DataModel's manifest, source and artifacts live in (DM-01, DM-75): a space's
 /// model in the space's `datamodels/`, a model no space owns in a folder of its own, in the
 /// project or, for `org`, in the organization repository.
 pub(crate) fn model_folder(namespace: &str, spec: &Value, name: &str) -> String {
@@ -146,7 +146,7 @@ pub(crate) fn model_folder(namespace: &str, spec: &Value, name: &str) -> String 
 const MAX_IMPORTS: usize = 32;
 
 /// The LinkML source of every platform model `document` imports, transitively, by its import
-/// name (DM-75): an organization model (`org.{name}.v{major}`), or a model of `project`
+/// name (DM-76): an organization model (`org.{name}.v{major}`), or a model of `project`
 /// (`project.{name}.v{major}`), at the pinned major and published. Another project's model has
 /// no import name, and an organization model imports the organization's models only. What the
 /// caller may not read is refused like what does not exist, so an import learns nothing of a
@@ -177,7 +177,7 @@ pub(crate) async fn resolve_imports(
                     "a model imports at most {MAX_IMPORTS} platform models, its imports' imports included"
                 )));
             }
-            let refused = |why: String| invalid(format!("import '{key}': {why} (DM-75)"));
+            let refused = |why: String| invalid(format!("import '{key}': {why} (DM-76)"));
             let home = match (import.organization, importer.as_str()) {
                 (true, _) => ORG_NAMESPACE,
                 (false, ORG_NAMESPACE) => {
@@ -247,7 +247,7 @@ fn invalid(detail: String) -> ApiError {
 }
 
 /// Every class of the imported sources: a space's types are its own classes and the ones it
-/// imports, and the gateway admits a write by `spec.classes` (DM-61, DM-75).
+/// imports, and the gateway admits a write by `spec.classes` (DM-61, DM-76).
 fn imported_classes(imports: &BTreeMap<String, String>) -> Vec<String> {
     imports
         .values()
@@ -258,7 +258,7 @@ fn imported_classes(imports: &BTreeMap<String, String>) -> Vec<String> {
 }
 
 /// Every model that imports the organization model `name`, at any major, as `project/model`
-/// (DM-75): what refuses its deletion. A source that cannot be read imports nothing here.
+/// (DM-76): what refuses its deletion. A source that cannot be read imports nothing here.
 ///
 /// ponytail: reads every model's source from the local checkout on each organization-model
 /// delete; keep an index of imports when there are thousands of models.
@@ -542,7 +542,7 @@ pub(crate) async fn compile_artifacts(
         .build()
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    // The imported sources are the Portal's to hand over, never the caller's (DM-75).
+    // The imported sources are the Portal's to hand over, never the caller's (DM-76).
     let mut body = json!({ "source": source });
     if !imports.is_empty() {
         body["imports"] = json!(imports);
@@ -672,7 +672,7 @@ pub async fn get_source(
     // PF-59, R20 (T-1367): the source is a read of the model, so a caller who may not read the
     // project's models gets the answer of a model that is not there, and the forge is not asked.
     // The operations registry and the MCP resource ask the same question before `read_source`.
-    // An organization model is every member's to read, since a schema carries no data (DM-74).
+    // An organization model is every member's to read, since a schema carries no data (DM-75).
     let readable = if project == ORG_NAMESPACE {
         crate::permissions::is_organization_member(&state, &user.0.identity)
     } else {
@@ -780,7 +780,7 @@ pub async fn put_source(
     }
     // A model that did not exist has nothing to break, so it lands in the lane a draft gets.
     // An organization model changes for every project at once, so only an administrator
-    // approves any change to it (DM-74).
+    // approves any change to it (DM-75).
     let lane = match checked.severity.as_str() {
         _ if project == ORG_NAMESPACE => Lane::Red,
         _ if creating => Lane::Green,
@@ -830,7 +830,7 @@ pub struct ShareBody {
     post,
     path = "/api/v1/projects/{project}/datamodels/{name}/share",
     summary = "Share Model with the Organization",
-    description = "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-76). Only an organization-scope approver of DataModel approves it.",
+    description = "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-77). Only an organization-scope approver of DataModel approves it.",
     tag = "datamodels",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -866,7 +866,7 @@ pub async fn share_model(
     let identity = &user.0.identity;
     if project == ORG_NAMESPACE {
         return Err(ApiError::BadRequest(format!(
-            "'{name}' is an organization model already; a project's model is what is shared (DM-76)"
+            "'{name}' is an organization model already; a project's model is what is shared (DM-77)"
         )));
     }
     let effective = crate::permissions::for_request(&state, identity, &project);
@@ -891,7 +891,7 @@ pub async fn share_model(
         .map_err(|e| ApiError::Internal(format!("DataModel {name} does not read: {e}")))?;
     if spec.lifecycle != DataModelLifecycle::Published {
         return Err(ApiError::Conflict(format!(
-            "'{name}' is {}; only a published model is shared with the organization (DM-76)",
+            "'{name}' is {}; only a published model is shared with the organization (DM-77)",
             spec.lifecycle
         )));
     }
@@ -901,7 +901,7 @@ pub async fn share_model(
     };
 
     // The organization's copy of this model, when an earlier share made one: the next version of
-    // it (DM-22). A model of that name from anywhere else keeps its name (DM-76).
+    // it (DM-22). A model of that name from anywhere else keeps its name (DM-77).
     let existing = state.mirror.get(ORG_NAMESPACE, "DataModel", &name);
     let (envelope, version) = match existing {
         None => {
@@ -920,7 +920,7 @@ pub async fn share_model(
                 .and_then(|origin| serde_json::from_value::<DataModelOrigin>(origin.clone()).ok());
             if !origin.as_ref().is_some_and(from) {
                 return Err(ApiError::Conflict(format!(
-                    "the organization already has a data model '{name}'{}; rename this model to share it (DM-76)",
+                    "the organization already has a data model '{name}'{}; rename this model to share it (DM-77)",
                     origin.map_or_else(String::new, |o| format!(
                         ", shared from project '{}' model '{}'",
                         o.project, o.name
@@ -948,7 +948,7 @@ pub async fn share_model(
     let creating = version.is_some();
 
     // Checked as an organization model: its imports resolve among the organization's models only,
-    // so one importing a model of this project is refused before anything is written (DM-75).
+    // so one importing a model of this project is refused before anything is written (DM-76).
     let (checked, next_val, imports) = check_source(
         &state,
         identity,
@@ -996,7 +996,7 @@ pub async fn share_model(
             lane: Lane::Red,
             title: format!("share DataModel {name} with the organization"),
             body: format!(
-                "Shares DataModel `{name}` {} of project `{project}`{from_space} with the organization (DM-76): the source copied byte for byte at commit {}. An organization administrator approves it.",
+                "Shares DataModel `{name}` {} of project `{project}`{from_space} with the organization (DM-77): the source copied byte for byte at commit {}. An organization administrator approves it.",
                 origin.version, origin.commit
             ),
         },
@@ -1021,7 +1021,7 @@ pub async fn share_model(
 }
 
 /// One model Change: the manifest, its source as typed and the artifacts compiled from it, in
-/// the model's folder of the repository its namespace lives in (DM-01, DM-74).
+/// the model's folder of the repository its namespace lives in (DM-01, DM-75).
 pub(crate) struct ModelProposal<'a> {
     pub namespace: &'a str,
     pub name: &'a str,
@@ -1213,7 +1213,7 @@ pub struct OrganizationModelsQuery {
     pub search: Option<String>,
 }
 
-/// Where a model lives (DM-74, DM-78).
+/// Where a model lives (DM-75, DM-79).
 #[derive(Debug, Clone, Copy, Serialize, ToSchema, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum ModelLevel {
@@ -1223,7 +1223,7 @@ pub enum ModelLevel {
     Project,
 }
 
-/// One `DataModel` of the organization as the pickers list it (DM-63, DM-78).
+/// One `DataModel` of the organization as the pickers list it (DM-63, DM-79).
 #[derive(Debug, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationModel {
@@ -1231,19 +1231,19 @@ pub struct OrganizationModel {
     pub level: ModelLevel,
     /// The project it belongs to; `org` for an organization model.
     pub project: String,
-    /// The space whose model it is; absent for a model no space owns (DM-74).
+    /// The space whose model it is; absent for a model no space owns (DM-75).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub space: Option<String>,
     pub version: String,
     pub lifecycle: String,
     pub classes: Vec<String>,
-    /// The project model an organization model was shared from (DM-76); absent on every other.
+    /// The project model an organization model was shared from (DM-77); absent on every other.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<SharedFrom>,
 }
 
-/// Where an organization model was shared from (DM-76): what lets that project offer to use the
-/// organization's copy instead of its own (DM-77).
+/// Where an organization model was shared from (DM-77): what lets that project offer to use the
+/// organization's copy instead of its own (DM-78).
 #[derive(Debug, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SharedFrom {
@@ -1350,11 +1350,11 @@ pub async fn list_organization_datamodels(
 
     let member = crate::permissions::is_organization_member(&state, &user.0.identity);
     let mut items = Vec::new();
-    // `namespaces` names the projects; the organization's own models are in `org` (DM-74).
+    // `namespaces` names the projects; the organization's own models are in `org` (DM-75).
     let homes = std::iter::once(ORG_NAMESPACE.to_owned()).chain(state.mirror.namespaces());
     for project in homes {
         let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-        // An organization model is every member's to read; a project's by its grants (DM-74).
+        // An organization model is every member's to read; a project's by its grants (DM-75).
         let organization = project == ORG_NAMESPACE;
         if !(if organization {
             member
@@ -1455,7 +1455,7 @@ mod tests {
     use super::*;
 
     /// DM-56, T-1484: a model's source stays inside its space's `datamodels/` folder.
-    // DM-01, DM-74: a space's model sits in the space's folder, one no space owns in its own.
+    // DM-01, DM-75: a space's model sits in the space's folder, one no space owns in its own.
     #[test]
     fn a_models_folder_follows_its_level() {
         let space = json!({ "contextSpaceRef": "air" });
@@ -1473,7 +1473,7 @@ mod tests {
         );
     }
 
-    // DM-61, DM-75: the gateway admits a write by `spec.classes`, so a space's classes include
+    // DM-61, DM-76: the gateway admits a write by `spec.classes`, so a space's classes include
     // the ones it imports; an imported source that does not read adds none.
     #[test]
     fn imported_classes_are_every_class_of_every_imported_source() {

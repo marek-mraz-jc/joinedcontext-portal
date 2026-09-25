@@ -387,12 +387,12 @@ pub async fn delete_with_identity(
         });
     }
 
-    // 2a. An organization model a model imports stays; retiring it is the way out (DM-75, DM-26).
+    // 2a. An organization model a model imports stays; retiring it is the way out (DM-76, DM-26).
     if kind_info.kind == "DataModel" && project == crate::permissions::ORG_NAMESPACE {
         let importers = crate::api::datamodels::importers_of(state, name).await;
         if !importers.is_empty() {
             return Err(ApiError::Conflict(format!(
-                "organization model '{name}' is imported by {}; change those imports first, or set its lifecycle to retired (DM-26, DM-75)",
+                "organization model '{name}' is imported by {}; change those imports first, or set its lifecycle to retired (DM-26, DM-76)",
                 importers.join(", ")
             )));
         }

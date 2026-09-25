@@ -1,4 +1,4 @@
-//! DM-76, PF-58 (T-2884): a project shares a published model with the organization as a red-lane
+//! DM-77, PF-58 (T-2884): a project shares a published model with the organization as a red-lane
 //! Change of the organization repository that only an organization-scope approver approves.
 
 mod common;
@@ -266,7 +266,7 @@ async fn a_draft_a_stranger_and_a_model_importing_a_project_model_are_refused_be
     );
     seed_model(&state, "published");
 
-    // An organization model imports organization models only (DM-75).
+    // An organization model imports organization models only (DM-76).
     gitea.reset().await;
     common::mount_repository(&gitea, REPO).await;
     let importing = SOURCE.replace(
@@ -518,7 +518,7 @@ async fn a_service_account_or_an_agent_run_never_approves_a_share() {
     assert!(!merged(&gitea.received_requests().await.expect("recorded")));
 }
 
-// DM-74, DM-77: every member reads the organization's copy and where it came from, which is what
+// DM-75, DM-78: every member reads the organization's copy and where it came from, which is what
 // lets the origin project offer to use it; a person with no binding reads neither.
 #[tokio::test]
 async fn every_member_reads_the_organization_copy_and_its_origin() {

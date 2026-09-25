@@ -1,6 +1,6 @@
 /**
- * A project's model shared with the organization (DM-76), and the project moving onto the
- * organization's copy once it is there (DM-77, ADR-N-039 §3.2, §3.3).
+ * A project's model shared with the organization (DM-77), and the project moving onto the
+ * organization's copy once it is there (DM-78, ADR-N-039 §3.2, §3.3).
  *
  * Sharing proposes a red-lane Change of the organization repository that an organization
  * administrator approves; nothing in the project changes. Once the copy is merged, the model's page
@@ -27,7 +27,7 @@ const DEFINITIONS = ["classes", "slots", "enums", "types", "subsets"] as const;
 
 /**
  * The model's source importing the organization's copy under `importName` instead of defining
- * what the copy defines (DM-77): `id`, `name`, prefixes and anything the copy lacks stay, so class
+ * what the copy defines (DM-78): `id`, `name`, prefixes and anything the copy lacks stay, so class
  * names and IRIs are the ones the copy carries, byte for byte the ones shared. A source that does
  * not parse is returned as it is.
  */
@@ -64,7 +64,7 @@ function importsAlready(source: string, importName: string): boolean {
 }
 
 /**
- * "Share with the organization" (DM-76): for a published model and a person who may propose one,
+ * "Share with the organization" (DM-77): for a published model and a person who may propose one,
  * with the reason on the disabled button for anyone else.
  */
 export function ShareWithOrganization({
@@ -118,7 +118,7 @@ export function ShareWithOrganization({
 }
 
 /**
- * The offer of DM-77 on a model the organization holds a copy of, shared from here: shown once the
+ * The offer of DM-78 on a model the organization holds a copy of, shared from here: shown once the
  * copy is merged and while the model does not import it yet.
  */
 export function OrganizationCopyOffer({ project, name, source }: { project: string; name: string; source: string }): JSX.Element | null {

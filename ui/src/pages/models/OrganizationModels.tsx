@@ -1,7 +1,7 @@
 /**
- * The organization's data models (DM-74, DM-78), read-only: only a Change to the organization
+ * The organization's data models (DM-75, DM-79), read-only: only a Change to the organization
  * repository edits one, and a project's model uses one by importing it under the name each row
- * shows (DM-75). The list is the server's, which holds none for a person with no binding in the
+ * shows (DM-76). The list is the server's, which holds none for a person with no binding in the
  * organization. The Data models page of a project shows it below its own models and links to the
  * Organization page's Data models tab, which shows it alone.
  */
@@ -12,7 +12,7 @@ import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed"
 import { useOrganizationModels } from "../../components/pickers/organizationModels";
 import { Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 
-/** The name a project's model imports an organization model by (DM-75): `org.{name}.v{major}`. */
+/** The name a project's model imports an organization model by (DM-76): `org.{name}.v{major}`. */
 export function organizationImportName(name: string, version: string): string {
   return `org.${name}.v${version.split(".")[0]}`;
 }

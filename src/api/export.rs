@@ -555,7 +555,7 @@ async fn model_files(state: &AppState, file: &Exported, all: &[Exported]) -> Mod
         match &model.linkml {
             Some(source) => {
                 // A model saved through the Portal commits its JSON Schema, imports resolved
-                // (DM-75), so this fallback compiles only a hand-committed source; one that
+                // (DM-76), so this fallback compiles only a hand-committed source; one that
                 // imports a platform model says so in `missing` (T-2885 carries the imports).
                 match crate::api::datamodels::compile_artifacts(
                     state,

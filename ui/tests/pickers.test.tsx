@@ -29,7 +29,7 @@ const MODELS = [
   { name: "mobility", level: "project", project: "helsinki", space: "mobility", version: "0.3.0", lifecycle: "draft", classes: ["BikeHireDockingStation", "Road"] },
   { name: "kpi", level: "project", project: "bbsk", space: "kpi", version: "2.0.0", lifecycle: "published", classes: ["KeyPerformanceIndicator"] },
 ];
-/** An organization model named like a project's, and a project model no space owns (DM-74). */
+/** An organization model named like a project's, and a project model no space owns (DM-75). */
 const LEVELS = [
   { name: "kpi", level: "organization", project: "org", version: "2.1.0", lifecycle: "published", classes: ["Territory"] },
   { name: "shared", level: "project", project: "helsinki", version: "1.0.0", lifecycle: "published", classes: ["Kiosk"] },
@@ -109,7 +109,7 @@ describe("DataModelPicker", () => {
       expect.stringContaining("air-quality"),
       expect.stringContaining("mobility"),
     ]);
-    // DM-78: each entry's level is said, the organization's models apart from every project's.
+    // DM-79: each entry's level is said, the organization's models apart from every project's.
     expect(list.textContent).toContain("Project bbsk / kpi");
     expect(list.textContent).toContain("Organization models");
     expect(list.textContent).toContain("Project helsinki / air");
@@ -254,7 +254,7 @@ describe("importedNames", () => {
       { name: "air-quality" },
       { name: "kpi" },
     ]);
-    // DM-75: a platform-model import carries its level; a malformed one is only a name.
+    // DM-76: a platform-model import carries its level; a malformed one is only a name.
     expect(importedNames("imports: [org.kpi.v2, project.air-quality.v1, org.bad]\n")).toEqual([
       { name: "kpi", level: "organization" },
       { name: "air-quality", level: "project" },

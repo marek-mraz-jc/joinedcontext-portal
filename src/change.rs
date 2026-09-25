@@ -185,7 +185,7 @@ pub enum Operation {
 
 /// [`classify`] for a manifest where it lives: an organization `DataModel` is the schema of every
 /// project that imports it, so any change to it is `Red`, whatever its kind alone would say
-/// (DM-74, DM-76).
+/// (DM-75, DM-77).
 pub fn classify_manifest(manifest: &crate::resource::ResourceEnvelope, op: Operation) -> Lane {
     if manifest.kind == "DataModel"
         && manifest.metadata.namespace.as_deref() == Some(crate::permissions::ORG_NAMESPACE)
@@ -616,7 +616,7 @@ mod tests {
         assert_eq!(classify("Layer", Operation::Update, &spec), Lane::Green);
     }
 
-    // DM-74, DM-76: an organization's data model is red wherever it is classified; a project's
+    // DM-75, DM-77: an organization's data model is red wherever it is classified; a project's
     // stays as its kind says.
     #[test]
     fn an_organization_data_model_is_red_and_a_projects_is_not() {

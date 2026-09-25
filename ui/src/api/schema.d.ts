@@ -1272,7 +1272,7 @@ export interface paths {
         put?: never;
         /**
          * Share Model with the Organization
-         * @description Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-76). Only an organization-scope approver of DataModel approves it.
+         * @description Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-77). Only an organization-scope approver of DataModel approves it.
          */
         post: operations["share_model"];
         delete?: never;
@@ -3624,7 +3624,7 @@ export interface components {
             subject: string;
         };
         /**
-         * @description Where a model lives (DM-74, DM-78).
+         * @description Where a model lives (DM-75, DM-79).
          * @enum {string}
          */
         ModelLevel: "organization" | "project";
@@ -3770,7 +3770,7 @@ export interface components {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];
         };
-        /** @description One `DataModel` of the organization as the pickers list it (DM-63, DM-78). */
+        /** @description One `DataModel` of the organization as the pickers list it (DM-63, DM-79). */
         OrganizationModel: {
             classes: string[];
             level: components["schemas"]["ModelLevel"];
@@ -3779,7 +3779,7 @@ export interface components {
             origin?: null | components["schemas"]["SharedFrom"];
             /** @description The project it belongs to; `org` for an organization model. */
             project: string;
-            /** @description The space whose model it is; absent for a model no space owns (DM-74). */
+            /** @description The space whose model it is; absent for a model no space owns (DM-75). */
             space?: string | null;
             version: string;
         };
@@ -4425,8 +4425,8 @@ export interface components {
             confirm?: string | null;
         };
         /**
-         * @description Where an organization model was shared from (DM-76): what lets that project offer to use the
-         *     organization's copy instead of its own (DM-77).
+         * @description Where an organization model was shared from (DM-77): what lets that project offer to use the
+         *     organization's copy instead of its own (DM-78).
          */
         SharedFrom: {
             name: string;

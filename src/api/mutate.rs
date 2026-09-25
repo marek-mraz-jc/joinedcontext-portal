@@ -366,7 +366,7 @@ pub(crate) fn resolve_repo_path(
                 .then(|| crate::api::assistant::ref_name(&envelope.spec["contextSpaceRef"]))
                 .flatten()
         })
-        // A DataModel no space owns has a folder of its own, not the project's space (DM-74).
+        // A DataModel no space owns has a folder of its own, not the project's space (DM-75).
         .or_else(|| {
             (kind_info.kind != "DataModel")
                 .then(|| envelope.metadata.namespace.clone())

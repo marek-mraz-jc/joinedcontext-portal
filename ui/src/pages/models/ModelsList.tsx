@@ -1,7 +1,7 @@
 /**
  * The Data models page: every DataModel of the project, one row each (DM-61, DM-62, T-2765), and
  * apart from them the organization's models, read-only, each with the name a model imports it
- * by (DM-74, DM-75, DM-78).
+ * by (DM-75, DM-76, DM-79).
  *
  * It used to open on the Smart Data Models catalogue, and the project's own models were listed
  * nowhere. A row says which space the model belongs to, its version and lifecycle, its classes,

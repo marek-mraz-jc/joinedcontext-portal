@@ -103,7 +103,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/organization/datamodels", "the list behind the model and type pickers (DM-63); an agent reads a project's models through jc_resource_list and the catalogue through jc_catalog_search"),
 ("GET", "/projects/{project}/datamodels/{name}/source", "jc_model_source_get"),
 ("PUT", "/projects/{project}/datamodels/{name}/source", "jc_model_source_put"),
-("POST", "/projects/{project}/datamodels/{name}/share", "the model page's Share with the organization (DM-76): a red-lane Change an organization administrator approves in the Portal; an agent drafts the model, a person decides to share it"),
+("POST", "/projects/{project}/datamodels/{name}/share", "the model page's Share with the organization (DM-77): a red-lane Change an organization administrator approves in the Portal; an agent drafts the model, a person decides to share it"),
 ("GET", "/projects/{project}/drafts", "jc_draft_list"),
 ("GET", "/projects/{project}/drafts/events", "a live stream, not a call and an answer"),
 ("GET", "/projects/{project}/drafts/{kind}/{name}", "jc_draft_get"),
