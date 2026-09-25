@@ -334,7 +334,8 @@
       "ttlDays": "Lifetime in days",
       "phase": "State",
       "source": "Source",
-      "inside": "Inside"
+      "inside": "Inside",
+      "missingUnitCode": "Missing unit"
     },
     "inside": {
       "open": "Look inside",
@@ -1157,7 +1158,11 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}"
+        "example": "Example: {example}",
+        "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
+        "sourceUnit": "Source in another unit?",
+        "sourceUnitOf": "Source unit of {slot}",
+        "addConversion": "Add to mapping"
       },
       "output": {
         "title": "Mapped output",
@@ -3866,6 +3871,10 @@
       "IRREG": "Irregularly",
       "NEVER": "Never, it is final",
       "UNKNOWN": "Not known"
+    },
+    "missingUnitCode": {
+      "fill": "Fill in the model's unit",
+      "refuse": "Refuse the write"
     }
   },
   "picker": {

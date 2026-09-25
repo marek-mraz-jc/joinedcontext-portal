@@ -334,7 +334,8 @@
       "ttlDays": "Životnosť v dňoch",
       "phase": "Stav",
       "source": "Zdroj",
-      "inside": "Obsah"
+      "inside": "Obsah",
+      "missingUnitCode": "Chýbajúca jednotka"
     },
     "inside": {
       "open": "Pozrieť obsah",
@@ -1157,7 +1158,11 @@
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
-        "example": "Príklad: {example}"
+        "example": "Príklad: {example}",
+        "measuredIn": "Meria sa v {symbol} ({code}); ak záznam unitCode nemá, brána ho doplní.",
+        "sourceUnit": "Zdroj v inej jednotke?",
+        "sourceUnitOf": "Jednotka zdroja pre {slot}",
+        "addConversion": "Pridať do mapovania"
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -3866,6 +3871,10 @@
       "IRREG": "Nepravidelne",
       "NEVER": "Nikdy, je konečný",
       "UNKNOWN": "Neznáme"
+    },
+    "missingUnitCode": {
+      "fill": "Doplniť jednotku z modelu",
+      "refuse": "Odmietnuť zápis"
     }
   },
   "picker": {

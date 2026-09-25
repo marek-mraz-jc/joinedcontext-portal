@@ -85,6 +85,11 @@ describe("the form's inputs", () => {
     expect(fieldOf("name", SCHEMA.BikeHireDockingStation, "text")).toEqual({ name: "name", input: "text", pattern: undefined, required: true });
     expect(fieldOf("ghost", SCHEMA.BikeHireDockingStation, "number").input).toBe("number");
     expect(fieldOf("when", { properties: { when: { type: "string", format: "date-time" } } }, "text").input).toBe("date");
+    // DM-06, T-2812: a quantity carries the code its model measures it in, and nothing else does.
+    const pm10 = { type: "number", "x-unit": { exactMappings: ["qudt-unit:MicroGM-PER-M3", "ucefact:GQ"] } };
+    expect(fieldOf("pm10", { properties: { pm10 } }, "number").unit).toBe("GQ");
+    expect(fieldOf("pm10", { properties: { pm10: { type: "number", "x-unit": { exactMappings: ["unece:CEL"] } } } }, "number").unit).toBe("CEL");
+    expect(fieldOf("count", { properties: { count: { type: "integer" } } }, "number")).not.toHaveProperty("unit");
     // SDK-07: a LanguageProperty is not a text box, which would write one language over them all.
     expect(fieldOf("name", { properties: { name: { type: ["object", "null"], "x-ngsi-ld-kind": "LanguageProperty" } } }, "text").input).toBe("language");
   });
