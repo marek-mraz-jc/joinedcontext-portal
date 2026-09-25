@@ -108,11 +108,11 @@ pub struct Config {
     /// writable, and `{apps_dir}` need not be. `None` fetches nothing, and an App whose
     /// `status.build` names a build keeps serving the bundle the image ships.
     pub apps_cache_dir: Option<String>,
-    /// The origin apps are served from (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`; AP-26,
-    /// ADR-N-019). When set, `/apps/*` is served only on that origin and answered with a `308`
-    /// to it on any other host, above all the Portal's own: an app on the Portal origin would
-    /// call the Portal API with the viewer's session (T-2476). `None` serves on every host, as
-    /// a Portal without an edge in front of it does.
+    /// The apex every App's own origin sits under (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`;
+    /// AP-26, AP-133, ADR-N-037): App `name` is served only on `{name}.apps.{domain}` and
+    /// answered with a `308` there on any other host, above all the Portal's own, where it would
+    /// call the Portal API with the viewer's session (T-2476), and another App's. `None` serves
+    /// on every host, as a Portal without an edge in front of it does.
     pub apps_url: Option<Url>,
     /// The file the deployment renders `global.branding` into (`JC_BRANDING_FILE`; UI-30,
     /// OPS-46). `None` serves

@@ -2,7 +2,7 @@
 //!
 //! Each published App logs people in with a confidential client of its own, `app-{name}`: the
 //! standard flow with PKCE, no direct grants, no service account, redirect and post-logout URIs
-//! under `/apps/{name}/` only. This wave is the only writer of such a client: it carries the
+//! and the web origin of its own host `{name}.apps.{domain}` only (AP-133). This wave is the only writer of such a client: it carries the
 //! attribute `managed-by: joinedcontext` and the App it belongs to, a change made in the console
 //! is overwritten and reported, and a managed client whose App is no longer published is
 //! deleted. A client of that id without the attribute belongs to whoever made it and is never
@@ -139,9 +139,13 @@ pub fn title_of(app: &ResourceEnvelope) -> String {
 }
 
 /// The client an App should have, as Keycloak's representation (AP-111). `host` is the apex
-/// the apps are served on, `city.example.com`; `title` is [`title_of`] the App.
+/// the apps' hosts sit under, `city.example.com`; `title` is [`title_of`] the App.
 pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
-    let base = format!("https://{host}/apps/{app}/");
+    let origin = format!(
+        "https://{}",
+        crate::reconciler::edge_file::app_host(app, host)
+    );
+    let base = format!("{origin}/");
     json!({
         "clientId": client_id(app),
         "name": title,
@@ -155,7 +159,7 @@ pub fn desired(project: &str, app: &str, title: &str, host: &str) -> Value {
         "serviceAccountsEnabled": false,
         "frontchannelLogout": true,
         "redirectUris": [format!("{base}*")],
-        "webOrigins": [format!("https://{host}")],
+        "webOrigins": [origin],
         "attributes": {
             "pkce.code.challenge.method": "S256",
             "post.logout.redirect.uris": format!("{base}*"),
@@ -944,12 +948,21 @@ mod tests {
     }
 
     #[test]
-    fn the_client_redirects_only_under_its_own_path_and_has_no_other_flow() {
+    fn the_client_redirects_only_to_its_own_host_and_has_no_other_flow() {
         let want = desired("helsinki", "bikes", "Bikes", "city.example");
         assert_eq!(want["clientId"], "app-bikes");
+        // Its own host alone (AP-133): not the apex, not another App's host.
         assert_eq!(
             want["redirectUris"],
-            json!(["https://city.example/apps/bikes/*"])
+            json!(["https://bikes.apps.city.example/*"])
+        );
+        assert_eq!(
+            want["attributes"]["post.logout.redirect.uris"],
+            "https://bikes.apps.city.example/*"
+        );
+        assert_eq!(
+            want["webOrigins"],
+            json!(["https://bikes.apps.city.example"])
         );
         assert_eq!(want["directAccessGrantsEnabled"], false);
         assert_eq!(want["serviceAccountsEnabled"], false);

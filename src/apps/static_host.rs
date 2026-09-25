@@ -64,10 +64,8 @@ async fn serve(
     uri: Uri,
     Path((name, path)): Path<(String, String)>,
 ) -> Response {
-    if let Some(apps_url) = state.config.apps_url.as_ref() {
-        if !is_origin(&headers, apps_url) {
-            return to_apps_origin(apps_url, &uri);
-        }
+    if let Some(refused) = off_its_origin(&state, &headers, &name, &uri) {
+        return refused;
     }
 
     // Every refusal below is the same 404. A draft app, a retired app, a name that was never
@@ -199,6 +197,36 @@ pub(super) fn portal_origin(state: &AppState) -> Option<String> {
         .map(|_| portal.ascii_serialization())
 }
 
+/// The origin one App is served on, `{name}.apps.{host}` under the configured apex with its
+/// scheme and port (AP-133). `None` for a name no host could carry.
+pub fn app_origin(apex: &url::Url, name: &str) -> Option<url::Url> {
+    if !crate::resource::is_dns1123(name) {
+        return None;
+    }
+    let host = apex.host_str()?;
+    let mut origin = apex.clone();
+    origin.set_host(Some(&format!("{name}.apps.{host}"))).ok()?;
+    origin.set_path("/");
+    origin.set_query(None);
+    Some(origin)
+}
+
+/// An App asked for anywhere but its own origin answers a `308` there, above all on the
+/// Portal's host or another App's (T-2476, AP-133); `None` when the request is on it, or when
+/// no apps origin is configured and the App is served on every host.
+pub(super) fn off_its_origin(
+    state: &AppState,
+    headers: &HeaderMap,
+    name: &str,
+    uri: &Uri,
+) -> Option<Response> {
+    let apex = state.config.apps_url.as_ref()?;
+    let Some(origin) = app_origin(apex, name) else {
+        return Some(StatusCode::NOT_FOUND.into_response());
+    };
+    (!is_origin(headers, &origin)).then(|| to_app_origin(&origin, name, uri))
+}
+
 /// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
 /// port, the scheme's default when none is written. A request without a `Host` is not on it.
 pub(super) fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
@@ -216,14 +244,22 @@ pub(super) fn is_origin(headers: &HeaderMap, origin: &url::Url) -> bool {
 }
 
 /// An app asked for anywhere but its own origin, above all on the Portal's (T-2476): a `308`
-/// to the same path and query there, so every link keeps working and no byte of the bundle is
-/// ever served where it could reach the Portal API with the viewer's session. The target is
-/// the configured origin, never the request's `Host`, so this is no open redirect.
-pub(super) fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
-    let target = uri
-        .path_and_query()
-        .map_or("/", axum::http::uri::PathAndQuery::as_str);
-    let location = format!("{}{target}", origin.as_str().trim_end_matches('/'));
+/// to the same path and query on the App's host, `/apps/{name}` dropped, so every link keeps
+/// working and no byte of the bundle is ever served where it could reach the Portal API, or
+/// another App's storage, with the viewer's session. The target is the configured origin, never
+/// the request's `Host`, so this is no open redirect.
+pub(super) fn to_app_origin(origin: &url::Url, name: &str, uri: &Uri) -> Response {
+    let path = uri.path();
+    let rest = path
+        .strip_prefix(&format!("/apps/{name}"))
+        .filter(|rest| rest.is_empty() || rest.starts_with('/'))
+        .unwrap_or(path)
+        .trim_start_matches('/');
+    let query = uri
+        .query()
+        .map(|query| format!("?{query}"))
+        .unwrap_or_default();
+    let location = format!("{origin}{rest}{query}");
     match HeaderValue::from_str(&location) {
         Ok(location) => (
             StatusCode::PERMANENT_REDIRECT,

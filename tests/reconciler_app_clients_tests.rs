@@ -227,7 +227,7 @@ async fn a_published_app_with_no_client_gets_one_and_its_secret_is_read_back() {
     let body: Value = serde_json::from_slice(&created.body).expect("json");
     assert_eq!(
         body["redirectUris"],
-        json!(["https://city.example/apps/bikes/*"])
+        json!(["https://bikes.apps.city.example/*"])
     );
     assert_eq!(body["directAccessGrantsEnabled"], false);
     assert_eq!(body["attributes"][MANAGED_BY], MANAGED_VALUE);
