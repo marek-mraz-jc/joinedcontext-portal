@@ -35,6 +35,24 @@ export function isLanguageMap(value: unknown): value is LanguageMap {
   );
 }
 
+/**
+ * A relationship end as a write carries it: the target, or the targets of a many end (DM-64). A
+ * relationship written as a plain string would reach the broker as a Property naming no target,
+ * which the gateway refuses on a required end.
+ */
+export interface RelationshipObject {
+  object: string | string[];
+}
+
+export function isRelationshipObject(value: unknown): value is RelationshipObject {
+  if (typeof value !== "object" || value === null || !("object" in value)) return false;
+  const object = (value as RelationshipObject).object;
+  return typeof object === "string" || (Array.isArray(object) && object.every((one) => typeof one === "string"));
+}
+
+/** What one attribute of a write holds: a cell, every language of a map, or a relationship end. */
+export type WriteValue = Cell | LanguageMap | RelationshipObject;
+
 /** One entity with every attribute reduced to a cell. `id` and `type` are always present. */
 export type Row = { id: string; type: string } & Record<string, Cell>;
 

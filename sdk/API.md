@@ -96,6 +96,10 @@ function isLanguageMap(value: unknown): value is LanguageMap
 ```
 Whether a value is `{ languageMap }`, the shape `entities.create`/`update` write as a `LanguageProperty`.
 ```ts
+function isRelationshipObject(value: unknown): value is RelationshipObject
+```
+Whether a value is `{ object }` (one URN, or a list of URNs on a many end), the shape `entities.create`/`update` write as a `Relationship` (DM-64). A relationship end written as a plain URN string becomes a Property that names no target, which the gateway refuses on a required end.
+```ts
 const NO_BASEMAP: string
 function styleFor(basemap?: string): string | StyleSpecification
 ```
@@ -347,6 +351,8 @@ Logs an error and, in the preview frame, posts it to the Portal with file and li
 - `Cell`: Scalar value `string | number | boolean | Geo | null`.
 - `Geo`: Geometry object `{ type: string, coordinates: unknown }`.
 - `LanguageMap`: `{ languageMap: Record<string, string> }`, one LanguageProperty with every language.
+- `RelationshipObject`: `{ object: string | string[] }`, one Relationship with its target or targets.
+- `WriteValue`: what one attribute of `entities.create`/`update` takes: a `Cell`, a `LanguageMap` or a `RelationshipObject`.
 - `Column`: Kind `"number" | "date" | "geo" | "text"`.
 - `Agg`: Aggregation `"count" | "sum" | "avg" | "min" | "max"`.
 - `Group`: Aggregated group `{ key: string, value: number }`.
