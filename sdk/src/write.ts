@@ -172,3 +172,16 @@ function unitCodeOf(property: FieldSchema): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * The UN/CEFACT code each quantity of a type is measured in, by attribute (DM-06): what the views
+ * write beside a number, since a key-value row carries no `unitCode` of its own.
+ */
+export function unitsOf(schema: TypeSchema | undefined): Record<string, string> {
+  const units: Record<string, string> = {};
+  for (const [name, property] of Object.entries(schema?.properties ?? {})) {
+    const code = unitCodeOf(property);
+    if (code) units[name] = code;
+  }
+  return units;
+}
