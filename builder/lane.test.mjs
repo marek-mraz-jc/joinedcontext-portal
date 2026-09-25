@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -548,4 +548,84 @@ test("a missing seed, or one that fails to copy, leaves an empty target and neve
     assert.deepEqual(readdirSync(to), []);
   }
   chmodSync(join(from, "z-unreadable.rlib"), 0o644);
+});
+
+/** A seed and a cache folder side by side, the seed holding one compiled dependency. */
+function cacheFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "lane-cache-"));
+  const seedDir = join(dir, "seed");
+  mkdirSync(join(seedDir, "release", "deps"), { recursive: true });
+  writeFileSync(join(seedDir, "release", "deps", "libserde-1.rlib"), "from the image");
+  const cache = join(dir, "cache");
+  mkdirSync(cache);
+  return { dir, seedDir, cache };
+}
+
+test("a second build of the same lock starts from the App's cache, times kept (AP-131, T-2794)", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const first = join(dir, "first", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, first), /no complete entry; the precompiled dependencies .* are the start/);
+  // The first build compiled the App's own crate and a dependency the seed does not hold.
+  mkdirSync(join(first, "release", "deps"), { recursive: true });
+  const own = join(first, "release", "deps", "libapp-1.rlib");
+  writeFileSync(own, "the app's own");
+  const built = new Date("2026-09-20T00:00:00Z");
+  utimesSync(own, built, built);
+  assert.match(lane.save(first, cache, "k1"), /is the App's build cache/);
+
+  const second = join(dir, "second", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, second), /the App's build cache is the start/);
+  const again = join(second, "release", "deps", "libapp-1.rlib");
+  assert.equal(readFileSync(again, "utf8"), "the app's own");
+  assert.equal(statSync(again).mtime.getTime(), built.getTime(), "cargo reads it as compiled");
+
+  // A copy: what the second build writes changes the cache only when it is saved.
+  writeFileSync(again, "edited");
+  assert.equal(readFileSync(join(cache, "target", "release", "deps", "libapp-1.rlib"), "utf8"), "the app's own");
+});
+
+test("another lock or toolchain, a torn entry or no cache at all start from the seed", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const built = join(dir, "built");
+  mkdirSync(built);
+  writeFileSync(join(built, "stale.rlib"), "for the old lock");
+  lane.save(built, cache, "old-lock");
+
+  const to = join(dir, "target");
+  assert.match(lane.restore(cache, "new-lock", seedDir, to), /for another Cargo\.lock or toolchain; the precompiled/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+  assert.equal(existsSync(join(to, "release", "deps", "libserde-1.rlib")), true);
+
+  // A save cut short leaves its entry and no marker: it is never trusted.
+  rmSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+
+  // A marker that cannot be read counts as none.
+  mkdirSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+
+  const nothing = join(dir, "no-cache");
+  assert.match(lane.restore(nothing, "k", seedDir, to), /no build cache is mounted/);
+  assert.match(lane.save(built, nothing, "k"), /nothing kept/);
+  assert.equal(existsSync(nothing), false, "the lane never creates a cache the pod did not mount");
+});
+
+test("a save that fails leaves no entry, and the build it follows still succeeds", () => {
+  const { dir, cache } = cacheFixture();
+  const said = lane.save(join(dir, "no-such-target"), cache, "k");
+  assert.match(said, /was not kept .*: the next build starts from the seed/);
+  assert.deepEqual(readdirSync(cache), []);
+});
+
+test("the lane's command line runs restore and save", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const to = join(dir, "target");
+  const run = (...args) => spawnSync(process.execPath, [new URL("./lane.mjs", import.meta.url).pathname, ...args], { encoding: "utf8" });
+  const restored = run("restore", cache, "k", seedDir, to);
+  assert.equal(restored.status, 0, restored.stderr);
+  assert.match(restored.stdout, /no complete entry/);
+  const saved = run("save", to, cache, "k");
+  assert.equal(saved.status, 0, saved.stderr);
+  assert.equal(readFileSync(join(cache, "target.key"), "utf8").trim(), "k");
 });
