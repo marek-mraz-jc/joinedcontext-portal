@@ -324,8 +324,9 @@ test.describe("the entity grid", () => {
     await page.getByRole("button", { name: "History" }).click();
 
     const history = page.getByRole("dialog").or(page.getByRole("region", { name: "History" }));
-    await expect(history.getByText("2026-09-19T06:00:00Z")).toBeVisible();
-    await expect(history.getByText("3")).toBeVisible();
+    // The panel writes the time in the page's language (T-2991); the instant is its `datetime`.
+    await expect(history.locator('time[datetime="2026-09-19T06:00:00Z"]')).toBeVisible();
+    await expect(history.getByRole("cell", { name: "3", exact: true })).toBeVisible();
   });
 
   test("compares the endpoint's page with the space behind it", async ({ page }) => {
