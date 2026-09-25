@@ -779,6 +779,32 @@
         "assistant_page.test.tsx"
       ]
     },
+    "src/pages/catalogue/CataloguePage.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 1
+      },
+      "tests": [
+        "catalogue_page.test.tsx"
+      ]
+    },
+    "src/pages/catalogue/DatasetPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "catalogue_page.test.tsx"
+      ]
+    },
+    "src/pages/catalogue/PublishDataset.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 1
+      },
+      "tests": [
+        "catalogue_publish.test.tsx"
+      ]
+    },
     "src/pages/ckan/CkanPage.tsx": {
       "controls": {
         "Button": 1
@@ -808,7 +834,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 6,
         "Checkbox": 2
       },
       "tests": [
@@ -1119,6 +1145,14 @@
       "tests": [
         "page_try_it_page.test.tsx",
         "try_it.test.tsx"
+      ]
+    },
+    "src/router.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "part_router.test.tsx"
       ]
     },
     "src/routes/AllEndpointsPage.tsx": {
