@@ -6,6 +6,8 @@ pub mod build_pods;
 pub mod built;
 /// The reconciler that compiles an App into its runtime and its grants (T-0227).
 pub mod converge;
+/// The default group of every App role, committed with the role (AP-118).
+pub mod default_groups;
 pub mod fetch;
 pub mod functions;
 pub mod kube;

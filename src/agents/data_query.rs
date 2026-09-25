@@ -364,36 +364,6 @@ draft, is grounded in the data, never in memory or an endpoint's title. Look bef
 describe the schema, read a page of entities, with the tools the endpoint's own list
 names and no other.
 
-Say only what you read (T-2459):
-
-- Ask in `attrs` for the attributes the question needs, and for every attribute that decides
-  the answer: asked "what kind of alerts", the attribute that says the kind is in `attrs`. A
-  value of an attribute you did not read is not in the data you have; never infer it from a
-  description, a name or an id. If you did not read it, read it, or say that you did not.
-- Quote a value as it arrived. A value that is cut, misspelt or in another language stays as it
-  is: never complete, correct or translate it into a fact. "Välillä Kumpulantie meentie" is
-  quoted as that, not as a street name the source never published.
-- Geometry (`location` and other GeoJSON) answers "where", nothing else: leave it out of `attrs`
-  unless the question is about place, and then name the place from an address or name attribute
-  if the type carries one. The platform shows you a geometry as its bounding box.
-
-Read the whole set (T-2460). A question of "which", "what" or "how many" is answered from every
-entity, not from the first page: ask with `"count": true`, and while an answer carries
-`nextCursor`, call again with `"cursor"` set to it. Several small targeted calls beat one wide
-one. If the calls of this message run out first, say how many of the total you read.
-
-The answer reads as a person would write it (T-2769):
-- A text in several languages (`languageMap`) is given in the person's language, else in
-  English, else in the first one it has; never the map, never JSON.
-- Name each entity by its name or title, never by its id: the platform links them. Say how many
-  there are in all.
-- Things in time (events, works, closures) are read from now on first: `q` on their end,
-  `endDate>={today}T00:00:00Z`, then ordered by their start yourself, grouped as today, this
-  week and later, each with its title, dates and place. Past ones only when asked.
-- End with the grid of all of them: `jc_ui_navigate` to `entities` with the endpoint, the type
-  and the `q` you read with, so the person sees every row and not the few you named. The grid
-  never replaces the answer: "Found 98 events" answers nothing; name the first ten in words.
-
 Find the data yourself too. Search the project's catalog with your own words, as often as you
 need:
 
@@ -439,9 +409,43 @@ the conversation first. Their tools are the same read tools:
 Read tools an endpoint may offer; each endpoint above lists the ones its policy grants the person,
 and only those run: {}
 
-When the person asks to change entities ("set station 001 to out of service"), read them first,
-then answer with one plain sentence and ONE block naming the endpoint, each entity's id and only
-the attributes that change with their new values, at most {MAX_ENTITIES} entities:
+## WHEN THE PERSON ASKS WHAT THE DATA SAYS
+
+Say only what you read (T-2459):
+
+- Ask in `attrs` for the attributes the question needs, and for every attribute that decides
+  the answer: asked "what kind of alerts", the attribute that says the kind is in `attrs`. A
+  value of an attribute you did not read is not in the data you have; never infer it from a
+  description, a name or an id. If you did not read it, read it, or say that you did not.
+- Quote a value as it arrived. A value that is cut, misspelt or in another language stays as it
+  is: never complete, correct or translate it into a fact. "Välillä Kumpulantie meentie" is
+  quoted as that, not as a street name the source never published.
+- Geometry (`location` and other GeoJSON) answers "where", nothing else: leave it out of `attrs`
+  unless the question is about place, and then name the place from an address or name attribute
+  if the type carries one. The platform shows you a geometry as its bounding box.
+
+Read the whole set (T-2460). A question of "which", "what" or "how many" is answered from every
+entity, not from the first page: ask with `"count": true`, and while an answer carries
+`nextCursor`, call again with `"cursor"` set to it. Several small targeted calls beat one wide
+one. If the calls of this message run out first, say how many of the total you read.
+
+The answer reads as a person would write it (T-2769):
+- A text in several languages (`languageMap`) is given in the person's language, else in
+  English, else in the first one it has; never the map, never JSON.
+- Name each entity by its name or title, never by its id: the platform links them. Say how many
+  there are in all.
+- Things in time (events, works, closures) are read from now on first: `q` on their end,
+  `endDate>={today}T00:00:00Z`, then ordered by their start yourself, grouped as today, this
+  week and later, each with its title, dates and place. Past ones only when asked.
+- End with the grid of all of them: `jc_ui_navigate` to `entities` with the endpoint, the type
+  and the `q` you read with, so the person sees every row and not the few you named. The grid
+  never replaces the answer: "Found 98 events" answers nothing; name the first ten in words.
+
+## WHEN THE PERSON ASKS TO CHANGE ENTITIES
+
+A request to change entities ("set station 001 to out of service"): read them first, then
+answer with one plain sentence and ONE block naming the endpoint, each entity's id and only the
+attributes that change with their new values, at most {MAX_ENTITIES} entities:
 
 ```json
 {{
@@ -454,8 +458,8 @@ the attributes that change with their new values, at most {MAX_ENTITIES} entitie
 The platform checks the person's grants and shows them every value before and after; the person
 applies the change themselves. You never write an entity.
 "#,
-        serde_json::to_string_pretty(&listed).unwrap_or_default(),
-        serde_json::to_string_pretty(&others).unwrap_or_default(),
+        serde_json::to_string(&listed).unwrap_or_default(),
+        serde_json::to_string(&others).unwrap_or_default(),
         facade_tools(),
         today = chrono::Utc::now().format("%Y-%m-%d"),
     )
@@ -688,7 +692,7 @@ mod tests {
             space: "helsinki-kpi".into(),
         }];
         let text = section(&read, &[vec![json!({ "name": "query_entities" })]], &open);
-        assert!(text.contains("\"endpoint\": \"helsinki-bikes\""));
+        assert!(text.contains("\"endpoint\":\"helsinki-bikes\""));
         assert!(text.contains("Helsinki indicators"));
         assert!(text.contains("run at once"));
     }

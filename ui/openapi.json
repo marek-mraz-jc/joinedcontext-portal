@@ -2009,6 +2009,18 @@
             }
           },
           {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` lists every origin for the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2063,6 +2075,18 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "description": "`person` (the default), `journey` or `all` (AG-93).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2076,8 +2100,28 @@
               }
             }
           },
+          "400": {
+            "description": "An `origin` that is none of person, journey and all, or an `X-JC-Run-Origin` other than journey",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {
@@ -2113,6 +2157,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -2184,7 +2240,7 @@
             }
           },
           "403": {
-            "description": "No role grants proposing an App here",
+            "description": "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {
@@ -3505,6 +3561,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-JC-Run-Origin",
+            "in": "header",
+            "description": "`journey` marks a run of the Portal's own live journeys (AG-93); refused with 403 for anyone but the configured journey users, and beside a bearer token",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -3552,7 +3620,7 @@
             }
           },
           "403": {
-            "description": "No role grants proposing an App here",
+            "description": "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys",
             "content": {
               "application/json": {
                 "schema": {
@@ -6336,7 +6404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RunList"
+                  "$ref": "#/components/schemas/PipelineRunList"
                 }
               }
             }
@@ -6443,7 +6511,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LogPage"
+                  "$ref": "#/components/schemas/PipelineLogPage"
                 }
               }
             }
@@ -9464,6 +9532,10 @@
             ],
             "description": "The GitHub copy of the application's repository on the run's branch, when the installation\nkeeps one (AP-79). The forge's `source_url` stays the repository of record."
           },
+          "origin": {
+            "type": "string",
+            "description": "`person`, or `journey` for a run the Portal's own live journeys started (AG-93). Only a\nbrowser session sets `journey`; a list leaves those out unless it is asked for them."
+          },
           "pathPrefix": {
             "type": "string"
           },
@@ -11658,75 +11730,6 @@
           }
         }
       },
-      "LogLine": {
-        "type": "object",
-        "description": "One line of a run's log.",
-        "required": [
-          "id",
-          "at",
-          "run",
-          "recordId",
-          "outcome",
-          "message"
-        ],
-        "properties": {
-          "at": {
-            "type": "string",
-            "description": "When the Portal took the line, RFC 3339."
-          },
-          "id": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Its place in the log; the `before` of the next page."
-          },
-          "message": {
-            "type": "string",
-            "description": "What happened, in words; empty for a record that was sent."
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/Outcome"
-          },
-          "recordId": {
-            "type": "string",
-            "description": "The record's `id`, as the mapping produced it; empty when it had none."
-          },
-          "run": {
-            "type": "string",
-            "description": "The run it belongs to."
-          },
-          "step": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "description": "The step of `spec.steps` it failed at, when it failed in a step."
-          }
-        }
-      },
-      "LogPage": {
-        "type": "object",
-        "description": "One page of a run's log.",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LogLine"
-            }
-          },
-          "next": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "The `before` of the next page, when there is one."
-          }
-        }
-      },
       "LogoutTarget": {
         "type": "object",
         "description": "The URL the browser must visit to finish an RP-initiated logout at Keycloak.",
@@ -12353,15 +12356,6 @@
           }
         }
       },
-      "Outcome": {
-        "type": "string",
-        "description": "What became of one record.",
-        "enum": [
-          "sent",
-          "rejected",
-          "failed"
-        ]
-      },
       "PageContextRequest": {
         "type": "object",
         "description": "The page the question was asked from, as the browser sends it: the route only.",
@@ -12590,6 +12584,75 @@
         "title": "Phase",
         "description": "Lifecycle phase enumeration."
       },
+      "PipelineLogLine": {
+        "type": "object",
+        "description": "One line of a run's log.",
+        "required": [
+          "id",
+          "at",
+          "run",
+          "recordId",
+          "outcome",
+          "message"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the Portal took the line, RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its place in the log; the `before` of the next page."
+          },
+          "message": {
+            "type": "string",
+            "description": "What happened, in words; empty for a record that was sent."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PipelineOutcome"
+          },
+          "recordId": {
+            "type": "string",
+            "description": "The record's `id`, as the mapping produced it; empty when it had none."
+          },
+          "run": {
+            "type": "string",
+            "description": "The run it belongs to."
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The step of `spec.steps` it failed at, when it failed in a step."
+          }
+        }
+      },
+      "PipelineLogPage": {
+        "type": "object",
+        "description": "One page of a run's log.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineLogLine"
+            }
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The `before` of the next page, when there is one."
+          }
+        }
+      },
       "PipelineMetrics": {
         "type": "object",
         "required": [
@@ -12662,6 +12725,71 @@
             ],
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "PipelineOutcome": {
+        "type": "string",
+        "description": "What became of one record.",
+        "enum": [
+          "sent",
+          "rejected",
+          "failed"
+        ]
+      },
+      "PipelineRun": {
+        "type": "object",
+        "description": "One run with its counts.",
+        "required": [
+          "run",
+          "firstAt",
+          "lastAt",
+          "sent",
+          "rejected",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "firstAt": {
+            "type": "string",
+            "description": "The first and the last line the Portal took for it, RFC 3339."
+          },
+          "lastAt": {
+            "type": "string"
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "run": {
+            "type": "string",
+            "description": "Its name: the tick's time, or the UTC hour of a source that never ends."
+          },
+          "sent": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PipelineRunList": {
+        "type": "object",
+        "description": "A pipeline's latest runs with their counts (PL-62).",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            },
+            "description": "The run with the latest line first, at most 200."
           }
         }
       },
@@ -13629,46 +13757,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "Run": {
-        "type": "object",
-        "description": "One run with its counts.",
-        "required": [
-          "run",
-          "firstAt",
-          "lastAt",
-          "sent",
-          "rejected",
-          "failed"
-        ],
-        "properties": {
-          "failed": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "firstAt": {
-            "type": "string",
-            "description": "The first and the last line the Portal took for it, RFC 3339."
-          },
-          "lastAt": {
-            "type": "string"
-          },
-          "rejected": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "run": {
-            "type": "string",
-            "description": "Its name: the tick's time, or the UTC hour of a source that never ends."
-          },
-          "sent": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          }
-        }
       },
       "RunContext": {
         "type": "object",

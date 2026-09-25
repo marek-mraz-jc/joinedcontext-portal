@@ -305,6 +305,19 @@ pub async fn start_flow(
         // Nobody grants above their own rights, a blueprint's Role or RoleBinding included
         // (PF-52).
         crate::permissions::within_own_rights(&state, &user.0.identity, &body, "proposer")?;
+        // A name the organization holds once is refused as at every other door (PF-84, AP-14a,
+        // AP-114, AP-115).
+        let (identity, name) = (&user.0.identity, &manifest.metadata.name);
+        crate::spaces::check(
+            &state,
+            identity,
+            &project,
+            kind_info.kind,
+            name,
+            &manifest.spec,
+        )?;
+        crate::apps::names::check(&state, identity, &project, kind_info.kind, name)?;
+        crate::groups::check(&state, identity, kind_info.kind, &manifest.metadata)?;
         let operation = if state
             .mirror
             .get(&project, kind_info.kind, &manifest.metadata.name)

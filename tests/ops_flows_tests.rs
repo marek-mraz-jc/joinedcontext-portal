@@ -347,3 +347,75 @@ async fn the_rest_route_and_the_ops_door_answer_alike() {
         );
     }
 }
+
+/// The App a blueprint renders is one address for the organization (AP-14a): a name another
+/// project's App holds is refused at this door as at a hand-written one, before a branch exists.
+#[tokio::test]
+async fn a_blueprint_rendering_an_app_another_project_holds_is_refused() {
+    const APP: &str = "apiVersion: joinedcontext.com/v1alpha1
+kind: App
+metadata:
+  name: {{ title }}
+spec:
+  kind: static
+  source:
+    path: ./src
+  build:
+    node: \"22\"
+  visibility: project
+  dataNeeds: []
+";
+    let (server, state) = world().await;
+    state.mirror.upsert(envelope(
+        "Blueprint",
+        "app-starter",
+        ORG_NAMESPACE,
+        blueprint("app", APP, json!([ROLE])),
+    ));
+    state.mirror.upsert(envelope(
+        "Role",
+        "app-role",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["App"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "app-binding",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "group": "city-stewards" }],
+            "role": "app-role",
+            "scope": { "project": PROJECT },
+        }),
+    ));
+    state.mirror.upsert(envelope(
+        "App",
+        "board",
+        "doprava",
+        json!({ "kind": "static", "visibility": "public" }),
+    ));
+
+    let refused = doors::call(
+        "jc_flow_start",
+        &session(with_role(steward())),
+        &state,
+        flow("app-starter", json!({ "title": "board" })),
+    )
+    .await;
+    assert_eq!(StatusCode::FORBIDDEN, refused.status, "{}", refused.text());
+    assert!(refused.text().contains("AP-14a"), "{}", refused.text());
+    assert_eq!(
+        0,
+        forge_writes(&server).await,
+        "no branch for a refused name"
+    );
+
+    let free = doors::call(
+        "jc_flow_start",
+        &session(with_role(steward())),
+        &state,
+        flow("app-starter", json!({ "title": "board-2" })),
+    )
+    .await;
+    assert_eq!(StatusCode::OK, free.status, "{}", free.text());
+}

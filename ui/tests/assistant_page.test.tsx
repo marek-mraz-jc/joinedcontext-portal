@@ -205,7 +205,11 @@ function renderAssistantPage(
           202,
         );
       }
-      return json({ items: runs });
+      // As the Portal answers it (AG-93): the journeys' test runs only when asked for.
+      const shown = url.searchParams.get("origin") === "all"
+        ? runs
+        : runs.filter((run) => (run as { origin?: string }).origin !== "journey");
+      return json({ items: shown });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -271,6 +275,26 @@ describe("Assistant page", () => {
     await userEvent.click(more);
     expect(within(table).getAllByRole("row")).toHaveLength(26);
     expect(screen.queryByRole("button", { name: /Show \d+ more/ })).toBeNull();
+  });
+
+  // T-2816, AG-93: the live journeys' runs crowded the history; they wait behind a tick.
+  it("leaves the journeys' test runs out until Show test runs is ticked, and marks them", async () => {
+    const journey = { ...CONV_RUN, id: "journey-run", prompt: "Create a SyncSource called t1523", origin: "journey" };
+    renderAssistantPage([CONV_RUN, journey]);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Find all air quality sensors in town");
+    expect(within(table).queryByText("Create a SyncSource called t1523")).toBeNull();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: en.assistantPage.filters.testRuns }));
+    // A new query: the table is drawn again once the answer is in.
+    const row = (await screen.findByText("Create a SyncSource called t1523")).closest("tr") as HTMLElement;
+    expect(within(row).getByText(en.assistantPage.testRun)).toBeInTheDocument();
+    expect(
+      fetchCalls().some((req) => new URL(req.url, "http://localhost").searchParams.get("origin") === "all"),
+    ).toBe(true);
+    // A person's own run carries no mark.
+    const own = screen.getByText("Find all air quality sensors in town").closest("tr") as HTMLElement;
+    expect(within(own).queryByText(en.assistantPage.testRun)).toBeNull();
   });
 
   it("puts kind= in the request when filtering by kind", async () => {

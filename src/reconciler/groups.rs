@@ -85,9 +85,17 @@ pub struct GroupSync {
     admin: String,
     client_id: String,
     client_secret: String,
+    /// Where a run records the groups it may not write, for the write doors (AP-115).
+    foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
 }
 
 impl GroupSync {
+    /// Makes each run record the realm's unmanaged group names where the write doors read them.
+    pub fn with_foreign(mut self, foreign: std::sync::Arc<super::foreign::ForeignNames>) -> Self {
+        self.foreign = Some(foreign);
+        self
+    }
+
     /// The admin base of an issuer URL: `…/realms/{r}` becomes `…/admin/realms/{r}`. `None`
     /// when the issuer is not a realm URL, because then there is nothing to manage.
     fn admin_base(issuer: &str) -> Option<String> {
@@ -105,6 +113,7 @@ impl GroupSync {
             admin: Self::admin_base(issuer)?,
             client_id,
             client_secret,
+            foreign: None,
         })
     }
 
@@ -198,6 +207,16 @@ impl GroupSync {
                 }]
             }
         };
+
+        if let Some(foreign) = self.foreign.as_ref() {
+            foreign.set_groups(
+                existing
+                    .iter()
+                    .filter(|group| !group.managed())
+                    .map(|group| group.name.clone())
+                    .collect(),
+            );
+        }
 
         let mut outcomes = Vec::new();
         let mut wanted: BTreeSet<String> = BTreeSet::new();

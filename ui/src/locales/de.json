@@ -1038,6 +1038,36 @@
       "maskedKept": "{count, plural, one {# Datensatz bleibt in der Liste: ein Wert wurde als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt ihn erneut.} other {# Datensätze bleiben in der Liste: ein Wert wurde jeweils als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt sie erneut.}}",
       "newest": "Neueste",
       "older": "Ältere Datensätze"
+    },
+    "runs": {
+      "open": "Läufe und Protokoll",
+      "title": "Läufe von {name}",
+      "lead": "Jeder Lauf mit der Zahl der geschriebenen, vom Datenmodell abgelehnten und in einem Schritt gescheiterten Datensätze. Öffnen Sie einen Lauf, um sein Protokoll zu lesen, eine Zeile pro Datensatz.",
+      "caption": "Läufe",
+      "close": "Schließen",
+      "empty": "Noch keine Läufe",
+      "emptyHint": "Der erste Lauf erscheint hier, sobald die Pipeline ihre Quelle gelesen hat.",
+      "run": "Lauf",
+      "hour": "Stunde ab {at}",
+      "sent": "Geschrieben",
+      "rejected": "Abgelehnt",
+      "failed": "Gescheitert",
+      "log": "Protokoll",
+      "show": "Protokoll des Laufs {run} anzeigen",
+      "logCaption": "Protokoll des Laufs {run}",
+      "noLines": "Die Zeilen dieses Laufs sind bereits gelöscht; die Zahlen oben bleiben.",
+      "at": "Zeit",
+      "record": "Datensatz",
+      "outcome": "Ergebnis",
+      "message": "Meldung",
+      "noId": "(ohne ID)",
+      "outcomes": {
+        "sent": "Geschrieben",
+        "rejected": "Abgelehnt",
+        "failed": "Gescheitert"
+      },
+      "newest": "Neueste",
+      "older": "Ältere Zeilen"
     }
   },
   "dashboards": {
@@ -2647,7 +2677,8 @@
       "all": "Alle",
       "live": "Laufend",
       "ended": "Beendet",
-      "mine": "Nur meine"
+      "mine": "Nur meine",
+      "testRuns": "Testläufe zeigen"
     },
     "kinds": {
       "conversation": "Unterhaltung",
@@ -2696,7 +2727,8 @@
     "showMore": "{count} weitere zeigen (noch {left})",
     "table": {
       "name": "Name"
-    }
+    },
+    "testRun": "Testlauf"
   },
   "activity": {
     "title": "Activity",
