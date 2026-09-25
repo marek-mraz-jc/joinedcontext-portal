@@ -153,6 +153,51 @@ impl Path {
         }
     }
 
+    /// The steps after the first question, as the model's pack gives them (T-2696): without
+    /// them the model ended Share data on the endpoint's own page, never asking with whom.
+    pub fn steps(self) -> &'static str {
+        match self {
+            Path::IntegratePipeline => {
+                "where the data comes from and where it lands are asked by the Portal, which \
+                 drafts a new space itself; landing in an existing space is yours: draft the \
+                 pipeline with change_resource, test it with jc_pipeline_test and say its \
+                 verdict; the pipeline form opens on the draft"
+            }
+            Path::UploadData => {
+                "the space is answered; ask for the file if none came, pick its type or create \
+                 one (ask when the file fits several), then open the import page on the space"
+            }
+            Path::FindData => {
+                "ask what the person looks for when they have not said, search the catalog, \
+                 offer the matches as a jc_ask with options, open the one chosen and answer \
+                 from its data"
+            }
+            Path::ShareData => {
+                "the endpoint to share is answered; next ask with whom, as options: projects \
+                 of this organization, the whole organization, or the public (the public needs \
+                 a publisher's approval, say so); then change_resource that Endpoint's \
+                 audience and allowedProjects, which opens its form on the draft. Opening the \
+                 endpoint's page is not the end of this path"
+            }
+            Path::BuildApp => "the endpoints are answered and the app builder opens on them",
+            Path::BuildDashboard => {
+                "the endpoint is answered; ask which charts or map, as options that fit its \
+                 entity types; then change_resource the Dashboard with its layers (create), \
+                 which opens the dashboard editor on the draft"
+            }
+            Path::CreateDataModel => {
+                "where the model starts is answered: a Smart Data Model, ask which; a sample, \
+                 ask for the file; nothing, ask the person to describe the entities; then \
+                 change_resource the DataModel (create), which opens its form on the draft"
+            }
+            Path::DefineKpi => {
+                "the space is answered; ask which measure, as options from its entity types; \
+                 compute it with compute_kpi and show the number; when it should stay \
+                 updated, draft_kpi_pipeline, which opens the pipeline form on the draft"
+            }
+        }
+    }
+
     pub fn first_step(self) -> FirstStep {
         let free = |question| FirstStep {
             question,
@@ -295,6 +340,26 @@ pub fn last_of<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-2696: the pack gives each path's steps, and each names the tool it ends with, which
+    /// the path must allow; Share data asks with whom before anything opens.
+    #[test]
+    fn every_path_says_its_steps_with_tools_it_may_call() {
+        for path in Path::ALL {
+            let steps = path.steps();
+            assert!(!steps.is_empty() && !steps.ends_with('.'), "{}", path.id());
+            for word in steps.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+                if word.contains('_') {
+                    assert!(path.allows(word), "{}: {word}", path.id());
+                }
+            }
+        }
+        let share = Path::ShareData.steps();
+        assert!(
+            share.find("with whom") < share.find("change_resource"),
+            "{share}"
+        );
+    }
 
     #[test]
     fn every_path_has_an_id_that_reads_back_and_a_first_question() {

@@ -444,6 +444,10 @@ async fn a_tool_outside_the_path_goes_back_to_the_model_with_the_paths_tools() {
         .collect();
     assert!(prompts[0].contains("THE PATH"), "the pack names the path");
     assert!(
+        prompts[0].contains("Its steps: ask what the person looks for"),
+        "the pack gives the path's steps (T-2696)"
+    );
+    assert!(
         prompts[1].contains("does not use change_resource"),
         "the refusal reaches the model"
     );

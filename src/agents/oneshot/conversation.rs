@@ -1570,13 +1570,14 @@ fn path_section(path: Option<Path>) -> String {
         return String::new();
     };
     format!(
-        "\n## THE PATH\nYou are on the path `{}`: {}. Call only these tools: {}. Any other tool \
-         is refused. Nothing is proposed in the person's place: the flow ends on the page it \
+        "\n## THE PATH\nYou are on the path `{}`: {}. Its steps: {}. Call only these tools: {}. \
+         Any other tool is refused. Nothing is proposed in the person's place: the flow ends on the page it \
          filled, where the person proposes. When the person wants what another path does, hand \
          over with ```json\n{{ \"tool\": \"jc_switch_path\", \"arguments\": {{ \"path\": \"<id>\", \
          \"reason\": \"<why>\" }} }}\n```\nThe paths:\n{}\n",
         path.id(),
         path.goal(),
+        path.steps(),
         path.tools().join(", "),
         paths::menu()
     )
