@@ -138,6 +138,12 @@ describe("the Context Spaces page", () => {
     const sort = within(table).getByRole("button", { name: en.spaces.field.entities });
     const header = sort.closest("th") as HTMLElement;
     expect(header).toHaveAttribute("aria-sort", "none");
+    // A column a phone does without (UI-27, T-2946): at 400 px it pushed "Look inside" and the
+    // row's menu off the screen; the count stays on the space's own page.
+    expect(header).toHaveClass("hidden", "sm:table-cell");
+    for (const cell of within(table).getAllByTestId("space-entities")) {
+      expect(cell.closest("td")).toHaveClass("hidden", "sm:table-cell");
+    }
     await userEvent.click(sort);
     expect(header).toHaveAttribute("aria-sort", "descending");
     expect(shown()).toEqual(["14,232", "1,200", "0"]);
