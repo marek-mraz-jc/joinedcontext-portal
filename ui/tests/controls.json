@@ -627,6 +627,14 @@
         "generator_types.test.ts"
       ]
     },
+    "src/pages/apps/AppOpenPage.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "app_open_page.test.tsx"
+      ]
+    },
     "src/pages/apps/AppPage.tsx": {
       "controls": {
         "Button": 3

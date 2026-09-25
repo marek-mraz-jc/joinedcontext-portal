@@ -406,8 +406,8 @@ async fn nothing_outside_the_bundle_leaves_the_app_host() {
 }
 
 /// AP-12: every answer of the app host carries the app's policy and a revalidating cache, and the
-/// refusals carry neither a body that says what went wrong nor a policy of the Portal's. An app that
-/// may not be framed is refused by both headers, which is the pair a browser needs.
+/// refusals carry neither a body that says what went wrong nor a policy of the Portal's. Framing is
+/// `frame-ancestors`' alone (AP-122): an `X-Frame-Options` would refuse the Portal's frame.
 #[tokio::test]
 async fn an_app_answer_carries_its_own_policy_and_a_refusal_carries_nothing() {
     let dir = app_dir("headers");
@@ -435,15 +435,10 @@ async fn an_app_answer_carries_its_own_policy_and_a_refusal_carries_nothing() {
                 .get(header::CONTENT_SECURITY_POLICY)
                 .and_then(|value| value.to_str().ok())
                 .unwrap_or_default();
-            assert!(csp.contains("frame-ancestors 'none'"), "{uri}: {csp}");
+            // No apps origin of its own here, so the App shares the Portal's: nobody frames it.
+            assert!(csp.ends_with("frame-ancestors 'none'"), "{uri}: {csp}");
             assert!(csp.contains("object-src 'none'"), "{uri}: {csp}");
-            assert_eq!(
-                headers
-                    .get(header::X_FRAME_OPTIONS)
-                    .map(|v| v.to_str().ok()),
-                Some(Some("DENY")),
-                "{uri}",
-            );
+            assert_eq!(headers.get(header::X_FRAME_OPTIONS), None, "{uri}");
             assert_eq!(
                 headers.get(header::CACHE_CONTROL).map(|v| v.to_str().ok()),
                 Some(Some("no-cache")),
