@@ -102,6 +102,99 @@ pub fn has_typed_ref(
     }
 }
 
+/// What else a Group's removal writes (PF-95): every `RoleBinding` and `App` naming the group,
+/// with the group taken out. A binding left naming nobody is removed; an access entry left naming
+/// nobody is dropped from its App.
+#[derive(Debug, Default)]
+struct GroupCleanup {
+    edited: Vec<crate::resource::ResourceEnvelope>,
+    removed: Vec<crate::resource::ResourceEnvelope>,
+}
+
+/// Whether a subject list entry is `{ group: name }`.
+fn names_group(subject: &Value, group: &str) -> bool {
+    subject.get("group").and_then(Value::as_str) == Some(group)
+}
+
+/// The bindings and Apps that name `group`, as they read once it is gone (PF-95).
+///
+/// A reference in a project whose manifests live in a repository of their own (layout 2,
+/// CC-85) cannot ride in the organization repository's Change, so it refuses the deletion with
+/// `409` naming it, rather than leaving a subject that names a group nobody can see removed.
+fn group_cleanup(mirror: &crate::store::Mirror, group: &str) -> Result<GroupCleanup, ApiError> {
+    let mut cleanup = GroupCleanup::default();
+    let mut elsewhere = Vec::new();
+    for mut envelope in
+        mirror.matching(|candidate| matches!(candidate.kind.as_str(), "RoleBinding" | "App"))
+    {
+        let namespace = envelope.metadata.namespace.clone().unwrap_or_default();
+        let mut emptied = false;
+        let named = if envelope.kind == "RoleBinding" {
+            let Some(subjects) = envelope
+                .spec
+                .get_mut("subjects")
+                .and_then(Value::as_array_mut)
+            else {
+                continue;
+            };
+            let before = subjects.len();
+            subjects.retain(|subject| !names_group(subject, group));
+            emptied = subjects.is_empty();
+            subjects.len() != before
+        } else {
+            let Some(entries) = envelope
+                .spec
+                .get_mut("access")
+                .and_then(Value::as_array_mut)
+            else {
+                continue;
+            };
+            let mut named = false;
+            for entry in entries.iter_mut() {
+                if let Some(subjects) = entry.get_mut("subjects").and_then(Value::as_array_mut) {
+                    let before = subjects.len();
+                    subjects.retain(|subject| !names_group(subject, group));
+                    named |= subjects.len() != before;
+                }
+            }
+            entries.retain(|entry| {
+                entry
+                    .get("subjects")
+                    .and_then(Value::as_array)
+                    .is_some_and(|subjects| !subjects.is_empty())
+            });
+            named
+        };
+        if !named {
+            continue;
+        }
+        if namespace != crate::permissions::ORG_NAMESPACE
+            && mirror.repository_of(&namespace).is_some()
+        {
+            elsewhere.push(format!(
+                "{} {} in project {namespace}",
+                envelope.kind, envelope.metadata.name
+            ));
+            continue;
+        }
+        envelope.strip_status();
+        if emptied {
+            cleanup.removed.push(envelope);
+        } else {
+            cleanup.edited.push(envelope);
+        }
+    }
+    if !elsewhere.is_empty() {
+        elsewhere.sort();
+        return Err(ApiError::Conflict(format!(
+            "group '{group}' is still named by {}, which live in their project's own repository; \
+             take the group out there first, then delete it (PF-95)",
+            elsewhere.join(", ")
+        )));
+    }
+    Ok(cleanup)
+}
+
 /// A resource that still references the one being deleted (MF-07).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Reference {
@@ -294,6 +387,55 @@ pub async fn delete_with_identity(
         });
     }
 
+    // 2b. A Group leaves every binding and access entry that names it, in the same Change
+    //     (PF-95): the deleter needs the rights each of those edits needs, and together they
+    //     may not leave the organization without an administrator (PF-03).
+    let cleanup = if kind_info.kind == "Group" {
+        let cleanup = group_cleanup(&mirror, name)?;
+        let mut access = Vec::new();
+        for (envelope, verb) in cleanup
+            .edited
+            .iter()
+            .map(|envelope| (envelope, jc_core::kinds::Verb::Propose))
+            .chain(
+                cleanup
+                    .removed
+                    .iter()
+                    .map(|envelope| (envelope, jc_core::kinds::Verb::Delete)),
+            )
+        {
+            let namespace = envelope.metadata.namespace.as_deref().unwrap_or(project);
+            let manifest =
+                serde_json::to_value(envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
+            crate::permissions::for_request(state, identity, namespace).check(
+                &envelope.kind,
+                verb,
+                Some(&manifest),
+            )?;
+            access.push(manifest);
+        }
+        // `access` holds the edited manifests first, in order, then the removed ones.
+        let changes: Vec<_> = access[..cleanup.edited.len()]
+            .iter()
+            .map(crate::permissions::AccessChange::Write)
+            .chain(cleanup.removed.iter().map(|envelope| {
+                crate::permissions::AccessChange::Remove {
+                    kind: &envelope.kind,
+                    namespace: envelope
+                        .metadata
+                        .namespace
+                        .as_deref()
+                        .unwrap_or(crate::permissions::ORG_NAMESPACE),
+                    name: &envelope.metadata.name,
+                }
+            }))
+            .collect();
+        crate::permissions::keeps_an_administrator_after(&mirror, &changes)?;
+        cleanup
+    } else {
+        GroupCleanup::default()
+    };
+
     // 3. Risk-classified approval lane: Red (CC-19, CC-39, CC-63)
     let lane = change::classify(kind_info.kind, Operation::Delete, &envelope.spec);
 
@@ -394,6 +536,29 @@ pub async fn delete_with_identity(
         }
     }
 
+    // A Group's references, edited or removed beside it (PF-95).
+    let mut uploads = Vec::new();
+    for envelope in &cleanup.edited {
+        let info = crate::resource::by_kind(&envelope.kind).ok_or_else(|| {
+            ApiError::Internal(format!("no catalogue entry for {}", envelope.kind))
+        })?;
+        let namespace = envelope.metadata.namespace.as_deref().unwrap_or(project);
+        let path = resolve_repo_path(envelope, info, namespace)?;
+        let yaml = serde_yaml_ng::to_string(envelope)
+            .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
+        uploads.push((path, yaml));
+    }
+    for envelope in &cleanup.removed {
+        let info = crate::resource::by_kind(&envelope.kind).ok_or_else(|| {
+            ApiError::Internal(format!("no catalogue entry for {}", envelope.kind))
+        })?;
+        let namespace = envelope.metadata.namespace.as_deref().unwrap_or(project);
+        let path = resolve_repo_path(envelope, info, namespace)?;
+        if let Some(file) = gitea.get_file(&path, &read_from).await? {
+            removals.push((path, file.sha));
+        }
+    }
+
     let (author_name, author_email) = author_credentials(identity, project);
     let commit_msg = format!("delete {} {name}", kind_info.kind);
 
@@ -407,7 +572,7 @@ pub async fn delete_with_identity(
                 name: &author_name,
                 email: &author_email,
             },
-            &[],
+            &uploads,
             &removals,
         )
         .await?;

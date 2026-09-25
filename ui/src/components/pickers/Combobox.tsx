@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import type { JSX, KeyboardEvent, ReactNode } from "react";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,8 @@ export interface ComboboxProps {
   id?: string;
   /** The accessible name of the search box and the list. */
   label: string;
+  /** A `<label for={id}>` of the form names the search box, so it carries no `aria-label` of its own. */
+  labelled?: boolean;
   /** The chosen values: one for a single picker, any number for `multiple`. */
   value: string[];
   onChange: (values: string[]) => void;
@@ -52,6 +54,7 @@ export interface ComboboxProps {
 export function Combobox({
   id,
   label,
+  labelled = false,
   value,
   onChange,
   options,
@@ -94,21 +97,6 @@ export function Combobox({
   const canCreate = Boolean(create && words !== "" && !options.some((o) => o.value.toLowerCase() === words));
   const count = shown.length + (canCreate ? 1 : 0);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onDown = (event: MouseEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) {
-        setOpen(false);
-        setTyped(null);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [open]);
 
   const pick = (v: string) => {
     if (multiple) {
@@ -121,6 +109,44 @@ export function Combobox({
       setTyped(null);
     }
   };
+
+  /**
+   * The person left the picker. Where the form may name something new, what was typed is the
+   * answer, as in a text field; elsewhere it is dropped and the chosen value shows again.
+   */
+  const leave = () => {
+    const text = (typed ?? "").trim();
+    if (create && text !== "" && !value.includes(text)) {
+      const known = options.find((o) => o.value.toLowerCase() === text.toLowerCase());
+      if (known) {
+        pick(known.value);
+      } else {
+        create.onCreate(text);
+      }
+    }
+    setOpen(false);
+    setTyped(null);
+  };
+
+  const leaveOutside = useEffectEvent(() => {
+    leave();
+  });
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onDown = (event: MouseEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) {
+        leaveOutside();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
 
   const choose = (index: number) => {
     if (index < shown.length) {
@@ -200,7 +226,7 @@ export function Combobox({
         <Input
           id={inputId}
           role="combobox"
-          aria-label={label}
+          aria-label={labelled ? undefined : label}
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
@@ -217,6 +243,12 @@ export function Combobox({
           }}
           onClick={() => {
             setOpen(true);
+          }}
+          onBlur={(event) => {
+            // Focus moving to the list's own retry button is not leaving.
+            if (!root.current?.contains(event.relatedTarget as Node | null)) {
+              leave();
+            }
           }}
           onChange={(event) => {
             setTyped(event.target.value);
@@ -250,7 +282,7 @@ export function Combobox({
           <ul
             id={listId}
             role="listbox"
-            aria-label={label}
+            aria-label={labelled ? t("picker.list") : label}
             aria-multiselectable={multiple || undefined}
             className="max-h-64 overflow-y-auto"
           >

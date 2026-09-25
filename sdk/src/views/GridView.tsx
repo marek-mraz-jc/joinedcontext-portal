@@ -16,12 +16,15 @@ import { parseGridConfig } from "../grid/config";
 import type { EntityGridConfig } from "../grid/config";
 import { fixtureSource, sourceFor } from "../grid/source";
 import { originTransport } from "../sdk/transport";
+import { enumsOf } from "../enums";
+import type { Schema } from "../write";
 
 export function GridView({
   slug,
   type,
   config,
   inline,
+  schema,
 }: {
   /** The app's own endpoint. */
   slug: string;
@@ -30,6 +33,8 @@ export function GridView({
   config?: Omit<EntityGridConfig, "source" | "type">;
   /** The entities the Portal inlined for a preview, if this is one. */
   inline?: Record<string, unknown>[];
+  /** The endpoint's merged schema: an enum attribute is edited and filtered by picking (UI-86). */
+  schema?: Schema;
 }): React.JSX.Element {
   const parsed = useMemo(
     () => parseGridConfig({ ...(config ?? {}), source: { kind: "endpoint", slug }, type }),
@@ -38,6 +43,11 @@ export function GridView({
   const source = useMemo(
     () => (inline ? fixtureSource(inline) : sourceFor({ kind: "endpoint", slug }, originTransport())),
     [inline, slug],
+  );
+
+  const enums = useMemo(
+    () => (schema ? enumsOf(schema[type], schema, document.documentElement.lang || navigator.language) : undefined),
+    [schema, type],
   );
 
   if (!parsed.config) {
@@ -49,5 +59,5 @@ export function GridView({
       </p>
     );
   }
-  return <EntityGrid config={parsed.config} source={source} />;
+  return <EntityGrid config={parsed.config} source={source} enums={enums} />;
 }

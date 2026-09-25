@@ -39,6 +39,7 @@ export function TypePickerWidget(props: WidgetProps): JSX.Element {
     <TypePicker
       id={id}
       label={label || id}
+      labelled
       project={project}
       space={space}
       value={text(value) ? [String(value)] : []}
@@ -67,6 +68,7 @@ export function DataModelPickerWidget(props: WidgetProps): JSX.Element {
     <DataModelPicker
       id={id}
       label={label || id}
+      labelled
       project={project}
       only={project}
       catalogue={false}

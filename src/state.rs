@@ -43,6 +43,9 @@ pub struct AppState {
     /// The preferences tier (UI-09). `None` without a database: the preferences routes answer
     /// 503 and nothing else notices.
     pub db: Option<sqlx::PgPool>,
+    /// The people of the realm, through the admin client (PF-90). `None` without that client:
+    /// the people routes then answer 503.
+    pub people: Option<Arc<crate::people::People>>,
     /// Builder runs and their event streams (AG-43, AG-45). Always present, durable only when
     /// there is a database; [`AgentStore::is_durable`] is what says which.
     pub agents: Arc<AgentStore>,
@@ -145,6 +148,7 @@ impl AppState {
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             drift_watch: None,
+            people: None,
             kube: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
@@ -248,6 +252,14 @@ impl AppState {
                 ),
             }
         }
+        // The people of the realm, managed with the admin client that manages its groups (PF-90).
+        if let (Some(oidc), Some((id, secret))) = (
+            state.config.oidc.as_ref(),
+            state.config.keycloak_admin.clone(),
+        ) {
+            state.people =
+                crate::people::People::new(oidc.issuer.as_str(), id, secret).map(Arc::new);
+        }
         // Warm the key cache so the first bearer call does not pay for the fetch; a realm that
         // is down at startup only costs a warning, the next unknown `kid` fetches again.
         if let Some(bearer) = state.bearer.as_ref() {
@@ -295,6 +307,11 @@ impl AppState {
                     syncer.with_pipeline_secrets(crate::pipeline_secrets::Resolver::new(backend));
             }
 
+            // A person's removal finishes once its Change is merged (PF-93): the pending ones are
+            // in the database, so the step runs only with one and with the realm's admin client.
+            if let (Some(people), Some(pool)) = (state.people.clone(), state.db.clone()) {
+                syncer = syncer.with_people(people, pool);
+            }
             // With a database the replicas elect one reconciler; without one there is nothing
             // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
             if let Some(pool) = state.db.as_ref() {

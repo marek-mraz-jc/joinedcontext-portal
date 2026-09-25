@@ -342,7 +342,12 @@
       "noPolicies": "Priestor zatiaľ nemá politiku.",
       "assignee": "Príjemca",
       "operations": "Operácie",
-      "copyId": "Skopírovať identifikátor {id}"
+      "copyId": "Skopírovať identifikátor {id}",
+      "model": "Dátový model",
+      "modelEmpty": "Tento priestor zatiaľ nemá dátový model",
+      "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
+      "modelCreate": "Vytvoriť dátový model",
+      "modelImport": "Importovať Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -947,6 +952,7 @@
     "emptyHint": "Pridajte dátový zdroj a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
     "noCredential": "Žiadne",
+    "writesType": "Zapisuje",
     "rejected": {
       "open": "Odmietnuté záznamy",
       "title": "Odmietnuté záznamy pipeliny {name}",
@@ -1236,6 +1242,49 @@
       "publish": "Zverejnite tento záznam TXT v DNS domény:",
       "copy": "Kopírovať záznam",
       "copied": "Záznam skopírovaný"
+    },
+    "groupPage": {
+      "lead": "Kto je v tejto skupine a čo skupina smie.",
+      "back": "Všetky skupiny",
+      "notFound": "Skupina {name} v organizácii neexistuje.",
+      "deleteCascade": "Zmazaním skupiny ju tá istá zmena odstráni aj z {bindings} priradení rolí platformy a {apps} rolí aplikácií.",
+      "members": "Členovia",
+      "email": "E-mail osoby",
+      "addMember": "Pridať člena",
+      "removeMember": "Odobrať {member} zo skupiny",
+      "remove": "Odobrať",
+      "needEmail": "Najprv zadajte e-mailovú adresu osoby.",
+      "already": "Už je tam.",
+      "platformRoles": "Roly platformy",
+      "platformLead": "Priradenia rolí, ktoré menujú túto skupinu: aká rola a kde platí.",
+      "noPlatformRole": "Túto skupinu zatiaľ nemenuje žiadne priradenie.",
+      "roleAt": "{role}, {where}",
+      "removeRole": "Odobrať skupinu z {role}",
+      "onlySubject": "Priradenie menuje iba túto skupinu, preto ho odobratie zmaže.",
+      "where": "Kde",
+      "organization": "Celá organizácia",
+      "space": "Kontextový priestor",
+      "wholeProject": "Celý projekt",
+      "role": "Rola",
+      "pickRole": "Vyberte rolu",
+      "projectRole": "{role} (rola projektu {project})",
+      "needRole": "Najprv vyberte rolu.",
+      "refused": {
+        "projectRoleAtOrganization": "{role} je rola jedného projektu, preto ju nemožno dať pre celú organizáciu. Vyberte ten projekt alebo rolu organizácie.",
+        "projectRoleElsewhere": "{role} patrí inému projektu a platí iba tam."
+      },
+      "addRole": "Dať rolu",
+      "appRoles": "Roly aplikácií",
+      "appLead": "Roly aplikácií, ktoré má skupina {group}.",
+      "noAppRole": "Tejto skupine zatiaľ nedáva rolu žiadna aplikácia.",
+      "appRole": "{role} v {app} ({project})",
+      "removeAppRole": "Odobrať skupinu z {role}",
+      "project": "Projekt",
+      "pickProject": "Vyberte projekt",
+      "app": "Aplikácia",
+      "pickApp": "Vyberte aplikáciu",
+      "needAppRole": "Najprv vyberte projekt, aplikáciu a jednu z jej rolí.",
+      "addAppRole": "Dať rolu aplikácie"
     }
   },
   "flows": {
@@ -1323,6 +1372,7 @@
     "newSlot": "Nový atribút",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníka {name}",
+    "removeEnumValue": "Odstrániť hodnotu {value}",
     "classUri": "IRI triedy",
     "description": "Popis",
     "titleIn": "Názov ({locale})",
@@ -1417,7 +1467,9 @@
       "file": "Uloží sa ako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvom {name}. Zvoľte iný názov.",
       "held": "Uložené ako zdieľaný koncept {name}; po obnovení stránky je stále tu, kým model neuložíte.",
-      "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá."
+      "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá.",
+      "spaceHas": "{space} (už má {model})",
+      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy."
     },
     "infer": {
       "title": "Model zo súboru",
@@ -1464,10 +1516,12 @@
     "dimensionLabel": "Použitie v dashboarde",
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu.",
+      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
-      "more": "a ďalších {count}"
+      "more": "a ďalších {count}",
+      "from": "z {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Názov",
@@ -1482,6 +1536,73 @@
       "published": "Zverejnený",
       "deprecated": "Zastaraný",
       "retired": "Vyradený"
+    },
+    "page": {
+      "listLead": "Všetky dátové modely tohto projektu: jeden pre každý kontextový priestor a čo je na ňom postavené.",
+      "listCaption": "Dátové modely projektu",
+      "new": {
+        "blank": "Nový prázdny model",
+        "file": "Nový model zo súboru",
+        "sdm": "Nový model zo Smart Data Models"
+      },
+      "emptyTitle": "Zatiaľ žiadny dátový model",
+      "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
+      "search": "Hľadať podľa názvu, titulku alebo triedy",
+      "everySpace": "Všetky priestory",
+      "lastChange": "Posledná zmena",
+      "usedBy": "Používa ho",
+      "noMatch": "Hľadaniu a zvolenému priestoru nezodpovedá žiadny model.",
+      "unused": "Zatiaľ nič",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} few {# endpointy} other {# endpointov}}",
+        "Pipeline": "{count, plural, one {# pipeline} few {# pipelines} other {# pipelines}}",
+        "App": "{count, plural, one {# aplikácia} few {# aplikácie} other {# aplikácií}}",
+        "Dashboard": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardov}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Kontextový priestor",
+        "Endpoint": "Endpointy",
+        "Pipeline": "Pipelines",
+        "Subscription": "Odbery",
+        "App": "Aplikácie",
+        "Dashboard": "Dashboardy",
+        "Mapping": "Mapovania"
+      },
+      "unusedLead": "Nič v tomto projekte model zatiaľ nepoužíva: nemenuje ho žiadny priestor, endpoint, pipeline, aplikácia ani dashboard.",
+      "back": "Všetky dátové modely",
+      "edit": "Upraviť model",
+      "notFound": "Dátový model {name} neexistuje",
+      "notFoundLead": "Možno bol premenovaný alebo odstránený, alebo patrí inému projektu. Zoznam ukazuje každý model, ktorý smiete čítať.",
+      "sourceFailed": "LinkML modelu sa nepodarilo načítať: {reason}",
+      "views": "Pohľady na model",
+      "view": {
+        "overview": "Prehľad",
+        "diagram": "Diagram",
+        "form": "Formulár",
+        "yaml": "YAML",
+        "used": "Kde sa používa",
+        "history": "História",
+        "mappings": "Mapovania"
+      },
+      "class": "Trieda",
+      "relationship": "vzťah",
+      "enum": "výber",
+      "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
+      "formClass": "Trieda",
+      "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
+      "yaml": "LinkML modelu",
+      "copyYaml": "Kopírovať YAML",
+      "downloadYaml": "Stiahnuť YAML",
+      "copied": "Skopírované.",
+      "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
+    },
+    "hints": {
+      "title": "Tento model zatiaľ nemá triedu. Tri spôsoby, ako začať:",
+      "sdm": "Importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
+      "sdmAction": "Importovať Smart Data Model",
+      "klass": "Pridajte triedu: pomenujte ju v poli pod Triedami, napríklad School.",
+      "klassAction": "Pomenovať prvú triedu",
+      "relation": "Pridajte vzťah: keď sú dve triedy, dajte jednej slot, ktorého rozsah je tá druhá, napríklad School má users triedy User."
     }
   },
   "apps": {
@@ -1903,6 +2024,7 @@
       "isEmpty": "je prázdne",
       "present": "má hodnotu",
       "pattern": "vyhovuje",
+      "anyOf": "je jednou z",
       "gt": "je väčšie ako",
       "gte": "je aspoň",
       "lt": "je menšie ako",
@@ -1938,6 +2060,7 @@
     "observedNow": "tieto hodnoty boli pozorované teraz",
     "applying": "Uplatňujem…",
     "refusedHere": "odmietnuté",
+    "notInList": "nie je v zozname",
     "map": {
       "panel": "Mapa",
       "offTheMap": "nie je na mape",
@@ -1997,7 +2120,8 @@
     "export": "Exportovať túto stranu",
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
-    "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:"
+    "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
+    "typeInModel": "Tento typ v jeho dátovom modeli:"
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -2261,6 +2385,38 @@
       "copyId": "Kopírovať celý identifikátor",
       "copied": "Skopírované",
       "table": "Tabuľka v odpovedi"
+    },
+    "follow": {
+      "title": "Ako {name} prejde do prevádzky",
+      "aChange": "zmenu",
+      "proposed": "Navrhnuté: {kind} {name}",
+      "reading": "Načítava sa zmena…",
+      "unread": "Zmenu sa nepodarilo načítať",
+      "rejected": "Zamietnuté: nič sa nezmenilo",
+      "approved": "Schválené",
+      "waiting": "Čaká na osobu, ktorá smie v tomto projekte schvaľovať zmeny {kind}",
+      "red": "Zmena červeného pruhu sa schvaľuje na vlastnej stránke, kde sa znova napíše jej názov.",
+      "approve": "Schváliť",
+      "deploy": "Po schválení prejde do prevádzky",
+      "deploying": "Nasadzuje sa…",
+      "live": "V prevádzke",
+      "open": "{kind} je v prevádzke: otvoriť",
+      "stage": {
+        "done": "Hotovo",
+        "working": "Prebieha",
+        "waiting": "Čaká",
+        "failed": "Zlyhalo",
+        "later": "Zatiaľ nie"
+      },
+      "test": {
+        "later": "Otestuje sa po spustení",
+        "reading": "Číta sa niekoľko riadkov z {name} vaším menom…",
+        "read": "{count, plural, one {Prečítaný # riadok} few {Prečítané # riadky} other {Prečítaných # riadkov}} z {total} {type} z {name}",
+        "empty": "{name} je v prevádzke a zatiaľ nemá žiadne entity",
+        "failed": "Testovacie čítanie zlyhalo",
+        "again": "Čítať znova",
+        "explore": "Otvoriť v Prieskumníkovi"
+      }
     }
   },
   "assistant": {
@@ -2313,7 +2469,8 @@
       "meaning": "Čo znamená",
       "document": "Dokument {format}",
       "model": "{types}, z dátového modelu {name} {semver}",
-      "formats": "Poskytované ako {formats}; najprv sa číta {recommended}"
+      "formats": "Poskytované ako {formats}; najprv sa číta {recommended}",
+      "fromModel": "z dátového modelu"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom.",
@@ -3237,6 +3394,8 @@
       "none": "Model priestoru {space} zatiaľ nedeklaruje žiadny typ.",
       "noneInProject": "Žiadny dátový model tohto projektu zatiaľ nedeklaruje typ.",
       "create": "Nový typ „{name}“"
-    }
+    },
+    "createNamed": "Nové: „{name}“",
+    "list": "Možnosti"
   }
 }

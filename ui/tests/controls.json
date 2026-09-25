@@ -548,6 +548,14 @@
         "edit_keeps_stored_metadata.test.ts"
       ]
     },
+    "src/pages/access/GroupPage.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "group_page.test.tsx"
+      ]
+    },
     "src/pages/access/OrganizationDomain.tsx": {
       "controls": {
         "Button": 1
@@ -642,7 +650,16 @@
       },
       "tests": [
         "catalog_cards.test.tsx",
+        "model_links.test.tsx",
         "part_run_cards.test.tsx"
+      ]
+    },
+    "src/pages/apps/ChangeFollowCard.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "change_follow_card.test.tsx"
       ]
     },
     "src/pages/apps/ConversationPanel.tsx": {
@@ -662,7 +679,8 @@
         "Button": 2
       },
       "tests": [
-        "endpoint_proposal_card.test.tsx"
+        "endpoint_proposal_card.test.tsx",
+        "model_links.test.tsx"
       ]
     },
     "src/pages/apps/EntityWriteCard.tsx": {
@@ -805,6 +823,7 @@
         "Button": 7
       },
       "tests": [
+        "explore_enum_pick.test.tsx",
         "explore_page.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
@@ -858,10 +877,12 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 9,
         "Checkbox": 3
       },
       "tests": [
+        "linkml_enum_values.test.tsx",
+        "linkml_imports_enums.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx"
       ]
@@ -884,6 +905,14 @@
         "part_model_file_drop.test.tsx"
       ]
     },
+    "src/pages/models/ModelPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
     "src/pages/models/ModelSubsetPicker.tsx": {
       "controls": {
         "Checkbox": 2
@@ -891,6 +920,22 @@
       "tests": [
         "model_subset.test.tsx",
         "part_model_subset_picker.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelViews.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelsList.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "models_list_page.test.tsx"
       ]
     },
     "src/pages/models/ModelsPage.tsx": {
@@ -969,7 +1014,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "endpoint_admits_person.test.ts",

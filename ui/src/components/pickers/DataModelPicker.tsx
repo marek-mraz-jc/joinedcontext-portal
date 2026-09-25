@@ -12,6 +12,8 @@ export type ModelChoice = { source: "organization"; model: OrganizationModel } |
 export interface DataModelPickerProps {
   id?: string;
   label: string;
+  /** Named by the form's `<label for={id}>` (see `Combobox`). */
+  labelled?: boolean;
   /** Chosen values, `project/name` or `sdm:{catalogue id}` (see `modelValue`, `catalogueValue`). */
   value: string[];
   onChange: (values: string[], choices: ModelChoice[]) => void;
@@ -38,6 +40,7 @@ export interface DataModelPickerProps {
 export function DataModelPicker({
   id,
   label,
+  labelled,
   value,
   onChange,
   project,
@@ -94,6 +97,7 @@ export function DataModelPicker({
     <Combobox
       id={id}
       label={label}
+      labelled={labelled}
       value={value}
       multiple={multiple}
       options={options}

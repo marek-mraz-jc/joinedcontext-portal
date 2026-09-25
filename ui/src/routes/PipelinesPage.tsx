@@ -9,6 +9,7 @@ import { proposeChecked } from "../api/proposal";
 import type { Change, Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ChangeNotice } from "../components/ChangeNotice";
+import { TypeLink } from "../pages/models/ModelLinks";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog } from "../pages/pipelines/PipelineEditor";
@@ -44,6 +45,7 @@ interface PipelineSpec {
   enabled?: boolean;
   secretRefs?: SecretRef[];
   source?: { dataSourceRef?: { name?: string } | string };
+  output?: { type?: string };
 }
 
 /** The data source a pipeline reads, by name, when it names one. */
@@ -417,6 +419,12 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                 {pipeline.metadata.title ? (
                   <div className="mt-0.5 font-mono text-caption text-fg-subtle">
                     {pipeline.metadata.name}
+                  </div>
+                ) : null}
+                {typeof spec.output?.type === "string" && spec.output.type !== "" ? (
+                  <div className="mt-0.5 text-caption text-fg-subtle">
+                    {t("pipelines.writesType")}{" "}
+                    <TypeLink project={project} type={spec.output.type} className="font-mono" />
                   </div>
                 ) : null}
               </TableCell>

@@ -23,14 +23,18 @@ import { ActivityPage } from "./routes/ActivityPage";
 import { ApprovalsPage } from "./routes/ApprovalsPage";
 import { ApprovalDetailPage } from "./routes/ApprovalDetailPage";
 import { ModelsPage } from "./pages/models/ModelsPage";
+import { ModelsList } from "./pages/models/ModelsList";
+import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
 import { ImportPage } from "./pages/import/ImportPage";
 import { SpaceInside } from "./pages/spaces/SpaceInside";
 import { AppPage } from "./pages/apps/AppPage";
+import { GroupPage } from "./pages/access/GroupPage";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
 import { AssistantPage } from "./pages/assistant/AssistantPage";
 import { HandOff } from "./assistant/HandOff";
+import { hasPrefill } from "./assistant/state";
 import { DraftElsewhere } from "./assistant/DraftElsewhere";
 import { WorkspaceProvider } from "./components/layout/WorkspaceContext";
 import { WorkspacesPage } from "./routes/WorkspacesPage";
@@ -456,10 +460,34 @@ const organizationFormRoute = createRoute({
   path: "/organization/$tab/$",
   component: function OrganizationFormRoute() {
     const { tab, _splat: rest = "" } = organizationFormRoute.useParams();
+    const group = tab === "groups" ? groupOfRest(rest) : null;
+    if (group !== null) {
+      return <OrganizationGroupView name={group} />;
+    }
     const form = formOfRest(rest);
     return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
   },
 });
+
+/** `groups/{name}`: one group's page (PF-95); `new` stays the new-group form. */
+function groupOfRest(rest: string): string | null {
+  const [first, second] = rest.split("/");
+  return first && first !== "new" && second === undefined ? decodeURIComponent(first) : null;
+}
+
+/** A group's page in the Organization's shell (PF-95, T-2685). */
+function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first}>
+      <GroupPage name={name} />
+    </Shell>
+  );
+}
 
 /** `new` or `{name}/edit` after a tab's address; anything else names no form. */
 function formOfRest(rest: string): FormTarget | null {
@@ -469,17 +497,59 @@ function formOfRest(rest: string): FormTarget | null {
   return null;
 }
 
+/**
+ * The Data models page (T-2765): the list of the project's models, or the editor when the address
+ * asks for one — `?edit=<name>` (AG-77), `?draft=<name>` (AG-61), `?new=blank|file|sdm` with an
+ * optional `&space=` — or when a file or the assistant handed the page a draft to open.
+ */
 const modelsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/models",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { edit?: string; draft?: string; new?: "blank" | "file" | "sdm"; space?: string } => ({
+    edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
+    draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
+    new: search.new === "blank" || search.new === "file" || search.new === "sdm" ? search.new : undefined,
+    space: typeof search.space === "string" && search.space !== "" ? search.space : undefined,
+  }),
   component: function ModelsRoute() {
     const { project } = modelsRoute.useParams();
+    const search = modelsRoute.useSearch();
+    const editing =
+      search.edit !== undefined ||
+      search.draft !== undefined ||
+      search.new !== undefined ||
+      hasPrefill(`/projects/${project}/models`);
     return (
       <Shell project={project}>
         <HandOff>
           <DraftElsewhere project={project} page="models" />
-          <ModelsPage project={project} />
+          {editing ? (
+            <ModelsPage key={`${search.edit ?? ""}-${search.new ?? ""}`} project={project} />
+          ) : (
+            <ModelsList project={project} />
+          )}
         </HandOff>
+      </Shell>
+    );
+  },
+});
+
+/** One model's own page: its diagram, form, YAML, users, history and Mappings (T-2765). */
+const modelRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/models/$name",
+  // A link that names a type opens the model on that class (T-2766).
+  validateSearch: (search: Record<string, unknown>): { class?: string } => ({
+    class: typeof search.class === "string" && search.class !== "" ? search.class : undefined,
+  }),
+  component: function ModelRoute() {
+    const { project, name } = modelRoute.useParams();
+    const { class: klass } = modelRoute.useSearch();
+    return (
+      <Shell project={project}>
+        <ModelPage key={`${name}-${klass ?? ""}`} project={project} name={name} initialClass={klass} />
       </Shell>
     );
   },
@@ -774,6 +844,7 @@ export const routeTree = rootRoute.addChildren([
     projectSettingsTabRoute,
     projectSettingsFormRoute,
     modelsRoute,
+    modelRoute,
     exploreRoute,
     ckanRoute,
     importRoute,

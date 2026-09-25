@@ -182,7 +182,7 @@ describe("PipelineStudio KPI preset", () => {
     await userEvent.selectOptions(await screen.findByLabelText(en.pipelines.studio.kpi.endpoint), "helsinki-all");
 
     await userEvent.click(screen.getByRole("combobox", { name: en.pipelines.studio.kpi.type }));
-    const list = await screen.findByRole("listbox", { name: en.pipelines.studio.kpi.type });
+    const list = await screen.findByRole("listbox", { name: en.picker.list });
     await waitFor(() =>
       expect(within(list).getAllByRole("option").map((o) => o.textContent)).toEqual([
         expect.stringContaining("BikeHireDockingStation"),
