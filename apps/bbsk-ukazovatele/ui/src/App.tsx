@@ -25,6 +25,9 @@ import {
 } from "@joinedcontext/sdk";
 import type { DesignTokens, JcEndpoint, RichRow } from "@joinedcontext/sdk";
 import { DistrictChart } from "./DistrictChart";
+import { DistrictMap } from "./DistrictMap";
+import { choropleth, districtsOf } from "./districts";
+import type { District } from "./districts";
 import { byKey, districtBars, isWhole, toIndicator, unitAsContracted } from "./indicators";
 import type { Body, Indicator, State } from "./indicators";
 import { stringsFor } from "./locales";
@@ -37,6 +40,12 @@ const SPACE_OF: Record<Body, string> = {
 };
 
 const BODIES: Body[] = ["bbsk", "banskabystrica"];
+
+/**
+ * The register space whose public endpoint serves the district outlines, the App's one further
+ * space (AP-04, T-2933); only the region's indicators have districts.
+ */
+const REGISTER_SPACE = "bbsk-registre";
 
 /**
  * Each body's colour, from the design tokens (AP-123): the region takes the accent, the city the
@@ -129,6 +138,50 @@ export function indicatorsOf(rows: RichRow[], body: Body): Indicator[] {
     .filter((indicator): indicator is Indicator => indicator !== null && indicator.body === body);
 }
 
+type Districts =
+  | { status: "none" }
+  | { status: "loading" }
+  | { status: "ready"; districts: District[] }
+  | { status: "failed"; reason: string };
+
+/**
+ * The district outlines, read through the register's endpoint when the served configuration names
+ * one and `wanted` says the body has districts. Slovak whatever the page's language: the join key
+ * is the Slovak name (`districts.ts`).
+ */
+function useDistricts(wanted: boolean): Districts {
+  const { config } = useClient();
+  const [districts, setDistricts] = useState<Districts>({ status: "none" });
+  const slug = (config.endpoints ?? []).find((candidate) => candidate.space === REGISTER_SPACE)?.slug;
+
+  useEffect(() => {
+    if (!wanted || !slug) {
+      setDistricts({ status: "none" });
+      return;
+    }
+    let live = true;
+    setDistricts({ status: "loading" });
+    endpointSource(slug, transportFor(config), "sk")
+      .query(
+        { type: "AdministrativeArea", q: 'divisionLevel=="district"', attrs: ["name", "divisionLevel", "location"] },
+        { offset: 0, limit: LIMIT },
+      )
+      .then((page) => {
+        if (live) setDistricts({ status: "ready", districts: districtsOf(page.rows) });
+      })
+      .catch((cause: unknown) => {
+        if (live) setDistricts({ status: "failed", reason: reasonOf(cause) });
+      });
+    return () => {
+      live = false;
+    };
+    // As in `useIndicators`: the served configuration is read once, the slug is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, slug]);
+
+  return districts;
+}
+
 function reasonOf(cause: unknown): string {
   if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
@@ -136,7 +189,20 @@ function reasonOf(cause: unknown): string {
 
 function BodySection({ body, s }: { body: Body; s: Strings }) {
   const load = useIndicators(body);
+  const { config } = useClient();
+  const districts = useDistricts(body === "bbsk");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [marked, setMarked] = useState<string | null>(null);
   const headingId = `body-${body}`;
+  const groups = load.status === "ready" ? byKey(load.indicators) : [];
+  // The indicators a map can colour: those with at least two measured districts, as for a chart.
+  const mappable = groups.filter((group) => districtBars(group.rows).length >= 2);
+  const mapped = mappable.find((group) => group.key === picked) ?? mappable[0];
+  const shapes =
+    mapped && districts.status === "ready" && districts.districts.length > 0
+      ? choropleth(districts.districts, districtBars(mapped.rows))
+      : null;
+  const mapId = `map-${body}`;
 
   return (
     <section
@@ -154,12 +220,64 @@ function BodySection({ body, s }: { body: Body; s: Strings }) {
         </p>
       )}
       {load.status === "ready" && load.indicators.length === 0 && <p role="status">{s.empty}</p>}
-      {load.status === "ready" &&
-        byKey(load.indicators).map((group) => (
-          <Group key={group.key} groupKey={group.key} rows={group.rows} s={s} body={body} />
-        ))}
+      {districts.status === "failed" && mapped && (
+        <p role="status" className="failed">
+          {s.mapUnavailable}: {districts.reason}
+        </p>
+      )}
+      {mapped && shapes && (
+        <section className="map-panel" aria-labelledby={mapId}>
+          <h3 id={mapId}>{s.map}</h3>
+          <label className="map-pick">
+            {s.mapIndicator}{" "}
+            <select
+              value={mapped.key}
+              onChange={(event) => {
+                setPicked(event.target.value);
+                setMarked(null);
+              }}
+            >
+              {mappable.map((group) => (
+                <option key={group.key} value={group.key}>
+                  {s.indicator[group.key]?.title ?? group.key}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="note">{s.mapHint}</p>
+          <DistrictMap
+            features={shapes.features}
+            ramp={shapes.ramp}
+            title={s.indicator[mapped.key]?.title ?? mapped.key}
+            unit={unitOf(mapped.key, mapped.rows, s)}
+            marked={marked}
+            onMark={setMarked}
+            basemap={config.basemap}
+            s={s}
+          />
+        </section>
+      )}
+      {groups.map((group) => (
+        <Group
+          key={group.key}
+          groupKey={group.key}
+          rows={group.rows}
+          s={s}
+          body={body}
+          marked={shapes && group.key === mapped?.key ? marked : undefined}
+          onMark={shapes && group.key === mapped?.key ? setMarked : undefined}
+        />
+      ))}
     </section>
   );
+}
+
+/**
+ * The written unit of an indicator's districts, only where every one carries the contracted code;
+ * otherwise no unit beside a bar is truer than the wrong one, and each card still shows its own.
+ */
+function unitOf(groupKey: string, rows: Indicator[], s: Strings): string {
+  return rows.every((row) => row.value === null || unitAsContracted(row)) ? (s.indicator[groupKey]?.unit ?? "") : "";
 }
 
 function Group({
@@ -167,25 +285,33 @@ function Group({
   rows,
   s,
   body,
+  marked,
+  onMark,
 }: {
   groupKey: string;
   rows: Indicator[];
   s: Strings;
   body: Body;
+  marked?: string | null;
+  onMark?: (territory: string) => void;
 }) {
   const headingId = `group-${body}-${groupKey}`;
   const title = s.indicator[groupKey]?.title ?? groupKey;
   const bars = districtBars(rows);
-  // The written unit only where every district carries the contracted code; otherwise no unit
-  // beside a bar is truer than the wrong one, and each card still shows its own.
-  const unit = rows.every((row) => row.value === null || unitAsContracted(row))
-    ? (s.indicator[groupKey]?.unit ?? "")
-    : "";
+  const unit = unitOf(groupKey, rows, s);
   return (
     <section className="group" aria-labelledby={headingId}>
       <h3 id={headingId}>{title}</h3>
       {bars.length >= 2 && (
-        <DistrictChart id={`${body}-${groupKey}`} title={title} unit={unit} bars={bars} s={s} />
+        <DistrictChart
+          id={`${body}-${groupKey}`}
+          title={title}
+          unit={unit}
+          bars={bars}
+          s={s}
+          marked={marked}
+          onMark={onMark}
+        />
       )}
       <Grid columns={4}>
         {rows.map((indicator) => (

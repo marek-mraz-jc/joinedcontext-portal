@@ -13,7 +13,7 @@ spec:
   callerRole: true
   contextSpaceRef:
     kind: ContextSpace
-    name: ovzdusie
+    name: banskabystrica-verejne
   enabledRepresentations:
   - ngsi-ld
   - geojson
