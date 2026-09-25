@@ -76,8 +76,8 @@ fn create_input_schema() -> Value {
             "profile": text("Which AgentProfile runs; the platform's app-builder when left out", NAME),
             "appClass": {
                 "type": "string",
-                "description": "How the App is built and served, as the App kind spells it",
-                "enum": ["static", "service", "fullstack"]
+                "description": "How the App is built and served, as the App kind spells it (AP-124)",
+                "enum": ["ui", "ui-rust"]
             },
             "visibility": {
                 "type": "string",

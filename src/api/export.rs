@@ -344,6 +344,7 @@ fn bundle_index(
         exported_at: chrono::Utc::now(),
         exported_by: header.exporter.to_owned(),
         source_instance: None,
+        models: Vec::new(),
         source_revision: header.revision.to_owned(),
         items,
         native_files,

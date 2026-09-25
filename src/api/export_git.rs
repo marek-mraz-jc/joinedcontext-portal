@@ -235,6 +235,7 @@ pub async fn archive(
             exported_at: chrono::Utc::now(),
             exported_by: exported_by.to_owned(),
             source_instance: None,
+            models: Vec::new(),
             source_revision: head.clone(),
             items: Vec::new(),
             native_files: Vec::new(),

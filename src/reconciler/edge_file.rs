@@ -54,7 +54,7 @@ const PORTAL_UI: &str = "portal-ui";
 /// Where an App's own route sends its requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Upstream {
-    /// A `service` or `fullstack` App: its Service `app-{name}` in this namespace.
+    /// A `ui-rust` App: its Service `app-{name}` in this namespace.
     Pod { namespace: String },
     /// A `static` App: the Portal's static host, the upstream of `portal-ui`.
     Static,
@@ -401,16 +401,6 @@ pub fn edge_apps(
             continue;
         };
         let project = envelope.metadata.namespace.clone().unwrap_or_default();
-        let upstream = match envelope.spec.get("kind").and_then(Value::as_str) {
-            Some("service" | "fullstack") => match settings.apps_namespace(&project) {
-                Ok(namespace) => Upstream::Pod { namespace },
-                Err(err) => {
-                    skipped.push((name, err.to_string()));
-                    continue;
-                }
-            },
-            _ => Upstream::Static,
-        };
         let public = envelope.spec.get("visibility").and_then(Value::as_str) == Some("public");
         if apps.iter().any(|app: &EdgeApp| app.name == name) {
             continue;
@@ -421,6 +411,17 @@ pub fn edge_apps(
                 skipped.push((name, format!("the App does not parse: {err}")));
                 continue;
             }
+        };
+        // Read through jc-core, so `ui-rust` and the old `fullstack` both reach the pod (AP-124).
+        let upstream = match spec.class {
+            jc_core::kinds::AppClass::UiRust => match settings.apps_namespace(&project) {
+                Ok(namespace) => Upstream::Pod { namespace },
+                Err(err) => {
+                    skipped.push((name, err.to_string()));
+                    continue;
+                }
+            },
+            jc_core::kinds::AppClass::Ui => Upstream::Static,
         };
         let slugs = crate::apps::static_host::served_endpoints(mirror, &project, &name, &spec)
             .into_iter()

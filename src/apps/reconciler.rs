@@ -310,7 +310,7 @@ pub fn render(
     let (endpoint, policies) =
         compiled_grants(manifest, name, project, &spec, slug, &settings.org_domain)?;
     let workload = match spec.class {
-        AppClass::Static => None,
+        AppClass::Ui => None,
         class => {
             let image = image.ok_or_else(|| RenderError::NoImage {
                 class: class.to_string(),
@@ -390,7 +390,7 @@ fn compiled_grants(
         spec.data_needs
             .iter()
             .enumerate()
-            .flat_map(|(index, need)| policies(name, project, index, need, spec, org_domain))
+            .flat_map(|(index, need)| policies(name, project, index, need, org_domain))
             .collect(),
     ))
 }
@@ -648,8 +648,8 @@ fn app_container(
         },
         "volumeMounts": [{ "name": "tmp-app", "mountPath": "/tmp" }],
     });
-    // A fullstack image is the binary at `/app` and nothing else, no entrypoint (AP-105).
-    if spec.class == jc_core::kinds::AppClass::Fullstack {
+    // A ui-rust image is the binary at `/app` and nothing else, no entrypoint (AP-105).
+    if spec.class == jc_core::kinds::AppClass::UiRust {
         container["command"] = json!(["/app"]);
     }
     container
@@ -828,7 +828,6 @@ fn policies(
     project: &str,
     index: usize,
     need: &DataNeed,
-    spec: &AppSpec,
     org_domain: &str,
 ) -> Vec<RawManifest> {
     // 1-based and in declaration order: stable across runs, so a second reconcile of an
@@ -853,7 +852,7 @@ fn policies(
                     need,
                     operations,
                     temporal_q.as_deref(),
-                    assignee(name, project, spec, *role),
+                    assignee(name, project, *role),
                     org_domain,
                 )
             })
@@ -942,12 +941,8 @@ fn policy(
 }
 
 /// Who the grant is made to (AP-07, AP-08, AP-96).
-fn assignee(name: &str, project: &str, spec: &AppSpec, role: Option<&str>) -> Value {
-    if spec.class == AppClass::Service && role.is_none() {
-        // A service app calls with its own account and nobody else's (AP-08).
-        return json!({ "kind": "serviceAccount", "id": format!("app-{name}") });
-    }
-    // Everyone else reaches the data with their own token through the app's endpoint, anonymous
+fn assignee(name: &str, project: &str, role: Option<&str>) -> Value {
+    // Everyone reaches the data with their own token through the app's endpoint, anonymous
     // callers of a public app included, and holds the grant there alone: the endpoint's caller
     // role, or the role of the app they hold (AP-07, AP-96, AP-97, GW22).
     let endpoint = format!("app-{name}");

@@ -18,7 +18,7 @@ metadata:
     en: "Road works and traffic announcements in the capital region on a map and in a table, with a steward who adds, corrects and removes records."
     fi: "Tietyöt ja liikennetiedotteet pääkaupunkiseudulla kartalla ja taulukossa; ylläpitäjä lisää, korjaa ja poistaa tiedotteita."
 spec:
-  kind: static
+  kind: ui
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-alerts.git

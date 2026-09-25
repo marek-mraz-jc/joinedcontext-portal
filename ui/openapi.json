@@ -2526,7 +2526,7 @@
                 "$ref": "#/components/schemas/CreateRunRequest"
               },
               "example": {
-                "appClass": "fullstack",
+                "appClass": "ui-rust",
                 "appName": "city-bikes-overview",
                 "dataNeeds": [
                   {
@@ -12382,7 +12382,7 @@
         "properties": {
           "appClass": {
             "type": "string",
-            "description": "`static`, `service` or `fullstack`, as the `App` kind spells them."
+            "description": "`ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are\nread as them for one release, and `ui-node` is refused until it is built."
           },
           "appName": {
             "type": "string",

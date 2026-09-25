@@ -2039,9 +2039,8 @@
       "name": "Název aplikace",
       "kind": "Druh",
       "kinds": {
-        "fullstack": "Celá aplikace (backend v Rustu a obrazovky v Reactu)",
-        "static": "Statická (jen obrazovky)",
-        "service": "Služba (jen backend, bez obrazovek)"
+        "ui": "UI (obrazovky v Reactu, obsluhuje je Portál)",
+        "ui-rust": "UI a server v Rustu (obrazovky v Reactu a backend v axum)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Vyberte endpoint",

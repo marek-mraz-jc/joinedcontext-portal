@@ -2314,8 +2314,19 @@ export function registrationUiSchema(t: (key: string) => string): UiSchema {
 }
 
 
-/** How an app is built and served (AP-01), as jc-core's `AppClass` spells it. */
-export const APP_CLASSES = ["static", "service", "fullstack"] as const;
+/** How an app is built and served (AP-01, AP-124), as jc-core's `AppClass` spells it. */
+export const APP_CLASSES = ["ui", "ui-rust"] as const;
+
+/**
+ * The shape an App's `spec.kind` names, the previous release's `static` and `fullstack` read as
+ * `ui` and `ui-rust` (AP-124), so an App written before the rename opens in the form and is saved
+ * in the new name. Anything else is kept as written and refused by the form's own check.
+ */
+export function appClass(kind: string | undefined): string {
+  if (kind === "static") return "ui";
+  if (kind === "fullstack") return "ui-rust";
+  return kind ?? "ui";
+}
 
 /** Who may reach a published app (AP-18), narrowest first. */
 export const APP_VISIBILITIES = ["private", "project", "organization", "public"] as const;
@@ -2373,7 +2384,7 @@ export function appSchema(
         type: "string",
         title: t("apps.field.kind"),
         ...words(t, "apps.generate.kinds", APP_CLASSES),
-        default: "static",
+        default: "ui",
       },
       visibility: {
         type: "string",

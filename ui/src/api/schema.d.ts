@@ -3064,7 +3064,10 @@ export interface components {
         };
         /** @description What a person asks for when they start a run (AP-51). */
         CreateRunRequest: {
-            /** @description `static`, `service` or `fullstack`, as the `App` kind spells them. */
+            /**
+             * @description `ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are
+             *     read as them for one release, and `ui-node` is refused until it is built.
+             */
             appClass: string;
             /** @description Name of the application to build; becomes the `App` manifest's name. */
             appName: string;
@@ -6589,7 +6592,7 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "appClass": "fullstack",
+                 *       "appClass": "ui-rust",
                  *       "appName": "city-bikes-overview",
                  *       "dataNeeds": [
                  *         {

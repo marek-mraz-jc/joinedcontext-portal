@@ -160,10 +160,11 @@ fn build_settings() -> build_pods::Settings {
     }
 }
 
-/// AP-116, AP-108: the App Deployment of every pod-shaped class is admitted by `restricted`.
+/// AP-116, AP-108: the App Deployment of the pod-shaped class, by its new and its old name
+/// (AP-124), is admitted by `restricted`.
 #[test]
 fn every_app_pod_passes_the_restricted_pod_security_profile() {
-    for kind in ["fullstack", "service"] {
+    for kind in ["ui-rust", "fullstack"] {
         let rendered = render(&app(kind), Some(APP_IMAGE), &generate_slug(), &settings())
             .unwrap_or_else(|error| panic!("a {kind} app renders: {error}"));
         let workload = rendered
