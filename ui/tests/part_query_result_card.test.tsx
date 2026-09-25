@@ -266,6 +266,40 @@ describe("a model's schema in the card (T-2769)", () => {
     expect(schemaOf({ document: "x" })).toBeNull();
     expect(schemaOf("text")).toBeNull();
   });
+
+  // The answer helsinki-events gave on dev to describe_schema without a format: drawn as
+  // "artifacts: bytes: 1225; format: linkml; …; sha256: 53d4…" until this view.
+  it("says the index of a schema in words: the types, the model, the formats, never the digests", () => {
+    const artifact = (format: string, n: number) => ({
+      bytes: 1000 + n,
+      format,
+      mediaType: "text/yaml",
+      sha256: `${n}`.repeat(64).slice(0, 64),
+      uri: `schema://gx2knuus75alkjgc24kjz7llte6q5jkk/v1/${format}`,
+      version: 1,
+    });
+    const index = {
+      artifacts: ["linkml", "json-schema", "context", "shacl", "owl", "rdf", "markdown", "linkml"].map(artifact),
+      endpoint: "gx2knuus75alkjgc24kjz7llte6q5jkk",
+      models: [{ name: "helsinki", redacted: true, semver: "1.2.0", types: ["Event", "Place"], version: 1 }],
+      recommended: "linkml",
+      recommendedBecause: "LinkML carries the classes…",
+    };
+    const view = viewOf({ structuredContent: { schema: index } });
+    expect(view).toEqual({
+      kind: "schemaIndex",
+      models: [{ name: "helsinki", semver: "1.2.0", types: ["Event", "Place"] }],
+      formats: ["linkml", "json-schema", "context", "shacl", "owl", "rdf", "markdown"],
+      recommended: "linkml",
+    });
+    renderPart(<QueryResultCard result={{ endpoint: "helsinki-events", tool: "describe_schema", view }} />);
+    expect(screen.getByText("Event, Place, from the data model helsinki 1.2.0")).toBeTruthy();
+    expect(screen.getByText("Served as linkml, json-schema, context, shacl, owl, rdf, markdown; linkml is read first")).toBeTruthy();
+    const text = document.body.textContent ?? "";
+    for (const leak of ["sha256", "schema://", "bytes", "gx2knuus"]) {
+      expect(text).not.toContain(leak);
+    }
+  });
 });
 
 describe("a wide value in the card (T-2460)", () => {

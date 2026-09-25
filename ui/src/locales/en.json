@@ -2279,7 +2279,9 @@
       "attribute": "Attribute",
       "range": "Type",
       "meaning": "What it means",
-      "document": "The {format} document"
+      "document": "The {format} document",
+      "model": "{types}, from the data model {name} {semver}",
+      "formats": "Served as {formats}; {recommended} is read first"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",

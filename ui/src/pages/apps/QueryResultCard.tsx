@@ -36,7 +36,8 @@ export type QueryView =
   | { kind: "table"; columns: string[]; rows: { id: string; cells: string[] }[]; total: number }
   | { kind: "fields"; fields: [string, string][] }
   | { kind: "text"; text: string }
-  | { kind: "schema"; format: string; classes: SchemaClass[]; document: string };
+  | { kind: "schema"; format: string; classes: SchemaClass[]; document: string }
+  | { kind: "schemaIndex"; models: { name: string; semver: string; types: string[] }[]; formats: string[]; recommended: string };
 
 export interface QueryResult {
   endpoint: string;
@@ -250,6 +251,19 @@ export function schemaOf(given: unknown): QueryView | null {
   // The gateway answers `{ schema: {format, mediaType, document} }` (its result key), beside
   // `restricted` or `jc:source` when they apply.
   const answer = isRecord(given) && isRecord(given.schema) ? given.schema : given;
+  // Asked without a format, the gateway answers with the index of the formats it serves and the
+  // models behind them: said in words, never as the digests and URIs it lists (T-2769).
+  if (isRecord(answer) && Array.isArray(answer.artifacts) && typeof answer.document !== "string") {
+    const models = (Array.isArray(answer.models) ? answer.models : []).filter(isRecord).map((model) => ({
+      name: said(model.name),
+      semver: said(model.semver),
+      types: Array.isArray(model.types) ? model.types.filter((type): type is string => typeof type === "string") : [],
+    }));
+    const formats = [
+      ...new Set(answer.artifacts.filter(isRecord).map((artifact) => said(artifact.format)).filter((format) => format !== "")),
+    ];
+    return { kind: "schemaIndex", models, formats, recommended: said(answer.recommended) };
+  }
   if (!isRecord(answer) || typeof answer.document !== "string" || typeof answer.format !== "string") {
     return null;
   }
@@ -370,6 +384,24 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
     </>
   ) : view.kind === "schema" ? (
     <SchemaAnswer view={view} />
+  ) : view.kind === "schemaIndex" ? (
+    <ul className="mt-1 flex flex-col gap-0.5">
+      {view.models.map((model) => (
+        <li key={`${model.name}@${model.semver}`} className="break-words">
+          {t("assistant.query.model", {
+            types: model.types.join(", "),
+            name: model.name,
+            semver: model.semver,
+          })}
+        </li>
+      ))}
+      <li className="break-words text-fg-muted">
+        {t("assistant.query.formats", {
+          formats: view.formats.join(", "),
+          recommended: view.recommended,
+        })}
+      </li>
+    </ul>
   ) : view.kind === "fields" ? (
     <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
       {view.fields.map(([key, value]) => (

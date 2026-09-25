@@ -2279,7 +2279,9 @@
       "attribute": "Atribút",
       "range": "Typ",
       "meaning": "Čo znamená",
-      "document": "Dokument {format}"
+      "document": "Dokument {format}",
+      "model": "{types}, z dátového modelu {name} {semver}",
+      "formats": "Poskytované ako {formats}; najprv sa číta {recommended}"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom.",

@@ -2279,7 +2279,9 @@
       "attribute": "Attribut",
       "range": "Typ",
       "meaning": "Bedeutung",
-      "document": "Das {format}-Dokument"
+      "document": "Das {format}-Dokument",
+      "model": "{types}, aus dem Datenmodell {name} {semver}",
+      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
