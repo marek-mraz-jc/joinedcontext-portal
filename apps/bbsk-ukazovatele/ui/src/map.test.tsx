@@ -134,7 +134,8 @@ describe("the district map", () => {
     const read = asked.find((path) => path.includes(REGISTER_SLUG)) ?? "";
     expect(decodeURIComponent(read)).toContain("type=AdministrativeArea");
     expect(decodeURIComponent(read)).toContain('q=divisionLevel=="district"');
-    expect(styles).toEqual([BASEMAP]);
+    // The map is built after the panel shows, a beat later on a loaded runner.
+    await waitFor(() => expect(styles).toEqual([BASEMAP]));
 
     fireEvent.change(within(panel).getByRole("combobox", { name: /Ukazovateľ na mape/ }), {
       target: { value: "obyvatelstvo-stav" },
