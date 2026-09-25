@@ -51,6 +51,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: has
         run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      # DM-06: the unit list is the platform's one code list, copied byte for byte; nobody edits
+      # the copy. Regenerate with the platform's `tools/units/generate.py <this path>`.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the unit list is the platform's code list, unedited (DM-06)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/marek-mraz-jc/joinedcontext-platform/main/crates/jc-core/data/unece-rec20.json \
+            | cmp - ui/src/generated/units.json
       - if: steps.has.outputs.ui == 'yes'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with: { version: 10 }

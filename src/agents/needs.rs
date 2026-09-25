@@ -129,20 +129,8 @@ pub fn validate_data_needs(
             }
         }
 
-        let operations = need
-            .get("operations")
-            .and_then(|t| t.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
-            .unwrap_or_default();
-
-        for op in operations {
-            if matches!(
-                op,
-                "createEntity" | "updateAttrs" | "updateEntity" | "deleteEntity" | "upsertBatch"
-            ) {
-                allows_write = true;
-            }
-        }
+        // Every write jc-core counts, `appendAttrs`, `deleteAttrs` and the batches included (AP-98).
+        allows_write |= crate::agents::held::writes(std::slice::from_ref(need));
     }
 
     // Publishing declares every role the needs name in `spec.roles` (AP-91, AP-96), so a name the

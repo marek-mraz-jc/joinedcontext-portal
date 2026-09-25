@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import type { JSX } from "react";
+import { Card, Grid, Header, Page, Split } from "@joinedcontext/sdk";
 import { ApiError, createStation, deleteStation, getIdentity, getStations, updateStation } from "./api";
 import type { Identity, Station, StationFields } from "./api";
 
@@ -36,31 +37,39 @@ export function App(): JSX.Element {
   const steward = identity?.roles.includes("steward") ?? false;
   const readOnly = (identity?.signedIn ?? false) && !steward;
 
-  return (
-    <main>
-      <h1>Air quality</h1>
-      <p className="identity">{who(identity)}</p>
-      {readOnly && <p id="read-only-reason">{READ_ONLY}</p>}
-
-      {error && <p role="alert">{error}</p>}
-      {!stations && !error && <p role="status">Loading stations…</p>}
-
-      {steward && (
-        <section aria-labelledby="add-station">
-          <h2 id="add-station">Add a station</h2>
-          <StationForm onSaved={load} />
-        </section>
-      )}
-
+  const list = (
+    <>
       {stations && stations.length === 0 && <p>No stations here yet.</p>}
-
       {stations && stations.length > 0 && (
-        <ul className="stations">
+        <Grid columns={steward ? 2 : 4}>
           {stations.map((station) => (
             <StationCard key={station.id} station={station} steward={steward} readOnly={readOnly} onSaved={load} />
           ))}
-        </ul>
+        </Grid>
       )}
+    </>
+  );
+
+  return (
+    <main>
+      <Page>
+        <Header level={1} title="Air quality" subtitle={who(identity)} />
+        {readOnly && <p id="read-only-reason">{READ_ONLY}</p>}
+
+        {error && <p role="alert">{error}</p>}
+        {!stations && !error && <p role="status">Loading stations…</p>}
+
+        {steward ? (
+          <Split ratio="1:2">
+            <Card title="Add a station">
+              <StationForm onSaved={load} />
+            </Card>
+            {list}
+          </Split>
+        ) : (
+          list
+        )}
+      </Page>
     </main>
   );
 }
@@ -92,8 +101,7 @@ function StationCard({
   const [editing, setEditing] = useState(false);
   const title = station.name ?? station.id;
   return (
-    <li className="station">
-      <h2>{title}</h2>
+    <Card title={title}>
       <dl>
         <Metric label="PM10" value={station.pm10} unit="µg/m³" />
         <Metric label="PM2.5" value={station.pm25} unit="µg/m³" />
@@ -124,7 +132,7 @@ function StationCard({
           onCancel={() => setEditing(false)}
         />
       )}
-    </li>
+    </Card>
   );
 }
 
@@ -300,14 +308,16 @@ function StationForm({
       />
       <label htmlFor={field("note")}>Steward note</label>
       <textarea id={field("note")} rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
-      <button type="submit" disabled={saving || !complete}>
-        {station ? "Save changes" : "Add station"}
-      </button>
-      {onCancel && (
-        <button type="button" onClick={onCancel}>
-          Cancel
+      <div className="note-actions">
+        <button type="submit" disabled={saving || !complete}>
+          {station ? "Save changes" : "Add station"}
         </button>
-      )}
+        {onCancel && (
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
       {error && <p role="alert">{error}</p>}
     </form>
   );

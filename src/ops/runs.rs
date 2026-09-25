@@ -278,6 +278,9 @@ pub fn operations() -> Vec<Operation> {
                         crate::agents::run::RunOrigin::Person,
                         State(state.clone()),
                         Path(project.to_owned()),
+                        // No token reaches the registry, so a write need cannot be checked
+                        // against the caller's grants and is refused (AP-132).
+                        axum::http::HeaderMap::new(),
                         Json(request),
                     )
                     .await?;

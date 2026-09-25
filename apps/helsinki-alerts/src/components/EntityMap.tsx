@@ -98,7 +98,7 @@ export function EntityMap({
   onSelect,
   basemap,
   mode = "auto",
-  height = 420,
+  height,
   radius = 500,
 }: {
   rows: Row[];
@@ -348,7 +348,7 @@ export function EntityMap({
   const selectedLabel = chosen ? ` · ${nameOf(chosen, label)}` : "";
 
   return (
-    <div className="jc-map" style={{ height }}>
+    <div className="jc-map" style={height === undefined ? undefined : { height }}>
       <div className="jc-map-canvas" ref={container} data-testid="jc-map" role="application" aria-label="Map" />
       {!effectiveBasemap && <span className="jc-map-notice">{NO_BASEMAP}</span>}
       {n === 0 && rows.length > 0 ? (

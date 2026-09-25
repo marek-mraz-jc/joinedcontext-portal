@@ -39,4 +39,7 @@ cd ui && pnpm exec playwright test        # the steward and viewer flows against
 ```
 
 The browser flow starts the real binary against `tests/e2e/stub-endpoint.mjs` and plays the
-edge itself, setting the `X-Access-Token` and `X-Userinfo` headers the plugin would set.
+edge itself, setting the `X-Access-Token` and `X-Userinfo` headers the plugin would set. Its
+`widths` project (`ui/e2e/responsive.spec.ts`) holds the page, a reader's and a steward's, light and
+dark, to 375, 768, 1440 and 2560 px: no sideways scroll, no overlap, no control cut off, axe clean
+(T-2825). The layout is the SDK's Page, Header, Split, Card and Grid.

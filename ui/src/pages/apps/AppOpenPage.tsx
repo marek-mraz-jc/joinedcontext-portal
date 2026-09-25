@@ -11,13 +11,6 @@ import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
 import { appDisplayName } from "./appTitle";
 
-/**
- * What a sandboxed App frame may do (AP-122): run its scripts on its own origin, send its forms,
- * open a link in a new window and download a file. No `allow-top-navigation`: the App never
- * takes the Portal's window away.
- */
-export const APP_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads";
-
 /** The App's own address. On the Portal's host the static host sends the frame to the apps origin. */
 export function appAddress(name: string): string {
   return `/apps/${encodeURIComponent(name)}/`;
@@ -139,10 +132,14 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           </>
         }
       />
+      {/* What the App may do (AP-122): run its scripts, send its forms, open a link in a new
+          window, download. No allow-same-origin: a static App is served from the Portal's own
+          origin (AP-14) and the pair would hand it the Portal's CSRF cookie (AP-19). No
+          allow-top-navigation: the App never takes the Portal's window away. */}
       <iframe
         src={address}
         title={t("apps.openPage.frameTitle", { title })}
-        sandbox={APP_FRAME_SANDBOX}
+        sandbox="allow-scripts allow-forms allow-popups allow-downloads"
         referrerPolicy="no-referrer"
         className="min-h-128 w-full flex-1 rounded-xl border border-border bg-surface"
       />

@@ -9,8 +9,9 @@ import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { fetchJson, publishedTypes } from "../endpoints/SchemaProjectionPanel";
 import type { PublishedType } from "../endpoints/SchemaProjectionPanel";
-import { EndpointPreview, accessWords } from "./EndpointPreview";
+import { EndpointPreview } from "./EndpointPreview";
 import { useAccess } from "../../components/entities/AccessPanel";
+import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Textarea } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
@@ -49,9 +50,64 @@ export function endpointFields(primary: string, extra: string[]): Record<string,
   return others.length === 0 ? { endpointName: primary } : { endpointNames: [primary, ...others] };
 }
 
-/** A generated app reads. It updates only when the person ticks it and their own grant allows it. */
+/** What every generated app reads with, whatever else its preset adds. */
 const OPERATIONS = ["queryEntity", "retrieveEntity"];
-const WRITE_OPERATION = "updateAttrs";
+
+/**
+ * The three access presets of Build an app (AP-132): what the app may do on its endpoint. A write
+ * preset is offered only where the person's own grant holds every write it adds (PF-70).
+ */
+export const ACCESS_PRESETS = {
+  read: [...OPERATIONS, "queryTemporal", "retrieveTemporal"],
+  update: [...OPERATIONS, "queryTemporal", "retrieveTemporal", "updateAttrs", "appendAttrs"],
+  full: [
+    ...OPERATIONS,
+    "queryTemporal",
+    "retrieveTemporal",
+    "updateAttrs",
+    "appendAttrs",
+    "createEntity",
+    "deleteEntity",
+  ],
+} as const;
+export type Preset = keyof typeof ACCESS_PRESETS;
+export const PRESETS = Object.keys(ACCESS_PRESETS) as Preset[];
+
+const TEMPORAL_READS = new Set(["queryTemporal", "retrieveTemporal"]);
+const isRead = (operation: string) => OPERATIONS.includes(operation) || TEMPORAL_READS.has(operation);
+
+/** The operations the person holds on one type, as the endpoint's `/access` document states them. */
+export function heldOperations(document: GrantDocument | undefined, type: string): Set<string> {
+  const on = (entries: GrantDocument["permissions"]) =>
+    (entries ?? [])
+      .filter((entry) => entry.resource?.type === type || entry.resource?.type === "*")
+      .flatMap((entry) => entry.actions ?? []);
+  const prohibited = new Set(on(document?.prohibitions));
+  return new Set(on(document?.permissions).filter((operation) => !prohibited.has(operation)));
+}
+
+/** Whether the person holds every write of `preset` on every one of `types` (PF-70). */
+export function offersPreset(preset: Preset, document: GrantDocument | undefined, types: string[]): boolean {
+  const writes = ACCESS_PRESETS[preset].filter((operation) => !isRead(operation));
+  return types.length > 0 && types.every((type) => {
+    const held = heldOperations(document, type);
+    return writes.every((operation) => held.has(operation));
+  });
+}
+
+/**
+ * What a need of `preset` carries: the two reads every app makes, the temporal reads where the
+ * person holds them on every type, and the preset's writes. The server checks the same list
+ * against the same document (AP-132).
+ */
+export function presetOperations(preset: Preset, document: GrantDocument | undefined, types: string[]): string[] {
+  return ACCESS_PRESETS[preset].filter(
+    (operation) =>
+      OPERATIONS.includes(operation) ||
+      !TEMPORAL_READS.has(operation) ||
+      (types.length > 0 && types.every((type) => heldOperations(document, type).has(operation))),
+  );
+}
 
 /** Words that say what to do, not what the app is: a name made of them says nothing. */
 const FILLER = new Set(
@@ -125,10 +181,11 @@ export function dataNeeds(
   endpoint: Manifest,
   types: PublishedType[],
   dropped: string[],
-  write = false,
+  operations: readonly string[] = OPERATIONS,
   writeRole = "",
 ): Record<string, unknown>[] {
   const spec = endpointSpec(endpoint);
+  const writes = operations.some((operation) => !isRead(operation));
   const kept = types
     .map((type) => ({
       name: type.name,
@@ -144,14 +201,12 @@ export function dataNeeds(
     contextSpaceRef: { kind: "ContextSpace", name: refName(spec.contextSpaceRef) },
     types: kept.map((type) => type.name),
     attrs: [...new Set(kept.flatMap((type) => type.attributes))].sort(),
-    operations: write && writeRole === "" ? [...OPERATIONS, WRITE_OPERATION] : OPERATIONS,
+    operations: writes && writeRole === "" ? [...operations] : operations.filter(isRead),
     representations: spec.enabledRepresentations ?? [],
   };
   // Everyone the app admits reads; only the named application role writes. Publishing declares
   // the role in the App, and its members are added on the App page (AP-91, AP-96).
-  return write && writeRole !== ""
-    ? [need, { ...need, operations: [...OPERATIONS, WRITE_OPERATION], roles: [writeRole] }]
-    : [need];
+  return writes && writeRole !== "" ? [need, { ...need, operations: [...operations], roles: [writeRole] }] : [need];
 }
 
 /** `[a-z][a-z0-9-]{0,31}`, an application role name as the App kind takes it (AP-90). */
@@ -197,7 +252,7 @@ export function AppGenerator({
   const [extra, setExtra] = useState<string[]>(handed.slice(1));
   const [addingEndpoint, setAddingEndpoint] = useState(false);
   const [dropped, setDropped] = useState<string[]>([]);
-  const [write, setWrite] = useState(false);
+  const [preset, setPreset] = useState<Preset>("read");
   /** Empty: everyone the app admits may write. A name: only that application role (AP-96). */
   const [writeRole, setWriteRole] = useState("");
   const [conflictApp, setConflictApp] = useState<string | null>(null);
@@ -211,6 +266,7 @@ export function AppGenerator({
     name: `${base}-name`,
     kind: `${base}-kind`,
     writeRole: `${base}-write-role`,
+    preset: `${base}-preset`,
   };
   const starting = useRef(false);
   const [change, setChange] = useState<Change | null>(null);
@@ -242,7 +298,6 @@ export function AppGenerator({
   // The option to update exists only where the person's own grant on the endpoint has a write
   // (AP-22, AP-62): the gateway evaluates each save anyway; this keeps the form honest.
   const access = useAccess(slug === "" ? undefined : slug);
-  const writes = accessWords(access.data).writes;
 
   // The endpoint's published model, which is where the app's bounds come from.
   const schema = useQuery({
@@ -272,9 +327,21 @@ export function AppGenerator({
   // Both are a pass over a handful of names; the React Compiler memoizes them, and a manual
   // useMemo here only tells it a dependency might be mutated when none of them is.
   const types = concreteTypes(schema.data);
+  const kept = types
+    .filter((type) => type.attributes.some((attribute) => !dropped.includes(`${type.name}.${attribute}`)))
+    .map((type) => type.name);
+  // A preset the grant no longer carries (another endpoint picked, a type unticked) falls back to
+  // reading, never to a write the person does not hold.
+  const chosenPreset = offersPreset(preset, access.data, kept) ? preset : "read";
   const needs = endpoint
     ? [
-        ...dataNeeds(endpoint, types, dropped, write && writes.length > 0, writeRole.trim()),
+        ...dataNeeds(
+          endpoint,
+          types,
+          dropped,
+          presetOperations(chosenPreset, access.data, kept),
+          chosenPreset === "read" ? "" : writeRole.trim(),
+        ),
         ...extraEndpoints.flatMap((candidate, i) =>
           dataNeeds(candidate, concreteTypes(extraSchemas[i]?.data), []),
         ),
@@ -445,6 +512,7 @@ export function AppGenerator({
             setEndpointName(event.target.value);
             setExtra((current) => current.filter((name) => name !== event.target.value));
             setDropped([]);
+            setPreset("read");
           }}
           className="mt-1"
         >
@@ -569,9 +637,10 @@ export function AppGenerator({
               audience={endpoint ? (endpointSpec(endpoint).audience ?? "") : ""}
               types={types}
               dropped={dropped}
-              writes={writes}
-              write={write}
-              onWrite={setWrite}
+              preset={chosenPreset}
+              offered={PRESETS.filter((candidate) => offersPreset(candidate, access.data, kept))}
+              presetId={ids.preset}
+              onPreset={setPreset}
               writeRole={writeRole}
               writeRoleId={ids.writeRole}
               onWriteRole={setWriteRole}
@@ -605,9 +674,10 @@ function NeedsChecklist({
   audience,
   types,
   dropped,
-  writes,
-  write,
-  onWrite,
+  preset,
+  offered,
+  presetId,
+  onPreset,
   writeRole,
   writeRoleId,
   onWriteRole,
@@ -617,9 +687,10 @@ function NeedsChecklist({
   audience: string;
   types: PublishedType[];
   dropped: string[];
-  writes: string[];
-  write: boolean;
-  onWrite: (write: boolean) => void;
+  preset: Preset;
+  offered: Preset[];
+  presetId: string;
+  onPreset: (preset: Preset) => void;
   writeRole: string;
   writeRoleId: string;
   onWriteRole: (role: string) => void;
@@ -637,16 +708,30 @@ function NeedsChecklist({
         <p className="text-sm text-fg-muted">{t("apps.generate.needs.audience", { audience })}</p>
       )}
       <p className="text-sm text-fg-muted">{t("apps.generate.needs.loginOnly")}</p>
-      {writes.length > 0 && (
-        <Checkbox
-          label={t("apps.generate.needs.write", { actions: writes.join(", ") })}
-          checked={write}
+      <Field
+        id={presetId}
+        label={t("apps.generate.needs.access")}
+        help={
+          offered.length < PRESETS.length
+            ? t("apps.generate.needs.accessHeld")
+            : t("apps.generate.needs.accessHelp")
+        }
+      >
+        <Select
+          id={presetId}
+          value={preset}
           onChange={(event) => {
-            onWrite(event.target.checked);
+            onPreset(event.target.value as Preset);
           }}
-        />
-      )}
-      {writes.length > 0 && write && (
+        >
+          {PRESETS.map((candidate) => (
+            <option key={candidate} value={candidate} disabled={!offered.includes(candidate)}>
+              {t(`apps.generate.needs.presets.${candidate}`)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {preset !== "read" && (
         <Field
           id={writeRoleId}
           label={t("apps.generate.needs.writeRole")}

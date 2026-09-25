@@ -1693,6 +1693,7 @@
       },
       "willBecome": "Wird als Version {version} gespeichert",
       "refused": "Die Änderung wurde abgelehnt: {reason}",
+      "fixErrors": "Beheben Sie vor dem Speichern die Fehler, die der Editor anzeigt. Offen: {count}.",
       "confirmBreaking": "Als Version {version} speichern, eine inkompatible Änderung",
       "handOffRefused": "Die Änderung des Assistenten ließ sich nicht auf dieses Modell anwenden:"
     },
@@ -1708,7 +1709,19 @@
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere",
       "from": "aus {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Eine durchgezogene Linie ohne Pfeil ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "fit": "Einpassen",
+      "zoomLevel": "Zoom {percent} %",
+      "openRelationship": "Beziehung {name} / {inverse} zwischen {source} und {target} öffnen",
+      "addRelationship": "Beziehung von {name} hinzufügen",
+      "table": "Beziehungen in der Zeichnung",
+      "tableRelationship": "Beziehung",
+      "tableField": "Feld",
+      "tableInverse": "Inverses Feld",
+      "tableMultiplicity": "Multiplizität"
     },
     "field": {
       "name": "Name",
@@ -1784,12 +1797,78 @@
       "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
     },
     "hints": {
-      "title": "Dieses Modell hat noch keine Klasse. Drei Wege zum Anfang:",
-      "sdm": "Ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
+      "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
+      "sdm": "Oder ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
       "sdmAction": "Smart Data Model importieren",
       "klass": "Eine Klasse hinzufügen: im Feld unter Klassen benennen, zum Beispiel School.",
       "klassAction": "Die erste Klasse benennen",
-      "relation": "Eine Beziehung hinzufügen: sobald es zwei Klassen gibt, einer einen Slot geben, dessen Range die andere ist, zum Beispiel School hat users der Klasse User."
+      "relation": "Eine Beziehung hinzufügen: unter Beziehungen die Zielklasse und die Kardinalität wählen, zum Beispiel eine School hat viele User-Entitäten.",
+      "field": "Ein Feld hinzufügen: bei geöffneter Klasse unter Attribute benennen, zum Beispiel name."
+    },
+    "rangeBasic": "Grundtypen",
+    "rangeEnums": "Enums",
+    "rangeClasses": "Klassen (öffnet Beziehung hinzufügen)",
+    "relationships": {
+      "title": "Beziehungen",
+      "intro": "Verweise von {owner} auf Entitäten einer Klasse. Entitäten speichern ein Ende; das inverse wird beim Lesen berechnet.",
+      "none": "{owner} hat noch keine Beziehung.",
+      "name": "Name",
+      "other": "Andere Klasse",
+      "cardinality": "Kardinalität",
+      "inverse": "Invers",
+      "required": "Pflichtfeld",
+      "onDelete": "Beim Löschen",
+      "actions": "Aktionen",
+      "remove": "Entfernen",
+      "removeLabel": "Beziehung {name} entfernen",
+      "cardinalityOf": "Kardinalität von {name}",
+      "onDeleteOf": "Beim Löschen, Beziehung {name}",
+      "confirmTitle": "Beziehung {name} entfernen?",
+      "confirmBody": "Beide Enden verlassen das Modell: {source}.{sourceSlot} und {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "Eine {source} hat eine {target}",
+        "one-to-many": "Eine {source} hat viele {target}-Entitäten",
+        "many-to-one": "Viele {source}-Entitäten teilen eine {target}",
+        "many-to-many": "Viele {source}-Entitäten haben viele {target}-Entitäten"
+      },
+      "cardinalityName": {
+        "one-to-one": "Eins zu eins",
+        "one-to-many": "Eins zu vielen",
+        "many-to-one": "Viele zu eins",
+        "many-to-many": "Viele zu vielen"
+      },
+      "onDeleteName": {
+        "restrict": "Verbieten",
+        "cascade": "Kaskadieren",
+        "set-null": "Leeren"
+      },
+      "onDeleteHint": {
+        "restrict": "Das Löschen einer Entität wird abgelehnt, solange andere noch auf sie verweisen.",
+        "cascade": "Das Löschen einer Entität löscht auch die Entitäten, die auf sie verweisen.",
+        "set-null": "Das Löschen einer Entität entfernt die Beziehung aus den Entitäten, die auf sie verwiesen."
+      },
+      "missingInverse": "{name} verweist auf {target}, nennt aber kein inverses Ende und ist daher noch keine Beziehung.",
+      "addInverse": "Inverses {inverse} auf {target} hinzufügen",
+      "add": {
+        "title": "Beziehung von {owner} hinzufügen",
+        "cardinalityHint": "Gelesen von {owner} zur Zielklasse.",
+        "target": "Zielklasse",
+        "targetHint": "Eine Klasse dieses Modells; das inverse Ende wird auf sie geschrieben.",
+        "targetNone": "Klasse wählen",
+        "name": "Name auf {owner}",
+        "nameHint": "Das Feld auf {owner}, das auf das Ziel verweist, vorgeschlagen nach dem Ziel.",
+        "inverse": "Invers auf {target}",
+        "inverseHint": "Das Feld auf dem Ziel, das zurückverweist. Jede Beziehung hat eins.",
+        "requiredOn": "Pflichtfeld auf {owner}",
+        "requiredStored": "Jede {owner}-Entität muss eine nennen.",
+        "requiredComputed": "Wird beim Lesen aus dem anderen Ende berechnet und kann daher kein Pflichtfeld sein.",
+        "onDeleteHint": "Was mit den Entitäten geschieht, die auf eine gelöschte verweisen.",
+        "submit": "Beziehung hinzufügen",
+        "nameEmpty": "Das Feld benennen.",
+        "nameInvalid": "Nur Buchstaben, Ziffern und _, am Anfang ein Buchstabe.",
+        "nameTaken": "Ein Feld namens {name} existiert bereits.",
+        "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben."
+      }
     }
   },
   "apps": {
@@ -1849,10 +1928,17 @@
         "unavailable": "Der Endpoint veröffentlicht noch kein Modell, daraus lässt sich nichts ableiten.",
         "none": "Dieser Endpoint veröffentlicht keine Attribute, es gibt nichts zu lesen.",
         "loginOnly": "Unabhängig davon, wie der Endpoint veröffentlicht ist, läuft die erzeugte Anwendung in der Plattform und nur eine angemeldete Person kann sie öffnen.",
-        "write": "Die Anwendung darf diese Entitäten auch ändern ({actions}). Jedes Speichern durchläuft die Schreibregeln des Endpunkts.",
         "writeRole": "Nur diese Anwendungsrolle darf schreiben (optional)",
         "writeRoleHelp": "Leer lassen, dann darf jede Person schreiben, die die App öffnen kann. Mit einem Rollennamen, z. B. steward, schreiben nur die Personen, die Sie nach dem Veröffentlichen auf der Seite der App dieser Rolle hinzufügen.",
-        "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen."
+        "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen.",
+        "access": "Was die App darf",
+        "accessHelp": "Nur lesen liest die Entitäten und ihren Verlauf. Lesen und ändern ändert und ergänzt auch Attribute (updateAttrs, appendAttrs). Voll legt auch Entitäten an und löscht sie (createEntity, deleteEntity). Eine Schreibvorgabe wird als Änderung auf rotem Pfad geprüft, außer eine Rolle unten begrenzt sie.",
+        "accessHeld": "Angeboten wird nur, was Ihr eigener Zugriff auf diesen Endpunkt erlaubt: Die App darf nie mehr als Sie.",
+        "presets": {
+          "read": "Nur lesen",
+          "update": "Lesen und ändern",
+          "full": "Voll"
+        }
       },
       "preview": {
         "title": "Was dieser Endpoint Ihnen gibt",
@@ -1991,22 +2077,25 @@
     },
     "roles": {
       "title": "Rollen und Mitglieder",
-      "lead": "Wer in dieser Anwendung was darf. Ein Mitglied hinzuzufügen oder zu entfernen schlägt eine Änderung der Anwendung vor, die eine freigebende Person prüft.",
+      "lead": "Wer in dieser Anwendung was tun darf. Jede Rolle hat eine Standardgruppe: Eine Person hinzuzufügen oder zu entfernen schlägt eine Änderung dieser Gruppe vor, die Rolle einer anderen Gruppe zu geben eine Änderung der Anwendung. Jede Änderung prüft eine freigebende Person.",
       "count": "Mitglieder: {count}",
       "nobody": "Diese Rolle hat noch niemand.",
       "groupMember": "Gruppe {group}",
       "remove": "Entfernen",
       "removeLabel": "{member} aus {role} entfernen",
-      "kind": "Hinzufügen",
-      "kindUser": "Person",
-      "kindGroup": "Gruppe",
       "email": "E-Mail",
       "group": "Gruppe",
       "pickGroup": "Gruppe wählen",
-      "add": "Mitglied hinzufügen",
       "needEmail": "Geben Sie die E-Mail-Adresse der Person ein.",
       "needGroup": "Wählen Sie eine Gruppe.",
-      "already": "Hat diese Rolle bereits."
+      "already": "Hat diese Rolle bereits.",
+      "defaultGroup": "Standardgruppe {group}",
+      "noDefaultGroup": "Die Standardgruppe {group} gibt es noch nicht: Sie kommt mit der nächsten Änderung der Anwendung.",
+      "addPerson": "Person hinzufügen",
+      "others": "Weitere Gruppen und Personen mit dieser Rolle",
+      "noOthers": "Keine andere Gruppe hat diese Rolle.",
+      "give": "Rolle einer Gruppe geben",
+      "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
     }
   },
   "appLifecycle": {
@@ -3787,5 +3876,12 @@
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"
+  },
+  "units": {
+    "search": "Nach Code, Symbol, Name oder Größe suchen",
+    "frequent": "Häufig verwendet",
+    "none": "Keine Einheit",
+    "noMatch": "Keine UN/CEFACT-Einheit passt. Versuchen Sie das Symbol (µg/m³), den Namen oder den Code (GQ).",
+    "more": "{shown} von {total} Einheiten angezeigt. Tippen Sie weiter, um die Liste einzugrenzen."
   }
 }
