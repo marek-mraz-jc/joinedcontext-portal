@@ -1,4 +1,4 @@
-import { useEntities } from "@joinedcontext/sdk";
+import { Page, useEntities } from "@joinedcontext/sdk";
 import { Problem } from "../components/states";
 import { STATION, totals } from "../stations";
 
@@ -13,7 +13,7 @@ export function Overview() {
   ];
   const number = new Intl.NumberFormat();
   return (
-    <section className="app-page" aria-label="Overview">
+    <Page label="Overview">
       <Problem error={error} onRetry={reload} />
       <section className="jc-tiles">
         {tiles.map(([label, value]) => (
@@ -23,6 +23,6 @@ export function Overview() {
           </div>
         ))}
       </section>
-    </section>
+    </Page>
   );
 }

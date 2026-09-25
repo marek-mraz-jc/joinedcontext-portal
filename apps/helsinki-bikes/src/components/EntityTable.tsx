@@ -114,16 +114,19 @@ export function EntityTable<T extends Row = Row>({
 
   return (
     <div className="jc-table-wrap">
-      <table className="jc-table">
+      {/* The roles are spelled out: the narrow layout sets display on the table's parts, and
+          some screen readers drop table semantics with it. */}
+      <table className="jc-table" role="table">
         {caption && <caption>{caption}</caption>}
         <thead>
-          <tr>
+          <tr role="row">
             {resolvedColumns.map((col) => {
               const isNum = colKinds[col.attr] === "number";
               const sortDir = sort?.attr === col.attr ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
               return (
                 <th
                   key={col.attr}
+                  role="columnheader"
                   scope="col"
                   aria-sort={sortDir}
                   className={isNum ? "jc-num" : undefined}
@@ -141,6 +144,7 @@ export function EntityTable<T extends Row = Row>({
           {pagedRows.map((row) => (
             <tr
               key={row.id}
+              role="row"
               aria-selected={row.id === selected}
               tabIndex={onSelect ? 0 : undefined}
               onClick={() => onSelect?.(row)}
@@ -151,7 +155,12 @@ export function EntityTable<T extends Row = Row>({
               {resolvedColumns.map((col) => {
                 const kind = colKinds[col.attr] as "number" | "date" | "geo" | "text";
                 return (
-                  <td key={col.attr} className={kind === "number" ? "jc-num" : undefined}>
+                  <td
+                    key={col.attr}
+                    role="cell"
+                    className={kind === "number" ? "jc-num" : undefined}
+                    data-label={col.label ?? col.attr}
+                  >
                     {col.render ? col.render(row) : format(row[col.attr], kind)}
                   </td>
                 );

@@ -22,6 +22,8 @@ import { areaQuery, ringOfBounds } from "./geoarea";
 import type { GeoArea, GeoQuery } from "./geoarea";
 import { diffGeometry, featuresOfRows, geometryOfRow, rowsOffTheMap } from "./mapRows";
 import type { RichRow } from "./model";
+// Its rules live beside the grid's: an application may show the map without the grid.
+import "./grid.css";
 
 /** Every string the panel shows, so a host translates it one key at a time. */
 export interface GridMapLabels {

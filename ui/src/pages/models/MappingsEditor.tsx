@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
 import { useProposal } from "../../api/proposal";
 import type { Change } from "../../api/manifest";
-import { UNIT_CODES, parseModel } from "./linkml";
+import { parseModel } from "./linkml";
+import { UnitPicker } from "../../components/pickers/UnitPicker";
 import type { LinkmlModel } from "./linkml";
 import {
   autoAlign,
@@ -342,28 +343,20 @@ export function MappingsEditor({
                   <TableCell>
                     {row.unitConversion ? (
                       <span className="flex items-center gap-1">
-                        <label className="sr-only" htmlFor={`unit-${row.target}`}>
-                          {t("mappings.unitFor", { slot: row.target })}
-                        </label>
-                        <Select
+                        <UnitPicker
                           id={`unit-${row.target}`}
+                          label={t("mappings.unitFor", { slot: row.target })}
                           value={row.unitConversion.toUnit ?? ""}
-                          onChange={(event) =>
+                          onChange={(code) =>
                             update(row.target, {
                               unitConversion: {
                                 ...row.unitConversion,
                                 factor: row.unitConversion?.factor ?? 1,
-                                toUnit: event.target.value,
+                                toUnit: code,
                               },
                             })
                           }
-                        >
-                          {UNIT_CODES.map((code) => (
-                            <option key={code.code} value={code.code}>
-                              {code.code} — {code.label}
-                            </option>
-                          ))}
-                        </Select>
+                        />
                         <label className="sr-only" htmlFor={`factor-${row.target}`}>
                           {t("mappings.factorFor", { slot: row.target })}
                         </label>

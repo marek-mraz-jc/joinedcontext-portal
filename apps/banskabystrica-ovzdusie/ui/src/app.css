@@ -3,13 +3,11 @@
  * the band colours, which are `stations.ts`'s and are the same values the map draws with, so a
  * dot on the map and a shape in the list cannot disagree.
  *
- * One column under 44 rem and a grid above it, so a station card reads at 400 px without a
- * horizontal scrollbar.
+ * The columns are the SDK's layout primitives (Page, Header, Split, Grid; T-2825): the map and
+ * the picked station side by side where there is room, the station cards one to four across.
  */
-.page {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: var(--jc-space-4, 1rem);
+main {
+  padding: var(--jc-gutter, 1rem);
 }
 
 .subtitle,
@@ -19,26 +17,31 @@
   margin: 0 0 var(--jc-space-3, 0.75rem);
 }
 
-.map {
-  height: 24rem;
-  margin-block: var(--jc-space-4, 1rem);
+/* The template's map box: its height follows the window within what a screen can show. */
+.jc-map {
+  height: clamp(18rem, 60vh, 44rem);
+  position: relative;
   border: 1px solid var(--jc-color-border, #d0d0d0);
   border-radius: var(--jc-radius-md, 0.5rem);
+  overflow: hidden;
 }
 
-.stations ul {
-  list-style: none;
+.jc-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Over the map's top corner, as the template's map says it has no basemap. */
+.jc-map-notice {
+  position: absolute;
+  z-index: 1;
+  top: var(--jc-space-2, 0.5rem);
+  left: var(--jc-space-2, 0.5rem);
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--jc-space-3, 0.75rem);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 44rem) {
-  .stations ul {
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  }
+  padding: var(--jc-space-1, 0.25rem) var(--jc-space-2, 0.5rem);
+  border-radius: var(--jc-radius-sm, 4px);
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-text, #1a1a1a);
 }
 
 .station {
@@ -103,6 +106,6 @@
   color: var(--jc-color-danger-text, #b42318);
 }
 
-.detail {
-  margin-block: var(--jc-space-6, 2rem);
+.detail h2 {
+  margin-top: 0;
 }

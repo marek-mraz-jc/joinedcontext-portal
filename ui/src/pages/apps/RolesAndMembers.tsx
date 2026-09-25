@@ -3,13 +3,15 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
-import { isChange, storedMetadata } from "../../api/manifest";
-import type { Change } from "../../api/manifest";
+import { isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Alert, Button, Field, Input, Select } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { useGroups } from "../access/Groups";
+import { withGroupMember } from "../access/groupRoles";
+import { usePeopleChoices } from "../organization/People";
 
 /** Who holds a role: one person by e-mail or one group of the organization (AP-91). */
 export interface Subject {
@@ -70,6 +72,16 @@ export function withoutMember(spec: RolesSpec, role: string, subject: Subject): 
   };
 }
 
+/** The default group of `role` of App `app`, which the App's Change commits with the role (AP-118). */
+export function defaultGroupOf(app: string, role: string): string {
+  return `${app}-${role}`;
+}
+
+/** Who else holds `role`: every subject of its access entries except its default group (AP-119). */
+export function othersOf(spec: RolesSpec, role: string, group: string): Subject[] {
+  return membersOf(spec, role).filter((subject) => subject.group !== group);
+}
+
 /** A person is named by the e-mail the realm signs them in with, lower case (AP-91). */
 export function asUser(typed: string): string | null {
   const email = typed.trim().toLowerCase();
@@ -81,12 +93,34 @@ function titleOf(role: AppRole, language: string): string {
   return role.title?.[language] ?? role.title?.en ?? role.name;
 }
 
+interface GroupSpec {
+  description?: string;
+  members?: { user: string }[];
+}
+
+/** One proposal: the manifest and the project and plural it goes to. */
+interface Proposal {
+  project: string;
+  plural: string;
+  manifest: Manifest;
+}
+
+/** What a failed request says, in the server's words when it gave any. */
+function reasonOf(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
+}
+
 /**
- * Who holds which role of an application (AP-99, ADR-N-027): each role with its description and
- * its members, users and groups, with Add member and Remove. Each proposes the App manifest with
- * the new `spec.access` through the one propose function, checked first like every proposal
- * (PF-57), and leaves a change to review; nothing here grants anything by itself. A person without
- * `propose` on `App` sees every write control disabled with the reason (PF-50, UI-44).
+ * Who holds which role of an application (AP-99, AP-119, ADR-N-031): each role with its
+ * description, its default group `{app}-{role}` and that group's members, and the other groups
+ * and people the App gives the role to. "Add person" and "Remove" propose the default group with
+ * the new `members`; "Give this role to a group" and "Remove" propose the App with the new
+ * `spec.access`. Both go through the one propose function, checked first (PF-57), and leave a
+ * change to review; nothing here grants anything by itself.
+ *
+ * Whoever may propose the App may propose its default groups and no other group of the
+ * organization (AP-119, enforced by the server), so every write control is guarded by `propose`
+ * on `App` and disabled with the reason for anybody else (PF-50, UI-44).
  *
  * An App that declares no role shows nothing: there is nobody to add to anything.
  */
@@ -94,7 +128,7 @@ export function RolesAndMembers({ project, name }: { project: string; name: stri
   const { t, i18n } = useTranslation();
   const heading = useId();
   const queryClient = useQueryClient();
-  const [change, setChange] = useState<Change | null>(null);
+  const [change, setChange] = useState<{ change: Change; project: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const app = useQuery({
     queryKey: queryKeys.resource(project, "apps", name),
@@ -107,34 +141,36 @@ export function RolesAndMembers({ project, name }: { project: string; name: stri
     retry: false,
   });
   const propose = useMutation({
-    mutationFn: (spec: RolesSpec) =>
-      proposeChecked(
-        project,
-        "apps",
-        {
-          apiVersion: "joinedcontext.com/v1alpha1",
-          kind: "App",
-          metadata: { ...storedMetadata(app.data), name, namespace: project },
-          spec,
-        },
-        false,
-      ),
+    mutationFn: ({ project: target, plural, manifest }: Proposal) =>
+      proposeChecked(target, plural, manifest as ResourceProposal, false),
     onMutate: () => {
       setError(null);
       setChange(null);
     },
-    onSuccess: (result) => {
-      if (isChange(result)) setChange(result);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.resource(project, "apps", name) });
+    onSuccess: (result, { project: target, plural, manifest }) => {
+      if (isChange(result)) setChange({ change: result, project: target });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.resource(target, plural, manifest.metadata.name),
+      });
     },
-    onError: (err) => {
-      setError(err instanceof ApiError ? (err.problem?.detail ?? err.message) : t("app.error.generic"));
-    },
+    onError: (err) => setError(reasonOf(err, t("app.error.generic"))),
   });
 
   const spec = ((app.data as { spec?: RolesSpec } | undefined)?.spec ?? {}) as RolesSpec;
   const roles = spec.roles ?? [];
   if (roles.length === 0) return null;
+
+  const proposeApp = (next: RolesSpec) =>
+    propose.mutate({
+      project,
+      plural: "apps",
+      manifest: {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "App",
+        metadata: { ...storedMetadata(app.data), name, namespace: project },
+        spec: next,
+      } as Manifest,
+    });
 
   return (
     <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
@@ -142,28 +178,44 @@ export function RolesAndMembers({ project, name }: { project: string; name: stri
         {t("apps.roles.title")}
       </h2>
       <p className="text-sm text-fg-muted">{t("apps.roles.lead")}</p>
-      {change && <ChangeNotice change={change} project={project} />}
+      {change && <ChangeNotice change={change.change} project={change.project} />}
       {error && (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       )}
       <ul className="space-y-4">
-        {roles.map((role) => (
-          <RoleRow
-            key={role.name}
-            project={project}
-            role={role}
-            title={titleOf(role, i18n.language)}
-            members={membersOf(spec, role.name)}
-            busy={propose.isPending}
-            onAdd={(subject) => {
-              const next = withMember(spec, role.name, subject);
-              if (next) propose.mutate(next);
-            }}
-            onRemove={(subject) => propose.mutate(withoutMember(spec, role.name, subject))}
-          />
-        ))}
+        {roles.map((role) => {
+          const group = defaultGroupOf(name, role.name);
+          return (
+            <RoleRow
+              key={role.name}
+              project={project}
+              group={group}
+              title={titleOf(role, i18n.language)}
+              description={role.description}
+              others={othersOf(spec, role.name, group)}
+              busy={propose.isPending}
+              onGroup={(stored, members) =>
+                propose.mutate({
+                  project: ORG_NAMESPACE,
+                  plural: "groups",
+                  manifest: {
+                    apiVersion: "joinedcontext.com/v1alpha1",
+                    kind: "Group",
+                    metadata: { ...storedMetadata(stored), name: group, namespace: ORG_NAMESPACE },
+                    spec: { ...((stored as { spec?: GroupSpec }).spec ?? {}), members },
+                  } as Manifest,
+                })
+              }
+              onGive={(other) => {
+                const next = withMember(spec, role.name, { group: other });
+                if (next) proposeApp(next);
+              }}
+              onTake={(subject) => proposeApp(withoutMember(spec, role.name, subject))}
+            />
+          );
+        })}
       </ul>
     </section>
   );
@@ -171,124 +223,197 @@ export function RolesAndMembers({ project, name }: { project: string; name: stri
 
 function RoleRow({
   project,
-  role,
+  group,
   title,
-  members,
+  description,
+  others,
   busy,
-  onAdd,
-  onRemove,
+  onGroup,
+  onGive,
+  onTake,
 }: {
   project: string;
-  role: AppRole;
+  group: string;
   title: string;
-  members: Subject[];
+  description?: string;
+  others: Subject[];
   busy: boolean;
-  onAdd: (subject: Subject) => void;
-  onRemove: (subject: Subject) => void;
+  /** Proposes the default group, as it is stored, with these members. */
+  onGroup: (stored: unknown, members: { user: string }[]) => void;
+  onGive: (group: string) => void;
+  onTake: (subject: Subject) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const groups = useGroups();
-  const [kind, setKind] = useState<"user" | "group">("user");
-  const [typed, setTyped] = useState("");
   const ids = useId();
-  const groupNames = ((groups.data?.items ?? []) as { metadata: { name: string } }[]).map((g) => g.metadata.name);
-  const user = asUser(typed);
-  const subject: Subject | null = kind === "user" ? (user ? { user } : null) : typed ? { group: typed } : null;
-  const held = subject !== null && members.some((m) => same(m, subject));
-  const reason =
-    subject === null
-      ? kind === "user"
-        ? t("apps.roles.needEmail")
-        : t("apps.roles.needGroup")
+  const stored = useQuery({
+    queryKey: queryKeys.resource(ORG_NAMESPACE, "groups", group),
+    queryFn: async () =>
+      unwrap<unknown>(
+        await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
+          params: { path: { project: ORG_NAMESPACE, plural: "groups", name: group } },
+        }),
+      ),
+    retry: false,
+  });
+  const groups = useGroups();
+  const members = (stored.data as { spec?: GroupSpec } | undefined)?.spec?.members ?? [];
+  // The realm's people, offered as the address is typed (T-2685); a person the caller may not
+  // list is still typed in full.
+  const people = usePeopleChoices().filter((person) => !members.some((member) => member.user.toLowerCase() === person));
+  const [typed, setTyped] = useState("");
+  const [picked, setPicked] = useState("");
+  const email = asUser(typed);
+  const held = email !== null && members.some((member) => member.user.toLowerCase() === email);
+  const addReason = !stored.data
+    ? t("apps.roles.noDefaultGroup", { group })
+    : email === null
+      ? t("apps.roles.needEmail")
       : held
         ? t("apps.roles.already")
         : undefined;
+  const offered = ((groups.data?.items ?? []) as { metadata: { name: string } }[])
+    .map((g) => g.metadata.name)
+    .filter((name) => name !== group && !others.some((subject) => subject.group === name));
+  const giveReason = groups.isError
+    ? t("apps.roles.groupsUnreadable")
+    : picked === ""
+      ? t("apps.roles.needGroup")
+      : undefined;
 
   return (
-    <li className="space-y-2" aria-label={title}>
+    <li className="space-y-3" aria-label={title}>
       <div>
         <h3 className="font-medium">
-          {title} <span className="text-sm text-fg-muted">({t("apps.roles.count", { count: members.length })})</span>
+          {title}{" "}
+          <span className="text-sm text-fg-muted">
+            ({t("apps.roles.count", { count: members.length + others.length })})
+          </span>
         </h3>
-        {role.description && <p className="text-sm text-fg-muted">{role.description}</p>}
+        {description && <p className="text-sm text-fg-muted">{description}</p>}
       </div>
-      {members.length === 0 ? (
-        <p className="text-sm text-fg-muted">{t("apps.roles.nobody")}</p>
-      ) : (
-        <ul className="space-y-1">
-          {members.map((member) => {
-            const label = member.user ?? t("apps.roles.groupMember", { group: member.group });
-            return (
-              <li key={member.user ?? `group:${member.group}`} className="flex items-center gap-2">
-                <span>{label}</span>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium">{t("apps.roles.defaultGroup", { group })}</h4>
+        {stored.isError ? (
+          <p className="text-sm text-fg-muted">{t("apps.roles.noDefaultGroup", { group })}</p>
+        ) : members.length === 0 ? (
+          <p className="text-sm text-fg-muted">{t("apps.roles.nobody")}</p>
+        ) : (
+          <ul className="space-y-1">
+            {members.map((member) => (
+              <li key={member.user} className="flex items-center gap-2">
+                <span>{member.user}</span>
                 <PermissionGuard project={project} kind="App" verb="propose">
                   <Button
                     size="sm"
                     variant="secondary"
                     disabled={busy}
-                    aria-label={t("apps.roles.removeLabel", { member: label, role: title })}
-                    onClick={() => onRemove(member)}
+                    aria-label={t("apps.roles.removeLabel", { member: member.user, role: title })}
+                    onClick={() =>
+                      onGroup(
+                        stored.data,
+                        members.filter((kept) => kept.user !== member.user),
+                      )
+                    }
                   >
                     {t("apps.roles.remove")}
                   </Button>
                 </PermissionGuard>
               </li>
-            );
-          })}
-        </ul>
-      )}
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (subject && !held) {
-            onAdd(subject);
-            setTyped("");
-          }
-        }}
-      >
-        <Field id={`${ids}-kind`} label={t("apps.roles.kind")}>
-          <Select
-            id={`${ids}-kind`}
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value as "user" | "group");
+            ))}
+          </ul>
+        )}
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const next = email && stored.data ? withGroupMember(members, email) : null;
+            if (next) {
+              onGroup(stored.data, next);
               setTyped("");
-            }}
-          >
-            <option value="user">{t("apps.roles.kindUser")}</option>
-            <option value="group">{t("apps.roles.kindGroup")}</option>
-          </Select>
-        </Field>
-        {kind === "user" ? (
-          <Field id={`${ids}-who`} label={t("apps.roles.email")}>
+            }
+          }}
+        >
+          <Field id={`${ids}-person`} label={t("apps.roles.email")}>
             <Input
-              id={`${ids}-who`}
+              id={`${ids}-person`}
               type="email"
               autoComplete="off"
               value={typed}
+              list={people.length > 0 ? `${ids}-people` : undefined}
               placeholder="firstname.lastname@example.org"
               onChange={(event) => setTyped(event.target.value)}
             />
           </Field>
+          {people.length > 0 ? (
+            <datalist id={`${ids}-people`}>
+              {people.map((person) => (
+                <option key={person} value={person} />
+              ))}
+            </datalist>
+          ) : null}
+          <PermissionGuard project={project} kind="App" verb="propose">
+            <Button type="submit" size="sm" disabled={busy || addReason !== undefined} disabledReason={addReason}>
+              {t("apps.roles.addPerson")}
+            </Button>
+          </PermissionGuard>
+        </form>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium">{t("apps.roles.others")}</h4>
+        {others.length === 0 ? (
+          <p className="text-sm text-fg-muted">{t("apps.roles.noOthers")}</p>
         ) : (
-          <Field id={`${ids}-who`} label={t("apps.roles.group")}>
-            <Select id={`${ids}-who`} value={typed} onChange={(event) => setTyped(event.target.value)}>
+          <ul className="space-y-1">
+            {others.map((subject) => {
+              const label = subject.user ?? t("apps.roles.groupMember", { group: subject.group });
+              return (
+                <li key={subject.user ?? `group:${subject.group}`} className="flex items-center gap-2">
+                  <span>{label}</span>
+                  <PermissionGuard project={project} kind="App" verb="propose">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      aria-label={t("apps.roles.removeLabel", { member: label, role: title })}
+                      onClick={() => onTake(subject)}
+                    >
+                      {t("apps.roles.remove")}
+                    </Button>
+                  </PermissionGuard>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (picked) {
+              onGive(picked);
+              setPicked("");
+            }
+          }}
+        >
+          <Field id={`${ids}-group`} label={t("apps.roles.group")}>
+            <Select id={`${ids}-group`} value={picked} onChange={(event) => setPicked(event.target.value)}>
               <option value="">{t("apps.roles.pickGroup")}</option>
-              {groupNames.map((group) => (
-                <option key={group} value={group}>
-                  {group}
+              {offered.map((name) => (
+                <option key={name} value={name}>
+                  {name}
                 </option>
               ))}
             </Select>
           </Field>
-        )}
-        <PermissionGuard project={project} kind="App" verb="propose">
-          <Button type="submit" size="sm" disabled={busy || reason !== undefined} disabledReason={reason}>
-            {t("apps.roles.add")}
-          </Button>
-        </PermissionGuard>
-      </form>
+          <PermissionGuard project={project} kind="App" verb="propose">
+            <Button type="submit" size="sm" disabled={busy || giveReason !== undefined} disabledReason={giveReason}>
+              {t("apps.roles.give")}
+            </Button>
+          </PermissionGuard>
+        </form>
+      </div>
     </li>
   );
 }

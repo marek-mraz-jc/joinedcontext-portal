@@ -189,13 +189,11 @@ export function endpointSchema(
         type: "object",
         title: t("endpoints.field.rateLimits"),
         properties: {
-          // EP-20 asks every endpoint to configure a limit, so the form carries one rather
-          // than letting a steward publish an unlimited endpoint by leaving a field alone.
-          // The Change shows it like any other field, so nothing lands unseen.
+          // No default: an endpoint has no limit unless a person picks one (EP-20, T-2775).
+          // The empty choice reads "No limit" and the form then writes no `rateLimits`.
           requestsPerMinute: {
             type: "integer",
             title: t("endpoints.field.requestsPerMinute"),
-            default: RATE_LIMIT_CLASSES.standard,
             oneOf: [...classes, ...own]
               .sort(([, a], [, b]) => a - b)
               .map(([name, value]) => ({

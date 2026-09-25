@@ -23,6 +23,8 @@
     ]
   },
   "include": [
+    "e2e",
+    "playwright.config.ts",
     "src",
     "test-setup.ts"
   ]

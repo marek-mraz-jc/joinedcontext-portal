@@ -672,7 +672,7 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "action_inspector.test.tsx",
@@ -748,7 +748,7 @@
     },
     "src/pages/apps/RolesAndMembers.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 4
       },
       "tests": [
         "app_roles_members.test.tsx"
@@ -825,10 +825,19 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 5,
+        "Checkbox": 2
       },
       "tests": [
         "part_operation_groups.test.tsx"
+      ]
+    },
+    "src/pages/endpoints/FilterProof.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_filter_proof.test.tsx"
       ]
     },
     "src/pages/endpoints/ModelPicker.tsx": {

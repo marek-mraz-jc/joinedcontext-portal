@@ -611,6 +611,13 @@ impl Driver {
     /// stays as built (AP-60). Not a failure, so no `error` travels with the status and the
     /// page shows the state's own words (T-0669).
     async fn expire(&self) {
+        // A run that proposed is on the approval's lease, which the reaper keeps (T-2772): the
+        // driver stops here and leaves it waiting.
+        if let Ok(Some(run)) = self.state.agents.get_run(&self.run_id).await {
+            if run.status == AgentRunStatus::AwaitingApproval.as_str() {
+                return;
+            }
+        }
         let _ = self
             .state
             .agents

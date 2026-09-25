@@ -16,6 +16,7 @@ import type { EntitySource, GridQuery } from "./source";
 import type { ResolvedGridConfig } from "./config";
 import type { GridLabelsInput } from "./useEntityGrid";
 import type { RichRow } from "./model";
+import "./grid.css";
 
 export interface CompareLabels {
   /** The heading of each side. */

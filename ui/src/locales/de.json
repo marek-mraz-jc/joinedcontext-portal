@@ -468,6 +468,7 @@
       }
     },
     "rateClass": {
+      "none": "Kein Limit",
       "strict": "Streng",
       "standard": "Standard",
       "open": "Offen",
@@ -715,7 +716,39 @@
         "order": "West liegt links von Ost und Süd unter Nord."
       }
     },
-    "ofApp": "Der Endpunkt der App {app}"
+    "ofApp": "Der Endpunkt der App {app}",
+    "filterEditor": {
+      "label": "Filter dieses Endpunkts",
+      "types": "Entitätstypen, die er bedient",
+      "noType": "Behalten Sie mindestens einen Typ: ein Endpunkt ohne Typ liefert nichts.",
+      "hidden": "Verborgene Attribute",
+      "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
+      "identityOnly": "Nur Identität: id und type.",
+      "createsProjection": "Dieser Endpunkt nennt noch keine Projektion. Ein vorgeschlagener Filter legt die Projektion {name} aus dem Modell des Raums an, zusammen mit dem Endpunkt, der sie nennt."
+    },
+    "proof": {
+      "title": "Was dieser Filter liefert",
+      "type": "Typ",
+      "served": "Von diesem Endpunkt geliefert",
+      "original": "Original im Raum",
+      "sides": "Seite des Vergleichs",
+      "caption": "{type}: was der Endpunkt liefert neben dem, was der Raum enthält, eine Zeile je Entität",
+      "summary": "Liefert {served} von {total} {type} · verborgene Attribute: {hidden}",
+      "summaryServedOnly": "Liefert {served} {type}",
+      "loading": "Lese, was der Filter liefert...",
+      "originalUnreadable": "Sie können den Raum selbst nicht lesen, daher zeigt der Vergleich, was der Endpunkt heute liefert, nicht Ihren Entwurf.",
+      "notServed": "nicht geliefert",
+      "notServedMark": "Nicht geliefert: der Filter lässt diese Entität weg.",
+      "hiddenMark": "nicht geliefert",
+      "empty": "Keine Entitäten auf dieser Seite.",
+      "refused": "Der Filterentwurf wurde abgelehnt: {reason}",
+      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}",
+      "notLive": "Der Vergleich liest über den Endpunkt und erscheint, sobald der Endpunkt aktiv ist.",
+      "noType": "Der Vergleich braucht mindestens einen Typ, den der Endpunkt bedient.",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "window": "Entitäten {from} bis {to} von {total}"
+    }
   },
   "datasources": {
     "title": "Datenquellen",
@@ -1859,10 +1892,13 @@
         "building": "Wird gebaut",
         "needsYou": "Wartet auf Sie",
         "failed": "Fehlgeschlagen",
-        "readyToPublish": "Bereit zur Veröffentlichung"
+        "readyToPublish": "Bereit zur Veröffentlichung",
+        "waitingApproval": "Wartet auf Freigabe"
       },
       "open": "Öffnen",
-      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen."
+      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen.",
+      "waiting": "{count, plural, one {Eine Anwendung wartet auf die Freigabe ihrer Änderung.} other {# Anwendungen warten auf die Freigabe ihrer Änderungen.}} Der Lauf behält seine Vorschau, solange er wartet.",
+      "openApprovals": "Freigaben öffnen"
     },
     "kpi": {
       "badge": "KPI"
@@ -1956,22 +1992,25 @@
     },
     "roles": {
       "title": "Rollen und Mitglieder",
-      "lead": "Wer in dieser Anwendung was darf. Ein Mitglied hinzuzufügen oder zu entfernen schlägt eine Änderung der Anwendung vor, die eine freigebende Person prüft.",
+      "lead": "Wer in dieser Anwendung was tun darf. Jede Rolle hat eine Standardgruppe: Eine Person hinzuzufügen oder zu entfernen schlägt eine Änderung dieser Gruppe vor, die Rolle einer anderen Gruppe zu geben eine Änderung der Anwendung. Jede Änderung prüft eine freigebende Person.",
       "count": "Mitglieder: {count}",
       "nobody": "Diese Rolle hat noch niemand.",
       "groupMember": "Gruppe {group}",
       "remove": "Entfernen",
       "removeLabel": "{member} aus {role} entfernen",
-      "kind": "Hinzufügen",
-      "kindUser": "Person",
-      "kindGroup": "Gruppe",
       "email": "E-Mail",
       "group": "Gruppe",
       "pickGroup": "Gruppe wählen",
-      "add": "Mitglied hinzufügen",
       "needEmail": "Geben Sie die E-Mail-Adresse der Person ein.",
       "needGroup": "Wählen Sie eine Gruppe.",
-      "already": "Hat diese Rolle bereits."
+      "already": "Hat diese Rolle bereits.",
+      "defaultGroup": "Standardgruppe {group}",
+      "noDefaultGroup": "Die Standardgruppe {group} gibt es noch nicht: Sie kommt mit der nächsten Änderung der Anwendung.",
+      "addPerson": "Person hinzufügen",
+      "others": "Weitere Gruppen und Personen mit dieser Rolle",
+      "noOthers": "Keine andere Gruppe hat diese Rolle.",
+      "give": "Rolle einer Gruppe geben",
+      "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
     }
   },
   "appLifecycle": {
@@ -2220,6 +2259,9 @@
     "review": "Änderungen prüfen",
     "apply": "Anwenden",
     "discard": "Änderungen verwerfen",
+    "attribute": "Attribut",
+    "before": "Vorher",
+    "after": "Nachher",
     "observedKeep": "beibehalten, wann jeder Wert beobachtet wurde",
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
@@ -2347,7 +2389,10 @@
       "stop": "Lauf stoppen",
       "retry": "Erneut fragen",
       "newConversation": "Neues Gespräch",
-      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier."
+      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
+      "tryAgain": "Erneut versuchen",
+      "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert.",
+      "endedBecause": "Grund: {reason}."
     },
     "line": {
       "status": "Jetzt {status}.",
@@ -3746,6 +3791,13 @@
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"
+  },
+  "units": {
+    "search": "Nach Code, Symbol, Name oder Größe suchen",
+    "frequent": "Häufig verwendet",
+    "none": "Keine Einheit",
+    "noMatch": "Keine UN/CEFACT-Einheit passt. Versuchen Sie das Symbol (µg/m³), den Namen oder den Code (GQ).",
+    "more": "{shown} von {total} Einheiten angezeigt. Tippen Sie weiter, um die Liste einzugrenzen."
   },
   "catalogue": {
     "title": "Katalog",
