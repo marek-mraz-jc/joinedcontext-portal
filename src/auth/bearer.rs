@@ -65,6 +65,9 @@ struct Claims {
     realm_access: RealmAccess,
     #[serde(default)]
     groups: Vec<String>,
+    /// Client roles by client id, as Keycloak's `roles` scope writes them.
+    #[serde(default)]
+    resource_access: HashMap<String, RealmAccess>,
 }
 
 #[derive(Default, Deserialize)]
@@ -175,6 +178,32 @@ impl BearerVerifier {
         token: &str,
         audience: &str,
     ) -> Result<(Session, Option<String>), ApiError> {
+        let claims = self.claims(token, audience).await?;
+        Ok(session_of(claims))
+    }
+
+    /// A person's token of an App's own Keycloak client (ADR-N-030, AP-92): issued for
+    /// `client` and obtained by it (`azp`), and the roles `resource_access.{client}.roles`
+    /// gives. A role of any other client, a realm role and a group are not the App's roles, and
+    /// a token another client obtained is refused whatever audience it carries.
+    pub async fn verify_app_token(
+        &self,
+        token: &str,
+        client: &str,
+    ) -> Result<(Session, Vec<String>), ApiError> {
+        let mut claims = self.claims(token, client).await?;
+        if claims.azp.as_deref() != Some(client) {
+            return Err(ApiError::Unauthorized);
+        }
+        let roles = claims
+            .resource_access
+            .remove(client)
+            .map(|access| access.roles)
+            .unwrap_or_default();
+        Ok((session_of(claims).0, roles))
+    }
+
+    async fn claims(&self, token: &str, audience: &str) -> Result<Claims, ApiError> {
         let header = decode_header(token).map_err(|_| ApiError::Unauthorized)?;
         if !ALGORITHMS.contains(&header.alg) {
             return Err(ApiError::Unauthorized);
@@ -199,35 +228,39 @@ impl BearerVerifier {
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
         validation.validate_nbf = true;
         validation.leeway = 30;
-        let data =
-            decode::<Claims>(token, &key, &validation).map_err(|_| ApiError::Unauthorized)?;
-        let c = data.claims;
-        let client = c.azp.clone();
-        let username = c
-            .preferred_username
-            .or(c.azp)
-            .unwrap_or_else(|| c.sub.clone());
-        let session = Session {
-            identity: Identity {
-                subject: c.sub,
-                username,
-                email: c.email,
-                name: c.name,
-                roles: c.realm_access.roles,
-                groups: c
-                    .groups
-                    .into_iter()
-                    .map(|g| g.trim_start_matches('/').to_owned())
-                    .collect(),
-            },
-            expires_at: c.exp,
-            issued_at: c.iat,
-            id_token: String::new(),
-            access_expires_at: c.exp,
-            refresh_token: None,
-        };
-        Ok((session, client))
+        decode::<Claims>(token, &key, &validation)
+            .map(|data| data.claims)
+            .map_err(|_| ApiError::Unauthorized)
     }
+}
+
+/// The session a verified token stands for, and the client that obtained it.
+fn session_of(c: Claims) -> (Session, Option<String>) {
+    let client = c.azp.clone();
+    let username = c
+        .preferred_username
+        .or(c.azp)
+        .unwrap_or_else(|| c.sub.clone());
+    let session = Session {
+        identity: Identity {
+            subject: c.sub,
+            username,
+            email: c.email,
+            name: c.name,
+            roles: c.realm_access.roles,
+            groups: c
+                .groups
+                .into_iter()
+                .map(|g| g.trim_start_matches('/').to_owned())
+                .collect(),
+        },
+        expires_at: c.exp,
+        issued_at: c.iat,
+        id_token: String::new(),
+        access_expires_at: c.exp,
+        refresh_token: None,
+    };
+    (session, client)
 }
 
 /// The Keycloak client (`azp`) of a verified bearer token, parked in the request's extensions
@@ -447,6 +480,59 @@ mod tests {
                 .await,
             Err(ApiError::Unauthorized)
         ));
+    }
+
+    /// AP-92, ADR-N-030: an App's roles are `resource_access.app-{name}.roles` of a token of
+    /// that App's own client (audience and `azp`); another client's roles, a realm role and a
+    /// token another client obtained for this audience give nothing.
+    #[tokio::test]
+    async fn an_app_token_gives_the_apps_client_roles_and_nothing_else() {
+        let v = verifier();
+        let (signer, set) = keypair("k1");
+        v.install(&set);
+        let app_token = |azp: &str| {
+            let mut c = claims(now() + 60);
+            c["aud"] = json!(["app-alerts", "slug-of-its-endpoint"]);
+            c["azp"] = json!(azp);
+            c["sub"] = json!("5f0c");
+            c["preferred_username"] = json!("jana@hel.fi");
+            c["email"] = json!("jana@hel.fi");
+            c["realm_access"] = json!({ "roles": ["steward", "portal-approver"] });
+            c["resource_access"] = json!({
+                "app-alerts": { "roles": ["viewer"] },
+                "app-other": { "roles": ["steward"] },
+            });
+            sign(&signer, "k1", &c)
+        };
+
+        let (session, roles) = v
+            .verify_app_token(&app_token("app-alerts"), "app-alerts")
+            .await
+            .expect("the App's own token");
+        assert_eq!(roles, ["viewer"], "the App's client roles alone");
+        assert_eq!(session.identity.subject, "5f0c");
+        assert_eq!(session.identity.email.as_deref(), Some("jana@hel.fi"));
+
+        // Obtained by another client, even one that put this App in the audience.
+        assert!(matches!(
+            v.verify_app_token(&app_token("edge"), "app-alerts").await,
+            Err(ApiError::Unauthorized)
+        ));
+        // Issued for another App.
+        assert!(matches!(
+            v.verify_app_token(&app_token("app-alerts"), "app-other")
+                .await,
+            Err(ApiError::Unauthorized)
+        ));
+        // A token with no roles of this client holds none.
+        let mut bare = claims(now() + 60);
+        bare["aud"] = json!("app-alerts");
+        bare["azp"] = json!("app-alerts");
+        let (_, roles) = v
+            .verify_app_token(&sign(&signer, "k1", &bare), "app-alerts")
+            .await
+            .expect("a valid token");
+        assert!(roles.is_empty());
     }
 
     #[tokio::test]

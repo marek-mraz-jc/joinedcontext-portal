@@ -38,8 +38,8 @@ pub const FIELD_MANAGER: &str = "portal-app-reconciler";
 /// Server-side apply's content type; the body is JSON, which is YAML.
 const APPLY_PATCH: &str = "application/apply-patch+yaml";
 
-/// The kinds an App and its agent runs compile into (AP-13, AP-15, AP-26, AG-33, EP-02), and
-/// the ConfigMap that carries a version into its test sandbox (SDK-38).
+/// The kinds an App, its agent runs and its build pods compile into (AP-13, AP-15, AP-26, AG-33,
+/// EP-02, AP-131).
 const KINDS: [(&str, &str, &str); 9] = [
     ("apps/v1", "Deployment", "deployments"),
     ("v1", "Service", "services"),
@@ -47,7 +47,7 @@ const KINDS: [(&str, &str, &str); 9] = [
     ("networking.k8s.io/v1", "NetworkPolicy", "networkpolicies"),
     ("batch/v1", "Job", "jobs"),
     ("v1", "ServiceAccount", "serviceaccounts"),
-    ("v1", "ConfigMap", "configmaps"),
+    ("v1", "PersistentVolumeClaim", "persistentvolumeclaims"),
     // A project's apps namespace and the Portal's binding in it (AP-116); an admission policy
     // keeps both to `{release}-{project}-apps` (AP-117).
     ("v1", "Namespace", "namespaces"),
@@ -57,6 +57,10 @@ const KINDS: [(&str, &str, &str); 9] = [
         "rolebindings",
     ),
 ];
+
+/// The one kind the Portal creates and deletes but never applies: the ConfigMap that carries a
+/// version into its test sandbox (SDK-38), where the Portal's Role grants `create` and `delete`.
+const CREATED_ONLY: (&str, &str, &str) = ("v1", "ConfigMap", "configmaps");
 
 /// The one kind of [`KINDS`] that lives outside every namespace.
 const CLUSTER_SCOPED: &str = "namespaces";
@@ -229,7 +233,7 @@ impl KubeClient {
     /// Creates one object that must not exist yet, for a namespace whose Role grants `create` and
     /// not `patch` (SDK-38): a name already taken is the API server's `409`.
     pub async fn create(&self, object: &Value) -> Result<(), KubeError> {
-        let plural = object_kind(object)?;
+        let plural = created_or_applied(object_kind(object), object)?;
         let namespace = namespace_of(object)?;
         let path = path_of(plural, namespace, name_of(object)?)?;
         let collection = path
@@ -325,12 +329,18 @@ impl KubeClient {
         namespace: &str,
         name: &str,
     ) -> Result<(), KubeError> {
-        let path = path_of(plural_of(api_version, kind)?, namespace, name)?;
+        let object = serde_json::json!({ "apiVersion": api_version, "kind": kind });
+        let plural = created_or_applied(plural_of(api_version, kind), &object)?;
+        let path = path_of(plural, namespace, name)?;
+        // A Job deleted over the API orphans its pods unless asked otherwise; kubectl asks for
+        // the same background collection.
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("propagationPolicy", "Background");
         let response = self
             .http
-            .delete(self.url(&path)?)
+            .delete(url)
             .headers(self.headers("application/json")?)
-            .body(r#"{"kind":"DeleteOptions","apiVersion":"v1","propagationPolicy":"Background"}"#)
             .send()
             .await
             .map_err(|err| KubeError::Transport(err.to_string()))?;
@@ -363,8 +373,39 @@ impl KubeClient {
         Ok(Some(body))
     }
 
-    /// Reads one ConfigMap, or `None` when it does not exist: the base of the edge file
-    /// (ADR-N-030, AP-112), in a namespace where the Portal may read it and nothing more.
+    /// The objects of one kind in a namespace that carry `label_selector`, as the API server
+    /// lists them; one page, because what the Portal lists is bounded by what it created.
+    pub async fn list(
+        &self,
+        api_version: &str,
+        kind: &str,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Value>, KubeError> {
+        let plural = plural_of(api_version, kind)?;
+        let item = path_of(plural, namespace, "list")?;
+        let path = item.trim_end_matches("/list").to_owned();
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("labelSelector", label_selector);
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let body = self.checked(response, path).await?;
+        Ok(body
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    /// Reads one ConfigMap, or `None` when it does not exist. The one kind the Portal reads and
+    /// never writes: the base of the edge file (ADR-N-030, AP-112), so it stays out of the kinds
+    /// [`KubeClient::apply`] accepts.
     pub async fn get_config_map(
         &self,
         namespace: &str,
@@ -482,6 +523,22 @@ fn object_kind(object: &Value) -> Result<&'static str, KubeError> {
     plural_of(api_version, kind)
 }
 
+/// [`plural_of`], widened by the one kind the Portal creates and deletes and never applies.
+fn created_or_applied(
+    applied: Result<&'static str, KubeError>,
+    object: &Value,
+) -> Result<&'static str, KubeError> {
+    applied.or_else(|err| {
+        let (api_version, kind, plural) = CREATED_ONLY;
+        let field = |name: &str| object.get(name).and_then(Value::as_str);
+        if field("apiVersion") == Some(api_version) && field("kind") == Some(kind) {
+            Ok(plural)
+        } else {
+            Err(err)
+        }
+    })
+}
+
 /// The path segment one kind is addressed by, and the proof that the Portal may write it.
 fn plural_of(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
     KINDS
@@ -550,6 +607,24 @@ fn path_of(plural: &str, namespace: &str, name: &str) -> Result<String, KubeErro
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SDK-38: the sandbox's ConfigMap is created and deleted, never applied, so a manifest that
+    /// compiles into one is still refused by `apply`.
+    #[test]
+    fn a_config_map_is_created_and_never_applied() {
+        let config_map = serde_json::json!({ "apiVersion": "v1", "kind": "ConfigMap" });
+        assert!(matches!(
+            object_kind(&config_map),
+            Err(KubeError::UnsupportedKind { .. })
+        ));
+        assert_eq!(
+            created_or_applied(object_kind(&config_map), &config_map).ok(),
+            Some("configmaps")
+        );
+        let role =
+            serde_json::json!({ "apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role" });
+        assert!(created_or_applied(object_kind(&role), &role).is_err());
+    }
 
     /// T-2521, CC-06: the bearer is a sensitive header, so a trace of the request or a debug
     /// print of the headers shows `Sensitive`, and the client's own debug print redacts it.

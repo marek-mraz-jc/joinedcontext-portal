@@ -1,6 +1,7 @@
 import { download, format, pointOf, toCsv, toGeoJson, toPdf, toPng, useClient } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { defaultColumns } from "./EntityTable";
+import { t } from "../i18n";
 
 export type ExportFormat = "csv" | "geojson" | "pdf" | "png";
 
@@ -62,7 +63,7 @@ export function ExportButton({
   };
 
   return (
-    <div className="jc-export" role="group" aria-label="Export">
+    <div className="jc-export" role="group" aria-label={t("export.label")}>
       {formats.map((fmt) => {
         if (fmt === "csv") {
           return (
@@ -73,7 +74,7 @@ export function ExportButton({
         }
         if (fmt === "geojson") {
           const disabled = empty || !hasGeo;
-          const notice = !empty && !hasGeo ? "No geometry in these rows" : undefined;
+          const notice = !empty && !hasGeo ? t("export.noGeometry") : undefined;
           return (
             <button
               key="geojson"

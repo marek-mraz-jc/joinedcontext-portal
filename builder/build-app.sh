@@ -88,13 +88,18 @@ if [ -f "$APP/Cargo.toml" ]; then
   export CARGO_HOME="$WORK/cargo" CARGO_TARGET_DIR="$WORK/target" CARGO_NET_OFFLINE=true
   rm -rf "$CARGO_HOME" "$CARGO_TARGET_DIR" && mkdir -p "$CARGO_HOME/registry"
   ln -s /opt/cargo/registry/index /opt/cargo/registry/cache "$CARGO_HOME/registry/"
-  # The dependencies the image precompiled from the reference apps' locks, copied, never linked:
-  # only this App's own crate and what its lock does not share are compiled (AP-106, T-2794).
-  node "$LANE/lane.mjs" seed /opt/cargo/target-seed "$CARGO_TARGET_DIR"
+  # This App's own build cache when its pod mounts one and it holds this lock's entry (AP-131),
+  # else the dependencies the image precompiled from the reference apps' locks (AP-106); copied,
+  # never linked, so only what changed is compiled and a cache never fails a build.
+  CACHE=/cache
+  KEY=$( (cat "$APP/Cargo.lock"; rustc -vV) | sha256sum | cut -d' ' -f1)
+  node "$LANE/lane.mjs" restore "$CACHE" "$KEY" /opt/cargo/target-seed "$CARGO_TARGET_DIR"
   echo "== backend tests"
   untrusted cargo test --offline --locked || fail "cargo test failed (a crate outside the runner's store fails here too)"
   echo "== backend"
   untrusted cargo build --release --offline --locked --target x86_64-unknown-linux-musl || fail "cargo build failed"
+  # Only a green build is kept, and only for this App's next build.
+  node "$LANE/lane.mjs" save "$CARGO_TARGET_DIR" "$CACHE" "$KEY"
   NAME=$(cargo metadata --offline --no-deps --format-version 1 | node -e '
     const meta = JSON.parse(require("fs").readFileSync(0, "utf8"));
     const root = meta.packages.find((p) => p.manifest_path === process.argv[1]);

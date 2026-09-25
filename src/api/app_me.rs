@@ -2,13 +2,14 @@
 //! §13).
 //!
 //! A `fullstack` backend never sees the static host that writes `#jc-config` (AP-95), so it asks
-//! here with the edge's `X-Access-Token` as `Authorization: Bearer`. The roles are computed as
-//! AP-92 computes them, from the verified identity against `spec.access` of the published
-//! manifest, and never from anything the caller sends. The answer is about the caller alone and
-//! names no other resource, so it needs no `read` on the project: an `organization` App admits
-//! people who hold no rule in it.
+//! here with the edge's `X-Access-Token` as `Authorization: Bearer`: a token of the App's own
+//! client `app-{name}`, whose `resource_access.app-{name}.roles` are the caller's roles, as AP-92
+//! reads them for the static host. Nothing else the caller sends counts. The answer is about the
+//! caller alone and names no other resource, so it needs no `read` on the project: an
+//! `organization` App admits people who hold no rule in it.
 
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -16,7 +17,6 @@ use jc_core::kinds::{AppLifecycle, AppSpec};
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::state::AppState;
 
@@ -54,10 +54,12 @@ pub fn router() -> Router<AppState> {
     )
 )]
 pub async fn me(
-    user: CurrentUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
+    // Who is asking comes first, so an anonymous caller learns nothing about which Apps exist.
+    let verified = crate::apps::roles::verified(&state, &headers, &name).await?;
     let not_found = || ApiError::NotFound(format!("app '{name}' not found"));
     let spec: AppSpec = state
         .mirror
@@ -67,7 +69,8 @@ pub async fn me(
     if spec.lifecycle != AppLifecycle::Published {
         return Err(not_found());
     }
-    let identity = &user.0.identity;
+    let person = crate::apps::roles::AppPerson::of(&spec, verified);
+    let identity = &person.identity;
     // The API's own middleware marks every answer `no-store`, so no shared cache keeps one
     // person's roles for the next (AP-95).
     Ok(Json(AppMe {
@@ -77,7 +80,7 @@ pub async fn me(
             .clone()
             .unwrap_or_else(|| identity.username.clone()),
         email: identity.email.clone(),
-        roles: crate::permissions::app_roles(identity, &spec),
+        roles: person.roles,
     })
     .into_response())
 }

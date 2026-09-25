@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { columnKind, compare, format } from "@joinedcontext/sdk";
 import type { ProblemError, Row } from "@joinedcontext/sdk";
 import { Empty, Loading, Problem } from "./states";
+import { t } from "../i18n";
 
 export interface ColumnDef<T extends Row = Row> {
   attr: string;
@@ -176,17 +177,15 @@ export function EntityTable<T extends Row = Row>({
             disabled={safePage === 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            Previous
+            {t("table.previous")}
           </button>
-          <span>
-            Page {safePage} of {totalPages}
-          </span>
+          <span>{t("table.page", { page: safePage, pages: totalPages })}</span>
           <button
             type="button"
             disabled={safePage >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
-            Next
+            {t("table.next")}
           </button>
         </div>
       )}

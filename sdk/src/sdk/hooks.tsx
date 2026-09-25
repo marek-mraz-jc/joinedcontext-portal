@@ -3,7 +3,7 @@ import type { Cell, LanguageMap, Row } from "../ngsi";
 import type { Schema, TypeSchema } from "../write";
 import type { AccessDocument, Decision } from "./access";
 import { can as evalCan } from "./access";
-import type { Client, Query } from "./client";
+import type { Client, EndpointOption, Query } from "./client";
 import { ProblemError, jc } from "./client";
 import type { JcUser } from "./config";
 
@@ -143,7 +143,8 @@ export function useEntity<T extends Row = Row>(
 }
 
 export function useSave(): {
-  create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string): Promise<string | null>;
+  /** `options.endpoint` names the endpoint of a type more than one serves (SDK-02). */
+  create(type: string, attrs: Record<string, Cell | LanguageMap>, localId?: string, options?: EndpointOption): Promise<string | null>;
   update(id: string, patch: Record<string, Cell | LanguageMap>): Promise<boolean>;
   remove(id: string): Promise<boolean>;
   saving: boolean;
@@ -156,11 +157,11 @@ export function useSave(): {
 
   const clear = useCallback(() => setProblem(null), []);
 
-  const create = async (type: string, attrs: Record<string, Cell>, localId?: string): Promise<string | null> => {
+  const create = async (type: string, attrs: Record<string, Cell>, localId?: string, options?: EndpointOption): Promise<string | null> => {
     setSaving(true);
     setProblem(null);
     try {
-      const id = await client.entities.create(type, attrs, localId);
+      const id = await client.entities.create(type, attrs, localId, options);
       return id;
     } catch (err) {
       const p = err instanceof ProblemError ? err : new ProblemError(0, { title: err instanceof Error ? err.message : String(err) });

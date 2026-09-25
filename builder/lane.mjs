@@ -15,6 +15,16 @@
 //                                      artifacts and writes the build to $GITHUB_OUTPUT
 //   node lane.mjs seed <from> <to>     starts a fullstack build's target/ from the image's
 //                                      precompiled dependencies (AP-106), never failing a build
+//   node lane.mjs lock-manifest <dir> points <dir>/package.json's SDK at the directory above, as the
+//                                      template's lockfile resolves it (AP-126)
+//   node lane.mjs store-check <pnpm-lock.yaml> <node_modules>
+//                                      fails when a package the lockfile names for this platform
+//                                      is not in the store (AP-127)
+//   node lane.mjs restore <cache> <key> <seed> <to>
+//                                      starts it from the App's own build cache when it holds a
+//                                      complete entry for <key>, else from the seed (AP-131)
+//   node lane.mjs save <from> <cache> <key>
+//                                      keeps a green build's target/ as the App's cache entry
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
@@ -270,6 +280,62 @@ function storePackage(folder) {
   return { name: plain.slice(0, at).replace("+", "/"), version: plain.slice(at + 1) };
 }
 
+/**
+ * The SDK is this release's own build, never a registry package: a template's lockfile resolves
+ * it from the directory above the template, `sdk/` in the repository and the unpacked SDK in the
+ * runner image, so both install the same packages (AP-126, AP-127).
+ */
+export const SDK_SPEC = "file:..";
+
+/** The template's manifest as its lockfile was written from: the SDK taken from `SDK_SPEC`. */
+export function lockManifest(pkg) {
+  if (!pkg.dependencies?.["@joinedcontext/sdk"]) throw new Error("the template does not depend on @joinedcontext/sdk");
+  return { ...pkg, dependencies: { ...pkg.dependencies, "@joinedcontext/sdk": SDK_SPEC } };
+}
+
+/** Whether a lockfile's `os`/`cpu`/`libc` list admits `value`: absent, listed, or not denied with `!`. */
+function admits(list, value) {
+  if (!list) return true;
+  const items = list.split(",").map((item) => item.trim().replace(/^'|'$/g, "")).filter(Boolean);
+  const denied = items.filter((item) => item.startsWith("!")).map((item) => item.slice(1));
+  return denied.length > 0 ? !denied.includes(value) : items.includes(value);
+}
+
+/**
+ * The `name@version` entries of a pnpm v9 lockfile's `packages:` that a store for `platform`
+ * ({ os, cpu, libc }) must hold but whose folder is missing from `folders` (the names in
+ * `node_modules/.pnpm`), sorted (AP-127). Packages built for another platform are not installed
+ * there and are skipped; a directory or link dependency (the SDK) is not a registry package.
+ */
+export function missingFromStore(lock, folders, platform) {
+  const have = new Set(folders.map((folder) => folder.split("_")[0]));
+  const entries = [];
+  let section = "";
+  for (const line of String(lock).split("\n")) {
+    if (/^\S/.test(line)) {
+      section = line.trim();
+      continue;
+    }
+    if (section !== "packages:") continue;
+    const key = /^  '?([^' ][^']*?)'?:\s*$/.exec(line)?.[1];
+    if (key) {
+      entries.push({ key, fields: {} });
+      continue;
+    }
+    const field = /^    (os|cpu|libc): \[(.*)\]\s*$/.exec(line);
+    if (field && entries.length > 0) entries[entries.length - 1].fields[field[1]] = field[2];
+  }
+  const missing = [];
+  for (const { key, fields } of entries) {
+    const at = key.lastIndexOf("@");
+    const [name, version] = [key.slice(0, at), key.slice(at + 1)];
+    if (at <= 0 || version.includes(":")) continue;
+    if (!admits(fields.os, platform.os) || !admits(fields.cpu, platform.cpu) || !admits(fields.libc, platform.libc)) continue;
+    if (!have.has(`${name.replace("/", "+")}@${version}`)) missing.push(key);
+  }
+  return missing.sort();
+}
+
 /** The CycloneDX 1.5 SBOM of the packages in pnpm's store folders, sorted, without a timestamp. */
 export function sbomOf(folders) {
   const seen = new Map();
@@ -496,6 +562,59 @@ export function seed(from, to) {
   }
 }
 
+/** The App's cache entry and the file that says it is complete and for which key (AP-131). */
+const ENTRY = "target";
+const MARKER = "target.key";
+
+/**
+ * A job's `target/` started from the App's own build cache (AP-131), which only this App's build
+ * pods mount: a copy with its times kept, so cargo rebuilds only what changed. The entry counts
+ * when its marker names `key`, the digest of the App's `Cargo.lock` and the toolchain. Anything
+ * else (no cache mounted, no entry, another key, a copy that fails part way) falls back to the
+ * image's seed and never fails a build. Returns what it did.
+ */
+export function restore(cache, key, seedFrom, to) {
+  const marker = join(cache, MARKER);
+  let found = "";
+  try {
+    found = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
+  } catch {
+    found = "";
+  }
+  if (found === "" || found !== key) {
+    const why = !existsSync(cache) ? "no build cache is mounted" : found === "" ? "the build cache holds no complete entry" : "the build cache is for another Cargo.lock or toolchain";
+    return `${why}; ${seed(seedFrom, to)}`;
+  }
+  rmSync(to, { recursive: true, force: true });
+  try {
+    cpSync(join(cache, ENTRY), to, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    return "the App's build cache is the start of this build";
+  } catch (err) {
+    return `the build cache could not be copied (${err instanceof Error ? err.message : String(err)}); ${seed(seedFrom, to)}`;
+  }
+}
+
+/**
+ * Keeps a green build's `target/` as the App's one cache entry (AP-131). The marker goes first
+ * and comes back last, so a save cut short (a full volume, a pod that ends) leaves an entry
+ * `restore` ignores rather than half a target it would trust. A save that fails is said and
+ * never fails the build that made it. Returns what it did.
+ */
+export function save(from, cache, key) {
+  if (!existsSync(cache)) return "no build cache is mounted: nothing kept";
+  const entry = join(cache, ENTRY);
+  try {
+    rmSync(join(cache, MARKER), { force: true });
+    rmSync(entry, { recursive: true, force: true });
+    cpSync(from, entry, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    writeFileSync(join(cache, MARKER), `${key}\n`);
+    return "this build's target/ is the App's build cache";
+  } catch (err) {
+    rmSync(entry, { recursive: true, force: true });
+    return `the build cache was not kept (${err instanceof Error ? err.message : String(err)}): the next build starts from the seed`;
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, appDir, outDir] = process.argv.slice(2);
   try {
@@ -548,6 +667,25 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`JC-TESTS ${JSON.stringify(testProject(appDir, outDir, { timeoutMs: timeoutMs > 0 ? timeoutMs : 100_000 }))}`);
     } else if (command === "seed" && appDir && outDir) {
       console.log(seed(appDir, outDir));
+    } else if (command === "lock-manifest" && appDir) {
+      const path = join(appDir, "package.json");
+      writeFileSync(path, `${JSON.stringify(lockManifest(JSON.parse(readFileSync(path, "utf8"))), null, 2)}\n`);
+    } else if (command === "store-check" && appDir && outDir) {
+      // The runner images are Debian (glibc); a musl libc would say so in its loader's name.
+      const libc = existsSync("/lib/ld-musl-x86_64.so.1") || existsSync("/lib/ld-musl-aarch64.so.1") ? "musl" : "glibc";
+      const store = join(outDir, ".pnpm");
+      const missing = missingFromStore(readFileSync(appDir, "utf8"), existsSync(store) ? readdirSync(store) : [], {
+        os: process.platform,
+        cpu: process.arch,
+        libc,
+      });
+      if (missing.length > 0) throw new Error(`the store in ${outDir} lacks ${missing.length} package(s) ${appDir} names: ${missing.join(", ")}`);
+      if (!existsSync(join(outDir, "@joinedcontext", "sdk", "package.json"))) throw new Error(`the store in ${outDir} holds no @joinedcontext/sdk`);
+      console.log(`the store in ${outDir} holds every package ${appDir} names`);
+    } else if (command === "restore" && appDir && outDir && process.argv[5] && process.argv[6]) {
+      console.log(restore(appDir, outDir, process.argv[5], process.argv[6]));
+    } else if (command === "save" && appDir && outDir && process.argv[5]) {
+      console.log(save(appDir, outDir, process.argv[5]));
     } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
@@ -565,7 +703,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | seed <from> <to> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | restore <cache> <key> <seed> <to> | save <from> <cache> <key> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, ociImage, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -43,6 +43,120 @@ test("every sample application passes the lane's package check against the templ
     }
   }
   assert.ok(seen >= 4, `only ${seen} sample packages found`);
+});
+
+// AP-127 (T-2724): the runner image's store holds every package its template's lockfile names
+// for the runner's platform; another platform's binaries and the SDK directory are not asked for.
+const LOCK = `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+
+packages:
+
+  '@deck.gl/core@9.4.0':
+    resolution: {integrity: sha512-x}
+
+  '@joinedcontext/sdk@file:..':
+    resolution: {directory: .., type: directory}
+
+  '@rolldown/binding-darwin-arm64@1.2.11':
+    resolution: {integrity: sha512-x}
+    cpu: [arm64]
+    os: [darwin]
+
+  lightningcss-linux-x64-musl@1.33.0:
+    resolution: {integrity: sha512-x}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  fsevents-free@1.0.0:
+    resolution: {integrity: sha512-x}
+    os: ['!darwin']
+
+  react@19.3.0:
+    resolution: {integrity: sha512-x}
+
+snapshots:
+
+  left-pad@1.0.0: {}
+`;
+const linux = { os: "linux", cpu: "x64", libc: "glibc" };
+
+test("a store holding every package of the lockfile for its platform passes", () => {
+  const folders = ["@deck.gl+core@9.4.0_@luma.gl+core@9.4.2", "react@19.3.0", "fsevents-free@1.0.0", "lock.yaml"];
+  assert.deepEqual(missingFromStore(LOCK, folders, linux), []);
+});
+
+test("a package the lockfile names and the store lacks is named, peers or not", () => {
+  assert.deepEqual(missingFromStore(LOCK, ["react@19.3.0"], linux), ["@deck.gl/core@9.4.0", "fsevents-free@1.0.0"]);
+  // Another version of the same package is not the one the lockfile pins.
+  assert.deepEqual(missingFromStore(LOCK, ["@deck.gl+core@9.4.1", "react@19.3.0", "fsevents-free@1.0.0"], linux), ["@deck.gl/core@9.4.0"]);
+});
+
+test("the lockfile's os, cpu and libc decide which binaries a platform's store must hold", () => {
+  const all = ["@deck.gl+core@9.4.0", "react@19.3.0", "fsevents-free@1.0.0"];
+  assert.deepEqual(missingFromStore(LOCK, all, { os: "linux", cpu: "x64", libc: "musl" }), ["lightningcss-linux-x64-musl@1.33.0"]);
+  assert.deepEqual(missingFromStore(LOCK, all, { os: "darwin", cpu: "arm64", libc: "glibc" }), ["@rolldown/binding-darwin-arm64@1.2.11"]);
+  assert.deepEqual(missingFromStore("lockfileVersion: '9.0'\n\npackages: {}\n", [], linux), []);
+});
+
+test("the template's manifest takes the SDK from the directory above, and nothing else changes", () => {
+  const pkg = { name: "jc-app", dependencies: { react: "19.3.0", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "8.3.0" } };
+  assert.deepEqual(lockManifest(pkg), { ...pkg, dependencies: { react: "19.3.0", "@joinedcontext/sdk": SDK_SPEC } });
+  assert.equal(pkg.dependencies["@joinedcontext/sdk"], "0.1.0", "the input is not changed");
+  assert.throws(() => lockManifest({ dependencies: { react: "19.3.0" } }), /does not depend on @joinedcontext\/sdk/);
+});
+
+/** `{ name: { specifier, version } }` of a pnpm v9 lockfile's root importer. */
+function rootImporter(lock) {
+  const found = {};
+  let inRoot = false;
+  let name = "";
+  for (const line of lock.split("\n")) {
+    if (/^\S/.test(line)) inRoot = false;
+    if (line === "  .:") inRoot = true;
+    else if (/^  \S/.test(line)) inRoot = false;
+    if (!inRoot) continue;
+    const dep = /^      '?([^':]+)'?:$/.exec(line);
+    if (dep) found[(name = dep[1])] = {};
+    const field = /^        (specifier|version): (.+)$/.exec(line);
+    if (field && name) found[name][field[1]] = field[2];
+  }
+  return found;
+}
+
+// AP-126 (T-2724): every package of the template pinned to one version, its committed lockfile
+// written from exactly that manifest (the runner image installs it frozen), and each pin the
+// version the SDK's own lockfile tests with, so an app builds with what the SDK was tested on.
+test("the template pins every package exactly, as its lockfile and the SDK's lockfile do", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const pkg = JSON.parse(readFileSync(join(root, "sdk/template/package.json"), "utf8"));
+  const wanted = { ...lockManifest(pkg).dependencies, ...pkg.devDependencies };
+  for (const [name, version] of Object.entries(wanted)) {
+    if (name === "@joinedcontext/sdk") continue;
+    assert.match(version, /^\d+\.\d+\.\d+$/, `${name} is pinned to ${version}, not one exact version`);
+  }
+  const locked = rootImporter(readFileSync(join(root, "sdk/template/pnpm-lock.yaml"), "utf8"));
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(locked).map(([name, { specifier }]) => [name, specifier]).sort()),
+    Object.fromEntries(Object.entries(wanted).sort()),
+    "sdk/template/pnpm-lock.yaml is not written from sdk/template/package.json: run `node builder/lane.mjs lock-manifest sdk/template`, `pnpm install --lockfile-only --ignore-scripts` there, and restore package.json",
+  );
+  const sdk = rootImporter(readFileSync(join(root, "sdk/pnpm-lock.yaml"), "utf8"));
+  let shared = 0;
+  for (const [name, version] of Object.entries(wanted)) {
+    if (!sdk[name]) continue;
+    shared += 1;
+    assert.equal(sdk[name].version.split("(")[0], version, `the SDK tests with ${name} ${sdk[name].version.split("(")[0]}, the template pins ${version}`);
+  }
+  assert.ok(shared >= 15, `only ${shared} packages shared with the SDK`);
 });
 
 // SDK-24, AP-82 (T-2649). On the lane an app's packages are links into the template's store,
@@ -435,6 +549,86 @@ test("a missing seed, or one that fails to copy, leaves an empty target and neve
     assert.deepEqual(readdirSync(to), []);
   }
   chmodSync(join(from, "z-unreadable.rlib"), 0o644);
+});
+
+/** A seed and a cache folder side by side, the seed holding one compiled dependency. */
+function cacheFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "lane-cache-"));
+  const seedDir = join(dir, "seed");
+  mkdirSync(join(seedDir, "release", "deps"), { recursive: true });
+  writeFileSync(join(seedDir, "release", "deps", "libserde-1.rlib"), "from the image");
+  const cache = join(dir, "cache");
+  mkdirSync(cache);
+  return { dir, seedDir, cache };
+}
+
+test("a second build of the same lock starts from the App's cache, times kept (AP-131, T-2794)", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const first = join(dir, "first", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, first), /no complete entry; the precompiled dependencies .* are the start/);
+  // The first build compiled the App's own crate and a dependency the seed does not hold.
+  mkdirSync(join(first, "release", "deps"), { recursive: true });
+  const own = join(first, "release", "deps", "libapp-1.rlib");
+  writeFileSync(own, "the app's own");
+  const built = new Date("2026-09-20T00:00:00Z");
+  utimesSync(own, built, built);
+  assert.match(lane.save(first, cache, "k1"), /is the App's build cache/);
+
+  const second = join(dir, "second", "target");
+  assert.match(lane.restore(cache, "k1", seedDir, second), /the App's build cache is the start/);
+  const again = join(second, "release", "deps", "libapp-1.rlib");
+  assert.equal(readFileSync(again, "utf8"), "the app's own");
+  assert.equal(statSync(again).mtime.getTime(), built.getTime(), "cargo reads it as compiled");
+
+  // A copy: what the second build writes changes the cache only when it is saved.
+  writeFileSync(again, "edited");
+  assert.equal(readFileSync(join(cache, "target", "release", "deps", "libapp-1.rlib"), "utf8"), "the app's own");
+});
+
+test("another lock or toolchain, a torn entry or no cache at all start from the seed", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const built = join(dir, "built");
+  mkdirSync(built);
+  writeFileSync(join(built, "stale.rlib"), "for the old lock");
+  lane.save(built, cache, "old-lock");
+
+  const to = join(dir, "target");
+  assert.match(lane.restore(cache, "new-lock", seedDir, to), /for another Cargo\.lock or toolchain; the precompiled/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+  assert.equal(existsSync(join(to, "release", "deps", "libserde-1.rlib")), true);
+
+  // A save cut short leaves its entry and no marker: it is never trusted.
+  rmSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+  assert.equal(existsSync(join(to, "stale.rlib")), false);
+
+  // A marker that cannot be read counts as none.
+  mkdirSync(join(cache, "target.key"));
+  assert.match(lane.restore(cache, "old-lock", seedDir, to), /no complete entry/);
+
+  const nothing = join(dir, "no-cache");
+  assert.match(lane.restore(nothing, "k", seedDir, to), /no build cache is mounted/);
+  assert.match(lane.save(built, nothing, "k"), /nothing kept/);
+  assert.equal(existsSync(nothing), false, "the lane never creates a cache the pod did not mount");
+});
+
+test("a save that fails leaves no entry, and the build it follows still succeeds", () => {
+  const { dir, cache } = cacheFixture();
+  const said = lane.save(join(dir, "no-such-target"), cache, "k");
+  assert.match(said, /was not kept .*: the next build starts from the seed/);
+  assert.deepEqual(readdirSync(cache), []);
+});
+
+test("the lane's command line runs restore and save", () => {
+  const { dir, seedDir, cache } = cacheFixture();
+  const to = join(dir, "target");
+  const run = (...args) => spawnSync(process.execPath, [new URL("./lane.mjs", import.meta.url).pathname, ...args], { encoding: "utf8" });
+  const restored = run("restore", cache, "k", seedDir, to);
+  assert.equal(restored.status, 0, restored.stderr);
+  assert.match(restored.stdout, /no complete entry/);
+  const saved = run("save", to, cache, "k");
+  assert.equal(saved.status, 0, saved.stderr);
+  assert.equal(readFileSync(join(cache, "target.key"), "utf8").trim(), "k");
 });
 
 // SDK-38: the run's sandbox writes only plain relative paths of the version, never over the links

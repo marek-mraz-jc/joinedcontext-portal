@@ -87,6 +87,42 @@ pub struct WorkflowRun {
     pub url: String,
 }
 
+/// A forge job waiting for a runner, as the build-pod dispatcher reads it (AP-130).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedJob {
+    /// The forge's id of the job, unique in the installation.
+    pub id: u64,
+    /// The `runs-on` labels the job asks for.
+    pub labels: Vec<String>,
+    /// The repository of the organization the job belongs to.
+    pub repository: String,
+}
+
+#[derive(Deserialize)]
+struct QueuedJobsResponse {
+    #[serde(default)]
+    jobs: Vec<RawQueuedJob>,
+}
+
+#[derive(Deserialize)]
+struct RawQueuedJob {
+    id: u64,
+    #[serde(default)]
+    labels: Vec<String>,
+    #[serde(default)]
+    url: String,
+}
+
+/// The repository a job's API URL names, `…/api/v1/repos/{owner}/{repo}/actions/jobs/{id}`, when
+/// it is a repository of `owner`; `None` for anything else, which the dispatcher then ignores.
+fn repository_of_job(url: &str, owner: &str) -> Option<String> {
+    let path = url.split("/api/v1/repos/").nth(1)?;
+    let mut parts = path.split('/');
+    let (found_owner, repo) = (parts.next()?, parts.next()?);
+    (found_owner == owner && parts.next() == Some("actions") && !repo.is_empty())
+        .then(|| repo.to_owned())
+}
+
 #[derive(Deserialize)]
 struct WorkflowRunsResponse {
     #[serde(default)]
@@ -1076,6 +1112,54 @@ impl GiteaClient {
             .await?;
         Self::check_status(res).await?;
         Ok(())
+    }
+
+    /// `GET /orgs/{owner}/actions/jobs?status=queued` — every job of the organization that waits
+    /// for a runner, each with its labels and the repository it belongs to (AP-130). One page of
+    /// 50: a queue longer than that is served on the next pass.
+    pub async fn queued_jobs(&self) -> Result<Vec<QueuedJob>, GitError> {
+        let mut url = Url::parse(&format!(
+            "{}/api/v1/orgs/{}/actions/jobs",
+            self.base.as_str().trim_end_matches('/'),
+            self.owner
+        ))
+        .map_err(|e| GitError::Transport(e.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("status", "queued")
+            .append_pair("limit", "50");
+        let res = Self::check_status(self.send(self.http.get(url)).await?).await?;
+        let page: QueuedJobsResponse = res
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(format!("failed to parse the queued jobs: {e}")))?;
+        Ok(page
+            .jobs
+            .into_iter()
+            .filter_map(|job| {
+                let repository = repository_of_job(&job.url, &self.owner)?;
+                Some(QueuedJob {
+                    id: job.id,
+                    labels: job.labels,
+                    repository,
+                })
+            })
+            .collect())
+    }
+
+    /// `POST /actions/runners/registration-token` of this repository: a token a runner registers
+    /// with to take this repository's jobs and no other's (AP-130). It is a credential, so it
+    /// is returned to be written into one Secret and never logged.
+    pub async fn repository_registration_token(&self) -> Result<String, GitError> {
+        let url = self.repo_url("actions/runners/registration-token")?;
+        let res = Self::check_status(self.send(self.http.post(url)).await?).await?;
+        let body: serde_json::Value = res.json().await.map_err(|e| {
+            GitError::Transport(format!("failed to parse the registration token: {e}"))
+        })?;
+        body.get("token")
+            .and_then(serde_json::Value::as_str)
+            .filter(|token| !token.trim().is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| GitError::Transport("the forge answered no registration token".into()))
     }
 
     /// `GET /actions/artifacts?name={name}` — the repository's artifacts of that exact name, each

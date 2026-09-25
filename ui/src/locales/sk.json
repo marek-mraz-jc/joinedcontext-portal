@@ -2247,6 +2247,21 @@
       "title": "Priebeh",
       "usage": "{steps} krokov, spotrebovaných {tokens} tokenov."
     },
+    "timeSpent": {
+      "title": "Kam išiel čas",
+      "model": "Model",
+      "tools": "Nástroje",
+      "waiting": "Čaká sa na vás",
+      "modelCall": "Volanie modelu",
+      "modelCallOf": "Volanie modelu ({model})",
+      "waitingStep": "Čaká sa na vašu odpoveď",
+      "failed": "zlyhalo",
+      "slowest": "Najpomalší krok: {step}, {took}.",
+      "caption": "Všetky merané kroky behu v poradí",
+      "started": "Začiatok",
+      "step": "Krok",
+      "took": "Trvanie"
+    },
     "conversation": {
       "details": "{count, plural, one {Podrobnosti (# riadok)} few {Podrobnosti (# riadky)} other {Podrobnosti (# riadkov)}}",
       "title": "Rozhovor",

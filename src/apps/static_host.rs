@@ -32,18 +32,16 @@ pub const INTEGRITY_MANIFEST: &str = "integrity.json";
 /// the Portal's own is host-only on the Portal host, and a function call that carries the edge's
 /// token is refused without one (AP-84, [`super::functions`]).
 async fn serve_index(
-    user: OptionalUser,
     state: State<AppState>,
     headers: HeaderMap,
     uri: Uri,
     name: Path<String>,
 ) -> Response {
-    let needs_csrf = user.0.is_some()
+    let needs_csrf = super::roles::presented(&state, &headers).is_some()
         && axum_extra::extract::cookie::CookieJar::from_headers(&headers)
             .get(crate::auth::csrf::CSRF_COOKIE)
             .is_none();
     let mut response = serve(
-        user,
         state,
         headers,
         uri,
@@ -61,7 +59,6 @@ async fn serve_index(
 
 /// Serves `/apps/{name}/{path}`.
 async fn serve(
-    OptionalUser(user): OptionalUser,
     State(state): State<AppState>,
     headers: HeaderMap,
     uri: Uri,
@@ -81,8 +78,9 @@ async fn serve(
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
-    let identity = user.as_ref().map(|user| &user.0.identity);
-    if !super::roles::may_open(&spec, identity) {
+    // The person as this App's own client knows them (ADR-N-030, AP-92).
+    let person = super::roles::person(&state, &headers, &spec, &name).await;
+    if !super::roles::may_open(&spec, person.as_ref()) {
         if spec.visibility != AppVisibility::Roles {
             return not_found();
         }
@@ -134,13 +132,13 @@ async fn serve(
     // CI recorded (AP-12). An app that reads nothing is served as it was built.
     // It carries the person and their roles in this app, computed now, so no shared cache keeps
     // it and nobody else is served it (AP-95).
-    let personal = path == "index.html" && identity.is_some();
+    let personal = path == "index.html" && person.is_some();
     let bytes = if path == "index.html" {
         let domain = crate::api::assistant::org_domain(&state, &project);
         match served_config(&state.mirror, &project, &name, &spec, &domain) {
             Some(mut config) => match String::from_utf8(bytes) {
                 Ok(html) => {
-                    config["user"] = super::roles::app_user(&spec, identity);
+                    config["user"] = super::roles::app_user(person.as_ref());
                     with_config(&html, &config).into_bytes()
                 }
                 Err(raw) => raw.into_bytes(),
@@ -538,25 +536,6 @@ pub fn sri_sha384(bytes: &[u8]) -> String {
         "sha384-{}",
         base64::engine::general_purpose::STANDARD.encode(Sha384::digest(bytes))
     )
-}
-
-/// A session if the caller has one, nothing if not: a public app is served to anyone, and a
-/// non-public one needs a login without the route itself being a login wall.
-pub(super) struct OptionalUser(pub(super) Option<crate::auth::CurrentUser>);
-
-impl axum::extract::FromRequestParts<AppState> for OptionalUser {
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        Ok(Self(
-            crate::auth::CurrentUser::from_request_parts(parts, state)
-                .await
-                .ok(),
-        ))
-    }
 }
 
 pub fn router() -> Router<AppState> {
