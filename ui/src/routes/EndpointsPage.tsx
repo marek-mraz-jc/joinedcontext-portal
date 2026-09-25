@@ -45,6 +45,9 @@ import {
 import { endpointSchema, endpointUiSchema, generateSlug } from "../schemas/kinds";
 import type { JsonSchema } from "../components/forms/types";
 import { ModelPicker } from "../pages/endpoints/ModelPicker";
+import { FilterProof, classesWithSlots } from "../pages/endpoints/FilterProof";
+import type { FilterDraft } from "../pages/endpoints/FilterProof";
+import { spaceSegment } from "../components/endpoints/policyBinding";
 import { catalogForm, catalogOf, prefillFromOrganization } from "../pages/endpoints/catalog";
 import type { CatalogForm, CatalogManifest } from "../pages/endpoints/catalog";
 import type { ModelPickerState } from "../pages/endpoints/ModelPicker";
@@ -297,6 +300,16 @@ const COLUMNS = 5;
 const SHARED_COLUMNS = 4;
 
 /** `schema` without `allowedProjects`: the manifest refuses the list outside `project-list`. */
+function withoutBurst(schema: JsonSchema): JsonSchema {
+  const rateLimits = schema.properties?.rateLimits as JsonSchema | undefined;
+  if (!rateLimits?.properties) {
+    return schema;
+  }
+  const { burst, ...kept } = rateLimits.properties;
+  void burst;
+  return { ...schema, properties: { ...schema.properties, rateLimits: { ...rateLimits, properties: kept } } };
+}
+
 function withoutAllowedProjects(schema: JsonSchema): JsonSchema {
   const properties = Object.fromEntries(
     Object.entries(schema.properties ?? {}).filter(([key]) => key !== "allowedProjects"),
@@ -552,6 +565,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     }
   }
 
+  // The projections, for the filter the proof reads beside the form (T-2776); the picker reads the
+  // same list under the same key, so this asks nothing twice.
+  const projectionsQuery = useQuery({
+    queryKey: queryKeys.list(project, "projections"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "projections" } },
+        }),
+      ),
+  });
+
   const spacesQuery = useQuery({
     queryKey: queryKeys.list(project, "spaces"),
     queryFn: async () =>
@@ -665,6 +690,25 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       base ?? undefined,
       language,
     );
+
+  /**
+   * The filter this form stands for, as the proof previews it: the ticked classes and their slots
+   * when it projects, else the projection the endpoint names; the conditions of that projection,
+   * which the endpoint's own page edits; and the hidden attributes of this form.
+   */
+  const formDraft = (form: EndpointForm): FilterDraft => {
+    const named = projecting ? projectionNameOf(form) : pickerState.selectedProjectionRef;
+    const saved = asManifests(projectionsQuery.data?.items ?? []).find((p) => p.metadata.name === named);
+    return {
+      classes: projecting
+        ? tickedClassNames.map((name) => ({ name, slots: pickerState.classes[name].slots }))
+        : saved
+          ? classesWithSlots(saved)
+          : [],
+      filter: (saved?.spec as { filter?: Record<string, string> } | undefined)?.filter ?? {},
+      hiddenAttributes: hidden,
+    };
+  };
 
   const buildManifests = (form: EndpointForm) => {
     const endpointEnvelope = endpointOf(form);
@@ -1051,10 +1095,17 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     catalogues,
     pipelineNames,
   );
-  const schema =
+  const audienceSchema =
     editing?.audience === "project-list" ? baseSchema : withoutAllowedProjects(baseSchema);
+  // A burst is part of a limit: without a rate per minute there is nothing for it to exceed,
+  // and a burst alone is dropped on the way out, so the field shows once a limit is picked.
+  const schema =
+    typeof editing?.rateLimits?.requestsPerMinute === "number"
+      ? audienceSchema
+      : withoutBurst(audienceSchema);
   const uiSchema = {
     ...endpointUiSchema,
+    rateLimits: { requestsPerMinute: { "ui:options": { emptyLabel: t("endpoints.rateClass.none") } } },
     ...(pickable.length > 0 ? { allowedProjects: { "ui:widget": "checkboxes" } } : {}),
   };
 
@@ -1528,6 +1579,24 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     slug={activeSlug}
                     hidden={hidden}
                     space={editing?.contextSpaceRef || undefined}
+                  />
+                </div>
+              </details>
+            ) : null}
+
+            {/* What the endpoint would serve with the classes and hidden attributes of this form,
+                beside the space's original (T-2776, EP-86). Only a Live endpoint answers a preview. */}
+            {!isNew && activeSlug && isLive(base) && editing ? (
+              <details className="rounded border border-border p-3">
+                <summary className="cursor-pointer text-body font-medium text-fg">
+                  {t("endpoints.proof.title")}
+                </summary>
+                <div className="mt-3">
+                  <FilterProof
+                    slug={activeSlug}
+                    segment={spaceSegment(project, editing.contextSpaceRef, asManifests(spacesQuery.data?.items ?? []))}
+                    live
+                    draft={formDraft(editing)}
                   />
                 </div>
               </details>
