@@ -211,7 +211,10 @@
     },
     "import": {
       "upload": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "import.spec.ts",
+          "test": "a steward checks a bundle, reads what it would do, proposes it, and the rejected import leaves nothing"
+        },
         "assistant": "jc_project_import",
         "routes": [
           "POST /api/v1/projects/{project}/import"
@@ -225,11 +228,17 @@
         ]
       },
       "refused-no-permission": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "import.spec.ts",
+          "test": "a viewer meets Propose disabled with its reason, and the door refuses the same bundle"
+        },
         "assistant": "jc_project_import"
       },
       "refused-secret": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "import.spec.ts",
+          "test": "a credential written into a bundle is refused at the door, before a report, and never echoed"
+        },
         "assistant": "jc_project_import"
       }
     },
@@ -810,7 +819,10 @@
         ]
       },
       "read-shared": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "shared.spec.ts",
+          "test": "the old address lands on what other projects share with this one, and the list follows the audience rule"
+        },
         "assistant": "jc_federation_graph"
       },
       "register-source": {

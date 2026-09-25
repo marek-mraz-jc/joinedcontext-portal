@@ -12,12 +12,5 @@
       "why": "the page has no test of its own at all; its form task writes the first one"
     }
   },
-  "live": {
-    "/projects/$project/import": {
-      "why": "an import journey writes a whole project; covered by tests/import_wizard.test.tsx until a throwaway project exists for it"
-    },
-    "/projects/$project/shared": {
-      "why": "sharing needs a second project that opened an endpoint to this one; covered by the mocked spec e2e/sharing.spec.ts"
-    }
-  }
+  "live": {}
 }
