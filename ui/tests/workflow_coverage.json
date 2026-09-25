@@ -33,11 +33,11 @@
           "spec": "organization.spec.ts",
           "test": "an administrator reads the organization and grants a role that reaches the person"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_resource_get"
       },
       "edit-settings": {
         "liveOwed": "T-2746",
-        "assistantOwed": "T-2732",
+        "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}"
         ]
@@ -47,7 +47,7 @@
           "spec": "organization.spec.ts",
           "test": "a viewer is told who can see the members, and the list is never fetched for them"
         },
-        "assistantOwed": "T-2732"
+        "assistant": "jc_resource_propose"
       }
     },
     "people": {
