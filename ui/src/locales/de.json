@@ -2298,6 +2298,38 @@
       "copyId": "Ganze Kennung kopieren",
       "copied": "Kopiert",
       "table": "Tabelle in der Antwort"
+    },
+    "follow": {
+      "title": "Wie {name} live geht",
+      "aChange": "eine Änderung",
+      "proposed": "{kind} {name} vorgeschlagen",
+      "reading": "Änderung wird gelesen…",
+      "unread": "Die Änderung konnte nicht gelesen werden",
+      "rejected": "Abgelehnt: nichts wurde geändert",
+      "approved": "Genehmigt",
+      "waiting": "Wartet auf eine Person, die {kind}-Änderungen in diesem Projekt genehmigen darf",
+      "red": "Eine Änderung der roten Spur wird auf ihrer eigenen Seite genehmigt, wo ihr Name erneut eingegeben wird.",
+      "approve": "Genehmigen",
+      "deploy": "Geht nach der Genehmigung live",
+      "deploying": "Wird bereitgestellt…",
+      "live": "Live",
+      "open": "{kind} ist live: öffnen",
+      "stage": {
+        "done": "Erledigt",
+        "working": "Läuft",
+        "waiting": "Wartet",
+        "failed": "Fehlgeschlagen",
+        "later": "Noch nicht"
+      },
+      "test": {
+        "later": "Wird getestet, sobald live",
+        "reading": "Einige Zeilen von {name} werden als Sie gelesen…",
+        "read": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} {type} aus {name} gelesen",
+        "empty": "{name} ist live und enthält noch keine Entitäten",
+        "failed": "Das Testlesen ist fehlgeschlagen",
+        "again": "Erneut lesen",
+        "explore": "Im Explorer öffnen"
+      }
     }
   },
   "assistant": {
