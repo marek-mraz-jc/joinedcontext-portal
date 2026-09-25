@@ -4062,7 +4062,7 @@
           }
         ],
         "requestBody": {
-          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`. API/04.",
+          "description": "What to share and with whom: `contextSpace`, `name`, and optionally `title`, `audience`, `allowedProjects`, `representations`, `hiddenAttributes`, `entityTypes`, `rateLimits`, and `access` (`read`, `update`, `full`) for an endpoint Build an app proposes inline (AP-132). API/04.",
           "content": {
             "application/json": {
               "schema": {
@@ -10608,6 +10608,13 @@
               "string",
               "null"
             ]
+          },
+          "qb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data\nStructure Definition (DM-60)."
           },
           "shacl": {
             "type": [

@@ -769,6 +769,7 @@ pub fn operations() -> Vec<Operation> {
                         hidden_attributes: input.hidden_attributes,
                         entity_types: input.entity_types,
                         rate_limits: input.rate_limits,
+                        access: None,
                     };
                     let proposal = assistant::execute_propose_endpoint(
                         &caller.identity,
