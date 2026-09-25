@@ -11,7 +11,7 @@ metadata:
     fi: "30 bussin sijainti kartalla, päivittyy jatkuvasti."
     en: "The position of 30 buses on a map, updated as they move."
 spec:
-  kind: fullstack
+  kind: ui-rust
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_hsl-transport.git

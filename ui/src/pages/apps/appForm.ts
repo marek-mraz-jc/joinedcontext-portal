@@ -1,5 +1,5 @@
 import { storedMetadata } from "../../api/manifest";
-import type { APP_SOURCES } from "../../schemas/kinds";
+import { appClass, type APP_SOURCES } from "../../schemas/kinds";
 
 /** One data need as the form holds it: the geo and time narrowing are one field each here. */
 export interface AppDataNeedForm {
@@ -134,7 +134,7 @@ export function fromAppEnvelope(manifest: unknown): AppForm {
   const needs = (spec.dataNeeds as Record<string, unknown>[] | undefined) ?? [];
   return {
     name: envelope.metadata?.name ?? "",
-    kind: (spec.kind as string | undefined) ?? "static",
+    kind: appClass(spec.kind as string | undefined),
     visibility: (spec.visibility as string | undefined) ?? "project",
     embeddable: spec.embeddable === true,
     source: source.git

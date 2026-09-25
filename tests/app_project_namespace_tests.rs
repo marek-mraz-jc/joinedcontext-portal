@@ -316,7 +316,7 @@ async fn the_last_pod_backed_app_retired_removes_the_namespace_and_one_left_keep
         "last",
         &[
             ("air", "ovzdusie", "fullstack", "retired"),
-            ("bikes", "doprava", "service", "retired"),
+            ("bikes", "doprava", "ui-rust", "retired"),
             ("buses", "doprava", "fullstack", "published"),
         ],
     );

@@ -160,7 +160,7 @@ fn create_body() -> Value {
     json!({
         "appName": "city-bikes-overview",
         "endpointName": format!("{PROJECT}-bikes"),
-        "appClass": "fullstack",
+        "appClass": "ui-rust",
         "visibility": "project",
         "prompt": "Create a live bike availability dashboard with station filtering",
         "dataNeeds": [{
@@ -225,7 +225,7 @@ fn a_run(id: &str, project: &str, app_name: &str, who: &str) -> AgentRun {
         kind: "app".to_owned(),
         unattended: false,
         continues: None,
-        app_class: "fullstack".to_owned(),
+        app_class: "ui-rust".to_owned(),
         visibility: "project".to_owned(),
         prompt: format!("a prompt of {who} nobody else may read"),
         prompt_digest: digest_prompt("a prompt"),

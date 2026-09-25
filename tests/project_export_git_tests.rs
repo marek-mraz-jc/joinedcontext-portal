@@ -362,3 +362,111 @@ async fn the_revisions_are_the_project_repository_history() {
         asked.url
     );
 }
+
+const ORG_MODEL: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: stations\n  namespace: org\nspec:\n  linkml: ./stations.linkml.yaml\n  version: 1.3.0\n  lifecycle: published\n  classes: [Station]\n";
+const ORG_SOURCE: &str = "id: https://bb.sk/stations\nname: stations\nclasses:\n  Station: {}\n";
+const PARKING_SOURCE: &str =
+    "id: https://bb.sk/parking\nname: parking\nimports: [linkml:types, org.stations.v1]\n";
+
+/// The project's model `parking` importing the organization's `stations` (DM-76), and the
+/// organization repository holding `stations` at `version`.
+async fn importing(server: &MockServer, state: &AppState, version: &str) {
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/ovzdusie/contents/spaces/ovzdusie/datamodels/parking.linkml.yaml",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({ "sha": "blob-parking", "content": STANDARD.encode(PARKING_SOURCE) }),
+        ))
+        .with_priority(1)
+        .mount(server)
+        .await;
+    for (file, text) in [
+        ("stations.yaml", ORG_MODEL),
+        ("stations.linkml.yaml", ORG_SOURCE),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "{}/contents/datamodels/stations/{file}",
+                common::REPO
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "sha": format!("blob-{file}"), "content": STANDARD.encode(text) }),
+            ))
+            .with_priority(1)
+            .mount(server)
+            .await;
+    }
+    state.mirror.upsert(envelope(
+        "DataModel",
+        "parking",
+        "ovzdusie",
+        json!({ "contextSpaceRef": "ovzdusie", "linkml": "./parking.linkml.yaml", "version": "1.0.0", "lifecycle": "published", "classes": ["ParkingSpot", "Station"] }),
+    ));
+    state.mirror.upsert(envelope(
+        "DataModel",
+        "stations",
+        ORG_NAMESPACE,
+        json!({ "linkml": "./stations.linkml.yaml", "version": version, "lifecycle": "published", "classes": ["Station"] }),
+    ));
+}
+
+/// MF-49: the organization model a project imports travels with it, its manifest and source as
+/// the organization holds them, listed in the index with version, checksum and origin.
+#[tokio::test]
+async fn an_imported_organization_model_travels_with_the_project() {
+    let (server, state) = world(HEAD).await;
+    importing(&server, &state, "1.3.0").await;
+
+    let answer = export(&state, steward(), "?format=git").await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let files = unzip(&answer.bytes);
+    assert_eq!(
+        String::from_utf8_lossy(&files["models/stations.v1.linkml.yaml"]),
+        ORG_SOURCE
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&files["models/stations.v1.yaml"]),
+        ORG_MODEL
+    );
+    let index: jc_core::kinds::Bundle =
+        serde_yaml_ng::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
+    index.validate().expect("a valid index");
+    let [model] = index.spec.models.as_slice() else {
+        panic!("one carried model: {:?}", index.spec.models);
+    };
+    assert_eq!(
+        (model.name.as_str(), model.version.to_string()),
+        ("stations", "1.3.0".to_owned())
+    );
+    assert_eq!(model.sha256, format!("{:x}", Sha256::digest(ORG_SOURCE)));
+    assert_eq!(
+        (
+            model.origin.organization.as_str(),
+            model.origin.name.as_str()
+        ),
+        ("bb", "stations")
+    );
+    // Schema files only: the two files of the model and nothing else of the organization.
+    let carried: Vec<&str> = files
+        .keys()
+        .filter(|path| path.starts_with("models/"))
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        carried,
+        ["models/stations.v1.linkml.yaml", "models/stations.v1.yaml"]
+    );
+}
+
+/// MF-49: a project importing a major the organization no longer holds is not exported, and the
+/// refusal names the import.
+#[tokio::test]
+async fn an_import_the_organization_no_longer_holds_is_not_exported() {
+    let (server, state) = world(HEAD).await;
+    importing(&server, &state, "2.0.0").await;
+    let answer = export(&state, steward(), "?format=git").await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    assert!(answer.text.contains("org.stations.v1"), "{}", answer.text);
+    assert!(answer.text.contains("2.0.0"), "{}", answer.text);
+}

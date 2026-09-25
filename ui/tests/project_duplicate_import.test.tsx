@@ -200,6 +200,43 @@ describe("Import project from Administration → Projects (UI-87)", () => {
     expect(typeof sentArchive === "object" && sentArchive !== null ? sentArchive.type : sentArchive).toBe("application/zip");
   });
 
+  it("shows what the import does with each organization model the archive carries (MF-50)", async () => {
+    const models = [
+      { name: "stations", version: "1.3.0", action: "map" },
+      { name: "bikes", version: "2.0.1", action: "land" },
+    ];
+    renderAt("/organization/projects", {}, () =>
+      new Response(JSON.stringify({ ...PLAN, models }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Import project" }));
+    const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
+    await user.upload(
+      within(dialog).getByLabelText("Choose the export archive"),
+      new File([new Uint8Array([80, 75, 3, 4])], "doprava.zip", { type: "application/zip" }),
+    );
+    await user.type(within(dialog).getByLabelText(/Name/), "doprava");
+    await user.click(within(dialog).getByRole("button", { name: "Check the archive" }));
+
+    expect(await within(dialog).findByRole("heading", { name: "Organization models" })).toBeInTheDocument();
+    expect(within(dialog).getByText(/stations 1\.3\.0: this organization holds it byte for byte/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/bikes 2\.0\.1: lands as a model of the project/)).toBeInTheDocument();
+  });
+
+  it("draws no model list for an archive that carries none", async () => {
+    renderAt("/organization/projects", {}, () =>
+      new Response(JSON.stringify({ ...PLAN, models: [] }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Import project" }));
+    const dialog = await screen.findByRole("dialog", { name: /Import a project/ });
+    await user.upload(within(dialog).getByLabelText("Choose the export archive"), new File(["x"], "a.zip"));
+    await user.type(within(dialog).getByLabelText(/Name/), "doprava");
+    await user.click(within(dialog).getByRole("button", { name: "Check the archive" }));
+    expect(await within(dialog).findByText("org/doprava at 8c56954")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("heading", { name: "Organization models" })).toBeNull();
+  });
+
   it("shows the API's refusal of the archive and draws no form", async () => {
     renderAt(
       "/organization/projects",

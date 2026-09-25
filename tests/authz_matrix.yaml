@@ -218,7 +218,7 @@ routes:
   - route: POST /projects/{project}/agent-runs
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 403, 403]
-    body: {"appName": "a", "appClass": "static", "prompt": "x", "dataNeeds": []}
+    body: {"appName": "a", "appClass": "ui", "prompt": "x", "dataNeeds": []}
   - route: GET /projects/{project}/agent-runs/{id}
     rule: "run-owner"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
@@ -322,6 +322,9 @@ routes:
   - route: PUT /projects/{project}/datamodels/{name}/source
     rule: "project-verb:propose:DataModel"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
+  - route: POST /projects/{project}/datamodels/{name}/share
+    rule: "project-verb:propose:DataModel"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/drafts
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
