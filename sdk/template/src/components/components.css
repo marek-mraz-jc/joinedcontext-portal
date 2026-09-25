@@ -72,6 +72,7 @@ body {
   flex: 1;
   padding: var(--jc-space-4, 1rem);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-space-4, 1rem);
   align-content: start;
 }

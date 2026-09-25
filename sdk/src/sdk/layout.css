@@ -43,6 +43,8 @@
 
 .jc-page {
   display: grid;
+  /* A track never grows to its content: a chart's canvas would push the page wider. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-gutter);
   align-content: start;
   width: 100%;
@@ -91,6 +93,7 @@
 
 .jc-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-space-3, 0.75rem);
   align-content: start;
   min-width: 0;
@@ -254,6 +257,7 @@
 /* Tabs: a row that scrolls sideways on a phone rather than wrapping into two. */
 .jc-tabs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-space-3, 0.75rem);
   min-width: 0;
 }
