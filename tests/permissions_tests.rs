@@ -851,3 +851,77 @@ fn a_projects_readers_and_writers_come_from_the_bindings_that_reach_it() {
     assert_eq!(other.readers, set(&["auditor@hel.fi"]));
     assert!(other.writers.is_empty());
 }
+
+/// T-2852 (PF-59, R20, EP-83): asking for a catalogue draft is no oracle for another project's
+/// Endpoint names. A caller who does not read the project gets one `404` for an Endpoint that
+/// exists and one that does not, and so does a caller who reads the project but not its Endpoints.
+#[tokio::test]
+async fn a_catalogue_draft_tells_nobody_who_cannot_read_the_endpoints_which_names_exist() {
+    let config = Config::for_tests();
+    let endpoint_editor = org(
+        "Role",
+        "endpoint-editor",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["propose"] }] }),
+    );
+    let pipeline_reader = org(
+        "Role",
+        "pipeline-reader",
+        json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["read"] }] }),
+    );
+    let app = app_with(
+        &config,
+        vec![
+            endpoint_editor,
+            pipeline_reader,
+            binding(
+                "elsewhere",
+                "endpoint-editor",
+                json!([{ "user": "outsider@hel.fi" }]),
+                json!({ "project": "doprava" }),
+                None,
+            ),
+            binding(
+                "pipelines-only",
+                "pipeline-reader",
+                json!([{ "user": "pipes@hel.fi" }]),
+                json!({ "project": "ovzdusie" }),
+                None,
+            ),
+            binding(
+                "endpoints",
+                "endpoint-editor",
+                json!([{ "user": "editor@hel.fi" }]),
+                json!({ "project": "ovzdusie" }),
+                None,
+            ),
+            endpoint_in("ovzdusie", "existing", "ovzdusie"),
+        ],
+    );
+    let uri = "/api/v1/projects/ovzdusie/catalogue/drafts";
+    let ask = |who: &str, name: &str| {
+        let app = app.clone();
+        let config = config.clone();
+        let who = identity(who, &[]);
+        let body = json!({ "endpoint": name });
+        async move { post(app, &config, who, uri, &body).await }
+    };
+
+    for who in ["outsider@hel.fi", "pipes@hel.fi"] {
+        let (existing, existing_body) = ask(who, "existing").await;
+        let (missing, missing_body) = ask(who, "missing").await;
+        assert_eq!(existing, StatusCode::NOT_FOUND, "{who}: {existing_body}");
+        assert_eq!(missing, StatusCode::NOT_FOUND, "{who}: {missing_body}");
+        assert_eq!(
+            existing_body.replace("existing", "NAME"),
+            missing_body.replace("missing", "NAME"),
+            "{who} tells an existing Endpoint from a missing one"
+        );
+    }
+
+    // Who may propose the kind here is answered as before: the name resolves, and the draft
+    // stops at the project's missing catalogue, not at a permission.
+    let (status, body) = ask("editor@hel.fi", "existing").await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    let (status, body) = ask("editor@hel.fi", "missing").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+}
