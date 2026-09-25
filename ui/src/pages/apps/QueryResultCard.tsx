@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { parse as parseYaml } from "yaml";
 import {
   Table,
   TableBody,
@@ -20,11 +21,22 @@ import {
 export const MAX_ROWS = 10;
 export const MAX_ATTRIBUTES = 5;
 export const MAX_TEXT = 2000;
+/** How many classes of a model the card draws, and how much of its document behind the toggle. */
+export const MAX_CLASSES = 20;
+export const MAX_DOCUMENT = 20_000;
+
+/** One class of a model as a person reads it: its attributes with their type and meaning. */
+export interface SchemaClass {
+  name: string;
+  description: string;
+  attributes: { name: string; range: string; description: string }[];
+}
 
 export type QueryView =
   | { kind: "table"; columns: string[]; rows: { id: string; cells: string[] }[]; total: number }
   | { kind: "fields"; fields: [string, string][] }
-  | { kind: "text"; text: string };
+  | { kind: "text"; text: string }
+  | { kind: "schema"; format: string; classes: SchemaClass[]; document: string };
 
 export interface QueryResult {
   endpoint: string;
@@ -208,6 +220,10 @@ export function viewOf(output: unknown, language?: string): QueryView {
           : entities.length,
     };
   }
+  const schema = schemaOf(answer);
+  if (schema !== null) {
+    return schema;
+  }
   if (isRecord(answer)) {
     return {
       kind: "fields",
@@ -218,6 +234,50 @@ export function viewOf(output: unknown, language?: string): QueryView {
   }
   const text = typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
   return { kind: "text", text: text.slice(0, MAX_TEXT) };
+}
+
+/** A text of a record field, or "". */
+function said(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * A model's document as `describe_schema` answers it (`{format, document}`): a LinkML one read as
+ * its classes and their attributes, any other kept as the document with its own line breaks —
+ * never a JSON string of `\n` escapes (T-2769). `null` for any other answer.
+ */
+export function schemaOf(answer: unknown): QueryView | null {
+  if (!isRecord(answer) || typeof answer.document !== "string" || typeof answer.format !== "string") {
+    return null;
+  }
+  const document = answer.document.slice(0, MAX_DOCUMENT);
+  const classes: SchemaClass[] = [];
+  if (answer.format === "linkml") {
+    let parsed: unknown = null;
+    try {
+      parsed = parseYaml(answer.document) as unknown;
+    } catch {
+      // A document that does not parse is still shown, as the text it is.
+    }
+    const slots = isRecord(parsed) && isRecord(parsed.slots) ? parsed.slots : {};
+    const defined = isRecord(parsed) && isRecord(parsed.classes) ? parsed.classes : {};
+    for (const [name, body] of Object.entries(defined).slice(0, MAX_CLASSES)) {
+      const cls = isRecord(body) ? body : {};
+      const own = isRecord(cls.attributes) ? cls.attributes : {};
+      const named = Array.isArray(cls.slots) ? cls.slots.filter((slot): slot is string => typeof slot === "string") : [];
+      const attributes = [...Object.keys(own), ...named.filter((slot) => !Object.hasOwn(own, slot))].map((slot) => {
+        const local = Object.hasOwn(own, slot) && isRecord(own[slot]) ? own[slot] : {};
+        const shared = Object.hasOwn(slots, slot) && isRecord(slots[slot]) ? slots[slot] : {};
+        return {
+          name: slot,
+          range: said(local.range) || said(shared.range),
+          description: said(local.description) || said(shared.description),
+        };
+      });
+      classes.push({ name, description: said(cls.description), attributes });
+    }
+  }
+  return { kind: "schema", format: answer.format, classes, document };
 }
 
 /** The card of a `query_endpoint` step, or none when the payload is not one. */
@@ -305,6 +365,8 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
           : t("assistant.query.rows", { count: view.total })}
       </p>
     </>
+  ) : view.kind === "schema" ? (
+    <SchemaAnswer view={view} />
   ) : view.kind === "fields" ? (
     <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
       {view.fields.map(([key, value]) => (
@@ -316,5 +378,53 @@ export function QueryAnswer({ view }: { view: QueryView }): JSX.Element {
     </dl>
   ) : (
     <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono">{view.text}</pre>
+  );
+}
+
+/** A model's classes as small tables, and its document behind a toggle (T-2769). */
+function SchemaAnswer({ view }: { view: Extract<QueryView, { kind: "schema" }> }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <>
+      {view.classes.map((cls) => (
+        <section key={cls.name} className="mt-1">
+          <p className="break-words">
+            <span className="font-medium">{cls.name}</span>
+            {cls.description !== "" ? <span className="text-fg-muted"> · {cls.description}</span> : null}
+          </p>
+          {cls.attributes.length > 0 ? (
+            <Table
+              caption={t("assistant.query.attributes", { name: cls.name })}
+              zebra={false}
+              maxHeight="max-h-48"
+              className="mt-0.5 text-caption"
+            >
+              <TableHead>
+                <TableHeaderCell className="px-2 py-1">{t("assistant.query.attribute")}</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-1">{t("assistant.query.range")}</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-1">{t("assistant.query.meaning")}</TableHeaderCell>
+              </TableHead>
+              <TableBody>
+                {cls.attributes.map((attribute) => (
+                  <TableRow key={attribute.name}>
+                    <TableCell className="px-2 py-1 font-mono">{attribute.name}</TableCell>
+                    <TableCell className="px-2 py-1 font-mono">{attribute.range}</TableCell>
+                    <TableCell className="px-2 py-1">
+                      <span className="block max-w-64 break-words">{attribute.description}</span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
+        </section>
+      ))}
+      <details className="mt-1" open={view.classes.length === 0}>
+        <summary className="cursor-pointer text-fg-muted">
+          {t("assistant.query.document", { format: view.format })}
+        </summary>
+        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono">{view.document}</pre>
+      </details>
+    </>
   );
 }

@@ -2271,7 +2271,12 @@
       "caption": "Die Zeilen, die der Endpoint geantwortet hat",
       "id": "Entität",
       "rows": "Zeilen: {count}",
-      "someRows": "{shown} von {total} Zeilen"
+      "someRows": "{shown} von {total} Zeilen",
+      "attributes": "Die Attribute von {name}",
+      "attribute": "Attribut",
+      "range": "Typ",
+      "meaning": "Bedeutung",
+      "document": "Das {format}-Dokument"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",

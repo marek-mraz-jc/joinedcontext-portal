@@ -2271,7 +2271,12 @@
       "caption": "The rows the endpoint answered",
       "id": "Entity",
       "rows": "{count, plural, one {# row} other {# rows}}",
-      "someRows": "{shown} of {total} rows"
+      "someRows": "{shown} of {total} rows",
+      "attributes": "The attributes of {name}",
+      "attribute": "Attribute",
+      "range": "Type",
+      "meaning": "What it means",
+      "document": "The {format} document"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",

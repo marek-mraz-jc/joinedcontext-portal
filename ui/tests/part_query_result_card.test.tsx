@@ -16,6 +16,7 @@ import {
   MAX_ATTRIBUTES,
   MAX_ROWS,
   QueryResultCard,
+  schemaOf,
   textOf,
   viewOf,
 } from "../src/pages/apps/QueryResultCard";
@@ -156,6 +157,8 @@ describe("the card of a query answer", () => {
       viewOf([entity(0)]),
       viewOf({ count: 42 }),
       viewOf({ content: [{ text: "no entities" }] }),
+      viewOf({ format: "linkml", document: "classes:\n  Event:\n    attributes:\n      name:\n        range: string\n" }),
+      viewOf({ format: "markdown", document: "# Events" }),
     ]) {
       cleanup();
       const { container } = renderPart(
@@ -201,6 +204,67 @@ describe("the grid in the reader's language (T-2769)", () => {
     expect(fi.rows[0].cells[at]).toBe("Kauppatori");
     expect(en.rows[0].cells[at]).toBe("Market Square");
     expect(JSON.stringify(fi)).not.toContain("languageMap");
+  });
+});
+
+describe("a model's schema in the card (T-2769)", () => {
+  const LINKML = [
+    "id: https://hel.fi/models/events",
+    "name: events",
+    "slots:",
+    "  startDate:",
+    "    range: datetime",
+    "    description: When the event begins.",
+    "classes:",
+    "  Event:",
+    "    description: Something that happens in the city.",
+    "    slots: [startDate]",
+    "    attributes:",
+    "      name:",
+    "        range: string",
+    "        description: What the event is called.",
+    "  Place: {}",
+  ].join("\n");
+
+  it("reads a LinkML document as its classes and their attributes, the document behind a toggle", () => {
+    const view = schemaOf({ format: "linkml", mediaType: "application/yaml", document: LINKML });
+    expect(view).toEqual({
+      kind: "schema",
+      format: "linkml",
+      document: LINKML,
+      classes: [
+        {
+          name: "Event",
+          description: "Something that happens in the city.",
+          attributes: [
+            { name: "name", range: "string", description: "What the event is called." },
+            { name: "startDate", range: "datetime", description: "When the event begins." },
+          ],
+        },
+        { name: "Place", description: "", attributes: [] },
+      ],
+    });
+    renderPart(
+      <QueryResultCard result={{ endpoint: "helsinki-events", tool: "describe_schema", view: viewOf({ structuredContent: { format: "linkml", document: LINKML } }) }} />,
+    );
+    const table = screen.getByRole("table", { name: "The attributes of Event" });
+    expect(within(table).getByText("When the event begins.")).toBeTruthy();
+    const toggle = screen.getByText("The linkml document");
+    expect(toggle.closest("details")?.open).toBe(false);
+    expect(document.body.textContent).not.toContain("\\n");
+  });
+
+  it("shows another format, or a document that does not parse, as its text with its own line breaks", () => {
+    for (const [format, text] of [
+      ["markdown", "# Events\n\nThe city's events."],
+      ["linkml", "classes: [unclosed"],
+    ]) {
+      const view = schemaOf({ format, document: text });
+      expect(view).toEqual({ kind: "schema", format, classes: [], document: text });
+    }
+    expect(schemaOf({ format: "linkml" })).toBeNull();
+    expect(schemaOf({ document: "x" })).toBeNull();
+    expect(schemaOf("text")).toBeNull();
   });
 });
 

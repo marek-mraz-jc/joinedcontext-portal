@@ -2271,7 +2271,12 @@
       "caption": "Řádky, které endpoint vrátil",
       "id": "Entita",
       "rows": "Řádky: {count}",
-      "someRows": "{shown} z {total} řádků"
+      "someRows": "{shown} z {total} řádků",
+      "attributes": "Atributy třídy {name}",
+      "attribute": "Atribut",
+      "range": "Typ",
+      "meaning": "Co znamená",
+      "document": "Dokument {format}"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem.",
