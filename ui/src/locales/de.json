@@ -3745,5 +3745,12 @@
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"
+  },
+  "units": {
+    "search": "Nach Code, Symbol, Name oder Größe suchen",
+    "frequent": "Häufig verwendet",
+    "none": "Keine Einheit",
+    "noMatch": "Keine UN/CEFACT-Einheit passt. Versuchen Sie das Symbol (µg/m³), den Namen oder den Code (GQ).",
+    "more": "{shown} von {total} Einheiten angezeigt. Tippen Sie weiter, um die Liste einzugrenzen."
   }
 }

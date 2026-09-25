@@ -93,14 +93,16 @@ describe("LinkML visual editor", () => {
     await user.click(screen.getByRole("button", { name: "pm10" }));
     await user.selectOptions(screen.getByLabelText("Range"), "integer");
     await user.selectOptions(screen.getByLabelText("NGSI-LD kind"), "GeoProperty");
-    await user.selectOptions(screen.getByLabelText("Unit"), "GQ");
+    // The unit is searched, not scrolled for (T-2809): the UCUM spelling finds µg/m³.
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "ug/m3");
+    await user.keyboard("{Enter}");
     await user.click(screen.getByLabelText("Required"));
 
     const slot = parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
     expect(slot?.range).toBe("integer");
     expect(slot?.kind).toBe("GeoProperty");
     expect(slot?.required).toBe(true);
-    expect(slot?.unit?.ucum_code).toBe("ug/m3");
+    expect(slot?.unit?.ucum_code).toBe("ug.m-3");
     // DM-06: the CEFACT common code travels with the unit, not only the UCUM symbol.
     expect(slot?.unit?.exact_mappings).toEqual(["ucefact:GQ", "qudt-unit:MicroGM-PER-M3"]);
     // DM-05: the kind is the annotation Model Tools reads, not a field of our own.
