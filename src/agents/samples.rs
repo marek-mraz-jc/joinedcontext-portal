@@ -28,6 +28,8 @@ struct Card {
     name: String,
     title: String,
     purpose: String,
+    archetype: String,
+    layout: String,
     keywords: Vec<String>,
 }
 
@@ -62,9 +64,8 @@ fn score(card: &Card, words: &BTreeSet<String>, spaced: &str) -> usize {
         .count()
 }
 
-/// The sample whose keywords the request names most, the first by name on a tie; none when the
-/// request names none of them, and the template stands alone.
-pub fn closest(request: &str) -> Option<Sample> {
+/// The card whose keywords the request names most, the first by name on a tie.
+fn closest_card(request: &str) -> Option<Card> {
     let lower = request.to_lowercase();
     let tokens: Vec<&str> = lower
         .split(|c: char| !c.is_alphanumeric())
@@ -78,7 +79,13 @@ pub fn closest(request: &str) -> Option<Sample> {
         .filter(|(score, _)| *score > 0)
         .collect();
     ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name)));
-    let (_, card) = ranked.into_iter().next()?;
+    ranked.into_iter().next().map(|(_, card)| card)
+}
+
+/// The sample whose keywords the request names most, the first by name on a tie; none when the
+/// request names none of them, and the template stands alone.
+pub fn closest(request: &str) -> Option<Sample> {
+    let card = closest_card(request)?;
     let prefix = format!("{}/", card.name);
     let mut files: BTreeMap<String, String> = Gallery::iter()
         .filter(|path| path.starts_with(&prefix) && !path.ends_with("/sample.json"))
@@ -101,6 +108,78 @@ pub fn closest(request: &str) -> Option<Sample> {
             .chain(files)
             .collect(),
     })
+}
+
+/// What an App is built as besides its look (AP-137): the closest sample's archetype and layout,
+/// or the template's own for a request of no kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Design {
+    pub archetype: String,
+    pub layout: String,
+}
+
+/// The template's design, for a request no sample is close to.
+const TEMPLATE: &str = "template";
+
+/// The design a request starts from: the same answer on every run, so another App's design is
+/// read back from its request.
+pub fn design(request: &str) -> Design {
+    closest_card(request).map_or_else(
+        || Design {
+            archetype: TEMPLATE.to_owned(),
+            layout: TEMPLATE.to_owned(),
+        },
+        |card| Design {
+            archetype: card.archetype,
+            layout: card.layout,
+        },
+    )
+}
+
+/// What the run tells the model when another App already has its design (AP-137).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Advice {
+    /// The App of the project with the same archetype and layout.
+    pub twin: String,
+    /// The gallery layout to use instead.
+    pub layout: String,
+}
+
+/// The advice for an App of `design` among the project's `others` (App name and design): none
+/// when no other App has both its archetype and its layout. The layout offered is the first by
+/// name that no App of the project holds, or the least held one when every layout is taken,
+/// never the App's own.
+pub fn advice(design: &Design, others: &[(String, Design)]) -> Option<Advice> {
+    let twin = others
+        .iter()
+        .filter(|(_, other)| other == design)
+        .map(|(name, _)| name.clone())
+        .min()?;
+    let layouts: BTreeSet<String> = cards().into_iter().map(|card| card.layout).collect();
+    let held = |layout: &str| {
+        others
+            .iter()
+            .filter(|(_, other)| other.layout == layout)
+            .count()
+    };
+    let layout = layouts
+        .into_iter()
+        .filter(|layout| *layout != design.layout)
+        .min_by_key(|layout| held(layout))?;
+    Some(Advice { twin, layout })
+}
+
+/// The lines the first instruction carries for [`Advice`]: which App shares the design and the
+/// layout to use, with one sentence on the difference.
+pub fn advice_section(design: &Design, advice: &Advice) -> String {
+    format!(
+        "\n\nNOTE ON THE LOOK: the App `{}` of this project is already a {} laid out as \
+         `{}`. This App has a look of its own, but the same archetype and layout would still make \
+         the two look alike: lay this App out as the gallery layout `{}` instead, keeping what \
+         the request asks for, and say in one sentence of your answer how it differs from `{}`. \
+         If the person asks for the same layout, follow the person.",
+        advice.twin, design.archetype, design.layout, advice.layout, advice.twin
+    )
 }
 
 /// The pack's section for the request's closest sample, or nothing when no sample is close.
@@ -189,6 +268,85 @@ mod tests {
         assert!(closest("").is_none());
         // A keyword inside another word is not the keyword.
         assert!(closest("mapping of formulas").is_none());
+    }
+
+    fn designed(name: &str, request: &str) -> (String, Design) {
+        (name.to_owned(), design(request))
+    }
+
+    /// AP-137: a request's design is its closest sample's archetype and layout, the template's
+    /// when no sample is close, and the same answer on every run.
+    #[test]
+    fn a_request_starts_from_its_samples_archetype_and_layout() {
+        let map = design("A map where residents find the nearest bike station");
+        assert_eq!(map.archetype, "citizen-map");
+        assert_eq!(map.layout, "hero-map");
+        assert_eq!(
+            map,
+            design("A map where residents find the nearest bike station")
+        );
+        let plain = design("Show the data");
+        assert_eq!(
+            (plain.archetype.as_str(), plain.layout.as_str()),
+            ("template", "template")
+        );
+    }
+
+    /// AP-137: another App of the same archetype and layout gets the new one a layout no App of
+    /// the project holds, the first by name.
+    #[test]
+    fn a_twin_design_is_offered_a_layout_nobody_holds() {
+        let request = "A map where residents find the nearest bike station";
+        let others = vec![
+            designed("stations", "Map of the bike stations near me"),
+            designed("kpis", "Dashboard of our KPIs against their targets"),
+        ];
+        let advice = advice(&design(request), &others).expect("the map has a twin");
+        assert_eq!(advice.twin, "stations");
+        assert_ne!(advice.layout, "hero-map");
+        assert_ne!(
+            advice.layout, "dashboard-grid",
+            "a layout another App holds is not offered"
+        );
+        let section = advice_section(&design(request), &advice);
+        assert!(
+            section.contains("`stations`") && section.contains(&advice.layout),
+            "{section}"
+        );
+    }
+
+    /// AP-137: Apps of other designs, and no Apps at all, need no advice.
+    #[test]
+    fn no_twin_no_advice() {
+        let request = "An events calendar with a week view";
+        assert_eq!(advice(&design(request), &[]), None);
+        let others = vec![designed("stations", "Map of the bike stations near me")];
+        assert_eq!(advice(&design(request), &others), None);
+    }
+
+    /// AP-137: when every gallery layout is held, the least held one other than the App's own is
+    /// offered, so the advice never repeats the twin's layout.
+    #[test]
+    fn when_every_layout_is_taken_the_least_used_other_one_is_offered() {
+        let mut others: Vec<(String, Design)> = cards()
+            .into_iter()
+            .map(|card| {
+                (
+                    card.name.clone(),
+                    Design {
+                        archetype: card.archetype,
+                        layout: card.layout,
+                    },
+                )
+            })
+            .collect();
+        // The map layout twice more: it is the most held, and the App's own.
+        let map = design("A map where residents find the nearest bike station");
+        others.push(("stations-2".to_owned(), map.clone()));
+        others.push(("stations-3".to_owned(), map.clone()));
+        let advice = advice(&map, &others).expect("a twin");
+        assert_ne!(advice.layout, map.layout);
+        assert_eq!(advice.twin, "citizen-map");
     }
 
     #[test]

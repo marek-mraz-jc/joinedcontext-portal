@@ -626,7 +626,7 @@
     },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 2
       },
       "tests": [
@@ -726,6 +726,15 @@
       "tests": [
         "kpi_pipeline_card.test.tsx",
         "part_kpi_pipeline_card.test.tsx"
+      ]
+    },
+    "src/pages/apps/NewEndpointPanel.tsx": {
+      "controls": {
+        "Button": 3,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "new_endpoint_panel.test.tsx"
       ]
     },
     "src/pages/apps/Prose.tsx": {
@@ -1124,6 +1133,14 @@
       },
       "tests": [
         "space_complete.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SpaceDrift.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_drift.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceInside.tsx": {

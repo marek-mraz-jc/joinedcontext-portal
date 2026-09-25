@@ -2039,7 +2039,25 @@
       "details": "Podrobnosti: název, druh a co smí číst ({name})",
       "noEndpoints": "Tento projekt zatím nepublikuje žádný endpoint; aplikace z něj čte, takže nejdřív publikujte endpoint.",
       "nameHint": "Malá písmena, číslice a spojovníky: stává se z toho adresa, na které se aplikace poskytuje.",
-      "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky, začíná i končí některým z nich a má nejvýše 40 znaků."
+      "nameInvalid": "Název tvoří malá písmena, číslice a spojovníky, začíná i končí některým z nich a má nejvýše 40 znaků.",
+      "newEndpoint": {
+        "open": "+ Nový endpoint",
+        "title": "Nový endpoint",
+        "hint": "Navrhne se hned jako samostatná změna. Tvůrce ho použije, jakmile je změna sloučena a endpoint běží.",
+        "name": "Název endpointu",
+        "nameHint": "Malá písmena, číslice a pomlčky, např. bikes-app.",
+        "nameInvalid": "Použijte malá písmena, číslice a pomlčky; začátek a konec písmeno nebo číslice, nejvýše 63 znaků.",
+        "space": "Kontextový prostor",
+        "spaceMissing": "Vyberte kontextový prostor, který endpoint zpřístupní.",
+        "accessHint": "Pouze čtení nic nového neuděluje: přes endpoint čtete to, co už v prostoru čtete. Čtení a úpravy nebo Plný přístup udělí tyto operace na níže vybraných typech všem v projektu, takže změna jde červeným pruhem a rozhoduje jiný schvalovatel.",
+        "types": "Typy, které aplikace smí měnit",
+        "typesHint": "Oprávnění platí jen pro tyto typy.",
+        "typesMissing": "Vyberte alespoň jeden typ, který aplikace smí měnit.",
+        "propose": "Navrhnout endpoint",
+        "cancel": "Zrušit",
+        "close": "Zavřít",
+        "waiting": "{name} je navržen (pruh {lane}). Jakmile je změna sloučena a endpoint běží, tvůrce ho načte; popis můžete mezitím psát dál."
+      }
     },
     "newAction": "Vygenerovat vlastní aplikaci",
     "builds": {
@@ -3183,6 +3201,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Odchylka od repozitáře",
+      "notYet": "Kontrola odchylek ještě neproběhla: platforma porovná počáteční entity tohoto prostoru s repozitářem při dalším průchodu.",
+      "clean": "Prostor obsahuje to, co deklaruje repozitář.",
+      "found": "{count, plural, one {# entita se liší od repozitáře.} few {# entity se liší od repozitáře.} other {# entit se liší od repozitáře.}}",
+      "observed": "Zkontrolováno {when}.",
+      "caption": "Entity prostoru {space}, které se liší od repozitáře",
+      "entity": "Entita",
+      "kind": "Odchylka",
+      "attributes": "Atributy",
+      "resolution": "Řešení",
+      "resolve": "Vyřešit",
+      "resolveLabel": "Vyřešit odchylku entity {id}",
+      "mayNotResolve": "K řešení potřebujete právo navrhovat entity v tomto projektu.",
+      "wholeEntity": "Celá entita"
+    },
     "modal": {
       "title": "Co se změnilo v „{id}“",
       "lead": {

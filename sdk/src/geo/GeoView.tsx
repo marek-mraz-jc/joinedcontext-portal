@@ -12,6 +12,7 @@ import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { mapWorkerReady, NO_BASEMAP, styleFor } from "../sdk/map";
+import { mapColors } from "../sdk/tokens";
 import type { Geometry, Position } from "./validate";
 
 const SOURCE = "geometry";
@@ -69,7 +70,7 @@ export function GeoView({
   value,
   selectedId,
   onSelect,
-  accent = "#1d4ed8",
+  accent,
   basemap,
   label = "Geometry",
 }: {
@@ -77,6 +78,7 @@ export function GeoView({
   /** The feature drawn as chosen; `null` draws none of them chosen. */
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** The colour the shapes are drawn in; the app's own map point colour when none (SDK-25). */
   accent?: string;
   basemap?: string;
   /** What a screen reader calls the map, since the map itself says nothing. */
@@ -89,6 +91,9 @@ export function GeoView({
   select.current = onSelect;
   const features = useMemo(() => featuresOf(value), [value]);
   const style = useMemo(() => styleFor(basemap), [basemap]);
+  // The design tokens colour the map as they colour the page (SDK-25, AP-137).
+  const colors = mapColors();
+  const drawn = accent ?? colors.point;
 
   const collection = useMemo(
     () => ({
@@ -130,14 +135,14 @@ export function GeoView({
           type: "fill",
           source: SOURCE,
           filter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false],
-          paint: { "fill-color": accent, "fill-opacity": ["case", ["get", "chosen"], 0.45, 0.2] },
+          paint: { "fill-color": drawn, "fill-opacity": ["case", ["get", "chosen"], 0.45, 0.2] },
         });
         instance?.addLayer({
           id: "lines",
           type: "line",
           source: SOURCE,
           filter: ["match", ["geometry-type"], ["LineString", "MultiLineString", "Polygon", "MultiPolygon"], true, false],
-          paint: { "line-color": accent, "line-width": ["case", ["get", "chosen"], 4, 2] },
+          paint: { "line-color": drawn, "line-width": ["case", ["get", "chosen"], 4, 2] },
         });
         instance?.addLayer({
           id: "points",
@@ -146,9 +151,9 @@ export function GeoView({
           filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
           paint: {
             "circle-radius": ["case", ["get", "chosen"], 9, 6],
-            "circle-color": accent,
+            "circle-color": drawn,
             "circle-stroke-width": 1.5,
-            "circle-stroke-color": "#ffffff",
+            "circle-stroke-color": colors.stroke,
           },
         });
         for (const layer of ["areas", "lines", "points"]) {
