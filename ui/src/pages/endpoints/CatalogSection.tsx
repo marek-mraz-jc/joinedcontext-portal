@@ -194,7 +194,7 @@ export function CatalogSection({
             {t("app.loading")}
           </p>
         ) : (
-          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-subtle p-3 font-mono text-caption">
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-subtle p-3 font-mono text-caption">
             {raw.body}
           </pre>
         )}

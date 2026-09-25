@@ -2743,7 +2743,8 @@
       "all": "All",
       "live": "Running",
       "ended": "Ended",
-      "mine": "Only mine"
+      "mine": "Only mine",
+      "testRuns": "Show test runs"
     },
     "kinds": {
       "conversation": "Conversation",
@@ -2792,7 +2793,8 @@
     "showMore": "Show {count} more ({left} left)",
     "table": {
       "name": "Name"
-    }
+    },
+    "testRun": "Test run"
   },
   "activity": {
     "title": "Activity",
