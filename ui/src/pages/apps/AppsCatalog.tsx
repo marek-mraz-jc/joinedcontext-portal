@@ -26,7 +26,8 @@ import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
-import { Alert, Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
+import { Alert, Button, buttonClass, PageHeader, recordCard, safeHref } from "../../components/ui";
+import { RecordLink } from "../../components/RecordLink";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 
@@ -390,10 +391,16 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
             <li
               key={app.metadata.name}
               title={localized(app.metadata.description, i18n.language, "") || undefined}
-              className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-4 text-center hover:bg-surface-subtle"
+              onClick={recordCard.onClick}
+              onAuxClick={recordCard.onAuxClick}
+              className={`flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-4 text-center hover:bg-surface-subtle ${recordCard.className}`}
             >
               <AppIcon />
-              <h2 className="line-clamp-2 text-sm font-semibold">{title}</h2>
+              <h2 className="line-clamp-2 text-sm font-semibold">
+                <RecordLink project={project} plural="apps" name={app.metadata.name}>
+                  {title}
+                </RecordLink>
+              </h2>
               <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
               {spec.lifecycle === "published" ? <AppCheckChip check={appChecks.get(app.metadata.name)} /> : null}
               {spec.visibility ? (

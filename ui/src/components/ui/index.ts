@@ -52,6 +52,7 @@ export {
   TableRow,
   TableRowHeaderCell,
   TableSkeleton,
+  recordCard,
 } from "./Table";
 export type { TableCellProps, TableHeaderCellProps, TableProps } from "./Table";
 export { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "./Menu";

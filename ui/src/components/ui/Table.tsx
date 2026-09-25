@@ -146,6 +146,24 @@ export function openRowLink(event: MouseEvent<HTMLElement>): void {
   event.preventDefault();
 }
 
+/**
+ * A record's card that is not a `Card` (a list item, an article) takes a click the way a row does:
+ * spread these on it and give its name a record link (T-2875).
+ */
+export const recordCard = {
+  className: "has-[a[data-row-link]]:cursor-pointer",
+  onClick: (event: MouseEvent<HTMLElement>): void => {
+    if (!event.defaultPrevented) {
+      openRowLink(event);
+    }
+  },
+  onAuxClick: (event: MouseEvent<HTMLElement>): void => {
+    if (!event.defaultPrevented && event.button === 1) {
+      openRowLink(event);
+    }
+  },
+};
+
 export function TableRow({
   className,
   children,

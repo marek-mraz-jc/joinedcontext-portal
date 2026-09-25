@@ -427,6 +427,60 @@ describe("every list opens its record on a click on the row", () => {
   });
 });
 
+const CARDS = [
+  {
+    list: "sync sources",
+    path: "/projects/helsinki/syncsources",
+    api: "/api/v1/projects/helsinki/syncsources",
+    body: list([manifest("SyncSource", "city-repo", { source: { git: { url: "https://git.example.org/city.git" } } })]),
+    link: "city-repo",
+    plain: "Origin",
+    opens: "/projects/helsinki/syncsources/city-repo/edit",
+  },
+  {
+    list: "apps",
+    path: "/projects/helsinki/apps",
+    api: "/api/v1/projects/helsinki/apps",
+    body: list([manifest("App", "bike-map", { lifecycle: "draft", visibility: "project" })]),
+    link: /bike map/i,
+    plain: "Visible to project",
+    opens: "/projects/helsinki/apps/bike-map",
+  },
+];
+
+describe("every card of a record opens it on a click on the card", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  for (const one of CARDS) {
+    it(`${one.list}: a plain part of the card opens the record, the card's own button does not`, async () => {
+      await renderRoute({
+        path: `${one.path}?lang=en`,
+        answer: (path, request) => (request.method === "GET" && path === one.api ? jsonResponse(one.body) : undefined),
+      });
+      const link = await screen.findByRole("link", { name: one.link });
+      expect(link).toHaveAttribute("data-row-link");
+      expect(link).toHaveAttribute("href", one.opens);
+      const card = link.closest("li") as HTMLElement;
+      const button = within(card).queryAllByRole("button")[0];
+      if (button) {
+        await userEvent.click(button);
+        await userEvent.keyboard("{Escape}");
+        expect(window.location.pathname, "the card's button handled its own click").toBe(one.path);
+      }
+      await userEvent.click(within(card).getByText(one.plain));
+      await waitFor(() => {
+        expect(window.location.pathname).toBe(one.opens);
+      });
+    });
+  }
+});
+
 const READER = { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };
 
 describe("a person who may not change a record still opens it, read only", () => {
