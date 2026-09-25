@@ -54,7 +54,9 @@ test("the template app renders from the Portal's preview document in a sandboxed
   const frame = page.frameLocator("iframe");
 
   await expect(frame.getByRole("heading", { name: "bikes" })).toBeVisible({ timeout: 20_000 });
-  await expect(frame.getByText("Station: 2")).toBeVisible();
+  // The server's summary is a chart since T-2921 (AP-138): the figure under its caption, drawn.
+  const summary = frame.locator("figure", { hasText: "Entities per type" });
+  await expect(summary.locator("canvas")).toHaveCount(1);
   await frame.getByRole("button", { name: "Station" }).click();
   await expect(frame.getByRole("region", { name: "Station" }).getByText("Kallio")).toBeVisible();
   // The map draws the stations: its worker came in as a data: URL, which only a frame without
