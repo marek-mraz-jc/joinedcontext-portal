@@ -24,6 +24,7 @@ import {
   REPRESENTATION_PATHS,
   catalogueUrl,
   endpointUrl,
+  servedRepresentations,
 } from "../../components/endpoints/links";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
@@ -364,7 +365,7 @@ export function EndpointPage({
         <Facts>
           <Fact label={t("endpoints.field.representations")}>
             <ul className="flex flex-wrap gap-1">
-              {(spec.enabledRepresentations ?? []).map((rep) => (
+              {servedRepresentations(spec).map((rep) => (
                 <li key={rep}>
                   {slug && REPRESENTATION_PATHS[rep] ? (
                     <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>{rep}</EndpointLink>

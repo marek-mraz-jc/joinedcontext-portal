@@ -32,6 +32,7 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  servedRepresentations,
 } from "../components/endpoints/links";
 import {
   admits,
@@ -1206,7 +1207,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               </TableCell>
               <TableCell secondary>
                 <ul className="flex flex-wrap gap-1">
-                  {(spec.enabledRepresentations ?? []).map((rep) => (
+                  {servedRepresentations(spec).map((rep) => (
                     <li key={rep}>
                       {slug && REPRESENTATION_PATHS[rep] ? (
                         <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>
@@ -1331,7 +1332,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     </TableCell>
                     <TableCell secondary>
                       <ul className="flex flex-wrap gap-1">
-                        {(spec.enabledRepresentations ?? []).map((rep) => (
+                        {servedRepresentations(spec).map((rep) => (
                           <li key={rep}>
                             {slug && REPRESENTATION_PATHS[rep] ? (
                               <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>

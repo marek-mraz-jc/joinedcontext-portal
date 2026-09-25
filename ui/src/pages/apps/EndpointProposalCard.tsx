@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { rememberPrefill } from "../../assistant/state";
 import { refName } from "../../api/manifest";
+import { servedRepresentations } from "../../components/endpoints/links";
 import { AUDIENCE_TONE } from "../../components/endpoints/sharing";
 import { TypeLink } from "../models/ModelLinks";
 import { Badge } from "../../components/ui/Badge";
@@ -72,7 +73,7 @@ export function EndpointProposalCard({
   const title = proposal.endpoint.metadata?.title;
   const audience = typeof spec.audience === "string" ? spec.audience : "project-list";
   const projects = strings(spec.allowedProjects);
-  const representations = strings(spec.enabledRepresentations);
+  const representations = servedRepresentations(spec);
   const hidden = strings((spec.projection as { hiddenAttributes?: unknown } | undefined)?.hiddenAttributes);
   const types = proposal.policies.flatMap((policy) => {
     const info = (policy as { spec?: { information?: { entities?: { type?: unknown }[] }[] } }).spec?.information;

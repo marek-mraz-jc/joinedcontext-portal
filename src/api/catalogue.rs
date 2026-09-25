@@ -858,13 +858,20 @@ fn endpoint_url(base: &Url, slug: &str) -> String {
     format!("{origin}/api/endpoint/{slug}/")
 }
 
-fn representations(endpoint: &Value) -> Vec<String> {
-    endpoint["enabledRepresentations"]
+/// What an Endpoint spec serves: the listed representations plus `mcp`, which every Endpoint
+/// serves unless `spec.mcp` is `false` (EP-24). The gateway reads the same rule from jc-core's
+/// `EndpointSpec::served_representations`, so the page and the instance agree.
+pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
+    let mut served: Vec<String> = spec["enabledRepresentations"]
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|r| r.as_str().map(str::to_owned))
-        .collect()
+        .collect();
+    if spec["mcp"] != Value::Bool(false) && !served.iter().any(|r| r == "mcp") {
+        served.push("mcp".to_owned());
+    }
+    served
 }
 
 /// The dataset page's answer, from `package_show` and, when it names one, the Endpoint in the
@@ -909,7 +916,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
             (
                 Some(CatalogueEndpoint {
                     url,
-                    representations: representations(&endpoint.spec),
+                    representations: served_representations(&endpoint.spec),
                 }),
                 model,
             )
@@ -1358,5 +1365,32 @@ classes:
         fn default_page() -> Self {
             Filters::parse(None)
         }
+    }
+
+    /// EP-24: MCP is on without being listed, internal or public; only `mcp: false` leaves it
+    /// out, and a listed one is not doubled.
+    #[test]
+    fn every_endpoint_serves_mcp_unless_it_opts_out() {
+        let served = |spec: Value| served_representations(&spec);
+        assert_eq!(
+            served(
+                json!({ "audience": "project-list", "enabledRepresentations": ["ngsi-ld", "csv"] })
+            ),
+            ["ngsi-ld", "csv", "mcp"]
+        );
+        assert_eq!(
+            served(json!({ "enabledRepresentations": ["mcp", "ngsi-ld"] })),
+            ["mcp", "ngsi-ld"]
+        );
+        assert_eq!(
+            served(json!({ "enabledRepresentations": ["ngsi-ld"], "mcp": false })),
+            ["ngsi-ld"]
+        );
+        assert_eq!(served(json!({ "mcp": true })), ["mcp"]);
+        assert_eq!(
+            served(json!({})),
+            ["mcp"],
+            "a spec with no list still serves MCP"
+        );
     }
 }
