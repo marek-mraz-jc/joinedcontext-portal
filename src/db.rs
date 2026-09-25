@@ -625,3 +625,62 @@ pub async fn load_agent_run_events(
 fn is_unique_violation(err: &sqlx::Error) -> bool {
     matches!(err, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
 }
+
+/// A person whose Keycloak user is deleted once the Change that removes them from every `Group`
+/// and `RoleBinding` is merged (PF-93, T-2683).
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PersonDeletion {
+    pub person_id: String,
+    pub pull_request: i64,
+    pub change_name: String,
+}
+
+/// Records a pending removal; `false` when one is already pending for this person.
+pub async fn insert_person_deletion(
+    pool: &PgPool,
+    person_id: &str,
+    pull_request: u64,
+    change_name: &str,
+    requested_by: &str,
+) -> Result<bool, sqlx::Error> {
+    let pull_request = i64::try_from(pull_request).unwrap_or(i64::MAX);
+    let inserted = sqlx::query(
+        "INSERT INTO person_deletions (person_id, pull_request, change_name, requested_by) \
+         VALUES ($1, $2, $3, $4) ON CONFLICT (person_id) DO NOTHING",
+    )
+    .bind(person_id)
+    .bind(pull_request)
+    .bind(change_name)
+    .bind(requested_by)
+    .execute(pool)
+    .await?;
+    Ok(inserted.rows_affected() == 1)
+}
+
+pub async fn person_deletion(
+    pool: &PgPool,
+    person_id: &str,
+) -> Result<Option<PersonDeletion>, sqlx::Error> {
+    sqlx::query_as::<_, PersonDeletion>(
+        "SELECT person_id, pull_request, change_name FROM person_deletions WHERE person_id = $1",
+    )
+    .bind(person_id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn person_deletions(pool: &PgPool) -> Result<Vec<PersonDeletion>, sqlx::Error> {
+    sqlx::query_as::<_, PersonDeletion>(
+        "SELECT person_id, pull_request, change_name FROM person_deletions ORDER BY requested_at",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn remove_person_deletion(pool: &PgPool, person_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM person_deletions WHERE person_id = $1")
+        .bind(person_id)
+        .execute(pool)
+        .await
+        .map(drop)
+}

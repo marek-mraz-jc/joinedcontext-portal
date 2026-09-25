@@ -56,7 +56,7 @@ type Place = string;
  */
 export type BindingScope = "organization" | "project" | "all";
 
-interface GrantForm {
+export interface GrantForm {
   subjectKind: "user" | "group";
   subject: string;
   role: string;
