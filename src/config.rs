@@ -26,6 +26,12 @@ pub struct Config {
     /// without an edge in front leaves it off and the header is ignored
     /// (`JC_TRUST_EDGE_TOKEN`, the literal string `true` to turn it on; default `false`).
     pub trust_edge_token: bool,
+    /// Whether the Dashboards section is shown (`JC_PORTAL_DASHBOARDS`, the literal string
+    /// `true` to show it; default hidden, the owner's call of 2026-09-25, T-2874). Hidden, the
+    /// navigation leaves it out, its page sends a visit to the project and the assistant does
+    /// not offer the path; the kind, its manifests and its API stay, so turning it on loses
+    /// nothing.
+    pub dashboards: bool,
     /// What the deployment says it switched on, for the organization setup page (T-2748).
     pub setup: SetupStatements,
     /// The key every session cookie is sealed with (`JC_PORTAL_COOKIE_KEY`, at least 64
@@ -211,6 +217,7 @@ impl std::fmt::Debug for Config {
             .field("public_base_url", &self.public_base_url.as_str())
             .field("oidc", &self.oidc)
             .field("trust_edge_token", &self.trust_edge_token)
+            .field("dashboards", &self.dashboards)
             .field("setup", &self.setup)
             .field("cookie_key", &"[redacted]")
             .field(
@@ -1200,6 +1207,7 @@ impl Config {
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
+        let dashboards = lookup("JC_PORTAL_DASHBOARDS").is_some_and(|v| v.trim() == "true");
         let setup = SetupStatements::from_vars(&lookup);
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
@@ -1252,6 +1260,7 @@ impl Config {
             public_base_url,
             oidc,
             trust_edge_token,
+            dashboards,
             setup,
             cookie_key,
             cookie_keys_previous,
@@ -1298,6 +1307,8 @@ impl Config {
                 .unwrap_or_else(|_| unreachable!("valid test url")),
             oidc: None,
             trust_edge_token: false,
+            // The tests exercise the section; hiding it is tested where it is decided.
+            dashboards: true,
             setup: SetupStatements::default(),
             artifact_store: None,
             pipeline_secrets: None,
@@ -1883,6 +1894,18 @@ mod tests {
         match Config::from_vars(with(vec![("JC_PORTAL_APPS_REGISTRY", "forge.example.org")])) {
             Err(ConfigError::Invalid { reason, .. }) => assert!(reason.contains("JC_GITEA_OWNER")),
             Ok(_) => panic!("a registry without the forge's organization was accepted"),
+        }
+    }
+
+    /// T-2874: dashboards are hidden unless the literal `true` shows them.
+    #[test]
+    fn dashboards_are_shown_only_when_asked_for_in_so_many_words() {
+        assert!(!Config::from_vars(|_| None).unwrap().dashboards);
+        for (value, shown) in [("1", false), ("TRUE", false), ("", false), (" true ", true)] {
+            let config =
+                Config::from_vars(|k| (k == "JC_PORTAL_DASHBOARDS").then(|| value.to_string()))
+                    .unwrap();
+            assert_eq!(config.dashboards, shown, "{value:?}");
         }
     }
 

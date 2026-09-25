@@ -10724,6 +10724,14 @@
               "heading": "system-ui, sans-serif"
             }
           },
+          "hiddenSections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The project sections this installation hides (`dashboards` while `JC_PORTAL_DASHBOARDS`\nis not `true`, T-2874). Like `apps_origin`, set by the route from the configuration, so\nwhat a branding file says is overwritten; always sent, so the UI never mistakes a shown\nsection for one it has not heard about.",
+            "default": []
+          },
           "instanceName": {
             "type": "string",
             "description": "Full name: page titles and the login page.",
