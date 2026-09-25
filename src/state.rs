@@ -389,6 +389,19 @@ impl AppState {
                     match crate::apps::kube::KubeClient::in_cluster() {
                         Ok(Some(edge_kube)) => {
                             let namespace = settings.apisix_namespace.clone();
+                            match crate::apps::kube::KubeClient::in_cluster() {
+                                Ok(Some(hosts_kube)) => {
+                                    syncer = syncer.with_app_hosts(Arc::new(
+                                        crate::reconciler::app_hosts::AppHosts::new(
+                                            hosts_kube,
+                                            namespace.clone(),
+                                        ),
+                                    ));
+                                }
+                                _ => tracing::warn!(
+                                    "no third API client: no App host gets a certificate"
+                                ),
+                            }
                             syncer = syncer.with_edge_file(
                                 Arc::new(crate::reconciler::edge_file::EdgeFile::new(
                                     edge_kube, namespace,
@@ -444,7 +457,7 @@ impl AppState {
                     .config
                     .app_settings
                     .as_ref()
-                    .map(|settings| settings.host.clone()),
+                    .map(|settings| settings.apex.clone()),
             ) {
                 (Some(oidc), Some(host)) => {
                     match crate::reconciler::app_clients::AppClientSync::new(

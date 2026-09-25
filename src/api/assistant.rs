@@ -1077,6 +1077,8 @@ mod tests {
         );
         config.app_settings = Some(crate::apps::reconciler::Settings {
             host: "portal.example.org".into(),
+            apex: "example.org".into(),
+            gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
             namespace: "apps".into(),
             org_domain: "hel.fi".into(),
             apisix_namespace: "apisix".into(),

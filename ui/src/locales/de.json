@@ -2115,7 +2115,11 @@
       "frameAncestors": "Darf eingebettet werden von",
       "limits": "Grenzen",
       "requestsPerMinute": "Anfragen pro Minute",
-      "maxFileRows": "Zeilen pro Datei-Download"
+      "maxFileRows": "Zeilen pro Datei-Download",
+      "egress": "Ausgehende Netze",
+      "egressCidr": "Netz",
+      "egressPorts": "Ports",
+      "needRoles": "Nur für Rollen"
     },
     "build": {
       "title": "Build in der Forge",
@@ -2157,7 +2161,9 @@
       "retired": "Diese Anwendung ist außer Betrieb",
       "building": "Wird gebaut…",
       "failed": "Build fehlgeschlagen",
-      "notBuilt": "Noch wird kein Build ausgeliefert"
+      "notBuilt": "Noch wird kein Build ausgeliefert",
+      "certificate": "Die Adresse der Anwendung wird gesichert, das dauert etwa eine Minute",
+      "host": "Die Adresse der Anwendung ließ sich nicht einrichten; der Grund ist für Administratoren sichtbar"
     },
     "openPage": {
       "details": "App-Details",

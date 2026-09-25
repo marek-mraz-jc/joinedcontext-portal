@@ -290,7 +290,7 @@ describe("temporal, schema, and functions", () => {
     expect(Object.keys(await createClient(CONFIG, untyped).schema())).toEqual(["Station"]);
   });
 
-  it("functions.call routes to /functions/{name} on bridge and /apps/{appName}/... on origin", async () => {
+  it("functions.call routes to /functions/{name} on bridge and /api/functions/{name} on its own host", async () => {
     const calls: JcRequest[] = [];
     const transport: Transport = async (req) => {
       calls.push(req);
@@ -313,7 +313,7 @@ describe("temporal, schema, and functions", () => {
     expect(r1).toEqual({ result: "ok" });
 
     await originClient.functions.call("notify", { to: "user" });
-    expect(calls[1].path).toBe("/apps/my-app/api/functions/notify");
+    expect(calls[1].path).toBe("/api/functions/notify");
 
     try {
       await bridgeClient.functions.call("runtime-err");

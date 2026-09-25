@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { draftState } from "../src/pages/apps/AppsCatalog";
+import { draftState, openBlockedReason } from "../src/pages/apps/AppsCatalog";
+import type { Manifest } from "../src/api/manifest";
 import { renderRoute } from "./pageHarness";
 
 const IDENTITY = {
@@ -549,6 +550,25 @@ describe("apps catalog", () => {
   it("an empty catalogue says so instead of showing an empty grid", async () => {
     renderCatalog([]);
     expect(await screen.findByText(en.apps.empty)).toBeInTheDocument();
+  });
+
+  it("keeps a published App closed until its host has its certificate (AP-133, T-2838)", () => {
+    const t = i18n.getFixedT("en");
+    const app = (conditions: object[]): Manifest =>
+      ({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "App",
+        metadata: { name: "bikes", annotations: { "joinedcontext.com/shipped-with": "portal" } },
+        spec: { lifecycle: "published" },
+        status: { conditions },
+      }) as unknown as Manifest;
+    const ready = (status: string, reason: string) => [{ type: "Ready", status, reason }];
+    expect(openBlockedReason(app(ready("False", "CertificatePending")), null, t)).toBe(en.apps.openDisabled.certificate);
+    expect(openBlockedReason(app(ready("False", "HostRefused")), null, t)).toBe(en.apps.openDisabled.host);
+    // Issued, or no word yet, or another reason: the build decides, as before.
+    expect(openBlockedReason(app(ready("True", "CertificatePending")), null, t)).toBeUndefined();
+    expect(openBlockedReason(app([]), null, t)).toBeUndefined();
+    expect(openBlockedReason(app(ready("False", "BuildMissing")), null, t)).toBeUndefined();
   });
 
   it("draftState maps lifecycle statuses to draft categories (AP-70)", () => {
