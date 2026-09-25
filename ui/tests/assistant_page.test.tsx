@@ -420,6 +420,15 @@ describe("the assistant page, mounted on its own", () => {
     expect(await screen.findByRole("heading", { level: 1, name: en.assistantPage.title })).toBeInTheDocument();
     // The header is there before the list is: the empty state is what the answer produces.
     expect(await screen.findByText(en.assistantPage.empty)).toBeInTheDocument();
+    // The way to start is the assistant, and the empty page opens it; it once pointed at a New
+    // work form "below" that T-2745 had taken away.
+    let opened = false;
+    const unsub = onOpenRequest(() => {
+      opened = true;
+    });
+    await userEvent.setup().click(screen.getByRole("button", { name: en.assistant.open }));
+    expect(opened).toBe(true);
+    unsub();
   });
 
   it("asks for the project in the address and for no other", async () => {
