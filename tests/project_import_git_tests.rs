@@ -5,6 +5,7 @@
 
 mod common;
 
+use std::collections::BTreeMap;
 use std::io::Write;
 
 use axum::http::StatusCode;
@@ -12,6 +13,7 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use common::{envelope, forge, person, state_on, REPO};
 use joinedcontext_portal::auth::session::Identity;
+use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::state::AppState;
 use serde_json::{json, Value};
@@ -55,6 +57,17 @@ fn archive_padded(
     pad: usize,
     edit: impl Fn(&mut Vec<(String, Vec<u8>)>),
 ) -> Vec<u8> {
+    archive_carrying(project_yaml, pad, None, edit)
+}
+
+/// The same archive carrying the organization model `stations` v1 with `source`, when given
+/// (MF-49).
+fn archive_carrying(
+    project_yaml: &str,
+    pad: usize,
+    source: Option<&str>,
+    edit: impl Fn(&mut Vec<(String, Vec<u8>)>),
+) -> Vec<u8> {
     let mut project = bundle(HEAD);
     let mut seed: u32 = 0x2644;
     project.extend((0..pad).map(|_| {
@@ -74,6 +87,25 @@ fn archive_padded(
             b"kind: Project\nmetadata: { name: ovzdusie }\n".to_vec(),
         ),
     ];
+    let mut models = Vec::new();
+    if let Some(source) = source {
+        files.push((
+            "models/stations.v1.yaml".into(),
+            ORG_MODEL.as_bytes().to_vec(),
+        ));
+        files.push((
+            "models/stations.v1.linkml.yaml".into(),
+            source.as_bytes().to_vec(),
+        ));
+        models.push(json!({
+            "name": "stations",
+            "version": "1.3.0",
+            "manifest": "models/stations.v1.yaml",
+            "file": "models/stations.v1.linkml.yaml",
+            "sha256": format!("{:x}", Sha256::digest(source.as_bytes())),
+            "origin": { "organization": "bb", "name": "stations" },
+        }));
+    }
     let index = json!({
         "apiVersion": "joinedcontext.com/v1alpha1",
         "kind": "Bundle",
@@ -91,6 +123,7 @@ fn archive_padded(
                 { "name": "ovzdusie", "role": "project", "file": "ovzdusie.bundle", "head": HEAD },
                 { "name": "air-map", "role": "application", "file": "air-map.bundle", "head": APP_HEAD },
             ],
+            "models": models,
         },
     });
     edit(&mut files);
@@ -171,6 +204,11 @@ async fn new_repository(server: &MockServer, base: &str, head: &str, files: &[(&
 /// A layout 2 organization that lets anyone open a project and makes Jana its administrator,
 /// into which `ovzdusie`'s export is imported as `doprava`.
 async fn world() -> (MockServer, AppState) {
+    world_with(&[]).await
+}
+
+/// [`world`] with `extra` files in the project repository the import creates.
+async fn world_with(extra: &[(&str, &str)]) -> (MockServer, AppState) {
     let server = forge().await;
     Mock::given(method("GET"))
         .and(path(format!("{REPO}/pulls")))
@@ -182,20 +220,24 @@ async fn world() -> (MockServer, AppState) {
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "name": "created" })))
         .mount(&server)
         .await;
-    new_repository(
-        &server,
-        NEW,
-        HEAD,
-        &[
-            ("project.yaml", PROJECT),
-            ("CODEOWNERS", "* @bb/ovzdusie-writers\n"),
-            ("spaces/ovzdusie/space.yaml", SPACE),
-            ("apps/air-map/app.yaml", APP),
-        ],
-    )
-    .await;
+    let mut files = vec![
+        ("project.yaml", PROJECT),
+        ("CODEOWNERS", "* @bb/ovzdusie-writers\n"),
+        ("spaces/ovzdusie/space.yaml", SPACE),
+        ("apps/air-map/app.yaml", APP),
+    ];
+    files.extend_from_slice(extra);
+    new_repository(&server, NEW, HEAD, &files).await;
     new_repository(&server, NEW_APP, APP_HEAD, &[]).await;
-    let state = state_on(&server);
+    // The forge answers Model Tools' route too: a landed model is compiled (DM-02).
+    let state = AppState::new(
+        Config {
+            model_tools_url: Some(server.uri()),
+            ..Config::for_tests()
+        },
+        None,
+    )
+    .with_gitea(state_on(&server).gitea.clone().expect("forge"));
     state.mirror.upsert(envelope(
         "Organization",
         "bb",
@@ -590,5 +632,215 @@ async fn who_does_not_administer_the_organization_imports_no_project() {
         "{}",
         answer.text
     );
+    nothing_created(&server).await;
+}
+
+const ORG_MODEL: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  \
+                         name: stations\n  namespace: org\nspec:\n  linkml: \
+                         ./stations.linkml.yaml\n  version: 1.3.0\n  lifecycle: published\n  \
+                         classes: [Station]\n  origin:\n    project: ovzdusie\n    name: \
+                         stations\n    version: 1.3.0\n    commit: \
+                         2c245c6bb1efa7a20938c5b11b70379be6838eec\n";
+const ORG_SOURCE: &str = "id: https://bb.sk/stations\nname: stations\nclasses:\n  Station: {}\n";
+const PARKING: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  \
+                       name: parking\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: \
+                       ovzdusie\n  linkml: ./parking.linkml.yaml\n  version: 1.0.0\n  \
+                       lifecycle: published\n  classes: [ParkingSpot]\n";
+const PARKING_SOURCE: &str =
+    "id: https://bb.sk/parking\nname: parking\nimports: [linkml:types, org.stations.v1]\n";
+
+/// The imported project's model `parking` importing `org.stations.v1`, and the destination
+/// organization holding `stations` published at 1.4.0 with `held` as its source.
+async fn carrying_world(held: &str) -> (MockServer, AppState) {
+    let (server, state) = world_with(&[
+        ("spaces/ovzdusie/datamodels/parking.yaml", PARKING),
+        (
+            "spaces/ovzdusie/datamodels/parking.linkml.yaml",
+            PARKING_SOURCE,
+        ),
+    ])
+    .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "{REPO}/contents/datamodels/stations/stations.linkml.yaml"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "sha": "blob-stations", "content": STANDARD.encode(held) })),
+        )
+        .mount(&server)
+        .await;
+    state.mirror.upsert(envelope(
+        "DataModel",
+        "stations",
+        ORG_NAMESPACE,
+        json!({ "linkml": "./stations.linkml.yaml", "version": "1.4.0", "lifecycle": "published", "classes": ["Station"] }),
+    ));
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "jsonSchema": { "title": "Station" },
+            "context": { "@context": { "Station": "https://bb.sk/stations/Station" } },
+            "docs": "# stations\n",
+            "example": { "type": "Station" },
+        })))
+        .mount(&server)
+        .await;
+    (server, state)
+}
+
+/// The dry run's answer to what the import does with each carried model.
+async fn planned(state: &AppState, file: &[u8]) -> Value {
+    let answer = import(state, person("jana"), "?format=git&dryRun=All", file, &[]).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    serde_json::from_str::<Value>(&answer.text).expect("json")["models"].clone()
+}
+
+/// No request wrote the destination's organization repository (MF-50).
+async fn organization_untouched(server: &MockServer) {
+    let written: Vec<String> = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .into_iter()
+        .filter(|r| r.method.as_str() != "GET" && r.url.path().starts_with(REPO))
+        .map(|r| format!("{} {}", r.method, r.url.path()))
+        .collect();
+    // The registry entry's Change is the organization's; no model is written there.
+    assert!(
+        written.iter().all(|w| !w.contains("datamodels")),
+        "{written:?}"
+    );
+}
+
+/// MF-50: a carried model the destination organization holds byte for byte at that major is
+/// mapped: the project's imports stay, and nothing lands.
+#[tokio::test]
+async fn a_carried_model_the_organization_holds_is_mapped() {
+    let (server, state) = carrying_world(ORG_SOURCE).await;
+    let file = archive_carrying(PROJECT, 0, Some(ORG_SOURCE), |_| {});
+    assert_eq!(
+        planned(&state, &file).await,
+        json!([{ "name": "stations", "version": "1.3.0", "action": "map" }])
+    );
+    let answer = checked_import(&state, &file, &[]).await;
+    assert!(answer.status.is_success(), "{}", answer.text);
+    // The remount commit only.
+    assert_eq!(
+        sent(&server, "POST", &format!("{NEW}/contents"))
+            .await
+            .len(),
+        1
+    );
+    organization_untouched(&server).await;
+}
+
+/// MF-50: a carried model whose source differs from the organization's lands as a model of the
+/// project, origin kept, and the project's imports point at it; the organization repository is
+/// not written.
+#[tokio::test]
+async fn a_carried_model_that_differs_lands_in_the_project() {
+    let (server, state) = carrying_world("id: https://bb.sk/stations\nname: stations\n").await;
+    let file = archive_carrying(PROJECT, 0, Some(ORG_SOURCE), |_| {});
+    assert_eq!(
+        planned(&state, &file).await,
+        json!([{ "name": "stations", "version": "1.3.0", "action": "land" }])
+    );
+    let answer = checked_import(&state, &file, &[]).await;
+    assert!(answer.status.is_success(), "{}", answer.text);
+    let commits = sent(&server, "POST", &format!("{NEW}/contents")).await;
+    assert_eq!(commits.len(), 2);
+    let landing: Value = serde_json::from_slice(&commits[1]).expect("json");
+    let written: BTreeMap<String, String> = landing["files"]
+        .as_array()
+        .expect("files")
+        .iter()
+        .map(|f| {
+            let bytes = STANDARD
+                .decode(f["content"].as_str().expect("content"))
+                .expect("base64");
+            (
+                f["path"].as_str().expect("path").to_owned(),
+                String::from_utf8(bytes).expect("utf-8"),
+            )
+        })
+        .collect();
+    let manifest: Value =
+        serde_yaml_ng::from_str(&written["datamodels/stations/stations.yaml"]).expect("manifest");
+    assert_eq!(manifest["metadata"]["namespace"], "doprava");
+    assert_eq!(manifest["spec"]["version"], "1.3.0");
+    assert_eq!(manifest["spec"]["origin"]["project"], "ovzdusie");
+    assert_eq!(
+        manifest["spec"]["artifacts"]["jsonSchema"],
+        "./json-schema/stations.v1.json"
+    );
+    assert!(
+        written["datamodels/stations/json-schema/stations.v1.json"].contains("Station"),
+        "{written:?}"
+    );
+    // The source Model Tools compiled is the one that lands, its imports as they land.
+    let compiled = sent(&server, "POST", "/generate").await;
+    let asked: Value = serde_json::from_slice(&compiled[0]).expect("json");
+    assert_eq!(asked["source"], ORG_SOURCE);
+    assert_eq!(
+        written["datamodels/stations/stations.linkml.yaml"],
+        ORG_SOURCE
+    );
+    assert_eq!(
+        written["spaces/ovzdusie/datamodels/parking.linkml.yaml"],
+        PARKING_SOURCE.replace("org.stations.v1", "project.stations.v1")
+    );
+    organization_untouched(&server).await;
+}
+
+/// MF-50: a carried model that can neither map nor land, since the project holds a model of
+/// its name, refuses the import and removes what it created.
+#[tokio::test]
+async fn a_carried_model_the_project_holds_already_removes_what_was_created() {
+    let (server, state) = carrying_world("id: https://bb.sk/stations\nname: stations\n").await;
+    let file = archive_carrying(PROJECT, 0, Some(ORG_SOURCE), |_| {});
+    Mock::given(method("GET"))
+        .and(path(format!("{NEW}/git/trees/main")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "tree", "truncated": false,
+            "tree": [{ "path": "spaces/ovzdusie/datamodels/stations.yaml", "type": "blob", "sha": "blob-own" }],
+        })))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "{NEW}/contents/spaces/ovzdusie/datamodels/stations.yaml"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-own", "content": STANDARD.encode(PARKING.replace("name: parking", "name: stations")),
+        })))
+        .mount(&server)
+        .await;
+    let answer = checked_import(&state, &file, &[]).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    assert!(answer.text.contains("stations"), "{}", answer.text);
+    assert_eq!(sent(&server, "DELETE", NEW).await.len(), 1);
+    assert_eq!(sent(&server, "DELETE", NEW_APP).await.len(), 1);
+    organization_untouched(&server).await;
+}
+
+/// DM-02, MF-50: a carried model that would land and does not compile refuses the import in
+/// the dry run, before anything is created.
+#[tokio::test]
+async fn a_carried_model_that_does_not_compile_creates_nothing() {
+    let (server, state) = carrying_world("id: https://bb.sk/stations\nname: stations\n").await;
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "errors": ["Station: no slots"] })),
+        )
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let file = archive_carrying(PROJECT, 0, Some(ORG_SOURCE), |_| {});
+    let answer = import(&state, person("jana"), "?format=git&dryRun=All", &file, &[]).await;
+    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
+    assert!(answer.text.contains("no slots"), "{}", answer.text);
     nothing_created(&server).await;
 }

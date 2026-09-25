@@ -1647,6 +1647,18 @@
     "download": "Download"
   },
   "models": {
+    "share": {
+      "action": "Share with the organization",
+      "title": "Share {name} with the organization?",
+      "lead": "A copy of {name} v{version} goes to the organization's models, byte for byte, for every project to import. An organization administrator approves it; until then nothing changes, and this project keeps its own model either way.",
+      "confirm": "Propose the share",
+      "notPublished": "Only a published model is shared: publish it first.",
+      "failed": "The share was not proposed: {reason}",
+      "adoptLead": "The organization holds this model as {importName} (v{version}), shared from here. Use its copy: this model then imports it in place of the classes it defines, with the same names and IRIs, so no entity changes.",
+      "adopt": "Use the organization's copy",
+      "copyLoading": "Reading the organization's copy…",
+      "copyFailed": "The organization's copy could not be read: {reason}"
+    },
     "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",
@@ -1914,7 +1926,14 @@
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",
-      "copyFailed": "The browser did not allow copying; select the text and copy it instead."
+      "copyFailed": "The browser did not allow copying; select the text and copy it instead.",
+      "projectSection": "This project's models",
+      "organizationSection": "Organization models",
+      "organizationLead": "Shared by the organization with every project. Organization administrators change them; a model of this project uses one by importing it.",
+      "organizationEmpty": "The organization shares no data model yet.",
+      "organizationCaption": "The organization's data models",
+      "importAs": "Import as",
+      "organizationOpen": "Open on the Organization page"
     },
     "hints": {
       "title": "This model has no class yet. Three steps to start:",
@@ -2020,9 +2039,8 @@
       "name": "App name",
       "kind": "Kind",
       "kinds": {
-        "fullstack": "Full stack (Rust backend and React screens)",
-        "static": "Static (screens only)",
-        "service": "Service (backend only, no screens)"
+        "ui": "UI (React screens, served by the Portal)",
+        "ui-rust": "UI and Rust server (React screens and an axum backend)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Choose an endpoint",
@@ -3621,6 +3639,7 @@
       "roles": "Roles",
       "groups": "Groups",
       "service-accounts": "Service accounts",
+      "models": "Organization models",
       "projects": "Projects",
       "applications": "All applications",
       "setup": "Setup",
@@ -4179,6 +4198,9 @@
     "repositories": "Repositories to create",
     "repository": "{repository} at {head}",
     "parameters": "Parameters",
+    "models": "Organization models",
+    "modelMap": "{name} {version}: this organization holds it byte for byte; the project's imports stay.",
+    "modelLand": "{name} {version}: lands as a model of the project; the project's imports point at it.",
     "noParameters": "The project declares no parameters.",
     "secretHint": "Type the name of a secret, never its value.",
     "default": "Default: {value}.",
@@ -4428,7 +4450,7 @@
     "chosen": "Chosen: {label}",
     "remove": "Remove {name}",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Project {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "No data model matches.",
       "create": "New data model “{name}”",
@@ -4440,7 +4462,9 @@
         "deprecated": "deprecated",
         "retired": "retired",
         "mirrored": "mirrored"
-      }
+      },
+      "groupProject": "Project {project}",
+      "groupOrganization": "Organization models"
     },
     "type": {
       "local": "Types of {space}",
@@ -4448,7 +4472,9 @@
       "imported": "Imported from {name}",
       "none": "The model of {space} declares no type yet.",
       "noneInProject": "No data model of this project declares a type yet.",
-      "create": "New type “{name}”"
+      "create": "New type “{name}”",
+      "modelGroupOwn": "{name} (project model)",
+      "importedOrganization": "Imported from the organization model {name}"
     },
     "createNamed": "New: “{name}”",
     "list": "Choices"

@@ -183,6 +183,18 @@ pub enum Operation {
     Delete,
 }
 
+/// [`classify`] for a manifest where it lives: an organization `DataModel` is the schema of every
+/// project that imports it, so any change to it is `Red`, whatever its kind alone would say
+/// (DM-75, DM-77).
+pub fn classify_manifest(manifest: &crate::resource::ResourceEnvelope, op: Operation) -> Lane {
+    if manifest.kind == "DataModel"
+        && manifest.metadata.namespace.as_deref() == Some(crate::permissions::ORG_NAMESPACE)
+    {
+        return Lane::Red;
+    }
+    classify(&manifest.kind, op, &manifest.spec)
+}
+
 /// Classifies a resource operation into an approval lane per
 /// `docs/Architecture/06-configuration-as-code.md` §4 and CC-63.
 ///
@@ -602,6 +614,25 @@ mod tests {
         assert_eq!(classify("Dashboard", Operation::Update, &spec), Lane::Green);
         assert_eq!(classify("Layer", Operation::Create, &spec), Lane::Green);
         assert_eq!(classify("Layer", Operation::Update, &spec), Lane::Green);
+    }
+
+    // DM-75, DM-77: an organization's data model is red wherever it is classified; a project's
+    // stays as its kind says.
+    #[test]
+    fn an_organization_data_model_is_red_and_a_projects_is_not() {
+        let manifest = |namespace: &str| {
+            serde_json::from_value::<crate::resource::ResourceEnvelope>(json!({
+                "apiVersion": API_VERSION,
+                "kind": "DataModel",
+                "metadata": { "name": "air", "namespace": namespace },
+                "spec": { "linkml": "./air.linkml.yaml", "version": "1.0.0" }
+            }))
+            .expect("envelope")
+        };
+        for op in [Operation::Create, Operation::Update] {
+            assert_eq!(classify_manifest(&manifest("org"), op), Lane::Red);
+            assert_eq!(classify_manifest(&manifest("helsinki"), op), Lane::Yellow);
+        }
     }
 
     #[test]

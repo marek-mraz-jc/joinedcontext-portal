@@ -16,7 +16,7 @@ metadata:
     en: "Upcoming events of the City of Helsinki's Linked Events register: search, filter by date, read the details and see where they are."
     fi: "Helsingin kaupungin Linked Events -rekisterin tulevat tapahtumat: hae, rajaa päivämäärällä, lue tiedot ja katso sijainti."
 spec:
-  kind: static
+  kind: ui
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_helsinki-events.git

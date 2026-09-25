@@ -149,6 +149,8 @@ pub async fn export_app(
                 file,
                 head: head.clone(),
             }],
+            // An App export carries no data model; a project export does (MF-49).
+            models: Vec::new(),
         },
         status: None,
     };
@@ -319,6 +321,7 @@ pub async fn import(
         let plan = GitImportPlan {
             repositories: vec![planned],
             parameters: Value::Object(Default::default()),
+            models: Vec::new(),
         };
         return Ok((
             StatusCode::OK,

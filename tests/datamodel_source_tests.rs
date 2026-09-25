@@ -1094,3 +1094,216 @@ async fn get_source_with_read_on_datamodel_answers_the_source() {
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
     assert_eq!(answer.text, PUBLISHED_LINKML);
 }
+
+/// An organization model (DM-75): `namespace: org`, no space, its source in its own folder.
+const STATIONS_LINKML: &str = "id: https://example.org/models/stations\nname: stations\nimports: [linkml:types]\nclasses:\n  Station:\n    attributes:\n      capacity: { range: integer }\n";
+
+fn seed_spaceless(state: &AppState, namespace: &str, name: &str, version: &str, lifecycle: &str) {
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "DataModel".to_string(),
+        metadata: ObjectMeta {
+            name: name.to_string(),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        spec: json!({
+            "linkml": format!("./{name}.linkml.yaml"),
+            "version": version,
+            "lifecycle": lifecycle,
+            "classes": ["Station"]
+        }),
+        status: None,
+    });
+}
+
+/// A forge holding the space model's published source and the organization model's, and a Model
+/// Tools that compiles anything; one repository serves both, as `forge_for("org")` does here.
+async fn importing_world() -> (MockServer, MockServer, AppState, String) {
+    let forge = MockServer::start().await;
+    let gitea = GiteaClient::new(forge.uri().parse().expect("url"), "owner", "repo", "token")
+        .expect("client");
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/owner/repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    for (file, text) in [
+        (
+            "projects/ovzdusie/spaces/mobility/datamodels/air-quality.linkml.yaml",
+            PUBLISHED_LINKML,
+        ),
+        ("datamodels/stations/stations.linkml.yaml", STATIONS_LINKML),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v1/repos/owner/repo/contents/{file}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "sha-1", "content": STANDARD.encode(text)
+            })))
+            .mount(&forge)
+            .await;
+    }
+    let tools = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_raw(COMPILED_ARTIFACTS, "application/json"),
+        )
+        .mount(&tools)
+        .await;
+    let config = Config {
+        model_tools_url: Some(tools.uri()),
+        ..Config::for_tests()
+    };
+    let cookie = session_cookie(&config);
+    let state = AppState::new(config, None).with_gitea(Arc::new(gitea));
+    seed_datamodel(
+        &state,
+        "ovzdusie",
+        "air-quality",
+        "./air-quality.linkml.yaml",
+        "1.0.0",
+    );
+    seed_spaceless(&state, "org", "stations", "1.3.0", "published");
+    seed_spaceless(&state, "espoo", "bikes", "1.0.0", "published");
+    (forge, tools, state, cookie)
+}
+
+async fn dry_run(
+    state: &AppState,
+    cookie: &str,
+    source: String,
+) -> (StatusCode, serde_json::Value) {
+    let response = server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/projects/ovzdusie/datamodels/air-quality/source?dryRun=All")
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "text/yaml")
+                .body(Body::from(source))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, serde_json::from_slice(&bytes).unwrap_or_default())
+}
+
+/// DM-76: a space model importing an organization model compiles with that model's source,
+/// which the Portal reads and hands Model Tools itself.
+#[tokio::test]
+async fn a_space_model_importing_an_organization_model_compiles_with_its_source() {
+    let (_forge, tools, state, cookie) = importing_world().await;
+    let source =
+        PUBLISHED_LINKML.replace("  - linkml:types", "  - linkml:types\n  - org.stations.v1");
+
+    let (status, body) = dry_run(&state, &cookie, source).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let sent: Vec<serde_json::Value> = tools
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|request| serde_json::from_slice(&request.body).ok())
+        .collect();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(
+        sent[0]["imports"],
+        json!({ "org.stations.v1": STATIONS_LINKML })
+    );
+}
+
+/// DM-76, R20: another project's model has no import name, a pin to another major and a draft
+/// are refused naming why, and none of them reaches Model Tools.
+#[tokio::test]
+async fn an_import_of_another_projects_model_or_the_wrong_major_is_refused() {
+    let (_forge, tools, state, cookie) = importing_world().await;
+    let importing = |entry: &str| {
+        PUBLISHED_LINKML.replace(
+            "  - linkml:types",
+            &format!("  - linkml:types\n  - {entry}"),
+        )
+    };
+
+    let (status, body) = dry_run(&state, &cookie, importing("project.bikes.v1")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.to_string()
+            .contains("project 'ovzdusie' has no model 'bikes'"),
+        "{body}"
+    );
+
+    let (status, body) = dry_run(&state, &cookie, importing("org.stations.v2")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.to_string()
+            .contains("is at version 1.3.0, and the import pins major 2"),
+        "{body}"
+    );
+
+    let (status, body) = dry_run(&state, &cookie, importing("org.stations")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    seed_spaceless(&state, "org", "stations", "1.3.0", "draft");
+    let (status, body) = dry_run(&state, &cookie, importing("org.stations.v1")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.to_string().contains("is draft"), "{body}");
+
+    assert!(
+        tools.received_requests().await.unwrap().is_empty(),
+        "an unresolved import reached Model Tools"
+    );
+}
+
+/// DM-76: an organization model a space imports is not deleted; the refusal names the importer.
+#[tokio::test]
+async fn deleting_an_imported_organization_model_is_refused_naming_its_importers() {
+    let (forge, _tools, state, cookie) = importing_world().await;
+    let importing =
+        PUBLISHED_LINKML.replace("  - linkml:types", "  - linkml:types\n  - org.stations.v1");
+    forge.reset().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/owner/repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/owner/repo/contents/projects/ovzdusie/spaces/mobility/datamodels/air-quality.linkml.yaml",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "sha-1", "content": STANDARD.encode(importing)
+        })))
+        .mount(&forge)
+        .await;
+
+    let response = server::app(state)
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/projects/org/datamodels/stations")
+                .header(header::COOKIE, &cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8_lossy(&bytes);
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.contains("imported by ovzdusie/air-quality"), "{body}");
+    assert!(
+        !forge
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.method.as_str() == "POST"),
+        "a refused delete opened a change"
+    );
+}

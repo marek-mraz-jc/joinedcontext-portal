@@ -11,7 +11,7 @@ metadata:
     fi: "Asemat, niiden viimeisimmät arvot ja 24 tunnin historia; ylläpitäjä lisää ja korjaa asemia."
     en: "Stations, their latest values and 24 hours of history; a steward adds and corrects stations."
 spec:
-  kind: fullstack
+  kind: ui-rust
   source:
     git:
       url: https://dev.joinedcontext.com/git/joinedcontext/helsinki_air-quality.git
@@ -19,7 +19,7 @@ spec:
   build:
     rust: "1.90"
     node: "22"
-  # `roles` is refused on a fullstack App (AP-94), so every person of the project opens it and
+  # `roles` is refused on a ui-rust App (AP-94), so every person of the project opens it and
   # reads; the backend asks the Portal's `/me` for the roles and offers the form to a steward
   # only (Architecture/16 §13, AP-109).
   visibility: project
