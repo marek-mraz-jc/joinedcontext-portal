@@ -516,6 +516,16 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         ("draft" | "resource", Some(kind)) => Some(crate::agents::change::page_of(kind.trim())?),
         _ => None,
     };
+    // An organization kind is created and edited on its Organization tab, where its drafts are
+    // kept (T-2845): the same page under `/organization`, never a project's list of it.
+    let template = match (call.page.as_str(), call.plural.as_deref()) {
+        ("new" | "draft" | "resource", Some(kind))
+            if crate::agents::change::organization_tab(kind.trim()).is_some() =>
+        {
+            template.replacen("/projects/{project}/", "/organization/", 1)
+        }
+        _ => template.to_owned(),
+    };
     let filled = [
         ("project", Some(project)),
         ("section", section),
@@ -524,7 +534,7 @@ fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
         ("type", call.entity_type.as_deref()),
         ("q", call.q.as_deref()),
     ];
-    let mut route = template.to_owned();
+    let mut route = template;
     for (placeholder, value) in filled {
         let hole = format!("{{{placeholder}}}");
         if !route.contains(&hole) {
@@ -959,17 +969,30 @@ impl Driver {
             return Ok(None);
         };
         // Only the drafts the person may read, as `jc_draft_list` lists them (PF-59): a name
-        // they could not read is no draft of theirs, and its kind is not told.
-        let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
-        let drafts: Vec<_> = self
-            .state
-            .drafts
-            .list(&self.project)
-            .await
-            .map_err(|e| format!("the drafts cannot be read now: {e}"))?
-            .into_iter()
-            .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
-            .collect();
+        // they could not read is no draft of theirs, and its kind is not told. An organization
+        // kind's draft is kept under `org` (T-2845), and read there by the organization's rules.
+        let org = crate::permissions::ORG_NAMESPACE;
+        let mut homes = vec![self.project.as_str()];
+        if self.project != org {
+            homes.push(org);
+        }
+        let mut drafts = Vec::new();
+        for home in homes {
+            let effective = crate::permissions::for_request(&self.state, &self.identity, home);
+            drafts.extend(
+                self.state
+                    .drafts
+                    .list(home)
+                    .await
+                    .map_err(|e| format!("the drafts cannot be read now: {e}"))?
+                    .into_iter()
+                    .filter(|draft| {
+                        home == self.project
+                            || crate::agents::change::organization_tab(&draft.kind).is_some()
+                    })
+                    .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest)),
+            );
+        }
         draft_of(&drafts, name, call.plural.as_deref(), &self.created_by).map(Some)
     }
 
@@ -1562,6 +1585,50 @@ mod tests {
         );
         let none = route_of("helsinki", &open("resource", "air", None)).expect_err("no kind");
         assert!(none.contains("the plural of the resource's kind"), "{none}");
+    }
+
+    /// T-2845: an organization kind's empty form, draft and resource open on its Organization
+    /// tab, where the form reads the drafts kept under `org`, never under the project.
+    #[test]
+    fn an_organization_kind_opens_on_the_organization_page() {
+        let new = |plural: &str| NavigateCall {
+            page: "new".to_owned(),
+            name: None,
+            plural: Some(plural.to_owned()),
+            endpoint: None,
+            entity_type: None,
+            q: None,
+        };
+        for (kind, plural) in [
+            ("Blueprint", "blueprints"),
+            ("AgentProfile", "agentprofiles"),
+            ("DataSpaceParticipant", "dataspaceparticipants"),
+            ("Environment", "environments"),
+        ] {
+            for asked in [kind, plural] {
+                assert_eq!(
+                    route_of("helsinki", &new(asked)).expect("a route"),
+                    format!("/organization/{plural}/new"),
+                    "{asked}"
+                );
+                assert_eq!(
+                    route_of("helsinki", &open("draft", "weather", Some(asked))).expect("a route"),
+                    format!("/organization/{plural}?draft=weather"),
+                    "{asked}"
+                );
+                assert_eq!(
+                    route_of("helsinki", &open("resource", "weather", Some(asked)))
+                        .expect("a route"),
+                    format!("/organization/{plural}?name=weather"),
+                    "{asked}"
+                );
+            }
+        }
+        // A project kind stays in the project.
+        assert_eq!(
+            route_of("helsinki", &new("pipelines")).expect("a route"),
+            "/projects/helsinki/pipelines/new"
+        );
     }
 
     #[test]

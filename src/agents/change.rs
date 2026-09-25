@@ -234,6 +234,9 @@ const NEW_FORMS: [&str; 9] = [
 /// it: `/projects/{project}/{section}/new` (T-2577, T-2582, AG-73). What is no kind, or a kind
 /// whose page has no create form of its own, is refused in words the model acts on.
 pub fn section(plural_or_kind: &str) -> Result<&'static str, String> {
+    if let Some(tab) = organization_tab(plural_or_kind) {
+        return Ok(tab);
+    }
     let section = page_of(plural_or_kind)?;
     if NEW_FORMS.contains(&section) {
         Ok(section)
@@ -244,6 +247,35 @@ pub fn section(plural_or_kind: &str) -> Result<&'static str, String> {
              `resource`, `spaces`, `models` or the page that shows it, and tell the person which \
              button there creates one"
         ))
+    }
+}
+
+/// The kinds that live in the organization alone, each created and edited on its own tab of the
+/// Organization page (`/organization/{tab}`, Architecture/09 §14.1). Their manifests and drafts
+/// are kept under `org`, so a project's list neither shows them nor opens their drafts (T-2845).
+const ORGANIZATION_TABS: [(&str, &str); 4] = [
+    ("Blueprint", "blueprints"),
+    ("AgentProfile", "agentprofiles"),
+    ("DataSpaceParticipant", "dataspaceparticipants"),
+    ("Environment", "environments"),
+];
+
+/// The Organization tab a kind is changed on, from its plural or its kind as the model spells
+/// it; `None` for a kind a project holds.
+pub fn organization_tab(plural_or_kind: &str) -> Option<&'static str> {
+    let info = crate::resource::by_plural(plural_or_kind)
+        .or_else(|| crate::resource::by_kind(plural_or_kind))?;
+    ORGANIZATION_TABS
+        .iter()
+        .find(|(kind, _)| *kind == info.kind)
+        .map(|(_, tab)| *tab)
+}
+
+/// The address of the list a kind is changed on: its Organization tab, or its project page.
+fn list_address(project: &str, kind: &str, plural: &str) -> String {
+    match organization_tab(kind) {
+        Some(tab) => format!("/organization/{tab}"),
+        None => format!("/projects/{project}/{}", page(kind, plural)),
     }
 }
 
@@ -263,15 +295,15 @@ pub fn page_of(plural_or_kind: &str) -> Result<&'static str, String> {
 /// conversation kept for them (`?draft=`, appended by the dock from the event's draft) and fills
 /// the form from it (AG-45, UI-45).
 pub fn create_route(project: &str, kind: &str, plural: &str) -> String {
-    format!("/projects/{project}/{}", page(kind, plural))
+    list_address(project, kind, plural)
 }
 
 pub fn route(project: &str, kind: &str, plural: &str, name: &str, delete: bool) -> String {
-    let page = page(kind, plural);
+    let list = list_address(project, kind, plural);
     match (kind, delete) {
-        ("Endpoint", false) => format!("/projects/{project}/{page}"),
-        (_, true) => format!("/projects/{project}/{page}?delete={name}"),
-        (_, false) => format!("/projects/{project}/{page}?edit={name}"),
+        ("Endpoint", false) => list,
+        (_, true) => format!("{list}?delete={name}"),
+        (_, false) => format!("{list}?edit={name}"),
     }
 }
 
@@ -514,6 +546,54 @@ mod tests {
         assert_eq!(
             create_route("helsinki", "Pipeline", "pipelines"),
             "/projects/helsinki/pipelines"
+        );
+    }
+
+    // T-2845: an organization kind opens on its Organization tab, where its form reads the
+    // draft kept under `org`, never on a project's list of it.
+    #[test]
+    fn an_organization_kind_opens_on_its_organization_tab_not_in_the_project() {
+        for (kind, plural) in [
+            ("Blueprint", "blueprints"),
+            ("AgentProfile", "agentprofiles"),
+            ("DataSpaceParticipant", "dataspaceparticipants"),
+            ("Environment", "environments"),
+        ] {
+            assert_eq!(
+                create_route("helsinki", kind, plural),
+                format!("/organization/{plural}")
+            );
+            assert_eq!(
+                route("helsinki", kind, plural, "x", false),
+                format!("/organization/{plural}?edit=x")
+            );
+            assert_eq!(
+                route("helsinki", kind, plural, "x", true),
+                format!("/organization/{plural}?delete=x")
+            );
+            assert_eq!(organization_tab(kind), Some(plural));
+            assert_eq!(organization_tab(plural), Some(plural));
+            assert_eq!(section(kind), Ok(plural), "its tab hosts the empty form");
+        }
+    }
+
+    #[test]
+    fn a_project_kind_keeps_its_project_page() {
+        assert_eq!(organization_tab("Pipeline"), None);
+        assert_eq!(organization_tab("ServiceAccount"), None);
+        assert_eq!(organization_tab("nonsense"), None);
+        assert_eq!(
+            route("helsinki", "Role", "roles", "reader", false),
+            "/projects/helsinki/settings/roles?edit=reader"
+        );
+        assert_eq!(
+            route("helsinki", "Endpoint", "endpoints", "air", false),
+            "/projects/helsinki/endpoints"
+        );
+        assert_eq!(section("pipelines"), Ok("pipelines"));
+        assert!(
+            section("dataoffers").is_err(),
+            "a project list without a routed form"
         );
     }
 }
