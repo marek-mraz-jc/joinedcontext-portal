@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource, StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Header, Page } from "@joinedcontext/sdk";
 import {
   featureCollection,
   getVehicles,
@@ -131,26 +132,31 @@ export function App() {
   );
 
   return (
-    <div className="app">
-      <header>
-        <h1>Buses live</h1>
-        <span className="status" role="status">
-          {vehicles.length === 0
-            ? "Waiting for the first positions"
-            : `${vehicles.length} buses${live ? ", updating live" : ""}`}
-        </span>
-      </header>
-      <VehicleMap collection={collection} />
-      {lines.length > 0 && (
-        <div className="lines">
-          {lines.map((line) => (
-            <span className="line" key={line}>
-              <span className="swatch" style={{ background: lineColor(line) }} />
-              {line}
+    <main className="app">
+      <Page width="full">
+        <Header
+          level={1}
+          title="Buses live"
+          subtitle={
+            <span className="status" role="status">
+              {vehicles.length === 0
+                ? "Waiting for the first positions"
+                : `${vehicles.length} buses${live ? ", updating live" : ""}`}
             </span>
-          ))}
-        </div>
-      )}
-    </div>
+          }
+        />
+        <VehicleMap collection={collection} />
+        {lines.length > 0 && (
+          <ul className="lines" aria-label="Lines on the map">
+            {lines.map((line) => (
+              <li className="line" key={line}>
+                <span className="swatch" style={{ background: lineColor(line) }} />
+                {line}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Page>
+    </main>
   );
 }

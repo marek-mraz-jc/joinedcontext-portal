@@ -12,7 +12,7 @@
  * that blanks because one of two sources is unreachable tells a reader less than nothing.
  */
 import { useEffect, useState } from "react";
-import { endpointSource, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
+import { endpointSource, Grid, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
 import type { JcEndpoint, RichRow } from "@joinedcontext/sdk";
 import { byKey, toIndicator, unitAsContracted } from "./indicators";
 import type { Body, Indicator, State } from "./indicators";
@@ -41,12 +41,13 @@ export default function App() {
   const s = stringsFor(config.language);
 
   return (
-    <main className="page">
-      <h1>{s.title}</h1>
-      <p className="subtitle">{s.subtitle}</p>
-      {BODIES.map((body) => (
-        <BodySection key={body} body={body} s={s} />
-      ))}
+    <main>
+      <Page>
+        <Header level={1} title={s.title} subtitle={s.subtitle} />
+        {BODIES.map((body) => (
+          <BodySection key={body} body={body} s={s} />
+        ))}
+      </Page>
     </main>
   );
 }
@@ -154,13 +155,11 @@ function Group({
   return (
     <section className="group" aria-labelledby={headingId}>
       <h3 id={headingId}>{title}</h3>
-      <ul className="cards">
+      <Grid columns={4}>
         {rows.map((indicator) => (
-          <li key={indicator.id}>
-            <Card indicator={indicator} s={s} />
-          </li>
+          <IndicatorCard key={indicator.id} indicator={indicator} s={s} />
         ))}
-      </ul>
+      </Grid>
     </section>
   );
 }
@@ -169,7 +168,7 @@ function Group({
  * One indicator. Everything a reader needs to place the number is on the card and not in a
  * legend: whose it is, what it is measured in, the window it covers and when it was computed.
  */
-function Card({ indicator, s }: { indicator: Indicator; s: Strings }) {
+function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
   const territory = s.territory[indicator.territory] ?? indicator.territory;
   const unit = s.indicator[indicator.key]?.unit;
   const contracted = unitAsContracted(indicator);

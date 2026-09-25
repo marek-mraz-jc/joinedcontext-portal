@@ -8,6 +8,7 @@ pub mod entity_write;
 pub mod events;
 pub mod fields;
 pub mod grant;
+pub mod held;
 pub mod kit;
 pub mod kpi;
 pub mod kpi_pipeline;

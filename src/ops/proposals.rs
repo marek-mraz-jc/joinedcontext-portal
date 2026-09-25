@@ -320,7 +320,19 @@ pub(crate) async fn record_verdict(
     ) {
         return;
     }
-    let permissions = crate::permissions::for_request(state, &caller.identity, project);
+    // An App's default group is checked by whoever may propose the App (AP-119).
+    let update = state
+        .mirror
+        .get(project, &draft.kind, &draft.name)
+        .is_some();
+    let permissions = crate::groups::for_proposal(
+        state,
+        &caller.identity,
+        project,
+        &draft.kind,
+        update,
+        manifest,
+    );
     // The build lane's check of its `status.build` is kept like anybody's, for the proposal
     // that follows it: its rule authorizes that write alone (AP-73, T-2636).
     let may_propose = permissions.check(&draft.kind, Verb::Propose, None).is_ok()

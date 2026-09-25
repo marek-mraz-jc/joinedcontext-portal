@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, EntityHistory, SourceError, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
+import { endpointSource, EntityHistory, Grid, Header, Page, SourceError, Split, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
 import { BAND_COLOUR, bandOf, stationsOf } from "./stations";
 import type { Band, Station } from "./stations";
@@ -102,40 +102,43 @@ export default function App() {
   const picked = stations.find((station) => station.id === pickedId) ?? stations[0] ?? null;
 
   return (
-    <main className="page">
-      <h1>{s.title}</h1>
-      <p className="subtitle">{s.subtitle}</p>
+    <main>
+      <Page>
+        <Header level={1} title={s.title} subtitle={s.subtitle} />
 
-      {load.status === "loading" && <p role="status">{s.loading}</p>}
-      {load.status === "unreachable" && <p role="status">{s.noEndpoint}</p>}
-      {load.status === "failed" && (
-        <p role="alert" className="failed">
-          {s.failed} {s.failedWhy}: {load.reason}
-        </p>
-      )}
-      {load.status === "ready" && stations.length === 0 && (
-        <p role="status">
-          {s.empty} {s.emptyWhy}
-        </p>
-      )}
+        {load.status === "loading" && <p role="status">{s.loading}</p>}
+        {load.status === "unreachable" && <p role="status">{s.noEndpoint}</p>}
+        {load.status === "failed" && (
+          <p role="alert" className="failed">
+            {s.failed} {s.failedWhy}: {load.reason}
+          </p>
+        )}
+        {load.status === "ready" && stations.length === 0 && (
+          <p role="status">
+            {s.empty} {s.emptyWhy}
+          </p>
+        )}
 
-      {stations.length > 0 && (
-        <>
-          <StationMap stations={stations} now={now} picked={picked} onPick={setPickedId} s={s} />
-          <StationList
-            stations={stations}
-            now={now}
-            pickedId={picked?.id ?? null}
-            onPick={setPickedId}
-            s={s}
-          />
-          <p className="note">{s.limitNote}</p>
-          <p className="note">{s.staleNote}</p>
-          {picked && source && <StationDetail station={picked} source={source} now={now} s={s} />}
-        </>
-      )}
+        {stations.length > 0 && (
+          <>
+            <Split ratio="2:1">
+              <StationMap stations={stations} now={now} picked={picked} onPick={setPickedId} s={s} />
+              {picked && source ? <StationDetail station={picked} source={source} now={now} s={s} /> : null}
+            </Split>
+            <StationList
+              stations={stations}
+              now={now}
+              pickedId={picked?.id ?? null}
+              onPick={setPickedId}
+              s={s}
+            />
+            <p className="note">{s.limitNote}</p>
+            <p className="note">{s.staleNote}</p>
+          </>
+        )}
 
-      <p className="source">{s.source}</p>
+        <p className="source">{s.source}</p>
+      </Page>
     </main>
   );
 }
@@ -216,17 +219,12 @@ function StationMap({
   }, [collection]);
 
   return (
-    <>
-      <div
-        className="map"
-        ref={holder}
-        // The map is a picture of the list below it, which carries the same stations in text; a
-        // screen reader is given the list and not a canvas it cannot read (UI-15).
-        role="img"
-        aria-label={s.mapLabel}
-      />
-      {!basemap && <p className="note">{s.noBasemap}</p>}
-    </>
+    <div className="jc-map">
+      {/* The map is a picture of the list below it, which carries the same stations in text and
+          is what a screen reader reads (UI-15); the map itself pans and zooms by keyboard. */}
+      <div className="jc-map-canvas" ref={holder} data-testid="jc-map" role="application" aria-label={s.mapLabel} />
+      {!basemap && <p className="jc-map-notice">{s.noBasemap}</p>}
+    </div>
   );
 }
 
@@ -246,19 +244,18 @@ function StationList({
   return (
     <section className="stations" aria-labelledby="stations-heading">
       <h2 id="stations-heading">{s.stationsLabel}</h2>
-      <ul>
+      <Grid columns={4}>
         {stations.map((station) => (
-          <li key={station.id}>
-            <StationCard
-              station={station}
-              band={bandOf(station, now)}
-              picked={station.id === pickedId}
-              onPick={onPick}
-              s={s}
-            />
-          </li>
+          <StationCard
+            key={station.id}
+            station={station}
+            band={bandOf(station, now)}
+            picked={station.id === pickedId}
+            onPick={onPick}
+            s={s}
+          />
         ))}
-      </ul>
+      </Grid>
     </section>
   );
 }

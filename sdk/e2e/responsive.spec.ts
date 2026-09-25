@@ -1,9 +1,10 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import react from "@vitejs/plugin-react";
 import { build } from "vite";
+import { BLOCKS, LIVE_BLOCKS, WIDTHS, layoutProblems } from "../src/sdk/responsive";
 import { sampleOverlay, sdkAlias } from "../vite.config";
 
 /**
@@ -25,12 +26,6 @@ import { sampleOverlay, sdkAlias } from "../vite.config";
  * login; a public App needs none.
  */
 const PAGE = "http://responsive.test/";
-const WIDTHS = [
-  { width: 375, height: 812 },
-  { width: 768, height: 1024 },
-  { width: 1440, height: 900 },
-  { width: 2560, height: 1440 },
-];
 
 const ENTRY = `
 import { createRoot } from "react-dom/client";
@@ -184,80 +179,13 @@ async function serve(page: Page, problems: string[]): Promise<void> {
   });
 }
 
-/** The blocks that must never cover each other: every view, card, field and header part. */
-const BLOCKS = [
-  ".jc-card",
-  ".jc-tile",
-  ".jc-table-wrap",
-  ".jc-map",
-  ".jc-chart",
-  ".jc-field",
-  ".jc-filter",
-  ".jc-detail",
-  ".jc-page-header",
-  ".jc-export",
-  ".jc-form-actions",
-  ".jc-tabs",
-  ".jc-sidebar-toggle",
-  ".jc-grid",
-  ".jc-header h1",
-  ".jc-header nav",
-].join(", ");
-
-/** What a published App may be built from besides the template's classes. */
-const LIVE_BLOCKS = `${BLOCKS}, article, aside, figure, form, table`;
-
-/** Pairs of visible blocks, neither inside the other, whose boxes intersect by more than a pixel. */
-async function overlaps(page: Page, blocks = BLOCKS): Promise<string[]> {
-  return page.evaluate((selector) => {
-    const name = (el: Element) =>
-      `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.textContent ?? "").trim().slice(0, 30)}"`;
-    const boxes = [...document.querySelectorAll(selector)]
-      .map((el) => ({ el, box: el.getBoundingClientRect() }))
-      .filter(({ box }) => box.width > 0 && box.height > 0);
-    const found: string[] = [];
-    for (let i = 0; i < boxes.length; i++) {
-      for (let j = i + 1; j < boxes.length; j++) {
-        const a = boxes[i];
-        const b = boxes[j];
-        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
-        const width = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
-        const height = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
-        if (width > 1 && height > 1) found.push(`${name(a.el)} × ${name(b.el)}`);
-      }
-    }
-    return found;
-  }, blocks);
-}
-
-/** No sideways scroll, no overlapping blocks, nothing axe finds; the screenshot attached first. */
-async function checkWidth(page: Page, name: string, width: number, blocks: string, testInfo: import("@playwright/test").TestInfo): Promise<void> {
+/** The screenshot attached first, then everything `layoutProblems` finds at this width. */
+async function checkWidth(page: Page, name: string, width: number, blocks: string, testInfo: TestInfo): Promise<void> {
   await testInfo.attach(`${name}-${width}.png`, {
     body: await page.screenshot({ fullPage: true }),
     contentType: "image/png",
   });
-  const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
-  if (width < 600) {
-    // On a phone a table is cards, not a strip to scroll through.
-    const scrolling = await page.locator(".jc-table-wrap").evaluateAll((wraps) =>
-      wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth + 1).length,
-    );
-    expect(scrolling, "a table scrolls sideways on a phone").toBe(0);
-  }
-  expect(await overlaps(page, blocks)).toEqual([]);
-  expect(await axeViolations(page)).toEqual([]);
-}
-
-const AXE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
-
-async function axeViolations(page: Page): Promise<string[]> {
-  await page.addScriptTag({ content: AXE });
-  return page.evaluate(async () => {
-    const axe = (window as unknown as { axe: { run: (context: Document, options: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> } }).axe;
-    const result = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });
-    return result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`);
-  });
+  expect(await layoutProblems(page, blocks)).toEqual([]);
 }
 
 const SAMPLES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "samples");
