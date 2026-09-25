@@ -221,7 +221,10 @@
         ]
       },
       "from-git": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "import-git.spec.ts",
+          "test": "a steward checks a project's Git export as a new project, and nothing is created"
+        },
         "assistant": "jc_project_import",
         "routes": [
           "POST /api/v1/projects/{project}/import"
