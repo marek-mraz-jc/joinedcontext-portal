@@ -397,13 +397,13 @@ export interface paths {
         };
         /**
          * List People
-         * @description Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.
+         * @description Searches the organization's people, a page at a time.
          */
         get: operations["list_people"];
         put?: never;
         /**
          * Create Person
-         * @description Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.
+         * @description Creates a person and sends the sign-up e-mail.
          */
         post: operations["create_person"];
         delete?: never;
@@ -421,7 +421,7 @@ export interface paths {
         };
         /**
          * Get Person
-         * @description One person with their groups, platform roles and application roles. Needs `read` on Person.
+         * @description One person with their groups and roles.
          */
         get: operations["get_person"];
         put?: never;
@@ -435,7 +435,7 @@ export interface paths {
         head?: never;
         /**
          * Edit Person
-         * @description Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.
+         * @description Edits a person's name, e-mail or language.
          */
         patch: operations["edit_person"];
         trace?: never;
@@ -451,7 +451,7 @@ export interface paths {
         put?: never;
         /**
          * Disable Person
-         * @description Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.
+         * @description Disables a person and ends their sessions; never the caller or the last Organization Administrator.
          */
         post: operations["disable_person"];
         delete?: never;
@@ -471,7 +471,7 @@ export interface paths {
         put?: never;
         /**
          * Enable Person
-         * @description Enables a disabled person. Needs `disable` on Person.
+         * @description Enables a disabled person.
          */
         post: operations["enable_person"];
         delete?: never;
@@ -531,7 +531,7 @@ export interface paths {
         put?: never;
         /**
          * Sign Person Out
-         * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
+         * @description Ends every session of a person.
          */
         post: operations["sign_out_person"];
         delete?: never;

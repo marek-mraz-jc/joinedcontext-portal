@@ -940,7 +940,7 @@
           "people"
         ],
         "summary": "List People",
-        "description": "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope.",
+        "description": "Searches the organization's people, a page at a time.",
         "operationId": "list_people",
         "parameters": [
           {
@@ -1023,7 +1023,7 @@
           "people"
         ],
         "summary": "Create Person",
-        "description": "Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.",
+        "description": "Creates a person and sends the sign-up e-mail.",
         "operationId": "create_person",
         "requestBody": {
           "content": {
@@ -1101,7 +1101,7 @@
           "people"
         ],
         "summary": "Get Person",
-        "description": "One person with their groups, platform roles and application roles. Needs `read` on Person.",
+        "description": "One person with their groups and roles.",
         "operationId": "get_person",
         "parameters": [
           {
@@ -1236,7 +1236,7 @@
           "people"
         ],
         "summary": "Edit Person",
-        "description": "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds.",
+        "description": "Edits a person's name, e-mail or language.",
         "operationId": "edit_person",
         "parameters": [
           {
@@ -1332,7 +1332,7 @@
           "people"
         ],
         "summary": "Disable Person",
-        "description": "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator.",
+        "description": "Disables a person and ends their sessions; never the caller or the last Organization Administrator.",
         "operationId": "disable_person",
         "parameters": [
           {
@@ -1405,7 +1405,7 @@
           "people"
         ],
         "summary": "Enable Person",
-        "description": "Enables a disabled person. Needs `disable` on Person.",
+        "description": "Enables a disabled person.",
         "operationId": "enable_person",
         "parameters": [
           {
@@ -1597,7 +1597,7 @@
           "people"
         ],
         "summary": "Sign Person Out",
-        "description": "Ends every session of the person. Needs `disable` on Person and every right the person holds.",
+        "description": "Ends every session of a person.",
         "operationId": "sign_out_person",
         "parameters": [
           {
