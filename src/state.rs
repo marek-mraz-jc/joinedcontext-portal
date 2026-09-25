@@ -79,7 +79,7 @@ pub struct AppState {
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
-    /// What the last data-quality run found, by space (DM-70). Empty until the leader has run
+    /// What the last data-quality run found, by space (DM-74). Empty until the leader has run
     /// one, which the API answers as "not checked yet".
     pub quality: Arc<crate::quality::Store>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
@@ -587,7 +587,7 @@ impl AppState {
                     // One watch, two readers: the reconciler scans with it and a resolution
                     // writes through it, so the buttons cannot reach a surface the scan did not.
                     state.drift_watch = Some(Arc::clone(&watch));
-                    // The daily data-quality run reads through the same client (DM-70).
+                    // The daily data-quality run reads through the same client (DM-74).
                     syncer = syncer.with_quality(Arc::new(crate::quality::Scanner {
                         watch: Arc::clone(&watch),
                         schemas: Arc::clone(&state.model_schemas),

@@ -110,7 +110,7 @@ pub struct Syncer {
     registrations: Option<Arc<super::registrations::RegistrationSync>>,
     /// The seed-entity drift scan and what its last run found (CC-21, UI-25, UI-26).
     drift: Option<(Arc<super::drift::Watch>, Arc<super::drift::Store>)>,
-    /// The daily data-quality run (DM-70); the leader starts it when it is due.
+    /// The daily data-quality run (DM-74); the leader starts it when it is due.
     quality: Option<Arc<crate::quality::Scanner>>,
     subscriptions: Option<Arc<super::subscriptions::SubscriptionSync>>,
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
@@ -1392,7 +1392,7 @@ impl Syncer {
                     Err(err) => tracing::warn!(error = %err, "the drift scan did not complete"),
                 }
             }
-            // 9. Data quality (DM-70): once a day, in the background; the sync never waits.
+            // 9. Data quality (DM-74): once a day, in the background; the sync never waits.
             if let Some(scanner) = self.quality.as_ref() {
                 scanner.start_if_due();
             }

@@ -121,7 +121,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/pipelines/{name}/runs", "the pipeline page's runs (PL-62); an agent reads how a pipeline is doing with jc_pipeline_metrics"),
 ("GET", "/projects/{project}/pipelines/{name}/runs/{run}/log", "the pipeline page's log of one run (PL-62); an agent reads why one record fails with jc_pipeline_validate on the record itself"),
 ("GET", "/projects/{project}/revisions", "jc_project_revisions"),
-("GET", "/projects/{project}/spaces/{space}/quality", "the daily data-quality report, a reading about the data and not a manifest (DM-70)"),
+("GET", "/projects/{project}/spaces/{space}/quality", "the daily data-quality report, a reading about the data and not a manifest (DM-74)"),
 ("GET", "/projects/{project}/serviceaccounts/{name}/keys", "jc_service_account_key_list"),
 ("POST", "/projects/{project}/serviceaccounts/{name}/keys", "jc_service_account_key_mint"),
 ("DELETE", "/projects/{project}/serviceaccounts/{name}/keys/{keyId}", "jc_service_account_key_revoke"),
