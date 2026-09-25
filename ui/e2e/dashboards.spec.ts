@@ -202,7 +202,8 @@ test.describe("a grid widget of a dashboard", () => {
     await page.goto("/projects/banskabystrica/dashboards?lang=en");
 
     await expect(page.getByRole("grid")).toBeVisible();
-    await expect(page.getByText("42 GQ")).toBeVisible();
+    // The value with its unit's symbol, as the grid writes it since T-2812 (DM-06).
+    await expect(page.getByText("42 µg/m³")).toBeVisible();
     // The widget's own endpoint and type, never another's: the slug is the endpoint it names.
     expect(reads.some((read) => read.startsWith(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities?`))).toBe(
       true,
