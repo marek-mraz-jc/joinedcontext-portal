@@ -35,13 +35,13 @@ spec:
     - name: steward
       title: { en: "Steward", fi: "Ylläpitäjä" }
       description: "Also adds alerts, corrects their fields and removes the alerts a steward added."
-  # A user subject is the person's e-mail, which the realm also issues as `preferred_username`
-  # (email as username), so the static host and the gateway match the same person (AP-91).
+  # Each role goes to its default group, `{app}-{role}`, committed beside the App under
+  # grants/users/groups/ (AP-118, ADR-N-031): who holds a role is that group's members.
   access:
     - role: viewer
-      subjects: [{ user: demo.viewer@hel.fi }]
+      subjects: [{ group: helsinki-alerts-viewer }]
     - role: steward
-      subjects: [{ user: demo.steward@hel.fi }]
+      subjects: [{ group: helsinki-alerts-steward }]
   dataNeeds:
     # Everyone the application admits reads the alerts: the attributes of `Alert` in the
     # `helsinki` model. It has no severity, so the page filters by category and subCategory.

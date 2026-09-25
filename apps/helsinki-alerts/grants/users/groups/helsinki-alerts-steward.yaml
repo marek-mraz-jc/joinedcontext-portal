@@ -1,0 +1,11 @@
+apiVersion: joinedcontext.com/v1alpha1
+kind: Group
+metadata:
+  name: helsinki-alerts-steward
+  namespace: org
+  annotations:
+    joinedcontext.com/app: helsinki/helsinki-alerts
+spec:
+  description: The stewards of helsinki-alerts, its default group (AP-118).
+  members:
+  - user: demo.steward@hel.fi
