@@ -42,6 +42,8 @@ import {
   toDataSpaceParticipantManifest,
 } from "../schemas/dataspaceparticipant";
 import type { DataSpaceParticipantForm } from "../schemas/dataspaceparticipant";
+import { environmentSchema, fromEnvironmentManifest, toEnvironmentManifest } from "../schemas/environment";
+import type { EnvironmentForm } from "../schemas/environment";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -127,6 +129,11 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromDataSpaceParticipantManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toDataSpaceParticipantManifest(form as DataSpaceParticipantForm, stored),
   }),
+  environments: (t) => ({
+    schema: environmentSchema(t),
+    fromManifest: (manifest) => fromEnvironmentManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toEnvironmentManifest(form as EnvironmentForm, stored),
+  }),
   agentprofiles: (t) => ({
     schema: agentProfileSchema(t),
     uiSchema: agentProfileUiSchema,
@@ -146,6 +153,7 @@ const CREATE_KINDS: Record<string, string> = {
   blueprints: "Blueprint",
   agentprofiles: "AgentProfile",
   dataspaceparticipants: "DataSpaceParticipant",
+  environments: "Environment",
 };
 
 /**

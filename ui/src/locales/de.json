@@ -78,7 +78,8 @@
     "blueprints": "Vorlagen",
     "agentprofiles": "Agentenprofile",
     "dataoffers": "Datenangebote",
-    "dataspaceparticipants": "Datenraum"
+    "dataspaceparticipants": "Datenraum",
+    "environments": "Umgebungen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -3487,7 +3488,8 @@
       "setup": "Einrichtung",
       "blueprints": "Vorlagen",
       "agentprofiles": "Agentenprofile",
-      "dataspaceparticipants": "Datenraum"
+      "dataspaceparticipants": "Datenraum",
+      "environments": "Umgebungen"
     },
     "settings": {
       "title": "Einstellungen",
@@ -4298,6 +4300,23 @@
       "engine": "Connector-Engine",
       "trustAnchors": "Vertrauenswürdige Aussteller",
       "trustAnchor": "Vertrauenswürdiger Aussteller (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Name",
+      "orgDomain": "Domain der Organisation hier",
+      "hosts": "Hosts",
+      "component": "Komponente",
+      "host": "Host",
+      "images": "Image-Digests",
+      "digest": "Digest",
+      "secrets": "Secret-Backend",
+      "backend": "Backend",
+      "mount": "Pfad",
+      "features": "Feature-Flags",
+      "feature": "Flag",
+      "enabled": "Ein"
     }
   }
 }

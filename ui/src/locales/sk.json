@@ -78,7 +78,8 @@
     "blueprints": "Šablóny",
     "agentprofiles": "Profily agentov",
     "dataoffers": "Dátové ponuky",
-    "dataspaceparticipants": "Dátový priestor"
+    "dataspaceparticipants": "Dátový priestor",
+    "environments": "Prostredia"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -3487,7 +3488,8 @@
       "setup": "Nastavenie",
       "blueprints": "Šablóny",
       "agentprofiles": "Profily agentov",
-      "dataspaceparticipants": "Dátový priestor"
+      "dataspaceparticipants": "Dátový priestor",
+      "environments": "Prostredia"
     },
     "settings": {
       "title": "Nastavenia",
@@ -4298,6 +4300,23 @@
       "engine": "Motor konektora",
       "trustAnchors": "Dôveryhodní vydavatelia",
       "trustAnchor": "Dôveryhodný vydavateľ (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Názov",
+      "orgDomain": "Doména organizácie v tomto prostredí",
+      "hosts": "Hostitelia",
+      "component": "Komponent",
+      "host": "Hostiteľ",
+      "images": "Odtlačky obrazov",
+      "digest": "Odtlačok",
+      "secrets": "Úložisko tajomstiev",
+      "backend": "Úložisko",
+      "mount": "Umiestnenie",
+      "features": "Prepínače funkcií",
+      "feature": "Prepínač",
+      "enabled": "Zapnutý"
     }
   }
 }

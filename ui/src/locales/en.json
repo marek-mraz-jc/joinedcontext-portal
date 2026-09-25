@@ -78,7 +78,8 @@
     "blueprints": "Blueprints",
     "agentprofiles": "Agent profiles",
     "dataoffers": "Data offers",
-    "dataspaceparticipants": "Data space"
+    "dataspaceparticipants": "Data space",
+    "environments": "Environments"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -3487,7 +3488,8 @@
       "setup": "Setup",
       "blueprints": "Blueprints",
       "agentprofiles": "Agent profiles",
-      "dataspaceparticipants": "Data space"
+      "dataspaceparticipants": "Data space",
+      "environments": "Environments"
     },
     "settings": {
       "title": "Settings",
@@ -4298,6 +4300,23 @@
       "engine": "Connector engine",
       "trustAnchors": "Trusted issuers",
       "trustAnchor": "Trusted issuer (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Name",
+      "orgDomain": "Organization domain here",
+      "hosts": "Hosts",
+      "component": "Component",
+      "host": "Host",
+      "images": "Image digests",
+      "digest": "Digest",
+      "secrets": "Secret backend",
+      "backend": "Backend",
+      "mount": "Mount",
+      "features": "Feature flags",
+      "feature": "Flag",
+      "enabled": "On"
     }
   }
 }

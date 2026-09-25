@@ -23,6 +23,7 @@ import { blueprintSchema } from "../src/schemas/blueprint";
 import { agentProfileSchema } from "../src/schemas/agentprofile";
 import { dataOfferSchema } from "../src/schemas/dataoffer";
 import { dataSpaceParticipantSchema } from "../src/schemas/dataspaceparticipant";
+import { environmentSchema } from "../src/schemas/environment";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -96,6 +97,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   DataOffer: [dataOfferSchema(t)],
   // Created once and edited on Organization → Data space (T-1544).
   DataSpaceParticipant: [dataSpaceParticipantSchema(t)],
+  // Created and edited on Organization → Environments (T-1545).
+  Environment: [environmentSchema(t)],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).
