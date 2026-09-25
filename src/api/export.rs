@@ -344,7 +344,6 @@ fn bundle_index(
         exported_at: chrono::Utc::now(),
         exported_by: header.exporter.to_owned(),
         source_instance: None,
-        models: Vec::new(),
         source_revision: header.revision.to_owned(),
         items,
         native_files,
@@ -360,6 +359,7 @@ fn bundle_index(
         }),
         // A YAML bundle; a git-native export lists its repositories here (MF-45).
         repositories: Vec::new(),
+        models: Vec::new(),
     };
     let bundle = serde_json::json!({
         "apiVersion": API_VERSION,
@@ -555,7 +555,16 @@ async fn model_files(state: &AppState, file: &Exported, all: &[Exported]) -> Mod
     if model.json_schema.is_none() {
         match &model.linkml {
             Some(source) => {
-                match crate::api::datamodels::compile_artifacts(state, source).await {
+                // A model saved through the Portal commits its JSON Schema, imports resolved
+                // (DM-76), so this fallback compiles only a hand-committed source; one that
+                // imports a platform model says so in `missing` (T-2885 carries the imports).
+                match crate::api::datamodels::compile_artifacts(
+                    state,
+                    source,
+                    &std::collections::BTreeMap::new(),
+                )
+                .await
+                {
                     Ok(artifacts) if artifacts.json_schema.is_some() => {
                         model.json_schema = artifacts.json_schema;
                     }

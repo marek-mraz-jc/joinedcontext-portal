@@ -366,7 +366,12 @@ pub(crate) fn resolve_repo_path(
                 .then(|| crate::api::assistant::ref_name(&envelope.spec["contextSpaceRef"]))
                 .flatten()
         })
-        .or_else(|| envelope.metadata.namespace.clone());
+        // A DataModel no space owns has a folder of its own, not the project's space (DM-75).
+        .or_else(|| {
+            (kind_info.kind != "DataModel")
+                .then(|| envelope.metadata.namespace.clone())
+                .flatten()
+        });
 
     resource::repository_path(
         kind_info,
@@ -1127,7 +1132,7 @@ async fn propose_engine(
     plan.fields.extend(grants.review.iter().cloned());
 
     // 6. Risk-classified approval lane
-    let lane = change::classify(kind_info.kind, operation, &envelope.spec);
+    let lane = change::classify_manifest(&envelope, operation);
     // OPS-16: the one series no other component can produce. A rise in red proposals is a
     // change in what people are asking the platform to do.
     crate::telemetry::proposed(lane, kind_info.kind);

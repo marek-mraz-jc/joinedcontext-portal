@@ -686,6 +686,7 @@ impl Driver {
             Ok(changed) => match serde_yaml_ng::to_string(&changed) {
                 Ok(source) => crate::api::datamodels::check_source(
                     &self.state,
+                    &self.identity,
                     home,
                     name,
                     &spec,
@@ -693,7 +694,7 @@ impl Driver {
                     None,
                 )
                 .await
-                .map(|(checked, _)| checked)
+                .map(|(checked, _, _)| checked)
                 .map_err(|err| format!("the platform's check refuses the change: {err}")),
                 Err(err) => Err(err.to_string()),
             },

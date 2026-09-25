@@ -1647,6 +1647,18 @@
     "download": "Herunterladen"
   },
   "models": {
+    "share": {
+      "action": "Mit der Organisation teilen",
+      "title": "{name} mit der Organisation teilen?",
+      "lead": "Eine Kopie von {name} v{version} kommt Byte für Byte zu den Modellen der Organisation, damit jedes Projekt sie importieren kann. Eine Administratorin oder ein Administrator der Organisation genehmigt sie; bis dahin ändert sich nichts, und dieses Projekt behält sein eigenes Modell in jedem Fall.",
+      "confirm": "Teilen vorschlagen",
+      "notPublished": "Nur ein veröffentlichtes Modell wird geteilt: Veröffentlichen Sie es zuerst.",
+      "failed": "Das Teilen wurde nicht vorgeschlagen: {reason}",
+      "adoptLead": "Die Organisation führt dieses Modell als {importName} (v{version}), von hier geteilt. Verwenden Sie ihre Kopie: Dieses Modell importiert sie dann anstelle der Klassen, die es selbst definiert, mit denselben Namen und IRIs, sodass sich keine Entität ändert.",
+      "adopt": "Kopie der Organisation verwenden",
+      "copyLoading": "Die Kopie der Organisation wird gelesen …",
+      "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}"
+    },
     "title": "Modelleditor",
     "version": "Version {version}",
     "add": "Hinzufügen",
@@ -1914,7 +1926,14 @@
       "copyYaml": "YAML kopieren",
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",
-      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
+      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst.",
+      "projectSection": "Modelle dieses Projekts",
+      "organizationSection": "Modelle der Organisation",
+      "organizationLead": "Die Organisation teilt sie mit jedem Projekt. Administratoren der Organisation ändern sie; ein Modell dieses Projekts nutzt eines, indem es es importiert.",
+      "organizationEmpty": "Die Organisation teilt noch kein Datenmodell.",
+      "organizationCaption": "Datenmodelle der Organisation",
+      "importAs": "Importieren als",
+      "organizationOpen": "Auf der Seite Organisation öffnen"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
@@ -3620,6 +3639,7 @@
       "roles": "Rollen",
       "groups": "Gruppen",
       "service-accounts": "Dienstkonten",
+      "models": "Modelle der Organisation",
       "projects": "Projekte",
       "applications": "Alle Anwendungen",
       "setup": "Einrichtung",
@@ -4178,6 +4198,9 @@
     "repositories": "Anzulegende Repositories",
     "repository": "{repository} bei {head}",
     "parameters": "Parameter",
+    "models": "Organisationsmodelle",
+    "modelMap": "{name} {version}: diese Organisation hält es Byte für Byte; die Importe des Projekts bleiben.",
+    "modelLand": "{name} {version}: wird ein Modell des Projekts; die Importe des Projekts zeigen darauf.",
     "noParameters": "Das Projekt deklariert keine Parameter.",
     "secretHint": "Geben Sie den Namen eines Secrets ein, nie seinen Wert.",
     "default": "Standard: {value}.",
@@ -4427,7 +4450,7 @@
     "chosen": "Gewählt: {label}",
     "remove": "{name} entfernen",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Projekt {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "Kein Datenmodell passt.",
       "create": "Neues Datenmodell „{name}“",
@@ -4439,7 +4462,9 @@
         "deprecated": "veraltet",
         "retired": "ausgemustert",
         "mirrored": "gespiegelt"
-      }
+      },
+      "groupProject": "Projekt {project}",
+      "groupOrganization": "Modelle der Organisation"
     },
     "type": {
       "local": "Typen von {space}",
@@ -4447,7 +4472,9 @@
       "imported": "Importiert aus {name}",
       "none": "Das Modell von {space} deklariert noch keinen Typ.",
       "noneInProject": "Kein Datenmodell dieses Projekts deklariert bisher einen Typ.",
-      "create": "Neuer Typ „{name}“"
+      "create": "Neuer Typ „{name}“",
+      "modelGroupOwn": "{name} (Projektmodell)",
+      "importedOrganization": "Importiert aus dem Organisationsmodell {name}"
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"

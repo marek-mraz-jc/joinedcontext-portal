@@ -1647,6 +1647,18 @@
     "download": "Stiahnuť"
   },
   "models": {
+    "share": {
+      "action": "Zdieľať s organizáciou",
+      "title": "Zdieľať {name} s organizáciou?",
+      "lead": "Kópia {name} v{version} pribudne bajt po bajte medzi modely organizácie, aby ju mohol importovať každý projekt. Schvaľuje ju administrátor organizácie; dovtedy sa nič nemení a tento projekt si v každom prípade ponechá vlastný model.",
+      "confirm": "Navrhnúť zdieľanie",
+      "notPublished": "Zdieľať sa dá len publikovaný model: najprv ho publikujte.",
+      "failed": "Zdieľanie sa nenavrhlo: {reason}",
+      "adoptLead": "Organizácia má tento model ako {importName} (v{version}), zdieľaný odtiaľto. Použite jej kópiu: tento model ju potom importuje namiesto tried, ktoré sám definuje, s rovnakými názvami a IRI, takže sa žiadna entita nezmení.",
+      "adopt": "Použiť kópiu organizácie",
+      "copyLoading": "Načítava sa kópia organizácie…",
+      "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}"
+    },
     "title": "Editor modelov",
     "version": "Verzia {version}",
     "add": "Pridať",
@@ -1914,7 +1926,14 @@
       "copyYaml": "Kopírovať YAML",
       "downloadYaml": "Stiahnuť YAML",
       "copied": "Skopírované.",
-      "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
+      "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne.",
+      "projectSection": "Modely tohto projektu",
+      "organizationSection": "Modely organizácie",
+      "organizationLead": "Organizácia ich zdieľa so všetkými projektmi. Menia ich správcovia organizácie; model tohto projektu ich používa importom.",
+      "organizationEmpty": "Organizácia zatiaľ nezdieľa žiadny dátový model.",
+      "organizationCaption": "Dátové modely organizácie",
+      "importAs": "Importovať ako",
+      "organizationOpen": "Otvoriť na stránke Organizácia"
     },
     "hints": {
       "title": "Tento model zatiaľ nemá triedu. Tri kroky na začiatok:",
@@ -3620,6 +3639,7 @@
       "roles": "Roly",
       "groups": "Skupiny",
       "service-accounts": "Servisné účty",
+      "models": "Modely organizácie",
       "projects": "Projekty",
       "applications": "Všetky aplikácie",
       "setup": "Nastavenie",
@@ -4178,6 +4198,9 @@
     "repositories": "Repozitáre na vytvorenie",
     "repository": "{repository} na {head}",
     "parameters": "Parametre",
+    "models": "Modely organizácie",
+    "modelMap": "{name} {version}: táto organizácia ho má bajt po bajte; importy projektu zostávajú.",
+    "modelLand": "{name} {version}: pristane ako model projektu; importy projektu ukážu naň.",
     "noParameters": "Projekt nedeklaruje žiadne parametre.",
     "secretHint": "Zadajte názov tajomstva, nikdy jeho hodnotu.",
     "default": "Predvolené: {value}.",
@@ -4427,7 +4450,7 @@
     "chosen": "Vybrané: {label}",
     "remove": "Odobrať {name}",
     "model": {
-      "group": "{project} / {space}",
+      "group": "Projekt {project} / {space}",
       "catalogue": "Smart Data Models",
       "none": "Žiadny dátový model nezodpovedá.",
       "create": "Nový dátový model „{name}“",
@@ -4439,7 +4462,9 @@
         "deprecated": "zastaraný",
         "retired": "vyradený",
         "mirrored": "zrkadlený"
-      }
+      },
+      "groupProject": "Projekt {project}",
+      "groupOrganization": "Modely organizácie"
     },
     "type": {
       "local": "Typy priestoru {space}",
@@ -4447,7 +4472,9 @@
       "imported": "Importované z {name}",
       "none": "Model priestoru {space} zatiaľ nedeklaruje žiadny typ.",
       "noneInProject": "Žiadny dátový model tohto projektu zatiaľ nedeklaruje typ.",
-      "create": "Nový typ „{name}“"
+      "create": "Nový typ „{name}“",
+      "modelGroupOwn": "{name} (model projektu)",
+      "importedOrganization": "Importované z modelu organizácie {name}"
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
