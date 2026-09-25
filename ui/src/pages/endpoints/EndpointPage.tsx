@@ -26,17 +26,19 @@ import {
   endpointUrl,
 } from "../../components/endpoints/links";
 import { spaceOf } from "../../components/endpoints/sharing";
-import { bindingOf } from "../../components/endpoints/policyBinding";
+import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
+import { FilterProof } from "./FilterProof";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
 import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Field,
   Input,
   PageHeader,
@@ -384,7 +386,8 @@ export function EndpointPage({
             <FilterForm
               project={project}
               projection={projection}
-              slug={slug}
+              endpoint={manifest}
+              segment={space ? spaceSegment(project, space, asManifests(spaces.data?.items ?? [])) : ""}
               live={(manifest.status?.phase ?? "").toLowerCase() === "live"}
             />
             <p className="text-caption text-fg-muted">
@@ -508,48 +511,75 @@ export function EndpointPage({
 function FilterForm({
   project,
   projection,
-  slug,
+  endpoint,
+  segment,
   live,
 }: {
   project: string;
   projection: Manifest;
-  /** The endpoint the counts are read through; both are what it answers itself. */
-  slug: string;
+  /** The endpoint whose hidden attributes the editor holds; its slug is what the proof reads. */
+  endpoint: Manifest;
+  /** The `{space}` segment of the space's canonical surface (PF-84). */
+  segment: string;
   live: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const spec = endpoint.spec as EndpointSpec;
+  const slug = spec.slug ?? "";
   const stored = filterOf(projection);
+  const storedClasses = classesWithSlots(projection);
+  const storedHidden = spec.projection?.hiddenAttributes ?? [];
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(FILTER_KEYS.map((key) => [key, stored[key] ?? ""])),
   );
-  const [change, setChange] = useState<Change | null>(null);
+  const [served, setServed] = useState<string[]>(() => storedClasses.map((klass) => klass.name));
+  const [hidden, setHidden] = useState<string[]>(storedHidden);
+  const [changes, setChanges] = useState<Change[]>([]);
+
+  const filter = Object.fromEntries(
+    FILTER_KEYS.map((key) => [key, draft[key]?.trim() ?? ""]).filter(([, value]) => value !== ""),
+  ) as Record<string, string>;
+  const classes = storedClasses.filter((klass) => served.includes(klass.name));
+  const projectionTouched =
+    FILTER_KEYS.some((key) => (draft[key]?.trim() ?? "") !== (stored[key] ?? "")) ||
+    classes.length !== storedClasses.length;
+  const hiddenTouched = !sameSet(hidden, storedHidden);
 
   const propose = useMutation({
     mutationFn: async () => {
-      const filter = Object.fromEntries(
-        FILTER_KEYS.map((key) => [key, draft[key]?.trim() ?? ""]).filter(([, value]) => value !== ""),
-      );
-      // The status is the platform's to compute and never travels back (MF-04).
-      const rest = { ...projection };
-      delete (rest as { status?: unknown }).status;
-      const body = {
-        ...rest,
-        spec: {
-          ...(projection.spec as Record<string, unknown>),
-          ...(Object.keys(filter).length > 0 ? { filter } : {}),
-        },
-      };
-      if (Object.keys(filter).length === 0) {
-        delete (body.spec as { filter?: unknown }).filter;
+      const proposed: unknown[] = [];
+      if (projectionTouched) {
+        // The status is the platform's to compute and never travels back (MF-04).
+        const rest = { ...projection };
+        delete (rest as { status?: unknown }).status;
+        const body = {
+          ...rest,
+          spec: { ...(projection.spec as Record<string, unknown>), classes, filter },
+        };
+        if (Object.keys(filter).length === 0) {
+          delete (body.spec as { filter?: unknown }).filter;
+        }
+        proposed.push(await proposeChecked(project, "projections", body as ResourceProposal, false));
       }
-      return proposeChecked(project, "projections", body as ResourceProposal, false);
+      if (hiddenTouched) {
+        // Hidden attributes live on the endpoint itself (EP-61), so they are a change of their own.
+        const rest = { ...endpoint };
+        delete (rest as { status?: unknown }).status;
+        const { projection: _stored, ...kept } = spec;
+        void _stored;
+        const body = {
+          ...rest,
+          spec: { ...kept, ...(hidden.length > 0 ? { projection: { hiddenAttributes: hidden } } : {}) },
+        };
+        proposed.push(await proposeChecked(project, "endpoints", body as ResourceProposal, false));
+      }
+      return proposed;
     },
-    onSuccess: (result) => {
-      if (isChange(result)) {
-        setChange(result);
-      }
+    onSuccess: (results) => {
+      setChanges(results.filter(isChange));
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "projections") });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.resource(project, "endpoints", endpoint.metadata.name) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
   });
@@ -557,8 +587,9 @@ function FilterForm({
   const faults = Object.fromEntries(
     FILTER_KEYS.map((key) => [key, filterFault(key, draft[key] ?? "")]),
   ) as Record<string, string | undefined>;
-  const faulty = Object.values(faults).some(Boolean);
-  const untouched = FILTER_KEYS.every((key) => (draft[key]?.trim() ?? "") === (stored[key] ?? ""));
+  const noType = classes.length === 0;
+  const faulty = Object.values(faults).some(Boolean) || noType;
+  const untouched = !projectionTouched && !hiddenTouched;
   const failure =
     propose.error instanceof ApiError
       ? (propose.error.problem?.detail ?? propose.error.message)
@@ -566,57 +597,137 @@ function FilterForm({
         ? t("app.error.generic")
         : null;
 
-  if (change) {
-    return <ChangeNotice change={change} project={project} />;
+  if (changes.length > 0) {
+    return (
+      <div className="space-y-2">
+        {changes.map((change) => (
+          <ChangeNotice key={change.metadata?.name ?? JSON.stringify(change)} change={change} project={project} />
+        ))}
+      </div>
+    );
   }
 
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        propose.mutate();
-      }}
-    >
-      {failure ? (
-        <Alert tone="danger" role="alert">
-          {failure}
-        </Alert>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {FILTER_KEYS.map((key) => (
-          <Field
-            key={key}
-            id={`filter-${key}`}
-            label={t(`endpoints.filter.${key}`)}
-            help={t(`endpoints.filter.${key}Help`)}
-            errors={faults[key] ? [t(`endpoints.filter.fault.${faults[key] as string}`)] : undefined}
-          >
-            <Input
+    <div className="grid gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <form
+        className="space-y-3"
+        aria-label={t("endpoints.filterEditor.label")}
+        onSubmit={(event) => {
+          event.preventDefault();
+          propose.mutate();
+        }}
+      >
+        {failure ? (
+          <Alert tone="danger" role="alert">
+            {failure}
+          </Alert>
+        ) : null}
+        <fieldset className="space-y-2">
+          <legend className="text-caption font-medium">{t("endpoints.filterEditor.types")}</legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {storedClasses.map((klass) => (
+              <Checkbox
+                key={klass.name}
+                id={`filter-type-${klass.name}`}
+                label={klass.name}
+                checked={served.includes(klass.name)}
+                onChange={(event) =>
+                  setServed(
+                    event.target.checked
+                      ? [...served, klass.name]
+                      : served.filter((name) => name !== klass.name),
+                  )
+                }
+              />
+            ))}
+          </div>
+          {noType ? (
+            <p role="alert" className="text-caption text-danger">
+              {t("endpoints.filterEditor.noType")}
+            </p>
+          ) : null}
+        </fieldset>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {FILTER_KEYS.map((key) => (
+            <Field
+              key={key}
               id={`filter-${key}`}
-              value={draft[key] ?? ""}
-              placeholder={t("endpoints.page.filterEmpty")}
-              aria-invalid={faults[key] ? true : undefined}
-              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            />
-          </Field>
-        ))}
-      </div>
-      <MatchCount slug={slug} type={classesOf(projection)[0]} q={draft.q ?? ""} live={live} />
-      <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
-      <ConditionBuilder
-        attributes={slotsOf(projection)}
-        onAdd={(term) =>
-          setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
-        }
+              label={t(`endpoints.filter.${key}`)}
+              help={t(`endpoints.filter.${key}Help`)}
+              errors={faults[key] ? [t(`endpoints.filter.fault.${faults[key] as string}`)] : undefined}
+            >
+              <Input
+                id={`filter-${key}`}
+                value={draft[key] ?? ""}
+                placeholder={t("endpoints.page.filterEmpty")}
+                aria-invalid={faults[key] ? true : undefined}
+                onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+              />
+            </Field>
+          ))}
+        </div>
+        <MatchCount slug={slug} type={classesOf(projection)[0]} q={draft.q ?? ""} live={live} />
+        <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
+        <ConditionBuilder
+          attributes={slotsOf(projection)}
+          onAdd={(term) =>
+            setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
+          }
+        />
+        <fieldset className="space-y-2">
+          <legend className="text-caption font-medium">{t("endpoints.filterEditor.hidden")}</legend>
+          <p className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
+          {classes.map((klass) => (
+            <div key={klass.name} className="space-y-1">
+              <p className="text-caption font-medium text-fg-muted">{klass.name}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {klass.slots.length === 0 ? (
+                  <span className="text-caption text-fg-muted">{t("endpoints.filterEditor.identityOnly")}</span>
+                ) : null}
+                {klass.slots.map((slot) => (
+                  <Checkbox
+                    key={slot}
+                    id={`filter-hide-${klass.name}-${slot}`}
+                    label={slot}
+                    checked={hidden.includes(slot)}
+                    onChange={(event) =>
+                      setHidden(
+                        event.target.checked ? [...hidden, slot] : hidden.filter((name) => name !== slot),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </fieldset>
+        <PermissionGuard project={project} kind="ModelProjection" verb="propose">
+          <Button type="submit" disabled={untouched || faulty || propose.isPending}>
+            {t("endpoints.page.filterPropose")}
+          </Button>
+        </PermissionGuard>
+      </form>
+      <FilterProof
+        slug={slug}
+        segment={segment}
+        live={live}
+        draft={{ classes, filter, hiddenAttributes: hidden }}
       />
-      <PermissionGuard project={project} kind="ModelProjection" verb="propose">
-        <Button type="submit" disabled={untouched || faulty || propose.isPending}>
-          {t("endpoints.page.filterPropose")}
-        </Button>
-      </PermissionGuard>
-    </form>
+    </div>
   );
+}
+
+/** Two lists holding the same names, in any order. */
+function sameSet(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((name) => right.includes(name));
+}
+
+/** The projection's classes with the slots each keeps (MP-01). */
+export function classesWithSlots(projection: Manifest): { name: string; slots: string[] }[] {
+  const classes = (projection.spec as { classes?: Array<{ name?: string; slots?: string[] }> }).classes ?? [];
+  return classes
+    .filter((klass): klass is { name: string; slots?: string[] } => typeof klass.name === "string" && klass.name !== "")
+    .map((klass) => ({ name: klass.name, slots: klass.slots ?? [] }));
 }
 
 /** The results count header of a counted NGSI-LD read (CIM 009 6.3.13). */
