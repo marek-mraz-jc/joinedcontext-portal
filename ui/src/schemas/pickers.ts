@@ -6,7 +6,8 @@
  * that neither this table nor `UNPICKED` names.
  *
  * A field whose schema already offers its choices (`enum`, `oneOf`, because the page passed the
- * list) keeps that select: the page's list is the narrower one.
+ * list) keeps that select: the page's list is the narrower one. A `readOnly` field stays a
+ * read-only input.
  */
 import type { UiSchema } from "../components/forms/types";
 
@@ -104,7 +105,8 @@ export function withPickers(kind: string | undefined, schema: unknown, uiSchema:
   const out: Record<string, unknown> = { ...(uiSchema ?? {}) };
   for (const [path, entry] of Object.entries(pickers)) {
     const field = nodeAt(schema, path);
-    if (!field || field.enum !== undefined || field.oneOf !== undefined) {
+    // A read-only field (the generated fields of a DataModel, UI-01) is shown, never picked.
+    if (!field || field.enum !== undefined || field.oneOf !== undefined || field.readOnly === true) {
       continue;
     }
     place(out, path, entry);

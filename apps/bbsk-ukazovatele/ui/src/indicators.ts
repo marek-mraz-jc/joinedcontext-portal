@@ -4,9 +4,11 @@
  * Everything here is decided from the entity and from the published contract, never guessed. Two
  * decisions are the reason this file is separate from the components and tested on its own:
  *
- * - **Whose number it is.** The body comes from the entity's own id — the `{orgDomain}` segment
- *   of the URN, which the writing project cannot forge, because the pipeline mints it from the
- *   environment its own project sets. The territory comes from the `{localId}` suffix, which is
+ * - **Whose number it is.** The body comes from the entity's own id — the `{space}` segment of
+ *   the URN, `bbsk-kpi` or `banskabystrica-kpi`. Both bodies are projects of one Organization, so
+ *   the `{orgDomain}` is the same for both (`Development/10` §1); a space's segment is unique in
+ *   the Organization and only its own project's pipeline writes there, so the writing project
+ *   cannot forge it. The territory comes from the `{localId}` suffix, which is
  *   where `Development/10` §6 puts it, since the published schema closes the attribute set and
  *   leaves no `territory` attribute to carry it. A region figure and a city figure differ by a
  *   factor of eight, so a card that cannot say which it is must say nothing at all.
@@ -16,12 +18,12 @@
  */
 import type { RichCell, RichRow } from "@joinedcontext/sdk";
 
-/** The two publishers, by the `{orgDomain}` segment of an indicator's URN. */
+/** The two publishers, by the `{space}` segment of an indicator's URN (`Development/10` §1). */
 export type Body = "bbsk" | "banskabystrica";
 
-export const BODY_OF_DOMAIN: Readonly<Record<string, Body>> = {
-  "bbsk.sk": "bbsk",
-  "banskabystrica.sk": "banskabystrica",
+export const BODY_OF_SPACE: Readonly<Record<string, Body>> = {
+  "bbsk-kpi": "bbsk",
+  "banskabystrica-kpi": "banskabystrica",
 };
 
 /** `green` and over: the states of an indicator that has a published limit value. */
@@ -109,7 +111,7 @@ function text(cell: RichCell | undefined): string | undefined {
  * The entity as a card reads it, or `null` for an entity this application will not show.
  *
  * Refused, deliberately and in this order: anything that is not a `KeyPerformanceIndicator`; an
- * id that is not the six-segment URN of a body this application knows; a `name` that disagrees
+ * id that is not the six-segment URN of an indicator space this application knows; a `name` that disagrees
  * with the id's `{localId}`, which would let one indicator be displayed under another's heading;
  * and a name whose suffix is no declared territory. Each of those is a number nobody could place,
  * and a number nobody can place is worse on a public dashboard than a number that is missing.
@@ -118,7 +120,7 @@ export function toIndicator(row: RichRow): Indicator | null {
   if (row.type !== "KeyPerformanceIndicator") return null;
   const segments = row.id.split(":");
   if (segments.length !== 6 || segments[0] !== "urn" || segments[1] !== "ngsi-ld") return null;
-  const body = BODY_OF_DOMAIN[segments[3]];
+  const body = Object.hasOwn(BODY_OF_SPACE, segments[4]) ? BODY_OF_SPACE[segments[4]] : undefined;
   if (!body) return null;
 
   const name = text(one(row.cells, "name"));

@@ -100,4 +100,9 @@ describe("every field that names a resource is a picker (T-2702)", () => {
     expect(ui).toEqual({});
     expect(withPickers("Unknown", {}, undefined)).toBeUndefined();
   });
+
+  it("leaves a read-only field a read-only input, never a picker (UI-01)", () => {
+    const ui = withPickers("DataModel", dataModelSchema(t), {}) as Record<string, unknown>;
+    expect(ui.contextSpaceRef).toBeUndefined();
+  });
 });
