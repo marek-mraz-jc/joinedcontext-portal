@@ -9,12 +9,14 @@ import type { RichCell, RichRow } from "@joinedcontext/sdk";
 
 export interface Station {
   id: string;
-  /**
-   * The `{localId}` of the URN, which is all the name there is: the published model carries no
-   * `name` slot (`bb-air-quality.linkml.yaml`), so inventing one here would put a name on a
-   * screen that no publisher stands behind. `locales.ts` translates the ones we know.
-   */
+  /** The `{localId}` of the URN, what the station is called when it publishes no name. */
   localId: string;
+  /**
+   * The station's published `name`, in the reader's language (the pipelines write
+   * "Stanica SK0263A, mestské pozadie"); `null` when it publishes none, and then `locales.ts`
+   * names it by its id rather than inventing a name no publisher stands behind.
+   */
+  name: string | null;
   /** `[longitude, latitude]`, GeoJSON order; `null` when the station has no location. */
   coordinates: [number, number] | null;
   pm10: number | null;
@@ -81,6 +83,7 @@ export function toStation(row: RichRow): Station {
   return {
     id: row.id,
     localId: localIdOf(row.id),
+    name: textOf(row.cells.name),
     coordinates: pointOf(row.cells.location),
     pm10: numberOf(pm10),
     pm25: numberOf(row.cells.pm25),

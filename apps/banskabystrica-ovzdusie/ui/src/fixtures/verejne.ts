@@ -1,12 +1,12 @@
 /**
- * What the `public-air` endpoint answers, as the gateway shapes it (T-2435).
+ * What the endpoint of `banskabystrica-verejne` answers, as the gateway shapes it (T-2435, T-2949).
  *
  * The timestamps are relative to a `now` the test passes, because what this fixture is for is
  * the difference between a reading taken minutes ago and one taken this morning: written as
  * literals they would all be stale a day after they were typed, and the staleness case would
  * pass for the wrong reason.
  */
-const URN = "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie";
+const URN = "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne";
 
 export interface StationFixture {
   localId: string;
@@ -62,5 +62,29 @@ export function history(id: string, now: Date, points = 4): Record<string, unkno
       unitCode: "GQ",
       observedAt: new Date(now.getTime() - (points - index) * 3_600_000).toISOString(),
     })),
+  };
+}
+
+/**
+ * Station SK0263A exactly as the pipelines ovzdusie-pm10 and ovzdusie-pm25 write it
+ * (`pipeline-ovzdusie-pm10-bento.yaml`): one entity, each stream its own attribute, the place and
+ * the name from the EEA station metadata, the reading `minutesAgo` before `now`.
+ */
+export function sk0263a(now: Date, minutesAgo: number, pm10 = 21.3, pm25 = 14.8): Record<string, unknown> {
+  const at = new Date(now.getTime() - minutesAgo * 60_000).toISOString();
+  return {
+    id: `${URN}:eea-SK0263A`,
+    type: "AirQualityObserved",
+    name: {
+      type: "LanguageProperty",
+      languageMap: { sk: "Stanica SK0263A, mestské pozadie", en: "Station SK0263A, urban background" },
+    },
+    stationCode: { type: "Property", value: "SK0263A" },
+    pm10: { type: "Property", value: pm10, unitCode: "GQ", observedAt: at },
+    pm25: { type: "Property", value: pm25, unitCode: "GQ", observedAt: at },
+    dateObserved: { type: "Property", value: at },
+    location: { type: "GeoProperty", value: { type: "Point", coordinates: [19.115268, 48.733256] } },
+    dataProvider: { type: "Property", value: "European Environment Agency, air quality data reported by SHMÚ (CC BY 4.0)" },
+    source: { type: "Property", value: "https://eeadmz1-downloads-api-appservice.azurewebsites.net/" },
   };
 }

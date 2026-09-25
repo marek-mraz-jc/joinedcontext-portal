@@ -18,7 +18,7 @@ import {
   stationsOf,
   toStation,
 } from "./stations";
-import { answer, station } from "./fixtures/ovzdusie";
+import { answer, station } from "./fixtures/verejne";
 
 const NOW = new Date("2026-09-20T09:00:00Z");
 const rowOf = (entity: Record<string, unknown>) => toRichRow(entity, "sk");
@@ -43,7 +43,7 @@ describe("one station, read off the endpoint's own answer", () => {
   });
 
   it("keeps the whole id when it is not a five-segment urn, rather than guessing a name", () => {
-    expect(localIdOf("urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:station-1")).toBe("station-1");
+    expect(localIdOf("urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne:station-1")).toBe("station-1");
     expect(localIdOf("station-1")).toBe("station-1");
   });
 

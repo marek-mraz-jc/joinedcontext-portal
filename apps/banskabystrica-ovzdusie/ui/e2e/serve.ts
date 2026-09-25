@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { answer, history } from "../src/fixtures/ovzdusie";
+import { answer, history } from "../src/fixtures/verejne";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const NAME = "banskabystrica-ovzdusie";
@@ -13,7 +13,7 @@ export const NOW = new Date("2026-09-20T09:00:00Z");
 const CONFIG = {
   slug: "mluyob4nz52lok3ssk7pgn5vwt",
   orgDomain: "banskabystrica.sk",
-  space: "ovzdusie",
+  space: "banskabystrica-verejne",
   transport: "origin",
   appName: NAME,
   language: "sk",
