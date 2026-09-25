@@ -842,7 +842,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 7,
         "Checkbox": 2
       },
       "tests": [
