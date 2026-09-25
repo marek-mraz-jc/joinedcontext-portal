@@ -115,6 +115,23 @@ pub(crate) fn default_profile() -> String {
     "app-builder".to_owned()
 }
 
+/// The organization's profile for conversations (T-2770): a fast model without reasoning and a
+/// run pool of its own, so a build or a test never slows or queues a person's chat.
+pub(crate) const CHAT_PROFILE: &str = "chat";
+
+/// The profile a conversation runs on when the request names none: the `chat` profile where the
+/// organization has one, else the app-builder's, as every conversation ran before it existed.
+pub(crate) fn conversation_profile(mirror: &crate::store::Mirror) -> String {
+    match mirror.get(
+        crate::api::blueprints::ORG_NAMESPACE,
+        "AgentProfile",
+        CHAT_PROFILE,
+    ) {
+        Some(_) => CHAT_PROFILE.to_owned(),
+        None => default_profile(),
+    }
+}
+
 fn default_visibility() -> String {
     "project".to_owned()
 }
@@ -2819,5 +2836,32 @@ mod tests {
             caller_token(&state, &edge(&[("x-access-token", "edge")])).as_deref(),
             Some("edge")
         );
+    }
+}
+
+#[cfg(test)]
+mod conversation_profile_tests {
+    use super::{conversation_profile, CHAT_PROFILE};
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+    use crate::store::Mirror;
+
+    /// T-2770: a conversation runs on the organization's chat profile, and on the app-builder's
+    /// while the organization has none, so a Portal ahead of its configuration still answers.
+    #[test]
+    fn a_conversation_runs_on_the_chat_profile_where_the_organization_has_one() {
+        let mirror = Mirror::new();
+        assert_eq!(conversation_profile(&mirror), "app-builder");
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "AgentProfile".into(),
+            metadata: ObjectMeta {
+                name: CHAT_PROFILE.into(),
+                namespace: Some(crate::api::blueprints::ORG_NAMESPACE.into()),
+                ..Default::default()
+            },
+            spec: serde_json::json!({}),
+            status: None,
+        });
+        assert_eq!(conversation_profile(&mirror), "chat");
     }
 }

@@ -160,3 +160,52 @@ async fn an_import_carrying_an_app_another_project_declares_is_refused_the_same_
     .await;
     assert_ne!(free.status, StatusCode::FORBIDDEN, "{}", free.text);
 }
+
+/// AP-114: a new App whose client `app-{name}` the realm holds and this platform did not make is
+/// refused at the REST door and in an import, naming the project and the client; the name stays
+/// free for everything else.
+#[tokio::test]
+async fn a_new_app_whose_client_the_realm_holds_unmanaged_is_refused_at_every_door() {
+    let gitea = forge().await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{}/git/trees/.*", common::REPO)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "tree": [], "truncated": false,
+        })))
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+    state
+        .foreign_names
+        .set_clients(std::collections::BTreeSet::from(["app-radar".to_owned()]));
+
+    for door in [
+        format!("{APPS}?dryRun=All"),
+        "/api/v1/projects/ovzdusie/import?dryRun=All".to_owned(),
+    ] {
+        let taken = send(&state, person("narrow"), "POST", &door, Some(app("radar"))).await;
+        assert_eq!(
+            taken.status,
+            StatusCode::FORBIDDEN,
+            "{door}: {}",
+            taken.text
+        );
+        let said = detail(&taken.text);
+        assert!(
+            said.contains("App 'radar' of project ovzdusie")
+                && said.contains("'app-radar'")
+                && said.contains("AP-114"),
+            "{door}: {said}"
+        );
+    }
+
+    let free = send(
+        &state,
+        person("narrow"),
+        "POST",
+        &format!("{APPS}?dryRun=All"),
+        Some(app("radar-2")),
+    )
+    .await;
+    assert_eq!(free.status, StatusCode::OK, "{}", free.text);
+}

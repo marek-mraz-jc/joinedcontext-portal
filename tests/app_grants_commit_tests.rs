@@ -371,3 +371,220 @@ async fn deleting_an_app_removes_its_endpoint_and_policies_in_the_same_commit() 
         );
     }
 }
+
+/// The org Group `name`, owned by App `bikes` of `helsinki` when `owned`, with `members`.
+fn group(
+    name: &str,
+    owned: bool,
+    members: &[&str],
+) -> joinedcontext_portal::resource::ResourceEnvelope {
+    let mut group = envelope(
+        "Group",
+        name,
+        ORG_NAMESPACE,
+        json!({ "members": members.iter().map(|m| json!({ "user": m })).collect::<Vec<_>>() }),
+    );
+    if owned {
+        group.metadata.annotations.insert(
+            "joinedcontext.com/app".to_owned(),
+            "helsinki/bikes".to_owned(),
+        );
+    }
+    group
+}
+
+/// The dry run's plan as `path → to` lines.
+fn planned(text: &str) -> Vec<(String, Value)> {
+    let body: Value = serde_json::from_str(text).unwrap_or_default();
+    body["plan"]["fields"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|field| {
+            (
+                field["path"].as_str().unwrap_or_default().to_owned(),
+                field["to"].clone(),
+            )
+        })
+        .collect()
+}
+
+/// AP-118: each role of a proposed App gets its empty default group, annotated with the App, in
+/// the same commit as its grants, and the access entry giving it the role; the plan names both.
+#[tokio::test]
+async fn every_role_of_a_proposed_app_commits_its_default_group() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+
+    let checked = send(
+        &state,
+        person("jana"),
+        "POST",
+        &format!("{APPS}?dryRun=All"),
+        Some(app("published")),
+    )
+    .await;
+    assert_eq!(checked.status, StatusCode::OK, "{}", checked.text);
+    let fields = planned(&checked.text);
+    for group in ["groups.bikes-viewer", "groups.bikes-steward"] {
+        assert!(
+            fields.iter().any(|(path, _)| path == group),
+            "{group}: {fields:?}"
+        );
+    }
+
+    let accepted = send(&state, person("jana"), "POST", APPS, Some(app("published"))).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let files = committed(&gitea).await;
+    for name in ["bikes-viewer", "bikes-steward"] {
+        let (_, _, yaml) = files
+            .iter()
+            .find(|(op, path, _)| op == "upload" && path == &format!("users/groups/{name}.yaml"))
+            .unwrap_or_else(|| panic!("{name} is committed: {files:?}"));
+        assert!(
+            yaml.contains("joinedcontext.com/app: helsinki/bikes") && yaml.contains("members: []"),
+            "{yaml}"
+        );
+    }
+    // The endpoint gives each role to its group, beside whoever the author named.
+    let endpoint = files
+        .iter()
+        .find(|(_, path, _)| path.ends_with("app-bikes.yaml"))
+        .map(|(_, _, yaml)| yaml.clone())
+        .unwrap_or_default();
+    for subject in [
+        "bikes-viewer",
+        "bikes-steward",
+        "bikes-readers",
+        "jana@hel.fi",
+    ] {
+        assert!(endpoint.contains(subject), "{subject}: {endpoint}");
+    }
+}
+
+/// AP-118: a role taken away removes its group in the same commit, warns that its members lose
+/// the role, and the App names the group nowhere; a group of another owner is never touched.
+#[tokio::test]
+async fn a_role_taken_away_removes_its_group_and_warns_about_its_members() {
+    let gitea = forge().await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{}/contents/.*\\.yaml$", common::REPO)))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "sha": "blob-1", "content": "" })),
+        )
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+    state
+        .mirror
+        .upsert(group("bikes-viewer", true, &["ada@hel.fi", "bo@hel.fi"]));
+    state.mirror.upsert(group("bikes-steward", true, &[]));
+    state
+        .mirror
+        .upsert(group("bikes-readers", false, &["cy@hel.fi"]));
+
+    let mut only_steward = app("published");
+    only_steward["spec"]["roles"] = json!([{ "name": "steward" }]);
+    only_steward["spec"]["access"] = json!([
+        { "role": "steward", "subjects": [{ "group": "bikes-steward" }] },
+    ]);
+
+    let checked = send(
+        &state,
+        person("jana"),
+        "POST",
+        &format!("{APPS}?dryRun=All"),
+        Some(only_steward.clone()),
+    )
+    .await;
+    assert_eq!(checked.status, StatusCode::OK, "{}", checked.text);
+    let fields = planned(&checked.text);
+    assert!(
+        fields
+            .iter()
+            .any(|(path, to)| path.starts_with("warnings.groups.")
+                && to.as_str().is_some_and(
+                    |said| said.contains("'bikes-viewer'") && said.contains("2 member(s)")
+                )),
+        "{fields:?}"
+    );
+
+    let accepted = send(&state, person("jana"), "POST", APPS, Some(only_steward)).await;
+    assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+    let files = committed(&gitea).await;
+    let deleted: Vec<&String> = files
+        .iter()
+        .filter(|(op, _, _)| op == "delete")
+        .map(|(_, path, _)| path)
+        .collect();
+    assert!(
+        deleted.contains(&&"users/groups/bikes-viewer.yaml".to_owned()),
+        "{deleted:?}"
+    );
+    assert!(
+        !deleted
+            .iter()
+            .any(|p| p.contains("bikes-steward") || p.contains("bikes-readers")),
+        "{deleted:?}"
+    );
+    assert!(
+        !files
+            .iter()
+            .any(|(op, _, yaml)| op == "upload" && yaml.contains("bikes-viewer")),
+        "nothing committed names the removed group: {files:?}"
+    );
+}
+
+/// AP-115: a default group whose name the organization's own group holds is refused at the
+/// door, naming both owners, and nothing reaches the forge.
+#[tokio::test]
+async fn a_default_group_named_like_the_organizations_group_is_refused() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+    state
+        .mirror
+        .upsert(group("bikes-viewer", false, &["ada@hel.fi"]));
+
+    let refused = send(&state, person("jana"), "POST", APPS, Some(app("published"))).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+    assert!(
+        refused.text.contains("belongs to the organization")
+            && refused.text.contains("the App bikes of project helsinki"),
+        "{}",
+        refused.text
+    );
+    assert!(committed(&gitea).await.is_empty());
+}
+
+/// AP-118 at the import door: an imported App's roles come with their default groups, listed as
+/// created, and the App gives each role to its group.
+#[tokio::test]
+async fn an_imported_app_brings_its_default_groups() {
+    let gitea = forge().await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{}/git/trees/.*", common::REPO)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "tree": [], "truncated": false,
+        })))
+        .mount(&gitea)
+        .await;
+    let state = state_with(&gitea);
+    state.mirror.upsert(group("bikes-steward", true, &[]));
+
+    let checked = send(
+        &state,
+        person("jana"),
+        "POST",
+        "/api/v1/projects/helsinki/import?dryRun=All",
+        Some(app("published")),
+    )
+    .await;
+    assert_eq!(checked.status, StatusCode::OK, "{}", checked.text);
+    let body: Value = serde_json::from_str(&checked.text).unwrap_or_default();
+    let created = body["created"].as_array().cloned().unwrap_or_default();
+    assert!(created.contains(&json!("bikes-viewer")), "{created:?}");
+    assert!(
+        !created.contains(&json!("bikes-steward")),
+        "a group already there is not created again: {created:?}"
+    );
+}

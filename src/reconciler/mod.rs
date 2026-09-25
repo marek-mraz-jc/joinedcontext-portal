@@ -12,6 +12,7 @@ pub mod ckan;
 pub mod daemon;
 pub mod drift;
 pub mod edge_file;
+pub mod foreign;
 pub mod groups;
 pub mod leader;
 pub mod realm;
