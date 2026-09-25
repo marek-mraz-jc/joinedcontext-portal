@@ -42,12 +42,15 @@ WORKDIR /work
 COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
 COPY apps/bbsk-ukazovatele/ui/package.json apps/bbsk-ukazovatele/ui/pnpm-lock.yaml ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/package.json apps/banskabystrica-zaznamy/ui/pnpm-lock.yaml ./apps/banskabystrica-zaznamy/ui/
+COPY apps/banskabystrica-ovzdusie/ui/package.json apps/banskabystrica-ovzdusie/ui/pnpm-lock.yaml ./apps/banskabystrica-ovzdusie/ui/
 RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../apps/bbsk-ukazovatele/ui && pnpm install --frozen-lockfile \
-    && cd ../../banskabystrica-zaznamy/ui && pnpm install --frozen-lockfile
+    && cd ../../banskabystrica-zaznamy/ui && pnpm install --frozen-lockfile \
+    && cd ../../banskabystrica-ovzdusie/ui && pnpm install --frozen-lockfile
 COPY sdk/ ./sdk/
 COPY apps/bbsk-ukazovatele/ui/ ./apps/bbsk-ukazovatele/ui/
 COPY apps/banskabystrica-zaznamy/ui/ ./apps/banskabystrica-zaznamy/ui/
+COPY apps/banskabystrica-ovzdusie/ui/ ./apps/banskabystrica-ovzdusie/ui/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
     && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
@@ -55,6 +58,9 @@ RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
 RUN cd apps/banskabystrica-zaznamy/ui && pnpm build \
     && cp -r dist /srv/apps/banskabystrica-zaznamy \
     && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-zaznamy
+RUN cd apps/banskabystrica-ovzdusie/ui && pnpm build \
+    && cp -r dist /srv/apps/banskabystrica-ovzdusie \
+    && node /work/scripts/app-integrity.mjs /srv/apps/banskabystrica-ovzdusie
 
 FROM rust:1.97-slim-bookworm AS build
 WORKDIR /src
