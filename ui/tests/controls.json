@@ -1200,6 +1200,17 @@
         "contextsourceregistration_form.test.tsx"
       ]
     },
+    "src/routes/ResourceListPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "dataagreement_form.test.tsx",
+        "datamodel_form.test.tsx",
+        "mapping_form.test.tsx",
+        "resource_list_page.test.tsx"
+      ]
+    },
     "src/routes/SpacesPage.tsx": {
       "controls": {
         "Button": 1

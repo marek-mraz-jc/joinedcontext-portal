@@ -295,7 +295,11 @@
     "emptyHintFor": {
       "uischemas": "Nothing in this project changes a form. Every form ships with its own arrangement; the organization changes one in portal/forms/ of its configuration repository, not here."
     },
-    "lead": "Everything of this kind the project holds. Each row opens what it names."
+    "lead": "Everything of this kind the project holds. Each row opens what it names.",
+    "new": "New {kind}",
+    "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
+    "propose": "Propose change",
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
   },
   "spaces": {
     "lead": "The named collections of context data this project holds; every entity lives in exactly one.",
@@ -3847,6 +3851,17 @@
       "IRREG": "Irregularly",
       "NEVER": "Never, it is final",
       "UNKNOWN": "Not known"
+    },
+    "agreementRole": {
+      "provider": "Provider: this project shares",
+      "consumer": "Consumer: this project reads"
+    },
+    "agreementState": {
+      "requested": "Requested",
+      "offered": "Offered",
+      "accepted": "Accepted",
+      "finalized": "Finalized",
+      "terminated": "Terminated"
     }
   },
   "picker": {
@@ -3885,5 +3900,26 @@
     "none": "No unit",
     "noMatch": "No UN/CEFACT unit matches. Try the symbol (µg/m³), the name or the code (GQ).",
     "more": "Showing {shown} of {total} units. Type more to narrow the list."
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "offerRef": "Data offer",
+      "remoteParticipant": "Other participant",
+      "agreementId": "Agreement identifier",
+      "state": "State",
+      "validity": "Validity",
+      "validFrom": "Valid from",
+      "validTo": "Valid until",
+      "tokenSecretRef": "Transfer token",
+      "secretName": "Secret name",
+      "secretKey": "Key in the secret",
+      "constraints": "Query limits",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
+    }
   }
 }

@@ -295,7 +295,11 @@
     "emptyHintFor": {
       "uischemas": "Nichts in diesem Projekt ändert ein Formular. Jedes Formular bringt seine Anordnung mit; die Organisation ändert sie in portal/forms/ ihres Konfigurations-Repositorys, nicht hier."
     },
-    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
+    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt.",
+    "new": "Neu: {kind}",
+    "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
+    "propose": "Änderung vorschlagen",
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
   },
   "spaces": {
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
@@ -3847,6 +3851,17 @@
       "IRREG": "Unregelmäßig",
       "NEVER": "Nie, er ist abgeschlossen",
       "UNKNOWN": "Unbekannt"
+    },
+    "agreementRole": {
+      "provider": "Anbieter: dieses Projekt teilt",
+      "consumer": "Bezieher: dieses Projekt liest"
+    },
+    "agreementState": {
+      "requested": "Angefragt",
+      "offered": "Angeboten",
+      "accepted": "Angenommen",
+      "finalized": "Abgeschlossen",
+      "terminated": "Beendet"
     }
   },
   "picker": {
@@ -3885,5 +3900,26 @@
     "none": "Keine Einheit",
     "noMatch": "Keine UN/CEFACT-Einheit passt. Versuchen Sie das Symbol (µg/m³), den Namen oder den Code (GQ).",
     "more": "{shown} von {total} Einheiten angezeigt. Tippen Sie weiter, um die Liste einzugrenzen."
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Name",
+      "role": "Rolle",
+      "offerRef": "Datenangebot",
+      "remoteParticipant": "Anderer Teilnehmer",
+      "agreementId": "Vereinbarungskennung",
+      "state": "Stand",
+      "validity": "Gültigkeit",
+      "validFrom": "Gültig ab",
+      "validTo": "Gültig bis",
+      "tokenSecretRef": "Transfertoken",
+      "secretName": "Name des Secrets",
+      "secretKey": "Schlüssel im Secret",
+      "constraints": "Abfragegrenzen",
+      "q": "Abfragefilter",
+      "scopeQ": "Bereichsfilter",
+      "geoQ": "Gebietsfilter",
+      "temporalQ": "Zeitfilter"
+    }
   }
 }

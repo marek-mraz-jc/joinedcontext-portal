@@ -295,7 +295,11 @@
     "emptyHintFor": {
       "uischemas": "Nič v tomto projekte nemení formulár. Každý formulár má svoje rozloženie už v dodávke; organizácia ho mení v portal/forms/ svojho konfiguračného repozitára, nie tu."
     },
-    "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva."
+    "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva.",
+    "new": "Nový {kind}",
+    "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
+    "propose": "Navrhnúť zmenu",
+    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. Nový {kind} otvorí formulár."
   },
   "spaces": {
     "lead": "Pomenované kolekcie kontextových dát tohto projektu; každá entita patrí práve do jednej.",
@@ -3847,6 +3851,17 @@
       "IRREG": "Nepravidelne",
       "NEVER": "Nikdy, je konečný",
       "UNKNOWN": "Neznáme"
+    },
+    "agreementRole": {
+      "provider": "Poskytovateľ: tento projekt zdieľa",
+      "consumer": "Odberateľ: tento projekt číta"
+    },
+    "agreementState": {
+      "requested": "Vyžiadaná",
+      "offered": "Ponúknutá",
+      "accepted": "Prijatá",
+      "finalized": "Finalizovaná",
+      "terminated": "Ukončená"
     }
   },
   "picker": {
@@ -3885,5 +3900,26 @@
     "none": "Bez jednotky",
     "noMatch": "Žiadna jednotka UN/CEFACT nezodpovedá. Skúste značku (µg/m³), názov alebo kód (GQ).",
     "more": "Zobrazených {shown} z {total} jednotiek. Píšte ďalej a zoznam sa zúži."
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Názov",
+      "role": "Rola",
+      "offerRef": "Dátová ponuka",
+      "remoteParticipant": "Druhý účastník",
+      "agreementId": "Identifikátor dohody",
+      "state": "Stav",
+      "validity": "Platnosť",
+      "validFrom": "Platí od",
+      "validTo": "Platí do",
+      "tokenSecretRef": "Prenosový token",
+      "secretName": "Názov tajomstva",
+      "secretKey": "Kľúč v tajomstve",
+      "constraints": "Obmedzenia dopytov",
+      "q": "Filter dopytu",
+      "scopeQ": "Filter rozsahu",
+      "geoQ": "Filter oblasti",
+      "temporalQ": "Časový filter"
+    }
   }
 }

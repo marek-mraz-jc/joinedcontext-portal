@@ -18,6 +18,7 @@ import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
 import { mappingSchema } from "../src/schemas/mapping";
 import { dataModelSchema } from "../src/schemas/datamodel";
+import { dataAgreementSchema } from "../src/schemas/dataagreement";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -81,6 +82,8 @@ const FORMS: Record<string, JsonSchema[]> = {
     kinds.registrationSchema(t, target, ["ovzdusie"]),
   ),
   App: [kinds.appSchema(t)],
+  // Created and edited from the generic list (T-1542).
+  DataAgreement: [dataAgreementSchema(t, ["air-quality-offer"])],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).
