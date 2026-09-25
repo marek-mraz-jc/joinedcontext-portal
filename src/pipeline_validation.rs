@@ -161,6 +161,17 @@ pub struct ModelSchema {
     pub version: String,
     /// The normalized-entity schema of each class, by class name.
     pub classes: BTreeMap<String, Value>,
+    /// The stored relationship ends of each class, by class and attribute (DM-64).
+    ends: BTreeMap<String, BTreeMap<String, End>>,
+}
+
+/// One stored end of a relationship, as the model's JSON Schema states it (T-2739) and the
+/// gateway holds a write to it (DM-70, `context-gateway/src/relationships.rs`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct End {
+    target: String,
+    many: bool,
+    required: bool,
 }
 
 /// Why one record would not be written.
@@ -238,10 +249,18 @@ impl ModelSchema {
                 (class.clone(), normalized)
             })
             .collect();
+        let ends = classes
+            .iter()
+            .filter_map(|class| {
+                let ends = ends_of(definitions.get(class)?);
+                (!ends.is_empty()).then(|| (class.clone(), ends))
+            })
+            .collect();
         Self {
             model: model.to_owned(),
             version: version.to_owned(),
             classes: compiled,
+            ends,
         }
     }
 
@@ -267,8 +286,14 @@ impl ModelSchema {
         let mut problems = id_problems(object, class, org_domain, space);
         match jsonschema::draft7::new(schema) {
             Ok(validator) => problems.extend(validator.iter_errors(record).map(|error| {
-                let path = attribute_of(&error.instance_path().to_string());
+                let mut path = attribute_of(&error.instance_path().to_string());
                 let (rule, message) = named(&error, &path);
+                // A missing attribute is about that attribute, so the workbench points at it.
+                if let (true, jsonschema::error::ValidationErrorKind::Required { property }) =
+                    (path.is_empty(), error.kind())
+                {
+                    path = property.as_str().unwrap_or_default().to_owned();
+                }
                 Problem {
                     rule: rule.to_owned(),
                     path,
@@ -286,6 +311,14 @@ impl ModelSchema {
                     ),
                 ));
             }
+        }
+        if let Some(ends) = self.ends.get(class) {
+            let broken = relationship_problems(object, class, ends);
+            // The relationship rule is the one the gateway answers with (DM-70): the schema's
+            // own word on the same attribute (a list on a single end, a missing required one)
+            // says less, so it gives way.
+            problems.retain(|one| !broken.iter().any(|rule| rule.path == one.path));
+            problems.extend(broken);
         }
         problems
     }
@@ -359,6 +392,139 @@ fn problem(rule: &str, path: &str, message: &str) -> Problem {
         path: path.to_owned(),
         message: message.to_owned(),
     }
+}
+
+/// Every stored end a class definition states: a property with `x-ngsi-ld-relationship` and a
+/// `target`. An external reference (no target, DM-69) is not a relationship.
+fn ends_of(definition: &Value) -> BTreeMap<String, End> {
+    let required: Vec<&str> = definition
+        .get("required")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    definition
+        .get("properties")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(name, property)| {
+            let target = property
+                .pointer("/x-ngsi-ld-relationship/target")?
+                .as_str()
+                .filter(|target| !target.is_empty())?;
+            Some((
+                name.clone(),
+                End {
+                    target: target.to_owned(),
+                    many: property.get("type").and_then(Value::as_str) == Some("array"),
+                    required: required.contains(&name.as_str()),
+                },
+            ))
+        })
+        .collect()
+}
+
+/// The targets one attribute value names, in each form a write may use (normalized, concise, an
+/// instance per `datasetId`, an `object` list); `None` for a null, which removes the attribute.
+fn objects(value: &Value) -> Option<Vec<&str>> {
+    match value {
+        Value::Null => None,
+        Value::String(text) if text == NGSI_LD_NULL => None,
+        Value::Array(instances) => Some(
+            instances
+                .iter()
+                .flat_map(|one| objects(one).unwrap_or_default())
+                .collect(),
+        ),
+        Value::Object(member) => match member.get("object") {
+            Some(Value::String(one)) if one == NGSI_LD_NULL => None,
+            Some(Value::String(one)) => Some(vec![one.as_str()]),
+            Some(Value::Array(many)) => Some(
+                many.iter()
+                    .filter_map(|one| match one {
+                        Value::Object(inner) => inner
+                            .get("object")
+                            .or_else(|| inner.get("@id"))
+                            .and_then(Value::as_str),
+                        other => other.as_str(),
+                    })
+                    .collect(),
+            ),
+            _ => Some(Vec::new()),
+        },
+        _ => Some(Vec::new()),
+    }
+}
+
+/// NGSI-LD's null, which deletes an attribute in a merge.
+const NGSI_LD_NULL: &str = "urn:ngsi-ld:null";
+
+/// The local name of a type written as an IRI, a CURIE or a plain name.
+fn local(name: &str) -> &str {
+    name.rsplit(['/', '#', ':']).next().unwrap_or(name)
+}
+
+/// The relationship rules a record breaks, as the gateway would refuse its write (DM-70): a
+/// required end absent, a second target on a single end, a target of another class, read from
+/// the id scheme (PF-10). `target-missing` needs a read as the writer, so the gateway alone
+/// decides it. A record is a whole entity, so a required end must be there.
+fn relationship_problems(
+    object: &Map<String, Value>,
+    class: &str,
+    ends: &BTreeMap<String, End>,
+) -> Vec<Problem> {
+    let mut problems = Vec::new();
+    for (slot, end) in ends {
+        let target = &end.target;
+        let named = object.get(slot).and_then(objects).unwrap_or_default();
+        if named.is_empty() {
+            if end.required {
+                problems.push(problem(
+                    "required-end-missing",
+                    slot,
+                    &format!("{slot} is required: every {class} points at a {target} (DM-70)"),
+                ));
+            }
+            continue;
+        }
+        if !end.many && named.len() > 1 {
+            problems.push(problem(
+                "single-end-many-targets",
+                slot,
+                &format!(
+                    "{slot} holds one {target}, and the record gives it {} (DM-70)",
+                    named.len()
+                ),
+            ));
+            continue;
+        }
+        let wrong = named.iter().position(|urn| {
+            let mut parts = urn.splitn(4, ':');
+            let kind = match (parts.next(), parts.next(), parts.next(), parts.next()) {
+                (Some(urn), Some(ngsi), Some(kind), Some(_))
+                    if urn.eq_ignore_ascii_case("urn") && ngsi.eq_ignore_ascii_case("ngsi-ld") =>
+                {
+                    Some(kind)
+                }
+                _ => None,
+            };
+            kind.map(local) != Some(local(target))
+        });
+        if let Some(index) = wrong {
+            // The message names the target's place, never the URN: a record may carry anything.
+            problems.push(problem(
+                "target-wrong-type",
+                slot,
+                &format!(
+                    "{slot} points at a {target}, and target {} of the record is not one (DM-70)",
+                    index + 1
+                ),
+            ));
+        }
+    }
+    problems
 }
 
 /// The id rule, checked here rather than by the schema so it names the space it wants (PF-42).
@@ -749,7 +915,10 @@ mod tests {
 
         let mut record = valid();
         record.as_object_mut().map(|o| o.remove("dateObserved"));
-        assert_eq!(rules(&record), [("sh:minCount".into(), String::new())]);
+        assert_eq!(
+            rules(&record),
+            [("sh:minCount".into(), "dateObserved".into())]
+        );
 
         let mut record = valid();
         record["colour"] = json!({ "type": "Property", "value": "blue" });
@@ -793,6 +962,78 @@ mod tests {
         assert_eq!(
             rules(&json!({ "id": "x" })),
             [("sh:minCount".into(), "type".into())]
+        );
+    }
+
+    /// T-2861, DM-70: the workbench names each relationship rule a record breaks, the rule the
+    /// gateway would refuse its write with, one row at a time, and never the URN it carried.
+    #[test]
+    fn a_broken_relationship_is_named_by_the_gateways_rule() {
+        let schema = json!({ "definitions": { "User": {
+            "properties": {
+                "id": { "type": "string" },
+                "school": { "type": "string", "x-ngsi-ld-kind": "Relationship", "x-ngsi-ld-relationship": { "target": "School" } },
+                "courses": { "type": "array", "items": { "type": "string" }, "x-ngsi-ld-kind": "Relationship", "x-ngsi-ld-relationship": { "target": "Course" } },
+                "homepage": { "type": "string", "x-ngsi-ld-kind": "Relationship" }
+            },
+            "required": ["id", "school"]
+        } } });
+        let model = ModelSchema::compile("learning", "1.0.0", &schema, &["User".to_owned()], false);
+        let id = format!("urn:ngsi-ld:User:{DOMAIN}:{SPACE}:ana");
+        let school = |local: &str| format!("urn:ngsi-ld:School:{DOMAIN}:{SPACE}:{local}");
+        let rules = |record: Value| -> Vec<(String, String)> {
+            model
+                .check(&record, DOMAIN, SPACE)
+                .into_iter()
+                .map(|p| (p.rule, p.path))
+                .collect()
+        };
+        let valid = json!({
+            "id": id, "type": "User",
+            "school": { "type": "Relationship", "object": school("north") },
+            "courses": { "type": "Relationship", "object": [format!("urn:ngsi-ld:Course:{DOMAIN}:{SPACE}:math"), format!("urn:ngsi-ld:Course:{DOMAIN}:{SPACE}:art")] },
+            "homepage": { "type": "Relationship", "object": "https://example.org/ana" }
+        });
+        assert_eq!(rules(valid.clone()), Vec::<(String, String)>::new());
+
+        let mut missing = valid.clone();
+        missing.as_object_mut().expect("an object").remove("school");
+        assert_eq!(
+            rules(missing),
+            [("required-end-missing".into(), "school".into())]
+        );
+
+        let mut two = valid.clone();
+        two["school"]["object"] = json!([school("north"), school("south")]);
+        assert_eq!(
+            rules(two),
+            [("single-end-many-targets".into(), "school".into())]
+        );
+
+        let mut wrong = valid.clone();
+        wrong["courses"]["object"][1] = json!(school("north"));
+        let problems = model.check(&wrong, DOMAIN, SPACE);
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(
+            (problems[0].rule.as_str(), problems[0].path.as_str()),
+            ("target-wrong-type", "courses")
+        );
+        assert_eq!(
+            problems[0].message,
+            "courses points at a Course, and target 2 of the record is not one (DM-70)"
+        );
+        assert!(
+            !problems[0].message.contains("urn:"),
+            "{}",
+            problems[0].message
+        );
+
+        // NGSI-LD's null empties the end: a required one is then missing.
+        let mut cleared = valid;
+        cleared["school"] = json!({ "type": "Relationship", "object": NGSI_LD_NULL });
+        assert_eq!(
+            rules(cleared),
+            [("required-end-missing".into(), "school".into())]
         );
     }
 

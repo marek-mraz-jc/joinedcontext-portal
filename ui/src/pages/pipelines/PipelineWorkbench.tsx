@@ -75,12 +75,15 @@ interface ValidationAnswer {
 }
 
 /** The value a mapping writes most often for a slot's range, shown as its example. */
-export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind">, enumFirst?: string): string {
+export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind" | "multivalued">, enumFirst?: string): string {
   if (enumFirst) {
     return JSON.stringify(enumFirst);
   }
   if (slot.kind === "Relationship") {
-    return '"urn:ngsi-ld:…"';
+    // The target's own id (PF-10): a mapping builds it from the source's key for that entity, and
+    // an id of another class is refused as target-wrong-type (DM-70).
+    const urn = `"urn:ngsi-ld:${slot.range ?? "…"}:…"`;
+    return slot.multivalued ? `[${urn}]` : urn;
   }
   switch ((slot.range ?? "string").toLowerCase()) {
     case "integer":
