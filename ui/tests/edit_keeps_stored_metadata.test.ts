@@ -83,6 +83,23 @@ describe("an edit through a kind's form keeps what the form has no field for", (
     expect(edited.spec).toEqual({ description: "Merania kvality ovzdušia." });
   });
 
+  it("ContextSpace: a changed title replaces the language the box showed and keeps the rest (T-2764, UI-50)", () => {
+    const stored = {
+      metadata: { name: "helsinki", title: { en: "Helsinki city context", fi: "Helsingin kaupunkikonteksti" } },
+      spec: {},
+    };
+    const inEnglish = toEnvelope(PROJECT, { ...fromEnvelope(stored, "en"), title: "Helsinki" }, stored, "en") as Envelope;
+    expect(inEnglish.metadata.title).toEqual({ en: "Helsinki", fi: "Helsingin kaupunkikonteksti" });
+    // A Slovak reader sees the English entry (no `sk`, then `en`), and edits that one.
+    const inSlovak = toEnvelope(PROJECT, { ...fromEnvelope(stored, "sk"), title: "Helsinki" }, stored, "sk") as Envelope;
+    expect(inSlovak.metadata.title).toEqual({ en: "Helsinki", fi: "Helsingin kaupunkikonteksti" });
+    const inFinnish = toEnvelope(PROJECT, { ...fromEnvelope(stored, "fi"), title: "Helsinki" }, stored, "fi") as Envelope;
+    expect(inFinnish.metadata.title).toEqual({ en: "Helsinki city context", fi: "Helsinki" });
+    // Cleared, the title goes as it always did: the person emptied the one box they had.
+    const cleared = toEnvelope(PROJECT, { ...fromEnvelope(stored, "en"), title: "" }, stored, "en") as Envelope;
+    expect(cleared.metadata).not.toHaveProperty("title");
+  });
+
   it("ContextSpace: a title the person changed or cleared is what they wrote", () => {
     const stored = { metadata: { name: "ovzdusie", ...KEPT }, spec: {} };
     const changed = toEnvelope(

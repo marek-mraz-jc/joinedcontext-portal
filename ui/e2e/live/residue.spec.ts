@@ -49,12 +49,27 @@ const SWEEP: { plural: string; residue: (name: string) => boolean }[] = [
 test.setTimeout(3_600_000);
 test.use({ trace: "off" });
 
-/** The Portal's own delete through the session: a Red change, its id returned (CC-19). */
+/**
+ * The Portal's own delete through the session: a Red change, its id returned (CC-19). A removal of
+ * the same resource a failed sweep left open is that change, approved now; any other open change
+ * is a person's, and the sweep stops on it.
+ */
 async function proposeDelete(page: Page, context: BrowserContext, plural: string, name: string): Promise<string> {
   const csrf = (await context.cookies()).find((cookie) => cookie.name === "jc_csrf")?.value ?? "";
   const answer = await page.request.delete(`/api/v1/projects/${PROJECT}/${plural}/${name}`, {
     headers: { "x-csrf-token": csrf },
   });
+  const open = answer.status() === 409 ? /already open: (chg-[0-9a-f]+)/.exec(await answer.text())?.[1] : undefined;
+  if (open) {
+    const change = (await (await page.request.get(`/api/v1/projects/${PROJECT}/changes/${open}`)).json()) as {
+      summary?: { key?: string; params?: { name?: string } };
+    };
+    expect(change.summary, `${open} is open on ${plural}/${name} and is not its removal`).toMatchObject({
+      key: "change.summary.delete",
+      params: { name },
+    });
+    return open;
+  }
   expect(answer.status(), `delete ${plural}/${name}: ${await answer.text()}`).toBe(202);
   return ((await answer.json()) as { metadata: { name: string } }).metadata.name;
 }

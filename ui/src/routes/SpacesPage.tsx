@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, refName, storedMetadata } from "../api/manifest";
+import { asManifests, isChange, localized, refName, rewritten, storedMetadata } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
@@ -52,7 +52,8 @@ export function spaceSegment(project: string, name: string, pin?: string): strin
 /**
  * The form as the manifest. On an edit, `stored` is the manifest it started from: its description
  * and labels travel on, and a title box left as it was keeps the stored title in every language
- * (T-2470); a title the person changed or cleared is what they wrote.
+ * (T-2470); a title the person changed replaces the language the box showed and keeps the others
+ * (UI-50, T-2764), and a cleared one goes.
  */
 export function toEnvelope(project: string, form: SpaceForm, stored?: unknown, locale = "en") {
   const { name, title, ...spec } = form;
@@ -60,7 +61,7 @@ export function toEnvelope(project: string, form: SpaceForm, stored?: unknown, l
   const unchanged =
     storedTitle !== undefined &&
     (title ?? "") === localized(storedTitle as string | Record<string, string>, locale, "");
-  const written = unchanged ? storedTitle : title?.trim() ? title : undefined;
+  const written = unchanged ? storedTitle : title?.trim() ? rewritten(storedTitle, title, locale) : undefined;
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "ContextSpace",

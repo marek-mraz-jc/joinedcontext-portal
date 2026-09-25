@@ -44,6 +44,28 @@ export function localized(
 }
 
 /**
+ * The language of a legacy map a form's one box shows for `locale`, the order `localized` reads
+ * it in: the locale, its base, `en`, `sk`, then the map's first entry.
+ */
+function shownLanguage(map: Record<string, unknown>, locale: string): string | undefined {
+  return [locale, locale.split("-")[0], "en", "sk"].find((key) => key in map) ?? Object.keys(map)[0];
+}
+
+/**
+ * What one box writes over a stored title or description (UI-50, T-2764): one string over a legacy
+ * language map replaces the entry the box showed and keeps every other language; over anything
+ * else it is the string written.
+ */
+export function rewritten(stored: unknown, written: string, locale: string): string | Record<string, unknown> {
+  if (!stored || typeof stored !== "object") {
+    return written;
+  }
+  const map = stored as Record<string, unknown>;
+  const language = shownLanguage(map, locale);
+  return language === undefined ? written : { ...map, [language]: written };
+}
+
+/**
  * A title as the one string a form edits and a manifest now writes (UI-50): a plain string as
  * written, a legacy language map as `en`, then its first non-empty value. Saving the form writes
  * the string, so a manifest converts itself on its next change.

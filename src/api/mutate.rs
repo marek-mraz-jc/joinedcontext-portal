@@ -757,6 +757,23 @@ async fn propose_engine(
         }
     }
 
+    // 3a. One string written over a stored legacy map replaces the entry it resolves to and keeps
+    //     every other language, whichever door sent it (UI-50, T-2764).
+    if operation == Operation::Update {
+        if let Some(stored) = state
+            .mirror
+            .get(project, kind_info.kind, &envelope.metadata.name)
+        {
+            keep_languages(&mut envelope.metadata.title, stored.metadata.title.as_ref());
+            keep_languages(
+                &mut envelope.metadata.description,
+                stored.metadata.description.as_ref(),
+            );
+            body_val["metadata"] = serde_json::to_value(&envelope.metadata)
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+        }
+    }
+
     // 4. Metadata DNS-1123, status rejection (MF-04) and secret rejection (MF-24)
     resource::validate_meta(&envelope.metadata).map_err(ApiError::BadRequest)?;
 
@@ -1852,6 +1869,28 @@ pub(crate) fn pipeline_second_shape(body: &mut Value) {
         Value::Array(vec![Value::Object(output)]),
     );
     body["apiVersion"] = Value::String(jc_core::API_VERSION_V1ALPHA2.to_owned());
+}
+
+/// `sent` over `stored` (UI-50, T-2764): a plain string over a legacy language map goes into the
+/// entry the map resolves to (`en`, else its first language) and the other languages stay. A map,
+/// or a string over a string, is what the person wrote.
+fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_core::i18n::Text>) {
+    use jc_core::i18n::Text;
+    let (Some(Text::Plain(text)), Some(Text::Localized(map))) = (sent.as_ref(), stored) else {
+        return;
+    };
+    let Some(locale) = map
+        .get("en")
+        .map(|_| "en".to_owned())
+        .or_else(|| map.iter().next().map(|(locale, _)| locale.to_owned()))
+    else {
+        return;
+    };
+    let mut kept = map.clone();
+    // The key came out of the map itself, so the insert cannot refuse it.
+    if kept.insert(&locale, text.clone()).is_ok() {
+        *sent = Some(Text::Localized(kept));
+    }
 }
 
 #[cfg(test)]
