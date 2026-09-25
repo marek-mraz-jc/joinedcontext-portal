@@ -72,6 +72,15 @@ impl From<GitError> for ApiError {
     }
 }
 
+/// A team of the forge organization (PF-87).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Team {
+    pub id: u64,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+}
+
 /// A workflow run of an application's repository, as the App page links it (AP-86, AP-103).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1381,6 +1390,118 @@ impl GiteaClient {
         let res = self.send(self.http.delete(self.repo_url("")?)).await?;
         match Self::check_status(res).await {
             Ok(_) | Err(GitError::NotFound) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn org_url(&self, path: &str) -> Result<Url, GitError> {
+        let full = format!(
+            "{}/api/v1/{}",
+            self.base.as_str().trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
+        Url::parse(&full).map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))
+    }
+
+    /// Every team of the organization, a page of fifty at a time.
+    pub async fn org_teams(&self) -> Result<Vec<Team>, GitError> {
+        let mut teams = Vec::new();
+        for page in 1.. {
+            let url = self.org_url(&format!("orgs/{}/teams?limit=50&page={page}", self.owner))?;
+            let res = Self::check_status(self.send(self.http.get(url)).await?).await?;
+            let batch: Vec<Team> = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))?;
+            let last = batch.len() < 50;
+            teams.extend(batch);
+            if last || page >= 100 {
+                break;
+            }
+        }
+        Ok(teams)
+    }
+
+    /// Creates a team of the organization that reaches only the repositories added to it, with
+    /// `permission` (`read` or `write`) on code, pull requests, issues and releases; answers it.
+    pub async fn create_team(
+        &self,
+        name: &str,
+        description: &str,
+        permission: &str,
+    ) -> Result<Team, GitError> {
+        let units = ["repo.code", "repo.pulls", "repo.issues", "repo.releases"];
+        let payload = serde_json::json!({
+            "name": name,
+            "description": description,
+            "permission": permission,
+            "includes_all_repositories": false,
+            "can_create_org_repo": false,
+            "units": units,
+            "units_map": units
+                .iter()
+                .map(|unit| ((*unit).to_owned(), serde_json::json!(permission)))
+                .collect::<serde_json::Map<_, _>>(),
+        });
+        let url = self.org_url(&format!("orgs/{}/teams", self.owner))?;
+        let res = self.send(self.http.post(url).json(&payload)).await?;
+        Self::check_status(res)
+            .await?
+            .json()
+            .await
+            .map_err(|e| GitError::Transport(e.to_string()))
+    }
+
+    /// Removes a team; a team already gone is the same answer.
+    pub async fn delete_team(&self, id: u64) -> Result<(), GitError> {
+        let res = self
+            .send(self.http.delete(self.org_url(&format!("teams/{id}"))?))
+            .await?;
+        match Self::check_status(res).await {
+            Ok(_) | Err(GitError::NotFound) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// The names of the repositories a team reaches.
+    pub async fn team_repositories(&self, id: u64) -> Result<Vec<String>, GitError> {
+        #[derive(Deserialize)]
+        struct Named {
+            name: String,
+        }
+        let mut names = Vec::new();
+        for page in 1.. {
+            let url = self.org_url(&format!("teams/{id}/repos?limit=50&page={page}"))?;
+            let res = Self::check_status(self.send(self.http.get(url)).await?).await?;
+            let batch: Vec<Named> = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(e.to_string()))?;
+            let last = batch.len() < 50;
+            names.extend(batch.into_iter().map(|repo| repo.name));
+            if last || page >= 100 {
+                break;
+            }
+        }
+        Ok(names)
+    }
+
+    /// Gives a team this repository (`true`) or takes it away (`false`).
+    pub async fn set_team_repository(
+        &self,
+        id: u64,
+        repo: &str,
+        reach: bool,
+    ) -> Result<(), GitError> {
+        let url = self.org_url(&format!("teams/{id}/repos/{}/{repo}", self.owner))?;
+        let builder = if reach {
+            self.http.put(url)
+        } else {
+            self.http.delete(url)
+        };
+        match Self::check_status(self.send(builder).await?).await {
+            Ok(_) => Ok(()),
+            Err(GitError::NotFound) if !reach => Ok(()),
             Err(err) => Err(err),
         }
     }

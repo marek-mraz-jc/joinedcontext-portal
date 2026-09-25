@@ -1928,10 +1928,17 @@
         "unavailable": "Endpoint zatím nepublikuje model, takže z něj nelze nic odvodit.",
         "none": "Tento endpoint nepublikuje žádné atributy, aplikace nemá co číst.",
         "loginOnly": "Bez ohledu na to, jak je endpoint publikován, vygenerovaná aplikace běží v platformě a otevřít ji může jen přihlášený uživatel.",
-        "write": "Aplikace smí tyto entity také upravovat ({actions}). Každé uložení projde pravidly zápisu rozhraní.",
         "writeRole": "Zapisovat smí jen tato role aplikace (nepovinné)",
         "writeRoleHelp": "Ponechte prázdné a zapisovat smí každý, kdo aplikaci otevře. S názvem role, např. steward, zapisují jen lidé, které po zveřejnění přidáte do této role na stránce aplikace.",
-        "writeRoleInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku písmeno, nejvýše 32 znaků."
+        "writeRoleInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku písmeno, nejvýše 32 znaků.",
+        "access": "Co aplikace smí",
+        "accessHelp": "Jen čtení čte entity a jejich historii. Čtení a úpravy také mění a doplňují atributy (updateAttrs, appendAttrs). Plný přístup také vytváří a maže entity (createEntity, deleteEntity). Zapisující volba se posuzuje jako změna v červeném pruhu, pokud ji role níže neomezí.",
+        "accessHeld": "Nabízí se jen to, co dovoluje váš vlastní přístup k tomuto endpointu: aplikace nikdy nesmí víc než vy.",
+        "presets": {
+          "read": "Jen čtení",
+          "update": "Čtení a úpravy",
+          "full": "Plný přístup"
+        }
       },
       "preview": {
         "title": "Co vám tento endpoint dává",

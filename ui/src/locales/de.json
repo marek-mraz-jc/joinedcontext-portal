@@ -1928,10 +1928,17 @@
         "unavailable": "Der Endpoint veröffentlicht noch kein Modell, daraus lässt sich nichts ableiten.",
         "none": "Dieser Endpoint veröffentlicht keine Attribute, es gibt nichts zu lesen.",
         "loginOnly": "Unabhängig davon, wie der Endpoint veröffentlicht ist, läuft die erzeugte Anwendung in der Plattform und nur eine angemeldete Person kann sie öffnen.",
-        "write": "Die Anwendung darf diese Entitäten auch ändern ({actions}). Jedes Speichern durchläuft die Schreibregeln des Endpunkts.",
         "writeRole": "Nur diese Anwendungsrolle darf schreiben (optional)",
         "writeRoleHelp": "Leer lassen, dann darf jede Person schreiben, die die App öffnen kann. Mit einem Rollennamen, z. B. steward, schreiben nur die Personen, die Sie nach dem Veröffentlichen auf der Seite der App dieser Rolle hinzufügen.",
-        "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen."
+        "writeRoleInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, beginnend mit einem Buchstaben, höchstens 32 Zeichen.",
+        "access": "Was die App darf",
+        "accessHelp": "Nur lesen liest die Entitäten und ihren Verlauf. Lesen und ändern ändert und ergänzt auch Attribute (updateAttrs, appendAttrs). Voll legt auch Entitäten an und löscht sie (createEntity, deleteEntity). Eine Schreibvorgabe wird als Änderung auf rotem Pfad geprüft, außer eine Rolle unten begrenzt sie.",
+        "accessHeld": "Angeboten wird nur, was Ihr eigener Zugriff auf diesen Endpunkt erlaubt: Die App darf nie mehr als Sie.",
+        "presets": {
+          "read": "Nur lesen",
+          "update": "Lesen und ändern",
+          "full": "Voll"
+        }
       },
       "preview": {
         "title": "Was dieser Endpoint Ihnen gibt",

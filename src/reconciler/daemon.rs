@@ -1074,8 +1074,20 @@ impl Syncer {
         // 5c. The realm's managed groups, brought to what `users/groups/` says (PF-63). The
         //     drift lands on the Group manifests of this run's mirror, so the Access page shows
         //     where the console and the repository disagreed.
+        //     Beside them, each registered project's `{slug}-readers` and `{slug}-writers`,
+        //     filled from its bindings, which the forge maps onto the teams of 5c* (PF-87).
+        let projects = fresh_mirror.repositories();
         if let Some(groups) = self.groups.as_ref() {
-            let outcomes = groups.converge(&fresh_mirror).await;
+            let now = chrono::Utc::now();
+            let generated: Vec<(String, std::collections::BTreeSet<String>)> = projects
+                .keys()
+                .flat_map(|slug| {
+                    let members = crate::permissions::project_members(&fresh_mirror, slug, now);
+                    let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
+                    [(readers, members.readers), (writers, members.writers)]
+                })
+                .collect();
+            let outcomes = groups.converge_with(&fresh_mirror, &generated).await;
             for outcome in &outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
@@ -1092,6 +1104,22 @@ impl Syncer {
             }
             super::groups::record(&fresh_mirror, &outcomes);
             self.say_group_drift(&outcomes).await;
+        }
+
+        // 5c*. The forge teams those groups map onto: two per project of layout 2, each
+        //      reaching its project's repository alone; a gone project's teams go (PF-87).
+        if fresh_mirror.layout() == 2 {
+            for outcome in super::project_teams::converge(&self.gitea, &projects).await {
+                match (&outcome.error, outcome.changes.is_empty()) {
+                    (Some(error), _) => {
+                        tracing::warn!(team = %outcome.team, %error, "project team did not converge")
+                    }
+                    (None, false) => {
+                        tracing::info!(team = %outcome.team, changes = %outcome.changes.join("; "), "project team brought to its project")
+                    }
+                    (None, true) => {}
+                }
+            }
         }
 
         // 5c'. People whose removal Change has been decided (PF-93): merged, the Keycloak user

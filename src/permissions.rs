@@ -400,6 +400,88 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
     grants
 }
 
+/// Who reaches one project's repository in the forge, by lower-case identifier (PF-87): the
+/// people a binding in force at the organization or at the project lets read some kind, and
+/// those it lets propose, approve or delete. A `group` subject counts through the members of its
+/// `Group` manifest. A binding scoped to one context space counts for nobody: the repository
+/// holds every space of the project, so a clone would reach past the grant.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ProjectMembers {
+    pub readers: BTreeSet<String>,
+    pub writers: BTreeSet<String>,
+}
+
+pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> ProjectMembers {
+    let organization = roles(mirror, ORG_NAMESPACE);
+    let groups: BTreeMap<String, Vec<String>> = mirror
+        .list(ORG_NAMESPACE, "Group", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| {
+            let members = serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
+                .map(|spec| spec.members.into_iter().map(|m| m.user).collect())
+                .unwrap_or_default();
+            (env.metadata.name, members)
+        })
+        .collect();
+    let mut members = ProjectMembers::default();
+    for env in mirror
+        .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
+        .items
+    {
+        let Ok(binding) = serde_json::from_value::<RoleBindingSpec>(env.spec) else {
+            continue;
+        };
+        if binding.validity.as_ref().is_some_and(|v| !v.contains(now)) {
+            continue;
+        }
+        let reach = match Reach::of(&binding.scope) {
+            Some(Reach::Organization) => Reach::Organization,
+            Some(Reach::Project(p)) if p == project => Reach::Project(p),
+            _ => continue,
+        };
+        let Some((_, role)) = role_of(mirror, &organization, &reach, &binding.role) else {
+            continue;
+        };
+        let grants = |verb: Verb| {
+            role.rules
+                .iter()
+                .any(|rule| rule.kinds.iter().any(|kind| rule.grants(kind, verb)))
+        };
+        let reads = grants(Verb::Read);
+        let writes = [Verb::Propose, Verb::Approve, Verb::Delete]
+            .into_iter()
+            .any(grants);
+        if !reads && !writes {
+            continue;
+        }
+        let people = binding.subjects.iter().flat_map(|subject| {
+            let direct = subject.user.iter().cloned();
+            let through = subject
+                .group
+                .as_ref()
+                .and_then(|group| groups.get(group))
+                .into_iter()
+                .flatten()
+                .cloned();
+            direct.chain(through)
+        });
+        for person in people {
+            let person = person.trim().to_ascii_lowercase();
+            if person.is_empty() {
+                continue;
+            }
+            if reads {
+                members.readers.insert(person.clone());
+            }
+            if writes {
+                members.writers.insert(person);
+            }
+        }
+    }
+    members
+}
+
 /// Every `group` subject of a `RoleBinding` or `ServiceAccount` names a `Group` manifest of the
 /// organization (PF-62, PF-64). A binding to a group nobody declared matches nobody and says
 /// nothing about it, which is the silence this refusal replaces. The bootstrap administrators
