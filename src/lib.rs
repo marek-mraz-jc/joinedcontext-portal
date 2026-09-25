@@ -9,6 +9,7 @@ pub mod artifact_store;
 pub mod assets;
 pub mod auth;
 pub mod branding;
+pub mod catalog;
 pub mod change;
 pub mod config;
 pub mod dashboards;

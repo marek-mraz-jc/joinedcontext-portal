@@ -30,6 +30,8 @@ import { bindingOf } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
+import { CatalogSection } from "./CatalogSection";
+import type { CatalogManifest } from "./catalog";
 import {
   Alert,
   Badge,
@@ -482,6 +484,10 @@ export function EndpointPage({
           </Facts>
         </Section>
       ) : null}
+
+      <Section title={t("endpoints.page.catalog.title")} lead={t("endpoints.page.catalog.lead")}>
+        <CatalogSection slug={slug} catalog={spec.catalog} audience={spec.audience ?? "project-list"} />
+      </Section>
     </div>
   );
 }
@@ -980,6 +986,7 @@ interface EndpointSpec {
   publish?: {
     ckan?: { instanceRef?: unknown; organization?: string; name?: string };
   };
+  catalog?: CatalogManifest;
 }
 
 /** The four narrowings a `ModelProjection` can carry (MP-01); an endpoint has none of its own. */

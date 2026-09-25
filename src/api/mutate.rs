@@ -926,6 +926,12 @@ async fn propose_engine(
         )?;
     }
 
+    // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own
+    //       address is refused at every door (EP-80, T-2789).
+    if operation != Operation::Delete {
+        crate::catalog::check_contact(&state.mirror, identity, kind_info.kind, &envelope.spec)?;
+    }
+
     // 4c. Who may propose this kind here, with this content (T-0526, PF-50): the bindings of
     //     the organization repository, before a Change exists. 403 names the verb or the field.
     //     A build write was judged by `build_lane_write`: the lane's rule, the App on main and
