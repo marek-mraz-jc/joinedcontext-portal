@@ -77,6 +77,7 @@ async fn fetch(
         let package = package.clone();
         async move {
             gitea
+                .applications()
                 .get_generic_file(&package, &version, "bundle.tar.gz", MAX_BUNDLE_BYTES)
                 .await
         }
