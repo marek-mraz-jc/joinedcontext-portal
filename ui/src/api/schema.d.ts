@@ -2243,6 +2243,14 @@ export interface components {
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
             /**
+             * @description The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are
+             *     served on the Portal's own. Never taken from the branding file: the route overwrites it
+             *     from the Portal's configuration on every answer, and the in-Portal page of an App frames
+             *     it there (AP-122, T-2840).
+             * @default null
+             */
+            appsOrigin: string | null;
+            /**
              * @description The city or region this installation serves.
              * @default
              */
