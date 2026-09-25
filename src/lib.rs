@@ -16,6 +16,7 @@ pub mod db;
 pub mod domain_verification;
 pub mod error;
 pub mod git;
+pub mod groups;
 pub mod mcp;
 pub mod openapi;
 pub mod ops;

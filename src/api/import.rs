@@ -1834,7 +1834,7 @@ fn authorize(
                     .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
                 effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
                 crate::permissions::within_own_rights(state, identity, &raw, "proposer")?;
-                // PF-84, AP-14a: the same refusals as the single-manifest door.
+                // PF-84, AP-14a, AP-114, AP-115: the same refusals as the single-manifest door.
                 crate::spaces::check(
                     state,
                     identity,
@@ -1850,6 +1850,7 @@ fn authorize(
                     &envelope.kind,
                     &envelope.metadata.name,
                 )?;
+                crate::groups::check(state, identity, &envelope.kind, &envelope.metadata)?;
             }
             None => {
                 let Some(path) = &item.path else { continue };

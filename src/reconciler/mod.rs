@@ -11,6 +11,7 @@ pub mod app_clients;
 pub mod ckan;
 pub mod daemon;
 pub mod drift;
+pub mod foreign;
 pub mod groups;
 pub mod leader;
 pub mod realm;

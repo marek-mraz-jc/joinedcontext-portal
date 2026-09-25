@@ -967,6 +967,12 @@ async fn propose_engine(
         )?;
     }
 
+    // 4g. A Group name is one Keycloak group for the organization (AP-115): one owned by the
+    //     organization or another App, or held by the realm unmanaged, is refused here.
+    if operation != Operation::Delete {
+        crate::groups::check(state, identity, kind_info.kind, &envelope.metadata)?;
+    }
+
     // Every resource this manifest names has to be there, so a person meets a missing name in the
     // form they typed it into and not in the reconciler's log (MF-13, T-2233).
     if operation != Operation::Delete {
