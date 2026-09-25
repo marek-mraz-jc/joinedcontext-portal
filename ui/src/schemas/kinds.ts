@@ -65,6 +65,12 @@ export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
         title: t("spaces.field.locale"),
         ...words(t, "choice.language", ["sk", "en", "de", "cs"]),
       },
+      missingUnitCode: {
+        type: "string",
+        title: t("spaces.field.missingUnitCode"),
+        default: "fill",
+        ...words(t, "choice.missingUnitCode", ["fill", "refuse"]),
+      },
       isSandbox: { type: "boolean", title: t("spaces.field.sandbox"), default: false },
       ttlDays: {
         type: "integer",

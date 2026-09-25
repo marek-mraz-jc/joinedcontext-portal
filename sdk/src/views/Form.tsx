@@ -4,6 +4,7 @@ import { columnKind, format } from "../ngsi";
 import type { Field, Schema, TypeSchema, WriteResult } from "../write";
 import { fieldOf } from "../write";
 import { optionLabel } from "../enums";
+import { unitSymbol } from "../sdk/units";
 
 /**
  * The selected entity as a window of inputs, or a new one (AP-61, AP-62). Each input is what
@@ -121,7 +122,11 @@ export function Form({ row, rows, fields, title, schema, defs, creating, onSave,
             )}
             {fields.map((field) => (
               <label key={field} className="field">
-                <span>{field}{specs[field].required ? " *" : ""}</span>
+                <span>
+                  {field}
+                  {unitSymbol(specs[field].unit) ? ` (${unitSymbol(specs[field].unit)})` : ""}
+                  {specs[field].required ? " *" : ""}
+                </span>
                 {input(field)}
               </label>
             ))}

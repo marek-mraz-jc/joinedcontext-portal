@@ -167,34 +167,152 @@ fn references<'a>(kind: &str, spec: &'a Value) -> Vec<Reference<'a>> {
     references
 }
 
+/// A reference the project does not hold: the field it is written at and what it names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Missing {
+    pub path: String,
+    pub kind: String,
+    pub name: String,
+}
+
+/// Every reference of the manifest into its own project that the mirror does not hold (MF-13).
+///
+/// A reference into another project is left to the door that owns it: resolving it here would
+/// answer for a project the caller may not read.
+pub fn missing(mirror: &Mirror, project: &str, kind: &str, spec: &Value) -> Vec<Missing> {
+    references(kind, spec)
+        .into_iter()
+        .filter(|reference| {
+            reference
+                .namespace
+                .is_none_or(|namespace| namespace == project)
+        })
+        .filter(|reference| {
+            mirror
+                .get(project, reference.kind, reference.name)
+                .is_none()
+        })
+        .map(|reference| Missing {
+            path: reference.path,
+            kind: reference.kind.to_owned(),
+            name: reference.name.to_owned(),
+        })
+        .collect()
+}
+
+/// The refusal of a reference to nothing, naming the field a person typed into (MF-13).
+pub fn refusal(project: &str, missing: &Missing) -> ApiError {
+    ApiError::Invalid {
+        detail: format!(
+            "{} names {} '{}', which does not exist in project '{}'; propose it first, or name \
+             one that is there",
+            missing.path, missing.kind, missing.name, project
+        ),
+        errors: vec![missing.path.clone()],
+    }
+}
+
 /// Refuses a manifest naming a resource that is not there (MF-13).
 ///
-/// Called by the dry run of every door, before a verdict is recorded, so a person meets the
-/// missing name in the form they typed it into. A reference into another project is left to the
-/// door that owns it: resolving it here would answer for a project the caller may not read.
+/// The mirror alone: a door that also accepts what an open change creates asks [`awaited`].
 pub fn check(mirror: &Mirror, project: &str, kind: &str, spec: &Value) -> Result<(), ApiError> {
-    for reference in references(kind, spec) {
-        if reference
-            .namespace
-            .is_some_and(|namespace| namespace != project)
-        {
-            continue;
-        }
-        if mirror
-            .get(project, reference.kind, reference.name)
-            .is_none()
-        {
-            return Err(ApiError::Invalid {
-                detail: format!(
-                    "{} names {} '{}', which does not exist in project '{}'; propose it first, \
-                     or name one that is there",
-                    reference.path, reference.kind, reference.name, project
-                ),
-                errors: vec![reference.path],
-            });
+    match missing(mirror, project, kind, spec).first() {
+        Some(first) => Err(refusal(project, first)),
+        None => Ok(()),
+    }
+}
+
+/// One reference that resolves once another change is approved (MF-48).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Awaited {
+    pub reference: Missing,
+    /// The merge request of the open change that creates it.
+    pub number: u64,
+    /// That change's id, `chg-…`.
+    pub change: String,
+}
+
+impl Awaited {
+    /// The warning the verdict carries, in the words API/01 §4 publishes.
+    pub fn finding(&self) -> crate::ops::verdict::Finding {
+        crate::ops::verdict::Finding {
+            level: crate::ops::verdict::Level::Warning,
+            path: self.reference.path.clone(),
+            message: format!(
+                "{} '{}' resolves once {} is approved",
+                self.reference.kind, self.reference.name, self.change
+            ),
         }
     }
-    Ok(())
+}
+
+/// The open change creating each missing reference (MF-48): one proposal of that kind and name,
+/// found by the branch it lives on. A reference no open change creates is refused as it always
+/// was, and so is every one when the project has no forge to ask.
+pub async fn awaited(
+    state: &crate::state::AppState,
+    project: &str,
+    missing: Vec<Missing>,
+) -> Result<Vec<Awaited>, ApiError> {
+    let Some(first) = missing.first() else {
+        return Ok(Vec::new());
+    };
+    let Some(gitea) = state.forge_for(project) else {
+        return Err(refusal(project, first));
+    };
+    let open = match gitea.list_pull_requests("open").await {
+        Ok(open) => open,
+        Err(crate::git::GitError::NotFound) => Vec::new(),
+        Err(err) => return Err(err.into()),
+    };
+    let mut found = Vec::with_capacity(missing.len());
+    for reference in missing {
+        let branch = crate::api::mutate::branch_name(
+            project,
+            &reference.kind,
+            &reference.name,
+            crate::change::Operation::Create,
+        );
+        // A retry after a rejection opens on `{branch}_{nonce}` (T-0887): the same resource.
+        let retried = format!("{branch}_");
+        let Some(pr) = open
+            .iter()
+            .find(|pr| pr.head_branch == branch || pr.head_branch.starts_with(&retried))
+        else {
+            return Err(refusal(project, &reference));
+        };
+        let change = crate::api::changes::change_meta(state, &gitea, pr.number, project).name;
+        found.push(Awaited {
+            reference,
+            number: pr.number,
+            change,
+        });
+    }
+    Ok(found)
+}
+
+/// The line a merge request carries for each change it waits on (MF-48); [`waited_on`] reads it.
+pub fn waits_on_line(awaited: &Awaited) -> String {
+    format!("{WAITS_ON} #{} ({})", awaited.number, awaited.change)
+}
+
+const WAITS_ON: &str = "Waits-On:";
+
+/// The merge requests a change waits on, from the lines [`waits_on_line`] wrote into its body.
+pub fn waited_on(body: &str) -> Vec<u64> {
+    let mut numbers: Vec<u64> = body
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix(WAITS_ON))
+        .filter_map(|rest| rest.trim().strip_prefix('#'))
+        .filter_map(|rest| {
+            rest.split(|c: char| !c.is_ascii_digit())
+                .next()
+                .and_then(|digits| digits.parse().ok())
+        })
+        .collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    numbers
 }
 
 #[cfg(test)]
@@ -634,5 +752,31 @@ mod tests {
                     .any(|element| holds(element, rest, root))
             })
         })
+    }
+
+    /// MF-48: the approval reads back exactly the lines the proposal wrote, once each, and
+    /// nothing a person typed elsewhere in the description.
+    #[test]
+    fn the_changes_a_merge_request_waits_on_are_read_from_its_own_lines() {
+        let awaited = Awaited {
+            reference: Missing {
+                path: "spec.dataModelRef".into(),
+                kind: "DataModel".into(),
+                name: "air".into(),
+            },
+            number: 42,
+            change: "chg-0000002a".into(),
+        };
+        let body = format!(
+            "Proposed create.\n\n{}\n  Waits-On: #7 (chg-00000007)\n{}\nWaits-On: soon\nsee #9",
+            waits_on_line(&awaited),
+            waits_on_line(&awaited)
+        );
+        assert_eq!(waited_on(&body), vec![7, 42]);
+        assert!(waited_on("Proposed update of App `alerts`.").is_empty());
+        assert_eq!(
+            awaited.finding().message,
+            "DataModel 'air' resolves once chg-0000002a is approved"
+        );
     }
 }

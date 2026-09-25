@@ -60,6 +60,8 @@ pub fn app(state: AppState) -> Router {
         .merge(portal)
         .with_state(state)
         .layer(from_fn(telemetry::record))
+        // Outermost of the logging layers, so every line of the request carries its id.
+        .layer(from_fn(crate::request_id::middleware))
         .layer(from_fn(api_cache_control_middleware))
         .layer(SetResponseHeaderLayer::overriding(
             HeaderName::from_static("x-content-type-options"),

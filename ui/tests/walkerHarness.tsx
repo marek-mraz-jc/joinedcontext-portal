@@ -22,7 +22,7 @@ import { ORGANIZATION_TABS } from "../src/pages/organization/OrganizationPage";
 import { PROJECT_SETTINGS_TABS } from "../src/pages/projectSettings/ProjectSettingsPage";
 import { pageFindings, unexcused } from "./pageChecks";
 import type { Excused } from "./pageChecks";
-import { problem, renderRoute } from "./pageHarness";
+import { jsonResponse, problem, renderRoute } from "./pageHarness";
 
 const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const P = "/projects/helsinki";
@@ -37,6 +37,8 @@ export const ADDRESSES: Record<string, string[]> = {
   "/login": ["/login"],
   "/": ["/"],
   "/endpoints": ["/endpoints"],
+  "/catalogue": ["/catalogue"],
+  "/catalogue/$name": ["/catalogue/air"],
   "/playground": ["/playground"],
   "/organization": ["/organization"],
   "/organization/$tab": ORGANIZATION_TABS.map((tab) => `/organization/${tab}`),
@@ -85,6 +87,12 @@ const MADE_UP = new Set(["p-1", "stewards", "air", "air-v2", "chg-0a1b2c3d", "he
  * one, which are the two states a page is most often left untested in.
  */
 function answer(path: string): Response | undefined {
+  // The catalogue is a page of its own shape, not a list: empty, as an installation with no
+  // published dataset answers it.
+  if (path === "/api/v1/catalogue") {
+    const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
+    return jsonResponse({ total: 0, page: 1, pageSize: 20, datasets: [], facets: none, unavailable: [] });
+  }
   const last = decodeURIComponent(path.split("/").pop() ?? "");
   return MADE_UP.has(last) && path !== "/api/v1/projects/helsinki" ? problem(404, `${last} was not found`) : undefined;
 }

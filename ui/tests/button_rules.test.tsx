@@ -52,6 +52,8 @@ const PAGES = [
   `/projects/${PROJECT}/models/ovzdusie`,
   `/projects/${PROJECT}/explore`,
   `/projects/${PROJECT}/ckan`,
+  "/catalogue",
+  "/catalogue/ovzdusie",
   `/projects/${PROJECT}/import`,
   `/projects/${PROJECT}/federation`,
   `/projects/${PROJECT}/spaces/complete`,
@@ -104,6 +106,28 @@ const WORKSPACE = {
 
 /** One manifest of whatever kind the page asks for, so a list page is not empty. */
 function answer(path: string): Response | undefined {
+  if (path === "/api/v1/catalogue") {
+    const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
+    return jsonResponse({
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      datasets: [{ name: "ovzdusie", title: "Ovzdušie", formats: ["CSV"], themes: ["ENVI"] }],
+      facets: { ...none, theme: [{ value: "ENVI", label: "Environment", count: 1 }] },
+      unavailable: [],
+    });
+  }
+  if (path === "/api/v1/catalogue/datasets/ovzdusie") {
+    return jsonResponse({
+      name: "ovzdusie",
+      title: "Ovzdušie",
+      keywords: [],
+      themes: [],
+      spatial: [],
+      catalogueUrl: "https://data.example.org/dataset/ovzdusie",
+      resources: [{ name: "CSV", format: "CSV", url: "https://example.org/file.csv" }],
+    });
+  }
   if (path.endsWith("/workspaces")) {
     return jsonResponse({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [WORKSPACE] });
   }

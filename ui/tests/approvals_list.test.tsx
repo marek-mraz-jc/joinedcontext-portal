@@ -272,4 +272,26 @@ describe("the approvals page, mounted on its own", () => {
     await screen.findByText(/air-quality/);
     await expectNoAxeViolations(container);
   });
+
+  // MF-48: a change waiting on another says so in the queue; one already merged is not news.
+  it("says which change a proposal waits on, and not one that merged", async () => {
+    renderApprovals({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "ChangeList",
+      items: [
+        proposal({
+          waitsOn: [
+            { name: "chg-00000007", phase: "PendingApproval" },
+            { name: "chg-00000005", phase: "Merged" },
+          ],
+        }),
+      ],
+    });
+
+    const row = (await screen.findByText("chg-1a2b3c4d")).closest("tr") as HTMLElement;
+    expect(
+      within(row).getByText(en.approvals.waitsOn.pending.replace("{change}", "chg-00000007")),
+    ).toBeInTheDocument();
+    expect(within(row).queryByText(/chg-00000005/)).not.toBeInTheDocument();
+  });
 });
