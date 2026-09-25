@@ -28,7 +28,7 @@ spec:
       Nennen Sie Bauart und Publikum, Quelle und die von CI gepinnten Werkzeuge sowie die benötigten
       Daten; Endpoint und Richtlinie leitet die Plattform daraus ab, das Veröffentlichen ist ein
       eigener Schritt.
-  order: [name, kind, visibility, embeddable, source, build, dataNeeds, csp, limits]
+  order: [name, kind, visibility, embeddable, source, build, dataNeeds, csp, limits, egress]
   groups:
     - title:
         en: The app
@@ -74,7 +74,7 @@ spec:
         cs: Které původy smí aplikace volat a které ji smějí vložit, a kolik smí její endpoint dostat požadavků.
         de: Welche Origins die App aufrufen und einbetten dürfen und wie stark ihr Endpoint belastet werden darf.
       folded: true
-      fields: [csp, limits]
+      fields: [csp, limits, egress]
   fields:
     name:
       placeholder: "air-quality-map"
@@ -231,6 +231,20 @@ spec:
         sk: Najviac požiadaviek za minútu, na ktoré endpoint aplikácie odpovie; prázdne ponechá predvolené.
         cs: Nejvíce požadavků za minutu, na které endpoint aplikace odpoví; prázdné ponechá výchozí.
         de: Die höchste Anzahl Anfragen pro Minute; leer gilt der Standard.
+    egress[].cidr:
+      placeholder: "203.0.113.0/24"
+      help:
+        en: A network the app's server may reach besides its endpoint, as an address and prefix; a publisher approves it.
+        sk: Sieť, na ktorú smie server aplikácie okrem endpointu pristupovať, ako adresa a prefix; schvaľuje ju publikovateľ.
+        cs: Síť, na kterou smí server aplikace kromě endpointu přistupovat, jako adresa a prefix; schvaluje ji publikující.
+        de: Ein Netz, das der Server der App außer ihrem Endpoint erreichen darf, als Adresse mit Präfix; ein Publisher genehmigt es.
+    egress[].ports:
+      placeholder: [443]
+      help:
+        en: The ports the app's server may reach on that network, at least one.
+        sk: Porty, na ktoré smie server aplikácie v tej sieti pristupovať, aspoň jeden.
+        cs: Porty, na které smí server aplikace v té síti přistupovat, alespoň jeden.
+        de: Die Ports, die der Server der App in diesem Netz erreichen darf, mindestens einer.
     limits.maxFileRows:
       placeholder: 50000
       help:

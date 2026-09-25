@@ -2045,7 +2045,10 @@
       "frameAncestors": "Darf eingebettet werden von",
       "limits": "Grenzen",
       "requestsPerMinute": "Anfragen pro Minute",
-      "maxFileRows": "Zeilen pro Datei-Download"
+      "maxFileRows": "Zeilen pro Datei-Download",
+      "egress": "Ausgehende Netze",
+      "egressCidr": "Netz",
+      "egressPorts": "Ports"
     },
     "build": {
       "title": "Build in der Forge",

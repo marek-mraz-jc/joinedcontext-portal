@@ -2045,7 +2045,10 @@
       "frameAncestors": "May be framed by",
       "limits": "Limits",
       "requestsPerMinute": "Requests per minute",
-      "maxFileRows": "Rows per file download"
+      "maxFileRows": "Rows per file download",
+      "egress": "Outbound networks",
+      "egressCidr": "Network",
+      "egressPorts": "Ports"
     },
     "build": {
       "title": "Build on the forge",

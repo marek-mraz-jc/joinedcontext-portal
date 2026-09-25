@@ -2045,7 +2045,10 @@
       "frameAncestors": "Smí ji vložit",
       "limits": "Limity",
       "requestsPerMinute": "Požadavky za minutu",
-      "maxFileRows": "Řádky na stažení souboru"
+      "maxFileRows": "Řádky na stažení souboru",
+      "egress": "Odchozí sítě",
+      "egressCidr": "Síť",
+      "egressPorts": "Porty"
     },
     "build": {
       "title": "Sestavení ve forge",

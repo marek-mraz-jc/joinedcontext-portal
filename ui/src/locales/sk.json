@@ -2045,7 +2045,10 @@
       "frameAncestors": "Smie ju vložiť",
       "limits": "Limity",
       "requestsPerMinute": "Požiadavky za minútu",
-      "maxFileRows": "Riadky na stiahnutie súboru"
+      "maxFileRows": "Riadky na stiahnutie súboru",
+      "egress": "Odchádzajúce siete",
+      "egressCidr": "Sieť",
+      "egressPorts": "Porty"
     },
     "build": {
       "title": "Zostavenie vo forge",

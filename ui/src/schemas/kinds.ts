@@ -2337,6 +2337,9 @@ export const APP_REPRESENTATIONS = [
 /** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
 export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";
 
+/** An IPv4 or IPv6 network with a prefix of at least 1: never a host name, never `/0` (AP-134). */
+export const EGRESS_CIDR_PATTERN = "^(?:\\d{1,3}(?:\\.\\d{1,3}){3}/(?:[1-9]|[12]\\d|3[0-2])|[0-9a-fA-F:]*:[0-9a-fA-F:.]*/(?:[1-9]|[1-9]\\d|1[01]\\d|12[0-8]))$";
+
 /** An ISO 8601 duration reaching back from now, such as `P1D` or `PT6H` (AP-05). */
 export const ISO_DURATION_PATTERN = "^P(?=\\d|T\\d)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$";
 
@@ -2523,6 +2526,30 @@ export function appSchema(
             type: "integer",
             title: t("apps.field.maxFileRows"),
             minimum: 1,
+          },
+        },
+      },
+      // Where a server pod may connect besides its endpoint, by address only; jc-core refuses a
+      // host name and every address, `/0` (AP-134). Declaring one takes the red lane.
+      egress: {
+        type: "array",
+        title: t("apps.field.egress"),
+        items: {
+          type: "object",
+          required: ["cidr", "ports"],
+          properties: {
+            cidr: {
+              type: "string",
+              title: t("apps.field.egressCidr"),
+              pattern: EGRESS_CIDR_PATTERN,
+            },
+            ports: {
+              type: "array",
+              title: t("apps.field.egressPorts"),
+              minItems: 1,
+              items: { type: "integer", minimum: 1, maximum: 65535 },
+              uniqueItems: true,
+            },
           },
         },
       },
