@@ -22,15 +22,17 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
 };
 
 /**
- * What an Endpoint serves: the representations its manifest lists plus `mcp`, which every
- * Endpoint serves, public or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads
- * the same rule, so a link shown here answers there; its Policy still decides every call.
+ * What an Endpoint serves: the representations its manifest lists, then `ngsi-ld` and
+ * `geojson`, which every Endpoint serves (EP-10, T-2939), and `mcp`, which every Endpoint
+ * serves, public or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads the same
+ * rule, so a link shown here answers there; its Policy still decides every call.
  */
 export function servedRepresentations(spec: { enabledRepresentations?: unknown; mcp?: unknown }): string[] {
   const listed = Array.isArray(spec.enabledRepresentations)
     ? spec.enabledRepresentations.filter((rep): rep is string => typeof rep === "string")
     : [];
-  return spec.mcp === false || listed.includes("mcp") ? listed : [...listed, "mcp"];
+  const always = spec.mcp === false ? ["ngsi-ld", "geojson"] : ["ngsi-ld", "geojson", "mcp"];
+  return [...listed, ...always.filter((rep) => !listed.includes(rep))];
 }
 
 /** The links every endpoint has whatever it enables: its index and the model it publishes. */

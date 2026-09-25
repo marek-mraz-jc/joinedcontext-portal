@@ -33,6 +33,24 @@ class RootBoundary extends Component<{ children: ReactNode }, { error: Error | n
   }
 }
 
+/**
+ * A published App framed by the Portal's Open page says it is up (AP-122, T-2941): the page cannot
+ * see inside a frame of another origin, and a frame the browser refused (the realm's sign-in form,
+ * which may not be framed) looks to it like one still loading. The message carries nothing but
+ * its kind, so it goes to whichever page frames the App; the Portal checks that it came from its
+ * own frame and the App's origin. Top-level, it is not sent.
+ */
+export function announceReady(win: Window | undefined = typeof window !== "undefined" ? window : undefined): void {
+  if (!win || !win.parent || win.parent === win) {
+    return;
+  }
+  try {
+    win.parent.postMessage({ kind: "jc-ready" }, "*");
+  } catch {
+    // A parent that cannot be told keeps offering its own way back.
+  }
+}
+
 export function startApp(
   App: ComponentType,
   options?: { tokens?: unknown; root?: HTMLElement; doc?: Document },
@@ -75,6 +93,8 @@ export function startApp(
   // A preview reads itself page by page when the host page asks, so the run can check what it shows (SDK-27).
   if (config.transport === "bridge") {
     startObserver({ doc });
+  } else {
+    announceReady();
   }
 
   if (!errorListenersRegistered && typeof window !== "undefined") {

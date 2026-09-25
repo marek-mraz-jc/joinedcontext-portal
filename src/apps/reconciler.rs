@@ -85,6 +85,9 @@ pub struct Settings {
     /// The `dockerconfigjson` Secret in [`Settings::namespace`] a node pulls app images with, a
     /// forge token that reads packages and nothing else (AP-108).
     pub pull_secret: Option<String>,
+    /// The Portal's public base URL when it proxies a basemap (AP-67): a pod App's
+    /// `JC_APP_CONFIG` names its project's style under it. `None`: no basemap is configured.
+    pub basemap_base: Option<String>,
 }
 
 /// The context gateway as an App pod's NetworkPolicy names it: its namespace, from the
@@ -315,7 +318,7 @@ pub fn render(
             let image = image.ok_or_else(|| RenderError::NoImage {
                 class: class.to_string(),
             })?;
-            let config = app_config(name, &endpoint, &spec, slug, &settings.org_domain)?;
+            let config = app_config(name, project, &endpoint, &spec, slug, settings)?;
             Some(render_workload(
                 name, project, &spec, image, slug, settings, &config,
             )?)
@@ -397,13 +400,16 @@ fn compiled_grants(
 
 /// The `#jc-config` the static host writes for a `ui` App (AP-95), without `user`, for a pod
 /// App's backend to write into its own page with `user` from its `/me` (Architecture/16 §13,
-/// AP-126). A pod App reads through its one endpoint, so the list holds that one.
+/// AP-126). A pod App reads through its one endpoint, so the list holds that one. The project's
+/// basemap style goes in as the static host writes it, so a pod App's map draws on the platform's
+/// basemap too (AP-67).
 fn app_config(
     name: &str,
+    project: &str,
     endpoint: &RawManifest,
     spec: &AppSpec,
     slug: &EndpointSlug,
-    org_domain: &str,
+    settings: &Settings,
 ) -> Result<Value, RenderError> {
     let space = single_space(spec)?;
     let endpoints = [crate::agents::endpoints::RunEndpoint {
@@ -412,15 +418,19 @@ fn app_config(
         space: space.to_owned(),
     }];
     let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
-    Ok(json!({
+    let mut config = json!({
         "slug": slug.as_str(),
-        "orgDomain": org_domain,
+        "orgDomain": settings.org_domain,
         "space": space,
         "transport": "origin",
         "appName": name,
         "endpointName": endpoint.metadata.name,
         "endpoints": crate::agents::endpoints::config(&endpoints, &needs),
-    }))
+    });
+    if let Some(base) = &settings.basemap_base {
+        config["basemap"] = json!(crate::api::basemap::style_url_at(base, project));
+    }
+    Ok(config)
 }
 
 /// The one space every data need must name; two spaces cannot become one endpoint (AP-04).
@@ -585,7 +595,7 @@ fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
 /// - `JC_ANONYMOUS` — set to `true` for a public app, so its backend treats an absent
 ///   `X-Access-Token` as normal rather than as a bug.
 /// - `JC_APP_CONFIG` — the `#jc-config` object the static host writes for a `ui` App, without
-///   `user`: the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
+///   `user` and with the project's `basemap` style URL when one is configured (AP-67): the backend writes it into its page with `user` from `JC_ME_URL`, so the App SDK in
 ///   `ui/` reads its endpoints as it does on the static host (AP-95, AP-126).
 ///
 /// Never a credential: an application calls its Endpoint with the caller's own token.

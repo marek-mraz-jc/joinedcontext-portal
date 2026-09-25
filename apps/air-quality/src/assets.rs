@@ -8,7 +8,7 @@ use axum::http::{header, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
-use crate::App;
+use crate::{App, Config};
 
 #[derive(RustEmbed)]
 #[folder = "ui/dist"]
@@ -31,14 +31,14 @@ pub async fn static_handler(State(app): State<Arc<App>>, uri: Uri) -> Response {
         .unwrap_or(uri.path())
         .trim_start_matches('/');
     if path.is_empty() || path == "index.html" {
-        return index();
+        return index(&app.config);
     }
     let Some(file) = Assets::get(path) else {
         // Anything with an extension is a real miss; everything else is a client route.
         return if path.rsplit('/').next().unwrap_or(path).contains('.') {
             StatusCode::NOT_FOUND.into_response()
         } else {
-            index()
+            index(&app.config)
         };
     };
     let mime = mime_guess::from_path(path).first_or_octet_stream();
@@ -57,16 +57,33 @@ pub async fn static_handler(State(app): State<Arc<App>>, uri: Uri) -> Response {
         .into_response()
 }
 
-fn index() -> Response {
-    let body = Assets::get("index.html")
-        .map(|file| Body::from(file.data))
-        .unwrap_or_else(|| Body::from(PLACEHOLDER_HTML));
+/// The front page, with the reconciler's `#jc-config` first in its head when it was handed one
+/// (AP-67, AP-126).
+fn index(config: &Config) -> Response {
+    let html = Assets::get("index.html")
+        .map(|file| String::from_utf8_lossy(&file.data).into_owned())
+        .unwrap_or_else(|| PLACEHOLDER_HTML.to_owned());
+    let body = match &config.page_config {
+        Some(json) => with_config(&html, json),
+        None => html,
+    };
     (
         [
             (header::CONTENT_TYPE, "text/html; charset=utf-8"),
             (header::CACHE_CONTROL, "no-cache"),
         ],
-        body,
+        Body::from(body),
     )
         .into_response()
+}
+
+/// `html` with `<script id="jc-config">` holding `json` right after `<head>`, where the page's
+/// scripts find it before they run.
+fn with_config(html: &str, json: &str) -> String {
+    let element = format!(r#"<script id="jc-config" type="application/json">{json}</script>"#);
+    let at = html
+        .to_ascii_lowercase()
+        .find("<head>")
+        .map_or(0, |at| at + "<head>".len());
+    format!("{}{element}{}", &html[..at], &html[at..])
 }

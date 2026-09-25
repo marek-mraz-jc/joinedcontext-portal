@@ -32,6 +32,7 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: Some("forge.bb.example.com/joinedcontext".into()),
         pull_secret: Some("app-registry".into()),
+        basemap_base: None,
         release: Some("dev".into()),
         service_account: Some("portal".into()),
     }

@@ -12,7 +12,7 @@ vi.mock("react-dom/client", () => ({
 }));
 
 import { ConfigError } from "../src/sdk/config";
-import { startApp } from "../src/sdk/start";
+import { announceReady, startApp } from "../src/sdk/start";
 
 function DummyApp() {
   return <div>App</div>;
@@ -64,5 +64,41 @@ describe("startApp", () => {
 
     expect(() => startApp(DummyApp)).toThrow(ConfigError);
     expect(mockRender).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a published App tells the page that frames it that it is up (T-2941)", () => {
+  const framed = () => {
+    const postMessage = vi.fn();
+    return { win: { parent: { postMessage } } as unknown as Window, postMessage };
+  };
+
+  it("posts one data-free ready message to the parent when framed", () => {
+    const { win, postMessage } = framed();
+    announceReady(win);
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith({ kind: "jc-ready" }, "*");
+  });
+
+  it("posts nothing when the App is the top window", () => {
+    const postMessage = vi.fn();
+    const win = { postMessage } as unknown as Window & { parent: Window };
+    win.parent = win;
+    announceReady(win);
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("startApp announces a published (origin) App to its frame once", () => {
+    const parent = { postMessage: vi.fn() };
+    vi.spyOn(window, "parent", "get").mockReturnValue(parent as unknown as Window);
+    document.body.innerHTML = `
+      <div id="root"></div>
+      <script id="jc-config" type="application/json">
+        { "slug": "demo", "orgDomain": "example.org", "space": "demo", "transport": "origin", "appName": "demo-app" }
+      </script>
+    `;
+    startApp(DummyApp);
+    expect(parent.postMessage).toHaveBeenCalledTimes(1);
+    expect(parent.postMessage).toHaveBeenCalledWith({ kind: "jc-ready" }, "*");
   });
 });

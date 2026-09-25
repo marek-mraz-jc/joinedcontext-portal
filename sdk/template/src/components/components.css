@@ -536,3 +536,10 @@ body {
     margin-left: 0;
   }
 }
+
+.jc-embedded-frame {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--jc-color-line, #e2e8f0);
+  border-radius: var(--jc-radius-md, 6px);
+}
