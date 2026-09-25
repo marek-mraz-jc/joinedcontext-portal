@@ -232,6 +232,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                   <TableRow key={row.model.metadata.name}>
                     <TableCell primary>
                       <Link
+                        data-row-link=""
                         to="/projects/$project/models/$name"
                         params={{ project, name: row.model.metadata.name }}
                         className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"

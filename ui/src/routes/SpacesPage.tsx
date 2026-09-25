@@ -1,4 +1,5 @@
 import { useCreateForm } from "../components/forms/FormRoute";
+import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import type { JSX } from "react";
@@ -334,7 +335,11 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           return (
             <TableRow key={space.metadata.name}>
               <TableCell primary>
-                <div>{title}</div>
+                <div>
+                  <RecordLink project={project} plural="spaces" name={space.metadata.name}>
+                    {title}
+                  </RecordLink>
+                </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle">
                   {space.metadata.title ? <span>{space.metadata.name}</span> : null}
                   <span>

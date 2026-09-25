@@ -1,4 +1,5 @@
 import { useFormRoute, useOpenFromAddress } from "../components/forms/FormRoute";
+import { RecordLink } from "../components/RecordLink";
 import { useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -418,7 +419,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           return (
             <TableRow key={pipeline.metadata.name}>
               <TableCell primary>
-                <div>{localized(pipeline.metadata.title, locale, pipeline.metadata.name)}</div>
+                <div>
+                  <RecordLink project={project} plural="pipelines" name={pipeline.metadata.name}>
+                    {localized(pipeline.metadata.title, locale, pipeline.metadata.name)}
+                  </RecordLink>
+                </div>
                 {pipeline.metadata.title ? (
                   <div className="mt-0.5 font-mono text-caption text-fg-subtle">
                     {pipeline.metadata.name}

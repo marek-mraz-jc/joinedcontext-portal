@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
+import type { HTMLAttributes, MouseEvent, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import { clsx } from "clsx";
 import { Skeleton } from "./Skeleton";
 
@@ -97,13 +97,80 @@ export function TableBody({
   );
 }
 
+/** What handles its own click inside a row: the row never takes that click over. */
+const OWN_CLICK =
+  "a, button, input, select, textarea, label, summary, [role=button], [role=menuitem], [role=checkbox], [role=switch], [role=tab], [contenteditable=true]";
+
+/**
+ * A click anywhere on a row whose record has a link (`data-row-link`, see `RecordLink`) opens
+ * that link, as the owner's rule asks: every record opens on click (T-2875). The link itself
+ * stays the one control of the row — the keyboard reaches it with Tab and opens it with Enter,
+ * and a focusable row holding buttons would be a nested interactive control (axe). What handles
+ * its own click is left alone: a button, a menu, a checkbox, another link, the dialogs and menus
+ * a row renders through portals (their events bubble through React but not through the DOM),
+ * and a click that ends a text selection. Ctrl, Cmd, Shift and the middle button reach the link
+ * as they would on the link itself: a new tab.
+ */
+function openRowLink(event: MouseEvent<HTMLTableRowElement>): void {
+  const row = event.currentTarget;
+  const target = event.target;
+  if (!(target instanceof Element) || !row.contains(target)) {
+    return;
+  }
+  const own = target.closest(OWN_CLICK);
+  if (own && row.contains(own)) {
+    return;
+  }
+  if (window.getSelection()?.toString()) {
+    return;
+  }
+  const link = row.querySelector<HTMLAnchorElement>("a[data-row-link]");
+  if (!link) {
+    return;
+  }
+  // The click is the link's own, with the keys held: the router takes a plain one in place and
+  // leaves a modified one to the browser, which opens the tab (and the link's `rel` holds). The
+  // middle button is a new tab, so it is sent as the key that means one.
+  const middle = event.button === 1;
+  link.dispatchEvent(
+    new window.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: event.ctrlKey || middle,
+      metaKey: event.metaKey || middle,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+    }),
+  );
+}
+
 export function TableRow({
   className,
   children,
+  onClick,
+  onAuxClick,
   ...rest
 }: HTMLAttributes<HTMLTableRowElement>): React.JSX.Element {
   return (
-    <tr className={clsx("transition-colors hover:bg-primary-50", className)} {...rest}>
+    <tr
+      className={clsx(
+        "transition-colors hover:bg-primary-50 has-[a[data-row-link]]:cursor-pointer",
+        className,
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) {
+          openRowLink(event);
+        }
+      }}
+      onAuxClick={(event) => {
+        onAuxClick?.(event);
+        if (!event.defaultPrevented && event.button === 1) {
+          openRowLink(event);
+        }
+      }}
+      {...rest}
+    >
       {children}
     </tr>
   );

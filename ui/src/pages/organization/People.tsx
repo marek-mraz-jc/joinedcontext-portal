@@ -423,6 +423,7 @@ export function People(): JSX.Element {
                       <TableRow key={person.id}>
                         <TableCell primary>
                           <Link
+                            data-row-link=""
                             to="/organization/$tab/$"
                             params={{ tab: "people", _splat: encodeURIComponent(person.id) }}
                             className="underline"

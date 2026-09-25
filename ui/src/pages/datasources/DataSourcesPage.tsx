@@ -1,4 +1,5 @@
 import { useFormRoute, useOpenFromAddress } from "../../components/forms/FormRoute";
+import { RecordLink } from "../../components/RecordLink";
 import { useMemo, useState } from "react";
 import { ResourceList } from "../../components/ResourceList";
 import type { JSX } from "react";
@@ -572,7 +573,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           return (
             <TableRow key={source.metadata.name}>
               <TableCell>
-                <span className="font-mono">{source.metadata.name}</span>
+                <RecordLink project={project} plural="datasources" name={source.metadata.name} className="font-mono" />
                 {/* A source without a title is its name; printing it twice says nothing. */}
                 {source.metadata.title ? (
                   <span className="block text-caption text-fg-muted">

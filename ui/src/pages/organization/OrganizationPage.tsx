@@ -193,6 +193,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                       {/* Underlined like every other link of a list: plain text read as a name
                           one could not open (T-2759). */}
                       <Link
+                        data-row-link=""
                         to="/projects/$project/$plural"
                         params={{ project: name, plural: "spaces" }}
                         className="focus-ring rounded-sm font-medium text-primary-soft-fg underline underline-offset-2 hover:no-underline"

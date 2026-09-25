@@ -1180,6 +1180,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               <TableCell primary>
                 {/* The name opens the endpoint's own page, where every setting is (T-2281). */}
                 <Link
+                  data-row-link=""
                   to="/projects/$project/$plural/$name"
                   params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
                   className="text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"

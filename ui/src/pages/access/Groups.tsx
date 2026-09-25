@@ -270,6 +270,7 @@ export function Groups({ project }: { project: string }): JSX.Element {
                   <TableRow key={row.name}>
                     <TableCell primary>
                       <Link
+                        data-row-link=""
                         to="/organization/$tab/$"
                         params={{ tab: "groups", _splat: encodeURIComponent(row.name) }}
                         className="underline"
