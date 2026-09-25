@@ -141,7 +141,7 @@ fn organization(state: &AppState) {
         "org-admin",
         ORG_NAMESPACE,
         json!({ "rules": [
-            { "kinds": ["Pipeline", "Group", "Role", "RoleBinding"], "verbs": ["read", "propose", "approve", "delete"] },
+            { "kinds": ["Pipeline", "Group", "Role", "RoleBinding"], "verbs": ["propose", "approve", "delete"] },
             people,
         ]}),
     ));

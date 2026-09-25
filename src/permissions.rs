@@ -673,10 +673,11 @@ pub fn within_own_rights(
         for rule in rules {
             for kind in &rule.kinds {
                 for verb in &rule.verbs {
+                    // `Rule::grants`, so `propose` holds `read` here as it does at every door:
+                    // an administrator who proposes a kind may hand out reading it (PF-59).
                     let holds = held.iter().any(|(reach, grant)| {
                         reach.covers(target, mirror)
-                            && grant.rule.kinds.contains(kind)
-                            && grant.rule.verbs.contains(verb)
+                            && grant.rule.grants(kind, *verb)
                             && grant
                                 .rule
                                 .constraints
