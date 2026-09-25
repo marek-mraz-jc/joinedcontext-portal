@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import react from "@vitejs/plugin-react";
 import { build } from "vite";
-import { sdkAlias } from "../vite.config";
+import { sampleOverlay, sdkAlias } from "../vite.config";
 
 /**
  * Every view of an application at a phone, a tablet, a laptop and a wall (T-2777, UI-84, SDK-12).
@@ -111,11 +111,27 @@ function Layout() {
   );
 }
 
-applyTokens(tokens);
-const view = new URLSearchParams(location.search).get("view");
-createRoot(document.getElementById("root")).render(
-  h(JcProvider, { client }, view === "layout" ? h(Layout) : h(App)),
-);
+// The gallery (T-2778): each sample over the template, with its own look, stylesheet and rows.
+const SAMPLES = import.meta.glob("../../samples/*/src/App.tsx");
+const SAMPLE_ROWS = import.meta.glob("../../samples/*/src/fixtures.ts");
+const SAMPLE_CSS = import.meta.glob("../../samples/*/src/app.css");
+const SAMPLE_TOKENS = import.meta.glob("../../samples/*/src/design-tokens.json", { eager: true, import: "default" });
+
+const params = new URLSearchParams(location.search);
+const view = params.get("view");
+const root = createRoot(document.getElementById("root"));
+if (view === "sample") {
+  const at = "../../samples/" + params.get("name") + "/src/";
+  const [{ default: Sample }, fixtures] = await Promise.all([SAMPLES[at + "App.tsx"](), SAMPLE_ROWS[at + "fixtures.ts"](), SAMPLE_CSS[at + "app.css"]?.()]);
+  applyTokens(SAMPLE_TOKENS[at + "design-tokens.json"]);
+  const sampleClient = stubClient({
+    entities: fixtures.ROWS, schema: fixtures.SCHEMA, access: ALL, functions: fixtures.FUNCTIONS,
+  }, { appName: params.get("name"), endpointName: "sample" });
+  root.render(h(JcProvider, { client: sampleClient }, h(Sample)));
+} else {
+  applyTokens(tokens);
+  root.render(h(JcProvider, { client }, view === "layout" ? h(Layout) : h(App)));
+}
 `;
 
 const HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -136,7 +152,7 @@ async function buildFixture(): Promise<void> {
     root: work,
     logLevel: "silent",
     configFile: false,
-    plugins: [react()],
+    plugins: [react(), sampleOverlay],
     resolve: { alias: sdkAlias },
     build: { outDir: out, emptyOutDir: true, target: "es2022", assetsInlineLimit: 64 * 1024 },
   });
@@ -244,10 +260,19 @@ async function axeViolations(page: Page): Promise<string[]> {
   });
 }
 
+const SAMPLES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "samples");
 const VIEWS = [
   { name: "overview", path: "#/overview", ready: "Server summary" },
   { name: "type page", path: "#/AirQualityObserved", ready: "pm25 over time" },
   { name: "layout primitives", path: "?view=layout", ready: "All readings" },
+  // Every sample of the gallery (T-2778), ready when its title is on screen.
+  ...readdirSync(SAMPLES_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      name: `sample ${entry.name}`,
+      path: `?view=sample&name=${entry.name}`,
+      ready: (JSON.parse(readFileSync(join(SAMPLES_DIR, entry.name, "sample.json"), "utf8")) as { ready: string }).ready,
+    })),
 ];
 
 test.describe("the template's views", () => {
