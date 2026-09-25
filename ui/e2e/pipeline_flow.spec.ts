@@ -123,6 +123,8 @@ test.describe("pipeline flow canvas", () => {
 
     const dialog = page.getByTestId("form-page");
     await expect(dialog).toBeVisible();
+    // The flow is the advanced editor's, folded under the workbench (T-2709).
+    await dialog.getByText("Advanced editor").click();
 
     const paletteBloblang = page.getByTestId("palette-bloblang");
     const canvas = page.getByTestId("flow-canvas");
@@ -137,7 +139,7 @@ test.describe("pipeline flow canvas", () => {
     await expect(computeNode).toBeVisible();
 
     // Provide a sample file for testing
-    await page.locator('input[type="file"]').setInputFiles({
+    await dialog.getByTestId("pipeline-studio").locator('input[type="file"]').setInputFiles({
       name: "sample.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify([{ id: "sensor-01", pm10: 42 }])),

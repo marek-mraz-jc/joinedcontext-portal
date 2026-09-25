@@ -1068,6 +1068,70 @@
       },
       "newest": "Najnovšie",
       "older": "Staršie riadky"
+    },
+    "workbench": {
+      "failed": "Krok sa nepodarilo spustiť; skúste znova.",
+      "running": "Beží na vzorke…",
+      "advanced": "Rozšírený editor",
+      "advancedHint": "Tok, viac zdrojov, kroky procesora a KPI, na tom istom koncepte.",
+      "source": {
+        "title": "Zdroj",
+        "hint": "Vyberte, odkiaľ záznamy prichádzajú, alebo dajte ich súbor.",
+        "pick": "Odkiaľ prichádzajú záznamy",
+        "none": "Vyberte zdroj dát alebo endpoint",
+        "type": "Typ entít na čítanie",
+        "pickType": "Vyberte typ",
+        "file": "Vybrať súbor so vzorkou",
+        "fileTaken": "Vzorka: {name}",
+        "fileDrop": "Pretiahnite súbor CSV alebo JSON, alebo ho vyberte"
+      },
+      "sample": {
+        "title": "Vzorka",
+        "hint": "Prvé záznamy, ktoré zdroj vráti, tak ako ich pipeline prečíta.",
+        "waiting": "Vyberte zdroj alebo dajte súbor a uvidíte jeho záznamy.",
+        "empty": "Zdroj nevrátil žiadny záznam.",
+        "count": "{count, plural, one {# záznam} few {# záznamy} other {# záznamov}} s {fields, plural, one {# poľom} other {# poľami}}",
+        "countFirst": "Prvé {count, plural, one {# záznam} few {# záznamy} other {# záznamov}} s {fields, plural, one {# poľom} other {# poľami}}; zdroj má viac",
+        "caption": "Záznamy vzorky"
+      },
+      "mapping": {
+        "title": "Mapovanie",
+        "hint": "Napíšte v Bloblangu, ako sa záznam stane entitou; každý slot hovorí, čo berie.",
+        "slotsOf": "Čo berie {type}",
+        "slots": "Čo berie model",
+        "noModel": "Cieľový priestor nemenuje dátový model, takže žiadny slot nie je známy.",
+        "pickTarget": "Vyberte cieľový endpoint v kroku 6 a uvidíte, čo berie jeho model.",
+        "required": "povinné",
+        "many": "viac hodnôt",
+        "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
+        "example": "Príklad: {example}"
+      },
+      "output": {
+        "title": "Namapovaný výstup",
+        "hint": "Každý záznam tak, ako by sa zapísal, s každým problémom pri jeho poli.",
+        "waiting": "Napíšte mapovanie a dajte vzorku a uvidíte, čo vytvorí.",
+        "line": "riadok {line}",
+        "count": "{count, plural, =0 {Mapovanie nevytvorilo žiadny záznam.} one {Mapovanie vytvorilo # záznam.} few {Mapovanie vytvorilo # záznamy.} other {Mapovanie vytvorilo # záznamov.}}",
+        "caption": "Namapované záznamy",
+        "record": "Záznam",
+        "written": "Ako sa zapíše",
+        "problems": "Problémy"
+      },
+      "validation": {
+        "title": "Validácia",
+        "hint": "Zapíšu sa len záznamy, ktoré model priestoru prijme; ostatné idú do zoznamu odmietnutých.",
+        "waiting": "Verdikty prídu, keď mapovanie vytvorí záznamy.",
+        "valid": "platný",
+        "allValid": "{count, plural, one {# záznam je platný} few {Všetky # záznamy sú platné} other {Všetkých # záznamov je platných}} voči {model} {version}.",
+        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}."
+      },
+      "target": {
+        "title": "Cieľ a uloženie",
+        "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
+        "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
+        "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
+        "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália."
+      }
     }
   },
   "dashboards": {
