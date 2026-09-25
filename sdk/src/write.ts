@@ -26,6 +26,8 @@ export interface FieldSchema {
   maximum?: number;
   pattern?: string;
   format?: string;
+  /** The UN/CEFACT unit Model Tools annotates a quantity with: `ucefact:GQ` among its mappings (DM-06). */
+  "x-unit"?: { exactMappings?: string[] };
 }
 
 /** One entity type: its properties and which are required. */
@@ -47,6 +49,8 @@ export interface Field {
   max?: number;
   pattern?: string;
   required: boolean;
+  /** The UN/CEFACT code a number is measured in, when the model says (DM-06). */
+  unit?: string;
 }
 
 /**
@@ -67,7 +71,8 @@ export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Colu
   const types = Array.isArray(property.type) ? property.type : property.type ? [property.type] : [];
   const ngsiKind = property["x-ngsi-ld-kind"];
   if (types.includes("number") || types.includes("integer")) {
-    return { name, input: "number", min: property.minimum, max: property.maximum, required };
+    const unit = unitCodeOf(property);
+    return { name, input: "number", min: property.minimum, max: property.maximum, required, ...(unit ? { unit } : {}) };
   }
   if (types.includes("boolean")) {
     return { name, input: "checkbox", required };
@@ -157,4 +162,13 @@ async function viaBridge(request: ReturnType<typeof requestOf>): Promise<WriteRe
 export function writeEntity(slug: string, write: Write, bridge: boolean): Promise<WriteResult> {
   const request = requestOf(slug, write);
   return bridge ? viaBridge(request) : direct(request).catch((err: unknown) => ({ ok: false, status: 0, detail: err instanceof Error ? err.message : String(err) }));
+}
+
+/** The UN/CEFACT code among a property's `x-unit` mappings, and the `unece:` spelling older models used. */
+function unitCodeOf(property: FieldSchema): string | undefined {
+  for (const mapping of property["x-unit"]?.exactMappings ?? []) {
+    const code = /^(?:ucefact|unece):(.+)$/.exec(mapping)?.[1];
+    if (code) return code;
+  }
+  return undefined;
 }
