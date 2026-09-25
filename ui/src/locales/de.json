@@ -3781,6 +3781,209 @@
         "stale": "{count, plural, one {# Prüfung veraltet} other {# Prüfungen veraltet}}",
         "unreadable": "{count, plural, one {# Ergebnis unlesbar} other {# Ergebnisse unlesbar}}"
       }
+    },
+    "limit": {
+      "projects": {
+        "quota": {
+          "contextSpaces": {
+            "label": "Kontexträume pro Projekt",
+            "hint": "Wie viele Kontexträume ein Projekt haben darf."
+          },
+          "residentPipelines": {
+            "label": "Dauerhaft laufende Pipelines pro Projekt",
+            "hint": "Wie viele Pipelines eines Projekts der Runner gleichzeitig laufen lässt."
+          },
+          "publicEndpoints": {
+            "label": "Öffentliche Endpunkte pro Projekt",
+            "hint": "Wie viele Endpunkte eines Projekts für alle offen sein dürfen."
+          },
+          "ingestEventsPerSecond": {
+            "label": "Aufgenommene Ereignisse pro Sekunde",
+            "hint": "Wie schnell ein Projekt Daten schreiben darf."
+          },
+          "apps": {
+            "label": "Apps pro Projekt",
+            "hint": "Wie viele Apps eines Projekts in der Vorschau oder veröffentlicht sein dürfen."
+          },
+          "agentRunsPerDay": {
+            "label": "Assistentenläufe pro Tag",
+            "hint": "Wie viele Assistentenläufe ein Projekt pro Tag starten darf."
+          },
+          "entitiesPerSpace": {
+            "label": "Entitäten pro Raum",
+            "hint": "Wie viele Entitäten ein Kontextraum haben darf."
+          },
+          "requestsPerMinute": {
+            "label": "Anfragen pro Minute pro Projekt",
+            "hint": "Die meisten Anfragen pro Minute, die die Endpunkte eines Projekts bedienen."
+          }
+        },
+        "nameCooldownDays": {
+          "label": "Namenssperre (Tage)",
+          "hint": "Wie lange der Name eines entfernten Projekts gesperrt bleibt."
+        }
+      },
+      "limits": {
+        "edge": {
+          "requestsPerMinute": {
+            "web": {
+              "label": "Web-Anfragen pro Minute",
+              "hint": "Anfragen pro Minute, die ein Besucher an das Portal und die Apps stellen darf."
+            },
+            "api": {
+              "label": "API-Anfragen pro Minute",
+              "hint": "Anfragen pro Minute, die ein Client an die Portal-API stellen darf."
+            },
+            "dataRead": {
+              "label": "Datenlesezugriffe pro Minute",
+              "hint": "Lesezugriffe pro Minute, die ein Client über einen Endpunkt machen darf."
+            },
+            "dataWrite": {
+              "label": "Datenschreibzugriffe pro Minute",
+              "hint": "Schreibzugriffe pro Minute, die ein Client über einen Endpunkt machen darf."
+            },
+            "publicEndpoint": {
+              "label": "Anfragen an öffentliche Endpunkte pro Minute",
+              "hint": "Anfragen pro Minute, die ein anonymer Besucher an einen öffentlichen Endpunkt stellen darf."
+            }
+          },
+          "maxRequestBodyMegabytes": {
+            "label": "Größte Anfrage (MiB)",
+            "hint": "Der Rand lehnt einen größeren Anfragetext ab, bevor ihn etwas liest."
+          }
+        },
+        "gateway": {
+          "maxRequestBodyMegabytes": {
+            "label": "Größter Datenschreibvorgang (MiB)",
+            "hint": "Das Gateway lehnt einen größeren Schreibvorgang ab; höchstens das Limit des Rands."
+          }
+        },
+        "signIn": {
+          "sessionIdleMinutes": {
+            "label": "Abmeldung nach Inaktivität (Minuten)",
+            "hint": "Eine Sitzung endet nach dieser Zeit ohne Aktivität."
+          },
+          "sessionMaxHours": {
+            "label": "Längste Sitzung (Stunden)",
+            "hint": "Nach dieser Zeit meldet man sich erneut an, aktiv oder nicht."
+          }
+        },
+        "people": {
+          "invitationHours": {
+            "label": "Einladung gültig (Stunden)",
+            "hint": "Wie lange ein Einladungslink funktioniert."
+          }
+        },
+        "agents": {
+          "spendPerDay": {
+            "label": "Modellausgaben pro Tag",
+            "hint": "Ganze Währungseinheiten, die der Assistent pro Tag für Modelle ausgeben darf."
+          },
+          "spendPerMonth": {
+            "label": "Modellausgaben pro Monat",
+            "hint": "Ganze Währungseinheiten, die der Assistent pro Monat für Modelle ausgeben darf."
+          }
+        },
+        "pipelines": {
+          "rejectedKept": {
+            "label": "Aufbewahrte abgelehnte Datensätze",
+            "hint": "Wie viele abgelehnte Datensätze eine Pipeline zur Prüfung behält."
+          },
+          "sampleMegabytes": {
+            "label": "Größe der Testprobe (MiB)",
+            "hint": "Die größte Probe, die ein Pipeline-Test liest."
+          }
+        },
+        "data": {
+          "uploadMegabytes": {
+            "label": "Größter Upload (MiB)",
+            "hint": "Die größte Datei, die man hochladen darf; höchstens das Limit des Rands."
+          }
+        }
+      },
+      "policies": {
+        "signIn": {
+          "password": {
+            "minLength": {
+              "label": "Kürzestes Passwort",
+              "hint": "Wie viele Zeichen ein Passwort mindestens braucht."
+            },
+            "history": {
+              "label": "Passwortverlauf",
+              "hint": "Wie viele frühere Passwörter ein neues nicht wiederholen darf."
+            }
+          }
+        }
+      }
+    },
+    "limitGroup": {
+      "policies": "Richtlinien",
+      "policiesHint": "Was die Organisation erlaubt.",
+      "apps": "Anwendungen",
+      "appsHint": "Wer die Apps sehen darf, die Projekte veröffentlichen.",
+      "agents": "Assistent",
+      "agentsHint": "Was der Assistent nutzen und ausgeben darf.",
+      "limits": "Grenzwerte",
+      "limitsHint": "Wie viel die Plattform für die Organisation leistet.",
+      "edge": "Rand",
+      "edgeHint": "Was der Rand pro Client durchlässt.",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "requestsPerMinuteHint": "Eine Rate pro Art von Verkehr.",
+      "gateway": "Gateway",
+      "gatewayHint": "Was ein Schreibvorgang über einen Endpunkt tragen darf.",
+      "signIn": "Anmeldung",
+      "signInHint": "Sitzungen und Passwörter.",
+      "password": "Passwörter",
+      "passwordHint": "Wie ein Passwort sein muss.",
+      "people": "Personen",
+      "peopleHint": "Einladungen in die Organisation.",
+      "pipelines": "Pipelines",
+      "pipelinesHint": "Was Pipelines behalten und lesen.",
+      "data": "Daten",
+      "dataHint": "Was man hochladen darf."
+    },
+    "limits": {
+      "title": "Richtlinien und Limits",
+      "lead": "Jedes Limit, das die Organisation setzt, der geltende Wert und der Bereich, den der Betreiber erlaubt. Bearbeiten ändert sie über eine genehmigte Änderung.",
+      "atLeast": "mindestens {min}",
+      "between": "{min} – {max}",
+      "byDefault": "{value} (Standard)",
+      "noLimit": "kein Limit",
+      "defaultNone": "Standardmäßig gibt es kein Limit.",
+      "defaultIs": "Der Standard ist {value}.",
+      "allowed": "Erlaubt: {bound}.",
+      "usedOf": "{used} von {limit}",
+      "setting": "Einstellung",
+      "inForce": "Geltend",
+      "range": "Erlaubter Bereich",
+      "perProject": "Kontingent pro Projekt",
+      "perProjectLead": "Wessen Kontingent jedes Projekt nutzt und was es verbraucht; Projekte, die Sie nicht lesen dürfen, fehlen.",
+      "project": "Projekt",
+      "whose": "Kontingent von",
+      "noProjects": "Kein Projekt, das Sie lesen dürfen.",
+      "section": {
+        "projects": "Projekte",
+        "applications": "Anwendungen",
+        "edge": "Rand",
+        "signIn": "Anmeldung",
+        "people": "Personen",
+        "agents": "Assistent",
+        "pipelinesAndData": "Pipelines und Daten"
+      },
+      "origin": {
+        "project": "das Projekt",
+        "organization": "die Organisation",
+        "default": "niemand (kein Limit)"
+      }
+    },
+    "policy": {
+      "publicApps": "Öffentliche Apps",
+      "publicAppsHint": "Ob ein Projekt eine App veröffentlichen darf, die jeder ohne Anmeldung öffnet.",
+      "publicApps_allowed": "Erlaubt",
+      "publicApps_refused": "Abgelehnt",
+      "models": "Modelle, die der Assistent nutzen darf",
+      "modelsHint": "Leer lassen, um jedes Modell der Installation zu erlauben.",
+      "everyModel": "Jedes Modell der Installation"
     }
   },
   "projectDelete": {
