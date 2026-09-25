@@ -144,7 +144,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
         title={t("apps.openPage.frameTitle", { title })}
         sandbox={APP_FRAME_SANDBOX}
         referrerPolicy="no-referrer"
-        className="min-h-[32rem] w-full flex-1 rounded-xl border border-border bg-surface"
+        className="min-h-128 w-full flex-1 rounded-xl border border-border bg-surface"
       />
       <p className="text-sm text-fg-muted">
         {t("apps.openPage.signInHint")}{" "}
