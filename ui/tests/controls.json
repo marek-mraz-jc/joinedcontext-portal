@@ -271,7 +271,7 @@
     },
     "src/components/layout/NewProject.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 4
       },
       "tests": [
         "form_new_project.test.tsx"
@@ -1047,6 +1047,27 @@
       },
       "tests": [
         "sdm_import.test.tsx"
+      ]
+    },
+    "src/pages/organization/OrganizationApplications.tsx": {
+      "controls": {
+        "Button": 6,
+        "FilePicker": 1
+      },
+      "tests": [
+        "organization_page.test.tsx"
+      ]
+    },
+    "src/pages/organization/OrganizationPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "organization_health.test.tsx",
+        "organization_limits.test.tsx",
+        "organization_page.test.tsx",
+        "organization_setup.test.tsx",
+        "page_all_endpoints_page.test.tsx"
       ]
     },
     "src/pages/organization/People.tsx": {

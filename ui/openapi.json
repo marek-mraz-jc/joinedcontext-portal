@@ -1709,7 +1709,7 @@
             }
           },
           "403": {
-            "description": "The caller lacks approve on Organization",
+            "description": "Not an administrator of the organization (PF-03)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3683,6 +3683,91 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/export": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Export App",
+        "description": "One App as its repository's git bundle beside its manifest, for an organization administrator (UI-87).",
+        "operationId": "export_app",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive: the App's bundle, its tags, app.yaml and bundle.yaml"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization (UI-87)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or App, or not one the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App builds from outside the forge's applications organization, or its repository moved during the export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No repository configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/me": {
       "get": {
         "tags": [
@@ -3690,7 +3775,7 @@
         ],
         "summary": "The Caller's Roles In An Application",
         "description": "The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).",
-        "operationId": "me",
+        "operationId": "app_me",
         "parameters": [
           {
             "name": "project",
@@ -5812,7 +5897,7 @@
           "resources"
         ],
         "summary": "Export Project",
-        "description": "The project's manifests as one bundle, narrowed to the kinds and names asked for.",
+        "description": "The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.",
         "operationId": "export",
         "parameters": [
           {
@@ -5886,7 +5971,7 @@
             }
           },
           "403": {
-            "description": "A git export, and the caller may not read every manifest of the project",
+            "description": "A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full",
             "content": {
               "application/json": {
                 "schema": {
@@ -6109,7 +6194,7 @@
           {
             "name": "format",
             "in": "query",
-            "description": "'git': the archive of a format=git export, landing as the new project of the path (layout 2)",
+            "description": "'git': the archive of a format=git export, landing as the new project of the path (layout 2); 'app': the archive of an App export, landing as a new App of the project (UI-87)",
             "required": false,
             "schema": {
               "type": "string"
@@ -6193,7 +6278,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "description": "format=git by anybody who may not open a project (PF-65), format=git or format=app by anybody who does not administer the organization (UI-87)",
             "content": {
               "application/json": {
                 "schema": {

@@ -301,7 +301,8 @@ async fn a_caller_who_reads_part_of_the_project_gets_no_bundle() {
     ));
     let answer = export(&state, person("jana"), "?format=git").await;
     assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
-    let partial = export(&state, person("jana"), "?format=zip").await;
+    // What the caller names still comes, narrowed to what it reads (PF-59, UI-87).
+    let partial = export(&state, person("jana"), "?format=zip&names=ovzdusie").await;
     assert_eq!(partial.status, StatusCode::OK, "{}", partial.text);
 }
 

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
 import { App } from "../src/App";
 
 const IDENTITY = {
@@ -133,16 +134,16 @@ describe("all endpoints view", () => {
     expect(paths).not.toContain("/api/v1/projects/helsinki/endpoints");
   });
 
-  // PF-61, T-2877: anyone but an administrator lands on the organization's Settings and the list
-  // is never asked for.
-  it("sends a person who does not administer the organization to Settings, asking for no list", async () => {
+  // PF-61, T-2877, UI-75: anyone but an administrator is told the page is for administrators,
+  // and the list is never asked for.
+  it("tells a person who does not administer the organization whose page it is, asking for no list", async () => {
     responses["/api/v1/projects/org/permissions/me"] = {
       project: "org",
       bootstrap: false,
       grants: [{ role: "viewer", binding: "everyone", rule: { kinds: ["Endpoint"], verbs: ["read"] } }],
     };
     renderAt();
-    await waitFor(() => expect(window.location.pathname).toBe("/organization/settings"));
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "All endpoints" })).not.toBeInTheDocument();
     const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
     expect(paths).not.toContain("/api/v1/endpoints");

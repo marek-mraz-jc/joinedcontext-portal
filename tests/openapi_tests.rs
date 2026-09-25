@@ -117,6 +117,33 @@ fn every_operation_says_what_it_does() {
     );
 }
 
+/// Two handlers of one name publish one `operationId` twice, and the generated UI client keeps
+/// the last: `/export` took the parameters of `/apps/{name}/export` (T-2879).
+#[test]
+fn every_operation_id_is_published_once() {
+    let spec = ApiDoc::openapi();
+    let mut seen: std::collections::BTreeMap<String, String> = Default::default();
+    let mut twice = Vec::new();
+    for (path, item) in &spec.paths.paths {
+        for (method, operation) in [
+            ("GET", &item.get),
+            ("POST", &item.post),
+            ("PUT", &item.put),
+            ("PATCH", &item.patch),
+            ("DELETE", &item.delete),
+        ] {
+            let Some(id) = operation.as_ref().and_then(|o| o.operation_id.clone()) else {
+                continue;
+            };
+            let here = format!("{method} {path}");
+            if let Some(first) = seen.insert(id.clone(), here.clone()) {
+                twice.push(format!("{id}: {first} and {here}"));
+            }
+        }
+    }
+    assert!(twice.is_empty(), "operationIds published twice: {twice:#?}");
+}
+
 #[test]
 fn every_documented_path_is_versioned_and_not_a_kubernetes_apis_path() {
     let spec = ApiDoc::openapi();

@@ -71,6 +71,23 @@ pub struct Effective {
 }
 
 /// The effective permissions of the signed-in caller in `project`, right now.
+/// Refuses anybody but an administrator of the organization, with a `403` that names what
+/// `action` needs (UI-87). The administrator is PF-03's: `approve` and `delete` on `RoleBinding`
+/// at organization scope, as the seeded `org-admin` holds them and validation health asks.
+pub fn require_organization_admin(
+    state: &AppState,
+    identity: &Identity,
+    action: &str,
+) -> Result<(), ApiError> {
+    let effective = for_request(state, identity, ORG_NAMESPACE);
+    if effective.may("RoleBinding", Verb::Approve) && effective.may("RoleBinding", Verb::Delete) {
+        return Ok(());
+    }
+    Err(ApiError::Denied(format!(
+        "{action} is for organization administrators, on the Administration page (UI-87)"
+    )))
+}
+
 pub fn for_request(state: &AppState, identity: &Identity, project: &str) -> Effective {
     effective(
         &state.mirror,

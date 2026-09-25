@@ -4,14 +4,13 @@ import { Link, useMatchRoute, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
-import { ExportButton } from "../export/ExportButton";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects } from "../../api/projects";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding } from "../../api/approval";
-import { usePermissions } from "../../api/permissions";
+import { useAdministers, usePermissions } from "../../api/permissions";
 import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
@@ -357,6 +356,7 @@ export function Shell({
   );
 
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
+  const { administers } = useAdministers();
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -417,34 +417,23 @@ export function Shell({
           <BrandMark short />
         </Link>
         <div className="ml-auto flex items-center gap-1">
-          {/* One click from anywhere in the project, which is the whole of CC-49 — from `sm`
-              up. At phone width the header has room for the language and the account and
-              nothing else, and the export is one tap away on the project's own pages.
-              The wrapper, not the button: the button's own `inline-flex` and a `hidden` on
-              the same element are the same CSS property, and the button was winning. */}
-          <div className="hidden sm:block">
-            <ExportButton
-              project={project}
-              target={{}}
-              label={t("export.project")}
-              variant="ghost"
-              size="sm"
-            />
-          </div>
-          {/* The organization is one button, and its page holds everything of it as tabs:
-              settings, members, roles, groups, service accounts, projects (owner, 2026-09-24). */}
-          <Link
-            to="/organization/$tab"
-            params={{ tab: "settings" }}
-            aria-label={t("nav.organization")}
-            aria-current={organizationActive ? "page" : undefined}
-            className={buttonClass("ghost", "sm")}
-          >
-            <Icon name="access" className="size-4" />
-            <span aria-hidden="true" className="hidden sm:inline">
-              {t("nav.organization")}
-            </span>
-          </Link>
+          {/* Administration is one entry, for organization administrators only, and its page
+              holds every organization-wide power as tabs, the whole-project export and import
+              included (UI-75, UI-87, owner 2026-09-25). */}
+          {administers ? (
+            <Link
+              to="/organization/$tab"
+              params={{ tab: "settings" }}
+              aria-label={t("nav.organization")}
+              aria-current={organizationActive ? "page" : undefined}
+              className={buttonClass("ghost", "sm")}
+            >
+              <Icon name="access" className="size-4" />
+              <span aria-hidden="true" className="hidden sm:inline">
+                {t("nav.organization")}
+              </span>
+            </Link>
+          ) : null}
           <LanguageSwitcher />
           <UserMenu />
         </div>

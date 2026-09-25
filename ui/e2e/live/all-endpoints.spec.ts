@@ -54,14 +54,14 @@ test("an administrator reads every project's endpoints in one table and opens on
 test("a person who does not administer the organization is offered no cross-project table", async ({ browser }) => {
   const { context, page } = await signIn(browser, VIEWER, "/endpoints?lang=en");
   try {
-    await expect(page).toHaveURL(/\/organization\/settings/, { timeout: 60_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Organization" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "All endpoints" })).toHaveCount(0);
+    // UI-75: the Administration page tells anybody else whose page it is and shows no tab.
+    await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/This page is for organization administrators/)).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "All endpoints" })).toHaveCount(0);
 
     await page.goto("/organization/endpoints?lang=en");
-    await expect(page).toHaveURL(/\/organization\/settings/, { timeout: 60_000 });
+    await expect(page.getByText(/This page is for organization administrators/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("table", { name: "All endpoints" })).toHaveCount(0);
 
     const refused = await page.request.get("/api/v1/endpoints");

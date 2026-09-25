@@ -69,7 +69,7 @@
     "workspaces": "Kópie",
     "policies": "Politiky",
     "subscriptions": "Odbery",
-    "organization": "Organizácia",
+    "organization": "Administrácia",
     "settings": "Nastavenia projektu",
     "profile": "Váš účet",
     "catalogue": "Katalóg",
@@ -1617,7 +1617,6 @@
   },
   "export": {
     "title": "Stiahnuť konfiguráciu",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Všetko, čo projekt {project} deklaruje, tak ako to je v repozitári.",
     "hintResource": "Manifest {name}, tak ako je v repozitári.",
@@ -3605,7 +3604,8 @@
       "organization": "Každý prihlásený človek organizácie",
       "members": "Iba ľudia, ktorých menuje väzba"
     },
-    "title": "Organizácia",
+    "title": "Administrácia",
+    "adminOnly": "Táto stránka je pre administrátorov organizácie. O to, čo tu potrebujete, požiadajte niektorého z nich.",
     "lead": "Čo je rovnaké v každom projekte: nastavenia organizácie, jej členovia, roly, skupiny a servisné účty a jej projekty. Každá zmena sa tu navrhuje a schvaľuje.",
     "tabsLabel": "Časti organizácie",
     "tab": {
@@ -3616,6 +3616,7 @@
       "groups": "Skupiny",
       "service-accounts": "Servisné účty",
       "projects": "Projekty",
+      "applications": "Všetky aplikácie",
       "setup": "Nastavenie",
       "blueprints": "Šablóny",
       "agentprofiles": "Profily agentov",
@@ -3658,7 +3659,20 @@
       "emptyHint": "Prvý otvoríte tlačidlom Nový projekt.",
       "own": "{count, plural, =0 {Žiadne vlastné} one {# vlastné} few {# vlastné} other {# vlastných}}",
       "throughOrganization": "{count, plural, one {# cez organizáciu} few {# cez organizáciu} other {# cez organizáciu}}",
-      "settings": "Nastavenia"
+      "settings": "Nastavenia",
+      "export": "Exportovať"
+    },
+    "applications": {
+      "title": "Všetky aplikácie",
+      "lead": "Každá aplikácia každého projektu, ktorý smiete čítať. Exportujte ju ako repozitár a manifest; export importujte do projektu pod menom, ako zmenu v červenom pruhu.",
+      "caption": "Aplikácie organizácie",
+      "name": "Aplikácia",
+      "lifecycle": "Životný cyklus",
+      "source": "Zostavuje sa z",
+      "noRepository": "Žiadny repozitár tejto forge",
+      "noLifecycle": "Nenastavené",
+      "empty": "Zatiaľ žiadna aplikácia",
+      "emptyHint": "Aplikácia, ktorú projekt zostavuje, sa objaví tu, a „Importovať aplikáciu“ pridá jednu z exportu."
     },
     "people": {
       "title": "Ľudia",
@@ -4163,6 +4177,33 @@
     "secretHint": "Zadajte názov tajomstva, nikdy jeho hodnotu.",
     "default": "Predvolené: {value}.",
     "useDefault": "Použiť predvolené"
+  },
+  "appImport": {
+    "title": "Importovať aplikáciu",
+    "lead": "Vytvorí repozitár aplikácie z exportu a potom aplikáciu navrhne vo vybranom projekte.",
+    "button": "Importovať aplikáciu",
+    "project": "Projekt",
+    "projectHint": "Projekt, do ktorého aplikácia pribudne.",
+    "chooseProject": "Vyberte projekt",
+    "noProject": "Najprv vyberte projekt.",
+    "noProjects": "Zatiaľ nie je projekt, do ktorého importovať.",
+    "file": "Vyberte archív exportu",
+    "fileHint": "Súbor .zip, ktorý zapísal Export na tejto záložke.",
+    "chosen": "Vybrané: {name}",
+    "noFile": "Najprv vyberte archív exportu.",
+    "name": "Meno v projekte",
+    "nameHint": "Nechajte prázdne, ak si chcete ponechať exportované meno. Malé písmená, číslice a pomlčky, najviac 63.",
+    "nameInvalid": "Použite malé písmená, číslice a pomlčky, na začiatku a na konci písmeno alebo číslicu, najviac 63.",
+    "check": "Skontrolovať archív",
+    "import": "Importovať",
+    "repository": "Repozitár na vytvorenie",
+    "redLane": "Import navrhne aplikáciu ako zmenu v červenom pruhu; zostaví sa, keď ju schváli administrátor."
+  },
+  "appExport": {
+    "button": "Exportovať",
+    "labelFor": "Exportovať {name}",
+    "noRepository": "Táto aplikácia sa nezostavuje zo žiadneho repozitára tejto forge, takže nie je čo zbaliť.",
+    "refused": "{name} nebola exportovaná: {reason}"
   },
   "choice": {
     "language": {
