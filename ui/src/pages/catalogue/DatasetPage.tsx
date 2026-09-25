@@ -11,7 +11,6 @@ import {
   Button,
   Card,
   CardHeader,
-  EmptyState,
   ExternalLink,
   Icon,
   PageFailed,
@@ -69,19 +68,20 @@ export function DatasetPage({ name }: { name: string }): JSX.Element {
     return (
       <div className="flex flex-col gap-section">
         {back}
+        {/* Every state of the page is a page with its heading: a person who followed an old link
+            learns at once what is not there. */}
         {missing ? (
-          <EmptyState
-            icon="ckan"
-            title={t("catalogue.dataset.missing")}
-            description={t("catalogue.dataset.missingHint")}
-          />
+          <PageHeader title={t("catalogue.dataset.missing")} description={t("catalogue.dataset.missingHint")} />
         ) : (
-          <PageFailed
-            error={dataset.error}
-            onRetry={() => {
-              void dataset.refetch();
-            }}
-          />
+          <>
+            <PageHeader title={t("catalogue.title")} />
+            <PageFailed
+              error={dataset.error}
+              onRetry={() => {
+                void dataset.refetch();
+              }}
+            />
+          </>
         )}
       </div>
     );
