@@ -1834,3 +1834,162 @@ mod sandbox_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests_repair {
+    use super::*;
+
+    /// A driver whose model answers every call with `Fixed.` and the run's recorded thoughts.
+    async fn driver() -> (wiremock::MockServer, Driver) {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/llm/messages"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "content": [{ "type": "text", "text": "Fixed." }],
+            })))
+            .mount(&server)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.kind = "application".into();
+        driver.prompt = "A desk of today's alerts".into();
+        (server, driver)
+    }
+
+    fn failed(version: u32) -> Value {
+        json!({
+            "version": version,
+            "outcome": "failed",
+            "passed": 2,
+            "failed": 1,
+            "failures": [{
+                "file": "src/pages/AlertDesk.test.tsx",
+                "name": "AlertDesk lists the alerts",
+                "message": "Unable to find role row: the query ran before the alerts loaded"
+            }]
+        })
+    }
+
+    async fn run_tests_failed(driver: &Driver, edited: bool, payload: &Value, verified: &mut u32) {
+        let conversation = vec![("A desk of today's alerts".to_owned(), "Ready.".to_owned())];
+        let check = Check {
+            samples: &json!({}),
+            conversation: &conversation,
+            instruction: "add a filter by district",
+            edited,
+        };
+        let on_screen = Shown {
+            version: 3,
+            seq: 0,
+            observed: true,
+        };
+        let mut files = preview::template_files();
+        driver
+            .tests_failed(
+                check,
+                &mut files,
+                &mut BTreeMap::new(),
+                &on_screen,
+                payload,
+                verified,
+            )
+            .await
+            .expect("the repair ends");
+    }
+
+    async fn asked(server: &wiremock::MockServer) -> Vec<Value> {
+        server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|request| serde_json::from_slice(&request.body).expect("a JSON body"))
+            .collect()
+    }
+
+    async fn thoughts(driver: &Driver) -> Vec<String> {
+        driver
+            .state
+            .agents
+            .events_since(&driver.run_id, 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "thought")
+            .filter_map(|event| event.payload["text"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    /// T-2704, SDK-38: a failing test goes back to the model with its file, name and message, as a
+    /// pass over the project for a version the first run wrote.
+    #[tokio::test]
+    async fn a_failing_test_goes_to_the_model_with_its_log() {
+        let (server, driver) = driver().await;
+        let mut verified = 0;
+        run_tests_failed(&driver, false, &failed(3), &mut verified).await;
+        assert_eq!(verified, 1);
+        let calls = asked(&server).await;
+        assert_eq!(calls.len(), 1, "one repair pass");
+        let sent = calls[0].to_string();
+        assert!(sent.contains("AlertDesk lists the alerts"), "{sent}");
+        assert!(
+            sent.contains("the query ran before the alerts loaded"),
+            "{sent}"
+        );
+        assert!(sent.contains("findBy"), "the likely cause is named: {sent}");
+        assert!(thoughts(&driver)
+            .await
+            .iter()
+            .any(|t| t.starts_with("The tests found:")));
+    }
+
+    /// After an instruction the editing agent repairs it, told what the tests found.
+    #[tokio::test]
+    async fn after_an_instruction_the_editing_agent_gets_the_failures() {
+        let (server, driver) = driver().await;
+        run_tests_failed(&driver, true, &failed(3), &mut 0).await;
+        let calls = asked(&server).await;
+        assert!(
+            calls[0]["tools"].is_array(),
+            "the editing agent: {}",
+            calls[0]
+        );
+        let sent = calls[0]["messages"].to_string();
+        assert!(sent.contains("add a filter by district"), "{sent}");
+        assert!(sent.contains("AlertDesk lists the alerts"), "{sent}");
+    }
+
+    /// Three passes that still fail end with no model call and a reason the person can act on;
+    /// the publish gate refuses the version while its last result failed (`tests_hold`).
+    #[tokio::test]
+    async fn the_third_failure_stops_and_says_why_publication_is_not_offered() {
+        let (server, driver) = driver().await;
+        let mut verified = MAX_VERIFICATIONS;
+        run_tests_failed(&driver, false, &failed(3), &mut verified).await;
+        assert!(asked(&server).await.is_empty(), "no fourth pass");
+        let said = thoughts(&driver).await;
+        assert!(
+            said.iter().any(|t| t.contains("does not offer publication")
+                && t.contains("AlertDesk lists the alerts")),
+            "{said:?}"
+        );
+    }
+
+    /// A result of an older version, a passing one or a sandbox error repairs nothing.
+    #[tokio::test]
+    async fn only_a_failure_of_the_version_on_screen_is_repaired() {
+        let (server, driver) = driver().await;
+        let mut verified = 0;
+        for payload in [
+            failed(2),
+            json!({ "version": 3, "outcome": "passed", "passed": 3, "failed": 0 }),
+            json!({ "version": 3, "outcome": "error", "reason": "the tests did not finish" }),
+            json!({ "version": 3, "outcome": "running" }),
+        ] {
+            run_tests_failed(&driver, false, &payload, &mut verified).await;
+        }
+        assert_eq!(verified, 0);
+        assert!(asked(&server).await.is_empty());
+    }
+}
