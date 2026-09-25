@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import type { JSX } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthProvider";
 import { useBranding } from "../branding";
@@ -14,8 +16,18 @@ export function redirectTarget(search: string): string {
 
 export function LoginPage(): JSX.Element {
   const { t } = useTranslation();
-  const { signIn } = useAuth();
+  const { signIn, status } = useAuth();
   const branding = useBranding();
+  const router = useRouter();
+
+  // Behind the edge, Keycloak returns a person to the address they opened, and that can be this
+  // page: somebody signed in goes on to where they were going instead of meeting a Sign in
+  // button that does nothing for them (T-2729). Only to this origin, as for the sign-in itself.
+  useEffect(() => {
+    if (status === "authenticated") router.history.replace(redirectTarget(window.location.search));
+  }, [status, router]);
+
+  if (status === "authenticated") return <main aria-busy="true" className="min-h-screen bg-bg" />;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-bg px-4 py-10 font-sans text-fg">

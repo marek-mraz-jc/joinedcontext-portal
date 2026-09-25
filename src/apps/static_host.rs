@@ -90,7 +90,14 @@ async fn serve(
             .mirror
             .get(&project, "App", &name)
             .and_then(|env| env.metadata.title);
-        return super::roles::refusal(&spec, &name, title.as_ref(), &project, &headers);
+        return super::roles::refusal(
+            &spec,
+            &name,
+            title.as_ref(),
+            &project,
+            &headers,
+            portal_origin(&state).as_deref(),
+        );
     }
     let Some(app_root) = app_root(
         state.config.apps_dir.as_deref().map(FsPath::new),
@@ -164,16 +171,37 @@ async fn serve(
         .body(Body::from(bytes))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
 
+<<<<<<< HEAD
     let headers = response.headers_mut();
     let basemap = crate::api::basemap::route_prefix(&state.config, &project);
     if let Ok(csp) = HeaderValue::from_str(&content_security_policy(&spec, basemap.as_deref())) {
         headers.insert(header::CONTENT_SECURITY_POLICY, csp);
+=======
+    // No `X-Frame-Options`: its `SAMEORIGIN` would refuse the Portal, whose host is not the apps
+    // origin, and `frame-ancestors` says who may frame the App (AP-122).
+    if let Ok(csp) = HeaderValue::from_str(&content_security_policy(
+        &spec,
+        portal_origin(&state).as_deref(),
+    )) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_SECURITY_POLICY, csp);
+>>>>>>> origin/main
     }
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static_str_or_deny(spec.embeddable),
-    );
     response
+}
+
+/// The Portal's own origin, the one host that frames every App under its header (AP-122), when
+/// Apps live on an origin of their own. Without one an App is served on the Portal's origin, and
+/// a framed App would reach into the Portal's page with the viewer's session (T-2476): `None`.
+pub(super) fn portal_origin(state: &AppState) -> Option<String> {
+    let portal = state.config.public_base_url.origin();
+    state
+        .config
+        .apps_url
+        .as_ref()
+        .filter(|apps| apps.origin() != portal)
+        .map(|_| portal.ascii_serialization())
 }
 
 /// Whether the request's `Host` names the apps origin: same host, ignoring case, and the same
@@ -208,22 +236,6 @@ pub(super) fn to_apps_origin(origin: &url::Url, uri: &Uri) -> Response {
         )
             .into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
-    }
-}
-
-/// `X-Frame-Options` follows the app's own `frame-ancestors`: an app that may not be framed is
-/// refused by both headers, an embeddable one is left to the CSP alone.
-trait FrameOptions {
-    fn from_static_str_or_deny(embeddable: bool) -> HeaderValue;
-}
-
-impl FrameOptions for HeaderValue {
-    fn from_static_str_or_deny(embeddable: bool) -> HeaderValue {
-        if embeddable {
-            HeaderValue::from_static("SAMEORIGIN")
-        } else {
-            HeaderValue::from_static("DENY")
-        }
     }
 }
 
@@ -466,10 +478,17 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 }
 
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
+<<<<<<< HEAD
 /// plus whatever the manifest adds; `frame-ancestors` is `'none'` unless the app is embeddable.
 /// `basemap` is the project's basemap route prefix when the platform configures one (AP-67): the
 /// one source `connect-src` and `img-src` gain for the map's style and tiles.
 pub fn content_security_policy(spec: &AppSpec, basemap: Option<&str>) -> String {
+=======
+/// plus whatever the manifest adds; `frame-ancestors` is the Portal's origin, which opens every
+/// App under its header (AP-122), plus the declared origins of an embeddable app. With no Portal
+/// origin to name (see `portal_origin`) it is `'none'`, or `'self'` for an embeddable app.
+pub fn content_security_policy(spec: &AppSpec, portal_origin: Option<&str>) -> String {
+>>>>>>> origin/main
     let csp = spec.csp.as_ref();
     let mut connect = vec!["'self'".to_string()];
     if let Some(csp) = csp {
@@ -481,15 +500,23 @@ pub fn content_security_policy(spec: &AppSpec, basemap: Option<&str>) -> String 
         img = format!("{img} {prefix}");
     }
 
-    let declared: Vec<String> = csp
-        .map(|c| c.frame_ancestors.iter().map(quoted).collect())
-        .unwrap_or_default();
-    let frame_ancestors = if !declared.is_empty() && spec.embeddable {
-        declared.join(" ")
-    } else if spec.embeddable {
-        "'self'".to_string()
-    } else {
-        "'none'".to_string()
+    let mut frame_ancestors: Vec<String> = portal_origin.map(str::to_owned).into_iter().collect();
+    if spec.embeddable {
+        if let Some(csp) = csp {
+            frame_ancestors.extend(
+                csp.frame_ancestors
+                    .iter()
+                    // `'none'` beside an origin would still admit the origin; the Portal's
+                    // frame stays, whatever the manifest says.
+                    .filter(|s| *s != "none" && Some(s.as_str()) != portal_origin)
+                    .map(quoted),
+            );
+        }
+    }
+    let frame_ancestors = match (frame_ancestors.is_empty(), spec.embeddable) {
+        (false, _) => frame_ancestors.join(" "),
+        (true, true) => "'self'".to_owned(),
+        (true, false) => "'none'".to_owned(),
     };
 
     format!(
@@ -564,10 +591,21 @@ mod tests {
         .expect("a minimal static app")
     }
 
+    const PORTAL: &str = "https://portal.example.sk";
+
     #[test]
+<<<<<<< HEAD
     fn a_plain_app_may_not_be_framed_and_talks_only_to_the_platform() {
         let csp = content_security_policy(&spec(), None);
         assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+=======
+    fn a_plain_app_is_framed_by_the_portal_alone_and_talks_only_to_the_platform() {
+        let csp = content_security_policy(&spec(), Some(PORTAL));
+        assert!(
+            csp.ends_with("frame-ancestors https://portal.example.sk"),
+            "{csp}"
+        );
+>>>>>>> origin/main
         assert!(csp.contains("connect-src 'self';"), "{csp}");
         assert!(
             !csp.contains('*'),
@@ -576,16 +614,24 @@ mod tests {
     }
 
     #[test]
-    fn an_embeddable_app_relaxes_only_frame_ancestors() {
+    fn an_embeddable_app_adds_only_its_declared_frame_ancestors() {
         let mut spec = spec();
         spec.embeddable = true;
         spec.csp = Some(ContentSecurityPolicy {
             connect_src: vec!["self".into()],
-            frame_ancestors: vec!["https://portal.example.sk".into()],
+            frame_ancestors: vec![
+                "https://city.example.sk".into(),
+                "none".into(),
+                PORTAL.into(),
+            ],
         });
+<<<<<<< HEAD
         let csp = content_security_policy(&spec, None);
+=======
+        let csp = content_security_policy(&spec, Some(PORTAL));
+>>>>>>> origin/main
         assert!(
-            csp.contains("frame-ancestors https://portal.example.sk"),
+            csp.ends_with("frame-ancestors https://portal.example.sk https://city.example.sk"),
             "{csp}"
         );
         assert!(csp.contains("connect-src 'self';"), "{csp}");
@@ -616,7 +662,27 @@ mod tests {
             connect_src: Vec::new(),
             frame_ancestors: vec!["https://elsewhere.example".into()],
         });
+<<<<<<< HEAD
         assert!(content_security_policy(&spec, None).contains("frame-ancestors 'none'"));
+=======
+        assert!(content_security_policy(&spec, Some(PORTAL))
+            .ends_with("frame-ancestors https://portal.example.sk"));
+    }
+
+    #[test]
+    fn without_an_apps_origin_of_its_own_nothing_but_an_embedder_frames_an_app() {
+        // The App would share the Portal's origin, so the Portal never frames it (T-2476).
+        assert!(content_security_policy(&spec(), None).ends_with("frame-ancestors 'none'"));
+        let mut spec = spec();
+        spec.embeddable = true;
+        assert!(content_security_policy(&spec, None).ends_with("frame-ancestors 'self'"));
+        spec.csp = Some(ContentSecurityPolicy {
+            connect_src: Vec::new(),
+            frame_ancestors: vec!["https://city.example.sk".into()],
+        });
+        assert!(content_security_policy(&spec, None)
+            .ends_with("frame-ancestors https://city.example.sk"));
+>>>>>>> origin/main
     }
 
     #[test]

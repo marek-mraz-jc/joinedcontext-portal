@@ -7,6 +7,7 @@ import { Button, PageFailed, PageHeader, PageLoading } from "../../components/ui
 import { AgentRunPage } from "./AgentRunPage";
 import { AppBuildPanel } from "./AppBuildPanel";
 import { AppGenerator } from "./AppGenerator";
+import { OpenAppButton } from "./AppOpenPage";
 import { appDisplayName } from "./appTitle";
 import { RolesAndMembers } from "./RolesAndMembers";
 import type { AgentRun } from "./useAgentRun";
@@ -76,6 +77,9 @@ export function AppPage({ project, name }: { project: string; name: string }): J
   if (newest) {
     return (
       <div className="space-y-3">
+        <div className="flex justify-end">
+          <OpenAppButton project={project} name={name} />
+        </div>
         <AppBuildPanel project={project} name={name} />
         <RolesAndMembers project={project} name={name} />
         <AgentRunPage project={project} runId={newest.id} onClose={back} />
@@ -85,7 +89,10 @@ export function AppPage({ project, name }: { project: string; name: string }): J
 
   return (
     <div className="space-y-3">
-      <Button onClick={back}>{t("apps.back")}</Button>
+      <div className="flex flex-wrap justify-between gap-2">
+        <Button onClick={back}>{t("apps.back")}</Button>
+        <OpenAppButton project={project} name={name} />
+      </div>
       <AppBuildPanel project={project} name={name} />
       <RolesAndMembers project={project} name={name} />
       <AppGenerator project={project} initialName={name} />

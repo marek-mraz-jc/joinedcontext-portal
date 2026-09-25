@@ -136,6 +136,27 @@ fn login(template: &Value, host: &str, app: &EdgeApp, unauth_action: &str) -> Va
     plugin
 }
 
+/// Only the Portal frames an App (AP-122): the App route adds `frame-ancestors` for the Portal's
+/// host and drops `X-Frame-Options`, whose `SAMEORIGIN` would refuse the Portal. The header is
+/// added beside the App's own policy, never over it: a browser enforces both, so the App's
+/// `connect-src` and the rest stay as its upstream sent them.
+fn framed_by_portal(plugins: &mut Value, host: &str) {
+    if !plugins["response-rewrite"].is_object() {
+        plugins["response-rewrite"] = json!({});
+    }
+    let rewrite = &mut plugins["response-rewrite"];
+    if !rewrite["headers"].is_object() {
+        rewrite["headers"] = json!({});
+    }
+    let headers = &mut rewrite["headers"];
+    if let Some(set) = headers.get_mut("set").and_then(Value::as_object_mut) {
+        set.retain(|name, _| !name.eq_ignore_ascii_case("x-frame-options"));
+    }
+    let policy = format!("Content-Security-Policy: frame-ancestors https://portal.{host}");
+    push(headers, "add", json!(policy));
+    push(headers, "remove", json!("X-Frame-Options"));
+}
+
 /// The base with every App's two routes added, ending `#END` (AP-112).
 pub fn compose(base: &str, apps: &[EdgeApp]) -> Result<Composed, ComposeError> {
     let mut document: Value =
@@ -179,6 +200,7 @@ pub fn compose(base: &str, apps: &[EdgeApp]) -> Result<Composed, ComposeError> {
         }
 
         let mut plugins = surface_plugins.clone();
+        framed_by_portal(&mut plugins, &host);
         plugins["openid-connect"] = login(
             &template,
             &host,
@@ -451,6 +473,11 @@ mod tests {
           secret: ${{OIDC_SESSION_SECRET}}
           cookie_name: jc_edge_apps
           cookie_path: /apps/
+      response-rewrite:
+        headers:
+          set:
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: SAMEORIGIN
   - id: context-endpoint
     plugins:
       serverless-pre-function:
@@ -614,6 +641,64 @@ routes:
             let plugins = &by_id(&file, "plugin_configs", id).expect("plugins")["plugins"];
             assert_eq!(plugins["openid-connect"]["unauth_action"], "pass", "{id}");
         }
+    }
+
+    #[test]
+    fn only_the_portal_frames_an_app_and_the_shared_surface_keeps_its_frame_rule() {
+        let composed = compose(
+            BASE,
+            &[
+                app("hsl-transport", true, Upstream::Static),
+                app(
+                    "air-quality",
+                    false,
+                    Upstream::Pod {
+                        namespace: "jc-helsinki-apps".into(),
+                    },
+                ),
+            ],
+        )
+        .expect("composes");
+        let file = parsed(&composed.file);
+        for id in ["app-hsl-transport", "app-air-quality"] {
+            let headers = &by_id(&file, "plugin_configs", id).expect("plugins")["plugins"]
+                ["response-rewrite"]["headers"];
+            assert_eq!(
+                headers["set"],
+                json!({ "X-Content-Type-Options": "nosniff" }),
+                "{id}"
+            );
+            assert_eq!(
+                headers["add"],
+                json!(["Content-Security-Policy: frame-ancestors https://portal.city.example"]),
+                "{id}"
+            );
+            assert_eq!(headers["remove"], json!(["X-Frame-Options"]), "{id}");
+        }
+        // The endpoint route answers JSON and is framed by nobody; the fallback keeps SAMEORIGIN.
+        let endpoint = &by_id(&file, "plugin_configs", "app-air-quality-endpoint")
+            .expect("plugins")["plugins"];
+        assert!(endpoint.get("response-rewrite").is_none());
+        let surface = &by_id(&file, "plugin_configs", "apps-surface").expect("the surface")
+            ["plugins"]["response-rewrite"]["headers"]["set"];
+        assert_eq!(surface["X-Frame-Options"], "SAMEORIGIN");
+    }
+
+    #[test]
+    fn a_surface_without_a_response_rewrite_still_gets_the_frame_rule() {
+        let base = BASE.replace(
+            "      response-rewrite:\n        headers:\n          set:\n            X-Content-Type-Options: nosniff\n            X-Frame-Options: SAMEORIGIN\n",
+            "",
+        );
+        assert_ne!(base, BASE, "the fixture changed");
+        let composed = compose(&base, &[app("a", false, Upstream::Static)]).expect("composes");
+        let file = parsed(&composed.file);
+        let headers = &by_id(&file, "plugin_configs", "app-a").expect("plugins")["plugins"]
+            ["response-rewrite"]["headers"];
+        assert_eq!(headers["remove"], json!(["X-Frame-Options"]));
+        assert!(headers["add"][0]
+            .as_str()
+            .is_some_and(|value| value.ends_with("frame-ancestors https://portal.city.example")));
     }
 
     #[test]

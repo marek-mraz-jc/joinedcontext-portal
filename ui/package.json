@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "record:gates": "node scripts/record-gates.ts",
+    "record:workflows": "node scripts/record-workflows.ts",
     "generate:api": "openapi-typescript ./openapi.json -o src/api/schema.d.ts",
     "e2e": "playwright test"
   },

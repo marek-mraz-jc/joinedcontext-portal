@@ -110,6 +110,10 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
         updatedAt: new Date().toISOString(),
       });
     }
+    // The workbench's steps sample, try and check on the runner; they write nothing (PL-63).
+    if (/\/ops\/jc_pipeline_(sample_source|try_mapping|validate)$/.test(path)) {
+      return json({ records: [], fields: [], count: 0, truncated: false, errors: [] });
+    }
     if (request.method() !== "GET") {
       writes.push(`${request.method()} ${path} ${request.postData() ?? ""}`);
       return json(CHANGE, 202);
@@ -139,15 +143,17 @@ test.describe("pipeline editor", () => {
     const dialog = page.getByTestId("form-page");
 
     await dialog.getByLabel(/^Name/).fill("aq-ingest");
+    // The execution and the kind of step sit under More options, the studio under the Advanced
+    // editor: both folded, both on the same draft as the workbench (PL-58, T-2709).
+    await dialog.getByText("More options").click();
+    await dialog.getByText("Advanced editor").click();
     // Every choice reads as words (T-2756), and the source's own fields follow the choice of
     // where to read from (T-2754).
     await dialog.getByLabel(/^Execution/).selectOption({ label: "Always running" });
     await dialog.getByLabel(/^Read from/).selectOption({ label: "A data source of this project (external feed)" });
-    // The studio above the form reads from the same draft: its choice is the form's.
+    // The studio reads from the same draft as the workbench: its choice is the workbench's.
     await dialog.getByTestId("pipeline-studio").getByLabel(/^Data source/).selectOption("mqtt-city");
-    await expect(
-      dialog.getByRole("group", { name: "Data flow" }).getByLabel(/^Data source/).locator("option:checked"),
-    ).toHaveText("mqtt-city");
+    await expect(dialog.locator("#workbench-source-pick")).toHaveValue("datasource:mqtt-city");
     // The options carry the endpoint's name; the value is the URN (T-0630).
     await dialog.getByLabel(/^Target endpoint/).selectOption({ label: "public-air" });
     await dialog.getByLabel(/^Kind/).selectOption({ label: "Reshape records (Bloblang)" });
