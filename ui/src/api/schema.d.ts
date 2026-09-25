@@ -252,7 +252,7 @@ export interface paths {
         };
         /**
          * List Endpoints Everywhere
-         * @description Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).
+         * @description Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03).
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
