@@ -27,6 +27,10 @@ pub struct GiteaClient {
     /// is taken out of it, so a caller speaks render paths whichever repository it talks to.
     mount: Option<String>,
     token: String,
+    /// The organization the generated applications' repositories live in and the token that
+    /// writes them: another organization and another machine user than the configuration's
+    /// (PF-105). `None`: beside the configuration.
+    apps: Option<(String, String)>,
     pub http: reqwest::Client,
 }
 
@@ -38,6 +42,7 @@ impl std::fmt::Debug for GiteaClient {
             .field("repo", &self.repo)
             .field("mount", &self.mount)
             .field("token", &"[redacted]")
+            .field("apps", &self.apps.as_ref().map(|(owner, _)| owner))
             .finish()
     }
 }
@@ -618,6 +623,7 @@ impl GiteaClient {
             repo: repo.into(),
             mount: None,
             token: token.into(),
+            apps: None,
             http,
         })
     }
@@ -630,8 +636,23 @@ impl GiteaClient {
     /// from the API base whenever the forge is reached through the edge; the API base when it
     /// is unset.
     ///
+    /// `JC_GITEA_APPS_TOKEN` (a secret, the applications' machine user's) and `JC_GITEA_APPS_OWNER` move the generated
+    /// applications' repositories, their packages and their build queue into an organization of
+    /// their own, written by a machine user of their own (PF-105); both or neither.
+    ///
     /// Fail-closed: returns `Ok(None)` if all four are absent, or an error if partially set.
     pub fn from_env(lookup: impl Fn(&str) -> Option<String>) -> Result<Option<Self>, GitError> {
+        let apps = match (lookup("JC_GITEA_APPS_OWNER"), lookup("JC_GITEA_APPS_TOKEN")) {
+            (None, None) => None,
+            (Some(owner), Some(token)) if !owner.trim().is_empty() && !token.trim().is_empty() => {
+                Some((owner.trim().to_owned(), token.trim().to_owned()))
+            }
+            _ => {
+                return Err(GitError::Config(
+                    "JC_GITEA_APPS_OWNER and JC_GITEA_APPS_TOKEN must be set together".to_string(),
+                ))
+            }
+        };
         match (
             lookup("JC_GITEA_URL"),
             lookup("JC_GITEA_OWNER"),
@@ -643,6 +664,7 @@ impl GiteaClient {
                 let base = Url::parse(&url)
                     .map_err(|e| GitError::Config(format!("invalid JC_GITEA_URL: {e}")))?;
                 let mut client = Self::new(base, owner, repo, token)?;
+                client.apps = apps;
                 if let Some(public) = lookup("JC_GITEA_PUBLIC_URL") {
                     client.public_base = Url::parse(&public)
                         .map_err(|e| GitError::Config(format!("invalid JC_GITEA_PUBLIC_URL: {e}")))?;
@@ -769,6 +791,24 @@ impl GiteaClient {
             mount: None,
             ..self.clone()
         }
+    }
+
+    /// A generated application's own repository `repo` (AP-75): in the applications'
+    /// organization, with their token, when the installation keeps one (PF-105); beside the
+    /// configuration otherwise.
+    pub fn for_application(&self, repo: impl Into<String>) -> Self {
+        let mut client = self.for_repository(repo);
+        if let Some((owner, token)) = &self.apps {
+            client.owner.clone_from(owner);
+            client.token.clone_from(token);
+        }
+        client
+    }
+
+    /// What the applications' organization owns beside their repositories: the packages their
+    /// builds are published as and the queue of their builds (AP-101, ADR-N-028).
+    pub fn applications(&self) -> Self {
+        self.for_application(self.repo.clone())
     }
 
     /// The project repository `repo` of layout 2, which holds what the render has under
@@ -2051,6 +2091,87 @@ mod browse_url_tests {
     #[test]
     fn an_invalid_public_url_is_a_config_error() {
         assert!(GiteaClient::from_env(env(Some("not a url"))).is_err());
+    }
+}
+
+#[cfg(test)]
+mod application_repository_tests {
+    use super::{GitError, GiteaClient};
+
+    fn env(apps: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |name| match name {
+            "JC_GITEA_URL" => Some("http://gitea-http.dev.svc.cluster.local:3000".to_string()),
+            "JC_GITEA_OWNER" => Some("joinedcontext".to_string()),
+            "JC_GITEA_REPO" => Some("configuration".to_string()),
+            "JC_GITEA_TOKEN" => Some("configuration-token".to_string()),
+            other => apps
+                .iter()
+                .find(|(key, _)| *key == other)
+                .map(|(_, value)| (*value).to_string()),
+        }
+    }
+
+    /// PF-105: an application's repository, its packages and its builds are the applications'
+    /// organization's, written with their machine user's token; the configuration keeps its own.
+    #[test]
+    fn an_application_lives_in_its_own_organization_with_its_own_token() {
+        let client = GiteaClient::from_env(env(&[
+            ("JC_GITEA_APPS_OWNER", "joinedcontext-apps"),
+            ("JC_GITEA_APPS_TOKEN", "apps-token"),
+        ]))
+        .expect("config")
+        .expect("configured");
+        let app = client.for_application("helsinki_bikes");
+        assert_eq!(
+            (app.owner.as_str(), app.repo.as_str()),
+            ("joinedcontext-apps", "helsinki_bikes")
+        );
+        assert_eq!(app.token, "apps-token");
+        assert_eq!(client.applications().owner, "joinedcontext-apps");
+        assert_eq!(
+            app.clone_url(),
+            "http://gitea-http.dev.svc.cluster.local:3000/joinedcontext-apps/helsinki_bikes.git"
+        );
+        let configuration = client.for_repository("helsinki");
+        assert_eq!(
+            (configuration.owner.as_str(), configuration.token.as_str()),
+            ("joinedcontext", "configuration-token")
+        );
+        assert!(
+            !format!("{client:?}").contains("apps-token"),
+            "the token reached a log line"
+        );
+    }
+
+    /// Without the two variables an application stays beside the configuration, as before.
+    #[test]
+    fn without_an_applications_organization_nothing_moves() {
+        let client = GiteaClient::from_env(env(&[]))
+            .expect("config")
+            .expect("configured");
+        let app = client.for_application("helsinki_bikes");
+        assert_eq!(
+            (app.owner.as_str(), app.token.as_str()),
+            ("joinedcontext", "configuration-token")
+        );
+    }
+
+    /// One of the two, or a blank one, is a mistake in the deployment and never half a move.
+    #[test]
+    fn half_an_applications_organization_is_a_config_error() {
+        for apps in [
+            &[("JC_GITEA_APPS_OWNER", "joinedcontext-apps")][..],
+            &[("JC_GITEA_APPS_TOKEN", "apps-token")][..],
+            &[
+                ("JC_GITEA_APPS_OWNER", " "),
+                ("JC_GITEA_APPS_TOKEN", "apps-token"),
+            ][..],
+        ] {
+            assert!(
+                matches!(GiteaClient::from_env(env(apps)), Err(GitError::Config(_))),
+                "{apps:?} was accepted"
+            );
+        }
     }
 }
 

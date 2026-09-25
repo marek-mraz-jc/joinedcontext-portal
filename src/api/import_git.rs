@@ -342,7 +342,14 @@ pub async fn import(
     // somebody's, and is never adopted (PF-86).
     let clients: Vec<GiteaClient> = planned
         .iter()
-        .map(|plan| gitea.for_repository(plan.repository.clone()))
+        .map(|plan| {
+            // An application's repository goes where the generated ones live (PF-105).
+            if plan.role == "application" {
+                gitea.for_application(plan.repository.clone())
+            } else {
+                gitea.for_repository(plan.repository.clone())
+            }
+        })
         .collect();
     for (plan, client) in planned.iter().zip(&clients) {
         if client.default_branch().await.is_ok() {
