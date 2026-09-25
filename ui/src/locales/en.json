@@ -76,7 +76,8 @@
     "catalogue": "Catalogue",
     "dataagreements": "Data agreements",
     "blueprints": "Blueprints",
-    "agentprofiles": "Agent profiles"
+    "agentprofiles": "Agent profiles",
+    "dataoffers": "Data offers"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -4269,6 +4270,17 @@
       "verbs": "What it may do",
       "endpoints": "Endpoints",
       "endpoint": "Endpoint"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "endpointRefs": "Offered endpoints",
+      "endpoint": "Endpoint",
+      "policy": "Offer (ODRL, JSON)",
+      "containsPersonalData": "Contains personal data",
+      "purpose": "Purpose (DPV)"
     }
   }
 }

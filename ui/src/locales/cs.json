@@ -76,7 +76,8 @@
     "catalogue": "Katalog",
     "dataagreements": "Datové dohody",
     "blueprints": "Šablony",
-    "agentprofiles": "Profily agentů"
+    "agentprofiles": "Profily agentů",
+    "dataoffers": "Datové nabídky"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -4269,6 +4270,17 @@
       "verbs": "Co smí dělat",
       "endpoints": "Koncové body",
       "endpoint": "Koncový bod"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Název",
+      "contextSpaceRef": "Kontextový prostor",
+      "endpointRefs": "Nabízené koncové body",
+      "endpoint": "Koncový bod",
+      "policy": "Nabídka (ODRL, JSON)",
+      "containsPersonalData": "Obsahuje osobní údaje",
+      "purpose": "Účel (DPV)"
     }
   }
 }

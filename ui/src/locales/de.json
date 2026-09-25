@@ -76,7 +76,8 @@
     "catalogue": "Katalog",
     "dataagreements": "Datenvereinbarungen",
     "blueprints": "Vorlagen",
-    "agentprofiles": "Agentenprofile"
+    "agentprofiles": "Agentenprofile",
+    "dataoffers": "Datenangebote"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -4269,6 +4270,17 @@
       "verbs": "Was er tun darf",
       "endpoints": "Endpunkte",
       "endpoint": "Endpunkt"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Kontextraum",
+      "endpointRefs": "Angebotene Endpunkte",
+      "endpoint": "Endpunkt",
+      "policy": "Angebot (ODRL, JSON)",
+      "containsPersonalData": "Enthält personenbezogene Daten",
+      "purpose": "Zweck (DPV)"
     }
   }
 }

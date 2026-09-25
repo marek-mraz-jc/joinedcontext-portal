@@ -34,6 +34,8 @@ import {
   toAgentProfileManifest,
 } from "../schemas/agentprofile";
 import type { AgentProfileForm } from "../schemas/agentprofile";
+import { dataOfferSchema, dataOfferUiSchema, fromDataOfferManifest, toDataOfferManifest } from "../schemas/dataoffer";
+import type { DataOfferForm } from "../schemas/dataoffer";
 import type { DataAgreementForm } from "../schemas/dataagreement";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -102,6 +104,12 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     fromManifest: (manifest) => fromDataAgreementManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toDataAgreementManifest(project, form as DataAgreementForm, stored),
   }),
+  dataoffers: (t, project) => ({
+    schema: dataOfferSchema(t),
+    uiSchema: dataOfferUiSchema,
+    fromManifest: (manifest) => fromDataOfferManifest(manifest) as Record<string, unknown>,
+    toManifest: (form, stored) => toDataOfferManifest(project, form as DataOfferForm, stored),
+  }),
   blueprints: (t) => ({
     schema: blueprintSchema(t),
     uiSchema: blueprintUiSchema,
@@ -123,6 +131,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
  */
 const CREATE_KINDS: Record<string, string> = {
   dataagreements: "DataAgreement",
+  dataoffers: "DataOffer",
   blueprints: "Blueprint",
   agentprofiles: "AgentProfile",
 };

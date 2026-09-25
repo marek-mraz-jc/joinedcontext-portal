@@ -21,6 +21,7 @@ import { dataModelSchema } from "../src/schemas/datamodel";
 import { dataAgreementSchema } from "../src/schemas/dataagreement";
 import { blueprintSchema } from "../src/schemas/blueprint";
 import { agentProfileSchema } from "../src/schemas/agentprofile";
+import { dataOfferSchema } from "../src/schemas/dataoffer";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -90,6 +91,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   Blueprint: [blueprintSchema(t)],
   // Created and edited on Organization → Agent profiles (T-1536).
   AgentProfile: [agentProfileSchema(t)],
+  // Created and edited on its project list (T-1543).
+  DataOffer: [dataOfferSchema(t)],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).
