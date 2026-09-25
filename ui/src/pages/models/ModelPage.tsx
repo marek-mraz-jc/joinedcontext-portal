@@ -22,7 +22,6 @@ import {
   Button,
   EmptyState,
   PageHeader,
-  ResourcePageFailed,
   Table,
   TableBody,
   TableCell,
@@ -32,6 +31,7 @@ import {
   Tabs,
   tabPanelProps,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";

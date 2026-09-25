@@ -75,7 +75,7 @@ describe("portal shell", () => {
     expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main");
   });
 
-  it("lists every section of the resource API in the sidebar", () => {
+  it("lists every section of the resource API in the sidebar", async () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     for (const label of [
       "Flows",
@@ -90,10 +90,11 @@ describe("portal shell", () => {
     ]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
-    // The organization is one button in the header, not a sidebar entry (owner, 2026-09-24).
-    expect(within(nav).queryByRole("link", { name: "Organization" })).toBeNull();
+    // Administration is one button in the header, not a sidebar entry (owner, 2026-09-24,
+    // 2026-09-25), shown once the permissions say the person administers the organization.
+    expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
     expect(
-      within(screen.getByRole("banner")).getByRole("link", { name: "Organization" }),
+      await within(screen.getByRole("banner")).findByRole("link", { name: "Administration" }),
     ).toHaveAttribute("href", "/organization/settings");
   });
 
@@ -182,16 +183,12 @@ describe("portal shell", () => {
     });
   });
 
-  it("offers every endpoint of every project under one sidebar entry", async () => {
+  // PF-61, T-2877: every endpoint of every project is the Organization page's, for
+  // administrators; the project menu offers no entry for it to anyone.
+  it("offers no entry for every endpoint of every project in the project menu", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    await userEvent.click(within(nav).getByRole("link", { name: "All endpoints" }));
-    await waitFor(() => {
-      expect(window.location.pathname).toBe("/endpoints");
-    });
-    expect(within(nav).getByRole("link", { name: "All endpoints" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(within(nav).queryByRole("link", { name: "All endpoints" })).not.toBeInTheDocument();
+    expect(nav.querySelector('a[href="/endpoints"]')).toBeNull();
   });
 });
 

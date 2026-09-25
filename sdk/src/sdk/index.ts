@@ -1,13 +1,15 @@
 // @joinedcontext/sdk entry point barrel
 
 // NGSI-LD & Schema types
-export type { Cell, Column, Geo, LanguageMap, Row } from "../ngsi";
-export { isLanguageMap } from "../ngsi";
+export type { Cell, Column, Geo, LanguageMap, RelationshipObject, Row, WriteValue } from "../ngsi";
+export { isLanguageMap, isRelationshipObject, targetsOf } from "../ngsi";
 export { fieldOf } from "../write";
 export { enumOptions, enumsOf, optionLabel } from "../enums";
 export type { EnumOption } from "../enums";
 export { relationsOf } from "../relations";
 export type { RelationEnd, TargetOption } from "../relations";
+export { NGSI_LD_NULL, RelationPicker } from "../grid/RelationPicker";
+export type { PickerLabels } from "../grid/RelationPicker";
 export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 
 // Client

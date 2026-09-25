@@ -55,7 +55,7 @@ fn state_with(kc: &MockServer, gitea: &MockServer, said: SetupStatements) -> App
         "Role",
         "org-admin",
         ORG_NAMESPACE,
-        json!({ "rules": [{ "kinds": ["Organization"], "verbs": ["propose", "approve", "delete"] }] }),
+        json!({ "rules": [{ "kinds": ["Organization", "RoleBinding"], "verbs": ["propose", "approve", "delete"] }] }),
     ));
     mirror.upsert(envelope(
         "Role",

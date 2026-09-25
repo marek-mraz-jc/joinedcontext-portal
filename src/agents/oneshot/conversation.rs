@@ -859,28 +859,6 @@ A pipeline's schedule is `spec.period` ("run it every 5 minutes": `"5m"`), its m
 of `spec.compute.bloblang` ("map num_bikes_available to availableBikeNumber": the whole mapping
 with that line changed), and a data source's address `spec.http.url` ("use this URL instead").
 
-A data model's classes and attributes are changed by the model editor's operations instead of a
-patch, applied in order:
-
-```json
-{{
-  "tool": "change_resource",
-  "kind": "DataModel",
-  "name": "<a data model listed above>",
-  "operations": [
-    {{ "op": "addSlot", "name": "bikeType", "class": "BikeHireDockingStation", "range": "string" }},
-    {{ "op": "renameSlot", "name": "<an attribute>", "to": "<its new name>" }},
-    {{ "op": "removeSlot", "name": "<an attribute>" }}
-  ]
-}}
-```
-
-The other operations are `addClass` {{name, is_a: "Entity"}}, `removeClass` {{name}}, `renameClass`
-{{name, to}}, `attachSlot` and `detachSlot` {{class, slot}}, and `setSlot` {{name, field, value}} for
-`range`, `required`, `multivalued` or `description`. A range is `string`, `integer`, `float`,
-`boolean`, `date`, `datetime`, `uri` or a class of the model. When you do not know the model's
-classes and attributes, send the call without `operations` first: the platform answers with them.
-
 The platform checks the change, runs a changed pipeline on a page of its source and fetches a
 changed data source's URL once, and opens the resource's form with it filled in, or its removal
 dialog; the person reviews it there and proposes it. A test that is not green comes back to you
@@ -894,6 +872,10 @@ brings the copy back from its bar; you never bring it back and never approve it.
 "#,
                 changeable = serde_json::to_string(&changeable).unwrap_or_default(),
             ));
+            if changeable.contains_key("DataModel") {
+                pack.push_str("\n## WHEN THE PERSON ASKS TO CHANGE A DATA MODEL\n\n");
+                pack.push_str(MODEL_PLAYBOOK_BODY);
+            }
         }
         self.creating(&mut pack);
         let endpoint_names = self.names_of("Endpoint");
@@ -1405,6 +1387,37 @@ must not reach the approval queue.
     }
 }
 
+/// How a data model changes (AG-77, DM-13, DM-64): the editor's operations, a relationship
+/// included. Its own playbook, so only a conversation about a model carries it whole.
+const MODEL_PLAYBOOK_BODY: &str = r#"A data model named in the list above is changed by the model editor's operations instead of a
+patch, applied in order:
+
+```json
+{
+  "tool": "change_resource",
+  "kind": "DataModel",
+  "name": "<a data model listed above>",
+  "operations": [
+    { "op": "addSlot", "name": "bikeType", "class": "BikeHireDockingStation", "range": "string" },
+    { "op": "renameSlot", "name": "<an attribute>", "to": "<its new name>" },
+    { "op": "removeSlot", "name": "<an attribute>" }
+  ]
+}
+```
+
+The other operations are `addClass` {name, is_a: "Entity"}, `removeClass` {name}, `renameClass`
+{name, to}, `attachSlot` and `detachSlot` {class, slot}, and `setSlot` {name, field, value} for
+`range`, `required`, `multivalued` or `description`. A range is `string`, `integer`, `float`,
+`boolean`, `date`, `datetime`, `uri` or a class of the model. A relationship is two ends in one
+`addRelationship` {from, to, name, inverse, cardinality, required, inverseRequired, onDelete}:
+"a school has many users, a user belongs to one school" is from `School` to `User`, `one-to-many`,
+name `users`, inverse `school`, `inverseRequired: true`; the others are `one-to-one`, `many-to-one`,
+`many-to-many`, and `onDelete` is `restrict` (the default), `cascade` or `set-null`. Change one
+with `setCardinality` {name, cardinality} or `setOnDelete` {name, onDelete}, drop it with
+`removeRelationship` {name}. When you do not know the model's classes and attributes, send the
+call without `operations` first: the platform answers with them.
+"#;
+
 /// How `choose_path` asks (AG-88): one object, nothing else, so the answer is read and not
 /// interpreted.
 const CHOOSE_PATH_SYSTEM: &str = "You route a person's message to one of the assistant's paths. \
@@ -1660,6 +1673,11 @@ const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
             Some(Path::ShareData),
             Some(Path::CreateDataModel),
         ],
+    ),
+    (
+        "## WHEN THE PERSON ASKS TO CHANGE A DATA MODEL",
+        "change-model",
+        &[Some(Path::CreateDataModel)],
     ),
     (
         "## WHEN THE PERSON ASKS FOR SOMETHING THAT DOES NOT EXIST YET",
@@ -2556,6 +2574,7 @@ mod tests {
         let driver = everything();
         for path in Path::ALL.map(Some).into_iter().chain([None]) {
             let (tokens, user) = turn_tokens(&driver, path);
+            eprintln!("BUDGET {path:?} {tokens}");
             assert!(tokens < 4000, "{path:?}: {tokens} tokens\n{user}");
         }
     }

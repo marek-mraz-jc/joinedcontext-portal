@@ -110,6 +110,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("PUT", "/projects/{project}/drafts/{kind}/{name}", "jc_draft_put"),
 ("DELETE", "/projects/{project}/drafts/{kind}/{name}", "jc_draft_drop"),
 ("GET", "/projects/{project}/export", "jc_project_export"),
+("GET", "/projects/{project}/apps/{name}/export", "the Administration page's download of one App as a zip of its git bundle and manifest (UI-87), an organization administrator's in a browser; an agent reads the App with jc_resource_get"),
 ("GET", "/projects/{project}/federation-graph", "jc_federation_graph"),
 ("POST", "/projects/{project}/flows", "jc_flow_start"),
 ("POST", "/projects/{project}/import", "jc_project_import"),

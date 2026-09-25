@@ -115,6 +115,8 @@ fn restricted_violations(pod: &Value) -> Vec<String> {
 fn settings() -> Settings {
     Settings {
         host: "bb.example.com".into(),
+        apex: "bb.example.com".into(),
+        gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),

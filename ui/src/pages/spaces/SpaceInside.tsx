@@ -37,7 +37,6 @@ import {
   Icon,
   PageFailed,
   PageHeader,
-  ResourcePageFailed,
   PageLoading,
   Select,
   Table,
@@ -48,6 +47,7 @@ import {
   TableRow,
   Term,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 
 const SPACE_LABEL = "joinedcontext.com/space";
 const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";

@@ -61,7 +61,6 @@
     "flows": "Flows",
     "models": "Data models",
     "ckan": "Open data",
-    "allEndpoints": "All endpoints",
     "explore": "Explore data",
     "assistant": "Assistant",
     "sync": "Sync",
@@ -70,10 +69,17 @@
     "workspaces": "Copies",
     "policies": "Policies",
     "subscriptions": "Subscriptions",
-    "organization": "Organization",
+    "organization": "Administration",
     "settings": "Project settings",
     "profile": "Your account",
-    "catalogue": "Catalogue"
+    "catalogue": "Catalogue",
+    "dataagreements": "Data agreements",
+    "blueprints": "Blueprints",
+    "agentprofiles": "Agent profiles",
+    "dataoffers": "Data offers",
+    "dataspaceparticipants": "Data space",
+    "environments": "Environments",
+    "projections": "Model projections"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -322,7 +328,11 @@
     "emptyHintFor": {
       "uischemas": "Nothing in this project changes a form. Every form ships with its own arrangement; the organization changes one in portal/forms/ of its configuration repository, not here."
     },
-    "lead": "Everything of this kind the project holds. Each row opens what it names."
+    "lead": "Everything of this kind the project holds. Each row opens what it names.",
+    "new": "New {kind}",
+    "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
+    "propose": "Propose change",
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
   },
   "spaces": {
     "lead": "The named collections of context data this project holds; every entity lives in exactly one.",
@@ -1604,7 +1614,6 @@
   },
   "export": {
     "title": "Download configuration",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Everything project {project} declares, as it is in the repository.",
     "hintResource": "The manifest of {name}, as it is in the repository.",
@@ -2347,7 +2356,9 @@
       "artifacts": "Compiled artifacts",
       "bloblang": "Bloblang file",
       "gatewayIr": "Gateway mapping file"
-    }
+    },
+    "name": "Name",
+    "badName": "The name is lower-case letters, digits and hyphens, at most 63, starting and ending with a letter or digit."
   },
   "syncSources": {
     "title": "Sync sources",
@@ -3609,7 +3620,8 @@
       "organization": "Every signed-in person of the organization",
       "members": "Only the people a binding names"
     },
-    "title": "Organization",
+    "title": "Administration",
+    "adminOnly": "This page is for organization administrators. Ask one of them for what you need here.",
     "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
     "tabsLabel": "Parts of the organization",
     "tab": {
@@ -3621,8 +3633,14 @@
       "service-accounts": "Service accounts",
       "models": "Organization models",
       "projects": "Projects",
+      "applications": "All applications",
       "setup": "Setup",
-      "health": "Health"
+      "blueprints": "Blueprints",
+      "agentprofiles": "Agent profiles",
+      "dataspaceparticipants": "Data space",
+      "environments": "Environments",
+      "health": "Health",
+      "endpoints": "All endpoints"
     },
     "settings": {
       "title": "Settings",
@@ -3658,7 +3676,20 @@
       "emptyHint": "Open the first one with New project.",
       "own": "{count, plural, =0 {None of its own} one {# of its own} other {# of its own}}",
       "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
-      "settings": "Settings"
+      "settings": "Settings",
+      "export": "Export"
+    },
+    "applications": {
+      "title": "All applications",
+      "lead": "Every App of every project you may read. Export one as its repository and manifest; import an export into a project under a name, as a red-lane change.",
+      "caption": "The organization's applications",
+      "name": "App",
+      "lifecycle": "Lifecycle",
+      "source": "Builds from",
+      "noRepository": "No repository of this forge",
+      "noLifecycle": "Not set",
+      "empty": "No App yet",
+      "emptyHint": "An App a project builds appears here, and Import app adds one from an export."
     },
     "people": {
       "title": "People",
@@ -4164,6 +4195,33 @@
     "default": "Default: {value}.",
     "useDefault": "Use the default"
   },
+  "appImport": {
+    "title": "Import an App",
+    "lead": "Creates the App repository from an export, then proposes the App in the project you choose.",
+    "button": "Import app",
+    "project": "Project",
+    "projectHint": "The project the App joins.",
+    "chooseProject": "Choose a project",
+    "noProject": "Choose the project first.",
+    "noProjects": "There is no project to import into yet.",
+    "file": "Choose the export archive",
+    "fileHint": "A .zip written by Export on this tab.",
+    "chosen": "Chosen: {name}",
+    "noFile": "Choose an export archive first.",
+    "name": "Name in the project",
+    "nameHint": "Leave empty to keep the exported name. Lowercase letters, digits and hyphens, at most 63.",
+    "nameInvalid": "Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, at most 63.",
+    "check": "Check the archive",
+    "import": "Import",
+    "repository": "Repository to create",
+    "redLane": "Import proposes the App as a red-lane change; it builds once an administrator approves it."
+  },
+  "appExport": {
+    "button": "Export",
+    "labelFor": "Export {name}",
+    "noRepository": "This App builds from no repository of this forge, so there is nothing to bundle.",
+    "refused": "{name} was not exported: {reason}"
+  },
   "choice": {
     "language": {
       "sk": "Slovenčina",
@@ -4329,6 +4387,51 @@
     "missingUnitCode": {
       "fill": "Fill in the model's unit",
       "refuse": "Refuse the write"
+    },
+    "agreementRole": {
+      "provider": "Provider: this project shares",
+      "consumer": "Consumer: this project reads"
+    },
+    "agreementState": {
+      "requested": "Requested",
+      "offered": "Offered",
+      "accepted": "Accepted",
+      "finalized": "Finalized",
+      "terminated": "Terminated"
+    },
+    "riskClass": {
+      "green": "Green: applied without review",
+      "yellow": "Yellow: one approver",
+      "red": "Red: approver and confirmation"
+    },
+    "profileRole": {
+      "steward": "Steward: Portal operations, no internet",
+      "builder": "Builder: coding tools and an allow-list of hosts"
+    },
+    "modelProvider": {
+      "openai-compatible": "OpenAI-compatible",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Read",
+      "propose": "Propose",
+      "write": "Write"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4532,6 +4635,135 @@
       "ODC_BY": "Open Data Commons Attribution",
       "ODC_ODBL": "Open Data Commons Open Database Licence",
       "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "offerRef": "Data offer",
+      "remoteParticipant": "Other participant",
+      "agreementId": "Agreement identifier",
+      "state": "State",
+      "validity": "Validity",
+      "validFrom": "Valid from",
+      "validTo": "Valid until",
+      "tokenSecretRef": "Transfer token",
+      "secretName": "Secret name",
+      "secretKey": "Key in the secret",
+      "constraints": "Query limits",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Name",
+      "version": "Version",
+      "category": "Category",
+      "riskClass": "Risk class",
+      "allowedRoles": "Roles that may run it",
+      "role": "Role",
+      "parameterSchema": "Parameter schema (JSON)",
+      "templates": "Templates",
+      "templateName": "Template name",
+      "template": "Template"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "runtime": "Runtime",
+      "image": "Image",
+      "digest": "Image digest",
+      "model": "Model",
+      "provider": "Provider",
+      "modelName": "Model name",
+      "maxTokensPerRun": "Tokens per run",
+      "reasoningEffort": "Reasoning effort",
+      "limits": "Limits",
+      "stepsPerRun": "Steps per run",
+      "wallClock": "Longest run",
+      "concurrentRuns": "Runs at once in the organization",
+      "requestsPerMinute": "Requests per minute",
+      "maxResponseBytes": "Largest response (bytes)",
+      "egress": "Internet access",
+      "allowedHosts": "Hosts it may reach",
+      "host": "Host",
+      "maxBytesPerRun": "Bytes it may read per run",
+      "tools": "Tools",
+      "workspace": "Workspace",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "ephemeralStorage": "Scratch storage",
+      "access": "What it may reach",
+      "operations": "Operations",
+      "operation": "Operation",
+      "kinds": "Kinds",
+      "kind": "Kind",
+      "verbs": "What it may do",
+      "endpoints": "Endpoints",
+      "endpoint": "Endpoint"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "endpointRefs": "Offered endpoints",
+      "endpoint": "Endpoint",
+      "policy": "Offer (ODRL, JSON)",
+      "containsPersonalData": "Contains personal data",
+      "purpose": "Purpose (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Name",
+      "did": "Participant identifier (did:web)",
+      "credentialIssuer": "Credential issuer",
+      "connectorUrl": "Connector address",
+      "engine": "Connector engine",
+      "trustAnchors": "Trusted issuers",
+      "trustAnchor": "Trusted issuer (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Name",
+      "orgDomain": "Organization domain here",
+      "hosts": "Hosts",
+      "component": "Component",
+      "host": "Host",
+      "images": "Image digests",
+      "digest": "Digest",
+      "secrets": "Secret backend",
+      "backend": "Backend",
+      "mount": "Mount",
+      "features": "Feature flags",
+      "feature": "Flag",
+      "enabled": "On"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "dataModelRef": "Data model",
+      "dataModel": "Model",
+      "version": "Major version",
+      "classes": "Exposed classes",
+      "class": "Class",
+      "slots": "Slots kept",
+      "slot": "Slot",
+      "filter": "Filter",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
     }
   }
 }

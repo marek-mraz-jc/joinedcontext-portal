@@ -252,7 +252,7 @@ export interface paths {
         };
         /**
          * List Endpoints Everywhere
-         * @description Every Endpoint of every project the caller may read, each with the project it lives in.
+         * @description Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03).
          */
         get: operations["list_endpoints_everywhere"];
         put?: never;
@@ -961,6 +961,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export App
+         * @description One App as its repository's git bundle beside its manifest, for an organization administrator (UI-87).
+         */
+        get: operations["export_app"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/me": {
         parameters: {
             query?: never;
@@ -972,7 +992,7 @@ export interface paths {
          * The Caller's Roles In An Application
          * @description The caller's id, name, e-mail and roles in one published App, for the App's backend (AP-109).
          */
-        get: operations["me"];
+        get: operations["app_me"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1442,7 +1462,7 @@ export interface paths {
         };
         /**
          * Export Project
-         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for.
+         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.
          */
         get: operations["export"];
         put?: never;
@@ -5126,7 +5146,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Every Endpoint the caller may read, across projects */
+            /** @description Every Endpoint of the organization, across projects */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5137,6 +5157,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5994,7 +6023,7 @@ export interface operations {
                     "application/json": components["schemas"]["SetupState"];
                 };
             };
-            /** @description The caller lacks approve on Organization */
+            /** @description Not an administrator of the organization (PF-03) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7431,7 +7460,75 @@ export interface operations {
             };
         };
     };
-    me: {
+    export_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive: the App's bundle, its tags, app.yaml and bundle.yaml */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization (UI-87) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or App, or not one the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The App builds from outside the forge's applications organization, or its repository moved during the export */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    app_me: {
         parameters: {
             query?: never;
             header?: never;
@@ -9118,7 +9215,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A git export, and the caller may not read every manifest of the project */
+            /** @description A whole-project or git export by anybody but an organization administrator (UI-87), or a git export the caller may not read in full */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9281,7 +9378,7 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' to validate and plan without proposing */
                 dryRun?: string;
-                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2) */
+                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2); 'app': the archive of an App export, landing as a new App of the project (UI-87) */
                 format?: string;
             };
             header?: never;
@@ -9358,7 +9455,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            /** @description format=git by anybody who may not open a project (PF-65), format=git or format=app by anybody who does not administer the organization (UI-87) */
             403: {
                 headers: {
                     [name: string]: unknown;

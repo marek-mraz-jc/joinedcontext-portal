@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "./client";
+import { ORG_NAMESPACE } from "./manifest";
 import type { components } from "./schema";
 
 /** What the caller may do in one project, from the bindings of the organization repository (PF-50). */
@@ -13,6 +14,20 @@ export interface Rule {
 }
 
 /** A grant allows a verb on a kind when its rule names both; `*` matches any kind. */
+/**
+ * Whether the person administers the organization (PF-03): `approve` and `delete` on
+ * `RoleBinding` in the organization's permissions, the question the server asks before the
+ * validation health (OPS-53) and the organization-level Endpoints (PF-61). Unlike `allows`, no
+ * document yet means no: what only an administrator sees is not shown while it is unknown.
+ */
+export function administersOrganization(effective: Effective | undefined): boolean {
+  return (
+    effective !== undefined &&
+    allows(effective, "RoleBinding", "approve") &&
+    allows(effective, "RoleBinding", "delete")
+  );
+}
+
 export function allows(effective: Effective | undefined, kind: string, verb: Verb): boolean {
   // Not (yet) a permissions document: the control shows and the API decides (PF-51 says the
   // UI is never the point of enforcement). Only a document that lists no grant hides it.
@@ -77,6 +92,20 @@ export function usePermissions(project: string) {
 }
 
 /** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
+/**
+ * Whether the caller administers the organization (PF-03, UI-75): `approve` and `delete` on
+ * `RoleBinding` in the organization's permissions, as the seeded `org-admin` holds them and the
+ * server asks. `known` is false until the document is read, and a document that never came means
+ * no: what only an administrator sees is not shown while it is unknown.
+ */
+export function useAdministers(): { known: boolean; administers: boolean } {
+  const permissions = usePermissions(ORG_NAMESPACE);
+  return {
+    known: !permissions.isLoading,
+    administers: administersOrganization(permissions.data),
+  };
+}
+
 export interface GrantedRule {
   kinds?: string[];
   verbs?: string[];

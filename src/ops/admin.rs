@@ -388,7 +388,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_project_export",
             title: "Export Project",
-            description: "The project's manifests as one bundle, narrowed to the kinds and names asked for",
+            description: "The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators",
             input: export_input_schema,
             output: export_output_schema,
             annotations: Annotations {

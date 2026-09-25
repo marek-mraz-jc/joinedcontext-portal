@@ -63,6 +63,9 @@ function renderEndpoints(
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
     }
+    if (path === "/api/v1/projects") {
+      return json({ items: [{ name: "banskabystrica" }] });
+    }
     if (path === "/api/v1/projects/banskabystrica" && projectSpec) {
       return json({
         apiVersion: "joinedcontext.com/v1alpha1",
@@ -95,6 +98,18 @@ function renderEndpoints(
     </QueryClientProvider>,
   );
   return fetchMock;
+}
+
+/**
+ * Opens the whole project's export where it lives: Administration → Projects, the project's row
+ * (UI-87). The top bar offers it no more.
+ */
+async function openProjectExport(): Promise<void> {
+  await userEvent.click(await screen.findByRole("link", { name: en.nav.organization }));
+  await userEvent.click(await screen.findByRole("tab", { name: en.organization.tab.projects }));
+  const table = await screen.findByRole("table", { name: en.organization.projects.caption });
+  const row = (await within(table).findByRole("link", { name: "banskabystrica" })).closest("tr") as HTMLElement;
+  await userEvent.click(within(row).getByRole("button", { name: en.organization.projects.export }));
 }
 
 const downloadButton = () => screen.getByRole("button", { name: en.export.download });
@@ -158,10 +173,13 @@ describe("export modal", () => {
     });
   });
 
-  it("offers the whole project as an archive from the shell", async () => {
+  it("offers the whole project as an archive from Administration, and not from the top bar", async () => {
     const fetchMock = renderEndpoints();
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await screen.findByText("public-air");
+    expect(screen.queryByRole("button", { name: /Export project/i })).toBeNull();
+
+    await openProjectExport();
 
     const dialog = await screen.findByRole("dialog");
     // The first and default choice is the whole project, and it says what the file holds (MF-41).
@@ -181,7 +199,7 @@ describe("export modal", () => {
     // keys stopped walking the group (T-1816). All three are on screen; the archive leads.
     const fetchMock = renderEndpoints();
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     const dialog = await screen.findByRole("dialog");
     const radios = within(dialog).getAllByRole("radio");
     expect(radios).toHaveLength(3);
@@ -210,7 +228,7 @@ describe("export modal", () => {
   it("offers the history as sentences and puts the chosen revision in the URL", async () => {
     const fetchMock = renderEndpoints();
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     const picker = await screen.findByRole("combobox", { name: en.export.revision });
     await screen.findByRole("option", { name: /Endpoint public-air: add csv/ });
 
@@ -222,14 +240,14 @@ describe("export modal", () => {
 
   it("says secrets are never in a download", async () => {
     renderEndpoints();
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     expect(await screen.findByText(en.export.secretsNote)).toBeInTheDocument();
   });
 
   it("still downloads the current revision when the history is unavailable", async () => {
     const fetchMock = renderEndpoints(503);
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     expect(await screen.findByText(en.export.noForge)).toBeInTheDocument();
     expect(await downloaded(fetchMock)).toBe(
       "/api/v1/projects/banskabystrica/export?format=zip",
@@ -249,7 +267,7 @@ describe("export modal", () => {
       );
     renderEndpoints(200, refusal);
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     await userEvent.click(downloadButton());
 
     const said = await screen.findByRole("alert");
@@ -268,7 +286,7 @@ describe("export modal", () => {
       ref: "main",
     });
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     const dialog = await screen.findByRole("dialog");
     const git = await within(dialog).findByRole("radio", {
       name: (name) => name.startsWith(en.export.formats.git),
@@ -284,7 +302,7 @@ describe("export modal", () => {
   it("offers_no_git_for_a_project_that_is_a_folder_of_the_organization", async () => {
     const fetchMock = renderEndpoints(200, undefined, { organizationRef: "bb" });
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     const dialog = await screen.findByRole("dialog");
     // The answer that decides it has arrived, and it names no repository.
     await waitFor(() =>
@@ -303,7 +321,7 @@ describe("export modal", () => {
   it("saves the archive the server answered, then closes", async () => {
     const fetchMock = renderEndpoints();
 
-    await userEvent.click(await screen.findByRole("button", { name: en.export.project }));
+    await openProjectExport();
     expect(await downloaded(fetchMock)).toContain("format=zip");
 
     await waitFor(() => expect(saved).toHaveLength(1));

@@ -61,7 +61,6 @@
     "flows": "Abläufe",
     "models": "Datenmodelle",
     "ckan": "Offene Daten",
-    "allEndpoints": "Alle Endpunkte",
     "explore": "Daten erkunden",
     "assistant": "Assistent",
     "sync": "Sync",
@@ -70,10 +69,17 @@
     "workspaces": "Kopien",
     "policies": "Richtlinien",
     "subscriptions": "Abonnements",
-    "organization": "Organisation",
+    "organization": "Verwaltung",
     "settings": "Projekteinstellungen",
     "profile": "Ihr Konto",
-    "catalogue": "Katalog"
+    "catalogue": "Katalog",
+    "dataagreements": "Datenvereinbarungen",
+    "blueprints": "Vorlagen",
+    "agentprofiles": "Agentenprofile",
+    "dataoffers": "Datenangebote",
+    "dataspaceparticipants": "Datenraum",
+    "environments": "Umgebungen",
+    "projections": "Modellprojektionen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -322,7 +328,11 @@
     "emptyHintFor": {
       "uischemas": "Nichts in diesem Projekt ändert ein Formular. Jedes Formular bringt seine Anordnung mit; die Organisation ändert sie in portal/forms/ ihres Konfigurations-Repositorys, nicht hier."
     },
-    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt."
+    "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt.",
+    "new": "Neu: {kind}",
+    "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
+    "propose": "Änderung vorschlagen",
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular."
   },
   "spaces": {
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
@@ -1604,7 +1614,6 @@
   },
   "export": {
     "title": "Konfiguration herunterladen",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Alles, was Projekt {project} deklariert, so wie es im Repository steht.",
     "hintResource": "Das Manifest von {name}, so wie es im Repository steht.",
@@ -2347,7 +2356,9 @@
       "artifacts": "Kompilierte Artefakte",
       "bloblang": "Bloblang-Datei",
       "gatewayIr": "Gateway-Mapping-Datei"
-    }
+    },
+    "name": "Name",
+    "badName": "Der Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, höchstens 63, am Anfang und Ende ein Buchstabe oder eine Ziffer."
   },
   "syncSources": {
     "title": "Synchronisierungsquellen",
@@ -3609,7 +3620,8 @@
       "organization": "Jede angemeldete Person der Organisation",
       "members": "Nur, wen eine Bindung nennt"
     },
-    "title": "Organisation",
+    "title": "Verwaltung",
+    "adminOnly": "Diese Seite ist für die Administratoren der Organisation. Bitten Sie einen von ihnen um das, was Sie hier brauchen.",
     "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
     "tabsLabel": "Bereiche der Organisation",
     "tab": {
@@ -3621,8 +3633,14 @@
       "service-accounts": "Dienstkonten",
       "models": "Modelle der Organisation",
       "projects": "Projekte",
+      "applications": "Alle Anwendungen",
       "setup": "Einrichtung",
-      "health": "Prüfstatus"
+      "blueprints": "Vorlagen",
+      "agentprofiles": "Agentenprofile",
+      "dataspaceparticipants": "Datenraum",
+      "environments": "Umgebungen",
+      "health": "Prüfstatus",
+      "endpoints": "Alle Endpunkte"
     },
     "settings": {
       "title": "Einstellungen",
@@ -3658,7 +3676,20 @@
       "emptyHint": "Das erste eröffnen Sie mit Neues Projekt.",
       "own": "{count, plural, =0 {Keine eigenen} one {# eigene} other {# eigene}}",
       "throughOrganization": "{count, plural, one {# über die Organisation} other {# über die Organisation}}",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "export": "Exportieren"
+    },
+    "applications": {
+      "title": "Alle Anwendungen",
+      "lead": "Jede App jedes Projekts, das Sie lesen dürfen. Exportieren Sie eine als Repository und Manifest; importieren Sie einen Export unter einem Namen in ein Projekt, als Änderung auf der roten Spur.",
+      "caption": "Die Anwendungen der Organisation",
+      "name": "Anwendung",
+      "lifecycle": "Lebenszyklus",
+      "source": "Gebaut aus",
+      "noRepository": "Kein Repository dieser Forge",
+      "noLifecycle": "Nicht gesetzt",
+      "empty": "Noch keine App",
+      "emptyHint": "Eine App, die ein Projekt baut, erscheint hier, und „App importieren“ fügt eine aus einem Export hinzu."
     },
     "people": {
       "title": "Personen",
@@ -4164,6 +4195,33 @@
     "default": "Standard: {value}.",
     "useDefault": "Standard verwenden"
   },
+  "appImport": {
+    "title": "Eine App importieren",
+    "lead": "Legt das App-Repository aus einem Export an und schlägt die App dann im gewählten Projekt vor.",
+    "button": "App importieren",
+    "project": "Projekt",
+    "projectHint": "Das Projekt, in das die App kommt.",
+    "chooseProject": "Projekt wählen",
+    "noProject": "Wählen Sie zuerst das Projekt.",
+    "noProjects": "Es gibt noch kein Projekt, in das importiert werden kann.",
+    "file": "Export-Archiv wählen",
+    "fileHint": "Eine .zip-Datei, die „Exportieren“ auf diesem Tab geschrieben hat.",
+    "chosen": "Gewählt: {name}",
+    "noFile": "Wählen Sie zuerst ein Export-Archiv.",
+    "name": "Name im Projekt",
+    "nameHint": "Leer lassen, um den exportierten Namen zu behalten. Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63.",
+    "nameInvalid": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, am Anfang und Ende ein Buchstabe oder eine Ziffer, höchstens 63.",
+    "check": "Archiv prüfen",
+    "import": "Importieren",
+    "repository": "Anzulegendes Repository",
+    "redLane": "Der Import schlägt die App als Änderung auf der roten Spur vor; sie wird gebaut, sobald eine Administratorin oder ein Administrator zustimmt."
+  },
+  "appExport": {
+    "button": "Exportieren",
+    "labelFor": "{name} exportieren",
+    "noRepository": "Diese App wird aus keinem Repository dieser Forge gebaut, es gibt also nichts zu bündeln.",
+    "refused": "{name} wurde nicht exportiert: {reason}"
+  },
   "choice": {
     "language": {
       "sk": "Slovenčina",
@@ -4329,6 +4387,51 @@
     "missingUnitCode": {
       "fill": "Einheit des Modells ergänzen",
       "refuse": "Schreibvorgang ablehnen"
+    },
+    "agreementRole": {
+      "provider": "Anbieter: dieses Projekt teilt",
+      "consumer": "Bezieher: dieses Projekt liest"
+    },
+    "agreementState": {
+      "requested": "Angefragt",
+      "offered": "Angeboten",
+      "accepted": "Angenommen",
+      "finalized": "Abgeschlossen",
+      "terminated": "Beendet"
+    },
+    "riskClass": {
+      "green": "Grün: ohne Prüfung angewendet",
+      "yellow": "Gelb: eine freigebende Person",
+      "red": "Rot: Freigabe und Bestätigung"
+    },
+    "profileRole": {
+      "steward": "Steward: Portal-Operationen, kein Internet",
+      "builder": "Builder: Programmierwerkzeuge und eine Liste erlaubter Hosts"
+    },
+    "modelProvider": {
+      "openai-compatible": "OpenAI-kompatibel",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Lesen",
+      "propose": "Vorschlagen",
+      "write": "Schreiben"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4532,6 +4635,135 @@
       "ODC_BY": "Open Data Commons Attribution",
       "ODC_ODBL": "Open Data Commons Open Database Licence",
       "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Name",
+      "role": "Rolle",
+      "offerRef": "Datenangebot",
+      "remoteParticipant": "Anderer Teilnehmer",
+      "agreementId": "Vereinbarungskennung",
+      "state": "Stand",
+      "validity": "Gültigkeit",
+      "validFrom": "Gültig ab",
+      "validTo": "Gültig bis",
+      "tokenSecretRef": "Transfertoken",
+      "secretName": "Name des Secrets",
+      "secretKey": "Schlüssel im Secret",
+      "constraints": "Abfragegrenzen",
+      "q": "Abfragefilter",
+      "scopeQ": "Bereichsfilter",
+      "geoQ": "Gebietsfilter",
+      "temporalQ": "Zeitfilter"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Name",
+      "version": "Version",
+      "category": "Kategorie",
+      "riskClass": "Risikoklasse",
+      "allowedRoles": "Rollen, die sie ausführen dürfen",
+      "role": "Rolle",
+      "parameterSchema": "Parameterschema (JSON)",
+      "templates": "Manifestvorlagen",
+      "templateName": "Name der Vorlage",
+      "template": "Vorlage"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Name",
+      "role": "Rolle",
+      "runtime": "Laufzeit",
+      "image": "Image",
+      "digest": "Image-Digest",
+      "model": "Modell",
+      "provider": "Anbieter",
+      "modelName": "Modellname",
+      "maxTokensPerRun": "Tokens pro Lauf",
+      "reasoningEffort": "Denkaufwand",
+      "limits": "Grenzen",
+      "stepsPerRun": "Schritte pro Lauf",
+      "wallClock": "Längster Lauf",
+      "concurrentRuns": "Gleichzeitige Läufe der Organisation",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "maxResponseBytes": "Größte Antwort (Bytes)",
+      "egress": "Internetzugang",
+      "allowedHosts": "Erreichbare Hosts",
+      "host": "Host",
+      "maxBytesPerRun": "Lesbare Bytes pro Lauf",
+      "tools": "Werkzeuge",
+      "workspace": "Arbeitsbereich",
+      "cpu": "CPU",
+      "memory": "Arbeitsspeicher",
+      "ephemeralStorage": "Temporärer Speicher",
+      "access": "Was er erreichen darf",
+      "operations": "Operationen",
+      "operation": "Operation",
+      "kinds": "Arten",
+      "kind": "Art",
+      "verbs": "Was er tun darf",
+      "endpoints": "Endpunkte",
+      "endpoint": "Endpunkt"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Kontextraum",
+      "endpointRefs": "Angebotene Endpunkte",
+      "endpoint": "Endpunkt",
+      "policy": "Angebot (ODRL, JSON)",
+      "containsPersonalData": "Enthält personenbezogene Daten",
+      "purpose": "Zweck (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Name",
+      "did": "Teilnehmerkennung (did:web)",
+      "credentialIssuer": "Nachweisaussteller",
+      "connectorUrl": "Connector-Adresse",
+      "engine": "Connector-Engine",
+      "trustAnchors": "Vertrauenswürdige Aussteller",
+      "trustAnchor": "Vertrauenswürdiger Aussteller (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Name",
+      "orgDomain": "Domain der Organisation hier",
+      "hosts": "Hosts",
+      "component": "Komponente",
+      "host": "Host",
+      "images": "Image-Digests",
+      "digest": "Digest",
+      "secrets": "Secret-Backend",
+      "backend": "Backend",
+      "mount": "Pfad",
+      "features": "Feature-Flags",
+      "feature": "Flag",
+      "enabled": "Ein"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Kontextraum",
+      "dataModelRef": "Datenmodell",
+      "dataModel": "Modell",
+      "version": "Hauptversion",
+      "classes": "Bereitgestellte Klassen",
+      "class": "Klasse",
+      "slots": "Behaltene Slots",
+      "slot": "Slot",
+      "filter": "Filter",
+      "q": "Abfragefilter",
+      "scopeQ": "Bereichsfilter",
+      "geoQ": "Gebietsfilter",
+      "temporalQ": "Zeitfilter"
     }
   }
 }

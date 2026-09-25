@@ -382,7 +382,8 @@ async fn a_format_or_a_revision_that_is_not_one_never_reaches_the_forge() {
             &state,
             MEMBER,
             Method::GET,
-            &format!("/api/v1/projects/{PROJECT}/export?revision={revision}"),
+            // Named, so the check is the revision's and not UI-87's administrator gate.
+            &format!("/api/v1/projects/{PROJECT}/export?names=x&revision={revision}"),
         )
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{revision:?}: {body}");

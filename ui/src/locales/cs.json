@@ -61,7 +61,6 @@
     "flows": "Toky",
     "models": "Datové modely",
     "ckan": "Otevřená data",
-    "allEndpoints": "Všechny koncové body",
     "explore": "Procházet data",
     "assistant": "Asistent",
     "sync": "Synchronizace",
@@ -70,10 +69,17 @@
     "workspaces": "Kopie",
     "policies": "Politiky",
     "subscriptions": "Odběry",
-    "organization": "Organizace",
+    "organization": "Administrace",
     "settings": "Nastavení projektu",
     "profile": "Váš účet",
-    "catalogue": "Katalog"
+    "catalogue": "Katalog",
+    "dataagreements": "Datové dohody",
+    "blueprints": "Šablony",
+    "agentprofiles": "Profily agentů",
+    "dataoffers": "Datové nabídky",
+    "dataspaceparticipants": "Datový prostor",
+    "environments": "Prostředí",
+    "projections": "Projekce modelů"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -322,7 +328,11 @@
     "emptyHintFor": {
       "uischemas": "Nic v tomto projektu nemění formulář. Každý formulář má své rozložení už v dodávce; organizace ho mění v portal/forms/ svého konfiguračního repozitáře, ne zde."
     },
-    "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává."
+    "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává.",
+    "new": "Nový {kind}",
+    "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
+    "propose": "Navrhnout změnu",
+    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář."
   },
   "spaces": {
     "lead": "Pojmenované kolekce kontextových dat tohoto projektu; každá entita patří právě do jedné.",
@@ -1604,7 +1614,6 @@
   },
   "export": {
     "title": "Stáhnout konfiguraci",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Všechno, co projekt {project} deklaruje, tak jak to je v repozitáři.",
     "hintResource": "Manifest {name}, tak jak je v repozitáři.",
@@ -2347,7 +2356,9 @@
       "artifacts": "Zkompilované artefakty",
       "bloblang": "Soubor Bloblang",
       "gatewayIr": "Soubor mapování brány"
-    }
+    },
+    "name": "Název",
+    "badName": "Název tvoří malá písmena, číslice a pomlčky, nejvýše 63, na začátku a na konci písmeno nebo číslice."
   },
   "syncSources": {
     "title": "Zdroje synchronizace",
@@ -3609,7 +3620,8 @@
       "organization": "Každý přihlášený člověk organizace",
       "members": "Jen lidé, které jmenuje vazba"
     },
-    "title": "Organizace",
+    "title": "Administrace",
+    "adminOnly": "Tato stránka je pro administrátory organizace. O to, co zde potřebujete, požádejte některého z nich.",
     "lead": "Co je stejné v každém projektu: nastavení organizace, její členové, role, skupiny a servisní účty a její projekty. Každá změna se zde navrhuje a schvaluje.",
     "tabsLabel": "Části organizace",
     "tab": {
@@ -3621,8 +3633,14 @@
       "service-accounts": "Servisní účty",
       "models": "Modely organizace",
       "projects": "Projekty",
+      "applications": "Všechny aplikace",
       "setup": "Nastavení",
-      "health": "Stav ověření"
+      "blueprints": "Šablony",
+      "agentprofiles": "Profily agentů",
+      "dataspaceparticipants": "Datový prostor",
+      "environments": "Prostředí",
+      "health": "Stav ověření",
+      "endpoints": "Všechny koncové body"
     },
     "settings": {
       "title": "Nastavení",
@@ -3658,7 +3676,20 @@
       "emptyHint": "První otevřete tlačítkem Nový projekt.",
       "own": "{count, plural, =0 {Žádné vlastní} one {# vlastní} few {# vlastní} other {# vlastních}}",
       "throughOrganization": "{count, plural, one {# přes organizaci} few {# přes organizaci} other {# přes organizaci}}",
-      "settings": "Nastavení"
+      "settings": "Nastavení",
+      "export": "Exportovat"
+    },
+    "applications": {
+      "title": "Všechny aplikace",
+      "lead": "Každá aplikace každého projektu, který smíte číst. Exportujte ji jako repozitář a manifest; export importujte do projektu pod jménem, jako změnu v červeném pruhu.",
+      "caption": "Aplikace organizace",
+      "name": "Aplikace",
+      "lifecycle": "Životní cyklus",
+      "source": "Sestavuje se z",
+      "noRepository": "Žádný repozitář této forge",
+      "noLifecycle": "Nenastaveno",
+      "empty": "Zatím žádná aplikace",
+      "emptyHint": "Aplikace, kterou projekt sestavuje, se objeví zde, a „Importovat aplikaci“ přidá jednu z exportu."
     },
     "people": {
       "title": "Lidé",
@@ -4164,6 +4195,33 @@
     "default": "Výchozí: {value}.",
     "useDefault": "Použít výchozí"
   },
+  "appImport": {
+    "title": "Importovat aplikaci",
+    "lead": "Vytvoří repozitář aplikace z exportu a pak aplikaci navrhne ve vybraném projektu.",
+    "button": "Importovat aplikaci",
+    "project": "Projekt",
+    "projectHint": "Projekt, do kterého aplikace přibude.",
+    "chooseProject": "Vyberte projekt",
+    "noProject": "Nejprve vyberte projekt.",
+    "noProjects": "Zatím není projekt, do kterého importovat.",
+    "file": "Vyberte archiv exportu",
+    "fileHint": "Soubor .zip, který zapsal Export na této záložce.",
+    "chosen": "Vybráno: {name}",
+    "noFile": "Nejprve vyberte archiv exportu.",
+    "name": "Jméno v projektu",
+    "nameHint": "Nechte prázdné pro zachování exportovaného jména. Malá písmena, číslice a pomlčky, nejvýše 63.",
+    "nameInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku a na konci písmeno nebo číslici, nejvýše 63.",
+    "check": "Zkontrolovat archiv",
+    "import": "Importovat",
+    "repository": "Repozitář k vytvoření",
+    "redLane": "Import navrhne aplikaci jako změnu v červeném pruhu; sestaví se, jakmile ji schválí administrátor."
+  },
+  "appExport": {
+    "button": "Exportovat",
+    "labelFor": "Exportovat {name}",
+    "noRepository": "Tato aplikace se nesestavuje z žádného repozitáře této forge, takže není co zabalit.",
+    "refused": "{name} nebyla exportována: {reason}"
+  },
   "choice": {
     "language": {
       "sk": "Slovenčina",
@@ -4329,6 +4387,51 @@
     "missingUnitCode": {
       "fill": "Doplnit jednotku z modelu",
       "refuse": "Odmítnout zápis"
+    },
+    "agreementRole": {
+      "provider": "Poskytovatel: tento projekt sdílí",
+      "consumer": "Odběratel: tento projekt čte"
+    },
+    "agreementState": {
+      "requested": "Vyžádaná",
+      "offered": "Nabídnutá",
+      "accepted": "Přijatá",
+      "finalized": "Finalizovaná",
+      "terminated": "Ukončená"
+    },
+    "riskClass": {
+      "green": "Zelená: použije se bez posouzení",
+      "yellow": "Žlutá: jeden schvalovatel",
+      "red": "Červená: schvalovatel a potvrzení"
+    },
+    "profileRole": {
+      "steward": "Správce: operace portálu, bez internetu",
+      "builder": "Tvůrce: programátorské nástroje a seznam povolených hostitelů"
+    },
+    "modelProvider": {
+      "openai-compatible": "Kompatibilní s OpenAI",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Nízké",
+      "medium": "Střední",
+      "high": "Vysoké"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Číst",
+      "propose": "Navrhovat",
+      "write": "Zapisovat"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4532,6 +4635,135 @@
       "ODC_BY": "Open Data Commons Attribution",
       "ODC_ODBL": "Open Data Commons Open Database Licence",
       "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Název",
+      "role": "Role",
+      "offerRef": "Datová nabídka",
+      "remoteParticipant": "Druhý účastník",
+      "agreementId": "Identifikátor dohody",
+      "state": "Stav",
+      "validity": "Platnost",
+      "validFrom": "Platí od",
+      "validTo": "Platí do",
+      "tokenSecretRef": "Přenosový token",
+      "secretName": "Název tajemství",
+      "secretKey": "Klíč v tajemství",
+      "constraints": "Omezení dotazů",
+      "q": "Filtr dotazu",
+      "scopeQ": "Filtr rozsahu",
+      "geoQ": "Filtr oblasti",
+      "temporalQ": "Časový filtr"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Název",
+      "version": "Verze",
+      "category": "Kategorie",
+      "riskClass": "Třída rizika",
+      "allowedRoles": "Role, které ji smějí spustit",
+      "role": "Role",
+      "parameterSchema": "Schéma parametrů (JSON)",
+      "templates": "Šablony manifestů",
+      "templateName": "Název šablony",
+      "template": "Šablona"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Název",
+      "role": "Role",
+      "runtime": "Prostředí",
+      "image": "Obraz",
+      "digest": "Otisk obrazu",
+      "model": "Model",
+      "provider": "Poskytovatel",
+      "modelName": "Název modelu",
+      "maxTokensPerRun": "Tokeny na běh",
+      "reasoningEffort": "Úsilí uvažování",
+      "limits": "Limity",
+      "stepsPerRun": "Kroky na běh",
+      "wallClock": "Nejdelší běh",
+      "concurrentRuns": "Souběžné běhy v organizaci",
+      "requestsPerMinute": "Požadavky za minutu",
+      "maxResponseBytes": "Největší odpověď (bajty)",
+      "egress": "Přístup na internet",
+      "allowedHosts": "Hostitelé, na které smí",
+      "host": "Hostitel",
+      "maxBytesPerRun": "Bajty, které smí přečíst za běh",
+      "tools": "Nástroje",
+      "workspace": "Pracovní prostor",
+      "cpu": "CPU",
+      "memory": "Paměť",
+      "ephemeralStorage": "Dočasné úložiště",
+      "access": "Kam smí sáhnout",
+      "operations": "Operace",
+      "operation": "Operace",
+      "kinds": "Druhy",
+      "kind": "Druh",
+      "verbs": "Co smí dělat",
+      "endpoints": "Koncové body",
+      "endpoint": "Koncový bod"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Název",
+      "contextSpaceRef": "Kontextový prostor",
+      "endpointRefs": "Nabízené koncové body",
+      "endpoint": "Koncový bod",
+      "policy": "Nabídka (ODRL, JSON)",
+      "containsPersonalData": "Obsahuje osobní údaje",
+      "purpose": "Účel (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Název",
+      "did": "Identifikátor účastníka (did:web)",
+      "credentialIssuer": "Vydavatel pověření",
+      "connectorUrl": "Adresa konektoru",
+      "engine": "Motor konektoru",
+      "trustAnchors": "Důvěryhodní vydavatelé",
+      "trustAnchor": "Důvěryhodný vydavatel (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Název",
+      "orgDomain": "Doména organizace v tomto prostředí",
+      "hosts": "Hostitelé",
+      "component": "Komponenta",
+      "host": "Hostitel",
+      "images": "Otisky obrazů",
+      "digest": "Otisk",
+      "secrets": "Úložiště tajemství",
+      "backend": "Úložiště",
+      "mount": "Umístění",
+      "features": "Přepínače funkcí",
+      "feature": "Přepínač",
+      "enabled": "Zapnutý"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Název",
+      "contextSpaceRef": "Kontextový prostor",
+      "dataModelRef": "Datový model",
+      "dataModel": "Model",
+      "version": "Hlavní verze",
+      "classes": "Vystavené třídy",
+      "class": "Třída",
+      "slots": "Ponechané sloty",
+      "slot": "Slot",
+      "filter": "Filtr",
+      "q": "Filtr dotazu",
+      "scopeQ": "Filtr rozsahu",
+      "geoQ": "Filtr oblasti",
+      "temporalQ": "Časový filtr"
     }
   }
 }

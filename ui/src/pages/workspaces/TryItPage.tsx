@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
 import { Link } from "@tanstack/react-router";
-import { Alert, Badge, Button, ExternalLink, PageHeader, PageLoading, ResourcePageFailed } from "../../components/ui";
+import { Alert, Badge, Button, ExternalLink, PageHeader, PageLoading } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { copyIntoPreview, PER_TYPE } from "./copyIntoPreview";
 import type { CopyResult } from "./copyIntoPreview";
 
