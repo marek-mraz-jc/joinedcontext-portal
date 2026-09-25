@@ -708,3 +708,69 @@ async fn permissions_me_names_the_scope_each_grant_was_inherited_from() {
     assert_eq!(doc["grants"][0]["scope"], "organization", "{body}");
     assert_eq!(doc["grants"][0]["role"], "org-admin", "{body}");
 }
+
+#[test]
+fn the_janitor_approves_and_deletes_only_what_a_journey_named() {
+    // T-2627: the residue sweep's own role, confined by the name a journey gives (PF-49).
+    let now = Utc.with_ymd_and_hms(2026, 9, 25, 12, 0, 0).unwrap();
+    let mirror = mirror_with(vec![
+        org(
+            "Role",
+            "janitor",
+            json!({ "rules": [{
+                "kinds": ["Pipeline"],
+                "verbs": ["approve", "delete"],
+                "constraints": [{ "field": "metadata.name", "pattern": "t1[0-9]{3}[a-z]?-.+|.+-[0-9]{4}" }]
+            }]}),
+        ),
+        binding(
+            "janitors",
+            "janitor",
+            json!([{ "user": "janitor@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+    ]);
+    let janitor = effective(
+        &mirror,
+        "platform-admins",
+        &identity("janitor@hel.fi", &[]),
+        "ovzdusie",
+        now,
+    );
+    for name in ["t1588-bikes", "t1589r-bikes", "citybikes-0915"] {
+        let target = pipeline(name);
+        assert!(
+            janitor
+                .check("Pipeline", Verb::Approve, Some(&target))
+                .is_ok(),
+            "{name}"
+        );
+        assert!(
+            janitor
+                .check("Pipeline", Verb::Delete, Some(&target))
+                .is_ok(),
+            "{name}"
+        );
+    }
+    for name in ["aq", "helsinki-t1588-bikes", "citybikes-09150"] {
+        let err = janitor
+            .check("Pipeline", Verb::Delete, Some(&pipeline(name)))
+            .expect_err("a name nobody's journey gave");
+        assert!(
+            err.to_string()
+                .contains("metadata.name does not satisfy role janitor (must match"),
+            "{err}"
+        );
+    }
+    assert!(
+        janitor
+            .check("Pipeline", Verb::Propose, Some(&pipeline("t1588-bikes")))
+            .is_err(),
+        "the janitor proposes nothing"
+    );
+    assert!(
+        janitor.check("Pipeline", Verb::Delete, None).is_err(),
+        "no manifest, no name to match"
+    );
+}

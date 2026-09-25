@@ -720,20 +720,16 @@ fn writes_status_only(rule: &Rule) -> bool {
     rule.constraints.iter().any(|c| c.field == "status.build")
 }
 
+/// jc-core reads the operators, so the Portal and the forge's `roles.rego` agree (PF-51).
 fn satisfied(constraint: &Constraint, target: Option<&Value>) -> bool {
-    let value = field_text(target, &constraint.field);
-    if let Some(expected) = &constraint.equals {
-        return value.as_deref() == Some(expected.as_str());
-    }
-    if !constraint.one_of.is_empty() {
-        return value.is_some_and(|v| constraint.one_of.contains(&v));
-    }
-    !value.is_some_and(|v| constraint.not_in.contains(&v))
+    constraint.holds(field_text(target, &constraint.field).as_deref())
 }
 
 fn describe(constraint: &Constraint) -> String {
     if let Some(expected) = &constraint.equals {
         format!("must equal {expected}")
+    } else if let Some(pattern) = &constraint.pattern {
+        format!("must match {pattern}")
     } else if !constraint.one_of.is_empty() {
         format!("must be one of {}", constraint.one_of.join(", "))
     } else {
