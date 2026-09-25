@@ -516,6 +516,43 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
     missing
 }
 
+/// Every published App the host has nothing to serve for: no `status.build` (AP-13a) and no
+/// bundle this Portal's image ships (AP-87). Its host answers 404, so it reads `Pending` with a
+/// red `Ready` saying why, never `Live` (T-2989). Returns the names it marked.
+pub fn report_unbuilt(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
+    let published = jc_core::kinds::AppLifecycle::Published.as_str();
+    let unbuilt = mirror.matching(|env| {
+        env.kind == "App"
+            && env
+                .spec
+                .get("lifecycle")
+                .and_then(serde_json::Value::as_str)
+                == Some(published)
+            && env
+                .status
+                .as_ref()
+                .is_some_and(|status| status.build.is_none())
+            && !ships_bundle(apps_dir, &env.metadata.name)
+    });
+    let mut names = Vec::new();
+    for mut envelope in unbuilt {
+        if let Some(status) = envelope.status.as_mut() {
+            status.phase = crate::resource::Phase::Pending;
+            status.conditions = vec![crate::reconciler::streams::make_condition(
+                "Ready",
+                "False",
+                "NoBuild",
+                "published, but no build has been written back to status.build, so its host \
+                 serves nothing; rebuild the App from its page (AP-13a)",
+            )];
+        }
+        names.push(envelope.metadata.name.clone());
+        mirror.upsert(envelope);
+    }
+    names.sort();
+    names
+}
+
 /// The app's Content Security Policy (AP-12). `default-src` and `connect-src` stay on `'self'`
 /// plus whatever the manifest adds; `frame-ancestors` is the Portal's origin, which opens every
 /// App under its header (AP-122), plus the declared origins of an embeddable app. With no Portal
