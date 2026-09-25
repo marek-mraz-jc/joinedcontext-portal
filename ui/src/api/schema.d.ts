@@ -1433,6 +1433,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/rejected": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rejected Records
+         * @description The records the pipeline's validation stage refused and did not write, newest first, each with the rule it broke; secrets masked (PL-61).
+         */
+        get: operations["get_rejected"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/rejected/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Rejected Records
+         * @description Replays the named rejected records once through the pipeline's current validation stage and its own write (PL-61): a record that passes now is written, one that still fails comes back with its rule. Needs propose on Pipeline.
+         */
+        post: operations["retry_rejected"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Runs
+         * @description The pipeline's latest runs, each with how many records it sent, how many the model rejected and how many failed in a step (PL-62). A run is one tick of the pipeline's clock, or one UTC hour for a source that never ends.
+         */
+        get: operations["get_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Run's Log
+         * @description One line per record of the run, newest first: the record's id, the step it failed at, its outcome (sent, rejected, failed) and what happened (PL-62). Record ids and messages are masked where they look like a credential.
+         */
+        get: operations["get_run_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/revisions": {
         parameters: {
             query?: never;
@@ -3202,6 +3282,37 @@ export interface components {
          * @description Lifecycle phase enumeration.
          */
         Phase: "Draft" | "Pending" | "Deploying" | "Live" | "Error" | "Drifted";
+        /** @description One line of a run's log. */
+        PipelineLogLine: {
+            /** @description When the Portal took the line, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the log; the `before` of the next page.
+             */
+            id: number;
+            /** @description What happened, in words; empty for a record that was sent. */
+            message: string;
+            outcome: components["schemas"]["PipelineOutcome"];
+            /** @description The record's `id`, as the mapping produced it; empty when it had none. */
+            recordId: string;
+            /** @description The run it belongs to. */
+            run: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` it failed at, when it failed in a step.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a run's log. */
+        PipelineLogPage: {
+            items: components["schemas"]["PipelineLogLine"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
+        };
         PipelineMetrics: {
             /** Format: int64 */
             bufferDepth?: number | null;
@@ -3225,10 +3336,40 @@ export interface components {
              *     this runner does not export.
              */
             received?: number | null;
+            /**
+             * Format: int64
+             * @description Records the validation stage refused since the runner started (PL-61): counted apart
+             *     from `errors`, because a refused record is the stage working, not the stream failing.
+             */
+            rejected?: number | null;
             /** @description When the Portal read the runner, RFC 3339. The counters are as old as this instant. */
             scrapedAt: string;
             /** Format: int64 */
             sent?: number | null;
+        };
+        /**
+         * @description What became of one record.
+         * @enum {string}
+         */
+        PipelineOutcome: "sent" | "rejected" | "failed";
+        /** @description One run with its counts. */
+        PipelineRun: {
+            /** Format: int64 */
+            failed: number;
+            /** @description The first and the last line the Portal took for it, RFC 3339. */
+            firstAt: string;
+            lastAt: string;
+            /** Format: int64 */
+            rejected: number;
+            /** @description Its name: the tick's time, or the UTC hour of a source that never ends. */
+            run: string;
+            /** Format: int64 */
+            sent: number;
+        };
+        /** @description A pipeline's latest runs with their counts (PL-62). */
+        PipelineRunList: {
+            /** @description The run with the latest line first, at most 200. */
+            items: components["schemas"]["PipelineRun"][];
         };
         /**
          * @description The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
@@ -3451,6 +3592,44 @@ export interface components {
             /** @description The entity types the source is claimed to hold. */
             types: string[];
         };
+        /** @description One record the runner did not write. */
+        Rejected: {
+            /** @description When the runner refused it, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description Its place in the list, which "Retry after fix" names.
+             */
+            id: number;
+            /** @description What is wrong, in words. */
+            message: string;
+            /** @description The attribute the constraint is about. */
+            path: string;
+            /** @description The record as the mapping produced it, secrets masked. */
+            record: unknown;
+            /** @description The constraint it broke (a SHACL component, `type` or `id`, PL-59). */
+            rule: string;
+            /**
+             * Format: int32
+             * @description The step of `spec.steps` the record failed at, when it failed in a step and not in the
+             *     validation stage.
+             */
+            step?: number | null;
+        };
+        /** @description One page of a pipeline's rejected records. */
+        RejectedPage: {
+            items: components["schemas"]["Rejected"][];
+            /**
+             * Format: int64
+             * @description The `before` of the next page, when there is one.
+             */
+            next?: number | null;
+            /**
+             * Format: int64
+             * @description How many the pipeline holds, at most 1000 (PL-61).
+             */
+            total: number;
+        };
         /** @description What the proxy relays on behalf of a workspace it has already authenticated. */
         RelayedEvent: {
             kind: string;
@@ -3508,6 +3687,24 @@ export interface components {
             files?: {
                 [key: string]: string;
             } | null;
+        };
+        /** @description What a replay sent to the runner, and what it could not send. */
+        RetryAnswer: {
+            /**
+             * @description Records left on the list because a value of theirs was masked when they were kept:
+             *     replaying the mask would write it. The pipeline's next read of its source brings them.
+             */
+            masked: number[];
+            /**
+             * @description Records replayed through the pipeline's current stage and write; one that still breaks
+             *     the model comes back to the list with its rule.
+             */
+            replayed: number;
+        };
+        /** @description Which rejected records to replay. */
+        RetryRequest: {
+            /** @description The `id`s of the records, 1…100. */
+            ids: number[];
         };
         Revision: {
             author: string;
@@ -8437,6 +8634,256 @@ export interface operations {
                 };
             };
             /** @description No runner configured, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_rejected: {
+        parameters: {
+            query?: {
+                /** @description Records per page, 1…100 (default 50). */
+                limit?: number | null;
+                /** @description Only records older than this id: the `next` of the previous page. */
+                before?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of rejected records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectedPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The list could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    retry_rejected: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "ids": [
+                 *         412,
+                 *         409
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RetryRequest"];
+            };
+        };
+        responses: {
+            /** @description The replay was handed to the runner */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryAnswer"];
+                };
+            };
+            /** @description No ids, or more than 100 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may read the pipeline but not propose it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The pipeline's space names no model, so there is no stage to replay through */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No runner, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs, latest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineRunList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The runs could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_run_log: {
+        parameters: {
+            query?: {
+                /** @description Lines per page, 1…500 (default 100). */
+                limit?: number | null;
+                /** @description Only lines older than this id: the `next` of the previous page. */
+                before?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+                /** @description The run, as the run list names it */
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the run's log */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineLogPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The log could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -440,7 +440,31 @@
       "openData": "Offene Daten",
       "datastore": "Datentabelle",
       "sheetFrom": "Tabelle gelesen aus",
-      "sheetRefresh": "Aktualisierung der Tabelle"
+      "sheetRefresh": "Aktualisierung der Tabelle",
+      "catalog": {
+        "title": "Katalogbeschreibung",
+        "publisher": "Herausgeber",
+        "publisherName": "Name des Herausgebers",
+        "publisherUri": "Webadresse des Herausgebers",
+        "contactPoint": "Kontaktstelle",
+        "contactName": "Kontaktstelle (Name)",
+        "contactEmail": "Kontakt-E-Mail",
+        "license": "Lizenz",
+        "attribution": "Quellenangabe",
+        "themes": "Themen",
+        "keywords": "Schlagwörter",
+        "spatial": "Abgedecktes Gebiet",
+        "temporal": "Abgedeckter Zeitraum",
+        "temporalStart": "Abgedeckt ab",
+        "temporalEnd": "Abgedeckt bis",
+        "frequency": "Aktualisierung",
+        "source": "Ursprüngliche Datensätze",
+        "sourceUrl": "Adresse des Ursprungsdatensatzes",
+        "sourceTitle": "Name des Ursprungsdatensatzes",
+        "sourceDescription": "Beschreibung des Ursprungsdatensatzes",
+        "pipeline": "Gefüllt von Pipeline",
+        "legislation": "Geltendes Recht"
+      }
     },
     "rateClass": {
       "strict": "Streng",
@@ -619,7 +643,43 @@
       "noFileLimits": "Es gelten die Dateigrenzen der Plattform.",
       "publication": "Als offene Daten veröffentlicht",
       "notSet": "nicht gesetzt",
-      "filterPropose": "Diesen Filter vorschlagen"
+      "filterPropose": "Diesen Filter vorschlagen",
+      "catalog": {
+        "title": "Im Katalog",
+        "lead": "Was jeder Open-Data-Katalog über diesen Endpunkt liest und was Nutzende mit den Daten tun dürfen.",
+        "notCatalogued": "Noch keine Katalogbeschreibung: Der Eintrag nennt nur Titel, Formate und Zugriffsrechte. Ergänzen Sie in den Einstellungen Herausgeber, Lizenz und Abdeckung.",
+        "publisher": "Veröffentlicht von",
+        "licence": "Lizenz",
+        "frequency": "Aktualisierung",
+        "contact": "Fragen an",
+        "coverage": "Deckt ab",
+        "period": "{start} bis {end}",
+        "ongoing": "heute",
+        "origin": "Stammt aus",
+        "byPipeline": "gefüllt von der Pipeline {name}",
+        "themes": "Themen",
+        "offer": "Was Nutzende tun dürfen",
+        "noLicence": "Keine Lizenz genannt, daher kein Angebot: Nutzende wissen nicht, was sie mit den Daten tun dürfen.",
+        "thePublisher": "den Herausgeber",
+        "who": {
+          "public": "Jede Person",
+          "organization": "Jede Person der Organisation",
+          "project-list": "Die genannten Projekte der Organisation"
+        },
+        "use": {
+          "none": "{who} darf diese Daten für jeden Zweck ohne Bedingungen nutzen.",
+          "attribute": "{who} darf diese Daten nutzen, wenn {publisher} als Quelle genannt wird.",
+          "shareAlike": "{who} darf diese Daten nutzen, wenn {publisher} als Quelle genannt wird."
+        },
+        "shareAlike": "Was daraus veröffentlicht wird, erscheint unter derselben Lizenz.",
+        "raw": {
+          "jsonld": "DCAT-AP-Eintrag (JSON-LD)",
+          "turtle": "DCAT-AP-Eintrag (Turtle)",
+          "odrl": "Ihr Zugriff als ODRL",
+          "lead": "Das Dokument so, wie ein Katalog-Harvester oder ein Datenraum-Connector es von diesem Endpunkt liest.",
+          "failed": "Der Endpunkt hat nicht geantwortet. Er antwortet, sobald die Änderung, die ihn anlegt, genehmigt und angewendet ist."
+        }
+      }
     },
     "condition": {
       "title": "Bedingung hinzufügen",
@@ -821,7 +881,8 @@
       "latency": "ms p99",
       "unavailable": "Keine Zahlen: der Runner antwortet nicht.",
       "paused": "Läuft nicht",
-      "scheduled": "Läuft nach seinem Zeitplan"
+      "scheduled": "Läuft nach seinem Zeitplan",
+      "rejected": "abgelehnt"
     },
     "pause": "Pausieren",
     "pauseHint": "Schlägt eine Änderung vor, die diese Pipeline anhält.",
@@ -951,7 +1012,63 @@
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
     "noCredential": "Keine",
-    "writesType": "Schreibt"
+    "writesType": "Schreibt",
+    "rejected": {
+      "open": "Abgelehnte Datensätze",
+      "title": "Abgelehnte Datensätze von {name}",
+      "lead": "Datensätze, die das Datenmodell abgelehnt hat, die neuesten zuerst. Sie wurden nicht geschrieben. Korrigieren Sie die Zuordnung oder das Modell, lassen Sie die Änderung zusammenführen, wählen Sie dann die Datensätze aus und wiederholen Sie sie.",
+      "caption": "Abgelehnte Datensätze",
+      "close": "Schließen",
+      "empty": "Keine abgelehnten Datensätze",
+      "emptyHint": "Jeder Datensatz, den diese Pipeline gelesen hat, hat das Datenmodell seines Raums bestanden.",
+      "total": "{count, plural, one {# Datensatz aufbewahrt} other {# Datensätze aufbewahrt}} (die neuesten 1000)",
+      "at": "Abgelehnt am",
+      "rule": "Regel",
+      "reason": "Grund",
+      "record": "Datensatz",
+      "step": "In Schritt {step}",
+      "pick": "Den am {at} abgelehnten Datensatz auswählen",
+      "pickPage": "Alle Datensätze dieser Seite auswählen",
+      "picked": "{count, plural, one {# Datensatz ausgewählt} other {# Datensätze ausgewählt}}",
+      "pickFirst": "Wählen Sie zuerst die Datensätze aus, die wiederholt werden sollen.",
+      "tooMany": "Wiederholen Sie höchstens 100 Datensätze auf einmal.",
+      "retry": "{count, plural, =0 {Nach der Korrektur wiederholen} one {# Datensatz nach der Korrektur wiederholen} other {# Datensätze nach der Korrektur wiederholen}}",
+      "retrying": "Wird wiederholt…",
+      "replayed": "{count, plural, =0 {Kein Datensatz wurde wiederholt.} one {# Datensatz lief erneut durch das aktuelle Modell; verletzt er es weiterhin, kommt er hierher zurück.} other {# Datensätze liefen erneut durch das aktuelle Modell; die es weiterhin verletzen, kommen hierher zurück.}}",
+      "maskedKept": "{count, plural, one {# Datensatz bleibt in der Liste: ein Wert wurde als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt ihn erneut.} other {# Datensätze bleiben in der Liste: ein Wert wurde jeweils als Geheimnis maskiert, und eine Wiederholung würde die Maske schreiben. Das nächste Lesen der Quelle bringt sie erneut.}}",
+      "newest": "Neueste",
+      "older": "Ältere Datensätze"
+    },
+    "runs": {
+      "open": "Läufe und Protokoll",
+      "title": "Läufe von {name}",
+      "lead": "Jeder Lauf mit der Zahl der geschriebenen, vom Datenmodell abgelehnten und in einem Schritt gescheiterten Datensätze. Öffnen Sie einen Lauf, um sein Protokoll zu lesen, eine Zeile pro Datensatz.",
+      "caption": "Läufe",
+      "close": "Schließen",
+      "empty": "Noch keine Läufe",
+      "emptyHint": "Der erste Lauf erscheint hier, sobald die Pipeline ihre Quelle gelesen hat.",
+      "run": "Lauf",
+      "hour": "Stunde ab {at}",
+      "sent": "Geschrieben",
+      "rejected": "Abgelehnt",
+      "failed": "Gescheitert",
+      "log": "Protokoll",
+      "show": "Protokoll des Laufs {run} anzeigen",
+      "logCaption": "Protokoll des Laufs {run}",
+      "noLines": "Die Zeilen dieses Laufs sind bereits gelöscht; die Zahlen oben bleiben.",
+      "at": "Zeit",
+      "record": "Datensatz",
+      "outcome": "Ergebnis",
+      "message": "Meldung",
+      "noId": "(ohne ID)",
+      "outcomes": {
+        "sent": "Geschrieben",
+        "rejected": "Abgelehnt",
+        "failed": "Gescheitert"
+      },
+      "newest": "Neueste",
+      "older": "Ältere Zeilen"
+    }
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -3076,7 +3193,8 @@
       "administrative": "Verwaltung",
       "technical": "Technik",
       "data-protection": "Datenschutz",
-      "security": "Sicherheit"
+      "security": "Sicherheit",
+      "open-data": "Open-Data-Stelle"
     },
     "visibility": {
       "organization": "Jede angemeldete Person der Organisation",
@@ -3462,6 +3580,41 @@
       "associationOps": "Alles lesen und abonnieren",
       "federationOps": "Föderieren",
       "redirectionOps": "Alles weiterleiten"
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Namensnennung 4.0",
+      "CC_BYSA_4_0": "Creative Commons Namensnennung – Weitergabe unter gleichen Bedingungen 4.0",
+      "CC0": "Creative Commons Zero (gemeinfrei)",
+      "ODC_BY": "Open Data Commons Namensnennung",
+      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_PDDL": "Open Data Commons Gemeinfreiheit"
+    },
+    "dataTheme": {
+      "AGRI": "Landwirtschaft, Fischerei, Forstwirtschaft und Nahrungsmittel",
+      "ECON": "Wirtschaft und Finanzen",
+      "EDUC": "Bildung, Kultur und Sport",
+      "ENER": "Energie",
+      "ENVI": "Umwelt",
+      "GOVE": "Regierung und öffentlicher Sektor",
+      "HEAL": "Gesundheit",
+      "INTR": "Internationale Themen",
+      "JUST": "Justiz, Rechtssystem und öffentliche Sicherheit",
+      "REGI": "Regionen und Städte",
+      "SOCI": "Bevölkerung und Gesellschaft",
+      "TECH": "Wissenschaft und Technologie",
+      "TRAN": "Verkehr"
+    },
+    "frequency": {
+      "CONT": "Laufend",
+      "HOURLY": "Stündlich",
+      "DAILY": "Täglich",
+      "WEEKLY": "Wöchentlich",
+      "MONTHLY": "Monatlich",
+      "QUARTERLY": "Vierteljährlich",
+      "ANNUAL": "Jährlich",
+      "IRREG": "Unregelmäßig",
+      "NEVER": "Nie, er ist abgeschlossen",
+      "UNKNOWN": "Unbekannt"
     }
   },
   "picker": {
