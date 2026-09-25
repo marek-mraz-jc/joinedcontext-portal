@@ -131,6 +131,9 @@ jobs:
               npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
               && pnpm install --no-frozen-lockfile; fi && pnpm typecheck && pnpm test && pnpm build)
           done
+          # The lane test below reads the manifests and lockfiles as committed: undo the linked
+          # name and drop the lockfiles the install wrote.
+          git checkout -- apps && git clean -fq -- apps
       # An application kept in its own forge repository sits at the root of apps/<name>/ (AP-75,
       # T-2596). It is tested as that tree, copied out, with only `@joinedcontext/sdk` pointed at
       # this checkout: the build lane resolves the same name from the SDK tarball it bakes (AP-82).
