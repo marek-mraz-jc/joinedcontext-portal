@@ -364,6 +364,39 @@ impl Realm {
         jsonwebtoken::encode(&header, &claims, &self.signer).expect("sign")
     }
 
+    /// A person's token of App `app`'s own client `app-{app}` (ADR-N-030): issued for it, obtained
+    /// by it, carrying `roles` as that client's roles and a realm role of the same names beside
+    /// them, which must count for nothing.
+    pub fn person_token(&self, app: &str, who: &str, roles: &[&str]) -> String {
+        self.person_token_of(&format!("app-{app}"), &format!("app-{app}"), who, roles)
+    }
+
+    /// [`Self::person_token`] with the audience and the obtaining client (`azp`) chosen apart.
+    pub fn person_token_of(
+        &self,
+        audience: &str,
+        client: &str,
+        who: &str,
+        roles: &[&str],
+    ) -> String {
+        let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
+        header.kid = Some("key-workload-test".to_owned());
+        let now = joinedcontext_portal::auth::session::now_unix();
+        let claims = json!({
+            "iss": self.issuer,
+            "aud": audience,
+            "sub": format!("sub-{who}"),
+            "azp": client,
+            "preferred_username": format!("{who}@hel.fi"),
+            "email": format!("{who}@hel.fi"),
+            "realm_access": { "roles": roles },
+            "resource_access": { client: { "roles": roles }, "app-other": { "roles": ["steward"] } },
+            "exp": now + 300,
+            "iat": now,
+        });
+        jsonwebtoken::encode(&header, &claims, &self.signer).expect("sign")
+    }
+
     /// The token a workload presents on the internal listener.
     pub fn workload(&self, client: &str) -> String {
         self.token(client, INTERNAL_AUDIENCE)
