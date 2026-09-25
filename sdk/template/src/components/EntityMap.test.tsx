@@ -191,6 +191,36 @@ describe("EntityMap component and helpers", () => {
     expect(screen.queryByText(NO_LOCATIONS)).not.toBeInTheDocument();
   });
 
+  it("AP-138: a map coloured by a value names it and its two ends in a legend; an uncoloured or flat one shows none", () => {
+    const client = stubClient({ entities: STATIONS });
+    const { unmount } = render(
+      <JcProvider client={client}>
+        <EntityMap rows={STATIONS} location="location" color="bikes" />
+      </JcProvider>,
+    );
+    const legend = screen.getByRole("img", { name: "bikes: 0 to 10" });
+    expect(legend).toHaveTextContent("bikes");
+    expect(legend).toHaveTextContent("0");
+    expect(legend).toHaveTextContent("10");
+    unmount();
+
+    const { unmount: unmountPlain } = render(
+      <JcProvider client={client}>
+        <EntityMap rows={STATIONS} location="location" />
+      </JcProvider>,
+    );
+    expect(screen.queryByRole("img", { name: /bikes/ })).not.toBeInTheDocument();
+    unmountPlain();
+
+    const flat = STATIONS.map((row) => ({ ...row, bikes: 3 }));
+    render(
+      <JcProvider client={client}>
+        <EntityMap rows={flat} location="location" color="bikes" />
+      </JcProvider>,
+    );
+    expect(screen.queryByRole("img", { name: /bikes/ })).not.toBeInTheDocument();
+  });
+
   it("colours by the data's own range: equal values and missing ones stay the plain point colour", () => {
     const tokens = DEFAULT_TOKENS;
     const rows: Row[] = [

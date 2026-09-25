@@ -15,6 +15,8 @@ vi.mock("maplibre-gl", () => ({
 vi.mock("@deck.gl/mapbox", () => ({ MapboxOverlay: class {} }));
 vi.mock("@deck.gl/layers", () => ({ ScatterplotLayer: class {} }));
 vi.mock("@deck.gl/aggregation-layers", () => ({ HexagonLayer: class {}, GridLayer: class {} }));
+// jsdom has no canvas; the charts themselves are tested in pages/Overview.test.tsx.
+vi.mock("echarts", () => ({ init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
 const READ = {
   permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],

@@ -352,6 +352,16 @@ export function EntityMap({
     <div className="jc-map" style={height === undefined ? undefined : { height }}>
       <div className="jc-map-canvas" ref={container} data-testid="jc-map" role="application" aria-label={i18n.t("map.label")} />
       {!effectiveBasemap && <span className="jc-map-notice">{NO_BASEMAP}</span>}
+      {color && ext && ext[1] > ext[0] && (
+        <div className="jc-map-legend" role="img" aria-label={i18n.t("map.legend", { attr: color, min: format(ext[0]), max: format(ext[1]) })}>
+          <span className="jc-map-legend-name">{color}</span>
+          <span className="jc-map-legend-ramp" style={{ background: `linear-gradient(to right, ${tokens.map.low}, ${tokens.map.high})` }} />
+          <span className="jc-map-legend-ends">
+            <span>{format(ext[0])}</span>
+            <span>{format(ext[1])}</span>
+          </span>
+        </div>
+      )}
       {n === 0 && rows.length > 0 ? (
         <span className="jc-map-count">{NO_LOCATIONS}</span>
       ) : (

@@ -64,6 +64,25 @@ export const LIMITS: Readonly<Record<string, { amber: number; red: number }>> = 
 
 /** The territory suffixes of `Development/10` §6 that are not a prefixed family. */
 const WHOLE_TERRITORIES = ["kraj", "mesto"];
+
+/** True for the body's whole territory (the region, the city) rather than one of its parts. */
+export function isWhole(territory: string): boolean {
+  return WHOLE_TERRITORIES.includes(territory);
+}
+
+/**
+ * The districts of one indicator that carry a number, largest first: the bars of its chart.
+ *
+ * The whole territory is left out. It is the districts' sum or their mean, so beside them it would
+ * flatten every bar to a sliver; it keeps its own card instead. A district not measured has no bar
+ * rather than a zero one, the same rule the cards follow.
+ */
+export function districtBars(rows: Indicator[]): { territory: string; value: number }[] {
+  return rows
+    .filter((row): row is Indicator & { value: number } => !isWhole(row.territory) && row.value !== null)
+    .map((row) => ({ territory: row.territory, value: row.value }))
+    .sort((a, b) => b.value - a.value || a.territory.localeCompare(b.territory, "sk"));
+}
 const TERRITORY_FAMILIES = ["okres", "cast"];
 
 /**

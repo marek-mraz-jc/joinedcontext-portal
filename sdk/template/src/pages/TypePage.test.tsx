@@ -62,13 +62,27 @@ function app() {
 }
 
 describe("template", () => {
-  it("opens on an overview with a card per type and the server summary", async () => {
+  it("opens on an overview with a card per type and the server summary as a chart", async () => {
     app();
 
     expect(await screen.findByRole("heading", { name: "bikes" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Station" })).toBeInTheDocument();
-    expect(await screen.findByText("Note: 1")).toBeInTheDocument();
+    expect(await screen.findByText("Entities per type")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("AP-138: the overview maps located data and charts every type that has something to chart", async () => {
+    app();
+
+    const station = (await screen.findByRole("heading", { name: "Station" })).closest("article") as HTMLElement;
+    expect(station).not.toBeNull();
+    await waitFor(() => expect(within(station).getByTestId("jc-map")).toBeInTheDocument());
+    expect(within(station).getByRole("img", { name: "bikes: 4 to 7" })).toBeInTheDocument();
+    expect(station.querySelector(".jc-chart-canvas")).not.toBeNull();
+    // A type without a location gets no map.
+    const note = screen.getByRole("heading", { name: "Note" }).closest("article") as HTMLElement;
+    expect(within(note).queryByTestId("jc-map")).not.toBeInTheDocument();
   });
 
   it("a type with a location gets a map, filters from the schema and an edit form where writes are granted", async () => {
