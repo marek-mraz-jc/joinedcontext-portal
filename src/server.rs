@@ -20,11 +20,18 @@ pub fn app(state: AppState) -> Router {
     // like one nobody used (OPS-16).
     telemetry::install();
 
-    // `frame-src` names the apps origin, the one other document the Portal frames: the Open
-    // page shows an App under the Portal's header (AP-122, T-2871). Without it `default-src`
-    // refuses the frame before the App's own `frame-ancestors` is ever read.
+    // `frame-src` names the apps origin and each App's own host under it, `{name}.apps.{apex}`
+    // (AP-133): the Open page shows an App under the Portal's header (AP-122, T-2871). Without
+    // it `default-src` refuses the frame before the App's own `frame-ancestors` is ever read.
     let frame_src = match state.config.apps_url.as_ref() {
-        Some(apps) => format!("'self' {}", apps.origin().ascii_serialization()),
+        Some(apps) => match apps.host_str() {
+            Some(host) => format!(
+                "'self' {} {}://*.apps.{host}",
+                apps.origin().ascii_serialization(),
+                apps.scheme()
+            ),
+            None => "'self'".to_owned(),
+        },
         None => "'self'".to_owned(),
     };
     let content_security_policy = HeaderValue::from_str(&format!(
