@@ -96,6 +96,7 @@
         "Button": 5
       },
       "tests": [
+        "edit_prefill.test.tsx",
         "form_edit_resource_dialog.test.tsx",
         "permission_guard.test.tsx"
       ]
@@ -1210,6 +1211,7 @@
         "Button": 4
       },
       "tests": [
+        "edit_prefill.test.tsx",
         "editor_round_trip.test.ts",
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx"
@@ -1238,6 +1240,7 @@
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",
+        "edit_prefill.test.tsx",
         "form_required_reference_check.test.tsx",
         "policy_form.test.tsx"
       ]
@@ -1257,6 +1260,7 @@
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",
+        "edit_prefill.test.tsx",
         "space_segment.test.tsx"
       ]
     },
