@@ -31,6 +31,10 @@ pub struct GiteaClient {
     /// writes them: another organization and another machine user than the configuration's
     /// (PF-105). `None`: beside the configuration.
     apps: Option<(String, String)>,
+    /// The forge user the Context Gateway reads the configuration as (`JC_GITEA_READER`,
+    /// PF-105): a repository the Portal opens for a project it reads too. `None`: nobody is
+    /// added.
+    reader: Option<String>,
     pub http: reqwest::Client,
 }
 
@@ -624,6 +628,7 @@ impl GiteaClient {
             mount: None,
             token: token.into(),
             apps: None,
+            reader: None,
             http,
         })
     }
@@ -636,9 +641,10 @@ impl GiteaClient {
     /// from the API base whenever the forge is reached through the edge; the API base when it
     /// is unset.
     ///
-    /// `JC_GITEA_APPS_TOKEN` (a secret, the applications' machine user's) and `JC_GITEA_APPS_OWNER` move the generated
-    /// applications' repositories, their packages and their build queue into an organization of
-    /// their own, written by a machine user of their own (PF-105); both or neither.
+    /// `JC_GITEA_APPS_TOKEN` (a secret, the applications' machine user's) and
+    /// `JC_GITEA_APPS_OWNER` move the generated applications' repositories, their packages and
+    /// their build queue into an organization of their own, written by a machine user of their
+    /// own (PF-105); both or neither.
     ///
     /// Fail-closed: returns `Ok(None)` if all four are absent, or an error if partially set.
     pub fn from_env(lookup: impl Fn(&str) -> Option<String>) -> Result<Option<Self>, GitError> {
@@ -665,6 +671,9 @@ impl GiteaClient {
                     .map_err(|e| GitError::Config(format!("invalid JC_GITEA_URL: {e}")))?;
                 let mut client = Self::new(base, owner, repo, token)?;
                 client.apps = apps;
+                client.reader = lookup("JC_GITEA_READER")
+                    .map(|user| user.trim().to_owned())
+                    .filter(|user| !user.is_empty());
                 if let Some(public) = lookup("JC_GITEA_PUBLIC_URL") {
                     client.public_base = Url::parse(&public)
                         .map_err(|e| GitError::Config(format!("invalid JC_GITEA_PUBLIC_URL: {e}")))?;
@@ -1552,6 +1561,23 @@ impl GiteaClient {
         let payload = serde_json::json!({ "archived": true });
         let res = self
             .send(self.http.patch(self.repo_url("")?).json(&payload))
+            .await?;
+        Self::check_status(res).await.map(|_| ())
+    }
+
+    /// `PUT /collaborators/{reader}` with `read` — the gateway reads a project repository the
+    /// Portal opened (PF-105): its machine user is a collaborator on the repositories it reads
+    /// and nothing more, so a new one has to name it. Nothing without `JC_GITEA_READER`.
+    pub async fn let_the_reader_in(&self) -> Result<(), GitError> {
+        let Some(reader) = &self.reader else {
+            return Ok(());
+        };
+        let res = self
+            .send(
+                self.http
+                    .put(self.repo_url(&format!("collaborators/{reader}"))?)
+                    .json(&serde_json::json!({ "permission": "read" })),
+            )
             .await?;
         Self::check_status(res).await.map(|_| ())
     }

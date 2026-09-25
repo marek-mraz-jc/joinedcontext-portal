@@ -484,6 +484,7 @@ async fn land<'a>(
         .find(|(_, plan)| plan.role == "project")
         .map(|(client, _)| client.clone())
         .ok_or_else(|| ApiError::Internal("the project repository is missing".into()))?;
+    project_client.let_the_reader_in().await?;
     let mounted = project_client.for_project(project_client.repo.clone(), project);
     let applications: BTreeMap<String, String> = clients
         .iter()
