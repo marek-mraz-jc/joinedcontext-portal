@@ -39,12 +39,14 @@ ARG RUNNER_SHA256=16dc5c89ad5ac5496369642f01ed29c9bb130a2512e16a8cc3b400d9d0bfea
 ADD --checksum=sha256:${RUNNER_SHA256} \
     https://dl.gitea.com/gitea-runner/${RUNNER_VERSION}/gitea-runner-${RUNNER_VERSION}-linux-amd64 /gitea-runner
 
-# The crate store of the rust-1.90 runner (AP-106): every crate this release's Cargo.lock names,
-# the reference applications' included, fetched once here so a fullstack build fetches none.
+# The crate store of the rust-1.90 runner (AP-106, AP-127): every crate this release's Cargo.lock
+# names, the reference applications' included, and every crate of the ui-rust template's own
+# lockfile, fetched once here so a fullstack build fetches none.
 FROM rust:1.90-slim-bookworm AS crates
 WORKDIR /src
 COPY . .
-RUN CARGO_HOME=/opt/cargo cargo fetch --locked
+RUN CARGO_HOME=/opt/cargo cargo fetch --locked \
+    && CARGO_HOME=/opt/cargo cargo fetch --locked --manifest-path sdk/template-fullstack/Cargo.toml
 
 # The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
 # base's packages so the image carries the security fixes bookworm has shipped since the tag was
@@ -65,8 +67,10 @@ COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
 COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
 COPY apps/air-quality/Cargo.toml apps/air-quality/Cargo.lock /manifests/air-quality/
 COPY apps/hsl-transport/Cargo.toml apps/hsl-transport/Cargo.lock /manifests/hsl-transport/
+# An app scaffolded from the ui-rust template starts from exactly these (AP-128).
+COPY sdk/template-fullstack/Cargo.toml sdk/template-fullstack/Cargo.lock /manifests/jc-app/
 ENV CARGO_HOME=/tmp/build/cargo CARGO_TARGET_DIR=/tmp/build/target CARGO_NET_OFFLINE=true
-RUN set -eu; for app in air-quality hsl-transport; do \
+RUN set -eu; for app in air-quality hsl-transport jc-app; do \
       rm -rf /tmp/build/app /tmp/build/cargo && mkdir -p /tmp/build/cargo/registry /tmp/build/app/src; \
       ln -s /opt/cargo/registry/index /opt/cargo/registry/cache /tmp/build/cargo/registry/; \
       cp /manifests/$app/Cargo.toml /manifests/$app/Cargo.lock /tmp/build/app/; \
@@ -77,7 +81,8 @@ RUN set -eu; for app in air-quality hsl-transport; do \
     done; \
     # The stubs' own artifacts are no App's: only the dependencies stay.
     find /tmp/build/target -depth \( -name 'air-quality*' -o -name 'air_quality*' -o -name 'libair_quality*' \
-      -o -name 'hsl-transport*' -o -name 'hsl_transport*' -o -name 'libhsl_transport*' \) -exec rm -rf {} +; \
+      -o -name 'hsl-transport*' -o -name 'hsl_transport*' -o -name 'libhsl_transport*' \
+      -o -name 'jc-app*' -o -name 'jc_app*' -o -name 'libjc_app*' \) -exec rm -rf {} +; \
     rm -rf /tmp/build/target/*/incremental /tmp/build/target/*/*/incremental; \
     mv /tmp/build/target /opt/cargo/target-seed
 
@@ -92,6 +97,9 @@ COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
 # Read-only to the lane's uid: a job copies it and never writes it.
 COPY --from=seed /opt/cargo/target-seed /opt/cargo/target-seed
 COPY scripts/app-integrity.mjs builder/lane.mjs /opt/template/
+# The ui-rust template, whose lockfile every crate of the store must cover (AP-126, AP-127).
+COPY sdk/template-fullstack/ /opt/template-fullstack/
+RUN node /opt/template/lane.mjs crate-check /opt/template-fullstack/Cargo.lock /opt/cargo/registry/cache
 COPY builder/build-app.sh /usr/local/bin/build-app
 COPY --from=runner --chmod=0755 /gitea-runner /usr/local/bin/gitea-runner
 COPY builder/runner.sh /usr/local/bin/runner

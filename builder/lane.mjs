@@ -20,6 +20,9 @@
 //   node lane.mjs store-check <pnpm-lock.yaml> <node_modules>
 //                                      fails when a package the lockfile names for this platform
 //                                      is not in the store (AP-127)
+//   node lane.mjs crate-check <Cargo.lock> <registry/cache>
+//                                      fails when a crate the lockfile names from a registry has
+//                                      no .crate file in the store (AP-127)
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
@@ -222,6 +225,15 @@ export function cratesOf(lock) {
     }
   }
   return crates.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`));
+}
+
+/** The `.crate` files of `lock`'s registry crates missing from `files` (the store's file names), sorted (AP-127). */
+export function missingCrates(lock, files) {
+  const have = new Set(files);
+  return cratesOf(lock)
+    .map(({ name, version }) => `${name}-${version}.crate`)
+    .filter((file) => !have.has(file))
+    .sort();
 }
 
 const sha256 = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
@@ -486,6 +498,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       if (missing.length > 0) throw new Error(`the store in ${outDir} lacks ${missing.length} package(s) ${appDir} names: ${missing.join(", ")}`);
       if (!existsSync(join(outDir, "@joinedcontext", "sdk", "package.json"))) throw new Error(`the store in ${outDir} holds no @joinedcontext/sdk`);
       console.log(`the store in ${outDir} holds every package ${appDir} names`);
+    } else if (command === "crate-check" && appDir && outDir) {
+      // One folder per registry under cache/, the .crate files inside.
+      const files = readdirSync(outDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .flatMap((entry) => readdirSync(join(outDir, entry.name)));
+      const lock = readFileSync(appDir, "utf8");
+      const missing = missingCrates(lock, files);
+      if (missing.length > 0) throw new Error(`the crate store ${outDir} lacks ${missing.length} crate(s) ${appDir} names: ${missing.join(", ")}`);
+      console.log(`the crate store holds all ${cratesOf(lock).length} crates ${appDir} names`);
     } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
@@ -503,7 +524,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | seed <from> <to> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | lock-manifest <dir> | store-check <pnpm-lock.yaml> <node_modules> | crate-check <Cargo.lock> <registry/cache> | seed <from> <to> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

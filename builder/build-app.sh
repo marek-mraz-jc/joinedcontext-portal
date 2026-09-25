@@ -15,11 +15,20 @@
 set -eu
 
 fail() { echo "build failed: $*" >&2; exit 1; }
-for name in JC_APP_REPO JC_APP_COMMIT JC_FORGE_TOKEN; do
-  eval "[ -n \"\${$name:-}\" ]" || fail "$name is not set"
-done
+if [ "${1:-}" = "--tree" ]; then
+  # `build-app --tree <dir>`: CI's scaffold check (AP-128) builds a repository on disk exactly as a
+  # forge commit is built, fetched over file:// with no token. The workflow never passes it.
+  [ -d "${2:-}/.git" ] || fail "--tree needs a git repository"
+  JC_APP_REPO="file://$(cd "$2" && pwd)"
+  JC_APP_COMMIT=$(git -C "$2" rev-parse HEAD) || fail "cannot read the head of $2"
+  JC_FORGE_TOKEN=none
+else
+  for name in JC_APP_REPO JC_APP_COMMIT JC_FORGE_TOKEN; do
+    eval "[ -n \"\${$name:-}\" ]" || fail "$name is not set"
+  done
+  case "$JC_APP_REPO" in https://*|http://*) ;; *) fail "JC_APP_REPO is not an http(s) URL" ;; esac
+fi
 echo "$JC_APP_COMMIT" | grep -Eqx '[0-9a-f]{40}' || fail "JC_APP_COMMIT is not a full commit"
-case "$JC_APP_REPO" in https://*|http://*) ;; *) fail "JC_APP_REPO is not an http(s) URL" ;; esac
 
 LANE=/opt/template
 WORK=${JC_BUILD_DIR:-/tmp/build}

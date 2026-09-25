@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingCrates, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -156,6 +156,52 @@ test("the template pins every package exactly, as its lockfile and the SDK's loc
     assert.equal(sdk[name].version.split("(")[0], version, `the SDK tests with ${name} ${sdk[name].version.split("(")[0]}, the template pins ${version}`);
   }
   assert.ok(shared >= 15, `only ${shared} packages shared with the SDK`);
+});
+
+// AP-127 (T-2724): the rust runner's crate store holds a .crate for every registry crate of the
+// ui-rust template's lockfile; the app's own crate and path crates are not fetched.
+test("the crate store check names each registry crate the store lacks", () => {
+  const lock = [
+    "version = 4",
+    "",
+    "[[package]]",
+    'name = "axum"',
+    'version = "0.8.9"',
+    'source = "registry+https://github.com/rust-lang/crates.io-index"',
+    "",
+    "[[package]]",
+    'name = "wasi"',
+    'version = "0.11.1+wasi-snapshot-preview1"',
+    'source = "registry+https://github.com/rust-lang/crates.io-index"',
+    "",
+    "[[package]]",
+    'name = "jc-app"',
+    'version = "0.1.0"',
+    "",
+  ].join("\n");
+  assert.deepEqual(missingCrates(lock, ["axum-0.8.9.crate", "wasi-0.11.1+wasi-snapshot-preview1.crate"]), []);
+  assert.deepEqual(missingCrates(lock, ["axum-0.8.8.crate", ".package-cache"]), ["axum-0.8.9.crate", "wasi-0.11.1+wasi-snapshot-preview1.crate"]);
+  assert.deepEqual(missingCrates("version = 4\n", []), []);
+});
+
+// AP-126 (T-2724): the ui-rust template pins every crate to one version, and its lockfile is the
+// one the runner image fetches and precompiles (builder/Dockerfile names it in both stages).
+test("the ui-rust template pins every crate exactly and the runner image builds from its lockfile", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const manifest = readFileSync(join(root, "sdk/template-fullstack/Cargo.toml"), "utf8");
+  const deps = [...manifest.matchAll(/^([a-z0-9_-]+) = (?:"([^"]*)"|\{ version = "([^"]*)")/gm)]
+    .filter(([, name]) => !["name", "version", "edition", "description", "path"].includes(name))
+    .map(([, name, plain, table]) => [name, plain ?? table]);
+  assert.ok(deps.length >= 12, `only ${deps.length} dependencies read`);
+  for (const [name, version] of deps) assert.match(version, /^=\d+\.\d+\.\d+$/, `${name} is pinned to ${version}`);
+  const lock = readFileSync(join(root, "sdk/template-fullstack/Cargo.lock"), "utf8");
+  for (const [name, version] of deps) {
+    assert.ok(cratesOf(lock).some((c) => c.name === name && `=${c.version}` === version), `Cargo.lock does not lock ${name} ${version}`);
+  }
+  const dockerfile = readFileSync(join(root, "builder/Dockerfile"), "utf8");
+  assert.match(dockerfile, /cargo fetch --locked --manifest-path sdk\/template-fullstack\/Cargo.toml/);
+  assert.match(dockerfile, /COPY sdk\/template-fullstack\/Cargo.toml sdk\/template-fullstack\/Cargo.lock \/manifests\/jc-app\//);
+  assert.match(dockerfile, /lane.mjs crate-check \/opt\/template-fullstack\/Cargo.lock/);
 });
 
 // SDK-24, AP-82 (T-2649). On the lane an app's packages are links into the template's store,

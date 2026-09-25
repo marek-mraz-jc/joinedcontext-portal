@@ -1,0 +1,39 @@
+[package]
+name = "jc-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "A joinedcontext application of the ui-rust shape: the App SDK interface in ui/, served by this axum backend"
+
+# Its own workspace: the template sits inside the Portal's repository, and an application made
+# from it is a repository of its own.
+[workspace]
+
+[lib]
+name = "jc_app"
+path = "src/lib.rs"
+
+[[bin]]
+name = "jc-app"
+path = "src/main.rs"
+
+# Every version exact (AP-126): the build lane compiles offline from the crate store and the
+# precompiled dependencies its runner image carries for this lockfile (AP-127).
+[dependencies]
+axum = "=0.8.9"
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+# `X-Userinfo` is base64 JSON, the way the edge's openid-connect plugin sends it (AP-28).
+base64 = "=0.23.1"
+# The only outbound client: the endpoint and the Portal's `/me`, both on the platform host.
+reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls", "json"] }
+rust-embed = "=8.12.0"
+mime_guess = "=2.0.5"
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+tower = { version = "=0.5.3", features = ["util"] }
+http-body-util = "=0.1.5"
+wiremock = "=0.6.5"
