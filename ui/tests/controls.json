@@ -1314,7 +1314,8 @@
         "environment_form.test.tsx",
         "mapping_form.test.tsx",
         "modelprojection_form.test.tsx",
-        "resource_list_page.test.tsx"
+        "resource_list_page.test.tsx",
+        "scopedefinition_form.test.tsx"
       ]
     },
     "src/routes/SpacesPage.tsx": {
