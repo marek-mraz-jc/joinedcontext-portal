@@ -722,7 +722,8 @@
       "noType": "Behalten Sie mindestens einen Typ: ein Endpunkt ohne Typ liefert nichts.",
       "hidden": "Verborgene Attribute",
       "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
-      "identityOnly": "Nur Identität: id und type."
+      "identityOnly": "Nur Identität: id und type.",
+      "createsProjection": "Dieser Endpunkt nennt noch keine Projektion. Ein vorgeschlagener Filter legt die Projektion {name} aus dem Modell des Raums an, zusammen mit dem Endpunkt, der sie nennt."
     },
     "proof": {
       "title": "Was dieser Filter liefert",

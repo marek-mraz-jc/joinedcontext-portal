@@ -722,7 +722,8 @@
       "noType": "Keep at least one type: an endpoint that serves no type serves nothing.",
       "hidden": "Hidden attributes",
       "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
-      "identityOnly": "Identity only: id and type."
+      "identityOnly": "Identity only: id and type.",
+      "createsProjection": "This endpoint names no projection yet. A filter you propose creates the projection {name} from the space's model, together with the endpoint that names it."
     },
     "proof": {
       "title": "What this filter serves",

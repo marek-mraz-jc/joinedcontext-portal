@@ -104,12 +104,43 @@ interface Sent {
   body: Record<string, unknown>;
 }
 
+/** The space's model, inline, for an endpoint that names no projection yet. */
+const MODEL = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "DataModel",
+  metadata: { name: "helsinki", namespace: PROJECT },
+  spec: {
+    contextSpaceRef: "helsinki",
+    version: "1.0.0",
+    linkml: [
+      "id: https://hel.fi/models/helsinki",
+      "name: helsinki",
+      "default_range: string",
+      "classes:",
+      "  Event:",
+      "    attributes:",
+      "      name: {}",
+      "      startDate: {range: datetime}",
+      "      source: {}",
+      "",
+    ].join("\n"),
+  },
+};
+
+/** The same endpoint before anybody gave it a projection: what helsinki-events is on dev. */
+const UNPROJECTED = {
+  ...ENDPOINT,
+  spec: { ...ENDPOINT.spec, projectionRef: undefined, projection: undefined },
+};
+
 function renderPage({
   space = "readable",
   preview = "serves",
+  endpoint = ENDPOINT,
 }: {
   space?: "readable" | "refused";
   preview?: "serves" | "refuses";
+  endpoint?: unknown;
 } = {}) {
   const sent: Sent[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -145,7 +176,7 @@ function renderPage({
     }
     if (path.endsWith(`/endpoints/${NAME}`)) {
       return request.method === "GET"
-        ? json(ENDPOINT)
+        ? json(endpoint)
         : url.searchParams.get("dryRun") === "All"
           ? json({ valid: true, verdict: { ok: true, findings: [] } })
           : json({ kind: "Change", metadata: { name: "chg-endpoint" }, spec: {}, status: { phase: "Pending" } });
@@ -155,9 +186,15 @@ function renderPage({
         ? json({ valid: true, verdict: { ok: true, findings: [] } })
         : json({ kind: "Change", metadata: { name: "chg-projection" }, spec: {}, status: { phase: "Pending" } });
     }
-    if (path.endsWith("/projections")) return json(list([PROJECTION]));
+    if (path.endsWith("/projections")) return json(list(endpoint === ENDPOINT ? [PROJECTION] : []));
+    if (path.endsWith("/datamodels")) return json(list([MODEL]));
+    if (path.endsWith("/import")) {
+      return url.searchParams.get("dryRun") === "All"
+        ? json({ created: [], replaced: [], skipped: [], renamed: {}, native_files: 0, lane: "red", needs: [] })
+        : json({ kind: "Change", metadata: { name: "chg-bundle" }, spec: {}, status: { phase: "Pending" } }, 202);
+    }
     if (path.endsWith("/spaces")) return json(list([SPACE]));
-    if (path.endsWith("/endpoints")) return json(list([ENDPOINT]));
+    if (path.endsWith("/endpoints")) return json(list([endpoint]));
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -322,5 +359,35 @@ describe("the endpoint's filter editor and its proof", () => {
     expect((last?.body.projection as { classes?: { name: string }[] }).classes?.map((klass) => klass.name)).toEqual([
       "Event",
     ]);
+  });
+
+  it("gives an endpoint with no projection its first filter from the space's model, as one proposal", async () => {
+    const sent = renderPage({ endpoint: UNPROJECTED });
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByText(en.endpoints.filterEditor.createsProjection.replace("{name}", NAME), {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    // Every class and slot of the model, nothing hidden: what the endpoint serves today.
+    expect(screen.getByRole("checkbox", { name: "Event" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "source" })).not.toBeChecked();
+
+    await user.type(screen.getByLabelText(en.endpoints.filter.q), 'startDate>="2026-09-25"');
+    await user.click(screen.getByRole("checkbox", { name: "source" }));
+    await user.click(screen.getByRole("button", { name: en.endpoints.page.filterPropose }));
+
+    await waitFor(() => expect(sent.filter((call) => call.path.startsWith(`/api/v1/projects/${PROJECT}/import`))).toHaveLength(2));
+    const [dryRun, real] = sent.filter((call) => call.path.startsWith(`/api/v1/projects/${PROJECT}/import`));
+    expect(dryRun.path).toContain("dryRun=All");
+    const [drawn, named] = real.body.manifests as Array<{ kind: string; metadata: { name: string }; spec: Record<string, unknown> }>;
+    expect(drawn.kind).toBe("ModelProjection");
+    expect(drawn.metadata.name).toBe(NAME);
+    expect(drawn.spec.dataModelRef).toEqual({ kind: "DataModel", name: "helsinki", version: "1" });
+    expect(drawn.spec.classes).toEqual([{ name: "Event", slots: ["name", "startDate", "source"] }]);
+    expect(drawn.spec.filter).toEqual({ q: 'startDate>="2026-09-25"' });
+    expect(named.kind).toBe("Endpoint");
+    expect(named.spec.projectionRef).toEqual({ kind: "ModelProjection", name: NAME });
+    expect(named.spec.projection).toEqual({ hiddenAttributes: ["source"] });
+    expect(await screen.findByText(/chg-bundle/)).toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ApiError, api, queryKeys, unwrap, whilePending } from "../../api/client";
+import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
@@ -32,6 +32,8 @@ import { grantWrites, groupOf } from "../../components/endpoints/operationGroups
 import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
 import { FilterProof, classesWithSlots } from "./FilterProof";
+import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
+import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
 import {
@@ -124,6 +126,23 @@ export function EndpointPage({
       ),
   });
 
+  // The space's model, for an endpoint that names no projection yet: the filter editor starts from
+  // its classes and slots, and a proposed filter creates the projection (T-2776, MP-01).
+  const models = useQuery({
+    queryKey: queryKeys.list(project, "datamodels"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "datamodels" } },
+        }),
+      ),
+  });
+  const endpointSpace = endpoint.data ? spaceOf(endpoint.data as Manifest) : undefined;
+  const spaceModel = asManifests(models.data?.items ?? []).find(
+    (model) => (model.spec as { contextSpaceRef?: string }).contextSpaceRef === endpointSpace,
+  );
+  const modelSource = useModelSource(project, spaceModel);
+
   if (endpoint.isPending) {
     return <p role="status">{t("app.loading")}</p>;
   }
@@ -157,6 +176,20 @@ export function EndpointPage({
     ? asManifests(projections.data?.items ?? []).find((p) => p.metadata.name === projectionName)
     : undefined;
   const target = { project, kind: "Endpoint", plural: "endpoints", name } as const;
+  // The projection the filter editor edits: the one the endpoint names, or one drawn from the
+  // space's model that a proposed filter creates.
+  const filtered =
+    projection ??
+    (space && spaceModel && modelSource
+      ? projectionFromModel(
+          project,
+          name,
+          space,
+          spaceModel,
+          modelSource,
+          asManifests(projections.data?.items ?? []).map((one) => one.metadata.name),
+        )
+      : undefined);
 
   // The actions that open a dialog are rendered beside the menu, never inside it: the menu unmounts
   // its content when it closes and would take an open dialog with it (T-2279).
@@ -381,25 +414,32 @@ export function EndpointPage({
       </Section>
 
       <Section title={t("endpoints.page.filtering")} lead={t("endpoints.page.filteringLead")}>
-        {projection ? (
+        {filtered ? (
           <>
             <FilterForm
               project={project}
-              projection={projection}
+              projection={filtered}
+              creating={projection === undefined}
               endpoint={manifest}
               segment={space ? spaceSegment(project, space, asManifests(spaces.data?.items ?? [])) : ""}
               live={(manifest.status?.phase ?? "").toLowerCase() === "live"}
             />
-            <p className="text-caption text-fg-muted">
-              {t("endpoints.page.filterLivesOn")}{" "}
-              <Link
-                to="/projects/$project/$plural"
-                params={{ project, plural: "projections" }}
-                className="text-primary-soft-fg underline hover:no-underline"
-              >
-                {projectionName}
-              </Link>
-            </p>
+            {projection ? (
+              <p className="text-caption text-fg-muted">
+                {t("endpoints.page.filterLivesOn")}{" "}
+                <Link
+                  to="/projects/$project/$plural"
+                  params={{ project, plural: "projections" }}
+                  className="text-primary-soft-fg underline hover:no-underline"
+                >
+                  {projectionName}
+                </Link>
+              </p>
+            ) : (
+              <p className="text-caption text-fg-muted">
+                {t("endpoints.filterEditor.createsProjection", { name: filtered.metadata.name })}
+              </p>
+            )}
           </>
         ) : (
           <p className="text-sm text-fg-muted">{t("endpoints.page.noProjection")}</p>
@@ -511,12 +551,15 @@ export function EndpointPage({
 function FilterForm({
   project,
   projection,
+  creating,
   endpoint,
   segment,
   live,
 }: {
   project: string;
   projection: Manifest;
+  /** The projection does not exist yet: a proposal creates it with the endpoint that names it. */
+  creating: boolean;
   /** The endpoint whose hidden attributes the editor holds; its slug is what the proof reads. */
   endpoint: Manifest;
   /** The `{space}` segment of the space's canonical surface (PF-84). */
@@ -541,6 +584,8 @@ function FilterForm({
     FILTER_KEYS.map((key) => [key, draft[key]?.trim() ?? ""]).filter(([, value]) => value !== ""),
   ) as Record<string, string>;
   const classes = storedClasses.filter((klass) => served.includes(klass.name));
+  // A drawn projection holds every class and slot of the model and no condition, so it is touched
+  // once it narrows something; a stored one, once it differs from what is stored.
   const projectionTouched =
     FILTER_KEYS.some((key) => (draft[key]?.trim() ?? "") !== (stored[key] ?? "")) ||
     classes.length !== storedClasses.length;
@@ -548,6 +593,31 @@ function FilterForm({
 
   const propose = useMutation({
     mutationFn: async () => {
+      if (creating && projectionTouched) {
+        // The projection and the endpoint that names it are one proposal, checked together: the
+        // endpoint alone would name a projection that does not exist yet (MF-23).
+        const { projection: _stored, ...kept } = spec;
+        void _stored;
+        const rest = { ...endpoint };
+        delete (rest as { status?: unknown }).status;
+        const named = {
+          ...rest,
+          spec: {
+            ...kept,
+            projectionRef: { kind: "ModelProjection", name: projection.metadata.name },
+            ...(hidden.length > 0 ? { projection: { hiddenAttributes: hidden } } : {}),
+          },
+        };
+        const drawn = {
+          ...projection,
+          spec: {
+            ...(projection.spec as Record<string, unknown>),
+            classes,
+            ...(Object.keys(filter).length > 0 ? { filter } : {}),
+          },
+        };
+        return [await proposeBundle(project, [drawn, named])];
+      }
       const proposed: unknown[] = [];
       if (projectionTouched) {
         // The status is the platform's to compute and never travels back (MF-04).
@@ -715,6 +785,64 @@ function FilterForm({
       />
     </div>
   );
+}
+
+/**
+ * A projection of every class of the space's model with every slot it has: what an endpoint with
+ * no projection serves already, as the starting point of its first filter (MP-01). It is named
+ * after the endpoint, or `{endpoint}-filter` when a projection already has that name.
+ */
+export function projectionFromModel(
+  project: string,
+  endpoint: string,
+  space: string,
+  model: Manifest,
+  source: string,
+  taken: string[],
+): Manifest {
+  const parsed = parseModel(source);
+  const version = String((model.spec as { version?: string | number }).version ?? "1").split(".")[0] || "1";
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "ModelProjection",
+    metadata: {
+      name: taken.includes(endpoint) ? `${endpoint}-filter` : endpoint,
+      namespace: project,
+      labels: { "joinedcontext.com/space": space },
+    },
+    spec: {
+      contextSpaceRef: space,
+      dataModelRef: { kind: "DataModel", name: model.metadata.name, version },
+      classes: parsed.classes.map((klass) => ({
+        name: klass.name,
+        slots: filterSlotsOf(source, klass.name).map((slot) => slot.name),
+      })),
+    },
+  } as Manifest;
+}
+
+/** Proposes manifests as one checked import, the way the endpoint form proposes a projection (PF-57). */
+async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
+  const send = async (dryRun: boolean) => {
+    const response = await globalThis.fetch(
+      new Request(
+        `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "x-csrf-token": readCsrfToken() ?? "" },
+          body: JSON.stringify({ manifests, conflictPolicy: "replace" }),
+        },
+      ),
+    );
+    if (!response.ok) {
+      const problem = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new ApiError(response.status, problem?.detail || `HTTP ${response.status}`);
+    }
+    return response.json() as Promise<unknown>;
+  };
+  await send(true);
+  return send(false);
 }
 
 /** Two lists holding the same names, in any order. */

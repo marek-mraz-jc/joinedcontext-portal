@@ -722,7 +722,8 @@
       "noType": "Ponechajte aspoň jeden typ: rozhranie bez typu neobsluhuje nič.",
       "hidden": "Skryté atribúty",
       "hiddenHelp": "Zaškrtnutý atribút sa nikdy neposkytne v žiadnom formáte. Názov sa skryje v každom type, ktorý ho má.",
-      "identityOnly": "Iba identita: id a type."
+      "identityOnly": "Iba identita: id a type.",
+      "createsProjection": "Toto rozhranie zatiaľ nemá projekciu. Filter, ktorý navrhnete, vytvorí projekciu {name} z modelu priestoru spolu s rozhraním, ktoré ju používa."
     },
     "proof": {
       "title": "Čo tento filter poskytuje",

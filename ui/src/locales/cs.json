@@ -722,7 +722,8 @@
       "noType": "Ponechte alespoň jeden typ: rozhraní bez typu neobsluhuje nic.",
       "hidden": "Skryté atributy",
       "hiddenHelp": "Zaškrtnutý atribut se nikdy neposkytne v žádném formátu. Název se skryje v každém typu, který ho má.",
-      "identityOnly": "Pouze identita: id a type."
+      "identityOnly": "Pouze identita: id a type.",
+      "createsProjection": "Toto rozhraní zatím nemá projekci. Filtr, který navrhnete, vytvoří projekci {name} z modelu prostoru spolu s rozhraním, které ji používá."
     },
     "proof": {
       "title": "Co tento filtr poskytuje",
