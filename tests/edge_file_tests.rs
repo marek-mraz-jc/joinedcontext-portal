@@ -11,7 +11,7 @@ use jc_core::kinds::OrganizationLimits;
 use joinedcontext_portal::apps::kube::KubeClient;
 use joinedcontext_portal::reconciler::app_clients::ClientSecret;
 use joinedcontext_portal::reconciler::edge_file::{
-    compose, EdgeApp, EdgeFile, EdgeOutcome, EdgeRates, Upstream, COMPOSED_BY,
+    compose, EdgeApp, EdgeFile, EdgeLimits, EdgeOutcome, Upstream, COMPOSED_BY,
 };
 
 const NS: &str = "apisix";
@@ -166,7 +166,7 @@ async fn the_seeded_secret_is_replaced_with_the_composed_file_and_marked() {
     let file = String::from_utf8(file).expect("utf-8");
     assert_eq!(
         file,
-        compose(BASE, &apps(), &EdgeRates::default())
+        compose(BASE, &apps(), &EdgeLimits::default())
             .expect("composes")
             .file
     );
@@ -177,7 +177,7 @@ async fn the_seeded_secret_is_replaced_with_the_composed_file_and_marked() {
 /// An unchanged file is no write, so an unchanged run is no reload.
 #[tokio::test]
 async fn an_unchanged_file_is_not_written_again() {
-    let file = compose(BASE, &apps(), &EdgeRates::default())
+    let file = compose(BASE, &apps(), &EdgeLimits::default())
         .expect("composes")
         .file;
     let server = api(Some(seeded(&file, json!({ COMPOSED_BY: "portal" })))).await;
@@ -245,7 +245,7 @@ async fn a_lowered_organization_rate_is_written_on_the_next_run() {
          limit-count:\n        count: 300\n        time_window: 60\n        key: remote_addr\n",
     );
     assert_ne!(base, BASE, "the base carries the label");
-    let served = compose(&base, &apps(), &EdgeRates::of(None, &Default::default()))
+    let served = compose(&base, &apps(), &EdgeLimits::of(None, &Default::default()))
         .expect("composes")
         .file;
     let server = api_on(
