@@ -172,6 +172,20 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
         }
     }
 
+    // A build pod per queued App build (AP-124), on the replica that holds the lease.
+    if let (Some(syncer), Some(gitea), Some(settings)) = (
+        state.syncer.as_ref(),
+        state.gitea.as_ref(),
+        state.config.build_pods.clone(),
+    ) {
+        crate::apps::build_pods::spawn_periodic(
+            gitea.clone(),
+            syncer.clone(),
+            state.mirror.clone(),
+            settings,
+        );
+    }
+
     // The internal listener runs beside the public one, on the same replica, and only when
     // there is an agent runner to serve: a Portal without one opens no second port.
     if let Some(settings) = state.config.agent_settings.as_ref() {

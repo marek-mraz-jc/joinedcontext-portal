@@ -15,6 +15,8 @@
 #   GITEA_INSTANCE           the forge's in-cluster URL
 #   GITEA_RUNNER_TOKEN_FILE  the copied registration token (default /tmp/runner-secret/token)
 #   GITEA_RUNNER_NAME        a name prefix (default: the pod's hostname)
+#   GITEA_RUNNER_ONCE        1 in an App's build pod (AP-124): register once with that App's
+#                            repository token, take one job and end, so the Job completes
 set -eu
 
 fail() { echo "runner: $*" >&2; exit 1; }
@@ -42,6 +44,8 @@ while :; do
   fi
   # Ephemeral: the daemon takes exactly one job and exits. A failed job is the forge's to report.
   gitea-runner -c "$CONFIG" daemon || echo "runner: the daemon ended with $?" >&2
+  # A build pod holds one repository's token for one job; the next job gets a pod of its own.
+  [ "${GITEA_RUNNER_ONCE:-}" = 1 ] && exit 0
   # Nothing a job started outlives it. A process an application step leaves behind would
   # otherwise read the environment of every later step and job on this pod, the lane's
   # secret included (/proc/<pid>/environ is readable by the same user). Everything in this
