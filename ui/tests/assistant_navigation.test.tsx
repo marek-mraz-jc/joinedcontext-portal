@@ -256,7 +256,8 @@ describe("the assistant dock", () => {
     // And it is where it always is: the column on the right of the page, after the main
     // content, on this page as on the run page.
     const dock = notice.closest("aside") as HTMLElement;
-    expect(dock.className).not.toContain("fixed");
+    // Docked: a column beside the page from md up; below md it covers the screen (T-2854).
+    expect(dock.className).toContain("md:sticky");
     expect(dock.className).toContain("border-l");
     const main = document.querySelector("main") as HTMLElement;
     expect(main.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -417,8 +418,10 @@ describe("the assistant dock", () => {
 
     await user.click(within(dock).getByRole("button", { name: en.assistant.fullScreen }));
     expect(dock.className).toContain("fixed");
+    expect(dock.className).not.toContain("md:sticky");
     await user.click(within(dock).getByRole("button", { name: en.assistant.sideView }));
-    expect(dock.className).not.toContain("fixed");
+    // Docked: a column beside the page from md up; below md it covers the screen (T-2854).
+    expect(dock.className).toContain("md:sticky");
 
     await user.click(within(dock).getByRole("button", { name: en.assistant.hide }));
     const bubble = screen.getByRole("button", { name: en.assistant.open });
@@ -463,6 +466,7 @@ describe("the assistant dock", () => {
     await user.click(within(dock).getByRole("button", { name: en.assistant.floatView }));
     expect(dock.dataset.layout).toBe("float");
     expect(dock.className).toContain("fixed");
+    expect(dock.className).not.toContain("md:sticky");
     // The theme's elevation token, not a Tailwind default (T-1749).
     expect(dock.className).toContain("shadow-3");
     expect(within(dock).getByRole("button", { name: en.assistant.floatView })).toHaveAttribute(
@@ -561,10 +565,12 @@ describe("the assistant dock", () => {
 
     await user.click(within(dock).getByRole("button", { name: en.assistant.fullScreen }));
     expect(dock.className).toContain("fixed");
+    expect(dock.className).not.toContain("md:sticky");
 
     await user.keyboard("{Escape}");
     await waitFor(() => {
-      expect(dock.className).not.toContain("fixed");
+      // Docked: a column beside the page from md up; below md it covers the screen (T-2854).
+      expect(dock.className).toContain("md:sticky");
     });
   });
 

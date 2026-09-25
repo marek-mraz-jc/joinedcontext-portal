@@ -125,6 +125,10 @@ pub struct Artifacts {
     /// `jc-types.ts`: the row types a generated application compiles against (SDK-10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub typescript: Option<String>,
+    /// `model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data
+    /// Structure Definition (DM-60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qb: Option<String>,
     /// The generator version that produced these artifacts, so a preview and a committed
     /// artifact set can be compared (DM-19).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -547,6 +551,7 @@ mod tests {
             owl: Some("@prefix owl: <> .".into()),
             example: Some(serde_json::json!({})),
             typescript: Some("export interface Air { id: string }".into()),
+            qb: Some("@prefix qb: <http://purl.org/linked-data/cube#> .".into()),
             generator_version: Some("linkml-1.11.1".into()),
             errors: Vec::new(),
         };
@@ -566,6 +571,7 @@ mod tests {
                 "owl",
                 "example",
                 "typescript",
+                "qb",
                 "generatorVersion",
                 "errors",
             ]

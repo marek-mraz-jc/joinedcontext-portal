@@ -660,8 +660,10 @@ async fn tools_call(
     }
 
     // AG-63: a Yellow or Red lane, or a destructive tool, asks the person before it
-    // runs. The first call answers the question; the second carries their answer.
-    if op.lane != crate::change::Lane::Green || op.annotations.destructive_hint {
+    // runs. The first call answers the question; the second carries their answer. The lane
+    // is this call's: a blueprint flow runs in its own (AG-14).
+    let lane = crate::ops::lane_for(op, &caller.identity, state, project, &input);
+    if lane != crate::change::Lane::Green || op.annotations.destructive_hint {
         let owner = caller.identity.subject.as_str();
         let digest = elicitation::digest_of(&input);
         match params.get("elicitation") {
@@ -693,7 +695,7 @@ async fn tools_call(
                         &format!(
                             "{} in project '{project}' ({} lane). {reason}",
                             op.title,
-                            lane_word(op.lane)
+                            lane_word(lane)
                         ),
                         &confirm_url(state, project, op.kind, &input),
                         refusal,
