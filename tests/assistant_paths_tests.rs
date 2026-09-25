@@ -1564,3 +1564,160 @@ async fn a_model_call_that_failed_at_a_gateway_is_asked_once_more() {
         "{said:?}"
     );
 }
+
+/// A chat completion as server-sent events, one frame per piece of `pieces`, usage last.
+fn streamed(pieces: &[&str]) -> ResponseTemplate {
+    let mut body = String::new();
+    for piece in pieces {
+        body.push_str(&format!(
+            "data: {}\n\n",
+            json!({ "choices": [{ "index": 0, "delta": { "content": piece } }] })
+        ));
+    }
+    body.push_str(&format!(
+        "data: {}\n\ndata: [DONE]\n\n",
+        json!({ "choices": [{ "index": 0, "delta": {}, "finish_reason": "stop" }], "usage": { "total_tokens": 100 } })
+    ));
+    ResponseTemplate::new(200).set_body_raw(body, "text/event-stream")
+}
+
+/// T-2821 (ADR-N-032 §4, API/04 §4): a conversation turn asks the model for a stream, the words
+/// before a tool fence show as `partial` events while it writes, no partial carries the tool
+/// call, the call still runs, and the answer is the thought.
+#[tokio::test]
+async fn a_turn_streams_its_words_and_never_the_tool_call() {
+    let proxy = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .and(wiremock::matchers::body_partial_json(
+            json!({ "stream": true }),
+        ))
+        .respond_with(streamed(&[
+            "Let me look ",
+            "for the stations.\n\n``",
+            "`json\n{\"tool\":\"search_catalog\",\"q\":\"bike stations\"}\n```\n",
+        ]))
+        .up_to_n_times(1)
+        .mount(&proxy)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .and(wiremock::matchers::body_partial_json(
+            json!({ "stream": true }),
+        ))
+        .respond_with(streamed(&["Two stations ", "are empty."]))
+        .mount(&proxy)
+        .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    let (status, body) = send(
+        &state,
+        &config,
+        READER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "path": "find-data", "message": "which stations are empty?" }),
+    )
+    .await;
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("stations are empty") || t.contains("failed"))
+    })
+    .await;
+    let partials: Vec<&str> = of_kind(&events, "partial")
+        .iter()
+        .filter_map(|p| p["text"].as_str())
+        .collect();
+    assert!(
+        partials.contains(&"Let me look for the stations."),
+        "the words before the tool call show while the model writes: {partials:?}"
+    );
+    assert!(
+        partials
+            .iter()
+            .all(|p| !p.contains('`') && !p.contains("tool")),
+        "no partial carries the tool call: {partials:?}"
+    );
+    assert!(
+        of_kind(&events, "partial")
+            .iter()
+            .all(|p| p["elapsedMs"].is_u64()),
+        "every partial says when it was written"
+    );
+    let first_partial = events.iter().position(|e| e.kind == "partial");
+    let search = events
+        .iter()
+        .position(|e| e.kind == "tool" && e.payload["tool"] == "search_catalog");
+    assert!(
+        first_partial.is_some() && search.is_some() && first_partial < search,
+        "the words show before the call they lead to runs"
+    );
+    let said: Vec<&str> = of_kind(&events, "thought")
+        .iter()
+        .filter_map(|t| t["text"].as_str())
+        .collect();
+    assert!(said.contains(&"Two stations are empty."), "{said:?}");
+}
+
+/// T-2821: a stream the provider ends with an error mid-way is a failed answer the person can
+/// act on, never a half answer taken as whole.
+#[tokio::test]
+async fn a_stream_the_provider_breaks_off_says_so() {
+    let proxy = MockServer::start().await;
+    let body = format!(
+        "data: {}\n\ndata: {}\n\n",
+        json!({ "choices": [{ "index": 0, "delta": { "content": "Two stat" } }] }),
+        json!({ "error": { "message": "upstream overloaded" } })
+    );
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+        .mount(&proxy)
+        .await;
+    let config = config(&proxy.uri());
+    let state = AppState::new(config.clone(), None).with_mirror(mirror());
+    let (status, body) = send(
+        &state,
+        &config,
+        READER,
+        "/api/v1/projects/helsinki/assistant/conversations",
+        json!({ "path": "find-data", "message": "which stations are empty?" }),
+    )
+    .await;
+    let started = Started {
+        state,
+        config,
+        status,
+        body,
+        proxy,
+    };
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("part way"))
+    })
+    .await;
+    let said: Vec<&str> = of_kind(&events, "thought")
+        .iter()
+        .filter_map(|t| t["text"].as_str())
+        .collect();
+    assert!(
+        !said.contains(&"Two stat"),
+        "a broken stream is not the answer: {said:?}"
+    );
+    assert!(
+        !said.iter().any(|t| t.contains("upstream overloaded")),
+        "the provider's own words stay in the log: {said:?}"
+    );
+}

@@ -5,6 +5,10 @@ use super::*;
 /// The pause before a model call that failed at a gateway is asked again.
 const RETRY_AFTER_MS: u64 = 1000;
 
+/// How often a streamed answer's words are written as a `partial` event: at most two a second
+/// (API/04 §4, ADR-N-032).
+const PARTIAL_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+
 impl Driver {
     /// One call through the proxy, asked twice when the first answer carries no text: a
     /// provider answers empty now and then, and a second call is cheaper than a failed run.
@@ -30,24 +34,48 @@ impl Driver {
         user: &str,
         budget: u32,
     ) -> Result<String, String> {
-        let first = match self.complete_once(system, user, budget).await {
-            Err(CallError::Empty) => self.complete_once(system, user, budget).await,
+        self.complete_within_as(system, user, budget, false).await
+    }
+
+    /// [`Self::complete_with_system`] with the model's words shown while it writes them: an
+    /// OpenAI-compatible call streams, and the prose before its first tool fence is written as
+    /// `partial` events (ADR-N-032 §4, API/04 §4). Anthropic's messages keep the whole call.
+    pub(super) async fn complete_streamed(
+        &self,
+        system: &str,
+        user: &str,
+    ) -> Result<String, String> {
+        self.complete_within_as(system, user, OUTPUT_BUDGET, self.provider != "anthropic")
+            .await
+    }
+
+    async fn complete_within_as(
+        &self,
+        system: &str,
+        user: &str,
+        budget: u32,
+        stream: bool,
+    ) -> Result<String, String> {
+        let first = match self.complete_once(system, user, budget, stream).await {
+            Err(CallError::Empty) => self.complete_once(system, user, budget, stream).await,
             Err(CallError::Credit {
                 affordable: Some(afford),
             }) if afford >= MIN_CREDIT_BUDGET && afford < budget => {
-                self.complete_once(system, user, afford - afford / 20).await
+                self.complete_once(system, user, afford - afford / 20, stream)
+                    .await
             }
             other => other,
         };
         first.map_err(|err| err.said(budget))
     }
 
-    /// Common HTTP execution for model calls through the proxy, handling 402 credits and budget cuts.
-    async fn post_llm(&self, path: &str, body: &Value, budget: u32) -> Result<Value, CallError> {
+    /// One POST to the proxy, asked once more when a gateway failed, answering the response
+    /// only when it succeeded: a 402 is the key's credit, any other refusal says its status.
+    async fn send_llm(&self, path: &str, body: &Value) -> Result<reqwest::Response, CallError> {
         // A gateway that failed for a moment is asked once more before the person is told: on
         // dev one 502 from the provider ended an answer and had the person send it again.
         let mut tries = 0;
-        let (status, text) = loop {
+        let response = loop {
             tries += 1;
             let response = self
                 .http
@@ -62,52 +90,120 @@ impl Driver {
                     ))
                 })?;
             let status = response.status();
-            let text = response.text().await.unwrap_or_default();
             if tries == 1 && matches!(status.as_u16(), 502..=504) {
                 tracing::warn!(%status, "the model call failed at a gateway; asking once more");
                 tokio::time::sleep(std::time::Duration::from_millis(RETRY_AFTER_MS)).await;
                 continue;
             }
-            break (status, text);
+            break response;
         };
+        let status = response.status();
+        if status.is_success() {
+            return Ok(response);
+        }
+        let text = response.text().await.unwrap_or_default();
         if status == reqwest::StatusCode::PAYMENT_REQUIRED {
             return Err(CallError::Credit {
                 affordable: affordable_tokens(&text),
             });
         }
-        if !status.is_success() {
-            let said = provider_said(&text);
-            // The proxy's audit line carries the status alone, so a refusal is otherwise only
-            // visible in the person's own conversation and never in the logs (T-2247).
-            tracing::warn!(%status, provider = %said, "the model provider refused the call");
-            return Err(CallError::Failed(refusal(status)));
-        }
-        let answer: Value = serde_json::from_str(&text)
-            .map_err(|err| CallError::Failed(format!("the model's answer is not JSON: {err}")))?;
-        let cut = answer
-            .pointer("/choices/0/finish_reason")
-            .and_then(Value::as_str)
-            .is_some_and(|reason| reason == "length")
-            || answer
-                .get("stop_reason")
-                .and_then(Value::as_str)
-                .is_some_and(|reason| reason == "max_tokens");
-        if cut {
-            return Err(CallError::Failed(format!(
-                "the answer was cut at the output budget of {budget} tokens and nothing \
-                 was applied; ask for less at once"
-            )));
-        }
-        Ok(answer)
+        let said = provider_said(&text);
+        // The proxy's audit line carries the status alone, so a refusal is otherwise only
+        // visible in the person's own conversation and never in the logs (T-2247).
+        tracing::warn!(%status, provider = %said, "the model provider refused the call");
+        Err(CallError::Failed(refusal(status)))
     }
 
-    /// One call through the proxy, in the body the profile's provider reads (AG-53).
+    /// Common HTTP execution for model calls through the proxy, handling 402 credits and budget cuts.
+    async fn post_llm(&self, path: &str, body: &Value, budget: u32) -> Result<Value, CallError> {
+        let text = self
+            .send_llm(path, body)
+            .await?
+            .text()
+            .await
+            .unwrap_or_default();
+        whole_answer(&text, budget)
+    }
+
+    /// A streamed chat completion: its text, with the prose so far written as `partial` events
+    /// at most every [`PARTIAL_EVERY`]. An upstream that answers whole instead is read whole.
+    async fn post_llm_streamed(&self, body: &Value, budget: u32) -> Result<String, CallError> {
+        let mut response = self.send_llm("/v1/llm/chat/completions", body).await?;
+        let sse = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/event-stream"));
+        if !sse {
+            let text = response.text().await.unwrap_or_default();
+            return chat_content(&whole_answer(&text, budget)?);
+        }
+        let mut stream = Streamed::default();
+        let mut said = String::new();
+        let mut said_at: Option<std::time::Instant> = None;
+        loop {
+            let chunk = response.chunk().await.map_err(|err| {
+                CallError::Failed(format!(
+                    "the model's answer stopped part way ({err}); send the message again"
+                ))
+            })?;
+            let Some(chunk) = chunk else { break };
+            stream.push(&chunk);
+            let prose = partial_prose(&stream.text);
+            if !prose.is_empty()
+                && prose != said
+                && said_at.is_none_or(|at| at.elapsed() >= PARTIAL_EVERY)
+            {
+                // A partial that could not be written costs the person only the preview; the
+                // answer itself still arrives as the thought.
+                let _ = self
+                    .event(
+                        "partial",
+                        json!({ "text": prose, "elapsedMs": self.elapsed_ms() }),
+                    )
+                    .await;
+                said = prose.to_owned();
+                said_at = Some(std::time::Instant::now());
+            }
+        }
+        stream.finish();
+        if let Some(error) = stream.error {
+            tracing::warn!(provider = %error, "the model provider stopped a streamed answer");
+            return Err(CallError::Failed(
+                "the model provider stopped its answer part way; send the message again".to_owned(),
+            ));
+        }
+        if stream.finish_reason.as_deref() == Some("length") {
+            return Err(cut_at(budget));
+        }
+        // No delta at all is a stream that carried no answer; asked once more like an empty one.
+        if stream.text.is_empty() && stream.finish_reason.is_none() {
+            return Err(CallError::Empty);
+        }
+        Ok(stream.text)
+    }
+
+    /// One call through the proxy, in the body the profile's provider reads (AG-53); `stream`
+    /// asks an OpenAI-compatible provider for its answer as it is written.
     pub(super) async fn complete_once(
         &self,
         system: &str,
         user: &str,
         budget: u32,
+        stream: bool,
     ) -> Result<String, CallError> {
+        if stream && self.provider != "anthropic" {
+            let body = json!({
+                "model": self.model,
+                "max_tokens": budget,
+                "stream": true,
+                "messages": [
+                    { "role": "system", "content": system },
+                    { "role": "user", "content": user },
+                ],
+            });
+            return self.post_llm_streamed(&body, budget).await;
+        }
         let (path, body) = if self.provider == "anthropic" {
             (
                 "/v1/llm/messages",
@@ -133,11 +229,8 @@ impl Driver {
         };
         let answer = self.post_llm(path, &body, budget).await?;
         // OpenAI-compatible: choices[0].message.content. Anthropic: content[].text, joined.
-        if let Some(content) = answer
-            .pointer("/choices/0/message/content")
-            .and_then(Value::as_str)
-        {
-            return Ok(content.to_owned());
+        if answer.pointer("/choices/0/message/content").is_some() {
+            return chat_content(&answer);
         }
         let joined: String = answer
             .get("content")
@@ -744,6 +837,108 @@ pub(super) struct ToolAnswer {
     pub output_tokens: u64,
 }
 
+/// A whole answer read as JSON; one cut at the output budget applied nothing and says so.
+fn whole_answer(text: &str, budget: u32) -> Result<Value, CallError> {
+    let answer: Value = serde_json::from_str(text)
+        .map_err(|err| CallError::Failed(format!("the model's answer is not JSON: {err}")))?;
+    let cut = answer
+        .pointer("/choices/0/finish_reason")
+        .and_then(Value::as_str)
+        .is_some_and(|reason| reason == "length")
+        || answer
+            .get("stop_reason")
+            .and_then(Value::as_str)
+            .is_some_and(|reason| reason == "max_tokens");
+    if cut {
+        return Err(cut_at(budget));
+    }
+    Ok(answer)
+}
+
+fn cut_at(budget: u32) -> CallError {
+    CallError::Failed(format!(
+        "the answer was cut at the output budget of {budget} tokens and nothing was applied; \
+         ask for less at once"
+    ))
+}
+
+/// An OpenAI-compatible answer's text, `choices[0].message.content`.
+fn chat_content(answer: &Value) -> Result<String, CallError> {
+    answer
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or(CallError::Empty)
+}
+
+/// What a `partial` shows of the answer so far: the prose before the first tool fence, without a
+/// fence's first backticks still arriving, so a tool call's JSON never reaches the screen.
+fn partial_prose(text: &str) -> &str {
+    let before = text.split("```").next().unwrap_or_default();
+    before.trim_end_matches('`').trim()
+}
+
+/// A chat completion read from its server-sent events as they arrive: the `data:` lines' deltas
+/// joined, the finish reason, and an error a provider sends inside the stream.
+#[derive(Default)]
+struct Streamed {
+    line: Vec<u8>,
+    text: String,
+    finish_reason: Option<String>,
+    error: Option<String>,
+}
+
+impl Streamed {
+    /// A chunk of the stream; a line split across chunks waits for its end.
+    fn push(&mut self, chunk: &[u8]) {
+        for &byte in chunk {
+            if byte == b'\n' {
+                let line = std::mem::take(&mut self.line);
+                self.line_done(&String::from_utf8_lossy(&line));
+            } else {
+                self.line.push(byte);
+            }
+        }
+    }
+
+    /// The stream ended: a last line without its newline still counts.
+    fn finish(&mut self) {
+        if !self.line.is_empty() {
+            let line = std::mem::take(&mut self.line);
+            self.line_done(&String::from_utf8_lossy(&line));
+        }
+    }
+
+    fn line_done(&mut self, line: &str) {
+        let Some(data) = line.trim_end_matches('\r').strip_prefix("data:") else {
+            return;
+        };
+        let data = data.trim();
+        if data.is_empty() || data == "[DONE]" {
+            return;
+        }
+        let Ok(frame) = serde_json::from_str::<Value>(data) else {
+            return;
+        };
+        if let Some(error) = frame.get("error") {
+            self.error = Some(provider_said(&error.to_string()));
+            return;
+        }
+        if let Some(delta) = frame
+            .pointer("/choices/0/delta/content")
+            .and_then(Value::as_str)
+        {
+            self.text.push_str(delta);
+        }
+        if let Some(reason) = frame
+            .pointer("/choices/0/finish_reason")
+            .and_then(Value::as_str)
+        {
+            self.finish_reason = Some(reason.to_owned());
+        }
+    }
+}
+
 fn usage_at(answer: &Value, pointer: &str) -> u64 {
     answer.pointer(pointer).and_then(Value::as_u64).unwrap_or(0)
 }
@@ -1166,5 +1361,99 @@ mod tests {
                 .any(|t| t.starts_with("The rows of private could not be read: 401")),
             "{said:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod stream_tests {
+    //! A streamed answer (T-2821, ADR-N-032 §4): the deltas joined however the chunks split them,
+    //! and what a `partial` may show of it.
+
+    use super::*;
+
+    fn frame(content: &str) -> String {
+        format!(
+            "data: {}\n\n",
+            json!({ "choices": [{ "index": 0, "delta": { "content": content } }] })
+        )
+    }
+
+    #[test]
+    fn deltas_join_however_the_chunks_split_the_lines() {
+        let whole = format!(
+            "{}{}: keep-alive\n\ndata: {}\n\ndata: [DONE]\n\n",
+            frame("Two stations "),
+            frame("are empty: Töölö."),
+            json!({ "choices": [{ "index": 0, "delta": {}, "finish_reason": "stop" }], "usage": { "total_tokens": 9 } })
+        );
+        let bytes = whole.as_bytes();
+        // Split everywhere, the middle of the two-byte ö included.
+        for at in 1..bytes.len() {
+            let mut stream = Streamed::default();
+            stream.push(&bytes[..at]);
+            stream.push(&bytes[at..]);
+            stream.finish();
+            assert_eq!(
+                stream.text, "Two stations are empty: Töölö.",
+                "split at {at}"
+            );
+            assert_eq!(stream.finish_reason.as_deref(), Some("stop"));
+            assert!(stream.error.is_none());
+        }
+    }
+
+    #[test]
+    fn a_last_line_without_its_newline_and_crlf_lines_still_count() {
+        let mut stream = Streamed::default();
+        stream.push(frame("a").replace('\n', "\r\n").as_bytes());
+        stream.push(frame("b").trim_end().as_bytes());
+        stream.finish();
+        assert_eq!(stream.text, "ab");
+    }
+
+    #[test]
+    fn an_error_inside_the_stream_is_kept_and_a_length_cut_is_seen() {
+        let mut stream = Streamed::default();
+        stream.push(b"data: {\"error\":{\"message\":\"Provider overloaded\"}}\n");
+        stream.finish();
+        assert_eq!(stream.error.as_deref(), Some("Provider overloaded"));
+
+        let mut cut = Streamed::default();
+        cut.push(
+            format!(
+                "{}data: {}\n",
+                frame("half"),
+                json!({ "choices": [{ "delta": {}, "finish_reason": "length" }] })
+            )
+            .as_bytes(),
+        );
+        assert_eq!(cut.finish_reason.as_deref(), Some("length"));
+    }
+
+    #[test]
+    fn a_line_that_is_not_json_is_skipped_not_fatal() {
+        let mut stream = Streamed::default();
+        stream.push(b"data: {not json\nevent: ping\n");
+        stream.push(frame("ok").as_bytes());
+        assert_eq!(stream.text, "ok");
+    }
+
+    #[test]
+    fn a_partial_never_shows_a_tool_fence_even_half_arrived() {
+        assert_eq!(
+            partial_prose("Reading the events.\n\n```json\n{\"tool\":\"query_endpoint\""),
+            "Reading the events."
+        );
+        assert_eq!(
+            partial_prose("Reading the events.\n\n`"),
+            "Reading the events."
+        );
+        assert_eq!(
+            partial_prose("Reading the events.\n``"),
+            "Reading the events."
+        );
+        assert_eq!(partial_prose("```json\n{\"tool\":\"x\"}\n```\nAfter"), "");
+        assert_eq!(partial_prose(""), "");
+        assert_eq!(partial_prose("Use `q` to filter."), "Use `q` to filter.");
     }
 }
