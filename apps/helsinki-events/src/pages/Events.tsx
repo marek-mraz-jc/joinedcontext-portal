@@ -28,6 +28,11 @@ function today(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
+/** The popup of a marker: the event's name, when, where and who publishes it. */
+function popupOf(row: Row): string[] {
+  return [textOf(row, "name") || row.id.slice(row.id.lastIndexOf(":") + 1), when(row), textOf(row, "address"), registerOf(row)].filter(Boolean);
+}
+
 /** What went wrong in words a reader can act on, with the endpoint's status (T-2597's error state). */
 function unreadable(error: Error): string {
   return error instanceof ProblemError && error.status > 0
@@ -133,7 +138,7 @@ export function Events() {
       </Grid>
       <Split ratio="1:1">
         <Card title="On the map">
-          <EntityMap rows={mapped} location="location" label="name" colorOf={colourOf} height={420} />
+          <EntityMap rows={mapped} location="location" label="name" colorOf={colourOf} cluster popupOf={popupOf} height={420} />
           <ul className="app-legend" aria-label="Map colour: the register that publishes the event">
             {ranked.map((entry) => (
               <li key={entry.register}>

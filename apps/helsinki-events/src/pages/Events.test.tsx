@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
@@ -7,27 +7,54 @@ import { EVENTS } from "../fixtures/events";
 
 // T-2923, AP-138: the events page draws in colour: a chart per question, the events on the map
 // in their register's colour, and a click on a bar picks the list out.
-const maps: Array<{ setData: ReturnType<typeof vi.fn>; load?: () => void }> = [];
+type Handler = (event: Record<string, unknown>) => void;
+const maps: Array<{
+  setData: ReturnType<typeof vi.fn>;
+  addSource: ReturnType<typeof vi.fn>;
+  easeTo: ReturnType<typeof vi.fn>;
+  load?: () => void;
+  clicks: Record<string, Handler>;
+}> = [];
+const popups: Array<{ body?: HTMLElement }> = [];
 vi.mock("maplibre-gl", () => {
+  class Popup {
+    body?: HTMLElement;
+    constructor() {
+      popups.push(this);
+    }
+    setLngLat() {
+      return this;
+    }
+    setDOMContent(body: HTMLElement) {
+      this.body = body;
+      return this;
+    }
+    addTo() {
+      return this;
+    }
+  }
   class Map {
     setData = vi.fn();
+    easeTo = vi.fn();
+    clicks: Record<string, Handler> = {};
     fitBounds = vi.fn();
     addControl = vi.fn();
     removeControl = vi.fn();
     setPaintProperty = vi.fn();
     addSource = vi.fn();
     addLayer = vi.fn();
-    getSource = vi.fn(() => ({ setData: this.setData }));
+    getSource = vi.fn(() => ({ setData: this.setData, getClusterExpansionZoom: vi.fn(async () => 13) }));
     remove = vi.fn();
     load?: () => void;
     constructor() {
       maps.push(this);
     }
-    on(event: string, handler: unknown) {
-      if (event === "load" && typeof handler === "function") this.load = handler as () => void;
+    on(event: string, layer: unknown, handler?: unknown) {
+      if (event === "load" && typeof layer === "function") this.load = layer as () => void;
+      if (event === "click" && typeof layer === "string") this.clicks[layer] = handler as Handler;
     }
   }
-  return { Map, setWorkerUrl: vi.fn() };
+  return { Map, Popup, setWorkerUrl: vi.fn() };
 });
 vi.mock("@deck.gl/mapbox", () => ({ MapboxOverlay: class {} }));
 vi.mock("@deck.gl/layers", () => ({ ScatterplotLayer: class {} }));
@@ -75,12 +102,19 @@ const chartOf = (title: string) => {
   return chart!;
 };
 const optionOf = (title: string): Record<string, any> => chartOf(title).setOption.mock.calls.at(-1)![0];
+/** Clicks a bar of the chart captioned `title`, as ECharts reports it, and lets React draw the result. */
+const clickBar = (title: string, name: string) => {
+  const { click } = chartOf(title);
+  expect(click, `${title} listens for clicks`).toBeDefined();
+  act(() => click!({ name }));
+};
 const listed = () => within(screen.getByRole("list", { name: "Upcoming events" })).getAllByRole("heading").map((h) => h.textContent);
 
 describe("the events page", () => {
   beforeEach(() => {
     maps.length = 0;
     charts.length = 0;
+    popups.length = 0;
     // The page opens on today in Helsinki; the fixtures are in October 2030.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2030-10-20T06:00:00Z"));
@@ -122,18 +156,42 @@ describe("the events page", () => {
     expect(colours.size).toBe(3);
   });
 
+  it("clusters close markers, zooms in on a clicked cluster and shows a clicked event in a popup", async () => {
+    events();
+    await waitFor(() => expect(maps.length).toBeGreaterThan(0));
+    const map = maps[0];
+    map.load?.();
+    expect(map.addSource).toHaveBeenCalledWith("jc-rows", expect.objectContaining({ cluster: true }));
+    map.clicks["jc-clusters"]({ features: [{ properties: { cluster_id: 7 }, geometry: { type: "Point", coordinates: [24.94, 60.17] } }] });
+    await waitFor(() => expect(map.easeTo).toHaveBeenCalledWith({ center: [24.94, 60.17], zoom: 13 }));
+    map.clicks["jc-points"]({
+      features: [{ properties: { id: "urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-agf2" } }],
+      lngLat: { lng: 24.9522, lat: 60.1703 },
+    });
+    const body = popups.at(-1)?.body;
+    expect([...(body?.children ?? [])].map((line) => line.textContent)).toEqual([
+      "Organ concert",
+      "20 Oct 2030, 20:00 – 20 Oct 2030, 21:30",
+      "Unioninkatu 29, Helsinki",
+      "City of Helsinki",
+    ]);
+    // An id the map does not hold opens nothing.
+    map.clicks["jc-points"]({ features: [{ properties: { id: "urn:ngsi-ld:Event:hel.fi:helsinki:gone" } }], lngLat: { lng: 0, lat: 0 } });
+    expect(popups).toHaveLength(1);
+  });
+
   it("shows only the day or the register whose bar is clicked, and the chip puts them back", async () => {
     events();
     await waitFor(() => expect(listed()).toHaveLength(5));
-    chartOf("Events per day, next 30 days").click?.({ name: "2030-10-22" });
-    await waitFor(() => expect(listed()).toEqual(["Story hour"]));
+    clickBar("Events per day, next 30 days", "2030-10-22");
+    expect(listed()).toEqual(["Story hour"]);
     fireEvent.click(screen.getByRole("button", { name: "Show every day, not only 22 Oct" }));
     await waitFor(() => expect(listed()).toHaveLength(5));
-    chartOf("Events by register").click?.({ name: "Culture centres" });
-    await waitFor(() => expect(listed()).toEqual(["Dance workshop", "Jazz at Stoa"]));
+    clickBar("Events by register", "Culture centres");
+    expect(listed()).toEqual(["Dance workshop", "Jazz at Stoa"]);
     // A second click on the same bar is the way back too.
-    chartOf("Events by register").click?.({ name: "Culture centres" });
-    await waitFor(() => expect(listed()).toHaveLength(5));
+    clickBar("Events by register", "Culture centres");
+    expect(listed()).toHaveLength(5);
   });
 
   it("searches, narrows by date and says when nothing matches", async () => {

@@ -127,3 +127,11 @@
 .app-chip[data-status="cancelled"] {
   background: var(--jc-color-danger, #dc2626);
 }
+
+.jc-map-popup {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  overflow-wrap: anywhere;
+}
+.jc-map-popup p {
+  margin: var(--jc-space-1, 0.25rem) 0 0;
+}

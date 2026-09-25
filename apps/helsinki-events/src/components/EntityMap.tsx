@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Map as MapLibreMap } from "maplibre-gl";
-import type { GeoJSONSource, IControl } from "maplibre-gl";
+import { Map as MapLibreMap, Popup } from "maplibre-gl";
+import type { GeoJSONSource, IControl, MapGeoJSONFeature, MapMouseEvent } from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { GridLayer, HexagonLayer } from "@deck.gl/aggregation-layers";
@@ -95,6 +95,8 @@ export function EntityMap({
   label,
   color,
   colorOf,
+  cluster = false,
+  popupOf,
   selected = null,
   onSelect,
   basemap,
@@ -108,6 +110,10 @@ export function EntityMap({
   color?: string;
   /** A colour per row from the app's own palette (a category), in place of the `color` ramp. */
   colorOf?: (row: Row) => string;
+  /** Close points drawn as one circle sized by their count; a click zooms in on it. Read once, when the map loads. */
+  cluster?: boolean;
+  /** The lines of text a popup shows for a clicked point; no popup when it is not given. */
+  popupOf?: (row: Row) => string[];
   selected?: string | null;
   onSelect?: (row: Row) => void;
   basemap?: string;
@@ -127,6 +133,8 @@ export function EntityMap({
 
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const popupOfRef = useRef(popupOf);
+  popupOfRef.current = popupOf;
 
   const path = renderPath(rows.length, mode);
 
@@ -198,7 +206,38 @@ export function EntityMap({
         instance!.addSource("jc-rows", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
+          cluster,
+          clusterRadius: 40,
+          clusterMaxZoom: 15,
         });
+
+        if (cluster) {
+          // No count label: a symbol layer needs the basemap's glyphs, which a blank map has not.
+          instance!.addLayer({
+            id: "jc-clusters",
+            type: "circle",
+            source: "jc-rows",
+            filter: ["has", "point_count"],
+            paint: {
+              "circle-color": tokens.map.point,
+              "circle-opacity": 0.85,
+              "circle-radius": ["step", ["get", "point_count"], 12, 10, 16, 50, 22],
+              "circle-stroke-color": tokens.map.stroke,
+              "circle-stroke-width": 2,
+            },
+          });
+          instance!.on("click", "jc-clusters", (e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
+            const feature = e.features?.[0];
+            const id: unknown = feature?.properties?.cluster_id;
+            const at = feature?.geometry.type === "Point" ? pointOf(feature.geometry as Geo) : null;
+            const source = instance!.getSource("jc-rows") as GeoJSONSource | undefined;
+            if (typeof id !== "number" || !at || !source) return;
+            source
+              .getClusterExpansionZoom(id)
+              .then((zoom) => instance?.easeTo({ center: at, zoom }))
+              .catch((error: unknown) => console.error("jc: cluster zoom", error));
+          });
+        }
 
         instance!.addLayer({
           id: "jc-fill",
@@ -220,7 +259,7 @@ export function EntityMap({
           id: "jc-points",
           type: "circle",
           source: "jc-rows",
-          filter: ["in", ["geometry-type"], ["literal", ["Point", "MultiPoint"]]],
+          filter: ["all", ["in", ["geometry-type"], ["literal", ["Point", "MultiPoint"]]], ["!", ["has", "point_count"]]],
           paint: {
             "circle-radius": 6,
             "circle-color": ["case", ["==", ["get", "id"], selected ?? ""], tokens.map.selected, ["get", "color"]],
@@ -229,11 +268,24 @@ export function EntityMap({
           },
         });
 
-        const handleClick = (e: { features?: Array<{ properties?: { id?: string } }> }) => {
+        const handleClick = (e: { features?: Array<{ properties?: { id?: string } }>; lngLat?: { lng: number; lat: number } }) => {
           const id = e.features?.[0]?.properties?.id;
           if (typeof id === "string") {
             const r = rowByIdRef.current.get(id);
-            if (r) onSelectRef.current?.(r);
+            if (!r) return;
+            onSelectRef.current?.(r);
+            const lines = popupOfRef.current?.(r);
+            if (lines && e.lngLat) {
+              // Text nodes only: an entity's values never reach the page as markup.
+              const body = document.createElement("div");
+              body.className = "jc-map-popup";
+              for (const [index, line] of lines.entries()) {
+                const element = document.createElement(index === 0 ? "strong" : "p");
+                element.textContent = line;
+                body.append(element);
+              }
+              new Popup({ closeButton: true, maxWidth: "260px" }).setLngLat(e.lngLat).setDOMContent(body).addTo(instance!);
+            }
           }
         };
 
