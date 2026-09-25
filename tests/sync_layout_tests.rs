@@ -310,7 +310,6 @@ fn syncer_on_cluster(server: &MockServer, cluster: &MockServer) -> (Syncer, Arc<
         basemap_base: None,
         release: None,
         service_account: None,
-        basemap_base: None,
     };
     let (syncer, mirror) = syncer(server);
     let syncer = syncer
