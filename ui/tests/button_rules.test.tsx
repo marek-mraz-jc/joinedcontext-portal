@@ -47,6 +47,7 @@ const PAGES = [
   `/projects/${PROJECT}/settings/service-accounts/new`,
   "/playground",
   `/projects/${PROJECT}/models`,
+  `/projects/${PROJECT}/models/ovzdusie`,
   `/projects/${PROJECT}/explore`,
   `/projects/${PROJECT}/ckan`,
   `/projects/${PROJECT}/import`,

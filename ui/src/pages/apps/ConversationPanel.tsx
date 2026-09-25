@@ -8,6 +8,7 @@ import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../compone
 import { openQuestions, TERMINAL_STATES } from "./useAgentRun";
 import { ActionStep } from "./ActionStep";
 import { CatalogCards, catalogItemsOf } from "./CatalogCards";
+import { ChangeFollowCard, followedChangeOf } from "./ChangeFollowCard";
 import { ChangeTestCard, changeTestOf } from "./ChangeTestCard";
 import { EndpointProposalCard, proposalOf } from "./EndpointProposalCard";
 import { EntityWriteCard, entityWriteOf } from "./EntityWriteCard";
@@ -539,6 +540,8 @@ export function ConversationPanel({
                 event.payload.tool === "draft_kpi_pipeline" ? kpiPipelineOf(event.payload.output) : null;
               const tested = changeTestOf(event.payload);
               const write = entityWriteOf(event.payload);
+              // A Change the assistant proposed is followed here to a result that works (T-2774).
+              const followed = followedChangeOf(event.payload);
               return (
                 <li key={event.seq} className="space-y-2">
                   {found !== null ? (
@@ -557,6 +560,9 @@ export function ConversationPanel({
                   {kpiPipeline !== null ? <KpiPipelineCard project={project} pipeline={kpiPipeline} /> : null}
                   {tested !== null ? <ChangeTestCard test={tested} /> : null}
                   {write !== null ? <EntityWriteCard write={write} live={live} /> : null}
+                  {followed !== null ? (
+                    <ChangeFollowCard project={project} followed={followed} onOpenLink={onOpenLink} />
+                  ) : null}
                   {queried !== null ? <QueryResultCard result={queried} /> : null}
                   <ActionStep event={event} live={live} onSend={onSend} count={count} />
                 </li>

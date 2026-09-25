@@ -351,11 +351,13 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       metadata: { name: "mobility", namespace: "ovzdusie" },
       spec: {},
     };
+    // The model the project already has lives in a space of its own: one model per space (DM-61).
+    const air = { ...space, metadata: { name: "air", namespace: "ovzdusie" } };
     const taken = {
       apiVersion: "joinedcontext.com/v1alpha1",
       kind: "DataModel",
       metadata: { name: "air-quality", namespace: "ovzdusie" },
-      spec: { contextSpaceRef: "mobility", linkml: "./air-quality.linkml.yaml" },
+      spec: { contextSpaceRef: "air", linkml: "./air-quality.linkml.yaml" },
     };
     const fetchMock = vi.fn().mockImplementation((req: RequestInfo | URL, init?: RequestInit) => {
       const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
@@ -379,7 +381,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
         );
       }
       if (urlStr.includes("/spaces")) {
-        return Promise.resolve(new Response(JSON.stringify(list([space])), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify(list([space, air])), { status: 200 }));
       }
       if (urlStr.includes("/datamodels")) {
         return Promise.resolve(new Response(JSON.stringify(list([taken])), { status: 200 }));
@@ -396,6 +398,11 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     await user.click(await screen.findByRole("tab", { name: en.models.view.editor }));
     const name = await screen.findByLabelText(en.models.create.name);
     await user.type(name, "air-quality");
+    // The space that has a model already is named and cannot be chosen (DM-61).
+    const occupied = (await screen.findByRole("option", {
+      name: en.models.create.spaceHas.replace("{space}", "air").replace("{model}", "air-quality"),
+    })) as HTMLOptionElement;
+    expect(occupied.disabled).toBe(true);
     await user.selectOptions(await screen.findByLabelText(en.models.create.space), "mobility");
 
     // A name the project already carries would fork a second model under one name.
@@ -413,6 +420,35 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       });
     });
     expect(await screen.findByText(/mr-91/i)).toBeInTheDocument();
+  });
+
+  it("refuses a second model for a space that has one, even when the address names the space (DM-61, T-2765)", async () => {
+    const user = userEvent.setup();
+    const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+    const air = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "air" }, spec: {} };
+    const taken = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "DataModel",
+      metadata: { name: "air-quality" },
+      spec: { contextSpaceRef: "air", linkml: "./air-quality.linkml.yaml" },
+    };
+    global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL) => {
+      const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      const body = urlStr.includes("/spaces") ? list([air]) : urlStr.includes("/datamodels") ? list([taken]) : list([]);
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    });
+    // The route this test mounts is `/`; the page reads the address's query either way.
+    window.history.replaceState(null, "", "/?new=blank&space=air");
+    try {
+      renderWithClient(<ModelsPage project="ovzdusie" />);
+      await user.type(await screen.findByLabelText(en.models.create.name), "second");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        en.models.create.spaceTaken.replaceAll("{space}", "air").replaceAll("{model}", "air-quality"),
+      );
+      expect(screen.queryByRole("button", { name: /save model/i })).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
   });
 
   /**

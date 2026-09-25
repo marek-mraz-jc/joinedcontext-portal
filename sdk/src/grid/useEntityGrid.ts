@@ -8,6 +8,7 @@ import { attributesOf, cellText } from "./model";
 import { andQ, opsForKind, queryFromFilters } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
 import type { AttributeChange, EntityChange } from "./apply";
+import type { EnumOption } from "../enums";
 
 export type MetaKey = "observedAt" | "unit" | "datasetId" | "createdAt" | "modifiedAt";
 
@@ -66,7 +67,15 @@ export interface GridLabels {
   observedNow: string;
   applying: string;
   refusedHere: string;
+  /** Said beside a stored value the attribute's enum does not list (UI-86). */
+  notInList: string;
 }
+
+/**
+ * The strings a host supplies: any of them, operators included, so a host written before an
+ * operator existed still compiles and shows the default for the one it does not name.
+ */
+export type GridLabelsInput = Partial<Omit<GridLabels, "ops">> & { ops?: Partial<GridLabels["ops"]> };
 
 export const DEFAULT_LABELS: GridLabels = {
   id: "ID",
@@ -96,6 +105,7 @@ export const DEFAULT_LABELS: GridLabels = {
     empty: "is empty",
     present: "has a value",
     pattern: "matches",
+    anyOf: "is one of",
   },
   value: "Value",
   upperValue: "Upper value",
@@ -115,6 +125,7 @@ export const DEFAULT_LABELS: GridLabels = {
   observedNow: "these values were observed now",
   applying: "Applying…",
   refusedHere: "refused",
+  notInList: "not in the list",
 };
 
 export interface VisibleColumn {
@@ -128,10 +139,15 @@ export interface VisibleColumn {
 export interface UseEntityGridOptions {
   config: ResolvedGridConfig;
   source: EntitySource;
-  labels?: Partial<GridLabels>;
+  labels?: GridLabelsInput;
   state?: Partial<GridState>;
   onStateChange?: (next: GridState) => void;
   query?: Omit<GridQuery, "type">;
+  /**
+   * The permissible values of each enum attribute, by attribute name, as the type's schema names
+   * them (`enumOptions`): such a column is edited and filtered by picking (UI-86).
+   */
+  enums?: Record<string, EnumOption[]>;
 }
 
 export interface EntityGrid {
@@ -174,7 +190,7 @@ export interface EntityGrid {
   reload(): void;
 }
 
-function mergeLabels(base: GridLabels, partial?: Partial<GridLabels>): GridLabels {
+function mergeLabels(base: GridLabels, partial?: GridLabelsInput): GridLabels {
   if (!partial) return base;
   // The operator names are a group of their own: a caller that translates two of them keeps the
   // rest, instead of leaving the row with holes where a label used to be.
@@ -259,6 +275,7 @@ export function filterKindOf(
   column: VisibleColumn,
   config: ResolvedGridConfig,
   rows: RichRow[],
+  enums?: Record<string, EnumOption[]>,
 ): FilterKind {
   if (column.key === "id") {
     return "id";
@@ -270,6 +287,9 @@ export function filterKindOf(
   }
   if (column.meta) {
     return META_KIND[column.meta];
+  }
+  if (enums?.[column.attr]?.length) {
+    return "enum";
   }
   const format = config.columns.find((c) => c.attr === column.attr)?.format;
   if (format === "number") {
@@ -305,7 +325,7 @@ export function filterKindOf(
 }
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums } = options;
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
 
   // Internal state (uncontrolled)
@@ -376,10 +396,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           key: column.key,
           attr: column.attr,
           meta: column.meta,
-          kind: filterKindOf(column, config, rows),
+          kind: filterKindOf(column, config, rows, enums),
+          options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
         }))
         .filter((column) => opsForKind(column.kind).length > 0),
-    [columns, config, rows],
+    [columns, config, rows, enums],
   );
 
   // What the endpoint is asked for: the typed query when the person took it over, else the row's.
@@ -716,6 +737,12 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       "aria-colcount": columns.length,
       tabIndex: 0,
       onKeyDown: (e: React.KeyboardEvent) => {
+        // Inside a cell's own input or picker the keys are that control's: an arrow moves the
+        // caret or the picked value, not the active cell (UI-70, UI-86).
+        const target = e.target as HTMLElement;
+        if (target !== e.currentTarget && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) {
+          return;
+        }
         if (moveActive(e.key)) {
           e.preventDefault();
         }

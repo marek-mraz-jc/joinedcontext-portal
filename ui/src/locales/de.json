@@ -342,7 +342,12 @@
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
       "operations": "Operationen",
-      "copyId": "Die ID {id} kopieren"
+      "copyId": "Die ID {id} kopieren",
+      "model": "Datenmodell",
+      "modelEmpty": "Dieser Raum hat noch kein Datenmodell",
+      "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
+      "modelCreate": "Datenmodell anlegen",
+      "modelImport": "Smart Data Model importieren"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -1339,6 +1344,7 @@
     "newSlot": "Neues Attribut",
     "newEnum": "Neue Werteliste",
     "newEnumValue": "Neuer Wert von {name}",
+    "removeEnumValue": "Wert {value} entfernen",
     "classUri": "Klassen-IRI",
     "description": "Beschreibung",
     "titleIn": "Titel ({locale})",
@@ -1433,7 +1439,9 @@
       "file": "Wird als {name}.linkml.yaml gespeichert",
       "taken": "Das Projekt hat bereits ein Modell namens {name}. Wählen Sie einen anderen Namen.",
       "held": "Als gemeinsamer Entwurf {name} gehalten; er ist nach einem Neuladen noch da, bis Sie das Modell speichern.",
-      "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten."
+      "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten.",
+      "spaceHas": "{space} (hat schon {model})",
+      "spaceTaken": "Der Space {space} hat schon das Modell {model}, und ein Space hat ein Modell. Wählen Sie einen anderen Space, oder öffnen Sie {model} und fügen Sie Ihre Klassen dort hinzu."
     },
     "infer": {
       "title": "Modell aus einer Datei",
@@ -1498,6 +1506,65 @@
       "published": "Veröffentlicht",
       "deprecated": "Veraltet",
       "retired": "Zurückgezogen"
+    },
+    "page": {
+      "listLead": "Jedes Datenmodell dieses Projekts: eines je Context Space, und was darauf aufbaut.",
+      "listCaption": "Die Datenmodelle des Projekts",
+      "new": {
+        "blank": "Neues leeres Modell",
+        "file": "Neues Modell aus einer Datei",
+        "sdm": "Neues Modell aus Smart Data Models"
+      },
+      "emptyTitle": "Noch kein Datenmodell",
+      "emptyLead": "Legen Sie eines für einen Space an: leer beginnen, aus einer Datei ableiten oder ein Smart Data Model importieren.",
+      "search": "Nach Name, Titel oder Klasse suchen",
+      "everySpace": "Alle Spaces",
+      "lastChange": "Letzte Änderung",
+      "usedBy": "Verwendet von",
+      "noMatch": "Kein Modell passt zur Suche und zum gewählten Space.",
+      "unused": "Noch nichts",
+      "uses": {
+        "Endpoint": "{count, plural, one {# Endpoint} other {# Endpoints}}",
+        "Pipeline": "{count, plural, one {# Pipeline} other {# Pipelines}}",
+        "App": "{count, plural, one {# App} other {# Apps}}",
+        "Dashboard": "{count, plural, one {# Dashboard} other {# Dashboards}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Context Space",
+        "Endpoint": "Endpoints",
+        "Pipeline": "Pipelines",
+        "Subscription": "Abonnements",
+        "App": "Anwendungen",
+        "Dashboard": "Dashboards",
+        "Mapping": "Mappings"
+      },
+      "unusedLead": "Noch nichts in diesem Projekt verwendet das Modell: kein Space, Endpoint, keine Pipeline, App oder Dashboard nennt es.",
+      "back": "Alle Datenmodelle",
+      "edit": "Modell bearbeiten",
+      "notFound": "Kein Datenmodell namens {name}",
+      "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
+      "sourceFailed": "Das LinkML des Modells konnte nicht gelesen werden: {reason}",
+      "views": "Ansichten des Modells",
+      "view": {
+        "overview": "Übersicht",
+        "diagram": "Diagramm",
+        "form": "Formular",
+        "yaml": "YAML",
+        "used": "Verwendung",
+        "history": "Verlauf",
+        "mappings": "Mappings"
+      },
+      "class": "Klasse",
+      "relationship": "Beziehung",
+      "enum": "Auswahlliste",
+      "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
+      "formClass": "Klasse",
+      "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
+      "yaml": "Das LinkML des Modells",
+      "copyYaml": "YAML kopieren",
+      "downloadYaml": "YAML herunterladen",
+      "copied": "Kopiert.",
+      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
     }
   },
   "apps": {
@@ -1919,6 +1986,7 @@
       "isEmpty": "ist leer",
       "present": "hat einen Wert",
       "pattern": "passt auf",
+      "anyOf": "ist eine von",
       "gt": "ist größer als",
       "gte": "ist mindestens",
       "lt": "ist kleiner als",
@@ -1954,6 +2022,7 @@
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
+    "notInList": "nicht in der Liste",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",
@@ -2277,6 +2346,38 @@
       "copyId": "Ganze Kennung kopieren",
       "copied": "Kopiert",
       "table": "Tabelle in der Antwort"
+    },
+    "follow": {
+      "title": "Wie {name} live geht",
+      "aChange": "eine Änderung",
+      "proposed": "{kind} {name} vorgeschlagen",
+      "reading": "Änderung wird gelesen…",
+      "unread": "Die Änderung konnte nicht gelesen werden",
+      "rejected": "Abgelehnt: nichts wurde geändert",
+      "approved": "Genehmigt",
+      "waiting": "Wartet auf eine Person, die {kind}-Änderungen in diesem Projekt genehmigen darf",
+      "red": "Eine Änderung der roten Spur wird auf ihrer eigenen Seite genehmigt, wo ihr Name erneut eingegeben wird.",
+      "approve": "Genehmigen",
+      "deploy": "Geht nach der Genehmigung live",
+      "deploying": "Wird bereitgestellt…",
+      "live": "Live",
+      "open": "{kind} ist live: öffnen",
+      "stage": {
+        "done": "Erledigt",
+        "working": "Läuft",
+        "waiting": "Wartet",
+        "failed": "Fehlgeschlagen",
+        "later": "Noch nicht"
+      },
+      "test": {
+        "later": "Wird getestet, sobald live",
+        "reading": "Einige Zeilen von {name} werden als Sie gelesen…",
+        "read": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} {type} aus {name} gelesen",
+        "empty": "{name} ist live und enthält noch keine Entitäten",
+        "failed": "Das Testlesen ist fehlgeschlagen",
+        "again": "Erneut lesen",
+        "explore": "Im Explorer öffnen"
+      }
     }
   },
   "assistant": {

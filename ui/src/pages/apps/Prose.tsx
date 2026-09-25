@@ -148,7 +148,7 @@ function LongId({ id }: { id: string }): JSX.Element {
 /** Opens a Portal route the way the page around the answer navigates; a plain link without it. */
 export type OpenLink = (href: string) => void;
 
-function Anchor({ href, children, onOpenLink }: { href: string; children: ReactNode; onOpenLink?: OpenLink }): JSX.Element {
+export function PortalLink({ href, children, onOpenLink }: { href: string; children: ReactNode; onOpenLink?: OpenLink }): JSX.Element {
   const safe = safeHref(href);
   if (safe === undefined) {
     return <>{children}</>;
@@ -204,9 +204,9 @@ export function inline(text: string, onOpenLink?: OpenLink): ReactNode[] {
       );
     } else if (label !== undefined && href !== undefined) {
       nodes.push(
-        <Anchor key={key++} href={href} onOpenLink={onOpenLink}>
+        <PortalLink key={key++} href={href} onOpenLink={onOpenLink}>
           {inline(label, onOpenLink)}
-        </Anchor>,
+        </PortalLink>,
       );
     } else if (bold !== undefined) {
       nodes.push(<strong key={key++}>{inline(bold, onOpenLink)}</strong>);
@@ -219,9 +219,9 @@ export function inline(text: string, onOpenLink?: OpenLink): ReactNode[] {
     } else if (url !== undefined) {
       const [address, rest] = splitTrailing(url);
       nodes.push(
-        <Anchor key={key++} href={address} onOpenLink={onOpenLink}>
+        <PortalLink key={key++} href={address} onOpenLink={onOpenLink}>
           {address}
-        </Anchor>,
+        </PortalLink>,
       );
       if (rest) nodes.push(rest);
     }

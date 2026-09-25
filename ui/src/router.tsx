@@ -23,6 +23,8 @@ import { ActivityPage } from "./routes/ActivityPage";
 import { ApprovalsPage } from "./routes/ApprovalsPage";
 import { ApprovalDetailPage } from "./routes/ApprovalDetailPage";
 import { ModelsPage } from "./pages/models/ModelsPage";
+import { ModelsList } from "./pages/models/ModelsList";
+import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
 import { ImportPage } from "./pages/import/ImportPage";
@@ -32,6 +34,7 @@ import { GroupPage } from "./pages/access/GroupPage";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
 import { AssistantPage } from "./pages/assistant/AssistantPage";
 import { HandOff } from "./assistant/HandOff";
+import { hasPrefill } from "./assistant/state";
 import { DraftElsewhere } from "./assistant/DraftElsewhere";
 import { WorkspaceProvider } from "./components/layout/WorkspaceContext";
 import { WorkspacesPage } from "./routes/WorkspacesPage";
@@ -494,17 +497,54 @@ function formOfRest(rest: string): FormTarget | null {
   return null;
 }
 
+/**
+ * The Data models page (T-2765): the list of the project's models, or the editor when the address
+ * asks for one — `?edit=<name>` (AG-77), `?draft=<name>` (AG-61), `?new=blank|file|sdm` with an
+ * optional `&space=` — or when a file or the assistant handed the page a draft to open.
+ */
 const modelsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/models",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { edit?: string; draft?: string; new?: "blank" | "file" | "sdm"; space?: string } => ({
+    edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
+    draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
+    new: search.new === "blank" || search.new === "file" || search.new === "sdm" ? search.new : undefined,
+    space: typeof search.space === "string" && search.space !== "" ? search.space : undefined,
+  }),
   component: function ModelsRoute() {
     const { project } = modelsRoute.useParams();
+    const search = modelsRoute.useSearch();
+    const editing =
+      search.edit !== undefined ||
+      search.draft !== undefined ||
+      search.new !== undefined ||
+      hasPrefill(`/projects/${project}/models`);
     return (
       <Shell project={project}>
         <HandOff>
           <DraftElsewhere project={project} page="models" />
-          <ModelsPage project={project} />
+          {editing ? (
+            <ModelsPage key={`${search.edit ?? ""}-${search.new ?? ""}`} project={project} />
+          ) : (
+            <ModelsList project={project} />
+          )}
         </HandOff>
+      </Shell>
+    );
+  },
+});
+
+/** One model's own page: its diagram, form, YAML, users, history and Mappings (T-2765). */
+const modelRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/models/$name",
+  component: function ModelRoute() {
+    const { project, name } = modelRoute.useParams();
+    return (
+      <Shell project={project}>
+        <ModelPage project={project} name={name} />
       </Shell>
     );
   },
@@ -799,6 +839,7 @@ export const routeTree = rootRoute.addChildren([
     projectSettingsTabRoute,
     projectSettingsFormRoute,
     modelsRoute,
+    modelRoute,
     exploreRoute,
     ckanRoute,
     importRoute,

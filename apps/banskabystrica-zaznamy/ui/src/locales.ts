@@ -108,6 +108,7 @@ const SK: Strings = {
       empty: "je prázdne",
       present: "má hodnotu",
       pattern: "zodpovedá",
+      anyOf: "je jednou z",
     },
     value: "Hodnota",
     upperValue: "Horná hodnota",
@@ -127,6 +128,7 @@ const SK: Strings = {
     observedNow: "tieto hodnoty boli zistené teraz",
     applying: "Ukladá sa…",
     refusedHere: "zamietnuté",
+    notInList: "nie je v zozname",
   },
 };
 
@@ -194,6 +196,7 @@ const EN: Strings = {
       empty: "is empty",
       present: "has a value",
       pattern: "matches",
+      anyOf: "is one of",
     },
     value: "Value",
     upperValue: "Upper value",
@@ -213,6 +216,7 @@ const EN: Strings = {
     observedNow: "these values were observed now",
     applying: "Saving…",
     refusedHere: "refused",
+    notInList: "not in the list",
   },
 };
 
