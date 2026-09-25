@@ -419,7 +419,7 @@ fn build_pod_settings(
 ///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`, the
 ///   organization being the applications' own when they have one of their own.
 /// - `JC_GITEA_APPS_OWNER` — the forge organization the generated applications' repositories,
-///   packages and images live in, apart from the configuration's (PF-105); the configuration's
+///   packages and images live in, apart from the configuration's (PF-106); the configuration's
 ///   organization when unset.
 /// - `JC_GITEA_APPS_TOKEN` — the token of the applications' own machine user, which writes their
 ///   repositories and packages and nothing of the configuration's; set with the owner or not at
@@ -478,7 +478,7 @@ fn app_settings(
                     ),
                 });
             }
-            // The applications' organization when there is one (PF-105): their images are
+            // The applications' organization when there is one (PF-106): their images are
             // published there, beside their repositories.
             let owner = set("JC_GITEA_APPS_OWNER")
                 .or_else(|| set("JC_GITEA_OWNER"))
@@ -1712,7 +1712,7 @@ mod tests {
         assert_eq!(dev.pull_secret.as_deref(), Some("app-registry"));
         assert_eq!(dev.apisix_namespace, "dev");
 
-        // PF-105: an installation whose applications have their own organization publishes and
+        // PF-106: an installation whose applications have their own organization publishes and
         // pulls their images there.
         let apart = Config::from_vars(with(vec![
             ("JC_PORTAL_APPS_REGISTRY", "2.28.67.127.sslip.io"),

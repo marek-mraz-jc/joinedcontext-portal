@@ -428,7 +428,7 @@ async fn a_project_change_keeps_its_id_and_its_repository() {
     );
 }
 
-/// PF-105: the gateway's forge user reads the configuration's repositories and nothing more,
+/// PF-106: the gateway's forge user reads the configuration's repositories and nothing more,
 /// so a project repository the Portal opens names it as a reader; without `JC_GITEA_READER`
 /// nobody is added.
 #[tokio::test]
