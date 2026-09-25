@@ -360,7 +360,9 @@ describe("what the workbench reads from an answer", () => {
     expect(classOfMapping('root.type = "Ferry"', ["Bus", "Tram"])).toBe("Bus");
     expect(classOfMapping("", [])).toBeUndefined();
     expect(exampleOf({ range: "integer", kind: "Property" })).toBe("12");
-    expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:…"');
+    // T-2861: a relationship's example is an id of its target class, a list on a many end.
+    expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:Station:…"');
+    expect(exampleOf({ range: "Course", kind: "Relationship", multivalued: true })).toBe('["urn:ngsi-ld:Course:…"]');
     expect(exampleOf({ range: "Level", kind: "Property" }, "good")).toBe('"good"');
   });
 });

@@ -21,7 +21,6 @@ import {
   Field,
   Input,
   PageHeader,
-  ResourcePageFailed,
   Select,
   Table,
   TableBody,
@@ -32,6 +31,7 @@ import {
   TableRow,
   TableSkeleton,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/RolesAndMembers";
 

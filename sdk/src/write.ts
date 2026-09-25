@@ -5,7 +5,8 @@
  * the frame has no session, so the write leaves as a message to the page that framed it and
  * comes back as its answer; a published app on the platform origin sends it itself.
  */
-import type { Cell, Column } from "./ngsi";
+import type { Cell, Column, RelationshipObject } from "./ngsi";
+import { isRelationshipObject } from "./ngsi";
 import { enumOptions } from "./enums";
 import type { EnumOption } from "./enums";
 import { bridgeTransport } from "./sdk/transport";
@@ -28,6 +29,8 @@ export interface FieldSchema {
   format?: string;
   /** The UN/CEFACT unit Model Tools annotates a quantity with: `ucefact:GQ` among its mappings (DM-06). */
   "x-unit"?: { exactMappings?: string[] };
+  /** A stored relationship end and the class it points at (DM-64, T-2739). */
+  "x-ngsi-ld-relationship"?: { target?: string };
 }
 
 /** One entity type: its properties and which are required. */
@@ -38,7 +41,7 @@ export interface TypeSchema {
 
 export type Schema = Record<string, TypeSchema>;
 
-export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo" | "language";
+export type Input = "number" | "text" | "select" | "date" | "checkbox" | "geo" | "language" | "relation";
 
 export interface Field {
   name: string;
@@ -51,6 +54,10 @@ export interface Field {
   required: boolean;
   /** The UN/CEFACT code a number is measured in, when the model says (DM-06). */
   unit?: string;
+  /** A relationship end's target class; the field picks entities of it (UI-84). */
+  target?: string;
+  /** A relationship end that holds several targets. */
+  many?: boolean;
 }
 
 /**
@@ -63,6 +70,12 @@ export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Colu
   const required = schema?.required?.includes(name) ?? false;
   if (!property) {
     return { name, input: kind === "number" ? "number" : kind === "geo" ? "geo" : kind === "date" ? "date" : "text", required };
+  }
+  // A relationship end is picked, never typed, and written as a Relationship (DM-64).
+  const target = property["x-ngsi-ld-relationship"]?.target;
+  if (typeof target === "string" && target !== "") {
+    const many = Array.isArray(property.type) ? property.type.includes("array") : property.type === "array";
+    return { name, input: "relation", target, many, required };
   }
   const options = enumOptions(property, defs, language);
   if (options) {
@@ -91,9 +104,17 @@ export function fieldOf(name: string, schema: TypeSchema | undefined, kind: Colu
   return { name, input: "text", pattern: property.pattern, required };
 }
 
-/** The NGSI-LD fragment of a patch: every cell a Property. */
-export function attrsOf(patch: Record<string, Cell>): Record<string, { type: "Property"; value: Cell }> {
-  return Object.fromEntries(Object.entries(patch).map(([name, value]) => [name, { type: "Property" as const, value }]));
+/** One attribute of a patch as NGSI-LD writes it. */
+export type Attribute = { type: "Property"; value: Cell } | { type: "Relationship"; object: string | string[] };
+
+/** The NGSI-LD fragment of a patch: a relationship end a Relationship, every other cell a Property. */
+export function attrsOf(patch: Record<string, Cell | RelationshipObject>): Record<string, Attribute> {
+  return Object.fromEntries(
+    Object.entries(patch).map(([name, value]): [string, Attribute] => [
+      name,
+      isRelationshipObject(value) ? { type: "Relationship", object: value.object } : { type: "Property", value },
+    ]),
+  );
 }
 
 export interface WriteResult {
@@ -109,7 +130,7 @@ export interface Write {
   type: string;
   /** For a new entity, its id; the patch otherwise. */
   entity?: Record<string, unknown>;
-  patch?: Record<string, Cell>;
+  patch?: Record<string, Cell | RelationshipObject>;
 }
 
 export const CSRF_COOKIE = "jc_csrf";

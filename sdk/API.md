@@ -92,9 +92,19 @@ function relationsOf(type: unknown): Record<string, RelationEnd>
 ```
 The relationship ends of one type's schema (UI-84): every property with `x-ngsi-ld-relationship`, as `{ target, many, required }`. Pass it as the grid's `relations` prop: the column is then edited by picking entities of the target class that the person can read, one on a single end and several on a many end, and a required end keeps its last target.
 ```ts
+function RelationPicker(props: { label: string; value: string[]; end: RelationEnd; search: (text: string) => Promise<TargetOption[]>; labels: PickerLabels; changed?: boolean; invalid?: string; onChange(next: string[]): void }): JSX.Element
+const NGSI_LD_NULL: string
+function targetsOf(value: Cell | undefined): string[]
+```
+The control the grid, the spec Form and the template's `EntityForm` edit a relationship end with (UI-84): a group named `label` with the picked targets as chips and a combobox that runs `search` a pause after the last key. A single end's pick replaces its target, a many end's adds one, and a required end's last target has no remove button. `labels` carries every visible string. `targetsOf` reads a row's cell back as targets (a many end's URNs are joined by `", "`); a cleared optional end is written as `{ object: NGSI_LD_NULL }`, which removes the attribute. `Query.idPattern` is the NGSI-LD `idPattern` a search sends.
+```ts
 function isLanguageMap(value: unknown): value is LanguageMap
 ```
 Whether a value is `{ languageMap }`, the shape `entities.create`/`update` write as a `LanguageProperty`.
+```ts
+function isRelationshipObject(value: unknown): value is RelationshipObject
+```
+Whether a value is `{ object }` (one URN, or a list of URNs on a many end), the shape `entities.create`/`update` write as a `Relationship` (DM-64). A relationship end written as a plain URN string becomes a Property that names no target, which the gateway refuses on a required end.
 ```ts
 const NO_BASEMAP: string
 function styleFor(basemap?: string): string | StyleSpecification
@@ -347,6 +357,8 @@ Logs an error and, in the preview frame, posts it to the Portal with file and li
 - `Cell`: Scalar value `string | number | boolean | Geo | null`.
 - `Geo`: Geometry object `{ type: string, coordinates: unknown }`.
 - `LanguageMap`: `{ languageMap: Record<string, string> }`, one LanguageProperty with every language.
+- `RelationshipObject`: `{ object: string | string[] }`, one Relationship with its target or targets.
+- `WriteValue`: what one attribute of `entities.create`/`update` takes: a `Cell`, a `LanguageMap` or a `RelationshipObject`.
 - `Column`: Kind `"number" | "date" | "geo" | "text"`.
 - `Agg`: Aggregation `"count" | "sum" | "avg" | "min" | "max"`.
 - `Group`: Aggregated group `{ key: string, value: number }`.

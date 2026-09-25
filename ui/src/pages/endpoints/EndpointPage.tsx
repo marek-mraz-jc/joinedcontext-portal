@@ -45,12 +45,12 @@ import {
   Field,
   Input,
   PageHeader,
-  ResourcePageFailed,
   Select,
   SourceLink,
   Term,
   Icon,
 } from "../../components/ui";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
 

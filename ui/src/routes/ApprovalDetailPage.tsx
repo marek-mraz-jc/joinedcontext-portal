@@ -18,10 +18,10 @@ import {
   Field,
   Input,
   PageHeader,
-  ResourcePageFailed,
   Skeleton,
   Textarea,
 } from "../components/ui";
+import { ResourcePageFailed } from "../components/ui/PageState";
 
 type ChangeProposal = components["schemas"]["ChangeProposal"];
 type ChangeFile = components["schemas"]["ChangeFile"];

@@ -45,9 +45,13 @@ for (const app of APPS) {
       // The Portal's own page stays around the App: its sidebar and the App's title row.
       await expect(page.getByRole("navigation").first()).toBeVisible({ timeout: 60_000 });
       const frameElement = page.locator("iframe[sandbox]");
+      // The frame keeps its own origin only on an Apps origin apart from the Portal's (AP-19,
+      // T-2840); it never gets the Portal's window.
+      const src = new URL((await frameElement.getAttribute("src")) ?? "", page.url());
+      const ownOrigin = src.origin !== new URL(page.url()).origin;
       await expect(frameElement).toHaveAttribute(
         "sandbox",
-        "allow-scripts allow-forms allow-popups allow-downloads",
+        `allow-scripts allow-forms allow-popups allow-downloads${ownOrigin ? " allow-same-origin" : ""}`,
       );
       await expect(app.data(page.frameLocator("iframe[sandbox]"))).toBeVisible({ timeout: 120_000 });
       expect(new URL(page.url()).pathname, "the Portal kept its window").toBe(

@@ -39,6 +39,7 @@ import { OrganizationApplications } from "./OrganizationApplications";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
+import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
@@ -49,6 +50,10 @@ export const ORGANIZATION_TABS = [
   "roles",
   "groups",
   "service-accounts",
+  "blueprints",
+  "agentprofiles",
+  "dataspaceparticipants",
+  "environments",
   "projects",
   "applications",
   "setup",
@@ -314,6 +319,12 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
+        {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
+        {tab === "agentprofiles" ? <KindList project={ORG_NAMESPACE} plural="agentprofiles" embedded /> : null}
+        {tab === "dataspaceparticipants" ? (
+          <KindList project={ORG_NAMESPACE} plural="dataspaceparticipants" embedded />
+        ) : null}
+        {tab === "environments" ? <KindList project={ORG_NAMESPACE} plural="environments" embedded /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}

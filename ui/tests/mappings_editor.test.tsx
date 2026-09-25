@@ -415,6 +415,55 @@ describe("the editor on screen", () => {
     expect(checksSoFar().some((check) => check.includes("/mappings"))).toBe(true);
   });
 
+  // T-1547, DM-33: the name defaults to the pair and a person may give another, so a mapping is
+  // not bound to the one name its pair makes; the golden test files follow the name.
+  it("proposes the mapping under the name the person gives it, and refuses one that is not a name", async () => {
+    const user = userEvent.setup();
+    const posted: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input as Request;
+        const body = init?.body ?? (request instanceof Request ? await request.clone().text() : undefined);
+        posted.push(typeof body === "string" ? JSON.parse(body) : body);
+        return new Response(
+          JSON.stringify({
+            apiVersion: "joinedcontext.com/v1alpha1",
+            kind: "Change",
+            metadata: { name: "chg-mapping", namespace: "banskabystrica" },
+            status: { lane: "green", phase: "PendingApproval", plan: { create: 1 } },
+          }),
+          { status: 202, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+    );
+    vi.stubGlobal("fetch", answeringChecks(globalThis.fetch));
+    render(<Harness project="banskabystrica" spaceOf={() => "ovzdusie"} />);
+    await user.selectOptions(screen.getByLabelText("Source slot for quality"), "band");
+
+    const name = screen.getByLabelText(en.mappings.name);
+    expect(name).toHaveValue("air-to-partner-air");
+    const propose = screen.getByRole("button", { name: en.mappings.propose });
+    await user.clear(name);
+    await user.type(name, "Air Partner");
+    await waitFor(() => expectDenied(propose, en.mappings.badName));
+    await user.clear(name);
+    await user.type(name, "t1547-air-partner");
+    await user.click(propose);
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    const manifest = posted[0] as { metadata: { name: string }; spec: { tests: { input: string; expect: string }[] }; files: Record<string, string> };
+    expect(manifest.metadata.name).toBe("t1547-air-partner");
+    expect(manifest.spec.tests[0]).toEqual({
+      input: "./tests/t1547-air-partner.input.json",
+      expect: "./tests/t1547-air-partner.expect.json",
+    });
+    expect(Object.keys(manifest.files).sort()).toEqual([
+      "./tests/t1547-air-partner.expect.json",
+      "./tests/t1547-air-partner.input.json",
+    ]);
+  });
+
   it("will not propose a golden test whose example is not JSON (T-0905)", async () => {
     const user = userEvent.setup();
     render(<Harness project="banskabystrica" spaceOf={() => "ovzdusie"} />);
