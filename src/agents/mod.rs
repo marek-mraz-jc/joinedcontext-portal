@@ -25,5 +25,6 @@ pub mod repository;
 pub mod run;
 pub mod share;
 pub mod store;
+pub mod theme;
 pub mod transpile;
 pub mod verification;

@@ -425,7 +425,7 @@ fn mix_with_white(colour: &str, share: f64) -> Option<String> {
 ///
 /// In `f64`, unlike the luminance above: the matrices are published to ten decimals, and a mix
 /// that rounds to a byte at the end has no reason to lose them on the way.
-fn to_oklab(rgb: [u8; 3]) -> [f64; 3] {
+pub(crate) fn to_oklab(rgb: [u8; 3]) -> [f64; 3] {
     let linear = |c: u8| {
         let c = f64::from(c) / 255.0;
         if c <= 0.04045 {
@@ -446,7 +446,7 @@ fn to_oklab(rgb: [u8; 3]) -> [f64; 3] {
 }
 
 /// Oklab back to sRGB, clamped: a mix of two displayable colours can land a hair outside the cube.
-fn from_oklab(lab: [f64; 3]) -> [u8; 3] {
+pub(crate) fn from_oklab(lab: [f64; 3]) -> [u8; 3] {
     let [big_l, a, b] = lab;
     let l = (big_l + 0.3963377774 * a + 0.2158037573 * b).powi(3);
     let m = (big_l - 0.1055613458 * a - 0.0638541728 * b).powi(3);
@@ -467,12 +467,12 @@ fn from_oklab(lab: [f64; 3]) -> [u8; 3] {
 }
 
 /// The contrast ratio between two relative luminances (WCAG 1.4.3), lighter over darker.
-fn contrast(a: f32, b: f32) -> f32 {
+pub(crate) fn contrast(a: f32, b: f32) -> f32 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
 /// The three channels of a hex triplet or sextet, or nothing when it is neither.
-fn rgb_of(colour: &str) -> Option<[u8; 3]> {
+pub(crate) fn rgb_of(colour: &str) -> Option<[u8; 3]> {
     let digits = colour.strip_prefix('#')?;
     let expand = |c: u8| u8::from_str_radix(&format!("{}{}", c as char, c as char), 16).ok();
     match digits.len() {
@@ -490,7 +490,7 @@ fn rgb_of(colour: &str) -> Option<[u8; 3]> {
 }
 
 /// Relative luminance of a hex colour (WCAG 2.1), for the contrast decision the UI cannot make.
-fn luminance(colour: &str) -> Option<f32> {
+pub(crate) fn luminance(colour: &str) -> Option<f32> {
     let [r, g, b] = rgb_of(colour)?;
     // Each channel is linearised before it is weighted: sRGB is gamma-encoded, and weighting the
     // encoded bytes gives a number that is not a luminance and cannot be compared to a ratio.
