@@ -3252,5 +3252,33 @@
       "federationOps": "Federovat",
       "redirectionOps": "Přesměrovat vše"
     }
+  },
+  "picker": {
+    "search": "Hledat",
+    "chosen": "Vybrané: {label}",
+    "remove": "Odebrat {name}",
+    "model": {
+      "group": "{project} / {space}",
+      "catalogue": "Smart Data Models",
+      "none": "Žádný datový model neodpovídá.",
+      "create": "Nový datový model „{name}“",
+      "catalogueUnavailable": "Smart Data Models teď nelze prohledat: {reason}",
+      "catalogueHint": "Napište aspoň dvě písmena a hledejte i v Smart Data Models.",
+      "lifecycle": {
+        "draft": "návrh",
+        "published": "zveřejněný",
+        "deprecated": "zastaralý",
+        "retired": "vyřazený",
+        "mirrored": "zrcadlený"
+      }
+    },
+    "type": {
+      "local": "Typy prostoru {space}",
+      "modelGroup": "{name} ({space})",
+      "imported": "Importováno z {name}",
+      "none": "Model prostoru {space} zatím nedeklaruje žádný typ.",
+      "noneInProject": "Žádný datový model tohoto projektu zatím nedeklaruje typ.",
+      "create": "Nový typ „{name}“"
+    }
   }
 }

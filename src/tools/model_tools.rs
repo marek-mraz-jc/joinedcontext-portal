@@ -296,24 +296,29 @@ pub async fn sdm_catalog(
     State(state): State<AppState>,
     Query(query): Query<CatalogueQuery>,
 ) -> Result<Json<Catalogue>, ApiError> {
+    fetch_catalogue(&state, query.refresh).await.map(Json)
+}
+
+/// The catalogue index from Model Tools, which the wizard and the organization's model list
+/// (DM-63) both read.
+pub async fn fetch_catalogue(state: &AppState, refresh: bool) -> Result<Catalogue, ApiError> {
     let route = "catalog";
-    let url = model_tools_url(&state, route)?;
+    let url = model_tools_url(state, route)?;
     let response = http()
         .get(&url)
         // The only thing a caller may steer here: whether the cache is refilled first. The
         // catalogue itself is named by Model Tools' own allowlist, never by the request (DM-10).
-        .query(&[("refresh", query.refresh.to_string())])
+        .query(&[("refresh", refresh.to_string())])
         .send()
         .await
         .map_err(|err| unavailable(route, "unreachable", &err))?;
     if !response.status().is_success() {
         return Err(unavailable(route, "refused", &response.status()));
     }
-    let catalogue = response
+    response
         .json::<Catalogue>()
         .await
-        .map_err(|err| unavailable(route, "answered unreadably", &err))?;
-    Ok(Json(catalogue))
+        .map_err(|err| unavailable(route, "answered unreadably", &err))
 }
 
 /// `POST /api/v1/tools/infer-schema`: a draft model from a sample file (T-0599, DM-54, DM-55).
