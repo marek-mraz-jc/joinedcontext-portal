@@ -3,7 +3,7 @@
 //! The token contributes identity only (`sub`, e-mail, username, groups); no permission is
 //! read from it. A caller without a binding reads and proposes nothing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use jc_core::kinds::{
@@ -522,6 +522,43 @@ pub fn keeps_an_administrator_after(
     Ok(())
 }
 
+/// Every person an administrator binding names, directly or through a `Group` they are in, by
+/// lower-case e-mail (PF-03): who would be left to run the organization.
+pub fn administrator_people(mirror: &Mirror) -> BTreeSet<String> {
+    let table = |kind: &str| -> BTreeMap<String, Value> {
+        mirror
+            .list(ORG_NAMESPACE, kind, &ListOptions::default())
+            .items
+            .into_iter()
+            .map(|env| (env.metadata.name, env.spec))
+            .collect()
+    };
+    let roles = table("Role");
+    let bindings = table("RoleBinding");
+    let groups = table("Group");
+    let mut people = BTreeSet::new();
+    for name in administrators(&roles, &bindings, Utc::now()) {
+        let Some(binding) = bindings
+            .get(&name)
+            .and_then(|spec| serde_json::from_value::<RoleBindingSpec>(spec.clone()).ok())
+        else {
+            continue;
+        };
+        for subject in binding.subjects {
+            if let Some(user) = subject.user {
+                people.insert(user.to_ascii_lowercase());
+            }
+            if let Some(group) = subject.group.and_then(|group| groups.get(&group).cloned()) {
+                let members = serde_json::from_value::<jc_core::kinds::GroupSpec>(group)
+                    .map(|spec| spec.members)
+                    .unwrap_or_default();
+                people.extend(members.into_iter().map(|m| m.user.to_ascii_lowercase()));
+            }
+        }
+    }
+    people
+}
+
 /// The organization bindings that make somebody an administrator, by name (PF-03).
 fn administrators(
     roles: &BTreeMap<String, Value>,
@@ -751,10 +788,5 @@ fn describe(constraint: &Constraint) -> String {
 }
 
 pub fn verb_name(verb: Verb) -> &'static str {
-    match verb {
-        Verb::Read => "read",
-        Verb::Propose => "propose",
-        Verb::Approve => "approve",
-        Verb::Delete => "delete",
-    }
+    verb.as_str()
 }
