@@ -162,7 +162,10 @@ jobs:
           set -eu
           for app in apps/*/ui; do
             [ -f "$app/playwright.config.ts" ] || continue
-            (cd "$app" && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium && pnpm e2e)
+            # The SDK name pointed at this checkout, as the fast lane does (T-2912).
+            (cd "$app" && npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
+              && pnpm install --no-frozen-lockfile \
+              && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
       # The same flows for an application at the root of its own repository (T-2596), built from
       # the tree copied out with the SDK linked from this checkout, as the fast lane tests it.
