@@ -33,6 +33,7 @@ fn session_cookie(config: &Config, username: &str, roles: &[&str]) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: format!("f:1:{username}"),
             username: username.into(),
             email: Some(format!("{username}@banskabystrica.sk")),
@@ -532,6 +533,7 @@ async fn an_owner_with_no_binding_left_mints_nothing_through_the_operation() {
     use joinedcontext_portal::ops::{self, Caller, OpError, Via};
     let state = AppState::new(Config::for_tests(), None).with_mirror(mirror());
     let former = Identity {
+        client: None,
         subject: format!("f:1:{FORMER}"),
         username: FORMER.into(),
         email: Some(format!("{FORMER}@banskabystrica.sk")),

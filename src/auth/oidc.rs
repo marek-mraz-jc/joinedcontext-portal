@@ -472,6 +472,7 @@ pub async fn callback(
 
     let issued_at = session::now_unix();
     let identity = Identity {
+        client: None,
         subject: claims.subject().to_string(),
         username: claims
             .preferred_username()
@@ -917,6 +918,7 @@ mod tests {
     fn a_session(refresh_token: Option<&str>) -> Session {
         Session {
             identity: Identity {
+                client: None,
                 subject: "f:1:demo".into(),
                 username: "demo".into(),
                 email: None,

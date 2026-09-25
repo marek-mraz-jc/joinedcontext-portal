@@ -39,6 +39,7 @@ const GRANT: &str = "projects/ovzdusie/spaces/air/policies/open.yaml";
 /// nothing else. A grant is exactly what such a person may not write (PF-52).
 fn author() -> Identity {
     Identity {
+        client: None,
         groups: vec!["space-authors".into()],
         ..person("jana")
     }
@@ -47,6 +48,7 @@ fn author() -> Identity {
 /// Proposes everything: the bootstrap group, which is how the first binding is written.
 fn steward() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }

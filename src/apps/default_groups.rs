@@ -165,6 +165,7 @@ mod tests {
 
     fn who() -> Identity {
         Identity {
+            client: None,
             subject: "f:1:jana".into(),
             username: "jana".into(),
             email: Some("jana@hel.fi".into()),
