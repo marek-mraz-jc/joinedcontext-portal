@@ -25,14 +25,18 @@
   border-radius: var(--jc-radius-sm, 4px);
 }
 
-/* A station's status as a coloured chip. */
+/* A station's status as a coloured chip: ink on a tint of the status colour, its border in the colour
+   itself. White on the success green read 3.8:1 (WCAG 1.4.3, T-2946), and a city's tokens can make
+   that colour lighter still. */
 .app-chip {
+  --app-chip-tone: var(--jc-color-muted, #64748b);
   display: inline-block;
   padding: 0 var(--jc-space-2, 0.5rem);
   border-radius: 999px;
   font-size: var(--jc-font-size-sm, 0.75rem);
   font-weight: 600;
-  color: #ffffff;
-  background: var(--jc-color-muted, #64748b);
+  color: var(--jc-color-ink, #1a1a1a);
+  background: color-mix(in srgb, var(--app-chip-tone) 16%, var(--jc-color-surface, #ffffff));
+  border: 1px solid var(--app-chip-tone);
 }
-.app-chip[data-status="working"] { background: var(--jc-color-success, #059669); }
+.app-chip[data-status="working"] { --app-chip-tone: var(--jc-color-success, #059669); }
