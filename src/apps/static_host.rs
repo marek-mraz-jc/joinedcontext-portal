@@ -518,8 +518,13 @@ pub fn build_missing(apps_cache_dir: Option<&str>, mirror: &crate::store::Mirror
 
 /// Every published App the host has nothing to serve for: no `status.build` (AP-13a) and no
 /// bundle this Portal's image ships (AP-87). Its host answers 404, so it reads `Pending` with a
-/// red `Ready` saying why, never `Live` (T-2989). Returns the names it marked.
-pub fn report_unbuilt(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> Vec<String> {
+/// red `Ready` saying why, never `Live` (T-2989); the condition keeps the time of the run that
+/// first said it. Returns the names it marked.
+pub fn report_unbuilt(
+    apps_dir: Option<&str>,
+    mirror: &crate::store::Mirror,
+    transitions: &crate::reconciler::transitions::Transitions,
+) -> Vec<String> {
     let published = jc_core::kinds::AppLifecycle::Published.as_str();
     let unbuilt = mirror.matching(|env| {
         env.kind == "App"
@@ -546,6 +551,7 @@ pub fn report_unbuilt(apps_dir: Option<&str>, mirror: &crate::store::Mirror) -> 
                  serves nothing; rebuild the App from its page (AP-13a)",
             )];
         }
+        transitions.keep(&mut envelope);
         names.push(envelope.metadata.name.clone());
         mirror.upsert(envelope);
     }
