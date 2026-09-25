@@ -1261,6 +1261,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/datamodels/{name}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Share Model with the Organization
+         * @description Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-77). Only an organization-scope approver of DataModel approves it.
+         */
+        post: operations["share_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/datamodels/{name}/source": {
         parameters: {
             query?: never;
@@ -3626,6 +3646,11 @@ export interface components {
             severity: string;
             subject: string;
         };
+        /**
+         * @description Where a model lives (DM-75, DM-79).
+         * @enum {string}
+         */
+        ModelLevel: "organization" | "project";
         /** @description One thing a copy cannot carry (CC-84, API/01 §10). */
         Need: {
             /** @description `secret`, `person` or `host`. */
@@ -3768,13 +3793,17 @@ export interface components {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];
         };
-        /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
+        /** @description One `DataModel` of the organization as the pickers list it (DM-63, DM-79). */
         OrganizationModel: {
             classes: string[];
+            level: components["schemas"]["ModelLevel"];
             lifecycle: string;
             name: string;
+            origin?: null | components["schemas"]["SharedFrom"];
+            /** @description The project it belongs to; `org` for an organization model. */
             project: string;
-            space: string;
+            /** @description The space whose model it is; absent for a model no space owns (DM-75). */
+            space?: string | null;
             version: string;
         };
         OrganizationModels: {
@@ -4410,6 +4439,24 @@ export interface components {
             complete: boolean;
             operator: components["schemas"]["SetupItem"][];
             steps: components["schemas"]["SetupItem"][];
+        };
+        /**
+         * @description The body of a share: the model's name typed back by an organization administrator who
+         *     approves their own share at once (PF-58, CC-19). Without it the Change waits for one.
+         */
+        ShareBody: {
+            confirm?: string | null;
+        };
+        /**
+         * @description Where an organization model was shared from (DM-77): what lets that project offer to use the
+         *     organization's copy instead of its own (DM-78).
+         */
+        SharedFrom: {
+            name: string;
+            project: string;
+            space?: string | null;
+            /** @description The version that was shared. */
+            version: string;
         };
         /**
          * @description Which side a person kept for one conflicting field (CC-80).
@@ -8329,6 +8376,86 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    share_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description DataModel name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** @description Empty, or the model's name typed by an organization administrator sharing their own model */
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "confirm": "air-quality"
+                 *     }
+                 */
+                "application/json": null | components["schemas"]["ShareBody"];
+            };
+        };
+        responses: {
+            /** @description The Change, waiting for an organization approver or merged */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description The model imports a model of the project, or the body does not read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No propose on DataModel */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such model the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not published, the name is held by an organization model of another origin, or the organization's copy already has this source */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

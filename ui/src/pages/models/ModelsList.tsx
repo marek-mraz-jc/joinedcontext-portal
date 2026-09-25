@@ -1,5 +1,7 @@
 /**
- * The Data models page: every DataModel of the project, one row each (DM-61, DM-62, T-2765).
+ * The Data models page: every DataModel of the project, one row each (DM-61, DM-62, T-2765), and
+ * apart from them the organization's models, read-only, each with the name a model imports it
+ * by (DM-75, DM-76, DM-79).
  *
  * It used to open on the Smart Data Models catalogue, and the project's own models were listed
  * nowhere. A row says which space the model belongs to, its version and lifecycle, its classes,
@@ -35,6 +37,7 @@ import {
   buttonClass,
 } from "../../components/ui";
 import type { ButtonVariant } from "../../components/ui";
+import { OrganizationModels } from "./OrganizationModels";
 import { entityTypesOf } from "../spaces/SpaceInside";
 import { spaceOfModel, usageCounts, usesOfModel } from "./modelUsage";
 import type { ProjectManifests, UsingKind } from "./modelUsage";
@@ -168,135 +171,142 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader title={t("models.title")} description={t("models.page.listLead")} actions={create} />
 
-      {models.isError ? (
-        <ListFailed
-          what={t("nav.models")}
-          reason={reasonOf(models.error, t("app.error.generic"))}
-          onRetry={() => void models.refetch()}
-        />
-      ) : models.isPending ? (
-        <p role="status" className="text-body text-fg-muted">
-          {t("app.loading")}
-        </p>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon="models"
-          title={t("models.page.emptyTitle")}
-          description={t("models.page.emptyLead")}
-          action={create}
-        />
-      ) : (
-        <>
-          <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
-            <Field id="models-search" label={t("models.page.search")}>
-              <Input
-                id="models-search"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </Field>
-            <Field id="models-space" label={t("models.field.space")}>
-              <Select id="models-space" value={space} onChange={(event) => setSpace(event.target.value)}>
-                <option value="">{t("models.page.everySpace")}</option>
-                {spaces.map((one) => (
-                  <option key={one} value={one}>
-                    {one}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Table data-records="" caption={t("models.page.listCaption")}>
-            <TableHead>
-              <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.field.space")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.field.version")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.classes")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.page.lastChange")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.page.usedBy")}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {shown.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6}>{t("models.page.noMatch")}</TableCell>
-                </TableRow>
-              ) : null}
-              {shown.map((row) => {
-                const version = text(row.model.spec.version);
-                const lifecycle = text(row.model.spec.lifecycle);
-                return (
-                  <TableRow key={row.model.metadata.name}>
-                    <TableCell primary>
-                      <Link
-                        data-row-link=""
-                        to="/projects/$project/models/$name"
-                        params={{ project, name: row.model.metadata.name }}
-                        className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
-                      >
-                        {row.title}
-                      </Link>
-                      {row.title !== row.model.metadata.name ? (
-                        <span className="block font-mono text-caption text-fg-muted">{row.model.metadata.name}</span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {row.space ? (
+      <section aria-labelledby="models-project" className="flex flex-col gap-4">
+        <h2 id="models-project" className="text-title font-semibold text-fg">
+          {t("models.page.projectSection")}
+        </h2>
+        {models.isError ? (
+          <ListFailed
+            what={t("nav.models")}
+            reason={reasonOf(models.error, t("app.error.generic"))}
+            onRetry={() => void models.refetch()}
+          />
+        ) : models.isPending ? (
+          <p role="status" className="text-body text-fg-muted">
+            {t("app.loading")}
+          </p>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon="models"
+            title={t("models.page.emptyTitle")}
+            description={t("models.page.emptyLead")}
+            action={create}
+          />
+        ) : (
+          <>
+            <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
+              <Field id="models-search" label={t("models.page.search")}>
+                <Input
+                  id="models-search"
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </Field>
+              <Field id="models-space" label={t("models.field.space")}>
+                <Select id="models-space" value={space} onChange={(event) => setSpace(event.target.value)}>
+                  <option value="">{t("models.page.everySpace")}</option>
+                  {spaces.map((one) => (
+                    <option key={one} value={one}>
+                      {one}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Table data-records="" caption={t("models.page.listCaption")}>
+              <TableHead>
+                <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.field.space")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.field.version")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.classes")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.page.lastChange")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.page.usedBy")}</TableHeaderCell>
+              </TableHead>
+              <TableBody>
+                {shown.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6}>{t("models.page.noMatch")}</TableCell>
+                  </TableRow>
+                ) : null}
+                {shown.map((row) => {
+                  const version = text(row.model.spec.version);
+                  const lifecycle = text(row.model.spec.lifecycle);
+                  return (
+                    <TableRow key={row.model.metadata.name}>
+                      <TableCell primary>
                         <Link
-                          to="/projects/$project/$plural/$name"
-                          params={{ project, plural: "spaces", name: row.space }}
+                          data-row-link=""
+                          to="/projects/$project/models/$name"
+                          params={{ project, name: row.model.metadata.name }}
                           className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
                         >
-                          {row.space}
+                          {row.title}
                         </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono">{version ?? "—"}</span>
-                      {lifecycle ? (
-                        <Badge className="ml-2">{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{row.classes.length}</span>
-                      {row.classes.length > 0 ? (
-                        <span className="block text-caption text-fg-muted">
-                          {row.classes.map((klass, index) => (
-                            <Fragment key={klass}>
-                              {index === 0 ? null : ", "}
-                              <Link
-                                to="/projects/$project/models/$name"
-                                params={{ project, name: row.model.metadata.name }}
-                                search={{ class: klass }}
-                                className="focus-ring underline-offset-2 hover:underline"
-                              >
-                                {klass}
-                              </Link>
-                            </Fragment>
-                          ))}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>{row.changed ? date.format(new Date(row.changed)) : "—"}</TableCell>
-                    <TableCell>
-                      {COUNTED.every((kind) => (row.counts[kind] ?? 0) === 0)
-                        ? t("models.page.unused")
-                        : COUNTED.filter((kind) => (row.counts[kind] ?? 0) > 0)
-                            .map((kind) => t(`models.page.uses.${kind}`, { count: row.counts[kind] }))
-                            .join(", ")}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </>
-      )}
+                        {row.title !== row.model.metadata.name ? (
+                          <span className="block font-mono text-caption text-fg-muted">{row.model.metadata.name}</span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {row.space ? (
+                          <Link
+                            to="/projects/$project/$plural/$name"
+                            params={{ project, plural: "spaces", name: row.space }}
+                            className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                          >
+                            {row.space}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono">{version ?? "—"}</span>
+                        {lifecycle ? (
+                          <Badge className="ml-2">{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">{row.classes.length}</span>
+                        {row.classes.length > 0 ? (
+                          <span className="block text-caption text-fg-muted">
+                            {row.classes.map((klass, index) => (
+                              <Fragment key={klass}>
+                                {index === 0 ? null : ", "}
+                                <Link
+                                  to="/projects/$project/models/$name"
+                                  params={{ project, name: row.model.metadata.name }}
+                                  search={{ class: klass }}
+                                  className="focus-ring underline-offset-2 hover:underline"
+                                >
+                                  {klass}
+                                </Link>
+                              </Fragment>
+                            ))}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{row.changed ? date.format(new Date(row.changed)) : "—"}</TableCell>
+                      <TableCell>
+                        {COUNTED.every((kind) => (row.counts[kind] ?? 0) === 0)
+                          ? t("models.page.unused")
+                          : COUNTED.filter((kind) => (row.counts[kind] ?? 0) > 0)
+                              .map((kind) => t(`models.page.uses.${kind}`, { count: row.counts[kind] }))
+                              .join(", ")}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </section>
+
+      <OrganizationModels inProject />
     </div>
   );
 }

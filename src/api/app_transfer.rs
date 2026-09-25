@@ -130,7 +130,6 @@ pub async fn export_app(
             exported_at: chrono::Utc::now(),
             exported_by: identity.username.clone(),
             source_instance: None,
-            models: Vec::new(),
             source_revision: head.clone(),
             items: vec![crate::api::export::bundle_item(&envelope, MANIFEST)],
             native_files: Vec::new(),
@@ -150,6 +149,8 @@ pub async fn export_app(
                 file,
                 head: head.clone(),
             }],
+            // An App export carries no data model; a project export does (MF-49).
+            models: Vec::new(),
         },
         status: None,
     };
@@ -320,6 +321,7 @@ pub async fn import(
         let plan = GitImportPlan {
             repositories: vec![planned],
             parameters: Value::Object(Default::default()),
+            models: Vec::new(),
         };
         return Ok((
             StatusCode::OK,
