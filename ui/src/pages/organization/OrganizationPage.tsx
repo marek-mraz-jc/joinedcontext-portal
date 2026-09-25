@@ -11,6 +11,7 @@ import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { ExportButton } from "../../components/export/ExportButton";
 import { ImportProjectDialog } from "../../components/ImportProjectDialog";
 import { NewProjectButton } from "../../components/layout/NewProject";
+import { AllEndpointsPage } from "../../routes/AllEndpointsPage";
 import {
   Alert,
   Button,
@@ -52,6 +53,7 @@ export const ORGANIZATION_TABS = [
   "applications",
   "setup",
   "health",
+  "endpoints",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -270,6 +272,10 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
  *
  * `anchor` is the project the shell around the page shows in its menu; nothing on the page
  * belongs to it.
+ *
+ * Endpoints, every endpoint of every project, is an administration view (PF-61, T-2877): only an
+ * administrator of the organization has the tab, anyone else opening its address lands on
+ * Settings, and the server answers them `404` anyway.
  */
 export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor: string }): JSX.Element {
   const { t } = useTranslation();
@@ -296,7 +302,10 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         label={t("organization.tabsLabel")}
         value={tab}
         onChange={(next) => void navigate({ to: "/organization/$tab", params: { tab: next } })}
-        tabs={ORGANIZATION_TABS.map((value) => ({ value, label: t(`organization.tab.${value}`) }))}
+        tabs={ORGANIZATION_TABS.filter((value) => value !== "endpoints" || administers).map((value) => ({
+          value,
+          label: t(`organization.tab.${value}`),
+        }))}
       />
       <div {...tabPanelProps("organization", tab)} className="space-y-8">
         {tab === "settings" ? <OrganizationSettings /> : null}
@@ -309,6 +318,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
         {tab === "health" ? <ValidationHealth /> : null}
+        {tab === "endpoints" ? <AllEndpointsPage /> : null}
       </div>
     </div>
   );

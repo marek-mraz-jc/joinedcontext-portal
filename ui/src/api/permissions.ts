@@ -14,6 +14,20 @@ export interface Rule {
 }
 
 /** A grant allows a verb on a kind when its rule names both; `*` matches any kind. */
+/**
+ * Whether the person administers the organization (PF-03): `approve` and `delete` on
+ * `RoleBinding` in the organization's permissions, the question the server asks before the
+ * validation health (OPS-53) and the organization-level Endpoints (PF-61). Unlike `allows`, no
+ * document yet means no: what only an administrator sees is not shown while it is unknown.
+ */
+export function administersOrganization(effective: Effective | undefined): boolean {
+  return (
+    effective !== undefined &&
+    allows(effective, "RoleBinding", "approve") &&
+    allows(effective, "RoleBinding", "delete")
+  );
+}
+
 export function allows(effective: Effective | undefined, kind: string, verb: Verb): boolean {
   // Not (yet) a permissions document: the control shows and the API decides (PF-51 says the
   // UI is never the point of enforcement). Only a document that lists no grant hides it.
@@ -88,10 +102,7 @@ export function useAdministers(): { known: boolean; administers: boolean } {
   const permissions = usePermissions(ORG_NAMESPACE);
   return {
     known: !permissions.isLoading,
-    administers:
-      permissions.data !== undefined &&
-      allows(permissions.data, "RoleBinding", "approve") &&
-      allows(permissions.data, "RoleBinding", "delete"),
+    administers: administersOrganization(permissions.data),
   };
 }
 

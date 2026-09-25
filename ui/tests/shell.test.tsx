@@ -183,16 +183,12 @@ describe("portal shell", () => {
     });
   });
 
-  it("offers every endpoint of every project under one sidebar entry", async () => {
+  // PF-61, T-2877: every endpoint of every project is the Organization page's, for
+  // administrators; the project menu offers no entry for it to anyone.
+  it("offers no entry for every endpoint of every project in the project menu", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    await userEvent.click(within(nav).getByRole("link", { name: "All endpoints" }));
-    await waitFor(() => {
-      expect(window.location.pathname).toBe("/endpoints");
-    });
-    expect(within(nav).getByRole("link", { name: "All endpoints" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(within(nav).queryByRole("link", { name: "All endpoints" })).not.toBeInTheDocument();
+    expect(nav.querySelector('a[href="/endpoints"]')).toBeNull();
   });
 });
 

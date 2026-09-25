@@ -61,7 +61,6 @@
     "flows": "Flows",
     "models": "Data models",
     "ckan": "Open data",
-    "allEndpoints": "All endpoints",
     "explore": "Explore data",
     "assistant": "Assistant",
     "sync": "Sync",
@@ -3603,7 +3602,8 @@
       "projects": "Projects",
       "applications": "All applications",
       "setup": "Setup",
-      "health": "Health"
+      "health": "Health",
+      "endpoints": "All endpoints"
     },
     "settings": {
       "title": "Settings",

@@ -139,10 +139,11 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers the ten tabs, the address's one selected", async () => {
+  it("names itself once and offers an administrator the eleven tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
-    const tabs = within(await screen.findByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
+    await screen.findByRole("tab", { name: en.organization.tab.endpoints });
+    const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       en.organization.tab.settings,
       en.organization.tab.people,
@@ -154,9 +155,38 @@ describe("the Organization page", () => {
       en.organization.tab.applications,
       en.organization.tab.setup,
       en.organization.tab.health,
+      en.organization.tab.endpoints,
     ]);
     expect(screen.getByRole("tab", { name: en.organization.tab.roles })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "organization-tab-roles");
+  });
+
+  // PF-61, T-2877, UI-75: every endpoint of every project is an administration view. An
+  // administrator has the tab and the table; anyone else meets the page's notice, no tab, and no
+  // request for the list.
+  it("gives the Endpoints tab to an administrator and to nobody else", async () => {
+    const admin = renderAt("endpoints");
+    expect(await screen.findByRole("table", { name: en.allEndpoints.title })).toBeInTheDocument();
+    expect(admin.requests).toContain("GET /api/v1/endpoints");
+    cleanup();
+
+    const viewer = renderAt("endpoints", { permissions: VIEWER });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: en.organization.tab.endpoints })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: en.allEndpoints.title })).not.toBeInTheDocument();
+    expect(viewer.requests).not.toContain("GET /api/v1/endpoints");
+    cleanup();
+
+    // Approving bindings without deleting them is not administering the organization (PF-03).
+    renderAt("settings", {
+      permissions: {
+        project: "org",
+        bootstrap: false,
+        grants: [{ role: "binding-approver", binding: "approvers", rule: { kinds: ["RoleBinding"], verbs: ["approve"] } }],
+      } as unknown as Effective,
+    });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
   it("moves to the tab a person picks, at the tab's own address", async () => {
