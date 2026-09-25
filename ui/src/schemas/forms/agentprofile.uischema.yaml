@@ -1,6 +1,6 @@
 # Default form arrangement for AgentProfile (UI-02, T-1536).
-# What an agent run of the organization executes, calls and may reach; examples are neutral
-# (a placeholder digest, example.org hosts, T-2752).
+# What an agent run of the organization executes, calls and may reach; its one example, the
+# wall-clock limit, is neutral (T-2752, T-2882).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -65,7 +65,6 @@ spec:
       fields: [egress, tools, access]
   fields:
     name:
-      placeholder: "data-helper"
       help:
         en: The short name runs select the profile by; it cannot change once the profile exists.
         sk: Krátky názov, podľa ktorého behy profil vyberajú; keď profil existuje, nemení sa.
@@ -78,14 +77,12 @@ spec:
         cs: Správce volá operace portálu a nesáhne na žádného hostitele; tvůrce nese nástroje a potřebuje seznam povolených.
         de: Ein Steward ruft Portal-Operationen auf und erreicht keinen Host; ein Builder trägt Werkzeuge und braucht eine Liste.
     runtime.image:
-      placeholder: "registry.example.org/agents/runner"
       help:
         en: The container image a run executes; the digest below pins it, not the tag.
         sk: Obraz kontajnera, ktorý beh spúšťa; pripína ho odtlačok nižšie, nie značka.
         cs: Obraz kontejneru, který běh spouští; připíná jej otisk níže, ne značka.
         de: Das Container-Image, das ein Lauf ausführt; es wird durch den Digest unten festgelegt, nicht durch ein Tag.
     runtime.digest:
-      placeholder: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
       help:
         en: The image's sha256 digest; a profile without one is refused.
         sk: Odtlačok sha256 obrazu; profil bez neho je odmietnutý.
@@ -98,14 +95,12 @@ spec:
         cs: Protokol, kterým proxy mluví s modelem; klíč drží proxy, nikdy ne profil.
         de: Das Protokoll des Proxys zum Modell; den Schlüssel hält der Proxy, nie das Profil.
     model.name:
-      placeholder: "example-model-1"
       help:
         en: The model identifier as the provider knows it.
         sk: Identifikátor modelu, ako ho pozná poskytovateľ.
         cs: Identifikátor modelu, jak jej zná poskytovatel.
         de: Die Modellkennung, wie der Anbieter sie kennt.
     model.maxTokensPerRun:
-      placeholder: 200000
       help:
         en: The tokens one run may use before the proxy ends it.
         sk: Tokeny, ktoré smie jeden beh minúť, kým ho proxy ukončí.
@@ -149,14 +144,12 @@ spec:
         cs: Bajty, které smí nést jedna odpověď přes proxy.
         de: Die Bytes, die eine Antwort über den Proxy tragen darf.
     egress.allowedHosts:
-      placeholder: [docs.example.org]
       help:
         en: Bare hostnames a builder may read, no scheme, port or wildcard; a steward names none.
         sk: Holé názvy hostiteľov, ktoré smie tvorca čítať, bez schémy, portu a zástupných znakov; správca neuvádza žiadne.
         cs: Holé názvy hostitelů, které smí tvůrce číst, bez schématu, portu a zástupných znaků; správce neuvádí žádné.
         de: Reine Hostnamen, die ein Builder lesen darf, ohne Schema, Port oder Platzhalter; ein Steward nennt keine.
     egress.maxBytesPerRun:
-      placeholder: 16777216
       help:
         en: Bytes one run may read from those hosts in total; left empty, 16 MiB.
         sk: Bajty, ktoré smie jeden beh spolu prečítať z tých hostiteľov; ak je prázdne, 16 MiB.
@@ -169,35 +162,30 @@ spec:
         cs: Nástroje, které nese pracovní prostor tvůrce; správce nenese žádné.
         de: Die Werkzeuge im Arbeitsbereich eines Builders; ein Steward trägt keine.
     workspace.cpu:
-      placeholder: "1"
       help:
         en: The CPU the workspace container gets, as Kubernetes writes it.
         sk: CPU, ktoré dostane kontajner pracovného priestoru, v zápise Kubernetes.
         cs: CPU, které dostane kontejner pracovního prostoru, v zápisu Kubernetes.
         de: Die CPU des Arbeitsbereich-Containers, wie Kubernetes sie schreibt.
     workspace.memory:
-      placeholder: "2Gi"
       help:
         en: The memory the workspace container gets.
         sk: Pamäť, ktorú dostane kontajner pracovného priestoru.
         cs: Paměť, kterou dostane kontejner pracovního prostoru.
         de: Der Arbeitsspeicher des Arbeitsbereich-Containers.
     workspace.ephemeralStorage:
-      placeholder: "4Gi"
       help:
         en: The size of the scratch directory the workspace works in.
         sk: Veľkosť dočasného adresára, v ktorom pracovný priestor pracuje.
         cs: Velikost dočasného adresáře, ve kterém pracovní prostor pracuje.
         de: Die Größe des temporären Verzeichnisses, in dem der Arbeitsbereich arbeitet.
     access.operations:
-      placeholder: [jc_resource_list]
       help:
         en: The operations a run may call; left empty, only read-only operations.
         sk: Operácie, ktoré smie beh volať; ak je prázdne, len operácie na čítanie.
         cs: Operace, které smí běh volat; pokud je prázdné, jen operace pro čtení.
         de: Die Operationen, die ein Lauf aufrufen darf; leer gelassen, nur lesende.
     access.kinds[].kind:
-      placeholder: "Endpoint"
       help:
         en: A manifest kind of the catalogue, each listed once.
         sk: Druh manifestu z katalógu, každý uvedený raz.
@@ -210,7 +198,6 @@ spec:
         cs: Číst manifesty druhu nebo navrhovat změny, které stejně schválí člověk.
         de: Manifeste der Art lesen oder Änderungen vorschlagen, die eine Person freigibt.
     access.endpoints[].name:
-      placeholder: "air-quality"
       help:
         en: The endpoint's name, each listed once.
         sk: Názov koncového bodu, každý uvedený raz.

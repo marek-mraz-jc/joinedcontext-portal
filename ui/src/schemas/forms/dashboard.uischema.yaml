@@ -57,7 +57,6 @@ spec:
         cs: Krátký název v adrese této nástěnky. Malá písmena, číslice a spojovníky.
         de: Der kurze Name in der Adresse dieses Dashboards. Kleinbuchstaben, Ziffern und Bindestriche.
     title:
-      placeholder: "City bikes"
       help:
         en: The name shown at the top of the dashboard and in the menu.
         sk: Názov zobrazený v hlavičke nástenky a v menu.
@@ -70,7 +69,6 @@ spec:
         cs: Kdo si může tuto nástěnku zobrazit, od soukromého náhledu po veřejnost.
         de: Wer dieses Dashboard ansehen darf, von privater Ansicht bis zur Öffentlichkeit.
     pages[].title:
-      placeholder: Stations
       help:
         en: Tab title displayed to users for this dashboard page.
         sk: Názov záložky zobrazený používateľom pre túto stránku nástenky.
@@ -96,49 +94,42 @@ spec:
         cs: Typ informačního prvku k zobrazení, například graf vývoje v čase.
         de: Typ der anzuzeigenden Komponente, beispielsweise ein Zeitverlaufsdiagramm.
     pages[].widgets[].endpointRef:
-      placeholder: "bike-stations"
       help:
         en: Endpoint providing the live entities and readings for this widget.
         sk: Rozhranie poskytujúce živé entity a merania pre tento prvok.
         cs: Rozhraní poskytující živé entity a měření pro tento prvek.
         de: Endpunkt, der die aktuellen Entitäten und Messwerte für dieses Widget liefert.
     pages[].widgets[].entityId:
-      placeholder: "urn:ngsi-ld:BikeHireDockingStation:{orgDomain}:{project}:001"
       help:
         en: Identifier of the specific entity whose historical values are plotted.
         sk: Identifikátor konkrétnej entity, ktorej historické hodnoty sa vykresľujú.
         cs: Identifikátor konkrétní entity, jejíž historické hodnoty se vykreslují.
         de: Kennung der bestimmten Entität, deren historische Werte dargestellt werden.
     pages[].widgets[].property:
-      placeholder: availableBikeNumber
       help:
         en: Name of the entity property or attribute to display in this widget.
         sk: Názov vlastnosti alebo atribútu entity, ktorý sa má zobraziť v tomto prvku.
         cs: Název vlastnosti nebo atributu entity, který se má zobrazit v tomto prvku.
         de: Name der Entitätseigenschaft, die in diesem Widget dargestellt werden soll.
     pages[].widgets[].entityType:
-      placeholder: AirQualityObserved
       help:
         en: The entity type the grid lists, as the endpoint's model names it.
         sk: Typ entity, ktorý mriežka vypíše, presne ako ho pomenúva model endpointu.
         cs: Typ entity, který mřížka vypíše, přesně jak jej pojmenovává model endpointu.
         de: Der Entitätstyp, den das Raster auflistet, so benannt wie im Modell des Endpunkts.
     pages[].widgets[].grid.columns[].attr:
-      placeholder: pm10
       help:
         en: The attribute this column shows. Leave the columns empty to show every attribute.
         sk: Atribút, ktorý tento stĺpec zobrazuje. Bez stĺpcov sa zobrazia všetky atribúty.
         cs: Atribut, který tento sloupec zobrazuje. Bez sloupců se zobrazí všechny atributy.
         de: Das Attribut dieser Spalte. Ohne Spalten werden alle Attribute gezeigt.
     pages[].widgets[].grid.columns[].label:
-      placeholder: Particulates
       help:
         en: The heading above the column, in place of the attribute's own name.
         sk: Hlavička nad stĺpcom namiesto vlastného názvu atribútu.
         cs: Záhlaví nad sloupcem místo vlastního názvu atributu.
         de: Die Überschrift über der Spalte anstelle des Attributnamens.
     pages[].widgets[].grid.columns[].width:
-      placeholder: "160"
       help:
         en: How wide the column is in pixels. Left out, it takes the width its values need.
         sk: Šírka stĺpca v pixeloch. Bez nej si stĺpec vezme šírku podľa svojich hodnôt.
@@ -199,42 +190,36 @@ spec:
         cs: Přidá vlastní časy vzniku a změny entity jako dva další sloupce.
         de: Fügt Erstellungs- und Änderungszeitpunkt der Entität als Spalten hinzu.
     pages[].widgets[].grid.filters.allowed:
-      placeholder: [pm10]
       help:
         en: The columns whose filter row is offered. Left empty, every filterable column is.
         sk: Stĺpce, ktorým sa nabídne filtračný riadok. Bez nich sú to všetky filtrovateľné.
         cs: Sloupce, kterým se nabídne filtrační řádek. Bez nich jsou to všechny filtrovatelné.
         de: Die Spalten mit Filterzeile. Leer gelassen, sind es alle filterbaren Spalten.
     pages[].widgets[].grid.filters.preset.q:
-      placeholder: pm10>50
       help:
         en: The query the grid always asks the endpoint with, before anyone filters on screen.
         sk: Dotaz, s ktorým sa mriežka endpointu pýta vždy, ešte než niekto filtruje na obrazovke.
         cs: Dotaz, se kterým se mřížka endpointu ptá vždy, ještě než někdo filtruje na obrazovce.
         de: Die Abfrage, mit der das Raster immer fragt, bevor jemand am Bildschirm filtert.
     pages[].widgets[].grid.filters.preset.attrs:
-      placeholder: [pm10]
       help:
         en: The attributes asked for, when the grid should not read every one of them.
         sk: Atribúty, o ktoré sa žiada, keď mriežka nemá čítať všetky.
         cs: Atributy, o které se žádá, když mřížka nemá číst všechny.
         de: Die angefragten Attribute, wenn nicht alle gelesen werden sollen.
     pages[].widgets[].grid.filters.preset.idPattern:
-      placeholder: ".*:station-.*"
       help:
         en: A regular expression the entity identifiers must match to be listed.
         sk: Regulárny výraz, ktorému musia identifikátory entít vyhovieť, aby sa vypísali.
         cs: Regulární výraz, kterému musí identifikátory entit vyhovět, aby se vypsaly.
         de: Ein regulärer Ausdruck, dem die Kennungen entsprechen müssen.
     pages[].widgets[].grid.filters.preset.scopeQ:
-      placeholder: "/district/centre"
       help:
         en: The scope the listed entities must sit in, written as a scope expression.
         sk: Rozsah, v ktorom musia vypísané entity ležať, zapísaný ako výraz rozsahu.
         cs: Rozsah, ve kterém musí vypsané entity ležet, zapsaný jako výraz rozsahu.
         de: Der Bereich, in dem die Entitäten liegen müssen, als Bereichsausdruck.
     pages[].widgets[].grid.pageSize:
-      placeholder: "25"
       help:
         en: How many entities one page holds, between 1 and 1000. Fifty when left out.
         sk: Koľko entít drží jedna strana, od 1 do 1000. Bez zadania päťdesiat.
@@ -247,7 +232,6 @@ spec:
         cs: Zda se vůbec smí do pole vepsat oprava. Bez zadání jen ke čtení.
         de: Ob überhaupt eine Korrektur eingetippt werden darf. Ohne Angabe nur lesend.
     pages[].widgets[].grid.editableAttrs:
-      placeholder: [pm10]
       help:
         en: The attributes a correction may be typed into, which edit mode requires.
         sk: Atribúty, do ktorých sa smie vpísať oprava; režim úprav ich vyžaduje.
@@ -260,7 +244,6 @@ spec:
         cs: Dovolí otevřít historii jednoho atributu přímo z jeho sloupce.
         de: Erlaubt, den Verlauf eines Attributs aus seiner Spalte zu öffnen.
     pages[].widgets[].grid.history.maxPoints:
-      placeholder: "200"
       help:
         en: How many points one history read returns at most, between 1 and 1000.
         sk: Koľko bodov najviac vráti jedno čítanie histórie, od 1 do 1000.
@@ -279,7 +262,6 @@ spec:
         cs: Zda se vedle řádků zobrazí mapa. Bez zadání vypnutá a nikdy pro typ bez geometrie.
         de: Ob neben den Zeilen eine Karte erscheint. Ohne Angabe aus, und nie bei einem Typ ohne Geometrie.
     pages[].widgets[].grid.map.attr:
-      placeholder: location
       help:
         en: Which geometry attribute the map draws. The type's first one when left out.
         sk: Ktorý geometrický atribút mapa kreslí. Bez zadania prvý atribút typu.
@@ -292,7 +274,6 @@ spec:
         cs: Kde mapa sedí, vedle řádků nebo pod nimi. Bez zadání vedle a na úzké obrazovce tak či tak pod nimi.
         de: Wo die Karte sitzt, neben den Zeilen oder darunter. Ohne Angabe daneben, auf schmalem Bildschirm ohnehin darunter.
     pages[].widgets[].grid.rowActions:
-      placeholder: [open]
       help:
         en: The row actions this page offers by name; the page itself draws them.
         sk: Akcie riadku, ktoré táto stránka nabízí podľa názvu; vykresľuje ich sama stránka.

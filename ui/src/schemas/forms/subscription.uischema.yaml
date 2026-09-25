@@ -76,7 +76,6 @@ spec:
       fields: [q, geoQ, throttling, expiresAt, isActive]
   fields:
     name:
-      placeholder: "air-quality-alerts"
       help:
         en: The short name this subscription is filed under; two subscriptions of a project cannot share one.
         sk: Krátky názov, pod ktorým je odber uložený; dva odbery projektu ho nemôžu zdieľať.
@@ -89,42 +88,36 @@ spec:
         cs: Kontextový prostor, jehož broker odběr drží; sleduje tento prostor a žádný jiný.
         de: Der Kontextraum, dessen Broker das Abonnement hält; es beobachtet nur diesen Raum.
     subscriptionName:
-      placeholder: "PM10 above the limit"
       help:
         en: What people call this subscription in the Portal; the manifest name stays as it is.
         sk: Ako ľudia tento odber volajú v Portáli; názov manifestu zostáva, aký je.
         cs: Jak lidé tento odběr nazývají v Portálu; název manifestu zůstává, jaký je.
         de: Wie Menschen das Abonnement im Portal nennen; der Manifestname bleibt, wie er ist.
     description:
-      placeholder: Tells the operations desk when a station measures PM10 above the limit.
       help:
         en: Why the subscription exists, for whoever reads the repository later.
         sk: Prečo odber existuje, pre toho, kto bude repozitár čítať neskôr.
         cs: Proč odběr existuje, pro toho, kdo bude repozitář číst později.
         de: Warum das Abonnement existiert, für alle, die das Repository später lesen.
     entities[].type:
-      placeholder: AirQualityObserved
       help:
         en: Every entity of this type is watched, as the data model names the type.
         sk: Sleduje sa každá entita tohto typu, tak ako typ pomenúva dátový model.
         cs: Sleduje se každá entita tohoto typu, tak jak typ pojmenovává datový model.
         de: Jede Entität dieses Typs wird beobachtet, so wie das Datenmodell den Typ nennt.
     entities[].id:
-      placeholder: "urn:ngsi-ld:AirQualityObserved:{orgDomain}:{project}:station-01"
       help:
         en: One entity by its identifier, when a single station or vehicle is all that matters.
         sk: Jedna entita podľa identifikátora, keď záleží len na jednej stanici alebo vozidle.
         cs: Jedna entita podle identifikátoru, když záleží jen na jedné stanici nebo vozidle.
         de: Eine Entität nach Kennung, wenn nur eine Station oder ein Fahrzeug zählt.
     entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:.*$"
       help:
         en: Every entity whose identifier matches this anchored regular expression.
         sk: Každá entita, ktorej identifikátor zodpovedá tomuto ukotvenému regulárnemu výrazu.
         cs: Každá entita, jejíž identifikátor odpovídá tomuto ukotvenému regulárnímu výrazu.
         de: Jede Entität, deren Kennung zu diesem verankerten regulären Ausdruck passt.
     watchedAttributes:
-      placeholder: [pm10, pm25]
       help:
         en: The attributes whose change fires the subscription; empty means a change of any attribute.
         sk: Atribúty, ktorých zmena odber spustí; prázdny zoznam znamená zmenu ľubovoľného atribútu.
@@ -138,14 +131,12 @@ spec:
         cs: Podmínka, kterou musí entita splnit, v dotazovacím jazyce NGSI-LD podle CIM 009.
         de: Eine Bedingung für die Entität, in der NGSI-LD-Abfragesprache von CIM 009.
     geoQ:
-      placeholder: "georel=within;geometry=Point;coordinates=[19.146,48.736]"
       help:
         en: The area an entity has to be in, as a georel, a geometry and its coordinates.
         sk: Oblasť, v ktorej musí entita byť, ako georel, geometria a jej súradnice.
         cs: Oblast, ve které musí entita být, jako georel, geometrie a její souřadnice.
         de: Das Gebiet, in dem die Entität liegen muss, als georel, Geometrie und Koordinaten.
     notification.endpoint.uri:
-      placeholder: "https://hooks.example.org/air-quality"
       help:
         en: The address the broker posts to; https outside the cluster, and no password or token in it.
         sk: Adresa, na ktorú broker posiela; mimo klastra https a bez hesla či tokenu v nej.
@@ -158,28 +149,24 @@ spec:
         cs: Typ média, který příjemce chce; zůstane-li prázdný, broker pošle svůj výchozí.
         de: Der Medientyp, den der Empfänger will; leer sendet der Broker seinen Standard.
     notification.endpoint.receiverInfo[].key:
-      placeholder: "X-Source"
       help:
         en: A header the receiver needs; Authorization and Cookie belong in the credential below.
         sk: Hlavička, ktorú príjemca potrebuje; Authorization a Cookie patria do údaja nižšie.
         cs: Hlavička, kterou příjemce potřebuje; Authorization a Cookie patří do údaje níže.
         de: Ein Header, den der Empfänger braucht; Authorization und Cookie gehören in die Zugangsdaten.
     notification.endpoint.receiverInfo[].value:
-      placeholder: "joinedcontext-air-quality"
       help:
         en: The value of that header, written into the manifest as it is, so never a secret.
         sk: Hodnota tej hlavičky, zapísaná do manifestu tak, ako je, preto nikdy tajomstvo.
         cs: Hodnota té hlavičky, zapsaná do manifestu tak, jak je, proto nikdy tajemství.
         de: Der Wert dieses Headers, wie er ist im Manifest, daher nie ein Geheimnis.
     notification.endpoint.secretRef.name:
-      placeholder: "alerts-hook"
       help:
         en: The secret the credential is read from; the reconciler resolves it and Git never holds it.
         sk: Tajomstvo, z ktorého sa údaj číta; rekonciliátor ho vyrieši a Git ho nikdy nedrží.
         cs: Tajemství, ze kterého se údaj čte; rekonciliátor jej vyřeší a Git jej nikdy nedrží.
         de: Das Geheimnis, aus dem die Zugangsdaten stammen; der Reconciler löst es auf, nie Git.
     notification.endpoint.secretRef.key:
-      placeholder: token
       help:
         en: The key inside that secret that holds the value the receiver checks.
         sk: Kľúč v tom tajomstve, ktorý drží hodnotu, akú príjemca overuje.
@@ -192,21 +179,18 @@ spec:
         cs: Jak se každá entita zapíše do notifikace; zůstane-li prázdné, rozhodne broker.
         de: Wie jede Entität in die Benachrichtigung geschrieben wird; leer entscheidet der Broker.
     notification.attributes:
-      placeholder: [pm10, location]
       help:
         en: The attributes the notification carries; empty sends every attribute the grant allows.
         sk: Atribúty, ktoré notifikácia nesie; prázdny zoznam pošle všetky, ktoré oprávnenie dovolí.
         cs: Atributy, které notifikace nese; prázdný seznam pošle všechny, které oprávnění dovolí.
         de: Die Attribute der Benachrichtigung; leer sendet alle, die die Berechtigung erlaubt.
     throttling:
-      placeholder: 60
       help:
         en: The shortest time between two notifications, in seconds; leave it empty for no limit.
         sk: Najkratší čas medzi dvoma notifikáciami v sekundách; bez obmedzenia nechajte prázdne.
         cs: Nejkratší doba mezi dvěma notifikacemi v sekundách; bez omezení nechte prázdné.
         de: Die kürzeste Zeit zwischen zwei Benachrichtigungen in Sekunden; leer für keine Grenze.
     expiresAt:
-      placeholder: "2027-01-01T00:00:00Z"
       help:
         en: When the subscription stops, with its time zone; leave it empty for no end.
         sk: Kedy odber skončí, aj s časovým pásmom; bez konca nechajte prázdne.

@@ -75,7 +75,6 @@ spec:
       fields: [interval, expiresAt]
   fields:
     name:
-      placeholder: "neighbour-air-quality"
       help:
         en: The short name this registration is filed under; two registrations of a project cannot share one.
         sk: Krátky názov, pod ktorým je registrácia uložená; dve registrácie projektu ho nemôžu zdieľať.
@@ -88,7 +87,6 @@ spec:
         cs: Prostor, jehož broker odpovídá daty zdroje; registrace se zapíše jen do tohoto prostoru.
         de: Der Raum, dessen Broker mit den Daten der Quelle antwortet; die Registrierung gilt nur für ihn.
     endpointRef:
-      placeholder: "neighbour-air-quality"
       help:
         en: The Endpoint of this project the data is read through; its own policies still apply to every answer.
         sk: Endpoint tohto projektu, cez ktorý sa údaje čítajú; na každú odpoveď sa stále vzťahujú jeho politiky.
@@ -108,42 +106,36 @@ spec:
         cs: Přeposílat jako servisní účet této platformy, nebo předat vlastní token volajícího přepsaný pro zdroj.
         de: Als Dienstkonto dieser Plattform weiterleiten oder das eigene Token des Aufrufers für die Quelle umschreiben.
     federation.serviceAccountRef:
-      placeholder: "air-quality-hub"
       help:
         en: The service account the platform forwards as; required when forwarding as a service account.
         sk: Servisný účet, ako ktorý platforma preposiela; povinný pri preposielaní ako servisný účet.
         cs: Servisní účet, jako který platforma přeposílá; povinný při přeposílání jako servisní účet.
         de: Das Dienstkonto, als das die Plattform weiterleitet; Pflicht beim Weiterleiten als Dienstkonto.
     information[].entities[].type:
-      placeholder: AirQualityObserved
       help:
         en: One entity type the source holds; a query for this type is sent to the source as well.
         sk: Jeden typ entity, ktorý zdroj drží; dopyt na tento typ sa pošle aj zdroju.
         cs: Jeden typ entity, který zdroj drží; dotaz na tento typ se pošle i zdroji.
         de: Ein Entitätstyp, den die Quelle hält; eine Anfrage nach diesem Typ geht auch an die Quelle.
     information[].entities[].id:
-      placeholder: "urn:ngsi-ld:AirQualityObserved:neighbour.example:air-quality:station-01"
       help:
         en: One entity the source holds, when the claim is about a single entity rather than a whole type.
         sk: Jedna entita, ktorú zdroj drží, ak sa nárok týka jednej entity a nie celého typu.
         cs: Jedna entita, kterou zdroj drží, pokud se nárok týká jedné entity, a ne celého typu.
         de: Eine Entität der Quelle, wenn der Anspruch eine einzelne Entität und nicht den ganzen Typ betrifft.
     information[].entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:neighbour\\.example:.*$"
       help:
         en: An anchored expression for the identifiers the source holds, narrowing the type to those.
         sk: Ukotvený výraz pre identifikátory, ktoré zdroj drží, ktorý zužuje typ na ne.
         cs: Ukotvený výraz pro identifikátory, které zdroj drží, který zužuje typ na ně.
         de: Ein verankerter Ausdruck für die Kennungen der Quelle, der den Typ auf diese einschränkt.
     information[].propertyNames:
-      placeholder: [pm10, pm25, location]
       help:
         en: The properties the source holds for those entities; leaving the list empty claims all of them.
         sk: Vlastnosti, ktoré zdroj pre tieto entity drží; prázdny zoznam znamená všetky.
         cs: Vlastnosti, které zdroj pro tyto entity drží; prázdný seznam znamená všechny.
         de: Die Eigenschaften, die die Quelle für diese Entitäten hält; eine leere Liste bedeutet alle.
     information[].relationshipNames:
-      placeholder: [refPointOfInterest]
       help:
         en: The relationships the source holds for those entities; leaving the list empty claims all of them.
         sk: Vzťahy, ktoré zdroj pre tieto entity drží; prázdny zoznam znamená všetky.
@@ -162,14 +154,12 @@ spec:
         cs: Inkluzivní režim spojí zdroj s daty brokeru; exkluzivní z něj udělá jedinou odpověď na to, co pokrývá.
         de: Inklusiv verbindet die Quelle mit den Brokerdaten; exklusiv macht sie zur einzigen Antwort für ihren Bereich.
     interval:
-      placeholder: 24h
       help:
         en: How often the source's schema artifacts are mirrored here; left empty, once a day.
         sk: Ako často sa artefakty schém zdroja zrkadlia sem; ak je prázdne, raz denne.
         cs: Jak často se artefakty schémat zdroje zrcadlí sem; pokud je prázdné, jednou denně.
         de: Wie oft die Schema-Artefakte der Quelle gespiegelt werden; leer gelassen, einmal am Tag.
     expiresAt:
-      placeholder: "2027-12-31T23:59:59Z"
       help:
         en: When the broker stops asking the source, as a date and time with its offset; left empty, it does not expire.
         sk: Kedy sa broker prestane pýtať zdroja, ako dátum a čas s posunom; ak je prázdne, neuplynie.

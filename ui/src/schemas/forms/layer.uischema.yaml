@@ -74,7 +74,6 @@ spec:
       fields: [colorBy, sizeBy, popupProperties]
   fields:
     name:
-      placeholder: bike-stations
       help:
         en: The short name of this layer, the one a dashboard uses to place it on a page.
         sk: Krátky názov tejto vrstvy; ním ju nástenka umiestni na stránku.
@@ -112,56 +111,48 @@ spec:
         cs: Dotazový výraz filtrující entity zobrazené na mapě podle jejich atributů.
         de: Abfrageausdruck, der filtert, welche Entitäten anhand von Attributen auf der Karte erscheinen.
     filter.scopeQ:
-      placeholder: "/district/1"
       help:
         en: Hierarchical scope filter restricting entities to specific districts or zones.
         sk: Hierarchický filter rozsahu obmedzujúci entity na konkrétne štvrte alebo zóny.
         cs: Hierarchický filtr rozsahu omezující entity na konkrétní čtvrti nebo zóny.
         de: Hierarchischer Bereichsfilter, der Entitäten auf bestimmte Bezirke oder Zonen beschränkt.
     filter.geoQ:
-      placeholder: "georel=near;maxDistance==1000&geometry=Point&coordinates=[24.94,60.17]"
       help:
         en: Geographic filter restricting entities to a specific spatial bounding box or radius.
         sk: Geografický filter obmedzujúci entity na konkrétnu priestorovú oblasť alebo polomer.
         cs: Geografický filtr omezující entity na konkrétní prostorovou oblast nebo poloměr.
         de: Geografischer Filter, der Entitäten auf einen bestimmten Raumbereich oder Radius beschränkt.
     colorBy.property:
-      placeholder: availableBikeNumber
       help:
         en: Entity attribute determining marker colors across the map.
         sk: Atribút entity určujúci farby značiek na mape.
         cs: Atribut entity určující barvy značek na mapě.
         de: Entitätsattribut, das die Farben der Markierungen auf der Karte bestimmt.
     colorBy.palette:
-      placeholder: YlOrRd
       help:
         en: Color palette name used to interpolate colors across the value domain.
         sk: Názov farebnej palety použitej na prechod farieb v rozsahu hodnôt.
         cs: Název barevné palety použité pro přechod barev v rozsahu hodnot.
         de: Name der Farbpalette, die Farben über den Wertebereich interpoliert.
     colorBy.domain:
-      placeholder: [0, 20]
       help:
         en: Minimum and maximum numeric values mapped to the start and end of the color palette.
         sk: Minimálna a maximálna číselná hodnota priradená k začiatku a koncu farebnej palety.
         cs: Minimální a maximální číselná hodnota přiřazená k začátku a konci barevné palety.
         de: Numerischer Mindest- und Höchstwert für den Anfang und das Ende der Farbpalette.
     sizeBy.property:
-      placeholder: availableBikeNumber
       help:
         en: Entity attribute determining marker size or circle radius.
         sk: Atribút entity určujúci veľkosť značky alebo polomer kruhu.
         cs: Atribut entity určující velikost značky nebo poloměr kruhu.
         de: Entitätsattribut, das die Größe der Markierung oder den Kreisradius bestimmt.
     sizeBy.range:
-      placeholder: [4, 14]
       help:
         en: Minimum and maximum circle radius in pixels corresponding to the value range.
         sk: Minimálny a maximálny polomer kruhu v pixeloch zodpovedajúci rozsahu hodnôt.
         cs: Minimální a maximální poloměr kruhu v pixelech odpovídající rozsahu hodnot.
         de: Minimaler und maximaler Kreisradius in Pixeln passend zum Wertebereich.
     popupProperties:
-      placeholder: [name, availableBikeNumber, freeSlotNumber]
       help:
         en: List of attribute names shown in the popup card when clicking a map entity.
         sk: Zoznam názvov atribútov zobrazených v bubline po kliknutí na entitu na mape.

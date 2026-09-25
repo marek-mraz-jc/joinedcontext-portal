@@ -79,7 +79,6 @@ spec:
         cs: Zda smí projekt zveřejnit aplikaci, kterou otevře kdokoli bez přihlášení.
         de: Ob ein Projekt eine App veröffentlichen darf, die jeder ohne Anmeldung öffnet.
     policies.agents.models:
-      placeholder: [claude-sonnet-5]
       help:
         en: The models the assistant may use, by the name the installation gives them; leave it out to allow every one.
         sk: Modely, ktoré môže asistent používať, podľa názvu v inštalácii; vynechajte, aby boli povolené všetky.
@@ -93,14 +92,12 @@ spec:
         cs: Internetová doména, kterou organizace prokazatelně vlastní; nese ji každý identifikátor entity.
         de: Die Internet-Domain, deren Besitz die Organisation nachweist; jeder Entitätsbezeichner trägt sie.
     locales:
-      placeholder: [sk, en]
       help:
         en: The languages the Portal and the published data are offered in, the preferred one first.
         sk: Jazyky, v ktorých sa ponúka Portál a zverejnené dáta, najprv ten uprednostňovaný.
         cs: Jazyky, ve kterých se nabízí Portál a zveřejněná data, nejprve ten upřednostňovaný.
         de: Die Sprachen, in denen Portal und veröffentlichte Daten angeboten werden, bevorzugte zuerst.
     defaultLocale:
-      placeholder: sk
       help:
         en: The language shown when a person's own is not offered; it has to be one of the languages above.
         sk: Jazyk zobrazený, keď jazyk osoby nie je v ponuke; musí byť jedným z jazykov vyššie.
@@ -119,28 +116,24 @@ spec:
         cs: Za co tento kontakt odpovídá, například ochrana osobních údajů nebo bezpečnost.
         de: Wofür dieser Kontakt zuständig ist, etwa Datenschutz oder Sicherheit.
     contacts[].name:
-      placeholder: "IT department"
       help:
         en: The person or the department behind the address, as a reader should address them.
         sk: Osoba alebo oddelenie za adresou, tak ako ich má čitateľ osloviť.
         cs: Osoba nebo oddělení za adresou, tak jak je má čtenář oslovit.
         de: Die Person oder Abteilung hinter der Adresse, so wie Lesende sie ansprechen sollen.
     contacts[].email:
-      placeholder: "it@{orgDomain}"
       help:
         en: The address that reaches this contact; a shared mailbox outlives a person's.
         sk: Adresa, na ktorej je kontakt k zastihnutiu; spoločná schránka prežije osobnú.
         cs: Adresa, na které je kontakt k zastižení; společná schránka přežije osobní.
         de: Die Adresse, unter der der Kontakt erreichbar ist; ein Sammelpostfach überdauert Personen.
     contacts[].phone:
-      placeholder: "+1 555 0100"
       help:
         en: A telephone number in international form, when the contact takes calls.
         sk: Telefónne číslo v medzinárodnom tvare, ak kontakt prijíma hovory.
         cs: Telefonní číslo v mezinárodním tvaru, pokud kontakt přijímá hovory.
         de: Eine Telefonnummer im internationalen Format, falls der Kontakt Anrufe annimmt.
     projects.creation:
-      placeholder: org-admin
       help:
         en: Who may open a project - anyone signed in (anyone), only an organization administrator (org-admin), or the members of one group (group:<name>).
         sk: Kto smie otvoriť projekt - ktokoľvek prihlásený, iba administrátor organizácie (org-admin), alebo členovia jednej skupiny (group:<názov>).
@@ -153,63 +146,54 @@ spec:
         cs: Zda každý přihlášený člověk organizace čte každý projekt, nebo jen lidé, které jmenuje vazba.
         de: Ob jede angemeldete Person der Organisation jedes Projekt liest oder nur, wen eine Bindung nennt.
     projects.nameCooldownDays:
-      placeholder: 30
       help:
         en: How many days the name of a deleted project stays reserved; empty keeps the 30 days, 0 frees it at once.
         sk: Koľko dní zostáva názov zmazaného projektu rezervovaný; prázdne ponechá 30 dní, 0 ho uvoľní hneď.
         cs: Kolik dní zůstává název smazaného projektu rezervovaný; prázdné ponechá 30 dní, 0 jej uvolní hned.
         de: Wie viele Tage der Name eines gelöschten Projekts reserviert bleibt; leer heißt 30 Tage, 0 gibt ihn sofort frei.
     projects.quota.contextSpaces:
-      placeholder: 10
       help:
         en: How many context spaces a new project may run; empty sets no limit.
         sk: Koľko kontextových priestorov smie nový projekt prevádzkovať; prázdne nestanoví limit.
         cs: Kolik kontextových prostorů smí nový projekt provozovat; prázdné nestanoví limit.
         de: Wie viele Kontexträume ein neues Projekt betreiben darf; leer setzt keine Grenze.
     projects.quota.residentPipelines:
-      placeholder: 5
       help:
         en: How many pipelines of a new project may run all the time; empty sets no limit.
         sk: Koľko pipeline nového projektu smie bežať nepretržite; prázdne nestanoví limit.
         cs: Kolik pipeline nového projektu smí běžet nepřetržitě; prázdné nestanoví limit.
         de: Wie viele Pipelines eines neuen Projekts dauerhaft laufen dürfen; leer setzt keine Grenze.
     projects.quota.publicEndpoints:
-      placeholder: 3
       help:
         en: How many endpoints of a new project anyone may read without signing in; empty sets no limit.
         sk: Koľko koncových bodov nového projektu smie ktokoľvek čítať bez prihlásenia; prázdne nestanoví limit.
         cs: Kolik koncových bodů nového projektu smí kdokoli číst bez přihlášení; prázdné nestanoví limit.
         de: Wie viele Endpunkte eines neuen Projekts alle ohne Anmeldung lesen dürfen; leer setzt keine Grenze.
     projects.quota.ingestEventsPerSecond:
-      placeholder: 200
       help:
         en: How many updates per second a new project's sources may write; empty sets no limit.
         sk: Koľko aktualizácií za sekundu smú zapísať zdroje nového projektu; prázdne nestanoví limit.
         cs: Kolik aktualizací za sekundu smějí zapsat zdroje nového projektu; prázdné nestanoví limit.
         de: Wie viele Aktualisierungen pro Sekunde die Quellen eines neuen Projekts schreiben; leer setzt keine Grenze.
     projects.quota.apps:
-      placeholder: 5
       help:
         en: How many applications a new project may publish; empty sets no limit.
         sk: Koľko aplikácií smie nový projekt zverejniť; prázdne nestanoví limit.
         cs: Kolik aplikací smí nový projekt zveřejnit; prázdné nestanoví limit.
         de: Wie viele Anwendungen ein neues Projekt veröffentlichen darf; leer setzt keine Grenze.
     projects.quota.agentRunsPerDay:
-      placeholder: 20
       help:
         en: How many assistant runs a new project may start in one day; empty sets no limit.
         sk: Koľko behov asistenta smie nový projekt spustiť za deň; prázdne nestanoví limit.
         cs: Kolik běhů asistenta smí nový projekt spustit za den; prázdné nestanoví limit.
         de: Wie viele Assistentenläufe ein neues Projekt pro Tag starten darf; leer setzt keine Grenze.
     projects.quota.entitiesPerSpace:
-      placeholder: 100000
       help:
         en: How many entities one context space of a new project may hold; empty sets no limit.
         sk: Koľko entít smie mať jeden kontextový priestor nového projektu; prázdne nestanoví limit.
         cs: Kolik entit smí mít jeden kontextový prostor nového projektu; prázdné nestanoví limit.
         de: Wie viele Entitäten ein Kontextraum eines neuen Projekts halten darf; leer setzt keine Grenze.
     projects.quota.requestsPerMinute:
-      placeholder: 600
       help:
         en: How many requests per minute one endpoint of a new project answers; empty sets no limit.
         sk: Na koľko požiadaviek za minútu odpovie jeden koncový bod nového projektu; prázdne nestanoví limit.

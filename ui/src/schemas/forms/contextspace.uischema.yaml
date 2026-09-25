@@ -60,14 +60,12 @@ spec:
         cs: Krátký název prostoru. Stane se částí označení každé entity v něm, proto se už nemění.
         de: Der kurze Name des Raums. Er wird Teil der Kennung jeder Entität darin und bleibt daher so.
     title:
-      placeholder: "Air quality"
       help:
         en: The name people read in menus and lists, in your own language.
         sk: Názov, ktorý ľudia čítajú v menu a zoznamoch, vo vašom jazyku.
         cs: Název, který lidé čtou v menu a seznamech, ve vašem jazyce.
         de: Der Name, den Menschen in Menüs und Listen lesen, in Ihrer Sprache.
     dataModelRef:
-      placeholder: "air-quality"
       help:
         en: The data model that defines entity types and attributes allowed in this space.
         sk: Dátový model, ktorý určuje povolené typy entít a atribúty v tomto priestore.
@@ -92,7 +90,6 @@ spec:
         cs: Označte jako dočasné prostředí určené pro experimenty a náhledy aplikací.
         de: Als temporäre Umgebung für Experimente und App-Vorschauen markieren.
     ttlDays:
-      placeholder: 7
       help:
         en: Number of days before the sandbox and all its entities are automatically deleted.
         sk: Počet dní, po ktorých sa pieskovisko a všetky jeho entity automaticky vymažú.

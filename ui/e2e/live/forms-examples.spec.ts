@@ -1,16 +1,14 @@
 /**
- * Every create form is filled from its own examples and the check comes back green (T-1606; UI-02,
- * PF-57).
+ * Every create form shows at most one example, and the field accepts it (T-2882; T-1606, UI-02).
  *
- * The form now offers an example for every field it asks for and one action that writes it in
- * (T-1604, T-1612). Nothing proved that following that guidance ends in a manifest the platform
- * accepts — and guidance the platform refuses is worse than none, because the person trusts it.
+ * The owner's rule of 2026-09-25: an example on field after field is clutter that drowns the one
+ * that helps, so a form carries one, on the field whose value carries the pattern. This journey
+ * held T-1606's older promise, that a form filled from nothing but its examples checks green; that
+ * promise went with the rule, and the red-verdict path it also walked is verdict-gate.spec.ts's.
  *
- * What one kind's case does: open New, take the example into every required field the form offers one
- * for, type a name nobody has used (the example's own name may well be taken on dev, and the check
- * refuses a name that exists), press Check, and read the verdict. Nothing is ever proposed: the only
- * button pressed is Check, a dry run, so dev keeps what it had. A red verdict is reported with the
- * finding the platform gave, because that finding names the example that is wrong.
+ * What one kind's case does: open New, count the "Use the example" offers, take the one there is,
+ * and read the field: no error beside it, since the example is a value the field accepts. Nothing
+ * is checked or proposed, so dev keeps what it had.
  *
  * The pages are discovered from the navigation rather than listed here: a kind whose form is added
  * later is covered without editing this file, and the report says which pages were walked.
@@ -18,20 +16,16 @@
 import { writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { STEWARD, signIn, sweepDrafts, takeTheExamples } from "./portal";
+import { STEWARD, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 const REPORT = process.env.FORMS_REPORT ?? "test-results/forms-examples.json";
-const SUFFIX = new Date().toISOString().slice(11, 19).replace(/:/g, "");
-/** The name every form of this run gets, so a check never trips over a name dev already holds. */
-const NAME = `t1606-${SUFFIX}`;
 
 test.setTimeout(1_800_000);
 
 interface Walked {
   page: string;
-  examplesTaken: number;
-  verdict: string;
+  examples: number;
   finding?: string;
 }
 
@@ -54,29 +48,7 @@ async function said(dialog: Locator): Promise<string> {
   return lines.join(" | ").replace(/\s+/g, " ").slice(0, 400) || "nothing";
 }
 
-/** The required fields still empty, by the label a person reads: why a check cannot run. */
-async function emptyRequired(dialog: Locator): Promise<string> {
-  const names = await dialog
-    .locator("input, select, textarea")
-    .evaluateAll((fields) =>
-      fields
-        .filter((field) => {
-          const el = field as HTMLInputElement;
-          const required =
-            el.required || el.getAttribute("aria-required") === "true";
-          return required && el.value === "" && el.offsetParent !== null;
-        })
-        .map((field) => {
-          const el = field as HTMLInputElement;
-          return el.labels?.[0]?.textContent?.trim() || el.id;
-        }),
-    );
-  return names.length
-    ? `required and still empty: ${names.join(", ")}`
-    : "every required field is filled";
-}
-
-test("every create form is green from its own examples", async ({
+test("every create form shows at most one example, and the field accepts it", async ({
   browser,
 }) => {
   const steward = await signIn(
@@ -102,73 +74,39 @@ test("every create form is green from its own examples", async ({
       if (!(await dialog.isVisible().catch(() => false))) {
         continue;
       }
-      const check = dialog
-        .getByRole("button", { name: "Check", exact: true })
-        .first();
-      if (!(await check.count())) {
-        // A form with no check of its own is T-1459's subject, not this journey's.
-        await steward.page.keyboard.press("Escape");
-        continue;
-      }
 
-      const examplesTaken = await takeTheExamples(dialog);
-      // A select offers its choices instead of an example (the Context Space of a Subscription or
-      // a Policy): a required one left empty takes its first real option, as a person picks one.
-      // Left empty, the form refuses at the field and Check sends nothing (T-2634).
-      for (const select of await dialog.locator("select[required], select[aria-required=true]").all()) {
-        const value = await select.evaluate((element) => {
-          const own = element as HTMLSelectElement;
-          return own.value === ""
-            ? ([...own.options].find((option) => option.value !== "" && !option.disabled)?.value ?? "")
-            : "";
-        });
-        if (value !== "") {
-          await select.selectOption(value);
-        }
-      }
-      const name = dialog.locator("#root_name");
-      if (await name.count()) {
-        await name.fill(NAME);
-      }
-      await check.click();
-
-      // Three ways this ends, and each is a finding of its own: the check passes, the check
-      // refuses what the examples built, or the check never runs because the form itself is not
-      // complete — the last one is what a form whose examples do not cover its required fields
-      // does, and waiting three minutes for a verdict that cannot come is not a measurement.
-      const verdictChip = dialog.getByTestId("draft-verdict");
-      let verdict = "the check never answered";
+      const offers = dialog.getByRole("button", { name: "Use the example" });
+      const examples = await offers.count();
       let finding: string | undefined;
-      try {
-        await expect(verdictChip).not.toHaveText(/Not checked yet/, {
-          timeout: 90_000,
-        });
-        verdict = (await verdictChip.innerText()).trim();
-        if (/Check failed/i.test(verdict)) {
-          finding = await said(dialog);
+      if (examples > 1) {
+        finding = `${examples} examples on one form`;
+      } else if (examples === 1) {
+        const offer = offers.first();
+        // The input the offer fills sits in the same row (theme.tsx BaseInputTemplate).
+        const field = offer.locator("xpath=ancestor::div[contains(@class, 'flex')][1]").locator("input, textarea").first();
+        await offer.click();
+        await field.blur();
+        if ((await field.getAttribute("aria-invalid")) === "true") {
+          finding = `the field refuses its own example: ${await said(dialog)}`;
         }
-      } catch {
-        finding = `${await emptyRequired(dialog)}; the form said: ${await said(dialog)}`;
       }
-      walked.push({ page: path, examplesTaken, verdict, finding });
+      walked.push({ page: path, examples, finding });
       if (finding !== undefined) {
-        wrong.push(`${path}: ${verdict} — ${finding}`);
+        wrong.push(`${path}: ${finding}`);
       }
 
       await steward.page.keyboard.press("Escape");
       await steward.page.waitForTimeout(300);
     }
 
-    writeFileSync(REPORT, JSON.stringify({ name: NAME, walked }, null, 2));
+    writeFileSync(REPORT, JSON.stringify({ walked }, null, 2));
     console.log(`forms examples: ${walked.length} forms -> ${REPORT}`);
     expect(
       walked.length,
       "at least the six kinds with a create form were walked",
     ).toBeGreaterThan(3);
-    expect(wrong, "a form whose own examples the platform refuses").toEqual([]);
+    expect(wrong, "a form with more than one example, or one its field refuses").toEqual([]);
   } finally {
-    // The check saves a draft of what the form held (PF-57), so this run's drafts go with it.
-    await sweepDrafts(steward.context, steward.page, PROJECT, /^t1606-/i);
     await steward.context.close();
   }
 });

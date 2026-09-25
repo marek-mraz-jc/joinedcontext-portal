@@ -51,21 +51,18 @@ spec:
       fields: [policy, containsPersonalData, purpose]
   fields:
     name:
-      placeholder: "air-quality-offer"
       help:
         en: The short name the offer is filed under; an agreement names the offer by it.
         sk: Krátky názov, pod ktorým je ponuka uložená; dohoda ponuku označuje ním.
         cs: Krátký název, pod nímž je nabídka uložena; dohoda nabídku označuje jím.
         de: Der kurze Name des Angebots; eine Vereinbarung nennt das Angebot damit.
     contextSpaceRef:
-      placeholder: "air-quality"
       help:
         en: The context space of this project whose endpoints are offered.
         sk: Kontextový priestor tohto projektu, ktorého koncové body sa ponúkajú.
         cs: Kontextový prostor tohoto projektu, jehož koncové body se nabízejí.
         de: Der Kontextraum dieses Projekts, dessen Endpunkte angeboten werden.
     endpointRefs:
-      placeholder: [air-quality-public]
       help:
         en: The endpoints the offer covers, each once; at least one.
         sk: Koncové body, na ktoré sa ponuka vzťahuje, každý raz; aspoň jeden.
@@ -85,7 +82,6 @@ spec:
         cs: Zda se nabízená data týkají lidí; pak je účel povinný.
         de: Ob die angebotenen Daten Personen betreffen; dann ist ein Zweck nötig.
     purpose:
-      placeholder: "https://w3id.org/dpv#ServiceProvision"
       help:
         en: The purpose from the Data Privacy Vocabulary the data may be used for.
         sk: Účel zo slovníka Data Privacy Vocabulary, na ktorý sa údaje smú použiť.

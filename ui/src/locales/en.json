@@ -388,7 +388,6 @@
       "modelImport": "Import a Smart Data Model"
     },
     "complete": {
-      "spacePlaceholder": "city-bikes",
       "urlPlaceholder": "https://example.org/stations.json",
       "kind": {
         "DataModel": "Data model",
@@ -661,7 +660,7 @@
       "q": "Attribute query",
       "qHelp": "Only entities this query matches are published, for example age>30. An endpoint narrows what the space holds and never widens it.",
       "scopeQ": "Scope",
-      "scopeQHelp": "The branch of the space's scope tree that is published, for example /Helsinki/Kamppi.",
+      "scopeQHelp": "The branch of the space's scope tree that is published: a path that starts with /.",
       "geoQ": "Area",
       "geoQHelp": "The area entities have to lie in; drawn on a map, it travels as georel, geometry and coordinates together.",
       "temporalQ": "Time range",
@@ -1021,7 +1020,7 @@
       "readThrough": "Read through endpoint",
       "readThroughHint": "The endpoint's Policy decides what the pipeline sees.",
       "entities": "2. Entities",
-      "typePlaceholder": "Entity type, e.g. AirQualityObserved",
+      "typePlaceholder": "Entity type",
       "qHint": "NGSI-LD filter, e.g. pm10>50",
       "loadSample": "Load sample",
       "sampleHint": "Up to {count} entities, read with your session; tick rows to process only those.",
@@ -2043,7 +2042,7 @@
         "none": "This endpoint publishes no attributes, so there is nothing for an app to read.",
         "loginOnly": "However the endpoint is published, the generated app runs inside the platform and only a signed-in user can open it.",
         "writeRole": "Only this application role may write (optional)",
-        "writeRoleHelp": "Leave empty and everyone who can open the app may write. A role name, e.g. steward, keeps writing to the people you add to that role on the app's page after publishing.",
+        "writeRoleHelp": "Leave empty and everyone who can open the app may write. A role name keeps writing to the people you add to that role on the app's page after publishing.",
         "writeRoleInvalid": "Use lowercase letters, digits and dashes, starting with a letter, at most 32 characters.",
         "access": "What the app may do",
         "accessHelp": "Read only reads the entities and their history. Read and update also changes and adds attributes (updateAttrs, appendAttrs). Full also creates and deletes entities (createEntity, deleteEntity). A write preset is reviewed as a red-lane change unless a role below keeps it.",
@@ -2083,7 +2082,7 @@
         "title": "New endpoint",
         "hint": "Proposed now as a change of its own. The builder picks it up once the change is merged and the endpoint is served.",
         "name": "Endpoint name",
-        "nameHint": "Lowercase letters, digits and dashes, e.g. bikes-app.",
+        "nameHint": "Lowercase letters, digits and dashes.",
         "nameInvalid": "Use lowercase letters, digits and dashes, starting and ending with a letter or digit, at most 63 characters.",
         "space": "Context space",
         "spaceMissing": "Choose the context space the endpoint serves.",
@@ -2422,7 +2421,7 @@
   },
   "entities": {
     "type": "Entity type",
-    "typePlaceholder": "Entity type, e.g. AirQualityObserved",
+    "typePlaceholder": "Entity type",
     "scopeQ": "Scope",
     "scopeQHint": "NGSI-LD scopeQ, e.g. /district/1",
     "filters": "Filters",

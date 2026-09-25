@@ -70,56 +70,48 @@ spec:
         cs: Krátký název, pod nímž je mapování uloženo; jakmile mapování existuje, nemění se.
         de: Der kurze Name des Mappings; er ändert sich nicht mehr, sobald das Mapping besteht.
     contextSpaceRef:
-      placeholder: "{project}"
       help:
         en: The context space the mapping belongs to; the same space that serves its target model.
         sk: Kontextový priestor, do ktorého mapovanie patrí; ten istý, ktorý slúži cieľový model.
         cs: Kontextový prostor, do něhož mapování patří; tentýž, který slouží cílový model.
         de: Der Kontextraum des Mappings; derselbe Raum, der sein Zielmodell bereitstellt.
     source.name:
-      placeholder: "sensor-readings"
       help:
         en: The data model whose entities the mapping reads, by the name it is published under.
         sk: Dátový model, ktorého entity mapovanie číta, podľa názvu, pod ktorým je zverejnený.
         cs: Datový model, jehož entity mapování čte, podle názvu, pod kterým je zveřejněn.
         de: Das Datenmodell, dessen Entitäten das Mapping liest, unter seinem veröffentlichten Namen.
     source.version:
-      placeholder: "1"
       help:
         en: The served major version of that model, a whole number such as 1 or 2.
         sk: Obsluhovaná hlavná verzia toho modelu, celé číslo ako 1 alebo 2.
         cs: Obsluhovaná hlavní verze toho modelu, celé číslo jako 1 nebo 2.
         de: Die bereitgestellte Hauptversion dieses Modells, eine ganze Zahl wie 1 oder 2.
     target.name:
-      placeholder: airqualityobserved
       help:
         en: The data model the mapping writes entities of; it cannot be the source at the same version.
         sk: Dátový model, ktorého entity mapovanie zapisuje; nesmie byť zdrojom v tej istej verzii.
         cs: Datový model, jehož entity mapování zapisuje; nesmí být zdrojem ve stejné verzi.
         de: Das Datenmodell, dessen Entitäten das Mapping schreibt; nicht die Quelle in derselben Version.
     target.version:
-      placeholder: "1"
       help:
         en: The served major version of the target model, a whole number such as 1 or 2.
         sk: Obsluhovaná hlavná verzia cieľového modelu, celé číslo ako 1 alebo 2.
         cs: Obsluhovaná hlavní verze cílového modelu, celé číslo jako 1 nebo 2.
         de: Die bereitgestellte Hauptversion des Zielmodells, eine ganze Zahl wie 1 oder 2.
     tests[].input:
-      placeholder: "./tests/readings-to-airqualityobserved.input.json"
       help:
         en: The input example beside the manifest, a path relative to it without any .. segment.
         sk: Vstupný príklad vedľa manifestu, cesta relatívna k nemu bez segmentu .. v ceste.
         cs: Vstupní příklad vedle manifestu, cesta relativní k němu bez segmentu .. v cestě.
         de: Das Eingabebeispiel neben dem Manifest, ein relativer Pfad ohne ein ..-Segment.
     tests[].expect:
-      placeholder: "./tests/readings-to-airqualityobserved.expect.json"
       help:
         en: The output that input has to produce, beside the manifest; CI compares the two.
         sk: Výstup, ktorý musí ten vstup vytvoriť, vedľa manifestu; CI ich porovná.
         cs: Výstup, který musí ten vstup vytvořit, vedle manifestu; CI je porovná.
         de: Die Ausgabe, die diese Eingabe ergeben muss, neben dem Manifest; CI vergleicht beide.
     native[].targetSlot:
-      placeholder: pm10
       help:
         en: The target slot this code fills, by its name in the data model; letters, digits and underscores.
         sk: Cieľový slot, ktorý tento kód plní, podľa názvu v dátovom modeli; písmená, číslice, podčiarkovníky.
@@ -132,21 +124,18 @@ spec:
         cs: Jazyk, ve kterém je blok napsán; Bloblang je ten, který dnes spouští Bento.
         de: Die Sprache des Blocks; Bloblang ist die, die Bento heute ausführt.
     native[].source:
-      placeholder: root = this.pm10_raw.number() / 10
       help:
         en: The code itself; it raises the review lane by one, because no check here can read it.
         sk: Samotný kód; zvyšuje kontrolnú dráhu o jednu, lebo ho tu žiadna kontrola neprečíta.
         cs: Samotný kód; zvyšuje kontrolní dráhu o jednu, protože jej zde žádná kontrola nepřečte.
         de: Der Code selbst; er hebt die Prüfspur um eine Stufe, weil keine Prüfung hier ihn liest.
     artifacts.bloblang:
-      placeholder: "generated/readings-to-airqualityobserved.blobl"
       help:
         en: The compiled Bloblang Bento runs, beside the manifest; the compiler writes it for you.
         sk: Skompilovaný Bloblang, ktorý spúšťa Bento, vedľa manifestu; zapíše ho kompilátor.
         cs: Zkompilovaný Bloblang, který spouští Bento, vedle manifestu; zapíše jej kompilátor.
         de: Das kompilierte Bloblang, das Bento ausführt, neben dem Manifest; der Compiler schreibt es.
     artifacts.gatewayIr:
-      placeholder: "generated/readings-to-airqualityobserved.ir.json"
       help:
         en: The mapping the gateway interprets for live translation and view endpoints.
         sk: Mapovanie, ktoré brána interpretuje pre živý preklad a pohľadové endpointy.
