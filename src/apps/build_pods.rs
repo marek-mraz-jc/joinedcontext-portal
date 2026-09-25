@@ -390,6 +390,38 @@ pub async fn dispatch_once(
 
 /// How often the queue is read: a build waits at most this long for its pod.
 const PASS_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
+/// The longest a failing pass waits before it asks again.
+const BACKOFF_CEILING: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// What a failing pass does next: wait twice as long each time up to [`BACKOFF_CEILING`], and
+/// say why once per reason instead of on every tick (T-2969). A refusal the forge repeats every
+/// 5 s is one line in the log, not seventeen thousand a day.
+#[derive(Debug, Default)]
+struct Backoff {
+    failures: u32,
+    reason: Option<String>,
+}
+
+impl Backoff {
+    /// After a failed pass: how long to wait, and whether `reason` is news worth a warning.
+    fn failed(&mut self, reason: String) -> (std::time::Duration, bool) {
+        self.failures = self.failures.saturating_add(1);
+        let news = self.reason.as_deref() != Some(reason.as_str());
+        self.reason = Some(reason);
+        let wait = PASS_EVERY
+            .checked_mul(1u32.checked_shl(self.failures.min(16)).unwrap_or(u32::MAX))
+            .unwrap_or(BACKOFF_CEILING)
+            .min(BACKOFF_CEILING);
+        (wait, news)
+    }
+
+    /// After a pass that ran: whether it had been failing, so the recovery is said once too.
+    fn recovered(&mut self) -> bool {
+        let was_failing = self.failures > 0;
+        *self = Self::default();
+        was_failing
+    }
+}
 
 /// Runs [`dispatch_once`] every few seconds on the replica that holds the reconciler's lease.
 /// Outside a cluster there is nowhere to start a pod, which is not an error.
@@ -413,13 +445,18 @@ pub fn spawn_periodic(
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(PASS_EVERY);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut backoff = Backoff::default();
+        let mut resume = tokio::time::Instant::now();
         loop {
             ticker.tick().await;
-            if !syncer.is_leader() {
+            if !syncer.is_leader() || tokio::time::Instant::now() < resume {
                 continue;
             }
             match dispatch_once(&kube, &forge, &mirror, &settings).await {
                 Ok(pass) => {
+                    if backoff.recovered() {
+                        tracing::info!("build pods: the pass runs again");
+                    }
                     for job in &pass.started {
                         tracing::info!(%job, "build pod started");
                     }
@@ -427,7 +464,15 @@ pub fn spawn_periodic(
                         tracing::info!(%claim, "build cache of a retired App deleted");
                     }
                 }
-                Err(err) => tracing::warn!(error = %err, "build pods: the pass stopped"),
+                Err(err) => {
+                    let (wait, news) = backoff.failed(err.to_string());
+                    resume = tokio::time::Instant::now() + wait;
+                    if news {
+                        tracing::warn!(error = %err, retry_in_secs = wait.as_secs(), "build pods: the pass stopped");
+                    } else {
+                        tracing::debug!(error = %err, retry_in_secs = wait.as_secs(), "build pods: the pass stopped again");
+                    }
+                }
             }
         }
     });
@@ -458,6 +503,30 @@ mod tests {
             status: None,
         });
         mirror
+    }
+
+    #[test]
+    fn a_failing_pass_backs_off_to_its_ceiling_and_says_each_reason_once() {
+        let mut backoff = Backoff::default();
+        let refused = "the forge: git api error 403: user should be the owner of the repo";
+        let (first, news) = backoff.failed(refused.into());
+        assert!(news, "the first refusal is news");
+        assert_eq!(first, PASS_EVERY * 2);
+        let (second, news) = backoff.failed(refused.into());
+        assert!(!news, "the same refusal again is not");
+        assert_eq!(second, PASS_EVERY * 4);
+        for _ in 0..40 {
+            backoff.failed(refused.into());
+        }
+        assert_eq!(backoff.failed(refused.into()).0, BACKOFF_CEILING);
+        // Another reason is news again, at the same wait.
+        let (wait, news) = backoff.failed("the cluster: 503".into());
+        assert!(news);
+        assert_eq!(wait, BACKOFF_CEILING);
+        // A pass that runs resets both, and says it recovered once.
+        assert!(backoff.recovered());
+        assert!(!backoff.recovered());
+        assert_eq!(backoff.failed(refused.into()), (PASS_EVERY * 2, true));
     }
 
     #[test]
