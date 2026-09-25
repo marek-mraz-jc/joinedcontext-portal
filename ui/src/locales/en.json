@@ -9,7 +9,10 @@
       "crashBody": "Something in the Portal failed while drawing this page. Nothing you were looking at was changed.",
       "crashReference": "Quote this when you report it:",
       "crashReload": "Load the page again",
-      "crashHome": "Go to the start"
+      "crashHome": "Go to the start",
+      "session": "Your session ended. Sign in again to see this.",
+      "forbiddenHint": "A project owner or an organization administrator can give you access.",
+      "reference": "Quote this when you report it:"
     },
     "notFound": {
       "title": "This page does not exist",
@@ -27,7 +30,18 @@
       "required": "required"
     },
     "close": "Close",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "session": {
+      "title": "Your session ended",
+      "body": "You were away for a while, so the Portal signed you out. This page and what you typed on it are still here.",
+      "hereCost": "Sign in again in a new tab, then come back to this one. Signing in here leaves this page, and anything not saved is lost.",
+      "afterSignIn": "When you have signed in in the new tab, come back here and continue.",
+      "signIn": "Sign in in a new tab",
+      "continue": "Continue here",
+      "here": "Sign in here instead",
+      "close": "Not now",
+      "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",
@@ -58,7 +72,8 @@
     "subscriptions": "Subscriptions",
     "organization": "Organization",
     "settings": "Project settings",
-    "profile": "Your account"
+    "profile": "Your account",
+    "catalogue": "Catalogue"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -175,7 +190,12 @@
     "noneMatch": "No change matches these filters.",
     "workspace": "From a copy",
     "fromWorkspace": "From the copy {name} by {author}, brought back on {date}: worked on apart from the live project, checked again before it was proposed.",
-    "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list."
+    "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list.",
+    "waitsOn": {
+      "pending": "Waits on {change}: approve that change first, then this one.",
+      "merged": "{change}, which this change waits on, is merged.",
+      "rejected": "{change}, which this change waits on, was rejected: what this change names will not be created. Reject it, or propose it again."
+    }
   },
   "lane": {
     "green": "Green",
@@ -314,7 +334,8 @@
       "ttlDays": "Lifetime in days",
       "phase": "State",
       "source": "Source",
-      "inside": "Inside"
+      "inside": "Inside",
+      "missingUnitCode": "Missing unit"
     },
     "inside": {
       "open": "Look inside",
@@ -1142,7 +1163,11 @@
         "required": "required",
         "many": "several values",
         "values": "{count, plural, =0 {Values: {values}} other {Values: {values} and # more}}",
-        "example": "Example: {example}"
+        "example": "Example: {example}",
+        "measuredIn": "Measured in {symbol} ({code}); the gateway writes this unitCode when a record leaves it out.",
+        "sourceUnit": "Source in another unit?",
+        "sourceUnitOf": "Source unit of {slot}",
+        "addConversion": "Add to mapping"
       },
       "output": {
         "title": "Mapped output",
@@ -2882,7 +2907,8 @@
       "none": "Not checked yet",
       "green": "Checked {age}",
       "red": "Check failed {age}",
-      "stale": "Changed since the check"
+      "stale": "Changed since the check",
+      "waiting": "Passes once {changes} is approved · checked {age}"
     },
     "proposeReason": {
       "none": "Run the check first: nothing is proposed without a fresh green verdict.",
@@ -3850,6 +3876,10 @@
       "IRREG": "Irregularly",
       "NEVER": "Never, it is final",
       "UNKNOWN": "Not known"
+    },
+    "missingUnitCode": {
+      "fill": "Fill in the model's unit",
+      "refuse": "Refuse the write"
     }
   },
   "picker": {
@@ -3888,5 +3918,167 @@
     "none": "No unit",
     "noMatch": "No UN/CEFACT unit matches. Try the symbol (µg/m³), the name or the code (GQ).",
     "more": "Showing {shown} of {total} units. Type more to narrow the list."
+  },
+  "catalogue": {
+    "title": "Catalogue",
+    "lead": "Every public dataset of this installation's open-data catalogues. Search, filter, open a dataset and use its data.",
+    "loading": "Loading the catalogue…",
+    "unavailable": "These catalogues did not answer, so their datasets are missing below: {catalogues}. Try again in a minute.",
+    "search": {
+      "label": "Search datasets",
+      "placeholder": "Title, description or keyword",
+      "submit": "Search",
+      "clear": "Clear search and filters"
+    },
+    "facets": {
+      "label": "Filters",
+      "publisher": "Publisher",
+      "theme": "Theme",
+      "format": "Format",
+      "licence": "Licence",
+      "spatial": "Area",
+      "year": "Period"
+    },
+    "results": {
+      "label": "Datasets",
+      "count": "{count, plural, =0 {No dataset} one {# dataset} other {# datasets}}",
+      "empty": "No public dataset yet",
+      "emptyHint": "A dataset is listed here once a project publishes an endpoint to its open-data catalogue.",
+      "noMatch": "No dataset matches",
+      "noMatchHint": "Remove a filter or change the search text."
+    },
+    "pages": {
+      "label": "Pages",
+      "previous": "Previous page",
+      "next": "Next page",
+      "of": "Page {page} of {pages}",
+      "first": "This is the first page.",
+      "last": "This is the last page."
+    },
+    "dataset": {
+      "modified": "updated {date}",
+      "tags": "Themes and keywords",
+      "back": "All datasets",
+      "loading": "Loading the dataset…",
+      "missing": "No public dataset has this name",
+      "missingHint": "The dataset may have been removed or made private. Search the catalogue for it.",
+      "period": "{start} – {end}",
+      "open": "open",
+      "frequency": "Updated",
+      "contact": "Contact",
+      "modifiedLabel": "Last change",
+      "inCatalogue": "Open in the catalogue",
+      "resources": "Resources",
+      "noResources": "The dataset lists no resource.",
+      "resource": "Resource",
+      "links": "Links",
+      "download": "Download",
+      "preview": "Preview",
+      "model": "Data model {name}",
+      "modelDocs": "Model documentation",
+      "noDescription": "No description in the model.",
+      "sample": "Sample",
+      "sampleLoading": "Reading ten rows through the endpoint…",
+      "noSample": "This dataset has no endpoint of this installation that serves NGSI-LD, so there is no sample.",
+      "sampleEmpty": "The endpoint holds no {type} yet.",
+      "sampleCaption": "Up to ten {type} read through the endpoint"
+    },
+    "use": {
+      "title": "Use this data",
+      "curl": "From a shell (NGSI-LD)",
+      "csv": "Download as CSV",
+      "sdk": "In an App built on this endpoint",
+      "mcp": "In an MCP client",
+      "copy": "Copy: {what}",
+      "copyShort": "Copy",
+      "copied": "Copied"
+    },
+    "theme": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "OP_DATPRO": "Provisional data",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "frequency": {
+      "CONT": "continuously",
+      "UPDATE_CONT": "continuously",
+      "HOURLY": "hourly",
+      "DAILY": "daily",
+      "WEEKLY": "weekly",
+      "MONTHLY": "monthly",
+      "QUARTERLY": "quarterly",
+      "ANNUAL": "yearly",
+      "IRREG": "irregularly",
+      "NEVER": "never",
+      "UNKNOWN": "unknown"
+    },
+    "publish": {
+      "open": "Publish a dataset",
+      "title": "Publish a dataset",
+      "lead": "Pick an endpoint, check its catalogue description, preview the entry and propose it. The dataset appears in the catalogue after the approval.",
+      "steps": "Steps",
+      "step": {
+        "pick": "1. Endpoint",
+        "describe": "2. Description",
+        "preview": "3. Preview"
+      },
+      "endpoint": "Endpoint",
+      "endpointHelp": "The endpoint whose data the dataset offers.",
+      "pickFirst": "Pick an endpoint first.",
+      "describe": "Draft the description",
+      "drafted": "Drafted from endpoint {endpoint}, its data model and the organization's contacts. Change anything before the preview.",
+      "makesPublic": "This endpoint is not public yet. Publishing makes it readable by anyone without signing in, so a publisher has to approve the change.",
+      "missing": "Nothing could fill these fields: {fields}. Fill them if you know them.",
+      "member": {
+        "publisher": "publisher",
+        "contactPoint": "contact",
+        "license": "licence",
+        "themes": "themes",
+        "keywords": "keywords",
+        "spatial": "area",
+        "temporal": "period",
+        "frequency": "update frequency"
+      },
+      "inLanguage": "In the language {language}.",
+      "choose": "Choose…",
+      "contactName": "Contact name",
+      "contactEmail": "Contact e-mail",
+      "contactHelp": "A role address such as an open-data desk, never a person's own e-mail.",
+      "keywords": "Keywords",
+      "keywordsHelp": "Separated by commas, in the language {language}.",
+      "spatialHelp": "NUTS codes or location links, separated by commas, for example SK032.",
+      "start": "Covers data from",
+      "end": "Covers data until",
+      "back": "Back",
+      "preview": "Preview the entry",
+      "propose": "Propose publication",
+      "proposePublic": "Make public and propose publication",
+      "afterApproval": "After the approval the dataset appears in the catalogue on the next reconcile.",
+      "close": "Close the flow",
+      "error": {
+        "licence": "Choose a licence.",
+        "contactBoth": "Give the contact's name and e-mail together, or neither.",
+        "email": "Enter an e-mail address such as opendata@example.org.",
+        "period": "The end of the period cannot be before its start."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
   }
 }

@@ -70,7 +70,7 @@ describe("the indicator card", () => {
     renderCard();
     const card = await screen.findByRole("region", { name: en.agentRun.kpi.title });
     expect(within(card).getByTestId("kpi-value")).toHaveTextContent("18.4");
-    expect(within(card).getByText("GQ")).toBeInTheDocument();
+    expect(within(card).getByText("µg/m³").closest("[title]")).toHaveAttribute("title", "microgram per cubic metre (GQ)");
     expect(within(card).getByText("avg(pm10) over AirQualityObserved")).toBeInTheDocument();
     expect(within(card).getByText("12 entities")).toBeInTheDocument();
     expect(within(card).getByText(ENTITY.id)).toBeInTheDocument();

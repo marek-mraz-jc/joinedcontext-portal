@@ -12,7 +12,7 @@ import { MapView } from "./views/MapView";
 import { Stats } from "./views/Stats";
 import { Table } from "./views/Table";
 import type { Schema, WriteResult } from "./write";
-import { writeEntity } from "./write";
+import { unitsOf, writeEntity } from "./write";
 
 const DEFAULT_ACCENT = "#0f766e";
 
@@ -178,10 +178,11 @@ function ViewCard({
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const source = sourceOf(spec, view);
+  const units = unitsOf(schema?.[source.type]);
   const body = (() => {
     switch (view.kind) {
       case "stats":
-        return <Stats rows={rows} items={view.items} />;
+        return <Stats rows={rows} items={view.items} units={units} />;
       case "map":
         return (
           <MapView
@@ -196,11 +197,11 @@ function ViewCard({
           />
         );
       case "table":
-        return <Table rows={rows} columns={view.columns} sort={view.sort} selected={selected} onSelect={onSelect} />;
+        return <Table rows={rows} columns={view.columns} sort={view.sort} selected={selected} onSelect={onSelect} units={units} />;
       case "chart":
         return <Chart rows={rows} x={view.x} y={view.y} agg={view.agg} top={view.top} type={view.type} accent={accent} />;
       case "detail":
-        return <Detail row={rows.find((r) => r.id === selected) ?? null} attrs={source.attrs} />;
+        return <Detail row={rows.find((r) => r.id === selected) ?? null} attrs={source.attrs} units={units} />;
       case "grid":
         // The grid reads the endpoint for itself, so it takes the slug and the type rather than
         // the rows this app loaded; in a preview it renders the entities the Portal inlined.

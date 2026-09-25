@@ -36,6 +36,7 @@ import { filterSlotsOf, useModelSource } from "../../components/entities/filters
 import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
+import { PublishDatasetDialog } from "../catalogue/PublishDataset";
 import {
   Alert,
   Badge,
@@ -47,6 +48,7 @@ import {
   Select,
   SourceLink,
   Term,
+  Icon,
 } from "../../components/ui";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
@@ -83,6 +85,7 @@ export function EndpointPage({
   const denied = (verb: "propose" | "delete") =>
     permissions.can("Endpoint", verb) ? undefined : t("permissions.denied", { verb, kind: "Endpoint" });
   const [openAction, setOpenAction] = useState<"saveAs" | "workOnCopy" | "delete" | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   const endpoint = useQuery({
     queryKey: queryKeys.resource(project, "endpoints", name),
@@ -268,6 +271,14 @@ export function EndpointPage({
             {t("endpoints.page.change")}
           </Button>
         </PermissionGuard>
+        {/* The one-step publish flow (EP-83): drafts the catalogue block from the model and the
+            organization, and proposes it with the publication as one Change. */}
+        <PermissionGuard project={project} kind="Endpoint" verb="propose">
+          <Button icon={<Icon name="ckan" className="size-4" />} onClick={() => setPublishing(true)}>
+            {t("catalogue.publish.open")}
+          </Button>
+        </PermissionGuard>
+        <PublishDatasetDialog project={project} endpoint={name} open={publishing} onOpenChange={setPublishing} />
         <ExportButton
           project={project}
           target={{ plural: "endpoints", name }}

@@ -360,6 +360,7 @@ export function Shell({
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
+  const catalogueActive = Boolean(matchRoute({ to: "/catalogue", fuzzy: true }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
 
   // Project settings is one entry over six tab addresses (T-2606).
@@ -562,6 +563,16 @@ export function Shell({
                 className={navLinkClass(ckanActive)}
               >
                 <NavLabel icon="ckan" label={t("nav.ckan")} />
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/catalogue"
+                onClick={closeNav}
+                aria-current={catalogueActive ? "page" : undefined}
+                className={navLinkClass(catalogueActive)}
+              >
+                <NavLabel icon="search" label={t("nav.catalogue")} />
               </Link>
             </li>
             <li>

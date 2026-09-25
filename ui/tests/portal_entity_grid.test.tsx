@@ -51,7 +51,7 @@ describe("the Portal's entity grid", () => {
   it("renders the linked component with the Portal's own strings", async () => {
     await i18n.changeLanguage("en");
     show();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     expect(screen.getByRole("grid")).toBeInTheDocument();
     // The Portal's catalogue, not the SDK's defaults: the two differ on purpose here.
     expect(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`)).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("the Portal's entity grid", () => {
   it("leaves no English string of the grid behind in Slovak", async () => {
     await i18n.changeLanguage("sk");
     show();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
 
     const text = document.body.textContent ?? "";
     for (const [key, english] of Object.entries(en.entityGrid)) {
@@ -81,7 +81,7 @@ describe("the Portal's entity grid", () => {
   it("keeps the layout a person set, per project and per type", async () => {
     await i18n.changeLanguage("en");
     const first = show();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
     fireEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
     await waitFor(() => expect(screen.getAllByText(/2026-09-19T08:00:00Z/).length).toBeGreaterThan(0));
@@ -99,7 +99,7 @@ describe("the Portal's entity grid", () => {
         <PortalEntityGrid project="banskabystrica" config={config} source={fixtureSource(entities)} />
       </I18nextProvider>,
     );
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     expect(screen.queryByText(/2026-09-19T08:00:00Z/)).toBeNull();
     other.unmount();
   });
@@ -117,7 +117,7 @@ describe("the Portal's entity grid", () => {
     });
 
     show();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     // The column still opens; only remembering it is lost.
     fireEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
     fireEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
@@ -133,7 +133,7 @@ describe("the Portal's entity grid", () => {
     const errors: unknown[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args) => errors.push(args[0]));
     show();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     expect(errors.filter((message) => String(message).includes("Invalid hook call"))).toEqual([]);
     spy.mockRestore();
   });

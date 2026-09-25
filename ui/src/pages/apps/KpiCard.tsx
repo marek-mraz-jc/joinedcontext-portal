@@ -7,6 +7,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
 import { Field, Input, RadioGroup } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { unitSymbol, unitTitle } from "../../units";
 
 /**
  * An indicator the assistant computed (UI-17, PF-54, PF-55): the value large, its unit, the
@@ -175,7 +176,12 @@ export function KpiCard({
         <span className="text-3xl font-semibold tabular-nums" data-testid="kpi-value">
           {formatValue(kpi.value, i18n.language)}
         </span>
-        {kpi.unit ? <Badge mono>{kpi.unit}</Badge> : null}
+        {/* The code list's symbol, the unit's name and code on hover (DM-06, T-2812). */}
+        {unitSymbol(kpi.unit) ? (
+          <Badge mono title={unitTitle(kpi.unit)}>
+            {unitSymbol(kpi.unit)}
+          </Badge>
+        ) : null}
       </p>
       <dl className="grid gap-1 text-xs sm:grid-cols-[auto_1fr] sm:gap-x-3">
         <dt className="text-fg-muted">{t("agentRun.kpi.formula")}</dt>
