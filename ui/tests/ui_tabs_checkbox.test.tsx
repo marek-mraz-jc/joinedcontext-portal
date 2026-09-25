@@ -104,6 +104,22 @@ describe("Checkbox", () => {
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 
+  // T-2835: a caller's hint and the reason a box is refused are both read, neither drops the other.
+  it("is described by its caller's hint and, when refused, by the reason too", () => {
+    render(
+      <>
+        <Checkbox label="advanced" aria-describedby="advanced-hint" />
+        <span id="advanced-hint">Also shows the rare fields.</span>
+        <Checkbox label="locked" aria-describedby="locked-hint" disabled disabledReason="Only an owner may." />
+        <span id="locked-hint">Keeps the source.</span>
+      </>,
+    );
+    expect(screen.getByRole("checkbox", { name: "advanced" })).toHaveAccessibleDescription("Also shows the rare fields.");
+    expect(screen.getByRole("checkbox", { name: "locked" })).toHaveAccessibleDescription(
+      "Keeps the source. Only an owner may.",
+    );
+  });
+
   it("cannot be ticked when disabled", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

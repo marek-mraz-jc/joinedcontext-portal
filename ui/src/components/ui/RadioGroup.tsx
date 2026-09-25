@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { JSX, ReactNode } from "react";
 import { clsx } from "clsx";
 import { CHECKBOX } from "./Input";
@@ -35,6 +36,10 @@ export interface RadioGroupProps<T extends string> {
  * (T-1254, UI-15). Overriding the role also takes the `legend` out of the naming path, so the
  * legend is pointed at by `aria-labelledby` rather than relied on.
  *
+ * Each option's own line is its description, not part of its name: the button is named by its
+ * label alone and described by that line, so a screen reader says "An endpoint of this platform,
+ * radio button" and then what choosing it means, and the whole label still takes the click.
+ *
  * More than about five options is a `Select`, not this.
  */
 export function RadioGroup<T extends string>({
@@ -49,6 +54,7 @@ export function RadioGroup<T extends string>({
 }: RadioGroupProps<T>): JSX.Element {
   const describedBy = description ? `${name}__description` : undefined;
   const labelledBy = `${name}__legend`;
+  const optionId = `${useId()}-option`;
   return (
     <fieldset
       role="radiogroup"
@@ -65,7 +71,7 @@ export function RadioGroup<T extends string>({
         </p>
       ) : null}
       <div className={clsx("flex gap-3", layout === "row" ? "flex-wrap items-center" : "flex-col")}>
-        {options.map((option) => (
+        {options.map((option, index) => (
           <label
             key={option.value}
             className={clsx(
@@ -79,13 +85,17 @@ export function RadioGroup<T extends string>({
               value={option.value}
               checked={value === option.value}
               disabled={option.disabled}
+              aria-labelledby={`${optionId}-${index}-label`}
+              aria-describedby={option.description ? `${optionId}-${index}-description` : undefined}
               className={clsx(CHECKBOX, "rounded-full")}
               onChange={() => onChange(option.value)}
             />
             <span className="flex flex-col">
-              <span>{option.label}</span>
+              <span id={`${optionId}-${index}-label`}>{option.label}</span>
               {option.description ? (
-                <span className="text-caption text-fg-muted">{option.description}</span>
+                <span id={`${optionId}-${index}-description`} className="text-caption text-fg-muted">
+                  {option.description}
+                </span>
               ) : null}
             </span>
           </label>

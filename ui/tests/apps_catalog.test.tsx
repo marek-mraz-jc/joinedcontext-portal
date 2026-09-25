@@ -211,7 +211,7 @@ describe("apps catalog", () => {
   });
 
   // T-2618: the owner reads a card by its footer, so it is always the same two controls.
-  it("a served app's card has exactly one Open and one menu, nothing else (T-2618, AP-14)", async () => {
+  it("a served app's card has its title's link, one Open and one menu, nothing else (T-2618, T-2875, AP-14)", async () => {
     renderCatalog([built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" }))]);
 
     const card = await cardOf("Noise");
@@ -220,7 +220,9 @@ describe("apps catalog", () => {
     expect(open).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk/open");
     expect(open).not.toHaveAttribute("target");
     expect(within(card).getByRole("button", { name: more("Noise") })).toBeInTheDocument();
-    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(2);
+    // The title is the card's record link (T-2875): a click anywhere on the card opens the app's page.
+    expect(within(card).getByRole("link", { name: "Noise" })).toHaveAttribute("href", "/projects/banskabystrica/apps/hluk");
+    expect([...within(card).queryAllByRole("button"), ...within(card).queryAllByRole("link")]).toHaveLength(3);
   });
 
   it("a preview keeps Open disabled with its reason, and its menu offers preview and publish (T-2618, UI-44)", async () => {

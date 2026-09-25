@@ -11,7 +11,7 @@ import { proposeChecked } from "../../api/proposal";
 import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Field, Input, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Field, Input, PageHeader, ResourcePageFailed, Select } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser, withMember, withoutMember } from "../apps/RolesAndMembers";
 import { usePeopleChoices } from "../organization/People";
@@ -127,11 +127,21 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
   }
   if (group.error) {
     return (
-      <Alert tone="danger" role="alert">
+      <ResourcePageFailed
+        title={name}
+        description={t("access.groupPage.lead")}
+        error={group.error}
+        onRetry={() => void group.refetch()}
+        back={
+          <Link to="/organization/$tab" params={{ tab: "groups" }} className="text-body underline">
+            {t("access.groupPage.back")}
+          </Link>
+        }
+      >
         {group.error instanceof ApiError && group.error.status === 404
           ? t("access.groupPage.notFound", { name })
-          : reasonOf(group.error, t("app.error.generic"))}
-      </Alert>
+          : undefined}
+      </ResourcePageFailed>
     );
   }
 

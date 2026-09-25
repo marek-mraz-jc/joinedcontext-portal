@@ -1,4 +1,5 @@
 import { useCreateFormFromDraft } from "../components/forms/FormRoute";
+import { RecordLink } from "../components/RecordLink";
 import { Fragment, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -328,7 +329,9 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
             <TableRow key={subscription.metadata.name}>
               <TableCell primary>
                 <div className="flex items-center gap-2">
-                  <span>{title}</span>
+                  <RecordLink project={project} plural="subscriptions" name={subscription.metadata.name}>
+                    {title}
+                  </RecordLink>
                   {shape.isActive === false ? (
                     <Badge tone="warning">{t("subscriptions.paused")}</Badge>
                   ) : null}

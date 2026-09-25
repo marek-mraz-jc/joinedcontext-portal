@@ -135,7 +135,8 @@
     "entry": "Položka {number}",
     "dropOne": "Přetáhněte sem soubor nebo jej vyberte",
     "dropMany": "Přetáhněte sem soubory nebo je vyberte",
-    "chosenFiles": "Vybráno: {names}"
+    "chosenFiles": "Vybráno: {names}",
+    "advancedModeHint": "Zobrazí i pole, která většina manifestů nechává na výchozích hodnotách; volba se vám zapamatuje."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -194,7 +195,8 @@
       "pending": "Čeká na {change}: nejprve schvalte tu změnu, potom tuto.",
       "merged": "{change}, na kterou tato změna čeká, je sloučená.",
       "rejected": "{change}, na kterou tato změna čeká, byla zamítnuta: to, co tato změna jmenuje, nevznikne. Zamítněte ji nebo ji navrhněte znovu."
-    }
+    },
+    "back": "Všechna schvalování"
   },
   "lane": {
     "green": "Zelená",
@@ -306,7 +308,10 @@
     "button": "Upravit",
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",
-    "unreadable": "{name} se nepodařilo načíst."
+    "unreadable": "{name} se nepodařilo načíst.",
+    "viewTitle": "Zobrazit {name}",
+    "readOnly": "Vaše role zde nedovoluje měnit {kind}, proto je tento formulář jen pro čtení. Správce projektu vám to může udělit.",
+    "manifest": "Manifest {name}"
   },
   "resourceList": {
     "name": "Název",
@@ -859,7 +864,8 @@
       "caCert": "Odkaz na certifikační autoritu",
       "secretName": "Název tajemství",
       "secretKey": "Klíč v tajemství",
-      "input": "Konfigurace vstupu"
+      "input": "Konfigurace vstupu",
+      "typeHint": "Jak se platforma ke zdroji dostane; pole níže se podle toho mění a uložený zdroj si typ ponechá."
     },
     "probe": {
       "title": "Jedno stažení feedu",
@@ -1024,7 +1030,8 @@
       "preset": {
         "title": "Předvolba",
         "load": "Načtení (DataSource)",
-        "kpi": "Analýza (KPI)"
+        "kpi": "Analýza (KPI)",
+        "hint": "Načtení kopíruje záznamy z externího zdroje do prostoru; Analýza počítá ukazatel z toho, co endpoint už poskytuje."
       },
       "kpi": {
         "title": "Analýza (KPI)",
@@ -1038,8 +1045,18 @@
         "test": "Otestovat na stránce koncového bodu",
         "testing": "Testuje se…",
         "computedValue": "Vypočtená hodnota",
-        "nothingRead": "Z tohoto koncového bodu se pro tento typ a atribut nic nepřečetlo, takže není co vypočítat."
-      }
+        "nothingRead": "Z tohoto koncového bodu se pro tento typ a atribut nic nepřečetlo, takže není co vypočítat.",
+        "endpointHint": "Endpoint, ze kterého se ukazatel počítá, čtený podle jeho politiky.",
+        "nameHint": "Malá písmena, číslice a pomlčky; pojmenovává ukazatel i jeho pipeline.",
+        "typeHint": "Typ entity, jehož hodnoty se agregují; modeluje ho prostor endpointu.",
+        "attributeHint": "Číselný atribut toho typu, který agregace čte.",
+        "aggregateHint": "Jak se hodnoty jednoho období sloučí do jednoho čísla.",
+        "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h."
+      },
+      "sourceKindHint": "Externí zdroj, ke kterému se projekt připojuje, nebo kontextový prostor, který projekt už plní.",
+      "dataSourceHint": "Připojení zdroje, jak je uložené ve Zdrojích dat; nový zdroj přidáte nejprve tam.",
+      "spaceHint": "Prostor, který pipeline čte, přes jeden z jeho endpointů a politiku toho endpointu.",
+      "attributeHint": "Atribut, se kterým pracuje úryvek níže."
     },
     "test": {
       "title": "Vyzkoušet na vzorku",
@@ -1101,7 +1118,10 @@
       "addSource": "+ Zdroj",
       "removeSource": "Odstranit zdroj",
       "sourceReads": "Tento zdroj čte",
-      "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem."
+      "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem.",
+      "mappingRefHint": "Mapování tohoto projektu; krok ho použije na každý záznam.",
+      "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
+      "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
@@ -1177,7 +1197,9 @@
         "pickType": "Vyberte typ",
         "file": "Vybrat soubor se vzorkem",
         "fileTaken": "Vzorek: {name}",
-        "fileDrop": "Přetáhněte soubor CSV nebo JSON, nebo jej vyberte"
+        "fileDrop": "Přetáhněte soubor CSV nebo JSON, nebo jej vyberte",
+        "pickHint": "Záznamy, které pipeline čte: zdroj dat nebo endpoint tohoto projektu. Se vzorovým souborem níže si mapování vyzkoušíte i bez nich.",
+        "typeHint": "Typ entity endpointu, který pipeline čte; vzorek ukáže jeho první záznamy."
       },
       "sample": {
         "title": "Vzorek",
@@ -1202,7 +1224,8 @@
         "measuredIn": "Měří se v {symbol} ({code}); pokud záznam unitCode nemá, brána ho doplní.",
         "sourceUnit": "Zdroj v jiné jednotce?",
         "sourceUnitOf": "Jednotka zdroje pro {slot}",
-        "addConversion": "Přidat do mapování"
+        "addConversion": "Přidat do mapování",
+        "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -2171,7 +2194,8 @@
       "frameTitle": "{title}, aplikace",
       "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
       "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
-      "signInAgain": "Přihlásit se znovu"
+      "signInAgain": "Přihlásit se znovu",
+      "lead": "Zveřejněná aplikace spuštěná v Portálu s vaším přihlášením."
     },
     "retire": {
       "title": "Vyřadit {name}",

@@ -204,7 +204,7 @@ function WorkspaceTable({
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <Table caption={t("workspaces.tableCaption")}>
+    <Table data-records="" caption={t("workspaces.tableCaption")}>
       <TableHead>
         <TableHeaderCell>{t("workspaces.name")}</TableHeaderCell>
         {!isMine ? (
@@ -219,7 +219,16 @@ function WorkspaceTable({
         {workspaces.map((ws) => (
           <TableRow key={ws.name}>
             <TableCell primary>
-              <span className="font-medium">{ws.title ?? ws.name}</span>
+              {/* The copy's record link, the same place Open goes: a click on the row opens it (T-2875). */}
+              <Link
+                data-row-link=""
+                to="/projects/$project/$plural"
+                params={{ project, plural: "spaces" }}
+                search={{ workspace: ws.name }}
+                className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+              >
+                {ws.title ?? ws.name}
+              </Link>
               {ws.title ? (
                 <span className="block text-caption text-fg-muted">
                   {ws.name}

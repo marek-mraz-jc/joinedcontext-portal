@@ -23,7 +23,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 
 /** A native checkbox with its label, so the name, the focus ring and the tick are one style (UI-16). */
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  { label, hint, className, disabled, disabledReason, onChange, onClick, ...rest },
+  { label, hint, className, disabled, disabledReason, onChange, onClick, "aria-describedby": describedBy, ...rest },
   ref,
 ) {
   const id = useId();
@@ -41,7 +41,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         type="checkbox"
         disabled={explained ? undefined : disabled}
         aria-disabled={explained || undefined}
-        aria-describedby={explained ? id : undefined}
+        // The caller's hint and the reason the box is refused, both read after the name.
+        aria-describedby={[describedBy, explained ? id : undefined].filter(Boolean).join(" ") || undefined}
         onClick={onClick}
         // A refused box is a controlled box whose `change` changes nothing, so React puts the
         // tick back where the props say it is — from the pointer and from the space bar alike.

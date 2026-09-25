@@ -27,7 +27,9 @@ import {
   PageHeader,
   PageLoading,
   Select,
+  recordCard,
 } from "../../components/ui";
+import { RecordLink } from "../../components/RecordLink";
 
 export function syncStatusKey(project: string, name: string) {
   return ["projects", project, "syncsources", name, "status"] as const;
@@ -299,10 +301,15 @@ function SyncSourceCard({
     // The page's own H1 is above this list, so a source is an H2: an H3 skipped a level and a
     // screen reader's heading list read every source as belonging to a section that was never
     // there (UI-16, measured by axe's heading-order).
-    <article aria-labelledby={`sync-source-${name}`} className="rounded border border-border p-4">
+    <article
+      aria-labelledby={`sync-source-${name}`}
+      onClick={recordCard.onClick}
+      onAuxClick={recordCard.onAuxClick}
+      className={`rounded border border-border p-4 ${recordCard.className}`}
+    >
       <header className="flex flex-wrap items-baseline gap-3">
         <h2 id={`sync-source-${name}`} className="font-mono text-body font-bold">
-          {name}
+          <RecordLink project={project} plural="syncsources" name={name} />
         </h2>
         <LifecycleBadge kind="phase" value={status.data?.phase} />
         <span className="text-caption">{scheduleOf(spec, t)}</span>
