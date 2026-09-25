@@ -36,6 +36,7 @@ pub const REPO: &str = "/api/v1/repos/test-owner/test-repo";
 /// A person signed in as `{name}@hel.fi`, with no group or realm role.
 pub fn person(name: &str) -> Identity {
     Identity {
+        client: None,
         subject: format!("sub-{name}"),
         username: name.to_owned(),
         email: Some(format!("{name}@hel.fi")),

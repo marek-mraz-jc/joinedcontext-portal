@@ -116,11 +116,13 @@ routes:
     note: "public: the fixture configures no catalogue, so no dataset is found by anybody"
   - route: POST /projects/{project}/catalogue/drafts
     rule: "project-verb:propose:Endpoint"
-    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
     body: {"endpoint": "existing"}
-    note: "other-member reads 403 where a project it cannot read should be 404: the handler looks the Endpoint up before any permission (filed as a task)"
   - route: GET /organization/health
     rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/setup
+    rule: "verb:approve:Organization"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
   - route: GET /organization/people
     rule: "people-admin"

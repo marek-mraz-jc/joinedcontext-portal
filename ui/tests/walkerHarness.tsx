@@ -81,12 +81,20 @@ const NAMESPACES = Object.keys(en);
 /** The names the addresses above make up: nothing on the mocked instance holds them. */
 const MADE_UP = new Set(["p-1", "stewards", "air", "air-v2", "chg-0a1b2c3d", "helsinki"]);
 
+const SETUP_NOTHING_DONE = {
+  complete: false,
+  steps: ["organization", "domain", "people", "project", "publishers", "policies"].map((id) => ({ id, done: false })),
+  operator: ["branding", "loginTheme", "smtp", "backups"].map((id) => ({ id, done: false })),
+};
+
 /**
  * A read of one made-up resource answers 404, as the Portal does for a name nobody holds; every
  * list answers empty. So a detail page is walked in its not-found state and a list in its empty
  * one, which are the two states a page is most often left untested in.
  */
 function answer(path: string): Response | undefined {
+  // The setup read (API/01 §25) is one object, not a list: a new organization with nothing done.
+  if (path === "/api/v1/organization/setup") return jsonResponse(SETUP_NOTHING_DONE);
   // The catalogue is a page of its own shape, not a list: empty, as an installation with no
   // published dataset answers it.
   if (path === "/api/v1/catalogue") {
@@ -97,19 +105,31 @@ function answer(path: string): Response | undefined {
   return MADE_UP.has(last) && path !== "/api/v1/projects/helsinki" ? problem(404, `${last} was not found`) : undefined;
 }
 
+/** How long a page must stay the same to count as settled: three of `waitFor`'s intervals. */
+const SETTLED_MS = 450;
+
 /** What one address shows once it has settled: the page's findings, and axe's serious ones. */
 export async function walk(address: string): Promise<string[]> {
   await renderRoute({ path: address, answer });
   // A page has settled when its heading is there, nothing says it is still loading, and two
   // readings a moment apart agree: a routed form opens an effect or two after the list answers, and
   // its fields after their own reads: a reading taken in between sees a page nobody is shown.
+  // `waitFor` also reads on every DOM mutation, so "a moment" is measured in time, not in
+  // readings: three mutations of one render are microseconds apart, and between the spinner
+  // going and the form arriving they agree on a page with no field at all (T-2850). A reading
+  // is the findings and the page's shape, so a page that is still growing is not settled.
   let findings: string[] = [];
-  const readings: string[] = [];
+  let reading = "";
+  let since = Date.now();
   await waitFor(
     () => {
       findings = pageFindings({ namespaces: NAMESPACES, layout: false });
-      readings.push(JSON.stringify(findings));
-      const settled = readings.length >= 3 && readings.slice(-3).every((reading) => reading === readings.at(-1));
+      const now = JSON.stringify([findings, document.body.querySelectorAll("*").length]);
+      if (now !== reading) {
+        reading = now;
+        since = Date.now();
+      }
+      const settled = Date.now() - since >= SETTLED_MS;
       expect(document.querySelector("h1")).not.toBeNull();
       expect(document.querySelector("[aria-busy='true']")).toBeNull();
       expect(settled).toBe(true);

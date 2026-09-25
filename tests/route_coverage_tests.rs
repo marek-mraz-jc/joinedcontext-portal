@@ -2,9 +2,6 @@
 //! CC-48, T-0840). Moved out of `src/ops/mod.rs` (T-1499): the table is data about the whole
 //! crate, and the registry's module keeps the registry.
 
-mod common;
-
-use common::routes::routes_in_source;
 use joinedcontext_portal::ops;
 
 /// Every route the Portal serves, and the operation behind it (AG-59, CC-48, T-0840).
@@ -47,16 +44,17 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/metrics", "the Prometheus scrape"),
 ("GET", "/openapi.json", "the API document"),
 ("GET", "/organization/health", "the validation checks' published results, about the installation and not a project's data (OPS-53)"),
-("GET", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("GET", "/organization/people/{id}", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("PATCH", "/organization/people/{id}", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("DELETE", "/organization/people/{id}", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people/{id}/disable", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people/{id}/enable", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people/{id}/remove-second-factor", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people/{id}/reset-password", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
-("POST", "/organization/people/{id}/sign-out", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
+("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
+("GET", "/organization/people", "jc_person_list"),
+("POST", "/organization/people", "jc_person_create"),
+("GET", "/organization/people/{id}", "jc_person_get"),
+("PATCH", "/organization/people/{id}", "jc_person_edit"),
+("DELETE", "/organization/people/{id}", "deleting a person is a Change that takes them out of every Group and RoleBinding, proposed by a person on the page (PF-94)"),
+("POST", "/organization/people/{id}/disable", "jc_person_disable"),
+("POST", "/organization/people/{id}/enable", "jc_person_enable"),
+("POST", "/organization/people/{id}/remove-second-factor", "removing a second factor takes away a way in; a person does it at the Portal, never a tool (PF-93, AG-11)"),
+("POST", "/organization/people/{id}/reset-password", "a reset answers a temporary password, which never reaches a tool's answer (PF-92, AG-11)"),
+("POST", "/organization/people/{id}/sign-out", "jc_person_sign_out"),
 ("GET", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("PUT", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("GET", "/endpoints", "jc_endpoint_list_all"),
@@ -157,6 +155,83 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/webhooks/gitea", "the forge calling in"),
 ("POST", "/webhooks/sync/{project}/{name}", "a foreign catalogue calling in"),
 ];
+
+/// Every `.route("…", …)` under `src/`, as `(METHOD, path)` with the `/api/v1` prefix off.
+///
+/// ponytail: the source is the inventory because `axum`'s `Router` cannot be asked what it
+/// holds. A router built inside a `#[cfg(test)]` module is a fixture, so the scan stops there.
+fn routes_in_source() -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("read the crate's sources") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read a source file");
+            let text = text.split("\n#[cfg(test)]").next().unwrap_or_default();
+            found.extend(routes_in(text));
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
+fn routes_in(text: &str) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = text[from..].find(".route(") {
+        let open = from + at + ".route(".len() - 1;
+        let mut depth = 0usize;
+        let mut end = open;
+        for (offset, ch) in text[open..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = open + offset;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let call = &text[open..=end];
+        from = end + 1;
+        let Some(path) = call.split('"').nth(1) else {
+            continue;
+        };
+        let path = path.strip_prefix("/api/v1").unwrap_or(path);
+        for method in ["get", "post", "put", "patch", "delete"] {
+            if names_method(call, method) {
+                found.push((method.to_uppercase(), path.to_owned()));
+            }
+        }
+    }
+    found
+}
+
+/// `get(` as a method of this route, not the tail of a handler's name.
+fn names_method(call: &str, method: &str) -> bool {
+    let needle = format!("{method}(");
+    let mut from = 0;
+    while let Some(at) = call[from..].find(&needle) {
+        let start = from + at;
+        let before = call[..start].chars().next_back().unwrap_or(' ');
+        if !before.is_alphanumeric() && before != '_' {
+            return true;
+        }
+        from = start + needle.len();
+    }
+    false
+}
 
 #[test]
 fn every_route_is_an_operation_or_says_why_it_is_not() {

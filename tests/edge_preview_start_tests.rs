@@ -30,6 +30,7 @@ const ELSEWHERE: &str = "doprava";
 /// binding: what the cases are about is ownership and what an answer says.
 fn everywhere() -> Identity {
     Identity {
+        client: None,
         groups: vec!["devs".into()],
         ..person("jana")
     }

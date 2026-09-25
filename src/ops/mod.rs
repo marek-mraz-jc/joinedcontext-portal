@@ -17,6 +17,7 @@ pub mod changes;
 pub mod compute;
 pub mod drafts;
 pub mod feed_shape;
+pub mod people;
 pub mod pipeline_steps;
 pub mod previews;
 pub mod proposals;
@@ -517,6 +518,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
     operations.extend(workspaces::operations());
+    operations.extend(people::operations());
     operations
 }
 
@@ -654,6 +656,7 @@ mod tests {
 
         // Principal without bindings
         let viewer_id = Identity {
+            client: None,
             subject: "f:1:viewer".into(),
             username: "viewer".into(),
             email: Some("viewer@example.sk".into()),
@@ -695,6 +698,7 @@ mod tests {
         state.mirror.upsert(binding);
 
         let dev_id = Identity {
+            client: None,
             subject: "f:1:dev".into(),
             username: "dev".into(),
             email: Some("dev@example.sk".into()),

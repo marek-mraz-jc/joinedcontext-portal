@@ -2,6 +2,7 @@
 # T-2734: the hourly live sweep, started by the cluster batch after dev-smoke (TS-01, TS-26).
 #
 #   PORTAL_URL=… PORTAL_PASSWORD=… APPROVER_PASSWORD=… VIEWER_PASSWORD=… EDITOR_PASSWORD=… \
+#     PROPOSER_CLIENT_SECRET=… \
 #     TASKS_DIR=/workspace/tasks ui/e2e/live/sweep.sh
 #
 # Runs every live journey and the page walker, except what spends the assistant's model: the

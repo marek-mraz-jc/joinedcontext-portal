@@ -79,7 +79,9 @@ export function AppPage({ project, name }: { project: string; name: string }): J
   if (newest) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-end gap-3">
+        {/* `empty:` because the button is not there before the App is read or once it is retired,
+            and an empty row would still push the page down by the column's gap (T-2850). */}
+        <div className="flex items-center justify-end gap-3 empty:hidden">
           <AppCheckChip check={check} />
           <OpenAppButton project={project} name={name} />
         </div>

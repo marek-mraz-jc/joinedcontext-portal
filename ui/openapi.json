@@ -1023,7 +1023,7 @@
           "people"
         ],
         "summary": "Create Person",
-        "description": "Creates a person and sends the realm's execute-actions e-mail; without SMTP answers a temporary password once. Needs `create` on Person.",
+        "description": "Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person.",
         "operationId": "create_person",
         "requestBody": {
           "content": {
@@ -1636,6 +1636,38 @@
           },
           "503": {
             "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/setup": {
+      "get": {
+        "tags": [
+          "organization"
+        ],
+        "summary": "Get Organization Setup",
+        "description": "What the organization still lacks: each setup step and the installation's own part, done or not. Needs `approve` on Organization at organization scope, as `org-admin` holds it.",
+        "operationId": "get_setup",
+        "responses": {
+          "200": {
+            "description": "The steps and the operator's part",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupState"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks approve on Organization",
             "content": {
               "application/json": {
                 "schema": {
@@ -10403,6 +10435,14 @@
         "type": "object",
         "description": "Everything the Portal shows that names or themes an installation.",
         "properties": {
+          "appsOrigin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are\nserved on the Portal's own. Never taken from the branding file: the route overwrites it\nfrom the Portal's configuration on every answer, and the in-Portal page of an App frames\nit there (AP-122, T-2840).",
+            "default": null
+          },
           "city": {
             "type": "string",
             "description": "The city or region this installation serves.",
@@ -15343,6 +15383,47 @@
         },
         "additionalProperties": false
       },
+      "SetupItem": {
+        "type": "object",
+        "description": "One step or operator item and whether it is done.",
+        "required": [
+          "id",
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "SetupState": {
+        "type": "object",
+        "required": [
+          "complete",
+          "steps",
+          "operator"
+        ],
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "operator": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupItem"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupItem"
+            }
+          }
+        }
+      },
       "Side": {
         "type": "string",
         "description": "Which side a person kept for one conflicting field (CC-80).",
@@ -16003,6 +16084,10 @@
     {
       "name": "people",
       "description": "The people of the organization's realm (PF-90)"
+    },
+    {
+      "name": "organization",
+      "description": "What a new organization still lacks (PF-90, UI-82)"
     },
     {
       "name": "permissions",

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from "@tanstack/react-router";
 import i18n from "../src/i18n";
 import { AuthProvider } from "../src/auth/AuthProvider";
+import { BrandingProvider } from "../src/branding";
 import { AppOpenPage, OpenAppButton } from "../src/pages/apps/AppOpenPage";
 
 const PROJECT = "helsinki";
@@ -21,6 +22,8 @@ interface Stub {
   build?: Record<string, unknown> | null;
   run?: Record<string, unknown> | null;
   status?: number;
+  /** The origin the Portal serves Apps from, as `/api/v1/branding` names it. */
+  appsOrigin?: string;
 }
 
 function manifest(name: string, { lifecycle = "published", build = { commit: COMMIT } }: Stub) {
@@ -45,6 +48,7 @@ function renderAt(path: string, stub: Stub = {}) {
             headers: { "Content-Type": status >= 400 ? "application/problem+json" : "application/json" },
           }),
         );
+      if (url.pathname.endsWith("/branding")) return json({ appsOrigin: stub.appsOrigin ?? null });
       if (url.pathname.endsWith("/auth/me")) return json({ subject: "s1", username: "steward", roles: [] });
       const build = /\/apps\/([^/]+)\/build$/.exec(url.pathname);
       if (build) {
@@ -81,7 +85,9 @@ function renderAt(path: string, stub: Stub = {}) {
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <I18nextProvider i18n={i18n}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <BrandingProvider>
+            <RouterProvider router={router} />
+          </BrandingProvider>
         </AuthProvider>
       </I18nextProvider>
     </QueryClientProvider>,
@@ -108,6 +114,22 @@ describe("AppOpenPage", () => {
     expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(screen.getByRole("heading", { level: 1, name: "City bikes" })).toBeTruthy();
     expect(screen.getByText("Serving commit 4f2a9c1")).toBeTruthy();
+  });
+
+  it("frames an App on the apps origin with its own origin, never the Portal's (T-2840)", async () => {
+    renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, { appsOrigin: "https://apps.example.org" });
+    await waitFor(() =>
+      expect(screen.getByTitle("City bikes, the application").getAttribute("src")).toBe(
+        "https://apps.example.org/apps/city-bikes/",
+      ),
+    );
+    const frame = screen.getByTitle("City bikes, the application");
+    expect(frame.getAttribute("sandbox")).toBe(
+      "allow-scripts allow-forms allow-popups allow-downloads allow-same-origin",
+    );
+    expect(screen.getByRole("link", { name: /new window/i }).getAttribute("href")).toBe(
+      "https://apps.example.org/apps/city-bikes/",
+    );
   });
 
   it("opens the same address in a new window with no opener", async () => {

@@ -657,6 +657,11 @@
     "page": {
       "back": "Všetky endpointy",
       "proposedNotice": "Zmena tu sa navrhne a schvaľovateľ ju posúdi, než sa čokoľvek zverejní.",
+      "stop": {
+        "title": "Zastavenie tohto endpointu",
+        "lead": "Endpoint sa nedá pozastaviť. Ak ho chcete prestať zverejňovať, zmažte ho: zmazanie sa navrhne ako zmena a posúdi ho schvaľovateľ. Keď sa zmena uplatní, adresa odpovedá 404 Not Found a už sa nikdy nepoužije. Nový endpoint dostane novú adresu.",
+        "delete": "Zmazať tento endpoint…"
+      },
       "change": "Zmeniť tieto nastavenia",
       "whatItIs": "Čo to je",
       "whatItAnswers": "Čo odpovedá",
@@ -3509,6 +3514,7 @@
       "groups": "Skupiny",
       "service-accounts": "Servisné účty",
       "projects": "Projekty",
+      "setup": "Nastavenie",
       "health": "Stav overenia"
     },
     "settings": {
@@ -3667,6 +3673,70 @@
         "copy": "Kopírovať",
         "copied": "Skopírované do schránky.",
         "done": "Hotovo"
+      }
+    },
+    "setup": {
+      "title": "Nastavenie",
+      "lead": "Čo organizácia ešte potrebuje, aby v nej jej ľudia mohli pracovať. Každý krok otvorí stránku, kde sa robí; tu sa nič nemení.",
+      "loading": "Zisťujem, čo organizácia ešte potrebuje",
+      "hidden": "Čo nastavenie organizácie ešte potrebuje, vidí len správca organizácie.",
+      "complete": "Organizácia je nastavená: všetky kroky sú hotové a inštalácia poskytuje všetko, čo má.",
+      "done": "Hotovo",
+      "todo": "Treba urobiť",
+      "stepNumber": "Krok {number}:",
+      "continue": "Pokračovať v nastavení",
+      "reminder": "{count, plural, one {# položka nastavenia je ešte otvorená.} few {# položky nastavenia sú ešte otvorené.} other {# položiek nastavenia je ešte otvorených.}}",
+      "operatorTitle": "Čo poskytuje inštalácia",
+      "operatorLead": "Tieto položky pochádzajú z nasadenia, nie z tejto stránky. Požiadajte prevádzkovateľa inštalácie, aby nastavil hodnotu uvedenú pri každej z nich.",
+      "step": {
+        "organization": {
+          "title": "Pomenujte organizáciu",
+          "hint": "Zadajte doménu organizácie a jazyky, ktorými jej ľudia čítajú.",
+          "action": "Otvoriť nastavenia"
+        },
+        "domain": {
+          "title": "Overte doménu",
+          "hint": "Zverejnite DNS záznam z nastavení, aby adresy organizácie patrili jej.",
+          "action": "Overiť doménu"
+        },
+        "people": {
+          "title": "Pozvite ľudí",
+          "hint": "Pridajte aspoň jedného ďalšieho človeka, aby žiadna zmena nečakala len na vás.",
+          "action": "Otvoriť ľudí"
+        },
+        "project": {
+          "title": "Otvorte prvý projekt",
+          "hint": "Otvorte projekt s Context Space, ktorý používa dátový model.",
+          "action": "Otvoriť projekty"
+        },
+        "publishers": {
+          "title": "Pripojte katalóg otvorených dát",
+          "hint": "Pripojte katalóg CKAN, aby sa dali zverejňovať datasety.",
+          "action": "Otvoriť katalóg"
+        },
+        "policies": {
+          "title": "Nastavte pravidlá projektov",
+          "hint": "Určte, kto smie otvárať projekty a kto ich číta.",
+          "action": "Otvoriť nastavenia"
+        }
+      },
+      "operator": {
+        "branding": {
+          "title": "Značka",
+          "hint": "Názov a logo inštalácie, nastavené v bloku branding nasadenia."
+        },
+        "loginTheme": {
+          "title": "Prihlasovacie stránky",
+          "hint": "Vlastná prihlasovacia téma platformy v Keycloaku namiesto štandardnej (keycloak.theme)."
+        },
+        "smtp": {
+          "title": "E-mail",
+          "hint": "SMTP server, aby Keycloak mohol posielať pozvánky a obnovu hesla (keycloak.smtp)."
+        },
+        "backups": {
+          "title": "Zálohy",
+          "hint": "Plánované zálohy databázy do objektového úložiska (postgres.backups)."
+        }
       }
     },
     "health": {

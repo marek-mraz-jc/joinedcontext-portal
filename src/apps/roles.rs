@@ -248,6 +248,7 @@ mod tests {
             &spec(),
             (
                 Identity {
+                    client: None,
                     subject: "5f0c".into(),
                     username: "x@hel.fi".into(),
                     email: Some("x@hel.fi".into()),

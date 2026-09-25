@@ -21,6 +21,7 @@ const WS: &str = "/api/v1/projects/ovzdusie/workspaces";
 
 fn steward() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }
@@ -29,6 +30,7 @@ fn steward() -> Identity {
 /// Reads the project and proposes nothing.
 fn viewer() -> Identity {
     Identity {
+        client: None,
         groups: vec!["readers".into()],
         ..person("vera")
     }
@@ -388,6 +390,7 @@ async fn only_the_owner_updates_brings_back_or_discards() {
     opened(&state).await;
     changed(&server, &space("en", 10), "s-base").await;
     let other = Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("petra")
     };
@@ -608,6 +611,7 @@ async fn a_write_into_someone_elses_workspace_is_refused() {
     let (_server, state) = world().await;
     opened(&state).await;
     let other = Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("petra")
     };

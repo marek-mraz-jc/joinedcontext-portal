@@ -39,6 +39,7 @@ export const NEUTRAL_BRANDING: Branding = {
   validation: "strict",
   // An installation that serves no User Guide; no form offers a link (UI-02).
   documentationBaseUrl: "",
+  appsOrigin: null,
 };
 
 const BrandingContext = createContext<Branding>(NEUTRAL_BRANDING);

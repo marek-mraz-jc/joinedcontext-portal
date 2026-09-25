@@ -747,6 +747,7 @@ mod tests {
     fn session(subject: &str, issued_at: i64) -> Session {
         Session {
             identity: Identity {
+                client: None,
                 subject: subject.into(),
                 username: "demo.steward".into(),
                 email: None,

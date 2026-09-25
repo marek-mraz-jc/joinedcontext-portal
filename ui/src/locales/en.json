@@ -657,6 +657,11 @@
     "page": {
       "back": "All endpoints",
       "proposedNotice": "A change here is proposed and an approver reviews it before anything is published.",
+      "stop": {
+        "title": "Stopping this endpoint",
+        "lead": "An endpoint has no pause. To stop publishing, delete it: the deletion is proposed as a change and an approver reviews it. Once it lands, the address answers 404 Not Found and is never used again. A new endpoint gets a new address.",
+        "delete": "Delete this endpoint…"
+      },
       "change": "Change these settings",
       "whatItIs": "What it is",
       "whatItAnswers": "What it answers",
@@ -3509,6 +3514,7 @@
       "groups": "Groups",
       "service-accounts": "Service accounts",
       "projects": "Projects",
+      "setup": "Setup",
       "health": "Health"
     },
     "settings": {
@@ -3667,6 +3673,70 @@
         "copy": "Copy",
         "copied": "Copied to the clipboard.",
         "done": "Done"
+      }
+    },
+    "setup": {
+      "title": "Setup",
+      "lead": "What this organization still needs before its people can work in it. Each step opens the page where it is done; nothing changes here.",
+      "loading": "Reading what the organization still needs",
+      "hidden": "Only an organization administrator sees what the organization's setup still needs.",
+      "complete": "The organization is set up: every step is done and the installation provides everything it should.",
+      "done": "Done",
+      "todo": "To do",
+      "stepNumber": "Step {number}:",
+      "continue": "Continue setup",
+      "reminder": "{count, plural, one {# setup item is still open.} other {# setup items are still open.}}",
+      "operatorTitle": "What the installation provides",
+      "operatorLead": "These come from the deployment, not from this page. Ask whoever runs the installation to set the value named in each item.",
+      "step": {
+        "organization": {
+          "title": "Name the organization",
+          "hint": "Give the organization its domain and the languages its people read.",
+          "action": "Open settings"
+        },
+        "domain": {
+          "title": "Verify the domain",
+          "hint": "Publish the DNS record the settings show, so the organization's addresses are its own.",
+          "action": "Verify domain"
+        },
+        "people": {
+          "title": "Invite people",
+          "hint": "Add at least one more person, so no change waits on you alone.",
+          "action": "Open people"
+        },
+        "project": {
+          "title": "Open the first project",
+          "hint": "Open a project with a Context Space that uses a data model.",
+          "action": "Open projects"
+        },
+        "publishers": {
+          "title": "Connect the open-data catalogue",
+          "hint": "Connect a CKAN catalogue, so datasets can be published.",
+          "action": "Open catalogue"
+        },
+        "policies": {
+          "title": "Set the project rules",
+          "hint": "Say who may open projects and who reads them.",
+          "action": "Open settings"
+        }
+      },
+      "operator": {
+        "branding": {
+          "title": "Branding",
+          "hint": "The installation's name and logo, set in the branding block of the deployment."
+        },
+        "loginTheme": {
+          "title": "Sign-in pages",
+          "hint": "The platform's own sign-in theme in Keycloak instead of the stock one (keycloak.theme)."
+        },
+        "smtp": {
+          "title": "E-mail",
+          "hint": "An SMTP server, so Keycloak can send invitations and password resets (keycloak.smtp)."
+        },
+        "backups": {
+          "title": "Backups",
+          "hint": "Scheduled database backups to object storage (postgres.backups)."
+        }
       }
     },
     "health": {
