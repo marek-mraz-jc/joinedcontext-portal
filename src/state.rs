@@ -461,6 +461,20 @@ impl AppState {
                 }
                 _ => tracing::info!("no login client or no apps host: no App client is managed"),
             }
+            // Every ServiceAccount bound to a workload gets its federated client (PF-47), written
+            // by the same identity as the App clients.
+            if let Some(oidc) = state.config.oidc.as_ref() {
+                match crate::reconciler::workload_clients::WorkloadClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.client_secret().to_owned(),
+                ) {
+                    Some(clients) => syncer = syncer.with_workload_clients(Arc::new(clients)),
+                    None => tracing::warn!(
+                        "the issuer is not a realm URL, so no workload client is managed"
+                    ),
+                }
+            }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
                 let deployer = StreamDeployer::new(url);
                 // A refused record reaches the Portal on the listener the test harness reaches
