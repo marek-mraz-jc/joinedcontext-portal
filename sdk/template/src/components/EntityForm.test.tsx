@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Field, Row, Schema } from "@joinedcontext/sdk";
@@ -351,5 +351,136 @@ describe("EntityForm component", () => {
       expect(screen.getByLabelText("name (en)")).toBeDisabled();
       expect(client.transport.calls.filter((c) => c.method !== "GET")).toEqual([]);
     });
+  });
+});
+
+// T-2861 (DM-64, UI-84): a relationship end is picked from entities of its target class and
+// written as a Relationship. Before, the form gave it a text box and wrote a Property, which
+// names no target and which the gateway refuses on a required end.
+describe("EntityForm relationship ends", () => {
+  const schema: Schema = {
+    User: {
+      properties: {
+        name: { type: "string" },
+        school: { type: "string", "x-ngsi-ld-relationship": { target: "School" } },
+        courses: { type: "array", "x-ngsi-ld-relationship": { target: "Course" } },
+        mentor: { type: "string", "x-ngsi-ld-relationship": { target: "User" } },
+      },
+      required: ["school"],
+    },
+  };
+  const school = (id: string, name: string): Row => ({ id: `urn:ngsi-ld:School:example.org:demo:${id}`, type: "School", name });
+  const course = (id: string): Row => ({ id: `urn:ngsi-ld:Course:example.org:demo:${id}`, type: "Course", name: id });
+  const ana: Row = {
+    id: "urn:ngsi-ld:User:example.org:demo:ana",
+    type: "User",
+    name: "Ana",
+    school: "urn:ngsi-ld:School:example.org:demo:north",
+    courses: "urn:ngsi-ld:Course:example.org:demo:math, urn:ngsi-ld:Course:example.org:demo:art",
+    mentor: "urn:ngsi-ld:User:example.org:demo:ben",
+  };
+  const entities = [school("north", "North"), school("south", "South"), course("math"), course("art"), course("music"), ana];
+
+  async function pick(group: string, target: string, text: string, option: RegExp) {
+    const box = within(screen.getByRole("group", { name: group })).getByRole("combobox", { name: `Search ${target}` });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.click(await within(screen.getByRole("group", { name: group })).findByRole("option", { name: option }));
+  }
+
+  it("a single end replaces its target with a pick and is written as a Relationship", async () => {
+    const client = stubClient({ schema, entities });
+    const onSaved = vi.fn();
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="User" row={ana} onSaved={onSaved} />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole("group", { name: "school" })).toBeInTheDocument());
+    // The last target of a required end has no remove button: the model refuses that write.
+    expect(within(screen.getByRole("group", { name: "school" })).queryByRole("button", { name: /Remove/ })).toBeNull();
+    await pick("school", "School", "south", /South/);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(ana.id));
+    const patch = client.transport.calls.find((c) => c.method === "PATCH");
+    expect(patch?.body).toEqual({ school: { type: "Relationship", object: "urn:ngsi-ld:School:example.org:demo:south" } });
+    // The search asked for the target class with the typed text, through the person's session.
+    const search = client.transport.calls.find((c) => c.method === "GET" && c.path.includes("type=School"));
+    expect(decodeURIComponent(search?.path ?? "")).toContain("idPattern=.*south.*");
+  });
+
+  it("a many end adds a target and writes every one of them", async () => {
+    const client = stubClient({ schema, entities });
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="User" row={ana} />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole("group", { name: "courses" })).toBeInTheDocument());
+    await pick("courses", "Course", "music", /music/);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(client.transport.calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(client.transport.calls.find((c) => c.method === "PATCH")?.body).toEqual({
+      courses: {
+        type: "Relationship",
+        object: ["urn:ngsi-ld:Course:example.org:demo:math", "urn:ngsi-ld:Course:example.org:demo:art", "urn:ngsi-ld:Course:example.org:demo:music"],
+      },
+    });
+  });
+
+  it("a cleared optional end is written as the NGSI-LD null, so the attribute goes", async () => {
+    const client = stubClient({ schema, entities });
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="User" row={ana} />
+      </JcProvider>,
+    );
+    const mentor = await screen.findByRole("group", { name: "mentor" });
+    fireEvent.click(within(mentor).getByRole("button", { name: /Remove/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(client.transport.calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(client.transport.calls.find((c) => c.method === "PATCH")?.body).toEqual({
+      mentor: { type: "Relationship", object: "urn:ngsi-ld:null" },
+    });
+  });
+
+  it("a new entity without its required end is refused before any write, and with it is created", async () => {
+    const client = stubClient({ schema, entities });
+    const onSaved = vi.fn();
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="User" onSaved={onSaved} />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole("group", { name: "school" })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Local id"), { target: { value: "cleo" } });
+    fireEvent.change(screen.getByLabelText("name"), { target: { value: "Cleo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("school is required");
+    expect(client.transport.calls.filter((c) => c.method === "POST")).toHaveLength(0);
+
+    await pick("school", "School", "north", /North/);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("urn:ngsi-ld:User:example.org:demo:cleo"));
+    const post = client.transport.calls.find((c) => c.method === "POST");
+    expect(post?.body).toMatchObject({
+      name: { type: "Property", value: "Cleo" },
+      school: { type: "Relationship", object: "urn:ngsi-ld:School:example.org:demo:north" },
+    });
+    // The stored row reads the end back as its target.
+    expect(client.transport.rows().find((r) => r.id.endsWith(":cleo"))?.school).toBe("urn:ngsi-ld:School:example.org:demo:north");
+  });
+
+  it("a search offers only entities of the target class", async () => {
+    const client = stubClient({ schema, entities });
+    render(
+      <JcProvider client={client}>
+        <EntityForm type="User" row={ana} />
+      </JcProvider>,
+    );
+    const mentor = await screen.findByRole("group", { name: "mentor" });
+    fireEvent.focus(within(mentor).getByRole("combobox", { name: "Search User" }));
+    expect(await within(mentor).findByRole("option", { name: /Ana/ })).toBeInTheDocument();
+    expect(within(mentor).queryByRole("option", { name: /North|South|math/ })).toBeNull();
   });
 });

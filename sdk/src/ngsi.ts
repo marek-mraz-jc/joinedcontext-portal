@@ -50,6 +50,11 @@ export function isRelationshipObject(value: unknown): value is RelationshipObjec
   return typeof object === "string" || (Array.isArray(object) && object.every((one) => typeof one === "string"));
 }
 
+/** The targets a row's relationship cell names: one URN, or the URNs of a many end joined by ", ". */
+export function targetsOf(value: Cell | undefined): string[] {
+  return typeof value === "string" && value.trim() !== "" ? value.split(", ").filter((one) => one !== "") : [];
+}
+
 /** What one attribute of a write holds: a cell, every language of a map, or a relationship end. */
 export type WriteValue = Cell | LanguageMap | RelationshipObject;
 

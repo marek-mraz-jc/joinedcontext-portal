@@ -47,6 +47,8 @@ export interface Query {
   endpoint?: string;
   attrs?: string[];
   q?: string;
+  /** A regular expression the entity id matches (NGSI-LD `idPattern`). */
+  idPattern?: string;
   georel?: string;
   geometry?: string;
   coordinates?: string;
@@ -249,6 +251,9 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       }
       if (query?.q) {
         params.q = query.q;
+      }
+      if (query?.idPattern) {
+        params.idPattern = query.idPattern;
       }
       if (query?.georel && query?.geometry && query?.coordinates) {
         params.georel = query.georel;

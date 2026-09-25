@@ -92,6 +92,12 @@ function relationsOf(type: unknown): Record<string, RelationEnd>
 ```
 The relationship ends of one type's schema (UI-84): every property with `x-ngsi-ld-relationship`, as `{ target, many, required }`. Pass it as the grid's `relations` prop: the column is then edited by picking entities of the target class that the person can read, one on a single end and several on a many end, and a required end keeps its last target.
 ```ts
+function RelationPicker(props: { label: string; value: string[]; end: RelationEnd; search: (text: string) => Promise<TargetOption[]>; labels: PickerLabels; changed?: boolean; invalid?: string; onChange(next: string[]): void }): JSX.Element
+const NGSI_LD_NULL: string
+function targetsOf(value: Cell | undefined): string[]
+```
+The control the grid, the spec Form and the template's `EntityForm` edit a relationship end with (UI-84): a group named `label` with the picked targets as chips and a combobox that runs `search` a pause after the last key. A single end's pick replaces its target, a many end's adds one, and a required end's last target has no remove button. `labels` carries every visible string. `targetsOf` reads a row's cell back as targets (a many end's URNs are joined by `", "`); a cleared optional end is written as `{ object: NGSI_LD_NULL }`, which removes the attribute. `Query.idPattern` is the NGSI-LD `idPattern` a search sends.
+```ts
 function isLanguageMap(value: unknown): value is LanguageMap
 ```
 Whether a value is `{ languageMap }`, the shape `entities.create`/`update` write as a `LanguageProperty`.

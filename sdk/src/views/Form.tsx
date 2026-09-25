@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Cell, RelationshipObject, Row } from "../ngsi";
-import { columnKind, format } from "../ngsi";
+import { columnKind, format, targetsOf } from "../ngsi";
 import type { Field, Schema, TypeSchema, WriteResult } from "../write";
 import { fieldOf } from "../write";
 import { optionLabel } from "../enums";
@@ -17,11 +17,6 @@ const PICKER_LABELS: PickerLabels = {
   failed: "The search failed; try again",
 };
 
-/** The targets a row's relationship cell names: one URN, or a list of them joined by ", ". */
-function targetsOf(value: Cell | undefined): string[] {
-  return typeof value === "string" && value.trim() !== "" ? value.split(", ").filter((one) => one !== "") : [];
-}
-
 /** Searches the entities of one target class the person can read. */
 export type TargetSearch = (target: string, text: string) => Promise<TargetOption[]>;
 
@@ -36,14 +31,16 @@ export function Form({ row, rows, fields, title, schema, defs, creating, search,
   const form = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   // A relationship end holds targets, not text: picked, and written as a Relationship (DM-64).
-  const [links, setLinks] = useState<Record<string, string[]>>({});
+  // Only the ends the person changed are kept; every other end reads the row.
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
+  const linksOf = (field: string): string[] => picked[field] ?? (row ? targetsOf(row[field]) : []);
   const [localId, setLocalId] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const open = creating || row !== null;
   useEffect(() => {
     setDraft(row ? Object.fromEntries(fields.map((f) => [f, format(row[f])])) : {});
-    setLinks(row ? Object.fromEntries(fields.map((f) => [f, targetsOf(row[f])])) : {});
+    setPicked({});
     setLocalId("");
     setProblem(null);
     const element = dialog.current;
@@ -78,9 +75,9 @@ export function Form({ row, rows, fields, title, schema, defs, creating, search,
     for (const field of fields) {
       const spec = specs[field];
       if (spec.input === "relation") {
-        const picked = links[field] ?? [];
-        if (row && picked.join(", ") === targetsOf(row[field]).join(", ")) continue;
-        if (picked.length === 0) {
+        const targets = linksOf(field);
+        if (row && targets.join(", ") === targetsOf(row[field]).join(", ")) continue;
+        if (targets.length === 0) {
           if (spec.required) {
             setProblem(`${field} needs a ${spec.target}.`);
             return;
@@ -88,7 +85,7 @@ export function Form({ row, rows, fields, title, schema, defs, creating, search,
           if (!row) continue;
         }
         // A cleared optional end is written as the NGSI-LD null, so the attribute goes (CIM 009 §4.5.0).
-        patch[field] = { object: picked.length === 0 ? NGSI_LD_NULL : spec.many ? picked : picked[0] };
+        patch[field] = { object: targets.length === 0 ? NGSI_LD_NULL : spec.many ? targets : targets[0] };
         continue;
       }
       // Neither is written from a text box: a geometry is picked on the map, and a LanguageProperty
@@ -180,11 +177,11 @@ export function Form({ row, rows, fields, title, schema, defs, creating, search,
                   </span>
                   <RelationPicker
                     label={field}
-                    value={links[field] ?? []}
+                    value={linksOf(field)}
                     end={{ target: specs[field].target ?? "", many: specs[field].many ?? false, required: specs[field].required }}
                     search={searches[specs[field].target ?? ""] ?? (() => Promise.resolve([]))}
                     labels={PICKER_LABELS}
-                    onChange={(next) => setLinks((l) => ({ ...l, [field]: next }))}
+                    onChange={(next) => setPicked((p) => ({ ...p, [field]: next }))}
                   />
                 </div>
               ) : (
