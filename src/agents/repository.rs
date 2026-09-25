@@ -78,11 +78,12 @@ pub fn name_refusal(project: &str, app: &str) -> Option<String> {
     })
 }
 
-/// Whether runs of this class and kind commit to the application's own repository: a `static`
-/// application, which the Portal writes itself. A workspace run reaches the forge only through
+/// Whether runs of this class and kind commit to the application's own repository: a `ui`
+/// application (`static` before AP-124), which the Portal writes itself. A workspace run reaches the forge only through
 /// the proxy's `/v1/forge` route, whose rules name the configuration repository's folder.
 pub fn owns_repository(app_class: &str, kind: &str) -> bool {
-    app_class == "static" && kind == "application"
+    jc_core::kinds::AppClass::parse(app_class) == Ok(jc_core::kinds::AppClass::Ui)
+        && kind == "application"
 }
 
 impl AgentRun {
@@ -314,14 +315,18 @@ mod tests {
         assert_eq!(name_refusal(&project, &"a".repeat(39)), None);
     }
 
-    /// AP-75: only a static application the Portal writes owns a repository.
+    /// AP-75: only a `ui` application the Portal writes owns a repository; a run recorded as
+    /// `static` before AP-124 still does.
     #[test]
-    fn only_a_static_application_run_owns_a_repository() {
+    fn only_a_ui_application_run_owns_a_repository() {
+        assert!(owns_repository("ui", "application"));
         assert!(owns_repository("static", "application"));
-        assert!(!owns_repository("static", "dashboard"));
-        assert!(!owns_repository("static", "analysis"));
+        assert!(!owns_repository("ui", "dashboard"));
+        assert!(!owns_repository("ui", "analysis"));
+        assert!(!owns_repository("ui-rust", "application"));
         assert!(!owns_repository("fullstack", "application"));
         assert!(!owns_repository("service", "application"));
+        assert!(!owns_repository("ui-node", "application"));
     }
 
     /// AP-75: the README says how to run the application and names the repository.
@@ -353,7 +358,7 @@ mod tests {
             "profile": "app-builder",
             "kind": "application",
             "unattended": false,
-            "appClass": "static",
+            "appClass": "ui",
             "visibility": "project",
             "prompt": "p",
             "promptDigest": "d",

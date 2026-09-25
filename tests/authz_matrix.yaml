@@ -218,7 +218,7 @@ routes:
   - route: POST /projects/{project}/agent-runs
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 403, 403]
-    body: {"appName": "a", "appClass": "static", "prompt": "x", "dataNeeds": []}
+    body: {"appName": "a", "appClass": "ui", "prompt": "x", "dataNeeds": []}
   - route: GET /projects/{project}/agent-runs/{id}
     rule: "run-owner"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]

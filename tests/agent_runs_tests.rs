@@ -181,7 +181,7 @@ fn create_body() -> Value {
         "endpointName": "helsinki-bikes",
         // The workspace shape: a `static` run is the kit pass and never hands out its ticket
         // (tests/kit_pass_tests.rs).
-        "appClass": "fullstack",
+        "appClass": "ui-rust",
         "visibility": "project",
         "prompt": "Create a live bike availability dashboard with station filtering",
         "dataNeeds": [{
@@ -2028,6 +2028,49 @@ async fn a_request_the_app_kind_would_refuse_is_refused_here() {
     }
 }
 
+/// AP-124: `ui-node` is refused until it is built and `service` is withdrawn, each in jc-core's
+/// words naming `ui` and `ui-rust`; the previous release's `fullstack` is read, and recorded, as
+/// `ui-rust`.
+#[tokio::test]
+async fn the_app_shape_is_ui_or_ui_rust_and_the_old_name_is_recorded_in_the_new() {
+    let config = config();
+    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    for (class, says) in [("ui-node", "not built yet"), ("service", "withdrawn")] {
+        let mut body = create_body();
+        body["appClass"] = json!(class);
+        let (status, problem) = call(
+            &app,
+            &cookie,
+            Method::POST,
+            &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+            Some(body),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{class}: {problem}");
+        let detail = problem["detail"].as_str().expect("a detail");
+        assert!(detail.contains(says), "{class}: {detail}");
+        assert!(
+            detail.contains("`ui`") && detail.contains("`ui-rust`"),
+            "{class}: {detail}"
+        );
+    }
+
+    let mut body = create_body();
+    body["appClass"] = json!("fullstack");
+    let (status, created) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+        Some(body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{created}");
+    assert_eq!(created["appClass"], json!("ui-rust"), "{created}");
+}
+
 #[tokio::test]
 async fn the_diagnostics_door_answers_the_proxy_for_the_runs_own_project_only() {
     let config = config();
@@ -2251,7 +2294,7 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
         kind: "application".to_owned(),
         unattended: false,
         continues: None,
-        app_class: "fullstack".to_owned(),
+        app_class: "ui-rust".to_owned(),
         visibility: "project".to_owned(),
         prompt: "Expired prompt".to_owned(),
         prompt_digest: digest_prompt("Expired prompt"),
@@ -2493,7 +2536,7 @@ async fn conversation_starts_with_only_a_message_and_has_kind_conversation() {
     assert_eq!(created["appName"], json!(""));
     assert_eq!(created["endpointName"], json!(""));
     assert_eq!(created["endpointSlug"], json!(""));
-    assert_eq!(created["appClass"], json!("static"));
+    assert_eq!(created["appClass"], json!("ui"));
     assert_eq!(created["visibility"], json!("private"));
     assert_eq!(created["unattended"], json!(false));
     assert!(created["continues"].is_null());
@@ -2594,7 +2637,7 @@ async fn continues_validations_reject_invalid_runs() {
         kind: "conversation".to_owned(),
         unattended: false,
         continues: None,
-        app_class: "static".to_owned(),
+        app_class: "ui".to_owned(),
         visibility: "private".to_owned(),
         prompt: "Earlier conversation".to_owned(),
         prompt_digest: digest_prompt("Earlier conversation"),
@@ -2717,7 +2760,7 @@ async fn caller_without_portal_approver_sees_only_own_runs_while_approver_sees_b
         kind: "application".to_owned(),
         unattended: false,
         continues: None,
-        app_class: "static".to_owned(),
+        app_class: "ui".to_owned(),
         visibility: "project".to_owned(),
         prompt: "Viewer app".to_owned(),
         prompt_digest: digest_prompt("Viewer app"),
@@ -3275,7 +3318,7 @@ fn forge(server: &wiremock::MockServer) -> Arc<joinedcontext_portal::git::GiteaC
 fn static_body(app: &str) -> Value {
     let mut body = create_body();
     body["appName"] = json!(app);
-    body["appClass"] = json!("static");
+    body["appClass"] = json!("ui");
     body
 }
 
@@ -3292,7 +3335,7 @@ fn a_static_run(status: AgentRunStatus) -> AgentRun {
         "profile": "app-builder",
         "kind": "application",
         "unattended": false,
-        "appClass": "static",
+        "appClass": "ui",
         "visibility": "project",
         "prompt": "p",
         "promptDigest": digest_prompt("p"),

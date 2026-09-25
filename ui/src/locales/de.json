@@ -2020,9 +2020,8 @@
       "name": "Name der Anwendung",
       "kind": "Art",
       "kinds": {
-        "fullstack": "Vollständig (Rust-Backend und React-Oberfläche)",
-        "static": "Statisch (nur Oberfläche)",
-        "service": "Dienst (nur Backend, ohne Oberfläche)"
+        "ui": "UI (React-Oberfläche, vom Portal ausgeliefert)",
+        "ui-rust": "UI und Rust-Server (React-Oberfläche und axum-Backend)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Endpoint auswählen",

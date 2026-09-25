@@ -819,7 +819,7 @@ pub async fn start_conversation(
         kind: "conversation".to_owned(),
         unattended: false,
         continues: request.continues.clone(),
-        app_class: "static".to_owned(),
+        app_class: "ui".to_owned(),
         visibility: "private".to_owned(),
         prompt: request.message.clone(),
         prompt_digest: digest_prompt(&request.message),

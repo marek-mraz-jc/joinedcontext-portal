@@ -307,7 +307,7 @@ fn the_plain_html_sample_is_its_own_bundle_and_a_valid_published_app() {
         other => panic!("jcctl validate refuses apps/helsinki-events: {other:?}"),
     }
     let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
-    assert_eq!(app.spec.class, jc_core::AppClass::Static);
+    assert_eq!(app.spec.class, jc_core::AppClass::Ui);
     assert!(app.spec.build.0.is_empty(), "no build step (AP-83)");
     assert!(
         app.spec.source.git.is_some(),
@@ -338,7 +338,7 @@ fn the_functions_sample_has_two_roles_and_a_steward_gated_record_form() {
         other => panic!("jcctl validate refuses apps/helsinki-alerts: {other:?}"),
     }
     let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
-    assert_eq!(app.spec.class, jc_core::AppClass::Static);
+    assert_eq!(app.spec.class, jc_core::AppClass::Ui);
     assert_eq!(app.spec.visibility, jc_core::kinds::AppVisibility::Roles);
     let roles: Vec<_> = app
         .spec
@@ -395,7 +395,7 @@ fn every_reference_app_in_its_own_repository_carries_the_templates_workflow() {
             .join("apps")
             .join(&name)
             .join(".gitea/workflows/build.yml");
-        if app.spec.class == jc_core::kinds::AppClass::Fullstack {
+        if app.spec.class == jc_core::kinds::AppClass::UiRust {
             assert_eq!(
                 std::fs::read_to_string(&workflow).ok().as_deref(),
                 Some(fullstack.as_str()),
@@ -436,7 +436,7 @@ fn the_fullstack_samples_build_from_their_own_repositories_with_their_visibility
             other => panic!("jcctl validate refuses apps/{name}: {other:?}"),
         }
         let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
-        assert_eq!(app.spec.class, jc_core::AppClass::Fullstack, "{name}");
+        assert_eq!(app.spec.class, jc_core::AppClass::UiRust, "{name}");
         assert_eq!(app.spec.visibility, visibility, "{name}");
         let source = serde_json::to_value(&app.spec.source).expect("a source");
         assert_eq!(
@@ -509,7 +509,7 @@ fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
     let mut seen = 0;
     for (name, yaml) in reference_apps() {
         let app: App = serde_yaml_ng::from_str(&yaml).expect("a manifest");
-        if app.spec.class != jc_core::kinds::AppClass::Fullstack {
+        if app.spec.class != jc_core::kinds::AppClass::UiRust {
             continue;
         }
         seen += 1;

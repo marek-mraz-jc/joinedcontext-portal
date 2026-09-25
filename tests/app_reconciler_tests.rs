@@ -33,7 +33,7 @@ fn settings() -> Settings {
 /// The manifest of the architecture chapter's own example, trimmed to what rendering reads.
 fn app(overrides: Value) -> RawManifest {
     let mut spec = json!({
-        "kind": "fullstack",
+        "kind": "ui-rust",
         "source": { "path": "./src" },
         "build": { "rust": "1.90", "node": "22" },
         "visibility": "project",
@@ -543,25 +543,51 @@ fn a_public_app_tells_its_container_that_anonymous_callers_are_normal() {
         .all(|e| e["name"] != "JC_ANONYMOUS"));
 }
 
+/// AP-124: `service` is withdrawn, so no App holds a service account any more (AP-08), and the
+/// reconciler renders nothing for one: it is refused in words that name what to write instead.
 #[test]
-fn a_service_app_is_granted_through_its_own_account() {
-    let rendered = render(
+fn a_service_app_is_refused_and_granted_nothing() {
+    let refused = render(
         &app(json!({ "kind": "service" })),
         Some(APP_IMAGE),
         &generate_slug(),
         &settings(),
     )
-    .expect("the app renders");
-
-    assert_eq!(
-        rendered.policies[0].spec["assignee"],
-        json!({ "kind": "serviceAccount", "id": "app-air-quality-today" }),
-        "a service app calls with its own account and nobody else's (AP-08)"
-    );
+    .expect_err("a service app is refused");
+    let message = refused.to_string();
+    assert!(message.contains("`service` is withdrawn"), "{message}");
     assert!(
-        rendered.workload.is_some(),
-        "a service app runs in the same kind of pod as a fullstack one (AP-26)"
+        message.contains("`ui`") && message.contains("`ui-rust`"),
+        "{message}"
     );
+}
+
+/// AP-124: until it is built, `ui-node` is refused as declared and not built yet.
+#[test]
+fn a_ui_node_app_is_refused_until_the_shape_is_built() {
+    let refused = render(
+        &app(json!({ "kind": "ui-node" })),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect_err("a ui-node app is refused");
+    assert!(refused.to_string().contains("not built yet"), "{refused}");
+}
+
+/// AP-07, AP-124: a `ui-rust` App's server reaches the data with the person's token through the
+/// App's endpoint, the grant made to the endpoint's caller role and never to an account.
+#[test]
+fn a_ui_rust_app_is_granted_through_its_endpoint_role() {
+    let rendered = render(
+        &app(json!({ "kind": "ui-rust" })),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("the app renders");
+    assert_eq!(rendered.policies[0].spec["assignee"]["kind"], json!("role"));
+    assert!(rendered.workload.is_some(), "a ui-rust app runs in a pod");
 }
 
 #[test]

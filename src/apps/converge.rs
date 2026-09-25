@@ -254,7 +254,7 @@ impl Converger {
 
         // A static app is served by the Portal's own static host, so it has no objects at all
         // and its absence here is the design, not a gap (AP-14).
-        if spec.class == jc_core::kinds::AppClass::Static {
+        if spec.class == jc_core::kinds::AppClass::Ui {
             return Ok(Outcome::Skipped(
                 "a static app is served by the Portal, not by a pod (AP-14)".to_owned(),
             ));
@@ -429,7 +429,7 @@ fn pod_backed_projects(repository: &Repository) -> (BTreeSet<String>, BTreeSet<S
         ) else {
             continue;
         };
-        if manifest.kind != "App" || spec.class == jc_core::kinds::AppClass::Static {
+        if manifest.kind != "App" || spec.class == jc_core::kinds::AppClass::Ui {
             continue;
         }
         match spec.lifecycle {

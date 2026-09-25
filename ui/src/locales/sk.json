@@ -2020,9 +2020,8 @@
       "name": "Názov aplikácie",
       "kind": "Druh",
       "kinds": {
-        "fullstack": "Celá aplikácia (backend v Ruste a obrazovky v Reacte)",
-        "static": "Statická (len obrazovky)",
-        "service": "Služba (len backend, bez obrazoviek)"
+        "ui": "UI (obrazovky v Reacte, obsluhuje ich Portál)",
+        "ui-rust": "UI a server v Ruste (obrazovky v Reacte a backend v axum)"
       },
       "endpoint": "Endpoint",
       "pickEndpoint": "Vyberte endpoint",
