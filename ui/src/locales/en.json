@@ -210,6 +210,8 @@
     "draftHelp": "Not proposed yet, saved locally only.",
     "pendingApproval": "Pending approval",
     "pendingApprovalHelp": "Waiting for an approver to approve or reject it.",
+    "notDeployed": "Not deployed",
+    "notDeployedHelp": "Merged, but not running: a quota is used up, it is paused, or it is a kind the platform does not run. Its details say which.",
     "deploying": "Deploying",
     "deployingHelp": "Approved and merged; the reconciler is applying it.",
     "live": "Live",

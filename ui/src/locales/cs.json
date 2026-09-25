@@ -210,6 +210,8 @@
     "draftHelp": "Zatím nenavrženo, uloženo jen lokálně.",
     "pendingApproval": "Čeká na schválení",
     "pendingApprovalHelp": "Čeká na schválení nebo zamítnutí schvalovatelem.",
+    "notDeployed": "Nenasazeno",
+    "notDeployedHelp": "Sloučeno, ale neběží: kvóta je vyčerpaná, je pozastaveno nebo jde o druh, který platforma nespouští. Podrobnosti uvádějí důvod.",
     "deploying": "Nasazuje se",
     "deployingHelp": "Schváleno a sloučeno; rekonciliátor změnu nasazuje.",
     "live": "Aktivní",
