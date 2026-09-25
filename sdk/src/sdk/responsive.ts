@@ -69,9 +69,35 @@ function axePath(): string {
   }
 }
 
+let axeSource: string | undefined;
+
+/**
+ * axe-core's bundle as text, read once through a blank page of the same browser: it carries no
+ * Content Security Policy, and `axe.source` is the bundle axe injects into frames itself. axe sets
+ * it only where it sees a CommonJS `module`, so the blank page gets one first.
+ */
+async function loadAxe(page: Page): Promise<string> {
+  if (axeSource !== undefined) return axeSource;
+  const blank = await page.context().newPage();
+  try {
+    await blank.evaluate(() => {
+      (window as unknown as { module: object }).module = { exports: {} };
+    });
+    await blank.addScriptTag({ path: axePath() });
+    const source = await blank.evaluate(() => (window as unknown as { axe: { source?: string } }).axe.source);
+    if (typeof source !== "string") throw new Error("axe-core did not expose its source (axe.source)");
+    axeSource = source;
+    return source;
+  } finally {
+    await blank.close();
+  }
+}
+
 /** What axe finds at WCAG 2.1 A and AA, one line per rule with the elements it names. */
 export async function axeViolations(page: Page): Promise<string[]> {
-  await page.addScriptTag({ path: axePath() });
+  // Through the protocol, not a <script> tag: a published App is served with the static host's
+  // Content Security Policy, which forbids an inline script but not what the test driver evaluates.
+  await page.evaluate(await loadAxe(page));
   return page.evaluate(async () => {
     const run = (window as unknown as {
       axe: { run: (context: Document, options: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> };
