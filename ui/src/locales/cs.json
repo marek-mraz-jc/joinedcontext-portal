@@ -175,7 +175,12 @@
     "noneMatch": "Těmto filtrům neodpovídá žádná změna.",
     "workspace": "Z kopie",
     "fromWorkspace": "Z kopie {name}, kterou připravil(a) {author}, vráceno {date}: upraveno mimo živý projekt a před návrhem znovu zkontrolováno.",
-    "emptyHint": "Každá změna tohoto projektu tu čeká, dokud ji člověk nepřečte a nerozhodne. Teď nic nečeká; podejte změnu a objeví se v tomto seznamu."
+    "emptyHint": "Každá změna tohoto projektu tu čeká, dokud ji člověk nepřečte a nerozhodne. Teď nic nečeká; podejte změnu a objeví se v tomto seznamu.",
+    "waitsOn": {
+      "pending": "Čeká na {change}: nejprve schvalte tu změnu, potom tuto.",
+      "merged": "{change}, na kterou tato změna čeká, je sloučená.",
+      "rejected": "{change}, na kterou tato změna čeká, byla zamítnuta: to, co tato změna jmenuje, nevznikne. Zamítněte ji nebo ji navrhněte znovu."
+    }
   },
   "lane": {
     "green": "Zelená",
@@ -2788,7 +2793,8 @@
       "none": "Zatím nezkontrolováno",
       "green": "Zkontrolováno {age}",
       "red": "Kontrola selhala {age}",
-      "stale": "Změněno od kontroly"
+      "stale": "Změněno od kontroly",
+      "waiting": "Projde po schválení {changes} · zkontrolováno {age}"
     },
     "proposeReason": {
       "none": "Nejprve spusťte kontrolu: nic se nenavrhuje bez čerstvého zeleného verdiktu.",

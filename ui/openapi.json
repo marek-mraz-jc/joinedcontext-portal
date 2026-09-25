@@ -9827,6 +9827,22 @@
           }
         }
       },
+      "AwaitedChange": {
+        "type": "object",
+        "description": "A change another one waits on (MF-48).",
+        "required": [
+          "name",
+          "phase"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ChangePhase"
+          }
+        }
+      },
       "BackChannelLogoutForm": {
         "type": "object",
         "description": "The provider's back-channel logout call: one signed token, no session and no bearer (AP-29).",
@@ -10362,6 +10378,13 @@
           },
           "summary": {
             "$ref": "#/components/schemas/ChangeSummary"
+          },
+          "waitsOn": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AwaitedChange"
+            },
+            "description": "The changes this one waits on, each with where it stands (MF-48): it names what they\ncreate, so it merges after them, and a `Rejected` one flags it."
           },
           "workspace": {
             "type": [
@@ -14400,7 +14423,14 @@
           "ok": {
             "type": "boolean"
           },
-          "trace": {}
+          "trace": {},
+          "waitsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The open changes whose resources this manifest names (MF-48): it resolves once they are\napproved, and its own change cannot merge before them. Empty for every other verdict."
+          }
         },
         "additionalProperties": false
       },

@@ -536,12 +536,20 @@ async fn propose_checked(
             // A dry run that got this far answered `valid: true`: every fault of the manifest is a
             // refusal above, where `refused_check` turns it into the findings (T-2234). So the
             // empty list here is a green verdict's own, and not a red one with nothing to resolve.
-            crate::ops::verdict::Verdict::new(
+            // A reference an open change creates is a warning and the change named (MF-48): the
+            // verdict passes, and says what it waits on.
+            let mut verdict = crate::ops::verdict::Verdict::new(
                 result.valid,
-                Vec::new(),
+                result
+                    .awaited
+                    .iter()
+                    .map(crate::references::Awaited::finding)
+                    .collect(),
                 serde_json::to_value(&result.plan).ok(),
                 &manifest,
-            )
+            );
+            verdict.waits_on = result.awaited.iter().map(|a| a.change.clone()).collect();
+            verdict
         };
         record_check_as(user, front, state, project, &manifest, &verdict).await;
         result.verdict = Some(verdict);
@@ -981,9 +989,15 @@ async fn propose_engine(
 
     // Every resource this manifest names has to be there, so a person meets a missing name in the
     // form they typed it into and not in the reconciler's log (MF-13, T-2233).
-    if operation != Operation::Delete {
-        crate::references::check(&state.mirror, project, kind_info.kind, &envelope.spec)?;
-    }
+    // A resource an open change creates resolves once that change is approved (MF-48): the check
+    // says so, and the proposal records the change so it cannot merge before it.
+    let awaited = if operation != Operation::Delete {
+        let missing =
+            crate::references::missing(&state.mirror, project, kind_info.kind, &envelope.spec);
+        crate::references::awaited(state, project, missing).await?
+    } else {
+        Vec::new()
+    };
 
     // 4h. Every role of an App comes with its default group, in the same Change (AP-118,
     //     ADR-N-031): the group of a new role and its access entry are written, the group of a
@@ -1077,6 +1091,7 @@ async fn propose_engine(
                     &crate::api::assistant::org_domain(state, ""),
                 )
             },
+            awaited,
         }));
     }
 
@@ -1257,10 +1272,15 @@ async fn propose_engine(
     }
 
     let pr_title = format!("{op_str} {} {}", kind_info.kind, envelope.metadata.name);
-    let pr_body = format!(
+    let mut pr_body = format!(
         "Proposed {op_str} of {} `{}` in project `{project}` via joinedcontext Portal.",
         kind_info.kind, envelope.metadata.name
     );
+    // The changes it waits on, one line each, which the approval reads back (MF-48).
+    for waiting in &awaited {
+        pr_body.push_str("\n\n");
+        pr_body.push_str(&crate::references::waits_on_line(waiting));
+    }
 
     let pr = gitea
         .create_pull_request(&branch, &default_branch, &pr_title, &pr_body)
