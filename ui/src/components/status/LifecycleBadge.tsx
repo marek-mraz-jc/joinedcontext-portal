@@ -20,7 +20,10 @@ const LANES: Record<string, [string, BadgeTone]> = {
 
 const PHASES: Record<string, [string, BadgeTone]> = {
   draft: ["draft", "neutral"],
-  pending: ["pendingApproval", "warning"],
+  // A resource's `Pending` is a merged manifest the reconciler has not deployed (over a quota,
+  // paused, a compute it does not run); only a Change is ever waiting for an approver, and
+  // reading it as one sent people to an Approvals page with nothing on it (T-2873, CC-33).
+  pending: ["notDeployed", "warning"],
   pendingapproval: ["pendingApproval", "warning"],
   deploying: ["deploying", "info"],
   live: ["live", "success"],

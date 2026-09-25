@@ -83,11 +83,11 @@ describe("the change under review", () => {
       path: ROUTE,
       answer: (path) =>
         path.endsWith("/changes/chg-1a2b3c4d")
-          ? problem(403, "You may not read this project's changes.")
+          ? problem(503, "The forge is not answering.")
           : undefined,
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You may not read this project's changes.");
+    expect(alert).toHaveTextContent("The forge is not answering.");
 
     const before = calls().filter((call) => call.includes("/changes/chg-")).length;
     await userEvent.click(within(alert).getByRole("button", { name: en.app.error.retry }));

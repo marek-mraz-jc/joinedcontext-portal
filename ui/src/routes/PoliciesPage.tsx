@@ -1,4 +1,5 @@
 import { useCreateFormFromDraft } from "../components/forms/FormRoute";
+import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -263,7 +264,9 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
             <TableRow key={policy.metadata.name}>
               <TableCell primary>
                 <div className="flex items-center gap-2">
-                  <span>{title}</span>
+                  <RecordLink project={project} plural="policies" name={policy.metadata.name}>
+                    {title}
+                  </RecordLink>
                   {spec.effect === "prohibition" ? (
                     <Badge tone="danger">{t("policies.effect.prohibition")}</Badge>
                   ) : null}

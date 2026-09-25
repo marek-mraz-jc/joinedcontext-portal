@@ -42,7 +42,7 @@ impl ModelSchemas {
     }
 
     /// Every `(project, space)` that names a model, in order: what the data-quality run reads
-    /// (DM-70).
+    /// (DM-74).
     pub fn spaces(&self) -> Vec<(String, String)> {
         let mut spaces: Vec<_> = self
             .by_space

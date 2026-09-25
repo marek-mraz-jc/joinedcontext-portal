@@ -827,7 +827,7 @@ function NoBuilder(): JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="space-y-3">
-      <PageHeader title={t("apps.generate.title")} />
+      <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />
       <Alert tone="info">{t("apps.generate.noBuilder")}</Alert>
       <p className="text-sm">{t("apps.generate.examplesHint")}</p>
       <ul className="list-disc pl-5 text-sm">

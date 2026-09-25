@@ -709,7 +709,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_endpoint_list_all",
             title: "List Endpoints Everywhere",
-            description: "Every Endpoint of every project the caller may read, each with the project it lives in",
+            description: "Every Endpoint of every project, each with the project it lives in. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-61, PF-03)",
             input: super::empty_input_schema,
             output: endpoints_everywhere_output_schema,
             annotations: Annotations {
@@ -717,8 +717,8 @@ pub fn operations() -> Vec<Operation> {
                 destructive_hint: false,
                 idempotent_hint: true,
             },
-            // The route filters project by project and manifest by manifest, so a caller with
-            // no binding anywhere is answered an empty list rather than a refusal (PF-60, R20).
+            // The route itself refuses anyone who does not administer the organization with
+            // `404` (PF-61, T-2877), so the operation asks for no verb of its own.
             kind: "*",
             verb: None,
             lane: Lane::Green,

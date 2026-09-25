@@ -106,14 +106,19 @@ describe("the App's frame keeps an origin only when it is not the Portal's (AP-1
   });
 
   it("gives an App on the apps origin its own origin, and nothing more", () => {
-    const sandbox = appFrameSandbox("https://dev.example.org/apps/air/", portal).split(" ");
+    const sandbox = appFrameSandbox("https://air.apps.dev.example.org/", portal).split(" ");
     expect(sandbox.sort()).toEqual(
       ["allow-downloads", "allow-forms", "allow-popups", "allow-same-origin", "allow-scripts"],
     );
   });
 
-  it("frames the App at the apps origin the Portal names, or on its own path", () => {
-    expect(appAddress("air quality", "https://dev.example.org")).toBe("https://dev.example.org/apps/air%20quality/");
+  it("frames the App on its own host under the apps origin the Portal names, or on its own path (AP-133)", () => {
+    expect(appAddress("air", "https://dev.example.org")).toBe("https://air.apps.dev.example.org/");
+    expect(appAddress("air", "https://dev.example.org:8443/ignored")).toBe("https://air.apps.dev.example.org:8443/");
+    // A name no host could carry, or one that would climb to another host, keeps the path.
+    for (const name of ["air quality", "evil.example.net#", "a.b", "-air", "Air", ""]) {
+      expect(appAddress(name, "https://dev.example.org"), name).toBe(`/apps/${encodeURIComponent(name)}/`);
+    }
     expect(appAddress("air", null)).toBe("/apps/air/");
     expect(appAddress("air", "javascript:alert(1)")).toBe("/apps/air/");
     expect(appAddress("air", "not a url")).toBe("/apps/air/");

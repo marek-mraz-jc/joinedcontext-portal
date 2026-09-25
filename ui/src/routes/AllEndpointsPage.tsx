@@ -18,7 +18,6 @@ import {
   Button,
   EmptyState,
   Icon,
-  PageHeader,
   Table,
   TableBody,
   TableCell,
@@ -33,10 +32,10 @@ import {
 const COLUMNS = 5;
 
 /**
- * Every Endpoint of every project the caller may read, in one table (EP-08, EP-44, PF-60): the
- * project and space it publishes, its audience, and one direct link per representation. The
- * organization-level route answers it in one request and decides what is in it — an org-admin
- * sees every project, a steward their own, and nobody sees a project they may not read (R20).
+ * Every Endpoint of every project in one table (EP-08, EP-44, PF-61): the project and space it
+ * publishes, its audience, and one direct link per representation. It is the Organization page's
+ * Endpoints tab, for administrators of the organization only (T-2877); the organization-level
+ * route answers it in one request and refuses everyone else with `404`.
  */
 export function AllEndpointsPage(): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -57,7 +56,14 @@ export function AllEndpointsPage(): JSX.Element {
       <TableHeaderCell>{t("endpoints.field.representations")}</TableHeaderCell>
     </TableHead>
   );
-  const header = <PageHeader title={t("allEndpoints.title")} description={t("allEndpoints.lead")} />;
+  const header = (
+    <div>
+      <h2 id="all-endpoints-heading" className="text-title font-semibold text-fg">
+        {t("allEndpoints.title")}
+      </h2>
+      <p className="text-body text-fg-muted">{t("allEndpoints.lead")}</p>
+    </div>
+  );
 
   if (endpoints.isPending) {
     return (

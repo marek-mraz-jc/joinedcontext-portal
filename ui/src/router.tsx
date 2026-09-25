@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -7,14 +8,16 @@ import {
   Outlet,
   redirect,
   useChildMatches,
+  useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
+import { isHiddenSection } from "./components/layout/navigation";
+import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed } from "./components/ui";
 import { ErrorPage, errorReference } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
-import { AllEndpointsPage } from "./routes/AllEndpointsPage";
 import { LoginPage } from "./routes/LoginPage";
 import { ResourceListPage } from "./routes/ResourceListPage";
 import { FormRouteHost } from "./components/forms/FormRoute";
@@ -134,16 +137,6 @@ function NotFound(): React.JSX.Element {
       <NotFoundState />
     </Bare>
   );
-}
-
-/** The shell around a page that belongs to no single project: it opens on the one last worked in (T-2753). */
-function AnyProjectShell({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const projects = useProjects();
-  const first = preferredProject(projects.data);
-  if (!first) {
-    return <NoProject projects={projects} />;
-  }
-  return <Shell project={first}>{children}</Shell>;
 }
 
 /** `/` goes to the spaces of the project last worked in, else the first visible one (T-2753). */
@@ -405,16 +398,16 @@ const playgroundRoute = createRoute({
   },
 });
 
-/** Every endpoint of every project in one table (EP-08, EP-44). */
+/**
+ * Every endpoint of every project is the Organization page's Endpoints tab, an administration
+ * view (PF-61, T-2877); the old address keeps opening it, and the tab sends anyone else to
+ * Settings.
+ */
 const allEndpointsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/endpoints",
-  component: function AllEndpointsRoute() {
-    return (
-      <AnyProjectShell>
-        <AllEndpointsPage />
-      </AnyProjectShell>
-    );
+  beforeLoad: () => {
+    throw redirect({ to: "/organization/$tab", params: { tab: "endpoints" } });
   },
 });
 
@@ -832,6 +825,8 @@ const sectionRoute = createRoute({
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
     const { edit } = sectionRoute.useSearch();
+    const hiddenSections = useHiddenSections();
+    const navigate = useNavigate();
     const child = useChildMatches({
       select: (matches) => {
         const first = matches[0];
@@ -840,6 +835,20 @@ const sectionRoute = createRoute({
           : null;
       },
     });
+    // A section this installation hides is no page at any of its addresses, a bookmark
+    // included: it goes to the project's spaces, and waits for the branding before drawing
+    // anything that might be taken away (T-2874). One navigation per decision, not one per
+    // render: `<Navigate>` fires again on every render of the route it leaves.
+    const hidden = isHiddenSection(plural, hiddenSections);
+    const leave = hidden && hiddenSections !== undefined;
+    useEffect(() => {
+      if (leave) {
+        void navigate({ to: "/projects/$project/$plural", params: { project, plural: "spaces" }, replace: true });
+      }
+    }, [leave, navigate, project]);
+    if (hidden) {
+      return null;
+    }
     if (child?.routeId === sectionDetailRoute.id && child.name !== undefined) {
       return <DetailPage project={project} plural={plural} name={child.name} />;
     }

@@ -177,6 +177,17 @@ describe("RadioGroup", () => {
     expect(screen.getByRole("radio", { name: /CKAN catalogue/ })).not.toBeChecked();
   });
 
+  // T-2835: the option's line was folded into its name, and no control pointed at it.
+  it("an_option_is_named_by_its_label_and_described_by_its_line", async () => {
+    const onChange = group("git");
+    const ckan = screen.getByRole("radio", { name: "CKAN catalogue" });
+    expect(ckan).toHaveAccessibleDescription("A public dataset portal");
+    expect(screen.getByRole("radio", { name: "Git repository" })).not.toHaveAttribute("aria-describedby");
+    // The whole label still takes the click, its line included.
+    await userEvent.click(screen.getByText("A public dataset portal"));
+    expect(onChange).toHaveBeenCalledWith("ckan");
+  });
+
   it("radios_move_with_arrow_keys_and_the_group_is_one_tab_stop", async () => {
     const onChange = group("git");
     await userEvent.tab();

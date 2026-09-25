@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { FileList } from "./ComparePage";
-import { Alert, Button, EmptyState, PageFailed, PageHeader, PageLoading, RadioGroup } from "../../components/ui";
+import { Alert, Button, EmptyState, PageHeader, PageLoading, RadioGroup, ResourcePageFailed } from "../../components/ui";
 import { useAuth } from "../../auth/AuthProvider";
 
 
@@ -130,7 +130,7 @@ export function BringBackPage({
   // The heading stands while the copy and its comparison are read and when either could not be:
   // a refusal, an outage and a copy that is gone used to be one red line of the same words with
   // nothing to press (UI-15, UI-16, UI-44).
-  const header = <PageHeader title={t("workspaces.bringBack.title")} />;
+  const header = <PageHeader title={t("workspaces.bringBack.title")} description={t("workspaces.lead")} />;
 
   if (workspace.isPending || comparison.isPending) {
     return (
@@ -144,13 +144,19 @@ export function BringBackPage({
   if (workspace.isError || comparison.isError) {
     const failed = workspace.isError ? workspace : comparison;
     return (
-      <section aria-label={t("workspaces.bringBack.title")} className="space-y-6">
-        {header}
-        <PageFailed
+      <section aria-label={t("workspaces.bringBack.title")}>
+        <ResourcePageFailed
+          title={t("workspaces.bringBack.title")}
+          description={t("workspaces.lead")}
           error={failed.error}
           onRetry={() => {
             void failed.refetch();
           }}
+          back={
+            <Link to="/projects/$project/workspaces" params={{ project }} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
+              {t("workspaces.compare.back")}
+            </Link>
+          }
         />
       </section>
     );

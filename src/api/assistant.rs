@@ -712,6 +712,9 @@ pub async fn start_conversation(
 
     let grants = crate::permissions::for_request(&state, &user.0.identity, &project);
     grants.check("App", Verb::Propose, None)?;
+    if let Some(hidden) = request.path.and_then(|path| path.hidden_by(&state.config)) {
+        return Err(ApiError::BadRequest(hidden));
+    }
     // A path ends by proposing its kind; a person who may not cannot take it (AG-87, UI-44).
     if let Some(kind) = request.path.and_then(crate::agents::paths::Path::proposes) {
         grants.check(kind, Verb::Propose, None)?;
@@ -1074,6 +1077,8 @@ mod tests {
         );
         config.app_settings = Some(crate::apps::reconciler::Settings {
             host: "portal.example.org".into(),
+            apex: "example.org".into(),
+            gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
             namespace: "apps".into(),
             org_domain: "hel.fi".into(),
             apisix_namespace: "apisix".into(),

@@ -486,7 +486,8 @@ describe("the approval detail page, mounted on its own", () => {
     expect(waiting).toHaveAccessibleName(en.app.loading);
   });
 
-  it("says in the API's own words that there is no such change, and offers to ask again", async () => {
+  // T-2834: a change nobody holds answers 404 the second time too, so no Retry; the way back stays.
+  it("says in the API's own words that there is no such change, and leads back to the approvals", async () => {
     renderPage(page, {
       answer: (url) =>
         url.pathname.includes("/changes/")
@@ -497,7 +498,9 @@ describe("the approval detail page, mounted on its own", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("No change 'chg-1a2b3c4d' in helsinki.");
     expect(alert.textContent).not.toContain(en.app.error.generic);
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    expect(within(alert).queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "chg-1a2b3c4d" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.approvals.back })).toBeInTheDocument();
   });
 
   it("has no axe violation in either", async () => {

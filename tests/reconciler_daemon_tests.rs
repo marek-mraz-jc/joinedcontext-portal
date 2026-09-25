@@ -622,6 +622,74 @@ mod pass_edges {
         )
     }
 
+    /// T-2891, AP-112: a runner that holds a stream PUT open (Bento waits for a stream that
+    /// cannot stop) does not hold the edge file back: the edge step reads its base while that
+    /// PUT is still unanswered, in the same pass.
+    #[tokio::test]
+    async fn the_edge_file_converges_while_a_stream_put_is_still_unanswered() {
+        use joinedcontext_portal::apps::reconciler::Settings;
+        use joinedcontext_portal::reconciler::edge_file::EdgeFile;
+        use std::time::{Duration, Instant};
+
+        let mut files = project("helsinki", &[("vehicles", None)]);
+        files.push((
+            "projects/helsinki/endpoints/vehicles-in.yaml".to_owned(),
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: vehicles-in\n  namespace: helsinki\nspec:\n  contextSpaceRef: mobility\n  slug: mluyob4nz52lok3ssk7pgn5vwt\n  audience: internal\n  enabledRepresentations:\n    - ngsi-ld\n".to_owned(),
+        ));
+        let forge = serve(&[files]).await;
+        let runner = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&runner)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(20)))
+            .mount(&runner)
+            .await;
+        let cluster = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/api/v1/namespaces/apisix/configmaps/apisix-standalone-base",
+            ))
+            .respond_with(ResponseTemplate::new(404).set_body_json(json!({"kind": "Status"})))
+            .mount(&cluster)
+            .await;
+        let edge = Arc::new(EdgeFile::new(
+            KubeClient::with_token(&cluster.uri(), "token").expect("a kube client"),
+            "apisix".to_owned(),
+        ));
+        let settings = Settings {
+            host: "hel.example".into(),
+            apex: "hel.example".into(),
+            gateway_url: None,
+            namespace: "jc".into(),
+            org_domain: "hel.fi".into(),
+            apisix_namespace: "apisix".into(),
+            image_repository: None,
+            pull_secret: None,
+            release: None,
+            service_account: None,
+        };
+        let syncer = Syncer::new(client(&forge), Arc::new(Mirror::new()))
+            .with_streams(deployer(&runner))
+            .with_edge_file(edge, settings);
+        let run = tokio::spawn(async move { syncer.sync_once().await });
+
+        let started = Instant::now();
+        while calls(&cluster, "GET", "/configmaps/apisix-standalone-base").await == 0 {
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "the edge step waited for the stream PUT"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(
+            !run.is_finished(),
+            "the pass ended before the runner answered the PUT, so this proves nothing"
+        );
+        run.abort();
+    }
+
     /// Case 3: a reference the store does not hold refuses its pipeline by name, and the runner
     /// is never asked to start it.
     #[tokio::test]

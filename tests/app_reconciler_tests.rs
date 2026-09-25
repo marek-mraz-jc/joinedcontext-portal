@@ -18,6 +18,8 @@ const APP_IMAGE: &str =
 fn settings() -> Settings {
     Settings {
         host: "bb.example.com".into(),
+        apex: "bb.example.com".into(),
+        gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),
@@ -125,7 +127,8 @@ fn the_pod_is_the_app_container_alone_behind_the_edge() {
     );
     assert_eq!(
         env(app, "JC_BASE_PATH")["value"],
-        "/apps/air-quality-today/"
+        "/",
+        "the App is the whole of its own host (AP-133)"
     );
     assert_eq!(
         app["ports"],
@@ -229,12 +232,16 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
         "an open rule names the proxy's admin ports and nothing an app serves"
     );
 
-    // Out: the Linkerd control plane, DNS, and the platform host for the endpoint (443, the
-    // controller's port, and 4143 when the controller is meshed).
+    // Out: the Linkerd control plane, DNS, and the gateway's pods for the endpoint, on the
+    // gateway's port and the mesh's inbound port; nothing on the internet (AP-134).
     let egress = policy["spec"]["egress"]
         .as_array()
         .expect("three holes out");
     assert_eq!(egress.len(), 3);
+    assert!(
+        !policy.to_string().contains("0.0.0.0/0"),
+        "no App pod reaches every address"
+    );
     assert_eq!(
         egress[0],
         json!({
@@ -252,16 +259,85 @@ fn only_the_gateway_may_open_a_connection_into_the_pod() {
     );
     assert_eq!(
         egress[2]["to"],
-        json!([{ "ipBlock": { "cidr": "0.0.0.0/0" } }])
+        json!([{
+            "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "jc" } },
+            "podSelector": { "matchLabels": { "app.kubernetes.io/name": "context-gateway-gateway" } },
+        }])
     );
     assert_eq!(
         egress[2]["ports"],
         json!([
-            { "protocol": "TCP", "port": 443 },
-            { "protocol": "TCP", "port": 8443 },
+            { "protocol": "TCP", "port": 8080 },
             { "protocol": "TCP", "port": 4143 },
         ])
     );
+}
+
+/// AP-134: a declared destination is one more hole, on its own ports, with every private range
+/// inside it excepted; one that lies inside a private range opens nothing.
+#[test]
+fn a_declared_destination_is_the_only_way_out_and_never_a_private_range() {
+    let rendered = render(
+        &app(json!({
+            "egress": [
+                { "cidr": "203.0.113.0/24", "ports": [443] },
+                { "cidr": "10.0.0.0/7", "ports": [443, 8443] },
+                { "cidr": "10.1.0.0/16", "ports": [5432] },
+                { "cidr": "169.254.169.254/32", "ports": [80] },
+                { "cidr": "2001:db8::/32", "ports": [443] },
+                { "cidr": "fc00::/8", "ports": [443] },
+            ],
+        })),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("an App with declared destinations renders");
+    let policy = rendered.workload.expect("a pod").network_policy;
+    let declared: Vec<&Value> = policy["spec"]["egress"]
+        .as_array()
+        .expect("egress")
+        .iter()
+        .skip(3)
+        .collect();
+    assert_eq!(
+        declared,
+        [
+            &json!({ "to": [{ "ipBlock": { "cidr": "203.0.113.0/24" } }], "ports": [{ "protocol": "TCP", "port": 443 }] }),
+            &json!({
+                "to": [{ "ipBlock": { "cidr": "10.0.0.0/7", "except": ["10.0.0.0/8"] } }],
+                "ports": [{ "protocol": "TCP", "port": 443 }, { "protocol": "TCP", "port": 8443 }],
+            }),
+            &json!({ "to": [{ "ipBlock": { "cidr": "2001:db8::/32" } }], "ports": [{ "protocol": "TCP", "port": 443 }] }),
+        ],
+        "the cluster's own networks, the metadata address and a ULA are never reachable"
+    );
+}
+
+/// AP-134: a pod-backed App reaches its endpoint in the cluster, and without a gateway to name
+/// it is not rendered at all rather than pointed at the public host.
+#[test]
+fn a_pod_app_without_a_gateway_is_refused() {
+    for gateway_url in [
+        None,
+        Some("not a url".to_owned()),
+        Some("http://context-gateway:8080".to_owned()),
+    ] {
+        let err = render(
+            &app(json!({})),
+            Some(APP_IMAGE),
+            &generate_slug(),
+            &Settings {
+                gateway_url: gateway_url.clone(),
+                ..settings()
+            },
+        )
+        .expect_err("no gateway, no pod");
+        assert!(
+            err.to_string().contains("JC_PORTAL_GATEWAY_URL"),
+            "{gateway_url:?}: {err}"
+        );
+    }
 }
 
 #[test]
@@ -396,7 +472,10 @@ fn the_endpoint_is_the_union_of_what_the_needs_asked_for() {
     let app = rendered.workload.expect("a pod").deployment;
     assert_eq!(
         env(container(&app, "app"), "JC_ENDPOINT_URL")["value"],
-        format!("https://bb.example.com/api/endpoint/{}/", slug.as_str())
+        format!(
+            "http://context-gateway.jc.svc.cluster.local:8080/api/endpoint/{}/",
+            slug.as_str()
+        )
     );
 }
 

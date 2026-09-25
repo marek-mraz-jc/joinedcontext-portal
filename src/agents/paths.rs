@@ -117,6 +117,16 @@ impl Path {
         }
     }
 
+    /// Why this installation does not offer the path, when it does not: a section it hides
+    /// is no path the assistant takes a person down (T-2874).
+    pub fn hidden_by(self, config: &crate::config::Config) -> Option<String> {
+        (self == Path::BuildDashboard && !config.dashboards).then(|| {
+            "the build-dashboard path is not offered: this installation hides dashboards \
+             (JC_PORTAL_DASHBOARDS)"
+                .to_owned()
+        })
+    }
+
     pub fn from_id(id: &str) -> Option<Path> {
         Path::ALL.into_iter().find(|path| path.id() == id)
     }
