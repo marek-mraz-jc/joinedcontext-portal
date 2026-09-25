@@ -12,6 +12,8 @@ import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
+import { optionLabel } from "../enums";
+import type { EnumOption } from "../enums";
 import "./grid.css";
 
 export interface EntityGridProps extends UseEntityGridOptions {
@@ -219,6 +221,19 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       // is what the value is measured in and is kept, never typed over.
       const own = one?.kind === "relationship" ? one.object : one?.value;
       const shown = own === undefined || own === null ? "" : String(own);
+      const options = one?.kind === "relationship" ? undefined : hookOptions.enums?.[column.attr];
+      if (options && options.length > 0) {
+        return (
+          <EnumCell
+            label={`${labels.edit} ${column.label}`}
+            value={pending === undefined ? shown : String(pending)}
+            options={options}
+            changed={pending !== undefined}
+            notInList={labels.notInList}
+            onChange={(next) => setEdit(row.id, column.attr!, next === shown ? undefined : next)}
+          />
+        );
+      }
       return (
         <EditableCell
           label={`${labels.edit} ${column.label}`}
@@ -234,7 +249,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return <>{text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, setEdit]);
+  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, hookOptions.enums, setEdit]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -622,6 +637,8 @@ function FilterCell({
   const op = filter?.op ?? ops[0];
   const needed = valuesNeeded(op);
   const type = column.kind === "number" ? "number" : column.kind === "date" ? "date" : "text";
+  // An enum's values are picked, several at once: the query asks for any of them (UI-86).
+  const picking = column.kind === "enum" && op === "anyOf";
   return (
     <div className="jc-grid-filter-cell">
       <select
@@ -643,7 +660,24 @@ function FilterCell({
           </option>
         ))}
       </select>
-      {filter && needed >= 1 && (
+      {filter && picking && (
+        <select
+          multiple
+          aria-label={`${labels.value}: ${label}`}
+          value={filter.values ?? []}
+          size={Math.min(5, column.options?.length ?? 1)}
+          onChange={(e) =>
+            onChange({ ...filter, values: Array.from(e.target.selectedOptions, (option) => option.value) })
+          }
+        >
+          {(column.options ?? []).map((option) => (
+            <option key={option.value} value={option.value} title={option.description}>
+              {optionLabel(option)}
+            </option>
+          ))}
+        </select>
+      )}
+      {filter && needed >= 1 && !picking && (
         <input
           aria-label={`${labels.value}: ${label}`}
           type={type}
@@ -675,6 +709,47 @@ function coerce(next: string, before: string): unknown {
     return next === "true";
   }
   return next;
+}
+
+/**
+ * An enum cell: a picker of exactly the permissible values, showing each one's title and storing
+ * the value (UI-86). A stored value the enum does not list stays selected and is marked invalid,
+ * so looking at a row never rewrites it; only picking another value is a change.
+ */
+function EnumCell({
+  label,
+  value,
+  options,
+  changed,
+  notInList,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: EnumOption[];
+  changed: boolean;
+  notInList: string;
+  onChange: (next: string) => void;
+}): React.JSX.Element {
+  const outside = value !== "" && !options.some((option) => option.value === value);
+  return (
+    <select
+      aria-label={label}
+      aria-invalid={outside || undefined}
+      className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}${outside ? " jc-grid-cell-invalid" : ""}`}
+      data-changed={changed ? "true" : undefined}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {value === "" && <option value="">—</option>}
+      {outside && <option value={value}>{`${value} (${notInList})`}</option>}
+      {options.map((option) => (
+        <option key={option.value} value={option.value} title={option.description}>
+          {optionLabel(option)}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 /** One cell a person may correct: an input that says what it belongs to, marked while pending. */

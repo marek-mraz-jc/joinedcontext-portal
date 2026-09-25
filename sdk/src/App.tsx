@@ -204,11 +204,11 @@ function ViewCard({
       case "grid":
         // The grid reads the endpoint for itself, so it takes the slug and the type rather than
         // the rows this app loaded; in a preview it renders the entities the Portal inlined.
-        return <GridView slug={slug} type={source.type} config={view.grid} inline={inlineRows} />;
+        return <GridView slug={slug} type={source.type} config={view.grid} inline={inlineRows} schema={schema} />;
       case "form":
         return (
           <>
-            <Form row={rows.find((r) => r.id === selected) ?? null} rows={rows} fields={view.fields ?? source.attrs} title={view.title} schema={schema?.[source.type]} creating={creating} onSave={(id, patch) => onSave(source, id, patch)} onClose={() => { onSelect(null); onCreate(false); }} />
+            <Form row={rows.find((r) => r.id === selected) ?? null} rows={rows} fields={view.fields ?? source.attrs} title={view.title} schema={schema?.[source.type]} defs={schema} creating={creating} onSave={(id, patch) => onSave(source, id, patch)} onClose={() => { onSelect(null); onCreate(false); }} />
             <button type="button" className="new" onClick={() => { onSelect(null); onCreate(true); }}>New {source.type}</button>
           </>
         );

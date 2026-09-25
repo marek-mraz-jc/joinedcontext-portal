@@ -1296,6 +1296,7 @@
     "newSlot": "Nový atribút",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníka {name}",
+    "removeEnumValue": "Odstrániť hodnotu {value}",
     "classUri": "IRI triedy",
     "description": "Popis",
     "titleIn": "Názov ({locale})",
@@ -1876,6 +1877,7 @@
       "isEmpty": "je prázdne",
       "present": "má hodnotu",
       "pattern": "vyhovuje",
+      "anyOf": "je jednou z",
       "gt": "je väčšie ako",
       "gte": "je aspoň",
       "lt": "je menšie ako",
@@ -1911,6 +1913,7 @@
     "observedNow": "tieto hodnoty boli pozorované teraz",
     "applying": "Uplatňujem…",
     "refusedHere": "odmietnuté",
+    "notInList": "nie je v zozname",
     "map": {
       "panel": "Mapa",
       "offTheMap": "nie je na mape",

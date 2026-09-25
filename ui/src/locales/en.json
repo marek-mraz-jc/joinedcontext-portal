@@ -1296,6 +1296,7 @@
     "newSlot": "New slot",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
+    "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
@@ -1876,6 +1877,7 @@
       "isEmpty": "is empty",
       "present": "has a value",
       "pattern": "matches",
+      "anyOf": "is one of",
       "gt": "is greater than",
       "gte": "is at least",
       "lt": "is less than",
@@ -1911,6 +1913,7 @@
     "observedNow": "these values were observed now",
     "applying": "Applying…",
     "refusedHere": "refused",
+    "notInList": "not in the list",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",

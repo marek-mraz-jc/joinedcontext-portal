@@ -1296,6 +1296,7 @@
     "newSlot": "Neues Attribut",
     "newEnum": "Neue Werteliste",
     "newEnumValue": "Neuer Wert von {name}",
+    "removeEnumValue": "Wert {value} entfernen",
     "classUri": "Klassen-IRI",
     "description": "Beschreibung",
     "titleIn": "Titel ({locale})",
@@ -1876,6 +1877,7 @@
       "isEmpty": "ist leer",
       "present": "hat einen Wert",
       "pattern": "passt auf",
+      "anyOf": "ist eine von",
       "gt": "ist größer als",
       "gte": "ist mindestens",
       "lt": "ist kleiner als",
@@ -1911,6 +1913,7 @@
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
+    "notInList": "nicht in der Liste",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",

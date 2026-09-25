@@ -66,9 +66,15 @@ function compare(a: Row, b: Row, attr: string, dir: "asc" | "desc"): number
 ```
 Orders two rows by one attribute: numbers as numbers, text in the document's locale, empty last.
 ```ts
-function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column): Field
+function fieldOf(name: string, schema: TypeSchema | undefined, kind: Column, defs?: Record<string, unknown>, language?: string): Field
 ```
-The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox, geo or language (a LanguageProperty).
+The form input for one attribute from the endpoint's JSON Schema: number, text, select, date, checkbox, geo or language (a LanguageProperty). Pass the merged `Schema` from `useSchema` as `defs`, so an enum the model writes as a `$ref` becomes a select too.
+```ts
+function enumOptions(property: unknown, defs?: Record<string, unknown>, language?: string): EnumOption[] | null
+function enumsOf(type: unknown, defs?: Record<string, unknown>, language?: string): Record<string, EnumOption[]>
+function optionLabel(option: EnumOption): string
+```
+The permissible values of an attribute (UI-86): a direct `enum`, or one behind `$ref`, `allOf`, `anyOf` with `null`, or a `oneOf` of `const`s; each `{ value, title?, description? }`, the title in `language` where the model has one. `null` when the attribute is not an enum. `optionLabel` is what a picker shows: the title, else the value. `enumsOf` reads every enum attribute of one type's schema, which is what the grid's `enums` prop takes: such a column is then edited and filtered by picking.
 ```ts
 function isLanguageMap(value: unknown): value is LanguageMap
 ```

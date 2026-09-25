@@ -4,6 +4,8 @@
 export type { Cell, Column, Geo, LanguageMap, Row } from "../ngsi";
 export { isLanguageMap } from "../ngsi";
 export { fieldOf } from "../write";
+export { enumOptions, enumsOf, optionLabel } from "../enums";
+export type { EnumOption } from "../enums";
 export type { Field, FieldSchema, Schema, TypeSchema } from "../write";
 
 // Client
@@ -38,7 +40,7 @@ export type { Agg, Group } from "./helpers";
 export { EntityGrid } from "../grid/EntityGrid";
 export type { EntityGridProps } from "../grid/EntityGrid";
 export { DEFAULT_LABELS, useEntityGrid } from "../grid/useEntityGrid";
-export type { GridLabels, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";
+export type { GridLabels, GridLabelsInput, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";
 export { DEFAULT_PAGE_SIZE, gridConfigSchema, MAX_PAGE_SIZE, parseGridConfig } from "../grid/config";
 export type { ConfigFinding, EntityGridConfig, GridColumn, GridSource, ResolvedGridConfig } from "../grid/config";
 export { DEFAULT_GRID_MAP_LABELS, GridMap, summaryOf } from "../grid/GridMap";

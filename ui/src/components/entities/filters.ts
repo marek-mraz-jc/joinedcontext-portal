@@ -5,7 +5,9 @@
  * YAML view cannot disagree about what a pipeline reads (PL-42).
  */
 import { useQuery } from "@tanstack/react-query";
+import type { EnumOption } from "@joinedcontext/sdk";
 import { ApiError, readCsrfToken } from "../../api/client";
+import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../endpoints/links";
 import { parseModel } from "../../pages/models/linkml";
@@ -104,6 +106,37 @@ export function filterSlotsOf(
         maximum: slot?.maximum_value,
       };
     });
+}
+
+/**
+ * The permissible values of every enum slot of one class, by slot name, each titled in `locale`
+ * where the model gives a title (UI-86): what the entity grid's `enums` takes, so such a column is
+ * edited and filtered by picking. `{}` without a model or a type.
+ */
+export function enumsOfModel(
+  model: Manifest | string | undefined,
+  type: string | undefined,
+  locale: string,
+): Record<string, EnumOption[]> {
+  const source = typeof model === "string" ? model : inlineSource(model);
+  if (!type || source === undefined) {
+    return {};
+  }
+  const parsed = parseModel(source);
+  const cls = parsed.classes.find((c) => c.name === type);
+  const found: Record<string, EnumOption[]> = {};
+  for (const name of cls?.slots ?? []) {
+    const range = parsed.slots.find((s) => s.name === name)?.range;
+    const values = parsed.enums.find((e) => e.name === range)?.permissible_values ?? [];
+    if (values.length > 0) {
+      found[name] = values.map((value) => ({
+        value: value.name,
+        title: value.title ? localized(value.title, locale, value.name) : undefined,
+        description: value.description,
+      }));
+    }
+  }
+  return found;
 }
 
 /** The operators a slot's range makes sense with; everything for an attribute the model lacks. */
