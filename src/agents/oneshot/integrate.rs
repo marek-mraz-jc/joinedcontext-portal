@@ -1,17 +1,21 @@
 //! The steps of "Integrate a pipeline" the Portal takes itself (T-2695, ADR-N-032, AG-91): a
 //! file or a feed's address handed over at the first step is profiled, the person picks where it
-//! lands, and a new space is drafted whole by `space_complete` and opened ready to propose. What
-//! the Portal cannot decide alone (an existing space's model, a data source, words) goes to the
-//! model, on the path, with what was handed over said plainly.
+//! lands, and a new space is drafted whole by `space_complete` and opened ready to propose. A file
+//! is a sample of a feed: its feed's address is asked for, the pipeline reads that address and is
+//! tested on the file. What the Portal cannot decide alone (an existing space's model, a data
+//! source, words) goes to the model, on the path, with what was handed over said plainly.
 
 use super::*;
 
 /// The steps a question of this path is, as its `question` event carries them in `step`.
 pub(super) const SOURCE_STEP: &str = "integrate-source";
 const TARGET_STEP: &str = "integrate-target";
+const FEED_STEP: &str = "integrate-feed";
 
 /// The option of the target question that drafts a new space rather than picking one.
 const NEW_SPACE: &str = "new";
+/// The option of the feed question for a file that is data once, with no feed behind it.
+const NO_FEED: &str = "none";
 
 /// What the Portal did with an answer.
 pub(super) enum Taken {
@@ -145,6 +149,7 @@ impl Driver {
         match step {
             Some(SOURCE_STEP) => self.source_taken(&answers).await,
             Some(TARGET_STEP) => self.target_taken(&answers, &events).await,
+            Some(FEED_STEP) => self.feed_taken(&answers, &events).await,
             Some(build::ENDPOINTS_STEP) => self.build_taken(&answers).await,
             _ => Ok(None),
         }
@@ -231,18 +236,85 @@ impl Driver {
             ))));
         }
         let source = handed_over(events).ok_or("nothing was handed over to draft a space from")?;
-        let file = source.get("files").is_some();
-        let mut prose = self.space_complete(source, "").await?;
-        if file {
-            // A pipeline reads a feed; a file is data once (T-2695). Said, not guessed around.
-            let once =
-                "A file is data once, not a feed: its space and data model are drafted, and \
-                        its rows load through Import once the space is approved. Give a feed's \
-                        address to have a pipeline read it on a schedule.";
-            self.thought(once).await?;
-            prose = format!("{prose} {once}");
+        if source.get("files").is_some() {
+            let question = "What is the address of the feed this file is a sample of?";
+            self.ask_feed(question).await?;
+            return Ok(Some(Taken::Done(question.to_owned())));
         }
-        Ok(Some(Taken::Done(prose)))
+        Ok(Some(Taken::Done(self.space_complete(source, "").await?)))
+    }
+
+    /// "What is the address of the feed this file is a sample of?": an address, or no feed.
+    async fn ask_feed(&self, question: &str) -> Result<(), String> {
+        let call = tools_registry::AskCall {
+            question: question.to_owned(),
+            options: vec![tools_registry::AskOption {
+                value: NO_FEED.to_owned(),
+                title: "There is no feed".to_owned(),
+                description: Some(
+                    "Draft the space and its data model from the file; its rows load through Import"
+                        .to_owned(),
+                ),
+                disabled: None,
+            }],
+            default: None,
+            pick: None,
+            multiple: false,
+            min: None,
+            max: None,
+            input: tools_registry::AskInput {
+                file: false,
+                url: true,
+            },
+            step: Some(FEED_STEP),
+        };
+        self.ask_person(&call, Some(self.elapsed_ms())).await?;
+        Ok(())
+    }
+
+    /// The new space drafted from the file: with its feed's address, a data source reading that
+    /// address and a pipeline tested on the file; with none, the space and its model. Words go to
+    /// the model.
+    async fn feed_taken(
+        &self,
+        answers: &Value,
+        events: &[crate::agents::run::AgentRunEvent],
+    ) -> Result<Option<Taken>, String> {
+        let feed = if let Some(url) = answers.get("url").and_then(Value::as_str) {
+            // The answer was checked as an absolute http(s) address when it was given; written
+            // back as parsed, it is one word the operation reads as the source's address.
+            Some(
+                url::Url::parse(url)
+                    .map_err(|err| format!("the feed's address is not a URL: {err}"))?
+                    .to_string(),
+            )
+        } else if answers.get("answer").and_then(Value::as_str) == Some(NO_FEED) {
+            None
+        } else {
+            return Ok(None);
+        };
+        let mut source =
+            handed_over(events).ok_or("nothing was handed over to draft a space from")?;
+        let Some(files) = source.get_mut("files").and_then(Value::as_array_mut) else {
+            return Err("the feed question follows a file, and no file was handed over".to_owned());
+        };
+        let Some(feed) = feed else {
+            let prose = self.space_complete(source, "").await?;
+            // A pipeline reads a feed; a file with none is data once (T-2695). Said, not guessed
+            // around.
+            let once = "A file is data once, not a feed: its space and data model are drafted, \
+                        and its rows load through Import once the space is approved. Give a \
+                        feed's address to have a pipeline read it on a schedule.";
+            self.thought(once).await?;
+            return Ok(Some(Taken::Done(format!("{prose} {once}"))));
+        };
+        // `space_complete` reads a source's address from a README beside the sample and tests
+        // the pipeline on the sample: the file is the feed's sample, the address its source.
+        files.push(json!({
+            "name": "README.md",
+            "content": format!("The feed this file is a sample of: {feed}\n"),
+        }));
+        Ok(Some(Taken::Done(self.space_complete(source, "").await?)))
     }
 }
 

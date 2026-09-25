@@ -199,4 +199,8 @@ export const queryKeys = {
   changes: (project: string) => ["projects", project, "changes"] as const,
   permissions: (project: string) => ["projects", project, "permissions"] as const,
   change: (project: string, id: string) => ["projects", project, "changes", id] as const,
+  // The realm's people are not manifests of any project (ADR-N-031).
+  people: () => ["people"] as const,
+  peoplePage: (search: string, first: number) => ["people", "page", search, first] as const,
+  person: (id: string) => ["people", "person", id] as const,
 };

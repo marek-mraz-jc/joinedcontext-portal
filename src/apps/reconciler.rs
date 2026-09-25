@@ -44,7 +44,7 @@ pub const APP_ADDRESS: &str = "0.0.0.0";
 /// (Deployment/10 §4): one value for every app, the name is in `app.kubernetes.io/name`.
 pub const APP_LABEL: &str = "joinedcontext.com/app";
 /// Where meshed traffic lands on a pod: the Linkerd inbound proxy, not the service port.
-const LINKERD_INBOUND: u16 = 4143;
+pub(crate) const LINKERD_INBOUND: u16 = 4143;
 
 /// Base32 alphabet of RFC 4648 in the lowercase form [`EndpointSlug`] accepts (EP-02).
 const SLUG_ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
@@ -57,8 +57,16 @@ const SLUG_LEN: usize = 26;
 pub struct Settings {
     /// The primary domain, `city.example.com`, which the app's endpoint is served on.
     pub host: String,
-    /// The Kubernetes namespace apps run in.
+    /// The Portal's own namespace: where the pull Secret is kept and the Portal's
+    /// ServiceAccount lives. Apps ran here before each project had its own (AP-116), so it is
+    /// also where their old objects are removed from.
     pub namespace: String,
+    /// The installation's release name, the first part of each project's apps namespace
+    /// `{release}-{project}-apps` (AP-116). `None`: no pod-backed App runs.
+    pub release: Option<String>,
+    /// The Portal's ServiceAccount in [`Settings::namespace`], which the RoleBinding of each
+    /// project's apps namespace names (AP-116). `None`: no pod-backed App runs.
+    pub service_account: Option<String>,
     /// The organization's domain, which becomes the policy assigner (`did:web:{domain}`).
     pub org_domain: String,
     /// The namespace the installation runs APISIX in, the only one whose pods reach an app pod
@@ -73,6 +81,18 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// `{release}-{project}-apps`, the namespace a project's pod-backed Apps run in (AP-116).
+    pub fn apps_namespace(&self, project: &str) -> Result<String, RenderError> {
+        let release = self.release.as_deref().ok_or(RenderError::NoRelease)?;
+        let namespace = format!("{release}-{project}-apps");
+        jc_core::names::validate_dns1123_label(&namespace).map_err(|_| {
+            RenderError::NamespaceName {
+                namespace: namespace.clone(),
+            }
+        })?;
+        Ok(namespace)
+    }
+
     /// `{registry}/{organization}/app-{name}@{digest}`, the one image an App runs (AP-108).
     pub fn image_of(&self, name: &str, digest: &str) -> Option<String> {
         self.image_repository
@@ -165,6 +185,15 @@ pub enum RenderError {
         first: String,
         /// The first space that differs from it.
         second: String,
+    },
+    /// No release name is configured, so a project's apps namespace cannot be named (AP-116).
+    #[error("no release name is configured (JC_PORTAL_RELEASE), so the project's apps namespace cannot be named (AP-116)")]
+    NoRelease,
+    /// `{release}-{project}-apps` is not a namespace name: too long, most likely.
+    #[error("{namespace} is not a namespace name (at most 63 lowercase letters, digits and '-'); a shorter project name fits (AP-116)")]
+    NamespaceName {
+        /// The name as composed.
+        namespace: String,
     },
     /// The endpoint slug read back from the cluster is not a slug.
     #[error("the endpoint slug is not usable: {0}")]
@@ -313,6 +342,7 @@ fn render_workload(
         });
     }
 
+    let namespace = settings.apps_namespace(project)?;
     let workload_name = format!("app-{name}");
     let labels = json!({
         "app.kubernetes.io/name": workload_name,
@@ -327,7 +357,7 @@ fn render_workload(
     let deployment = json!({
         "apiVersion": "apps/v1",
         "kind": "Deployment",
-        "metadata": object_meta(&workload_name, settings, &labels),
+        "metadata": object_meta(&workload_name, &namespace, &labels),
         "spec": {
             "replicas": 1,
             "selector": { "matchLabels": selector },
@@ -364,7 +394,7 @@ fn render_workload(
     let service = json!({
         "apiVersion": "v1",
         "kind": "Service",
-        "metadata": object_meta(&workload_name, settings, &labels),
+        "metadata": object_meta(&workload_name, &namespace, &labels),
         "spec": {
             "type": "ClusterIP",
             "selector": selector,
@@ -380,7 +410,7 @@ fn render_workload(
     let secret = json!({
         "apiVersion": "v1",
         "kind": "Secret",
-        "metadata": object_meta(&secret_name, settings, &labels),
+        "metadata": object_meta(&secret_name, &namespace, &labels),
         "type": "Opaque",
         // The slug is here and not only in the rendered Endpoint because this Secret is what
         // the reconciler owns and reads back: the slug outlives a render, and one regenerated
@@ -393,15 +423,15 @@ fn render_workload(
     Ok(Workload {
         deployment,
         service,
-        network_policy: network_policy(&workload_name, settings, &labels, &selector),
+        network_policy: network_policy(&workload_name, &namespace, settings, &labels, &selector),
         secret,
     })
 }
 
-fn object_meta(name: &str, settings: &Settings, labels: &Value) -> Value {
+fn object_meta(name: &str, namespace: &str, labels: &Value) -> Value {
     json!({
         "name": name,
-        "namespace": settings.namespace,
+        "namespace": namespace,
         "labels": labels,
         "annotations": { GENERATED_BY: GENERATOR },
     })
@@ -481,11 +511,17 @@ fn app_container(
 
 /// Default-deny in both directions with two holes: APISIX in, and the platform host out
 /// (AP-15, AP-26).
-fn network_policy(name: &str, settings: &Settings, labels: &Value, selector: &Value) -> Value {
+fn network_policy(
+    name: &str,
+    namespace: &str,
+    settings: &Settings,
+    labels: &Value,
+    selector: &Value,
+) -> Value {
     json!({
         "apiVersion": "networking.k8s.io/v1",
         "kind": "NetworkPolicy",
-        "metadata": object_meta(name, settings, labels),
+        "metadata": object_meta(name, namespace, labels),
         "spec": {
             "podSelector": { "matchLabels": selector },
             "policyTypes": ["Ingress", "Egress"],

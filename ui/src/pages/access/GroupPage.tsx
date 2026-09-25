@@ -14,6 +14,7 @@ import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, Input, PageHeader, Select } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser, withMember, withoutMember } from "../apps/RolesAndMembers";
+import { usePeopleChoices } from "../organization/People";
 import type { RolesSpec } from "../apps/RolesAndMembers";
 import {
   appRolesNaming,
@@ -256,6 +257,10 @@ function Members({
   const { t } = useTranslation();
   const heading = useId();
   const field = useId();
+  const choices = useId();
+  // The realm's people, offered as the address is typed (T-2685); a person the caller may not
+  // list is still typed in full.
+  const people = usePeopleChoices().filter((person) => !members.some((member) => member.user.toLowerCase() === person));
   const [typed, setTyped] = useState("");
   const email = asUser(typed);
   const held = email !== null && members.some((member) => member.user.toLowerCase() === email);
@@ -303,10 +308,18 @@ function Members({
             type="email"
             autoComplete="off"
             value={typed}
+            list={people.length > 0 ? choices : undefined}
             placeholder="firstname.lastname@example.org"
             onChange={(event) => setTyped(event.target.value)}
           />
         </Field>
+        {people.length > 0 ? (
+          <datalist id={choices}>
+            {people.map((person) => (
+              <option key={person} value={person} />
+            ))}
+          </datalist>
+        ) : null}
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
           <Button type="submit" size="sm" disabled={busy || reason !== undefined} disabledReason={reason}>
             {t("access.groupPage.addMember")}

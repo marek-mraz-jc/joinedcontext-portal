@@ -88,6 +88,9 @@ if [ -f "$APP/Cargo.toml" ]; then
   export CARGO_HOME="$WORK/cargo" CARGO_TARGET_DIR="$WORK/target" CARGO_NET_OFFLINE=true
   rm -rf "$CARGO_HOME" "$CARGO_TARGET_DIR" && mkdir -p "$CARGO_HOME/registry"
   ln -s /opt/cargo/registry/index /opt/cargo/registry/cache "$CARGO_HOME/registry/"
+  # The dependencies the image precompiled from the reference apps' locks, copied, never linked:
+  # only this App's own crate and what its lock does not share are compiled (AP-106, T-2794).
+  node "$LANE/lane.mjs" seed /opt/cargo/target-seed "$CARGO_TARGET_DIR"
   echo "== backend tests"
   untrusted cargo test --offline --locked || fail "cargo test failed (a crate outside the runner's store fails here too)"
   echo "== backend"

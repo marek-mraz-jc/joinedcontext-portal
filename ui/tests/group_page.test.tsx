@@ -70,7 +70,7 @@ interface Sent {
   body: unknown;
 }
 
-function renderGroup({ verbs = ["read", "propose", "delete"] } = {}) {
+function renderGroup({ verbs = ["read", "propose", "delete"], people = false } = {}) {
   const sent: Sent[] = [];
   const reply = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -85,13 +85,20 @@ function renderGroup({ verbs = ["read", "propose", "delete"] } = {}) {
         return reply(200, {
           project: "org",
           bootstrap: false,
-          grants: [{ rule: { kinds: ["Group", "RoleBinding", "App"], verbs } }],
+          grants: [
+            { rule: { kinds: ["Group", "RoleBinding", "App"], verbs } },
+            ...(people ? [{ rule: { kinds: ["Person"], verbs: ["read"] } }] : []),
+          ],
         });
       }
       if (request.method !== "GET") {
         const dryRun = url.searchParams.get("dryRun") === "All";
         sent.push({ method: request.method, path, dryRun, body: await request.json() });
         return reply(dryRun ? 200 : 202, dryRun ? { valid: true, verdict: { ok: true } } : CHANGE);
+      }
+      if (path === "/api/v1/organization/people") {
+        const someone = (email: string, enabled = true) => ({ id: email, email, firstName: "", lastName: "", enabled, emailVerified: true, requiredActions: [] });
+        return reply(200, { items: [someone("jana@hel.fi"), someone("petra@hel.fi"), someone("gone@hel.fi", false)] });
       }
       if (path === "/api/v1/projects") return reply(200, list([{ name: "helsinki" }]));
       if (path === "/api/v1/projects/org/groups/stewards") return reply(200, GROUP);
@@ -178,6 +185,24 @@ describe("a group's page", () => {
     const apps = await section(en.access.groupPage.appRoles);
     expect(await within(apps).findByRole("link", { name: "viewer in alerts (helsinki)" })).toBeInTheDocument();
     await expectNoViolations(members);
+  });
+
+  it("offers the realm's people who are not members yet", async () => {
+    renderGroup({ people: true });
+    const members = await section(en.access.groupPage.members);
+    // With a list of choices the e-mail field is a combobox to a screen reader.
+    const field = await within(members).findByRole("combobox", { name: en.access.groupPage.email });
+    const offered = [...document.querySelectorAll(`#${CSS.escape(field.getAttribute("list") ?? "")} option`)].map(
+      (option) => (option as HTMLOptionElement).value,
+    );
+    // jana is a member already; a disabled person is not offered.
+    expect(offered).toEqual(["petra@hel.fi"]);
+  });
+
+  it("types a member in full when the caller may not list people", async () => {
+    renderGroup();
+    const members = await section(en.access.groupPage.members);
+    expect(within(members).getByRole("textbox", { name: en.access.groupPage.email })).not.toHaveAttribute("list");
   });
 
   it("adds a member as the Group manifest with that one member more, metadata kept", async () => {

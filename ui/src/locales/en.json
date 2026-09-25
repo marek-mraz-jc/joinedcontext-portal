@@ -3114,6 +3114,7 @@
     "tabsLabel": "Parts of the organization",
     "tab": {
       "settings": "Settings",
+      "people": "People",
       "members": "Members",
       "roles": "Roles",
       "groups": "Groups",
@@ -3155,6 +3156,127 @@
       "own": "{count, plural, =0 {None of its own} one {# of its own} other {# of its own}}",
       "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
       "settings": "Settings"
+    },
+    "people": {
+      "title": "People",
+      "lead": "The people of the organization’s sign-in realm. What each one may do comes from the bindings and groups that name them.",
+      "new": "New person",
+      "hidden": "Only a person whose role reads people sees this list. An organization administrator can grant it.",
+      "invited": "The realm sent {email} an e-mail to verify the address and set a password.",
+      "search": "Search people",
+      "searchPlaceholder": "Name or e-mail",
+      "searchButton": "Search",
+      "caption": "People of the organization",
+      "name": "Name",
+      "email": "E-mail",
+      "state": "State",
+      "lastSeen": "Last active",
+      "noMatch": "Nobody matches “{search}”.",
+      "empty": "The realm has no people yet.",
+      "noSession": "No open session",
+      "pages": "Pages of people",
+      "previous": "Previous",
+      "next": "Next",
+      "enabled": "Active",
+      "disabled": "Disabled",
+      "verified": "E-mail verified",
+      "unverified": "E-mail not verified",
+      "removalPending": "Removal waits for approval",
+      "newTitle": "New person",
+      "newLead": "The realm e-mails the person a link to verify the address and set a password. A realm without e-mail gives you a temporary password once.",
+      "create": "Create person",
+      "back": "Back to People",
+      "notFound": "The realm has no such person.",
+      "account": "Account",
+      "created": "Created",
+      "pendingSteps": "Steps at the next sign-in",
+      "edit": "Edit",
+      "groups": "Groups",
+      "noGroups": "In no group.",
+      "platformRoles": "Platform roles",
+      "appRoles": "Application roles",
+      "noRoles": "None.",
+      "viaGroup": "through the group {group}",
+      "direct": "named directly",
+      "editTitle": "Edit {name}",
+      "editLead": "A changed e-mail address must be verified again before the person signs in with it.",
+      "save": "Save",
+      "form": {
+        "email": "E-mail",
+        "emailHelp": "The address the person signs in with and receives the invitation at.",
+        "firstName": "First name",
+        "firstNameHelp": "The first name as the person writes it, shown in the Portal and in e-mails.",
+        "lastName": "Last name",
+        "lastNameHelp": "The last name as the person writes it, shown in the Portal and in e-mails.",
+        "locale": "Language",
+        "localeHelp": "The language of the sign-in pages and the realm’s e-mails for this person.",
+        "localeRealm": "The realm’s default",
+        "emailInvalid": "Type an e-mail address such as jana.novakova@example.org.",
+        "required": "Required."
+      },
+      "language": {
+        "en": "English",
+        "sk": "Slovenčina",
+        "cs": "Čeština",
+        "de": "Deutsch"
+      },
+      "step": {
+        "VERIFY_EMAIL": "verify the e-mail",
+        "UPDATE_PASSWORD": "set a password",
+        "CONFIGURE_TOTP": "set up a second factor",
+        "UPDATE_PROFILE": "complete the profile"
+      },
+      "action": {
+        "disable": "Disable",
+        "enable": "Enable",
+        "reset-password": "Reset password",
+        "remove-second-factor": "Remove second factor",
+        "sign-out": "Sign out everywhere",
+        "delete": "Delete"
+      },
+      "done": {
+        "disable": "Disabled. Every session of the person ended.",
+        "enable": "Enabled. The person can sign in again.",
+        "reset-password": "The realm e-mailed the person a link to set a new password.",
+        "remove-second-factor": "Second factor removed. The person sets up a new one at the next sign-in.",
+        "sign-out": "Every session of the person ended.",
+        "delete": "Deleted."
+      },
+      "confirm": {
+        "disable": {
+          "title": "Disable {name}?",
+          "body": "The person can no longer sign in and every open session ends. Their groups and roles stay."
+        },
+        "enable": {
+          "title": "Enable {name}?",
+          "body": "The person can sign in again with the rights their groups and bindings give."
+        },
+        "reset-password": {
+          "title": "Reset the password of {name}?",
+          "body": "The realm e-mails a link to set a new password. Without e-mail you get a temporary password once."
+        },
+        "remove-second-factor": {
+          "title": "Remove the second factor of {name}?",
+          "body": "Their authenticator stops working here; they set up a new one at the next sign-in."
+        },
+        "sign-out": {
+          "title": "Sign {name} out everywhere?",
+          "body": "Every open session ends. The person can sign in again."
+        },
+        "delete": {
+          "title": "Delete {name}?",
+          "body": "The person is disabled now. When groups or bindings name them, a Change takes them out of each; the account goes once that Change is approved. This cannot be undone."
+        }
+      },
+      "password": {
+        "title": "Temporary password",
+        "lead": "The realm cannot send e-mail, so hand this password to {email} yourself.",
+        "warning": "It is shown this once and nowhere else. The person must replace it at the first sign-in. Send it by a channel only they read.",
+        "label": "Temporary password",
+        "copy": "Copy",
+        "copied": "Copied to the clipboard.",
+        "done": "Done"
+      }
     }
   },
   "projectDelete": {

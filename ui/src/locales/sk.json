@@ -3114,6 +3114,7 @@
     "tabsLabel": "Časti organizácie",
     "tab": {
       "settings": "Nastavenia",
+      "people": "Ľudia",
       "members": "Členovia",
       "roles": "Roly",
       "groups": "Skupiny",
@@ -3155,6 +3156,127 @@
       "own": "{count, plural, =0 {Žiadne vlastné} one {# vlastné} few {# vlastné} other {# vlastných}}",
       "throughOrganization": "{count, plural, one {# cez organizáciu} few {# cez organizáciu} other {# cez organizáciu}}",
       "settings": "Nastavenia"
+    },
+    "people": {
+      "title": "Ľudia",
+      "lead": "Ľudia prihlasovacej domény organizácie. Čo kto smie, určujú väzby a skupiny, ktoré ho menujú.",
+      "new": "Nová osoba",
+      "hidden": "Tento zoznam vidí len osoba, ktorej rola číta ľudí. Pridelí ju administrátor organizácie.",
+      "invited": "Doména poslala na {email} e-mail na overenie adresy a nastavenie hesla.",
+      "search": "Hľadať ľudí",
+      "searchPlaceholder": "Meno alebo e-mail",
+      "searchButton": "Hľadať",
+      "caption": "Ľudia organizácie",
+      "name": "Meno",
+      "email": "E-mail",
+      "state": "Stav",
+      "lastSeen": "Naposledy aktívny",
+      "noMatch": "Nikto nezodpovedá „{search}“.",
+      "empty": "Doména zatiaľ nemá žiadnych ľudí.",
+      "noSession": "Žiadna otvorená relácia",
+      "pages": "Strany ľudí",
+      "previous": "Predchádzajúca",
+      "next": "Ďalšia",
+      "enabled": "Aktívny",
+      "disabled": "Vypnutý",
+      "verified": "E-mail overený",
+      "unverified": "E-mail neoverený",
+      "removalPending": "Odstránenie čaká na schválenie",
+      "newTitle": "Nová osoba",
+      "newLead": "Doména pošle osobe odkaz na overenie adresy a nastavenie hesla. Doména bez e-mailu vám raz ukáže dočasné heslo.",
+      "create": "Vytvoriť osobu",
+      "back": "Späť na Ľudí",
+      "notFound": "Doména takú osobu nemá.",
+      "account": "Účet",
+      "created": "Vytvorený",
+      "pendingSteps": "Kroky pri ďalšom prihlásení",
+      "edit": "Upraviť",
+      "groups": "Skupiny",
+      "noGroups": "V žiadnej skupine.",
+      "platformRoles": "Roly platformy",
+      "appRoles": "Roly aplikácií",
+      "noRoles": "Žiadne.",
+      "viaGroup": "cez skupinu {group}",
+      "direct": "menovaný priamo",
+      "editTitle": "Upraviť {name}",
+      "editLead": "Zmenenú e-mailovú adresu treba pred prihlásením znova overiť.",
+      "save": "Uložiť",
+      "form": {
+        "email": "E-mail",
+        "emailHelp": "Adresa, ktorou sa osoba prihlasuje a na ktorú dostane pozvánku.",
+        "firstName": "Meno",
+        "firstNameHelp": "Krstné meno tak, ako ho osoba píše, zobrazené v Portáli a v e-mailoch.",
+        "lastName": "Priezvisko",
+        "lastNameHelp": "Priezvisko tak, ako ho osoba píše, zobrazené v Portáli a v e-mailoch.",
+        "locale": "Jazyk",
+        "localeHelp": "Jazyk prihlasovacích stránok a e-mailov domény pre túto osobu.",
+        "localeRealm": "Predvolený jazyk domény",
+        "emailInvalid": "Zadajte e-mailovú adresu, napríklad jana.novakova@example.org.",
+        "required": "Povinné."
+      },
+      "language": {
+        "en": "English",
+        "sk": "Slovenčina",
+        "cs": "Čeština",
+        "de": "Deutsch"
+      },
+      "step": {
+        "VERIFY_EMAIL": "overiť e-mail",
+        "UPDATE_PASSWORD": "nastaviť heslo",
+        "CONFIGURE_TOTP": "nastaviť druhý faktor",
+        "UPDATE_PROFILE": "doplniť profil"
+      },
+      "action": {
+        "disable": "Vypnúť",
+        "enable": "Zapnúť",
+        "reset-password": "Obnoviť heslo",
+        "remove-second-factor": "Odstrániť druhý faktor",
+        "sign-out": "Odhlásiť všade",
+        "delete": "Zmazať"
+      },
+      "done": {
+        "disable": "Vypnuté. Všetky relácie osoby skončili.",
+        "enable": "Zapnuté. Osoba sa môže znova prihlásiť.",
+        "reset-password": "Doména poslala osobe odkaz na nastavenie nového hesla.",
+        "remove-second-factor": "Druhý faktor odstránený. Osoba si pri ďalšom prihlásení nastaví nový.",
+        "sign-out": "Všetky relácie osoby skončili.",
+        "delete": "Zmazané."
+      },
+      "confirm": {
+        "disable": {
+          "title": "Vypnúť {name}?",
+          "body": "Osoba sa už neprihlási a všetky otvorené relácie skončia. Jej skupiny a roly zostávajú."
+        },
+        "enable": {
+          "title": "Zapnúť {name}?",
+          "body": "Osoba sa môže znova prihlásiť s právami, ktoré jej dávajú skupiny a väzby."
+        },
+        "reset-password": {
+          "title": "Obnoviť heslo osoby {name}?",
+          "body": "Doména pošle odkaz na nastavenie nového hesla. Bez e-mailu dostanete raz dočasné heslo."
+        },
+        "remove-second-factor": {
+          "title": "Odstrániť druhý faktor osoby {name}?",
+          "body": "Jej autentifikátor tu prestane fungovať; pri ďalšom prihlásení si nastaví nový."
+        },
+        "sign-out": {
+          "title": "Odhlásiť {name} všade?",
+          "body": "Všetky otvorené relácie skončia. Osoba sa môže znova prihlásiť."
+        },
+        "delete": {
+          "title": "Zmazať {name}?",
+          "body": "Osoba sa hneď vypne. Ak ju menujú skupiny alebo väzby, Zmena ju z každej vyberie; účet zanikne po schválení tejto Zmeny. Nedá sa to vrátiť."
+        }
+      },
+      "password": {
+        "title": "Dočasné heslo",
+        "lead": "Doména nevie posielať e-maily, preto toto heslo odovzdajte osobe {email} sami.",
+        "warning": "Zobrazí sa len teraz a nikde inde. Osoba ho musí pri prvom prihlásení zmeniť. Pošlite ho kanálom, ktorý číta len ona.",
+        "label": "Dočasné heslo",
+        "copy": "Kopírovať",
+        "copied": "Skopírované do schránky.",
+        "done": "Hotovo"
+      }
     }
   },
   "projectDelete": {

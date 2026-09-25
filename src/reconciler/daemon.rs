@@ -1054,6 +1054,9 @@ impl Syncer {
                     }
                     (None, true) => {}
                 }
+                for warning in &outcome.warnings {
+                    tracing::info!(app = %outcome.app, warning = %warning, "app role waits for the realm");
+                }
             }
             // A run that failed as a whole (no token, no list) keeps the last secrets, so a
             // realm that is down for a minute does not take every App off the edge.
@@ -1101,6 +1104,8 @@ impl Syncer {
                 match outcome {
                     Ok(Outcome::Applied) => tracing::info!(%app, "app objects applied"),
                     Ok(Outcome::Deleted) => tracing::info!(%app, "app objects deleted"),
+                    Ok(Outcome::NamespaceReady) => tracing::debug!(%app, "apps namespace in place"),
+                    Ok(Outcome::NamespaceDeleted) => tracing::info!(%app, "apps namespace deleted"),
                     Ok(Outcome::Skipped(why)) => {
                         tracing::debug!(%app, reason = %why, "app deploys nothing")
                     }
