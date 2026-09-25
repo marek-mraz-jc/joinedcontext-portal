@@ -26,6 +26,8 @@ pub struct Config {
     /// without an edge in front leaves it off and the header is ignored
     /// (`JC_TRUST_EDGE_TOKEN`, the literal string `true` to turn it on; default `false`).
     pub trust_edge_token: bool,
+    /// What the deployment says it switched on, for the organization setup page (T-2748).
+    pub setup: SetupStatements,
     /// The key every session cookie is sealed with (`JC_PORTAL_COOKIE_KEY`, at least 64
     /// bytes). A secret. Unset means an ephemeral key: the Portal runs, and every session ends
     /// at the next restart.
@@ -168,6 +170,32 @@ pub struct Config {
     pub pipeline_secrets: Option<crate::pipeline_secrets::Backend>,
 }
 
+/// The installation's own part of an organization's setup, as the deployment renders it from the
+/// values that switch each on (T-2748, API/01 §25). Unset is "not said", which the setup page
+/// shows as not done: it never claims what nobody stated.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SetupStatements {
+    /// The realm's login theme (`JC_SETUP_LOGIN_THEME`); unset or blank says nothing about it.
+    pub login_theme: Option<String>,
+    /// The realm sends mail (`JC_SETUP_SMTP`, the literal `true`).
+    pub smtp: bool,
+    /// The databases are backed up to an object store (`JC_SETUP_BACKUPS`, the literal `true`).
+    pub backups: bool,
+}
+
+impl SetupStatements {
+    fn from_vars(lookup: &impl Fn(&str) -> Option<String>) -> Self {
+        let yes = |key: &str| lookup(key).is_some_and(|v| v.trim() == "true");
+        Self {
+            login_theme: lookup("JC_SETUP_LOGIN_THEME")
+                .map(|theme| theme.trim().to_owned())
+                .filter(|theme| !theme.is_empty()),
+            smtp: yes("JC_SETUP_SMTP"),
+            backups: yes("JC_SETUP_BACKUPS"),
+        }
+    }
+}
+
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
@@ -175,6 +203,7 @@ impl std::fmt::Debug for Config {
             .field("public_base_url", &self.public_base_url.as_str())
             .field("oidc", &self.oidc)
             .field("trust_edge_token", &self.trust_edge_token)
+            .field("setup", &self.setup)
             .field("cookie_key", &"[redacted]")
             .field(
                 "cookie_keys_previous",
@@ -1114,6 +1143,7 @@ impl Config {
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
+        let setup = SetupStatements::from_vars(&lookup);
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
         let apps_cache_dir =
@@ -1164,6 +1194,7 @@ impl Config {
             public_base_url,
             oidc,
             trust_edge_token,
+            setup,
             cookie_key,
             cookie_keys_previous,
             sync_interval,
@@ -1207,6 +1238,7 @@ impl Config {
                 .unwrap_or_else(|_| unreachable!("valid test url")),
             oidc: None,
             trust_edge_token: false,
+            setup: SetupStatements::default(),
             artifact_store: None,
             pipeline_secrets: None,
             cookie_key: Key::generate(),
@@ -1703,6 +1735,27 @@ mod tests {
         })
         .unwrap();
         assert!(config.trust_edge_token);
+    }
+
+    /// T-2748: the setup statements are read as said, and unset, blank or misspelled is "not said".
+    #[test]
+    fn the_setup_statements_say_only_what_the_deployment_said() {
+        let silent = Config::from_vars(|_| None).unwrap().setup;
+        assert_eq!(silent, SetupStatements::default());
+        let said = Config::from_vars(|k| match k {
+            "JC_SETUP_LOGIN_THEME" => Some(" joinedcontext ".to_string()),
+            "JC_SETUP_SMTP" => Some("true".to_string()),
+            "JC_SETUP_BACKUPS" => Some("yes".to_string()),
+            _ => None,
+        })
+        .unwrap()
+        .setup;
+        assert_eq!(said.login_theme.as_deref(), Some("joinedcontext"));
+        assert!(said.smtp && !said.backups);
+        let blank = Config::from_vars(|k| (k == "JC_SETUP_LOGIN_THEME").then(|| "  ".to_string()))
+            .unwrap()
+            .setup;
+        assert_eq!(blank.login_theme, None);
     }
 
     #[test]
