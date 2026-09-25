@@ -570,7 +570,7 @@
     },
     "link": {
       "index": "Index",
-      "linkml": "Modell (LinkML)",
+      "linkml": "Modellquelle",
       "jsonSchema": "JSON Schema",
       "access": "Zugriff",
       "catalogue": "Katalog"
@@ -1586,7 +1586,7 @@
     "format": "Format",
     "formats": {
       "whole": "Ganzes Projekt (Konfiguration, Schemas und Datenmodelle)",
-      "wholeHelp": "Ein ZIP-Archiv: jedes Manifest und die Dateien daneben, das JSON Schema jeder Art, LinkML-Quelle und JSON Schema jedes Datenmodells und eine README, die sagt, was jede Datei bedeutet.",
+      "wholeHelp": "Ein ZIP-Archiv: jedes Manifest und die Dateien daneben, das JSON Schema jeder Art, Quelle und JSON Schema jedes Datenmodells und eine README, die sagt, was jede Datei bedeutet.",
       "yaml": "YAML",
       "yamlHelp": "Ein Manifest pro Dokument, bereit zum erneuten Anwenden; ein ganzes Projekt endet mit einem Index, der die Schemas enthält.",
       "json": "JSON-Liste",
@@ -1607,7 +1607,7 @@
     "download": "Herunterladen"
   },
   "models": {
-    "title": "LinkML-Modelleditor",
+    "title": "Modelleditor",
     "version": "Version {version}",
     "add": "Hinzufügen",
     "classes": "Klassen",
@@ -1803,7 +1803,7 @@
       "name": "Name",
       "space": "Kontextraum",
       "version": "Version",
-      "linkml": "LinkML-Quelle",
+      "linkml": "Modellquelle",
       "lifecycle": "Lebenszyklus",
       "openWorld": "Nicht deklarierte Attribute annehmen"
     },
@@ -1849,7 +1849,7 @@
       "edit": "Modell bearbeiten",
       "notFound": "Kein Datenmodell namens {name}",
       "notFoundLead": "Es wurde vielleicht umbenannt oder entfernt, oder es gehört zu einem anderen Projekt. Die Liste zeigt jedes Modell, das Sie lesen dürfen.",
-      "sourceFailed": "Das LinkML des Modells konnte nicht gelesen werden: {reason}",
+      "sourceFailed": "Die Quelle des Modells konnte nicht gelesen werden: {reason}",
       "views": "Ansichten des Modells",
       "view": {
         "overview": "Übersicht",
@@ -1866,7 +1866,7 @@
       "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
       "formClass": "Klasse",
       "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
-      "yaml": "Das LinkML des Modells",
+      "yaml": "Die Quelle des Modells (LinkML YAML)",
       "copyYaml": "YAML kopieren",
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",

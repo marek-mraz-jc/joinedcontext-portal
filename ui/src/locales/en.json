@@ -590,7 +590,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "model source",
       "jsonSchema": "JSON Schema",
       "access": "access",
       "catalogue": "catalogue"
@@ -1586,7 +1586,7 @@
     "format": "Format",
     "formats": {
       "whole": "Whole project (configuration, schemas and data models)",
-      "wholeHelp": "A ZIP archive: every manifest and the files beside them, the JSON Schema of every kind, each data model's LinkML source and JSON Schema, and a README that says what each file means.",
+      "wholeHelp": "A ZIP archive: every manifest and the files beside them, the JSON Schema of every kind, each data model's source and JSON Schema, and a README that says what each file means.",
       "yaml": "YAML",
       "yamlHelp": "One manifest per document, ready to apply again; a whole project ends with an index that holds the schemas.",
       "json": "JSON list",
@@ -1607,7 +1607,7 @@
     "download": "Download"
   },
   "models": {
-    "title": "LinkML model editor",
+    "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",
     "classes": "Classes",
@@ -1803,7 +1803,7 @@
       "name": "Name",
       "space": "Context space",
       "version": "Version",
-      "linkml": "LinkML source",
+      "linkml": "Model source",
       "lifecycle": "Lifecycle",
       "openWorld": "Accept undeclared attributes"
     },
@@ -1849,7 +1849,7 @@
       "edit": "Edit model",
       "notFound": "No data model named {name}",
       "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
-      "sourceFailed": "The model's LinkML could not be read: {reason}",
+      "sourceFailed": "The model's source could not be read: {reason}",
       "views": "Views of the model",
       "view": {
         "overview": "Overview",
@@ -1866,7 +1866,7 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
-      "yaml": "The model's LinkML",
+      "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",

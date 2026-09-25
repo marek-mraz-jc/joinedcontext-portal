@@ -590,7 +590,7 @@
     },
     "link": {
       "index": "index",
-      "linkml": "model (LinkML)",
+      "linkml": "zdroj modelu",
       "jsonSchema": "JSON Schema",
       "access": "přístup",
       "catalogue": "katalog"
@@ -1586,7 +1586,7 @@
     "format": "Formát",
     "formats": {
       "whole": "Celý projekt (konfigurace, schémata a datové modely)",
-      "wholeHelp": "Archiv ZIP: každý manifest a soubory vedle něj, JSON Schema každého druhu, zdroj LinkML a JSON Schema každého datového modelu a README, které vysvětluje, co který soubor znamená.",
+      "wholeHelp": "Archiv ZIP: každý manifest a soubory vedle něj, JSON Schema každého druhu, zdroj a JSON Schema každého datového modelu a README, které vysvětluje, co který soubor znamená.",
       "yaml": "YAML",
       "yamlHelp": "Jeden manifest na dokument, připravený k opětovnému nasazení; celý projekt končí indexem se schématy.",
       "json": "Seznam JSON",
@@ -1607,7 +1607,7 @@
     "download": "Stáhnout"
   },
   "models": {
-    "title": "Editor modelů LinkML",
+    "title": "Editor modelů",
     "version": "Verze {version}",
     "add": "Přidat",
     "classes": "Třídy",
@@ -1803,7 +1803,7 @@
       "name": "Název",
       "space": "Kontextový prostor",
       "version": "Verze",
-      "linkml": "Zdroj LinkML",
+      "linkml": "Zdroj modelu",
       "lifecycle": "Životní cyklus",
       "openWorld": "Přijímat nedeklarované atributy"
     },
@@ -1849,7 +1849,7 @@
       "edit": "Upravit model",
       "notFound": "Datový model {name} neexistuje",
       "notFoundLead": "Možná byl přejmenován nebo odstraněn, nebo patří jinému projektu. Seznam ukazuje každý model, který smíte číst.",
-      "sourceFailed": "LinkML modelu se nepodařilo načíst: {reason}",
+      "sourceFailed": "Zdroj modelu se nepodařilo načíst: {reason}",
       "views": "Pohledy na model",
       "view": {
         "overview": "Přehled",
@@ -1866,7 +1866,7 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
-      "yaml": "LinkML modelu",
+      "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",
       "downloadYaml": "Stáhnout YAML",
       "copied": "Zkopírováno.",
