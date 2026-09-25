@@ -1955,22 +1955,25 @@
     },
     "roles": {
       "title": "Role a členové",
-      "lead": "Kdo smí co v této aplikaci. Přidání nebo odebrání člena navrhne změnu aplikace, kterou posoudí schvalovatel.",
+      "lead": "Kdo smí co dělat v této aplikaci. Každá role má výchozí skupinu: přidání nebo odebrání osoby navrhne změnu této skupiny a přidělení role jiné skupině navrhne změnu aplikace. Každou změnu posoudí schvalovatel.",
       "count": "Členové: {count}",
       "nobody": "Tuto roli zatím nemá nikdo.",
       "groupMember": "Skupina {group}",
       "remove": "Odebrat",
       "removeLabel": "Odebrat {member} z role {role}",
-      "kind": "Přidat",
-      "kindUser": "Osobu",
-      "kindGroup": "Skupinu",
       "email": "E-mail",
       "group": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "add": "Přidat člena",
       "needEmail": "Zadejte e-mailovou adresu osoby.",
       "needGroup": "Vyberte skupinu.",
-      "already": "Tuto roli už má."
+      "already": "Tuto roli už má.",
+      "defaultGroup": "Výchozí skupina {group}",
+      "noDefaultGroup": "Výchozí skupina {group} zatím neexistuje: přijde s další změnou aplikace.",
+      "addPerson": "Přidat osobu",
+      "others": "Další skupiny a osoby s touto rolí",
+      "noOthers": "Tuto roli nemá žádná jiná skupina.",
+      "give": "Přidělit roli skupině",
+      "groupsUnreadable": "Vaše role nezobrazuje skupiny organizace."
     }
   },
   "appLifecycle": {

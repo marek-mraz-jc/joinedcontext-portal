@@ -1955,22 +1955,25 @@
     },
     "roles": {
       "title": "Rollen und Mitglieder",
-      "lead": "Wer in dieser Anwendung was darf. Ein Mitglied hinzuzufügen oder zu entfernen schlägt eine Änderung der Anwendung vor, die eine freigebende Person prüft.",
+      "lead": "Wer in dieser Anwendung was tun darf. Jede Rolle hat eine Standardgruppe: Eine Person hinzuzufügen oder zu entfernen schlägt eine Änderung dieser Gruppe vor, die Rolle einer anderen Gruppe zu geben eine Änderung der Anwendung. Jede Änderung prüft eine freigebende Person.",
       "count": "Mitglieder: {count}",
       "nobody": "Diese Rolle hat noch niemand.",
       "groupMember": "Gruppe {group}",
       "remove": "Entfernen",
       "removeLabel": "{member} aus {role} entfernen",
-      "kind": "Hinzufügen",
-      "kindUser": "Person",
-      "kindGroup": "Gruppe",
       "email": "E-Mail",
       "group": "Gruppe",
       "pickGroup": "Gruppe wählen",
-      "add": "Mitglied hinzufügen",
       "needEmail": "Geben Sie die E-Mail-Adresse der Person ein.",
       "needGroup": "Wählen Sie eine Gruppe.",
-      "already": "Hat diese Rolle bereits."
+      "already": "Hat diese Rolle bereits.",
+      "defaultGroup": "Standardgruppe {group}",
+      "noDefaultGroup": "Die Standardgruppe {group} gibt es noch nicht: Sie kommt mit der nächsten Änderung der Anwendung.",
+      "addPerson": "Person hinzufügen",
+      "others": "Weitere Gruppen und Personen mit dieser Rolle",
+      "noOthers": "Keine andere Gruppe hat diese Rolle.",
+      "give": "Rolle einer Gruppe geben",
+      "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
     }
   },
   "appLifecycle": {
