@@ -5,6 +5,7 @@ import { areaQuery } from "./geoarea";
 import type { EntitySource, GridQuery } from "./source";
 import type { RichRow, RichCell } from "./model";
 import { attributesOf, cellText } from "./model";
+import { unitSymbol } from "../sdk/units";
 import { andQ, opsForKind, queryFromFilters } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
 import type { AttributeChange, EntityChange } from "./apply";
@@ -239,7 +240,8 @@ function buildColumns(
     const gridCol = colMap.get(attr);
     const label = gridCol?.label ?? attr;
     const pinned = gridCol?.pinned ?? false;
-    cols.push({ key: attr, attr, meta: null, label, pinned });
+    const symbol = unitSymbol(unitOfColumn(rows, attr));
+    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned });
 
     const metaKeys = shown[attr] ?? [];
     for (const meta of metaKeys) {
@@ -250,6 +252,22 @@ function buildColumns(
   return cols;
 }
 
+/**
+ * The one unit a column's values are in, when every value that states a unit states the same
+ * (DM-06): the header then carries its symbol, `PM10 (µg/m³)`. Two units in one column name
+ * none, and each cell keeps its own.
+ */
+function unitOfColumn(rows: RichRow[], attr: string): string | undefined {
+  const codes = new Set<string>();
+  for (const row of rows) {
+    const cell = row.cells[attr];
+    for (const one of Array.isArray(cell) ? cell : cell ? [cell] : []) {
+      if (one.kind === "property" && one.unitCode) codes.add(one.unitCode);
+    }
+  }
+  return codes.size === 1 ? [...codes][0] : undefined;
+}
+
 function metaOf(cell: RichCell, meta: MetaKey): string | undefined {
   return meta === "unit" ? cell.unitCode : cell[meta];
 }
@@ -258,7 +276,10 @@ function cellTextWithUnit(cell: RichCell | RichCell[] | undefined, column: Visib
   const text = cellText(cell);
   if (column.meta) return text;
   if (!Array.isArray(cell) && cell && cell.kind === "property" && cell.unitCode && !column.meta) {
-    return text + " " + cell.unitCode;
+    // The symbol the code list gives the unit, `µg/m³` for GQ (DM-06); the code stays in the
+    // unit column and in the cell's title.
+    const symbol = unitSymbol(cell.unitCode);
+    return symbol ? `${text} ${symbol}` : text;
   }
   return text;
 }

@@ -62,11 +62,12 @@ pub fn load(
         if id.kind != "ContextSpace" {
             continue;
         }
-        let Some(named) =
-            serde_json::from_value::<ContextSpaceSpec>(resource.manifest.spec.clone())
-                .ok()
-                .and_then(|spec| spec.data_model_ref)
+        let Some(space) =
+            serde_json::from_value::<ContextSpaceSpec>(resource.manifest.spec.clone()).ok()
         else {
+            continue;
+        };
+        let Some(named) = space.data_model_ref else {
             continue;
         };
         let project = id.namespace.clone().unwrap_or_default();
@@ -90,12 +91,13 @@ pub fn load(
             .unwrap_or(Value::Null);
         compiled.insert(
             (project, id.name.clone()),
-            Arc::new(ModelSchema::compile(
+            Arc::new(ModelSchema::compile_for_space(
                 named.name(),
                 spec.version.as_str(),
                 &json_schema,
                 &spec.classes,
                 spec.open_world,
+                space.missing_unit_code,
             )),
         );
     }
@@ -180,6 +182,29 @@ impl ModelSchema {
         classes: &[String],
         open_world: bool,
     ) -> Self {
+        Self::compile_for_space(
+            model,
+            version,
+            json_schema,
+            classes,
+            open_world,
+            jc_core::kinds::MissingUnitCode::Fill,
+        )
+    }
+
+    /// [`Self::compile`] for a space that says what a quantity without its `unitCode` gets
+    /// (DM-06): a quantity Property of a slot with a unit must carry the model's code, and in a
+    /// space that refuses a missing one it must carry one at all. Where the space fills it, the
+    /// gateway writes the model's code, so a record without one is still valid.
+    pub fn compile_for_space(
+        model: &str,
+        version: &str,
+        json_schema: &Value,
+        classes: &[String],
+        open_world: bool,
+        missing_unit_code: jc_core::kinds::MissingUnitCode,
+    ) -> Self {
+        let require_units = missing_unit_code == jc_core::kinds::MissingUnitCode::Refuse;
         let definitions = json_schema
             .get("$defs")
             .or_else(|| json_schema.get("definitions"))
@@ -189,8 +214,13 @@ impl ModelSchema {
         let compiled = classes
             .iter()
             .map(|class| {
-                let normalized =
-                    normalized(class, definitions.get(class), &definitions, open_world);
+                let normalized = normalized(
+                    class,
+                    definitions.get(class),
+                    &definitions,
+                    open_world,
+                    require_units,
+                );
                 (class.clone(), normalized)
             })
             .collect();
@@ -364,7 +394,14 @@ fn named(error: &jsonschema::ValidationError<'_>, path: &str) -> (&'static str, 
     match error.kind() {
         Kind::Required { property } => {
             let property = property.as_str().unwrap_or_default();
-            if depth == 0 {
+            if property == "unitCode" {
+                (
+                    "ngsi-ld:unitCode",
+                    format!(
+                        "{at} has no unitCode, which this space requires of every quantity (DM-06)"
+                    ),
+                )
+            } else if depth == 0 {
                 ("sh:minCount", format!("{property} is required"))
             } else {
                 ("sh:minCount", format!("{at} has no {property}"))
@@ -381,6 +418,25 @@ fn named(error: &jsonschema::ValidationError<'_>, path: &str) -> (&'static str, 
             "ngsi-ld:attributeKind",
             format!("{at} is not of the NGSI-LD kind its slot declares"),
         ),
+        Kind::Constant { expected_value } if pointer.ends_with("/unitCode") && depth == 2 => {
+            let code = expected_value.as_str().unwrap_or_default();
+            let unit = jc_core::units::lookup(code)
+                .map(|unit| {
+                    format!(
+                        " ({})",
+                        if unit.symbol.is_empty() {
+                            unit.name
+                        } else {
+                            unit.symbol
+                        }
+                    )
+                })
+                .unwrap_or_default();
+            (
+                "ngsi-ld:unitCode",
+                format!("{at} is measured in {code}{unit} by the model; convert the value and write unitCode {code} (DM-06)"),
+            )
+        }
         Kind::Constant { .. } => ("sh:hasValue", format!("{at} is not the value it must be")),
         Kind::Type { .. } | Kind::Format { .. } => {
             ("sh:datatype", format!("{at} is not of the slot's datatype"))
@@ -421,6 +477,7 @@ fn normalized(
     definition: Option<&Value>,
     definitions: &Map<String, Value>,
     open_world: bool,
+    require_units: bool,
 ) -> Value {
     let mut properties = Map::new();
     properties.insert("id".into(), json!({ "type": "string" }));
@@ -437,7 +494,7 @@ fn normalized(
         if name == "id" || name == "type" {
             continue;
         }
-        properties.insert(name.clone(), attribute(slot));
+        properties.insert(name.clone(), attribute(slot, require_units));
     }
     for name in definition
         .and_then(|d| d.get("required"))
@@ -467,7 +524,10 @@ fn normalized(
 
 /// One attribute of the normalized form: an object of the slot's NGSI-LD kind whose value
 /// member holds what the key-value schema says the value is.
-fn attribute(slot: &Value) -> Value {
+///
+/// A Property whose slot declares a UN/CEFACT unit (`x-unit.exactMappings`, `ucefact:GQ`) holds
+/// its `unitCode` to that code, and requires one when `require_units` (DM-06).
+fn attribute(slot: &Value, require_units: bool) -> Value {
     let kind = slot
         .get("x-ngsi-ld-kind")
         .and_then(Value::as_str)
@@ -482,14 +542,38 @@ fn attribute(slot: &Value) -> Value {
     } else {
         without_null(slot)
     };
-    json!({
+    let mut shape = json!({
         "type": "object",
         "required": ["type", member],
         "properties": {
             "type": { "const": kind },
             member: value,
         },
-    })
+    });
+    if let Some(code) = unit_code(slot).filter(|_| kind == "Property") {
+        shape["properties"]["unitCode"] = json!({ "const": code });
+        if require_units {
+            if let Some(required) = shape["required"].as_array_mut() {
+                required.push(json!("unitCode"));
+            }
+        }
+    }
+    shape
+}
+
+/// The UN/CEFACT code a key-value slot's `x-unit` names, and the `unece:` spelling older models
+/// used (DM-06).
+fn unit_code(slot: &Value) -> Option<&str> {
+    slot.pointer("/x-unit/exactMappings")?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .find_map(|mapping| {
+            mapping
+                .strip_prefix("ucefact:")
+                .or_else(|| mapping.strip_prefix("unece:"))
+        })
+        .filter(|code| !code.is_empty())
 }
 
 /// The slot's schema without `null`: key-value form writes an absent value as null, and the
@@ -567,6 +651,71 @@ mod tests {
             .into_iter()
             .map(|p| (p.rule, p.path))
             .collect()
+    }
+
+    fn with_unit(missing: jc_core::kinds::MissingUnitCode) -> ModelSchema {
+        let mut schema = schema();
+        schema["definitions"]["AirQualityObserved"]["properties"]["pm10"]["x-unit"] =
+            json!({ "exactMappings": ["ucefact:GQ", "qudt-unit:MicroGM-PER-M3"] });
+        schema["definitions"]["AirQualityObserved"]["properties"]["refDevice"]["x-unit"] =
+            json!({ "exactMappings": ["ucefact:C62"] });
+        ModelSchema::compile_for_space(
+            "bb-air-quality",
+            "1.0.0",
+            &schema,
+            &["AirQualityObserved".into()],
+            false,
+            missing,
+        )
+    }
+
+    /// DM-06, T-2811: a quantity carries its model's unit code; where the space fills a missing
+    /// one the record may leave it out, where it refuses one it may not.
+    #[test]
+    fn a_quantity_in_another_unit_is_a_problem_naming_the_code() {
+        use jc_core::kinds::MissingUnitCode;
+        let fill = with_unit(MissingUnitCode::Fill);
+        assert!(fill.check(&valid(), DOMAIN, SPACE).is_empty());
+
+        let mut record = valid();
+        record["pm10"]["unitCode"] = json!("GP");
+        let problems = fill.check(&record, DOMAIN, SPACE);
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(
+            (problems[0].rule.as_str(), problems[0].path.as_str()),
+            ("ngsi-ld:unitCode", "pm10")
+        );
+        assert!(
+            problems[0].message.contains("measured in GQ (µg/m³)"),
+            "{}",
+            problems[0].message
+        );
+        assert!(
+            !problems[0].message.contains("GP"),
+            "the value the record carried is not quoted"
+        );
+
+        let mut missing = valid();
+        missing["pm10"]
+            .as_object_mut()
+            .map(|pm10| pm10.remove("unitCode"));
+        assert!(
+            fill.check(&missing, DOMAIN, SPACE).is_empty(),
+            "the gateway fills it"
+        );
+        let strict = with_unit(MissingUnitCode::Refuse).check(&missing, DOMAIN, SPACE);
+        assert_eq!(strict.len(), 1, "{strict:?}");
+        assert_eq!(strict[0].rule, "ngsi-ld:unitCode");
+        assert!(
+            strict[0].message.contains("has no unitCode"),
+            "{}",
+            strict[0].message
+        );
+
+        // A Relationship has no unit, whatever its slot says.
+        assert!(with_unit(MissingUnitCode::Refuse)
+            .check(&valid(), DOMAIN, SPACE)
+            .is_empty());
     }
 
     #[test]

@@ -37,6 +37,8 @@ export const ADDRESSES: Record<string, string[]> = {
   "/login": ["/login"],
   "/": ["/"],
   "/endpoints": ["/endpoints"],
+  "/catalogue": ["/catalogue"],
+  "/catalogue/$name": ["/catalogue/air"],
   "/playground": ["/playground"],
   "/organization": ["/organization"],
   "/organization/$tab": ORGANIZATION_TABS.map((tab) => `/organization/${tab}`),
@@ -93,6 +95,12 @@ const SETUP_NOTHING_DONE = {
 function answer(path: string): Response | undefined {
   // The setup read (API/01 §25) is one object, not a list: a new organization with nothing done.
   if (path === "/api/v1/organization/setup") return jsonResponse(SETUP_NOTHING_DONE);
+  // The catalogue is a page of its own shape, not a list: empty, as an installation with no
+  // published dataset answers it.
+  if (path === "/api/v1/catalogue") {
+    const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
+    return jsonResponse({ total: 0, page: 1, pageSize: 20, datasets: [], facets: none, unavailable: [] });
+  }
   const last = decodeURIComponent(path.split("/").pop() ?? "");
   return MADE_UP.has(last) && path !== "/api/v1/projects/helsinki" ? problem(404, `${last} was not found`) : undefined;
 }

@@ -22,13 +22,14 @@ import {
   TableRow,
   Textarea,
 } from "../../components/ui";
-import { classSlots, parseModel } from "../models/linkml";
+import { classSlots, parseModel, unitCode } from "../models/linkml";
 import type { LinkmlModel, LinkmlSlot } from "../models/linkml";
 import { entityTypesOf, spaceOf } from "../spaces/SpaceInside";
 import type { PipelineForm } from "./PipelineEditor";
 import { sampleUrlOf } from "./PipelineStudio";
 import { MAX_SAMPLE_BYTES, draftFromSample, formatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
+import { SlotUnit } from "./SlotUnit";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
 export const QUIET_MS = 600;
@@ -604,6 +605,7 @@ export function PipelineWorkbench({
               <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto">
                 {slots.map((slot) => {
                   const values = parsed?.enums.find((e) => e.name === slot.range)?.permissible_values.map((v) => v.name) ?? [];
+                  const unit = unitCode(slot.unit);
                   return (
                     <li key={slot.name} className="rounded border border-border p-2 text-caption">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -624,9 +626,25 @@ export function PipelineWorkbench({
                       ) : null}
                       <p className="font-mono text-fg-subtle">
                         {t("pipelines.workbench.mapping.example", {
-                          example: `root.${slot.name} = { "type": "${slot.kind}", "${slot.kind === "Relationship" ? "object" : "value"}": ${exampleOf(slot, values[0])} }`,
+                          example: `root.${slot.name} = { "type": "${slot.kind}", "${slot.kind === "Relationship" ? "object" : "value"}": ${exampleOf(slot, values[0])}${unit && slot.kind === "Property" ? `, "unitCode": "${unit}"` : ""} }`,
                         })}
                       </p>
+                      {unit && slot.kind === "Property" ? (
+                        <SlotUnit
+                          slot={slot.name}
+                          code={unit}
+                          onAdd={(line) =>
+                            onChange({
+                              ...(draft ?? {}),
+                              compute: {
+                                ...(draft?.compute ?? {}),
+                                kind: "bloblang",
+                                bloblang: bloblang.trimEnd() === "" ? line : `${bloblang.trimEnd()}\n${line}`,
+                              },
+                            })
+                          }
+                        />
+                      ) : null}
                     </li>
                   );
                 })}
