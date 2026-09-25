@@ -9,7 +9,7 @@ import { previewSrc, usePreviewBridge } from "./previewBridge";
 import { RunPublication } from "./RunPublication";
 import { RunTimeline } from "./RunTimeline";
 import { RunTimeSpent } from "./RunTimeSpent";
-import { TERMINAL_STATES, useAgentRun } from "./useAgentRun";
+import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
@@ -92,6 +92,8 @@ export function AgentRunPage({
   const publishable =
     record.status === "previewing" ||
     (record.unattended === true && record.status === "awaiting_approval" && !record.changeId);
+  // A version whose tests fail or still run is not offered for publication (SDK-38).
+  const held = publishable ? testsHold(events, record.previewUrl) : null;
   const published = publish.data;
   const change: Change | null = published && isChange(published) ? (published as Change) : null;
 
@@ -229,13 +231,25 @@ export function AgentRunPage({
           </Button>
           <Button
             variant="primary"
-            disabled={!publishable || publish.isPending}
+            disabled={!publishable || held !== null || publish.isPending}
+            aria-describedby={held ? "run-tests-hold" : undefined}
             onClick={() => {
               publish.mutate();
             }}
           >
             {t("agentRun.publish")}
           </Button>
+          {held ? (
+            <span id="run-tests-hold" className="basis-full text-caption text-fg-muted">
+              {held.running
+                ? t("agentRun.testsHold.running", { version: String(held.version) })
+                : t("agentRun.testsHold.failed", {
+                    version: String(held.version),
+                    failed: String(held.failed),
+                    names: held.names.join("; "),
+                  })}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
@@ -20,10 +21,13 @@ import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Icon } from "../../components/ui/icons";
 import { requestOpen } from "../../assistant/state";
 import { AppBuildState, runState, useAppBuild, useRebuild } from "./AppBuildPanel";
+import type { components } from "../../api/schema";
 import { AgentRunPage } from "./AgentRunPage";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
 import { runInUrl, setRunInUrl } from "./useAgentRun";
 import { Button, buttonClass, PageHeader, safeHref } from "../../components/ui";
+
+type WorkflowRun = components["schemas"]["WorkflowRun"];
 
 interface DataNeed {
   contextSpaceRef?: string | { name?: string };
@@ -53,6 +57,21 @@ export function appSpec(app: Manifest): AppSpec {
  */
 export function isServed(app: Manifest): boolean {
   return Boolean(app.status?.build) || app.metadata.annotations?.["joinedcontext.com/shipped-with"] === "portal";
+}
+
+/**
+ * Why a published App cannot be opened yet, in the catalog's words, or `undefined` when a build
+ * is served (AP-86): the catalog card, the App's page and the in-Portal page say the same thing.
+ */
+export function openBlockedReason(app: Manifest, run: WorkflowRun | null, t: TFunction): string | undefined {
+  const lifecycle = appSpec(app).lifecycle ?? "draft";
+  if (lifecycle !== "published") {
+    return t(`apps.openDisabled.${lifecycle === "preview" || lifecycle === "retired" ? lifecycle : "draft"}`);
+  }
+  if (isServed(app)) return undefined;
+  if (run && runState(run) === "building") return t("apps.openDisabled.building");
+  if (run && runState(run) === "failed") return t("apps.openDisabled.failed");
+  return t("apps.openDisabled.notBuilt");
 }
 
 export function draftState(status: string): "building" | "needsYou" | "failed" | "readyToPublish" | null {
@@ -541,15 +560,7 @@ function AppCardActions({
   const mayPropose = permissions.can("App", "propose");
   const denied = t("permissions.denied", { verb: "propose", kind: "App" });
 
-  const openReason = published && isServed(app)
-    ? undefined
-    : published
-      ? running
-        ? t("apps.openDisabled.building")
-        : run && runState(run) === "failed"
-          ? t("apps.openDisabled.failed")
-          : t("apps.openDisabled.notBuilt")
-      : t(`apps.openDisabled.${lifecycle === "preview" || lifecycle === "retired" ? lifecycle : "draft"}`);
+  const openReason = openBlockedReason(app, run, t);
 
   const rebuildReason = !published
     ? t("apps.rebuildOnlyPublished")
@@ -619,22 +630,22 @@ function AppCardActions({
         project={project}
         target={{ project, kind: "App", plural: "apps", name, label: title }}
         primary={
-          // A published app opens at its own address in a new tab, behind the edge login like
-          // any audience member sees it (AP-14); only a build something serves opens (AP-86).
-          // A retired app is gone: a greyed Open on it offered something that no longer exists.
+          // A published app opens inside the Portal, under its header, behind the edge login like
+          // any audience member sees it (AP-14, AP-122); that page offers a window of its own.
+          // Only a build something serves opens (AP-86). A retired app is gone: a greyed Open on
+          // it offered something that no longer exists.
           lifecycle === "retired" ? undefined : openReason ? (
             <Button size="sm" variant="primary" disabled disabledReason={openReason}>
               {t("apps.openAction")}
             </Button>
           ) : (
-            <a
-              href={`/apps/${encodeURIComponent(name)}/`}
-              target="_blank"
-              rel="noreferrer noopener"
+            <Link
+              to="/projects/$project/$plural/$name/open"
+              params={{ project, plural: "apps", name }}
               className={buttonClass("primary", "sm")}
             >
               {t("apps.openAction")}
-            </a>
+            </Link>
           )
         }
         extra={extra}
