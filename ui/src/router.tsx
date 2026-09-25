@@ -30,6 +30,7 @@ import { CkanPage } from "./pages/ckan/CkanPage";
 import { ImportPage } from "./pages/import/ImportPage";
 import { SpaceInside } from "./pages/spaces/SpaceInside";
 import { AppPage } from "./pages/apps/AppPage";
+import { AppOpenPage } from "./pages/apps/AppOpenPage";
 import { GroupPage } from "./pages/access/GroupPage";
 import { PersonPage } from "./pages/organization/People";
 import { EndpointPage } from "./pages/endpoints/EndpointPage";
@@ -742,6 +743,13 @@ const sectionRoute = createRoute({
     if (child?.routeId === sectionDetailRoute.id && child.name !== undefined) {
       return <DetailPage project={project} plural={plural} name={child.name} />;
     }
+    if (child?.routeId === sectionOpenRoute.id && child.name !== undefined) {
+      return (
+        <Shell project={project}>
+          <AppOpenPage project={project} name={child.name} />
+        </Shell>
+      );
+    }
     const form: FormTarget | null =
       child?.routeId === sectionNewRoute.id
         ? { mode: "new" }
@@ -829,6 +837,18 @@ const sectionDetailRoute = createRoute({
   component: Nothing,
 });
 
+/** A published App inside the Portal, at `/projects/{project}/apps/{name}/open` (AP-122). */
+const sectionOpenRoute = createRoute({
+  getParentRoute: () => sectionRoute,
+  path: "$name/open",
+  beforeLoad: ({ params }) => {
+    if (params.plural !== "apps") {
+      throw notFound({ routeId: rootRoute.id });
+    }
+  },
+  component: Nothing,
+});
+
 /**
  * The component gallery (T-1729), development only: no session, no project, no API. The route is
  * built only when `import.meta.env.DEV`, which a production build replaces with `false` — the
@@ -880,6 +900,7 @@ export const routeTree = rootRoute.addChildren([
       sectionIndexRoute,
       sectionNewRoute,
       sectionEditRoute,
+      sectionOpenRoute,
       sectionDetailRoute,
     ]),
   ]),

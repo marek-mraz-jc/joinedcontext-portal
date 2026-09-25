@@ -1,6 +1,7 @@
 //! The code pass of a workspace run: the model writes files, the workspace builds and tests them, the first version is published (AG-53, AG-54).
 
 use super::*;
+use crate::agents::sandbox;
 
 impl Driver {
     /// A code run (Architecture/20 §4.1): one call writes the application over the template,
@@ -235,6 +236,40 @@ impl Driver {
                             &mut committed,
                             &on_screen,
                             Some(&event.payload),
+                            &mut verified,
+                        )
+                        .await?
+                    {
+                        shown = Some(next);
+                    }
+                }
+                "tests" => {
+                    let Some(on_screen) = shown.clone() else {
+                        continue;
+                    };
+                    // A person's message waiting behind the result comes first, as with a check.
+                    while let Ok(next) = inbox.try_recv() {
+                        queued.push_back(next);
+                    }
+                    if queued
+                        .iter()
+                        .any(|next| next.kind == "message" && sent_by_person(next))
+                    {
+                        continue;
+                    }
+                    let check = Check {
+                        samples: &samples,
+                        conversation: &conversation,
+                        instruction: &instruction,
+                        edited,
+                    };
+                    if let Some(next) = self
+                        .tests_failed(
+                            check,
+                            &mut files,
+                            &mut committed,
+                            &on_screen,
+                            &event.payload,
                             &mut verified,
                         )
                         .await?
@@ -657,6 +692,21 @@ impl Driver {
                 }
                 pack.push_str(&format!("\nThe request being fulfilled: {instruction}\n"));
             }
+            Some(Fix::Tests(failures)) => {
+                pack.push_str(
+                    "The application builds and is on screen. Its tests were run the way the \
+                     build lane runs them before anything is published, and the ones below fail, \
+                     each with its file, its name and its message. Fix each at its cause: the \
+                     application where it does the wrong thing, the test where it asks for what \
+                     the request never did or reads the page before its data has arrived (wait \
+                     with `findBy…`, not `getBy…`). Change nothing else, keep every test that \
+                     passes, and answer with the blocks that fix them:\n",
+                );
+                for failure in failures {
+                    pack.push_str(&format!("- {failure}\n"));
+                }
+                pack.push_str(&format!("\nThe request being fulfilled: {instruction}\n"));
+            }
             Some(Fix::Complete) => pack.push_str(
                 "The first version of the application is on screen: the files above are it. \
                  Complete the application for the request: the other pages, filters, charts, \
@@ -792,11 +842,154 @@ impl Driver {
             self.first_version().await;
         }
         let event = self.append("preview", json!({ "previewUrl": url })).await?;
+        // The first version is the quick one, written without tests (SDK-13); every later one is
+        // tested before the run offers publication (SDK-38).
+        if !first_version {
+            self.start_tests(files, pass).await?;
+        }
         Ok(Shown {
             version: pass,
             seq: event.seq,
             observed: false,
         })
+    }
+
+    /// Starts one version's tests in the sandbox (SDK-38) and returns at once: the result comes
+    /// back as a `tests` event, which the run's loop reads like any other. A version with no tests,
+    /// or an installation with no sandbox, is a `skipped` event saying why.
+    pub(super) async fn start_tests(
+        &self,
+        files: &BTreeMap<String, String>,
+        version: u32,
+    ) -> Result<(), String> {
+        let skipped = match (self.state.app_tests.clone(), sandbox::has_tests(files)) {
+            (_, false) => Some("this version has no tests"),
+            (None, true) => Some(
+                "this installation has no test sandbox; the build lane runs them at publication",
+            ),
+            (Some(sandbox), true) => {
+                self.event("tests", json!({ "version": version, "outcome": "running" }))
+                    .await?;
+                let state = self.state.clone();
+                let run_id = self.run_id.clone();
+                let files = files.clone();
+                let bearer = self.bearer.clone();
+                tokio::spawn(async move {
+                    let report = sandbox.run(&run_id, version, &files).await;
+                    let mut payload = serde_json::to_value(&report).unwrap_or_else(|_| json!({}));
+                    payload["version"] = json!(version);
+                    // A test may print what the application was given; the ticket never lands.
+                    let text = redact(&bearer, &payload.to_string());
+                    let payload = serde_json::from_str(&text).unwrap_or(Value::Null);
+                    match state.agents.append_event(&run_id, "tests", payload).await {
+                        Ok(event) => state.agent_events.broadcast(&event).await,
+                        Err(err) => {
+                            tracing::warn!(run = %run_id, error = %err, "a test result was not recorded")
+                        }
+                    }
+                });
+                None
+            }
+        };
+        if let Some(reason) = skipped {
+            let mut payload = serde_json::to_value(sandbox::Report::skipped(reason))
+                .map_err(|err| err.to_string())?;
+            payload["version"] = json!(version);
+            self.event("tests", payload).await?;
+        }
+        Ok(())
+    }
+
+    /// SDK-38: a `tests` event of the version on screen that failed goes back to the model like a
+    /// verification pass, under the same limit; a result of an older version is past.
+    pub(super) async fn tests_failed(
+        &self,
+        check: Check<'_>,
+        files: &mut BTreeMap<String, String>,
+        committed: &mut BTreeMap<String, String>,
+        on_screen: &Shown,
+        payload: &Value,
+        verified: &mut u32,
+    ) -> Result<Option<Shown>, String> {
+        let version = payload.get("version").and_then(Value::as_u64);
+        if version != Some(u64::from(on_screen.version)) || payload["outcome"] != "failed" {
+            return Ok(None);
+        }
+        let failures: Vec<sandbox::Failure> =
+            serde_json::from_value(payload["failures"].clone()).unwrap_or_default();
+        let report = sandbox::Report {
+            outcome: sandbox::Outcome::Failed,
+            passed: 0,
+            failed: u32::try_from(failures.len()).unwrap_or(u32::MAX),
+            failures,
+            duration_ms: None,
+            reason: None,
+        };
+        let found = report.for_the_model();
+        if found.is_empty() {
+            return Ok(None);
+        }
+        let list = found
+            .iter()
+            .map(|failure| format!("- {failure}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if *verified >= MAX_VERIFICATIONS {
+            self.thought(&format!(
+                "The tests still fail after {MAX_VERIFICATIONS} passes, so the run does not offer \
+                 publication; say what to change:\n{list}"
+            ))
+            .await?;
+            return Ok(None);
+        }
+        *verified += 1;
+        self.thought(&format!("The tests found:\n{list}")).await?;
+        if check.edited {
+            let mut conversation = check.conversation.to_vec();
+            return match self
+                .edit_turn(
+                    files,
+                    committed,
+                    &mut conversation,
+                    &tests_instruction(check.instruction, &found),
+                    Some(on_screen),
+                )
+                .await
+            {
+                Ok(next) => Ok(next),
+                Err(message) => {
+                    self.thought(&format!("Fixing the tests failed: {message}"))
+                        .await?;
+                    Ok(None)
+                }
+            };
+        }
+        match self
+            .code_pass(
+                check.samples,
+                files,
+                check.conversation,
+                check.instruction,
+                Some(Fix::Tests(&found)),
+                true,
+            )
+            .await
+        {
+            Ok(CodePass::Built { prose, .. }) => Ok(Some(
+                self.publish_code(files, &prose, Some(committed), false)
+                    .await?,
+            )),
+            Ok(CodePass::Unchanged(prose)) => {
+                self.thought(&prose).await?;
+                Ok(None)
+            }
+            Ok(CodePass::Failed) => Ok(None),
+            Err(message) => {
+                self.thought(&format!("Fixing the tests failed: {message}"))
+                    .await?;
+                Ok(None)
+            }
+        }
     }
 
     /// What changed since `committed`, as one commit on the run's branch (SDK-17, AP-24). A
@@ -972,6 +1165,21 @@ impl Driver {
             }
         }
     }
+}
+
+/// The editing agent's instruction when the version's tests fail (SDK-38).
+fn tests_instruction(request: &str, failures: &[String]) -> String {
+    let list = failures
+        .iter()
+        .map(|failure| format!("- {failure}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "The last change was: {request}\nThe application's tests, run the way the build lane \
+         runs them, fail as below. Fix each at its cause, the application or the test (a test \
+         that reads the page before its data arrived waits with findBy…), and change nothing \
+         else:\n{list}"
+    )
 }
 
 /// The editing agent's instruction for a verification: the person's request and what the check
@@ -1497,6 +1705,132 @@ mod repository_tests {
         assert!(
             said.iter().all(|text| !text.contains("ghp_secret")),
             "{said:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod sandbox_tests {
+    use std::sync::Arc;
+
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+    use crate::agents::sandbox::{Sandbox, SandboxSettings};
+    use crate::apps::kube::KubeClient;
+
+    fn tested() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("src/App.tsx".to_owned(), "export default 1".to_owned()),
+            (
+                "src/App.test.tsx".to_owned(),
+                "test('x', () => {})".to_owned(),
+            ),
+        ])
+    }
+
+    async fn tests_events(state: &AppState) -> Vec<Value> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events")
+            .into_iter()
+            .filter(|event| event.kind == "tests")
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    /// SDK-38: without a sandbox, or without a test, the version says why its tests did not run.
+    #[tokio::test]
+    async fn a_version_is_skipped_with_its_reason_when_nothing_can_run_its_tests() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.start_tests(&tested(), 2).await.expect("started");
+        let untested = BTreeMap::from([("src/App.tsx".to_owned(), "1".to_owned())]);
+        driver.start_tests(&untested, 3).await.expect("started");
+
+        let events = tests_events(&state).await;
+        assert_eq!(events.len(), 2, "{events:?}");
+        assert_eq!(events[0]["version"], 2);
+        assert_eq!(events[0]["outcome"], "skipped");
+        assert!(events[0]["reason"]
+            .as_str()
+            .is_some_and(|r| r.contains("no test sandbox")));
+        assert_eq!(events[1]["version"], 3);
+        assert!(events[1]["reason"]
+            .as_str()
+            .is_some_and(|r| r.contains("no tests")));
+    }
+
+    /// SDK-38: the run says the tests are running at once, and the result follows as its own
+    /// event of the same version, without the ticket in it.
+    #[tokio::test]
+    async fn the_result_follows_the_running_event_and_never_carries_the_ticket() {
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex("/jobs/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "status": { "conditions": [{ "type": "Failed", "status": "True" }] }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex("/pods$"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "items": [{ "metadata": { "name": "p" } }] })),
+            )
+            .mount(&server)
+            .await;
+        let log = format!(
+            "JC-TESTS {}",
+            json!({"outcome": "failed", "passed": 0, "failed": 1, "failures": [
+                {"file": "src/App.test.tsx", "name": "reads", "message": "token s3cr3t-ticket leaked"}
+            ]})
+        );
+        Mock::given(method("GET"))
+            .and(path_regex("/pods/p/log$"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(log))
+            .mount(&server)
+            .await;
+
+        let settings = SandboxSettings {
+            namespace: "jc-app-tests".into(),
+            image: format!("builder@sha256:{}", "a".repeat(64)),
+        };
+        let kube = KubeClient::with_token(&server.uri(), "t").expect("a client");
+        let state = AppState::new(crate::config::Config::for_tests(), None)
+            .with_app_tests(Arc::new(Sandbox::new(kube, settings)));
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.bearer = "run.s3cr3t-ticket".into();
+        driver.start_tests(&tested(), 4).await.expect("started");
+
+        let mut events = tests_events(&state).await;
+        assert_eq!(events[0], json!({ "version": 4, "outcome": "running" }));
+        for _ in 0..100 {
+            if events.len() > 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            events = tests_events(&state).await;
+        }
+        assert_eq!(events.len(), 2, "{events:?}");
+        assert_eq!(events[1]["version"], 4);
+        assert_eq!(events[1]["outcome"], "failed");
+        assert!(
+            !events[1].to_string().contains("s3cr3t-ticket"),
+            "{}",
+            events[1]
         );
     }
 }

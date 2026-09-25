@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       maplibre-gl:
-        specifier: ^6.7.0
+        specifier: 6.9.0
         version: 6.9.0
       react:
-        specifier: ^19.2.8
+        specifier: 19.3.0
         version: 19.3.0
       react-dom:
-        specifier: ^19.2.8
+        specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       terra-draw:
         specifier: 1.34.0

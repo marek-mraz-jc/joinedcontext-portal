@@ -58,6 +58,10 @@ const KINDS: [(&str, &str, &str); 9] = [
     ),
 ];
 
+/// The one kind the Portal creates and deletes but never applies: the ConfigMap that carries a
+/// version into its test sandbox (SDK-38), where the Portal's Role grants `create` and `delete`.
+const CREATED_ONLY: (&str, &str, &str) = ("v1", "ConfigMap", "configmaps");
+
 /// The one kind of [`KINDS`] that lives outside every namespace.
 const CLUSTER_SCOPED: &str = "namespaces";
 
@@ -226,7 +230,98 @@ impl KubeClient {
         self.checked(response, path).await.map(|_| ())
     }
 
+    /// Creates one object that must not exist yet, for a namespace whose Role grants `create` and
+    /// not `patch` (SDK-38): a name already taken is the API server's `409`.
+    pub async fn create(&self, object: &Value) -> Result<(), KubeError> {
+        let plural = created_or_applied(object_kind(object), object)?;
+        let namespace = namespace_of(object)?;
+        let path = path_of(plural, namespace, name_of(object)?)?;
+        let collection = path
+            .rsplit_once('/')
+            .map(|(collection, _)| collection.to_owned())
+            .unwrap_or_default();
+        let response = self
+            .http
+            .post(self.url(&collection)?)
+            .headers(self.headers("application/json")?)
+            .body(object.to_string())
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        self.checked(response, collection).await.map(|_| ())
+    }
+
+    /// The names of the pods in `namespace` a label selector picks, such as a Job's
+    /// `job-name={name}` (SDK-38).
+    pub async fn pod_names(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<String>, KubeError> {
+        jc_core::names::validate_dns1123_label(namespace).map_err(|_| KubeError::NotAName {
+            field: "metadata.namespace",
+            value: namespace.to_owned(),
+        })?;
+        let path = format!("/api/v1/namespaces/{namespace}/pods");
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("labelSelector", label_selector);
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let list = self.checked(response, path).await?;
+        Ok(list["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|pod| pod["metadata"]["name"].as_str().map(str::to_owned))
+            .collect())
+    }
+
+    /// The end of one pod's log, at most `limit_bytes` of it, as text (SDK-38).
+    pub async fn pod_log(
+        &self,
+        namespace: &str,
+        pod: &str,
+        limit_bytes: u64,
+    ) -> Result<String, KubeError> {
+        let path = format!("{}/log", path_of("pods", namespace, pod)?);
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("limitBytes", &limit_bytes.to_string())
+            .append_pair("tailLines", "200");
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        if status.is_success() {
+            return Ok(body);
+        }
+        Err(KubeError::Api {
+            status: status.as_u16(),
+            path,
+            message: serde_json::from_str::<Value>(&body)
+                .ok()
+                .and_then(|value| value.get("message")?.as_str().map(str::to_owned))
+                .unwrap_or(body),
+        })
+    }
+
     /// Removes one object; removing what is not there succeeds, so a retirement is re-runnable.
+    /// Its dependents go with it in the background: a Job's pods included, which the API server
+    /// would otherwise orphan.
     pub async fn delete(
         &self,
         api_version: &str,
@@ -234,7 +329,9 @@ impl KubeClient {
         namespace: &str,
         name: &str,
     ) -> Result<(), KubeError> {
-        let path = path_of(plural_of(api_version, kind)?, namespace, name)?;
+        let object = serde_json::json!({ "apiVersion": api_version, "kind": kind });
+        let plural = created_or_applied(plural_of(api_version, kind), &object)?;
+        let path = path_of(plural, namespace, name)?;
         // A Job deleted over the API orphans its pods unless asked otherwise; kubectl asks for
         // the same background collection.
         let mut url = self.url(&path)?;
@@ -426,6 +523,22 @@ fn object_kind(object: &Value) -> Result<&'static str, KubeError> {
     plural_of(api_version, kind)
 }
 
+/// [`plural_of`], widened by the one kind the Portal creates and deletes and never applies.
+fn created_or_applied(
+    applied: Result<&'static str, KubeError>,
+    object: &Value,
+) -> Result<&'static str, KubeError> {
+    applied.or_else(|err| {
+        let (api_version, kind, plural) = CREATED_ONLY;
+        let field = |name: &str| object.get(name).and_then(Value::as_str);
+        if field("apiVersion") == Some(api_version) && field("kind") == Some(kind) {
+            Ok(plural)
+        } else {
+            Err(err)
+        }
+    })
+}
+
 /// The path segment one kind is addressed by, and the proof that the Portal may write it.
 fn plural_of(api_version: &str, kind: &str) -> Result<&'static str, KubeError> {
     KINDS
@@ -494,6 +607,24 @@ fn path_of(plural: &str, namespace: &str, name: &str) -> Result<String, KubeErro
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SDK-38: the sandbox's ConfigMap is created and deleted, never applied, so a manifest that
+    /// compiles into one is still refused by `apply`.
+    #[test]
+    fn a_config_map_is_created_and_never_applied() {
+        let config_map = serde_json::json!({ "apiVersion": "v1", "kind": "ConfigMap" });
+        assert!(matches!(
+            object_kind(&config_map),
+            Err(KubeError::UnsupportedKind { .. })
+        ));
+        assert_eq!(
+            created_or_applied(object_kind(&config_map), &config_map).ok(),
+            Some("configmaps")
+        );
+        let role =
+            serde_json::json!({ "apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role" });
+        assert!(created_or_applied(object_kind(&role), &role).is_err());
+    }
 
     /// T-2521, CC-06: the bearer is a sensitive header, so a trace of the request or a debug
     /// print of the headers shows `Sensitive`, and the client's own debug print redacts it.
