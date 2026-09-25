@@ -191,6 +191,41 @@ fn pipeline_test_output_schema() -> Value {
     })
 }
 
+/// The candidate pipeline of a call: the inline manifest, or the saved draft it names, and the
+/// draft a verdict is recorded on. The pipeline test and the workbench's steps read it the same
+/// way (ADR-N-034).
+pub(super) async fn candidate(
+    state: &crate::state::AppState,
+    project: &str,
+    pipeline: Option<Value>,
+    draft: Option<&DraftRef>,
+) -> Result<(Value, Option<DraftRef>), OpError> {
+    match (pipeline, draft) {
+        (Some(p), Some(d)) => Ok((p, Some(d.clone()))),
+        (None, Some(d)) => {
+            let saved = draft_store(state)
+                .get(project, &d.kind, &d.name)
+                .await
+                .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
+                .ok_or_else(|| {
+                    ApiError::NotFound(format!(
+                        "draft '{}/{}' not found in project '{project}'",
+                        d.kind, d.name
+                    ))
+                })?;
+            Ok((saved.manifest, Some(d.clone())))
+        }
+        (Some(p), None) => {
+            let own = own_draft(&p);
+            Ok((p, own))
+        }
+        (None, None) => Err(OpError::InvalidInput {
+            path: "/pipeline".into(),
+            message: "either pipeline or draft is required".into(),
+        }),
+    }
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![        Operation {
@@ -328,31 +363,8 @@ pub fn operations() -> Vec<Operation> {
                             let (path, message) = serde_error_path_and_message(&e);
                             OpError::InvalidInput { path, message }
                         })?;
-                    let (pipeline, draft_ref) = if let Some(d) = &input.draft {
-                        if let Some(p) = input.pipeline {
-                            (p, Some(d.clone()))
-                        } else {
-                            let draft = draft_store(state)
-                                .get(project, &d.kind, &d.name)
-                                .await
-                                .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
-                                .ok_or_else(|| {
-                                    ApiError::NotFound(format!(
-                                        "draft '{}/{}' not found in project '{project}'",
-                                        d.kind, d.name
-                                    ))
-                                })?;
-                            (draft.manifest, Some(d.clone()))
-                        }
-                    } else if let Some(p) = input.pipeline {
-                        let own = own_draft(&p);
-                        (p, own)
-                    } else {
-                        return Err(OpError::InvalidInput {
-                            path: "/pipeline".into(),
-                            message: "either pipeline or draft is required".into(),
-                        });
-                    };
+                    let (pipeline, draft_ref) =
+                        candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
 
                     let req = pipeline_test::TestRequest {
                         pipeline: pipeline.clone(),

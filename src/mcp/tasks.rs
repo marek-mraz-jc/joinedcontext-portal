@@ -27,8 +27,10 @@ const POLL_INTERVAL_MS: u64 = 1000;
 ///
 /// Each of them leaves the Portal and waits on something else: the project's runner, Model
 /// Tools, a feed of somebody else's. Everything else answers inline, as it always did.
-pub const LONG_RUNNING: [&str; 4] = [
+pub const LONG_RUNNING: [&str; 6] = [
     "jc_pipeline_test",
+    "jc_pipeline_sample_source",
+    "jc_pipeline_try_mapping",
     "jc_model_infer",
     "jc_space_complete",
     "jc_datasource_check",

@@ -26,8 +26,8 @@ spec:
   roles:
   - name: viewer
     subjects:
-    - user: demo.viewer@hel.fi
+    - group: air-quality-viewer
   - name: steward
     subjects:
-    - user: demo.steward@hel.fi
+    - group: air-quality-steward
   slug: 3jlwl5dg2oidblwqhc6qdi3zxl
