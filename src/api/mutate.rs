@@ -715,8 +715,16 @@ async fn propose_engine(
     //     manifest is read: a viewer's create is a 403 whatever it sends, never a validation
     //     answer that teaches the kind's schema (T-2576, PF-50, PF-51). What the content may
     //     be is step 4c's.
-    if !crate::permissions::for_request(state, identity, project)
-        .may(kind_info.kind, jc_core::kinds::Verb::Propose)
+    //     An App's default group is proposed by whoever may propose the App (AP-119).
+    if !crate::groups::for_proposal(
+        state,
+        identity,
+        project,
+        kind_info.kind,
+        operation == Operation::Update,
+        &body_val,
+    )
+    .may(kind_info.kind, jc_core::kinds::Verb::Propose)
     {
         return Err(ApiError::Denied(format!(
             "no role grants propose on {} in project {project} (PF-50)",
@@ -945,7 +953,15 @@ async fn propose_engine(
     //     A build write was judged by `build_lane_write`: the lane's rule, the App on main and
     //     nothing of it changed (AP-73).
     if !build_write {
-        crate::permissions::for_request(state, identity, project).check(
+        crate::groups::for_proposal(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            operation == Operation::Update,
+            &body_val,
+        )
+        .check(
             kind_info.kind,
             jc_core::kinds::Verb::Propose,
             Some(&body_val),

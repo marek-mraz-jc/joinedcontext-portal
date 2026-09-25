@@ -47,7 +47,7 @@ for (const app of APPS) {
       const frameElement = page.locator("iframe[sandbox]");
       await expect(frameElement).toHaveAttribute(
         "sandbox",
-        "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads",
+        "allow-scripts allow-forms allow-popups allow-downloads",
       );
       await expect(app.data(page.frameLocator("iframe[sandbox]"))).toBeVisible({ timeout: 120_000 });
       expect(new URL(page.url()).pathname, "the Portal kept its window").toBe(

@@ -28,6 +28,8 @@ export function EmptyState({
   return (
     <div
       role="status"
+      // What the page walkers look for (tests/pageChecks.ts, T-2730): an empty state says what to do next.
+      data-empty-state=""
       className={clsx(
         "flex flex-col items-center justify-center gap-2 px-6 py-12 text-center",
         !bare && "rounded-lg border border-dashed border-border-strong bg-surface",

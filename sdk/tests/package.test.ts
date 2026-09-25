@@ -27,6 +27,7 @@ interface Manifest {
   exports: Record<string, string | Record<string, string>>;
   publishConfig?: { exports?: Record<string, string | Record<string, string>> };
   peerDependencies: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   dependencies: Record<string, string>;
 }
 
@@ -70,6 +71,9 @@ describe("the published package", () => {
   beforeAll(() => {
     ({ dir, files, manifest } = pack());
   }, 900_000);
+
+  /** A peer only one entry needs, which an application installs when it uses that entry. */
+  const optional = (name: string): boolean => manifest.peerDependenciesMeta?.[name]?.optional === true;
 
   afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -126,11 +130,23 @@ describe("the published package", () => {
     const imported = new Set(
       [...index.matchAll(/(?:from|import)\s*["']([^"']+)["']/g)].map(([, name]) => name),
     );
-    // Every peer is one the SDK's own code imports — `react-dom` as its `client` entry.
-    for (const peer of Object.keys(manifest.peerDependencies)) {
+    // Every peer is one the SDK's own code imports — `react-dom` as its `client` entry. An optional
+    // peer serves one entry and is checked below.
+    for (const peer of Object.keys(manifest.peerDependencies).filter((name) => !optional(name))) {
       expect(
         [...imported].some((name) => name === peer || name.startsWith(`${peer}/`)),
         `${peer} is declared a peer but nothing imports it`,
+      ).toBe(true);
+    }
+    // An optional peer is found at run time by the entry that needs it (`axe-core` by
+    // `./responsive`, through `import.meta.resolve`), so that entry has to name it.
+    const entries = readdirSync(join(root, "dist/package"))
+      .filter((file) => file.endsWith(".js"))
+      .map((file) => readFileSync(join(root, "dist/package", file), "utf8"));
+    for (const peer of Object.keys(manifest.peerDependencies).filter(optional)) {
+      expect(
+        entries.some((code) => code.includes(`"${peer}/`) || code.includes(`"${peer}"`)),
+        `${peer} is declared an optional peer but no entry names it`,
       ).toBe(true);
     }
     expect(manifest.peerDependencies.react).toBeDefined();
@@ -160,8 +176,16 @@ describe("the published package", () => {
   it("names the same peer versions the generated application pins", () => {
     const template = JSON.parse(readFileSync(join(root, "template/package.json"), "utf8")) as {
       dependencies: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
     for (const [peer, range] of Object.entries(manifest.peerDependencies)) {
+      if (optional(peer)) {
+        // Installed only by an application that runs the check it serves; where the template
+        // does install it, it is the same version.
+        const pinned = template.dependencies[peer] ?? template.devDependencies?.[peer];
+        if (pinned !== undefined) expect(pinned, `${peer} differs from the template`).toBe(range);
+        continue;
+      }
       // A peer the template does not pin would be resolved twice, which is how two Reacts happen.
       expect(template.dependencies[peer], `${peer} is not pinned by the template`).toBe(range);
     }

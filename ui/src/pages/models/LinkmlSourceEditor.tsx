@@ -3,7 +3,8 @@ import type { JSX } from "react";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, Position } from "monaco-editor";
 import { useTranslation } from "react-i18next";
-import { NGSI_LD_KINDS, RANGES, UNIT_CODES } from "./linkml";
+import { NGSI_LD_KINDS, RANGES } from "./linkml";
+import { UNITS } from "../../units";
 import type { Diagnostic } from "./linkml";
 
 // Monaco is loaded when the source view is opened and not before: it is the heaviest thing in
@@ -105,11 +106,11 @@ export function completionsFor(line: string): Completion[] {
     return RANGES.map((range) => ({ label: range, insertText: range }));
   }
   if (/(^|\s)ucum_code:\s*\S*$/.test(trimmed)) {
-    return UNIT_CODES.map((unit) => ({
-      label: unit.ucum,
-      insertText: unit.ucum,
-      detail: `${unit.code} · ${unit.label}`,
-    }));
+    return UNITS.flatMap((unit) =>
+      unit.ucum && !unit.deprecated
+        ? [{ label: unit.ucum, insertText: unit.ucum, detail: `${unit.code} · ${unit.name}` }]
+        : [],
+    );
   }
   return METAMODEL_KEYS.map((key) => ({
     label: key.label,

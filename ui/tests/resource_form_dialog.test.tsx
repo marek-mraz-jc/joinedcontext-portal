@@ -190,12 +190,14 @@ describe("a manifest form", () => {
 
   it("renders exactly as before for a kind nobody has written a manifest for", async () => {
     stubFetch([ENDPOINT_FORM]);
-    renderDialog("Pipeline");
+    // An AgentProfile has no arrangement (src/schemas/forms has none); a Pipeline has had one
+    // since T-2712, so it no longer stands for "nobody wrote one".
+    renderDialog("AgentProfile");
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Name/)).toBeTruthy();
     });
-    // No manifest arranges a Pipeline here, so there is no group and nothing is hidden.
+    // No manifest arranges an AgentProfile, so there is no group and nothing is hidden.
     expect(screen.queryByRole("group", { name: "Basics" })).toBeNull();
     expect(screen.getByLabelText(/Commit message/)).toBeTruthy();
   });

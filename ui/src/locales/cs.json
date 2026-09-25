@@ -1698,6 +1698,7 @@
       },
       "willBecome": "Uloží se jako verze {version}",
       "refused": "Změna byla odmítnuta: {reason}",
+      "fixErrors": "Před uložením opravte chyby, které editor uvádí. Zbývá: {count}.",
       "confirmBreaking": "Uložit jako verzi {version}, nekompatibilní změna",
       "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:"
     },
@@ -1713,7 +1714,19 @@
       "openClass": "Otevřít {name} ve struktuře",
       "more": "a dalších {count}",
       "from": "z {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
+      "zoomIn": "Přiblížit",
+      "zoomOut": "Oddálit",
+      "fit": "Přizpůsobit",
+      "zoomLevel": "Přiblížení {percent} %",
+      "openRelationship": "Otevřít vztah {name} / {inverse} mezi {source} a {target}",
+      "addRelationship": "Přidat vztah z {name}",
+      "table": "Vztahy v nákresu",
+      "tableRelationship": "Vztah",
+      "tableField": "Pole",
+      "tableInverse": "Inverzní pole",
+      "tableMultiplicity": "Násobnost"
     },
     "field": {
       "name": "Název",
@@ -1789,12 +1802,78 @@
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně."
     },
     "hints": {
-      "title": "Tento model zatím nemá třídu. Tři způsoby, jak začít:",
-      "sdm": "Importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
+      "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
+      "sdm": "Nebo importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
       "sdmAction": "Importovat Smart Data Model",
       "klass": "Přidejte třídu: pojmenujte ji v poli pod Třídami, například School.",
       "klassAction": "Pojmenovat první třídu",
-      "relation": "Přidejte vztah: když jsou dvě třídy, dejte jedné slot, jehož rozsah je ta druhá, například School má users třídy User."
+      "relation": "Přidejte vztah: pod Vztahy vyberte cílovou třídu a kardinalitu, například jedna School má mnoho entit User.",
+      "field": "Přidejte pole: s otevřenou třídou ho pojmenujte pod Atributy, například name."
+    },
+    "rangeBasic": "Základní typy",
+    "rangeEnums": "Enumy",
+    "rangeClasses": "Třídy (otevře Přidat vztah)",
+    "relationships": {
+      "title": "Vztahy",
+      "intro": "Odkazy z {owner} na entity třídy. Entity ukládají jeden konec; inverzní se počítá při čtení.",
+      "none": "{owner} zatím nemá vztah.",
+      "name": "Název",
+      "other": "Druhá třída",
+      "cardinality": "Kardinalita",
+      "inverse": "Inverzní",
+      "required": "Povinný",
+      "onDelete": "Při smazání",
+      "actions": "Akce",
+      "remove": "Odstranit",
+      "removeLabel": "Odstranit vztah {name}",
+      "cardinalityOf": "Kardinalita vztahu {name}",
+      "onDeleteOf": "Při smazání, vztah {name}",
+      "confirmTitle": "Odstranit vztah {name}?",
+      "confirmBody": "Z modelu odejdou oba konce: {source}.{sourceSlot} a {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "Jedna {source} má jednu {target}",
+        "one-to-many": "Jedna {source} má mnoho entit {target}",
+        "many-to-one": "Mnoho entit {source} sdílí jednu {target}",
+        "many-to-many": "Mnoho entit {source} má mnoho entit {target}"
+      },
+      "cardinalityName": {
+        "one-to-one": "Jedna k jedné",
+        "one-to-many": "Jedna k mnoha",
+        "many-to-one": "Mnoho k jedné",
+        "many-to-many": "Mnoho k mnoha"
+      },
+      "onDeleteName": {
+        "restrict": "Zakázat",
+        "cascade": "Kaskádově",
+        "set-null": "Vyprázdnit"
+      },
+      "onDeleteHint": {
+        "restrict": "Smazání entity se odmítne, dokud na ni jiné ještě odkazují.",
+        "cascade": "Smazání entity smaže i entity, které na ni odkazují.",
+        "set-null": "Smazání entity odstraní vztah z entit, které na ni odkazovaly."
+      },
+      "missingInverse": "{name} odkazuje na {target}, ale neuvádí inverzní konec, takže ještě není vztahem.",
+      "addInverse": "Přidat inverzní {inverse} na {target}",
+      "add": {
+        "title": "Přidat vztah z {owner}",
+        "cardinalityHint": "Čtená z {owner} k cílové třídě.",
+        "target": "Cílová třída",
+        "targetHint": "Třída tohoto modelu; inverzní konec se zapíše na ni.",
+        "targetNone": "Vyberte třídu",
+        "name": "Název na {owner}",
+        "nameHint": "Pole na {owner}, které odkazuje na cíl, navržené podle cíle.",
+        "inverse": "Inverzní na {target}",
+        "inverseHint": "Pole na cíli, které odkazuje zpět. Každý vztah ho má.",
+        "requiredOn": "Povinný na {owner}",
+        "requiredStored": "Každá entita {owner} musí jednu uvést.",
+        "requiredComputed": "Počítá se při čtení z druhého konce, proto nemůže být povinný.",
+        "onDeleteHint": "Co se stane s entitami, které odkazují na smazanou.",
+        "submit": "Přidat vztah",
+        "nameEmpty": "Pojmenujte pole.",
+        "nameInvalid": "Jen písmena, číslice a _, na začátku písmeno.",
+        "nameTaken": "Pole s názvem {name} už existuje.",
+        "inverseSame": "Inverzní konec je druhé pole; dejte mu jiný název."
+      }
     }
   },
   "apps": {
@@ -1854,10 +1933,17 @@
         "unavailable": "Endpoint zatím nepublikuje model, takže z něj nelze nic odvodit.",
         "none": "Tento endpoint nepublikuje žádné atributy, aplikace nemá co číst.",
         "loginOnly": "Bez ohledu na to, jak je endpoint publikován, vygenerovaná aplikace běží v platformě a otevřít ji může jen přihlášený uživatel.",
-        "write": "Aplikace smí tyto entity také upravovat ({actions}). Každé uložení projde pravidly zápisu rozhraní.",
         "writeRole": "Zapisovat smí jen tato role aplikace (nepovinné)",
         "writeRoleHelp": "Ponechte prázdné a zapisovat smí každý, kdo aplikaci otevře. S názvem role, např. steward, zapisují jen lidé, které po zveřejnění přidáte do této role na stránce aplikace.",
-        "writeRoleInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku písmeno, nejvýše 32 znaků."
+        "writeRoleInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku písmeno, nejvýše 32 znaků.",
+        "access": "Co aplikace smí",
+        "accessHelp": "Jen čtení čte entity a jejich historii. Čtení a úpravy také mění a doplňují atributy (updateAttrs, appendAttrs). Plný přístup také vytváří a maže entity (createEntity, deleteEntity). Zapisující volba se posuzuje jako změna v červeném pruhu, pokud ji role níže neomezí.",
+        "accessHeld": "Nabízí se jen to, co dovoluje váš vlastní přístup k tomuto endpointu: aplikace nikdy nesmí víc než vy.",
+        "presets": {
+          "read": "Jen čtení",
+          "update": "Čtení a úpravy",
+          "full": "Plný přístup"
+        }
       },
       "preview": {
         "title": "Co vám tento endpoint dává",
@@ -1996,22 +2082,25 @@
     },
     "roles": {
       "title": "Role a členové",
-      "lead": "Kdo smí co v této aplikaci. Přidání nebo odebrání člena navrhne změnu aplikace, kterou posoudí schvalovatel.",
+      "lead": "Kdo smí co dělat v této aplikaci. Každá role má výchozí skupinu: přidání nebo odebrání osoby navrhne změnu této skupiny a přidělení role jiné skupině navrhne změnu aplikace. Každou změnu posoudí schvalovatel.",
       "count": "Členové: {count}",
       "nobody": "Tuto roli zatím nemá nikdo.",
       "groupMember": "Skupina {group}",
       "remove": "Odebrat",
       "removeLabel": "Odebrat {member} z role {role}",
-      "kind": "Přidat",
-      "kindUser": "Osobu",
-      "kindGroup": "Skupinu",
       "email": "E-mail",
       "group": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "add": "Přidat člena",
       "needEmail": "Zadejte e-mailovou adresu osoby.",
       "needGroup": "Vyberte skupinu.",
-      "already": "Tuto roli už má."
+      "already": "Tuto roli už má.",
+      "defaultGroup": "Výchozí skupina {group}",
+      "noDefaultGroup": "Výchozí skupina {group} zatím neexistuje: přijde s další změnou aplikace.",
+      "addPerson": "Přidat osobu",
+      "others": "Další skupiny a osoby s touto rolí",
+      "noOthers": "Tuto roli nemá žádná jiná skupina.",
+      "give": "Přidělit roli skupině",
+      "groupsUnreadable": "Vaše role nezobrazuje skupiny organizace."
     }
   },
   "appLifecycle": {
@@ -3793,5 +3882,12 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
+  },
+  "units": {
+    "search": "Hledat podle kódu, značky, názvu nebo veličiny",
+    "frequent": "Často používané",
+    "none": "Bez jednotky",
+    "noMatch": "Žádná jednotka UN/CEFACT neodpovídá. Zkuste značku (µg/m³), název nebo kód (GQ).",
+    "more": "Zobrazeno {shown} z {total} jednotek. Pište dál a seznam se zúží."
   }
 }

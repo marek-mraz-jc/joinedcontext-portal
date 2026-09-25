@@ -102,7 +102,7 @@ describe("AppOpenPage", () => {
     expect(frame.tagName).toBe("IFRAME");
     expect(frame.getAttribute("src")).toBe("/apps/city-bikes/");
     expect(frame.getAttribute("sandbox")).toBe(
-      "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads",
+      "allow-scripts allow-forms allow-popups allow-downloads",
     );
     expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation");
     expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
