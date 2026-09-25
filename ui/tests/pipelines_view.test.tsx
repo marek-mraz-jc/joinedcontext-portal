@@ -243,6 +243,34 @@ describe("pipelines view", () => {
     expect(within(row).queryByText(en.phase.live)).toBeNull();
   });
 
+  it("says a Live stream that lands nothing writes nothing, with the reason (T-2967)", async () => {
+    const stalled =
+      "the stream took 21000 record(s) in over the last 10 minute(s) and sent, rejected or failed none of them";
+    const pipelines = {
+      ...PIPELINES,
+      items: PIPELINES.items.map((item) =>
+        item.metadata.name === "aq-mqtt-ingest"
+          ? {
+              ...item,
+              status: {
+                ...item.status,
+                conditions: [{ type: "StreamWriting", status: "False", reason: "Stalled", message: stalled }],
+              },
+            }
+          : item,
+      ),
+    };
+    renderPipelines(METRICS, 200, pipelines);
+    const row = await rowOf("aq-mqtt-ingest");
+    // Still Live, because it is deployed; the badge is what says nothing lands.
+    expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
+    const badge = within(row).getByText(en.pipelines.notWriting);
+    expect(badge.closest("[title]")).toHaveAttribute("title", stalled);
+    expect(within(row).getByText(`: ${stalled}`)).toBeInTheDocument();
+    // A stream that writes carries no such badge.
+    expect(within(await rowOf("air-hourly")).queryByText(en.pipelines.notWriting)).toBeNull();
+  });
+
   it("names where a pipeline's credential is when it holds none of its own", async () => {
     renderPipelines();
     expect(

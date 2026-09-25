@@ -1145,6 +1145,7 @@
     "credentialsOfSource": "Held by its data source {name}",
     "noCredential": "None",
     "writesType": "Writes",
+    "notWriting": "Writes nothing",
     "rejected": {
       "open": "Rejected records",
       "title": "Rejected records of {name}",
