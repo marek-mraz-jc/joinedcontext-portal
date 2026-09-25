@@ -2428,6 +2428,11 @@ export interface components {
              */
             linkml?: string | null;
             owl?: string | null;
+            /**
+             * @description `model.qb.ttl`, the RDF Data Cube structure, only for a model that declares a Data
+             *     Structure Definition (DM-60).
+             */
+            qb?: string | null;
             shacl?: string | null;
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
