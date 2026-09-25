@@ -8,7 +8,7 @@
  * whether a correction lands.
  */
 import { useMemo } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
 import { Card, CardHeader } from "../ui";
@@ -25,7 +25,7 @@ export function GridWidget({
   slug: string;
   type: string;
   config?: Record<string, unknown>;
-  title: string;
+  title: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
   const parsed = useMemo(

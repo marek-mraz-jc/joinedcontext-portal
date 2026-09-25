@@ -950,7 +950,8 @@
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
-    "noCredential": "Keine"
+    "noCredential": "Keine",
+    "writesType": "Schreibt"
   },
   "dashboards": {
     "lead": "Karten, gezeichnet aus den Endpunkten dieses Projekts.",
@@ -1488,10 +1489,12 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt.",
+      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
-      "more": "und {count} weitere"
+      "more": "und {count} weitere",
+      "from": "aus {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1565,6 +1568,14 @@
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",
       "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
+    },
+    "hints": {
+      "title": "Dieses Modell hat noch keine Klasse. Drei Wege zum Anfang:",
+      "sdm": "Ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
+      "sdmAction": "Smart Data Model importieren",
+      "klass": "Eine Klasse hinzufügen: im Feld unter Klassen benennen, zum Beispiel School.",
+      "klassAction": "Die erste Klasse benennen",
+      "relation": "Eine Beziehung hinzufügen: sobald es zwei Klassen gibt, einer einen Slot geben, dessen Range die andere ist, zum Beispiel School hat users der Klasse User."
     }
   },
   "apps": {
@@ -2082,7 +2093,8 @@
     "export": "Diese Seite exportieren",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
-    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:"
+    "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
+    "typeInModel": "Dieser Typ in seinem Datenmodell:"
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -2430,7 +2442,8 @@
       "meaning": "Bedeutung",
       "document": "Das {format}-Dokument",
       "model": "{types}, aus dem Datenmodell {name} {semver}",
-      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen"
+      "formats": "Bereitgestellt als {formats}; zuerst wird {recommended} gelesen",
+      "fromModel": "aus dem Datenmodell"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",

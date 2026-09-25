@@ -950,7 +950,8 @@
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
     "credentialsOfSource": "Drží je jeho zdroj dat {name}",
-    "noCredential": "Žádné"
+    "noCredential": "Žádné",
+    "writesType": "Zapisuje"
   },
   "dashboards": {
     "lead": "Mapy nakreslené z endpointů tohoto projektu.",
@@ -1488,10 +1489,12 @@
     "dimensionLabel": "Použití v dashboardu",
     "graph": {
       "title": "Třídy modelu a co je spojuje",
-      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu.",
+      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu.",
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
-      "more": "a dalších {count}"
+      "more": "a dalších {count}",
+      "from": "z {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Název",
@@ -1565,6 +1568,14 @@
       "downloadYaml": "Stáhnout YAML",
       "copied": "Zkopírováno.",
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně."
+    },
+    "hints": {
+      "title": "Tento model zatím nemá třídu. Tři způsoby, jak začít:",
+      "sdm": "Importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
+      "sdmAction": "Importovat Smart Data Model",
+      "klass": "Přidejte třídu: pojmenujte ji v poli pod Třídami, například School.",
+      "klassAction": "Pojmenovat první třídu",
+      "relation": "Přidejte vztah: když jsou dvě třídy, dejte jedné slot, jehož rozsah je ta druhá, například School má users třídy User."
     }
   },
   "apps": {
@@ -2082,7 +2093,8 @@
     "export": "Exportovat tuto stránku",
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
-    "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:"
+    "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
+    "typeInModel": "Tento typ v jeho datovém modelu:"
   },
   "agentRun": {
     "title": "Běh aplikace",
@@ -2430,7 +2442,8 @@
       "meaning": "Co znamená",
       "document": "Dokument {format}",
       "model": "{types}, z datového modelu {name} {semver}",
-      "formats": "Poskytováno jako {formats}; nejprve se čte {recommended}"
+      "formats": "Poskytováno jako {formats}; nejprve se čte {recommended}",
+      "fromModel": "z datového modelu"
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem.",

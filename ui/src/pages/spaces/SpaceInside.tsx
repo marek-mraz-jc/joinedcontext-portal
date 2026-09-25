@@ -22,6 +22,7 @@ import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
+import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
@@ -194,7 +195,17 @@ function EntityId({ id }: { id: string }): JSX.Element {
   );
 }
 
-function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
+function TypeRow({
+  project,
+  space,
+  slug,
+  type,
+}: {
+  project: string;
+  space: string;
+  slug?: string;
+  type: string;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const inside = useQuery({
     queryKey: ["gateway", slug ?? "", "inside", type],
@@ -223,7 +234,9 @@ function TypeRow({ slug, type }: { slug?: string; type: string }): JSX.Element {
 
   return (
     <TableRow>
-      <TableCell className="font-mono">{type}</TableCell>
+      <TableCell className="font-mono">
+        <TypeLink project={project} type={type} space={space} />
+      </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>
       <TableCell>
         {inside.isSuccess && inside.data.samples.length > 0 ? (
@@ -550,7 +563,7 @@ function SpaceModel({
           {t("models.source.loading")}
         </p>
       ) : (
-        <ModelViews source={source.data} name={name} id="space-model-views" />
+        <ModelViews project={project} source={source.data} name={name} id="space-model-views" />
       )}
     </div>
   );
@@ -675,7 +688,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               </TableHead>
               <TableBody>
                 {types.map((type) => (
-                  <TypeRow key={type} slug={slug} type={type} />
+                  <TypeRow key={type} project={project} space={name} slug={slug} type={type} />
                 ))}
               </TableBody>
             </Table>

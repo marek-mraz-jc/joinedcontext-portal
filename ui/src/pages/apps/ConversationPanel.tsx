@@ -563,7 +563,7 @@ export function ConversationPanel({
                   {followed !== null ? (
                     <ChangeFollowCard project={project} followed={followed} onOpenLink={onOpenLink} />
                   ) : null}
-                  {queried !== null ? <QueryResultCard result={queried} /> : null}
+                  {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
                   <ActionStep event={event} live={live} onSend={onSend} count={count} />
                 </li>
               );

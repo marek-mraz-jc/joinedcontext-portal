@@ -540,11 +540,16 @@ const modelsRoute = createRoute({
 const modelRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/models/$name",
+  // A link that names a type opens the model on that class (T-2766).
+  validateSearch: (search: Record<string, unknown>): { class?: string } => ({
+    class: typeof search.class === "string" && search.class !== "" ? search.class : undefined,
+  }),
   component: function ModelRoute() {
     const { project, name } = modelRoute.useParams();
+    const { class: klass } = modelRoute.useSearch();
     return (
       <Shell project={project}>
-        <ModelPage project={project} name={name} />
+        <ModelPage key={`${name}-${klass ?? ""}`} project={project} name={name} initialClass={klass} />
       </Shell>
     );
   },

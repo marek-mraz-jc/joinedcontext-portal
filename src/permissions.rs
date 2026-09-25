@@ -243,6 +243,19 @@ impl Effective {
                     .to_owned(),
             ));
         }
+        if kind == "App"
+            && verb == Verb::Approve
+            && target
+                .and_then(|t| t.pointer("/spec/visibility"))
+                .and_then(Value::as_str)
+                == Some("public")
+        {
+            return Err(ApiError::Denied(
+                "approving a public App needs publisher, the role whose approve is constrained \
+                 to a public visibility; org-admin holds it too (AP-120, PF-71)"
+                    .to_owned(),
+            ));
+        }
         Err(ApiError::Denied(violation.unwrap_or_else(|| {
             format!(
                 "no role grants {} on {kind} in project {} (PF-50)",
