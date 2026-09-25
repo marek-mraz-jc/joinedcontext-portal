@@ -2202,12 +2202,15 @@
     "openPage": {
       "details": "Podrobnosti aplikácie",
       "newWindow": "Otvoriť v novom okne",
-      "served": "Beží commit {commit}",
       "frameTitle": "{title}, aplikácia",
       "notOpen": "Zatiaľ tu nie je čo otvoriť. Podrobnosti aplikácie hovoria, čo bude ďalej.",
       "signInHint": "Pýta si aplikácia prihlásenie a zostáva prázdna?",
       "signInAgain": "Prihlásiť sa znova",
-      "lead": "Zverejnená aplikácia spustená v Portáli s vaším prihlásením."
+      "lead": "Zverejnená aplikácia spustená v Portáli s vaším prihlásením.",
+      "fullscreen": "Celá obrazovka",
+      "fullscreenExit": "Opustiť celú obrazovku",
+      "fullscreenUnavailable": "Tento prehliadač tu celú obrazovku neponúka.",
+      "fullscreenFailed": "Prehliadač neprepol na celú obrazovku: {reason}"
     },
     "retire": {
       "title": "Vyradiť {name}",

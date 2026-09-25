@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -7,7 +8,7 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
 import { useBranding } from "../../branding";
-import { Button, buttonClass, EmptyState, ExternalLink, PageHeader, PageLoading } from "../../components/ui";
+import { Button, buttonClass, EmptyState, ExternalLink, Icon, PageHeader, PageLoading } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
@@ -94,10 +95,35 @@ export function OpenAppButton({ project, name }: { project: string; name: string
 }
 
 /**
- * A published App inside the Portal, under its header and sidebar (AP-122, UI-44). The frame is
- * sandboxed and only the Portal's host may frame an App. "Open in new window" opens the same
- * address as a page of its own. A retired, unpublished or never-built App shows its state
- * instead of a frame that would only say "not found".
+ * The frame's own fullscreen (T-2908): the container asks the browser, Escape or the same button
+ * gives the window back, and the state follows the document, so an Escape the browser handles
+ * itself is not missed. Where the browser offers no fullscreen the control says so.
+ */
+function useFullscreen() {
+  const target = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const follow = () => setActive(document.fullscreenElement !== null && document.fullscreenElement === target.current);
+    document.addEventListener("fullscreenchange", follow);
+    return () => document.removeEventListener("fullscreenchange", follow);
+  }, []);
+  const toggle = async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await target.current?.requestFullscreen();
+    }
+  };
+  return [target, { active, available: document.fullscreenEnabled === true, toggle }] as const;
+}
+
+/**
+ * A published App inside the Portal (AP-122, UI-44). The page is a slim bar (the App's name and
+ * its actions) over a frame that takes everything else the window has: the Shell renders it with
+ * `fill`, so nothing below the bar scrolls but the App itself (T-2908). The frame is sandboxed
+ * and only the Portal's host may frame an App. "Open in new window" opens the same address as a
+ * page of its own. A retired, unpublished or never-built App shows its state instead of a frame
+ * that would only say "not found".
  */
 export function AppOpenPage({ project, name }: { project: string; name: string }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -106,6 +132,8 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const { appsOrigin } = useBranding();
   const app = useApp(project, name);
   const build = useAppBuild(project, name);
+  const [frameArea, fullscreen] = useFullscreen();
+  const [fullscreenFailed, setFullscreenFailed] = useState<string | null>(null);
 
   const toApp = () => {
     void navigate({
@@ -118,7 +146,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
 
   if (app.isPending) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 pt-5 sm:px-gutter">
         <PageHeader title={fallbackTitle} description={t("apps.openPage.lead")} actions={details} />
         <PageLoading label={t("app.loading")} />
       </div>
@@ -126,6 +154,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   }
   if (app.isError) {
     return (
+      <div className="px-4 pt-5 sm:px-gutter">
       <ResourcePageFailed
         title={fallbackTitle}
         description={t("apps.openPage.lead")}
@@ -139,59 +168,84 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           </Button>
         }
       />
+      </div>
     );
   }
 
   const manifest = app.data;
   const title = localized(manifest.metadata.title, i18n.language, fallbackTitle);
-  // The schema leaves `status.build` open; the lane writes the commit it built there (AP-86).
-  const built = manifest.status?.build as { commit?: unknown } | undefined;
-  const commit = typeof built?.commit === "string" ? built.commit : null;
   const blocked = openBlockedReason(manifest, build.data?.run ?? null, t);
   const address = appAddress(name, appsOrigin);
 
   if (blocked) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 pt-5 sm:px-gutter">
         <PageHeader title={title} description={t("apps.openPage.lead")} actions={details} />
         <EmptyState title={blocked} description={t("apps.openPage.notOpen")} icon="apps" />
       </div>
     );
   }
 
+  // The commit the App is served from is on its details page, in the build badge's tooltip:
+  // developer information has no line of the person's screen here (owner, 2026-09-25).
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        title={title}
-        description={commit ? t("apps.openPage.served", { commit: commit.slice(0, 7) }) : t("apps.openPage.lead")}
-        actions={
-          <>
-            {details}
-            <ExternalLink href={address} hideIcon className={buttonClass("secondary", "sm")}>
-              {t("apps.openPage.newWindow")}
-            </ExternalLink>
-          </>
-        }
-      />
-      <iframe
-        src={address}
-        title={t("apps.openPage.frameTitle", { title })}
-        sandbox={appFrameSandbox(address)}
-        referrerPolicy="no-referrer"
-        className="min-h-128 w-full flex-1 rounded-xl border border-border bg-surface"
-      />
-      <p className="text-sm text-fg-muted">
-        {t("apps.openPage.signInHint")}{" "}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            signIn(`${window.location.pathname}${window.location.search}`);
-          }}
-        >
-          {t("apps.openPage.signInAgain")}
-        </Button>
-      </p>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface px-3 py-1.5 sm:px-4">
+        <h1 className="min-w-0 flex-1 truncate text-body font-semibold text-fg">{title}</h1>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="ghost" onClick={toApp} icon={<Icon name="chevronLeft" className="size-4" />}>
+            {t("apps.openPage.details")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-pressed={fullscreen.active}
+            disabled={!fullscreen.available}
+            disabledReason={fullscreen.available ? undefined : t("apps.openPage.fullscreenUnavailable")}
+            onClick={() => {
+              setFullscreenFailed(null);
+              fullscreen.toggle().catch((error: unknown) => {
+                setFullscreenFailed(error instanceof Error ? error.message : String(error));
+              });
+            }}
+          >
+            {fullscreen.active ? t("apps.openPage.fullscreenExit") : t("apps.openPage.fullscreen")}
+          </Button>
+          <ExternalLink href={address} hideIcon className={buttonClass("ghost", "sm")}>
+            {t("apps.openPage.newWindow")}
+          </ExternalLink>
+          {/* An App whose session ran out keeps asking inside the frame, where Keycloak may not
+              be framed: the way back is the Portal's own sign-in, in the top window (AP-122). */}
+          <Button
+            size="sm"
+            variant="ghost"
+            title={t("apps.openPage.signInHint")}
+            aria-describedby="app-open-sign-in-hint"
+            onClick={() => {
+              signIn(`${window.location.pathname}${window.location.search}`);
+            }}
+          >
+            {t("apps.openPage.signInAgain")}
+          </Button>
+          <span id="app-open-sign-in-hint" className="sr-only">
+            {t("apps.openPage.signInHint")}
+          </span>
+        </div>
+      </div>
+      {fullscreenFailed ? (
+        <p role="alert" className="border-b border-border bg-surface px-3 py-1.5 text-caption text-danger sm:px-4">
+          {t("apps.openPage.fullscreenFailed", { reason: fullscreenFailed })}
+        </p>
+      ) : null}
+      <div ref={frameArea} data-testid="app-frame-area" className="flex min-h-0 flex-1 flex-col bg-surface">
+        <iframe
+          src={address}
+          title={t("apps.openPage.frameTitle", { title })}
+          sandbox={appFrameSandbox(address)}
+          referrerPolicy="no-referrer"
+          className="block min-h-0 w-full flex-1 border-0"
+        />
+      </div>
     </div>
   );
 }
