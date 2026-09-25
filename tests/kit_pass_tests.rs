@@ -442,7 +442,7 @@ async fn create_run_with(
         Some(json!({
             "appName": "city-bikes-overview",
             "endpointName": "helsinki-bikes",
-            "appClass": "static",
+            "appClass": "ui",
             "kind": "dashboard",
             "visibility": "project",
             "prompt": prompt,
@@ -1767,7 +1767,7 @@ async fn an_unattended_analysis_run_ends_awaiting_approval_with_report_md() {
         Some(json!({
             "appName": "city-bikes-analysis",
             "endpointName": "helsinki-bikes",
-            "appClass": "static",
+            "appClass": "ui",
             "visibility": "project",
             "kind": "analysis",
             "unattended": true,
@@ -1900,7 +1900,7 @@ async fn create_application_of(app: &axum::Router, cookie: &str, types: Value) -
         Some(json!({
             "appName": "city-bikes-overview",
             "endpointName": "helsinki-bikes",
-            "appClass": "static",
+            "appClass": "ui",
             "visibility": "project",
             "prompt": "A page listing the bike stations",
             "dataNeeds": [{
@@ -2136,7 +2136,7 @@ async fn an_application_of_two_endpoints_reads_each_through_its_own_and_the_pack
         Some(json!({
             "appName": "city-bikes-overview",
             "endpointNames": ["helsinki-bikes", "helsinki-kpi"],
-            "appClass": "static",
+            "appClass": "ui",
             "visibility": "project",
             "prompt": "The stations beside the availability indicator",
             "dataNeeds": [
@@ -2274,7 +2274,7 @@ async fn a_type_two_endpoints_of_one_space_serve_is_sampled_through_both_and_joi
         Some(json!({
             "appName": "city-bikes-overview",
             "endpointNames": ["helsinki-bikes", "helsinki-bikes-ops"],
-            "appClass": "static",
+            "appClass": "ui",
             "visibility": "project",
             "prompt": "The stations with their status on a map",
             "dataNeeds": [{
@@ -2373,7 +2373,7 @@ async fn an_app_like_another_of_the_project_is_asked_for_another_layout() {
     let run: AgentRun = serde_json::from_value(json!({
         "id": id, "project": PROJECT, "appName": "bike-map", "endpointName": "helsinki-bikes",
         "endpointSlug": SLUG, "profile": "app-builder", "kind": "application",
-        "unattended": false, "appClass": "static", "visibility": "project",
+        "unattended": false, "appClass": "ui", "visibility": "project",
         "prompt": earlier, "promptDigest": digest_prompt(earlier), "dataNeeds": [],
         "allowsWrite": false, "branch": format!("agent/app-bike-map/{id}"), "pathPrefix": "",
         "status": "published", "ticketHash": mint_ticket().1, "steps": 0, "tokensUsed": 0,

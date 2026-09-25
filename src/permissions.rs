@@ -98,6 +98,13 @@ pub fn for_request(state: &AppState, identity: &Identity, project: &str) -> Effe
     )
 }
 
+/// Whether the caller holds a binding in force anywhere in the organization, or is in the
+/// bootstrap group: who reads an organization model, since a schema carries no data (DM-75).
+pub fn is_organization_member(state: &AppState, identity: &Identity) -> bool {
+    in_group(identity, &state.config.bootstrap_admins)
+        || !in_force(&state.mirror, identity, Utc::now()).is_empty()
+}
+
 /// Reads every `Role` and `RoleBinding` of the mirror and keeps the rules whose binding names
 /// the caller, covers the project and is in force at `now`.
 pub fn effective(

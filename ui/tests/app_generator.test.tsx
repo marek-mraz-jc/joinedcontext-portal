@@ -69,7 +69,7 @@ const CREATED_RUN = {
   project: PROJECT,
   appName: "ovzdusie-dnes",
   endpointName: "ovzdusie-public",
-  appClass: "fullstack",
+  appClass: "ui-rust",
   visibility: "project",
   prompt: "A map of the stations with today's PM10",
   status: "queued",
@@ -239,7 +239,7 @@ describe("the app generator", () => {
 
     expect(screen.getByLabelText(en.apps.generate.prompt, { exact: false })).toHaveValue("Show me the buses");
     // The kit pass is the fast path, so it is what the form starts on (AP-56).
-    expect(screen.getByLabelText(en.apps.generate.kind, { exact: false })).toHaveValue("static");
+    expect(screen.getByLabelText(en.apps.generate.kind, { exact: false })).toHaveValue("ui");
   });
 
   it("fills the endpoint list from the project's own endpoints", async () => {
@@ -296,7 +296,7 @@ describe("the app generator", () => {
     await waitFor(async () => {
       const body = await runBody(fetchMock);
       expect(body.appName).toBe("ovzdusie-dnes");
-      expect(body.appClass).toBe("static");
+      expect(body.appClass).toBe("ui");
       expect(body.endpointName).toBe("ovzdusie-public");
       expect(body.prompt).toBe("A map of the stations with today's PM10");
       const needs = body.dataNeeds as { attrs: string[]; operations: string[] }[];

@@ -36,6 +36,7 @@ import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationApplications } from "./OrganizationApplications";
+import { OrganizationModels } from "../models/OrganizationModels";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
@@ -54,6 +55,7 @@ export const ORGANIZATION_TABS = [
   "agentprofiles",
   "dataspaceparticipants",
   "environments",
+  "models",
   "projects",
   "applications",
   "setup",
@@ -325,6 +327,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
           <KindList project={ORG_NAMESPACE} plural="dataspaceparticipants" embedded />
         ) : null}
         {tab === "environments" ? <KindList project={ORG_NAMESPACE} plural="environments" embedded /> : null}
+        {tab === "models" ? <OrganizationModels /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}

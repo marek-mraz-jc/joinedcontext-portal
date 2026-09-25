@@ -204,8 +204,8 @@ async fn the_list_holds_only_the_models_the_caller_may_read() {
     );
     assert_eq!(
         body["items"][0],
-        json!({ "name": "air-quality", "project": HELSINKI, "space": "air", "version": "1.2.0",
-                "lifecycle": "published", "classes": ["AirQualityObserved"] }),
+        json!({ "name": "air-quality", "level": "project", "project": HELSINKI, "space": "air",
+                "version": "1.2.0", "lifecycle": "published", "classes": ["AirQualityObserved"] }),
     );
     assert!(
         !body.to_string().contains(ESPOO),
@@ -359,4 +359,60 @@ async fn a_missing_catalogue_still_lists_the_organizations_models() {
             .is_some_and(|reason| !reason.is_empty()),
         "{body}"
     );
+}
+
+/// DM-75, DM-79: an organization model is listed first, with `level: organization` and no space,
+/// to every person holding any binding in the organization; a project model no space owns is its
+/// project's readers' alone, not a space-scoped reader's; a stranger sees neither.
+#[tokio::test]
+async fn organization_models_are_every_members_and_carry_their_level() {
+    let state = world(Config::for_tests());
+    let mut shared = model(ORG_NAMESPACE, "stations", "", "published", &["Station"]);
+    shared
+        .spec
+        .as_object_mut()
+        .expect("spec")
+        .remove("contextSpaceRef");
+    state.mirror.upsert(shared);
+    let mut own = model(HELSINKI, "helsinki-shared", "", "published", &["Kiosk"]);
+    own.spec
+        .as_object_mut()
+        .expect("spec")
+        .remove("contextSpaceRef");
+    state.mirror.upsert(own);
+
+    let (status, body) = get(&state, Some(READER), "/api/v1/organization/datamodels").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        names(&body),
+        [
+            "org/stations",
+            "helsinki/helsinki-shared",
+            "helsinki/air-quality",
+            "helsinki/bikes"
+        ],
+        "{body}"
+    );
+    assert_eq!(
+        body["items"][0],
+        json!({ "name": "stations", "level": "organization", "project": ORG_NAMESPACE,
+                "version": "1.2.0", "lifecycle": "published", "classes": ["Station"] }),
+    );
+    assert_eq!(body["items"][1]["level"], "project");
+    assert!(body["items"][1].get("space").is_none(), "{body}");
+
+    let (_, body) = get(
+        &state,
+        Some(SPACE_READER),
+        "/api/v1/organization/datamodels",
+    )
+    .await;
+    assert_eq!(
+        names(&body),
+        ["org/stations", "helsinki/air-quality"],
+        "a space-scoped reader reads the organization's models and not the project's own: {body}"
+    );
+
+    let (_, body) = get(&state, Some(STRANGER), "/api/v1/organization/datamodels").await;
+    assert_eq!(body["items"], json!([]), "{body}");
 }

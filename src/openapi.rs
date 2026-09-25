@@ -85,6 +85,7 @@ use crate::tools::model_tools::{
         crate::api::datamodels::list_organization_datamodels,
         crate::api::datamodels::get_source,
         crate::api::datamodels::put_source,
+        crate::api::datamodels::share_model,
         crate::api::resources::get_resource,
         crate::api::pipelines::get_metrics,
         crate::api::pipelines::get_rejected,

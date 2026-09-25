@@ -726,7 +726,7 @@ fn build_proposal(
     let headline = if data.operation == Operation::Delete {
         Lane::Red
     } else if let Some(ref env) = data.head_envelope {
-        change::classify(&env.kind, data.operation, &env.spec)
+        change::classify_manifest(env, data.operation)
     } else {
         Lane::Yellow
     };
@@ -1124,9 +1124,7 @@ async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<Chan
         let lane = match (&envelope, operation) {
             // A delete is red whatever it removes, which is what the approval decides too.
             (_, Operation::Delete) => Lane::Red,
-            (Some(envelope), _) => {
-                change::classify(&envelope.kind, Operation::Create, &envelope.spec)
-            }
+            (Some(envelope), _) => change::classify_manifest(envelope, Operation::Create),
             // A native file beside a manifest carries no spec to classify; the manifest it
             // belongs to is in the same merge request and carries the lane.
             (None, _) => Lane::Green,
@@ -1208,6 +1206,17 @@ async fn approve_every_file(
                 .is_ok();
             continue;
         };
+        // An organization model is every project's schema: a person approves it, never a
+        // service account's token (PF-58, DM-77).
+        if envelope.kind == "DataModel"
+            && envelope.metadata.namespace.as_deref() == Some(crate::permissions::ORG_NAMESPACE)
+            && identity.client.is_some()
+        {
+            return Err(ApiError::Denied(format!(
+                "'{}' changes an organization data model, which a person approves in the Portal, never a service account (PF-58, DM-77)",
+                file.path
+            )));
+        }
         let manifest =
             serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
         effective.check(
@@ -1259,7 +1268,7 @@ async fn approve_every_file(
         )?;
         lane = crate::api::import::riskiest(
             lane,
-            change::classify(&envelope.kind, Operation::Create, &envelope.spec),
+            change::classify_manifest(&envelope, Operation::Create),
         );
     }
     Ok((lane, deletes_every_kind))
@@ -1360,7 +1369,7 @@ pub async fn approve_change_for(
     let lane = if data.operation == Operation::Delete {
         Lane::Red
     } else if let Some(ref env) = data.head_envelope {
-        change::classify(&env.kind, data.operation, &env.spec)
+        change::classify_manifest(env, data.operation)
     } else {
         Lane::Yellow
     };
@@ -1713,7 +1722,7 @@ pub async fn reject_change_for(
     let lane = if data.operation == Operation::Delete {
         Lane::Red
     } else if let Some(ref env) = data.head_envelope {
-        change::classify(&env.kind, data.operation, &env.spec)
+        change::classify_manifest(env, data.operation)
     } else {
         Lane::Yellow
     };

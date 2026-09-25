@@ -12,6 +12,10 @@ kind: App
 metadata:
   name: banskabystrica-zaznamy
   namespace: banskabystrica
+  annotations:
+    # The Portal image ships this bundle (Dockerfile, /srv/apps), so the App names no
+    # repository of its own; the Portal accepts the mark only where the bundle is (AP-87).
+    joinedcontext.com/shipped-with: portal
   title:
     sk: "Záznamy mesta Banská Bystrica"
     en: "Records of the city of Banská Bystrica"
@@ -19,7 +23,7 @@ metadata:
     sk: "Zverejnené štatistické riadky mesta po stranách, s filtrom v každom stĺpci, ktorý zodpovie endpoint. Čísla patria vydavateľovi a sú len na čítanie; upraviť sa dá poznámka správcu."
     en: "The city's published statistical rows by the page, with a filter on every column that the endpoint answers itself. The figures belong to the publisher and are read-only; the steward's note is what can be edited."
 spec:
-  kind: static
+  kind: ui
   source:
     path: ./apps/banskabystrica-zaznamy
   build:
@@ -41,5 +45,3 @@ spec:
       attrs: [indicator, refArea, refPeriod, value, unitText, dateObserved, stewardNote]
       operations: [queryEntity, retrieveEntity, updateAttrs]
       representations: [ngsi-ld]
-  limits:
-    requestsPerMinute: 300

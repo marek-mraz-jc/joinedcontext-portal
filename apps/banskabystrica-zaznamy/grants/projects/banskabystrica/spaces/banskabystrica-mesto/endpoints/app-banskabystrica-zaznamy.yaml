@@ -18,6 +18,4 @@ spec:
     name: banskabystrica-mesto
   enabledRepresentations:
   - ngsi-ld
-  rateLimits:
-    requestsPerMinute: 300
   slug: i4sngyhtq6ifgjt4nwv5eacvhw

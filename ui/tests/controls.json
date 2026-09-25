@@ -1039,6 +1039,14 @@
         "relationship_editor.test.tsx"
       ]
     },
+    "src/pages/models/ShareModel.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "model_share.test.tsx"
+      ]
+    },
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
