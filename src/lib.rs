@@ -30,6 +30,7 @@ pub mod pipeline_outcomes;
 pub mod pipeline_secrets;
 pub mod pipeline_validation;
 pub mod plan;
+pub mod quality;
 pub mod quotas;
 pub mod reconciler;
 pub mod references;

@@ -57,6 +57,9 @@ const CHANGE = {
   status: { lane: "yellow", phase: "PendingApproval", plan: { update: 1 } },
 };
 
+/** What the App probe last said, per project (AP-136); each test starts with none. */
+let APP_CHECKS: unknown[] = [];
+
 /** What the dry run before a write answers: green unless a test asks for a red check (PF-57). */
 const GREEN = { valid: true, verdict: { ok: true, findings: [] } };
 
@@ -95,6 +98,9 @@ function renderCatalog(
       return build[1] in builds
         ? json(builds[build[1]])
         : json({ title: "Not Found", status: 404 }, 404);
+    }
+    if (path.endsWith("/app-checks")) {
+      return json({ checks: APP_CHECKS });
     }
     if (path.endsWith("/agent-runs") && request.method === "GET") {
       return json({ items: runs });
@@ -160,6 +166,7 @@ describe("apps catalog", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     window.history.pushState({}, "", "/projects/banskabystrica/apps");
+    APP_CHECKS = [];
   });
 
   afterEach(() => {
@@ -182,6 +189,24 @@ describe("apps catalog", () => {
     expect(card.closest("ul")?.className).toContain("grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]");
     expect(card.closest("ul")?.className).not.toMatch(/\b(sm|lg|xl):grid-cols-/);
 
+  });
+
+  it("a published app carries the probe's verdict in words, a preview and an unchecked app none (AP-136)", async () => {
+    APP_CHECKS = [
+      { name: "hluk", state: "red", at: "2026-09-25T09:00:00Z", reason: "no row read in 60 s" },
+      { name: "mapa-ovzdusia", state: "green", at: "2026-09-25T09:00:00Z" },
+    ];
+    renderCatalog([
+      built(app({ name: "hluk", title: { en: "Noise" } }, { lifecycle: "published" })),
+      built(app({ name: "teploty", title: { en: "Temperatures" } }, { lifecycle: "published" })),
+      app(),
+    ]);
+    const noise = await cardOf("Noise");
+    expect(await within(noise).findByText(en.apps.check.red)).toBeInTheDocument();
+    expect(within(noise).getByText(/: no row read in 60 s$/)).toBeInTheDocument();
+    // A preview is not probed, whatever the probe said of its name; an app not yet checked shows nothing.
+    expect(within(await cardOf("Air quality map")).queryByText(en.apps.check.green)).toBeNull();
+    expect(within(await cardOf("Temperatures")).queryByText(/^Checked/)).toBeNull();
   });
 
   // T-2618: the owner reads a card by its footer, so it is always the same two controls.
