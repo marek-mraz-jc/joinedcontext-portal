@@ -146,6 +146,44 @@ impl Watch {
         .await
     }
 
+    /// A token for a run that reads many pages: the data-quality run (DM-70).
+    pub(crate) async fn scan_token(&self) -> Result<String, String> {
+        self.token().await
+    }
+
+    /// One page of the entities of `entity_type` in `space`, with their system attributes, as
+    /// the space surface answers a client that may read them (DM-70).
+    pub async fn page(
+        &self,
+        token: &str,
+        space: &str,
+        entity_type: &str,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<Value>, String> {
+        let response = self
+            .http
+            .get(format!("{}/cs/{space}/ngsi-ld/v1/entities", self.base))
+            .query(&[
+                ("type", entity_type),
+                ("limit", &limit.to_string()),
+                ("offset", &offset.to_string()),
+                ("options", "sysAttrs"),
+            ])
+            .bearer_auth(token)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|err| err.to_string())?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "{space} answered {} for {entity_type}",
+                response.status()
+            ));
+        }
+        response.json().await.map_err(|e| e.to_string())
+    }
+
     /// The entity the space holds under this id, or `None` when it holds none.
     pub async fn live(&self, token: &str, space: &str, id: &str) -> Result<Option<Value>, String> {
         let response = self

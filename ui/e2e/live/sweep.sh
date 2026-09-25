@@ -17,8 +17,9 @@ out=${SWEEP_OUT:-$ui/test-results/sweep}
 mkdir -p "$out"
 cd "$ui" || exit 2
 
-# The model-spending specs, by file: each of their tests is a conversation with the model.
-spending='/(assistant-paths|app-generated-full|build-samples)\.spec\.ts$'
+# The model-spending specs, by file: each of their tests is a conversation with the model. The
+# App probe has a runner and a check of its own (app-probe.sh, T-2795).
+spending='/(assistant-paths|app-generated-full|build-samples|app-probe)\.spec\.ts$'
 mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending")
 
 PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \

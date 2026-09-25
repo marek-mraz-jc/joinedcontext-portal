@@ -121,6 +121,10 @@ pub struct Config {
     /// neutral joinedcontext defaults, which is what an installation without branding looks
     /// like; it is never an error.
     pub branding_file: Option<String>,
+    /// The directory the ConfigMap `jc-validation-results` is mounted at (`JC_HEALTH_DIR`;
+    /// OPS-53): one digest per validation check, read on every request to
+    /// `/api/v1/organization/health`. `None` answers an empty list; it is never an error.
+    pub health_dir: Option<String>,
     /// PostgreSQL connection string of the preferences tier (`JC_PORTAL_DATABASE_URL`,
     /// UI-09). A secret: it carries a password, so it is redacted in `Debug`. `None` runs the Portal without preferences: those routes answer
     /// 503, everything else works.
@@ -237,6 +241,7 @@ impl std::fmt::Debug for Config {
             .field("artifact_store", &self.artifact_store)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
+            .field("health_dir", &self.health_dir)
             .field(
                 "database_url",
                 &self.database_url.as_ref().map(|_| "[redacted]"),
@@ -1155,6 +1160,7 @@ impl Config {
         let app_tests = app_tests(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
+        let health_dir = lookup("JC_HEALTH_DIR").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
         let bootstrap_admins = lookup("JC_PORTAL_BOOTSTRAP_ADMINS")
             .map(|v| v.trim().to_owned())
@@ -1217,6 +1223,7 @@ impl Config {
             apps_cache_dir,
             apps_url,
             branding_file,
+            health_dir,
             database_url,
             bootstrap_admins,
             journey_users,
@@ -1265,6 +1272,7 @@ impl Config {
             apps_cache_dir: None,
             apps_url: None,
             branding_file: None,
+            health_dir: None,
             database_url: None,
             // The dev realm's approver role: a test session that carries it may do everything,
             // one that does not is bound by whatever Role/RoleBinding the test puts in the mirror.
