@@ -2096,6 +2096,13 @@
       "noOthers": "No other group holds this role.",
       "give": "Give this role to a group",
       "groupsUnreadable": "Your role does not list the organization's groups."
+    },
+    "check": {
+      "green": "Working",
+      "red": "Failing",
+      "amber": "Not checked lately",
+      "line": "Checked {when}",
+      "lineWithReason": "Checked {when}: {reason}"
     }
   },
   "appLifecycle": {

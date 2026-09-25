@@ -821,6 +821,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/app-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Checks
+         * @description The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).
+         */
+        get: operations["list_app_checks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/build": {
         parameters: {
             query?: never;
@@ -2195,6 +2215,19 @@ export interface components {
             repositoryUrl?: string | null;
             run?: null | components["schemas"]["WorkflowRun"];
         };
+        /** @description The last probe of one App (AP-136). */
+        AppCheck: {
+            /** Format: date-time */
+            at: string;
+            name: string;
+            reason?: string | null;
+            state: components["schemas"]["AppCheckState"];
+        };
+        /** @enum {string} */
+        AppCheckState: "green" | "red" | "amber";
+        AppChecks: {
+            checks: components["schemas"]["AppCheck"][];
+        };
         /**
          * @description The caller as a published App sees them: the object the static host writes into
          *     `#jc-config` as `user` (AP-95).
@@ -2683,6 +2716,11 @@ export interface components {
             everyHours: number;
             failures?: components["schemas"]["Failure"][];
             history?: components["schemas"]["Point"][];
+            /**
+             * @description The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for
+             *     every other check.
+             */
+            passed?: string[];
             run?: string | null;
         };
         /** @description `status.domainVerification` of an Organization (PF-41, Architecture/03 §3). */
@@ -6588,6 +6626,56 @@ export interface operations {
             };
             /** @description Git forge unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_app_checks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The App checks of the project */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChecks"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks read on App */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

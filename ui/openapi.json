@@ -3253,6 +3253,69 @@
         }
       }
     },
+    "/api/v1/projects/{project}/app-checks": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "List App Checks",
+        "description": "The probe's last verdict on each published App of the project: green, red with the reason, or amber when the probe has not run for two of its intervals. Needs `read` on App (AP-136).",
+        "operationId": "list_app_checks",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The App checks of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppChecks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/build": {
       "get": {
         "tags": [
@@ -9749,6 +9812,55 @@
           }
         }
       },
+      "AppCheck": {
+        "type": "object",
+        "description": "The last probe of one App (AP-136).",
+        "required": [
+          "name",
+          "state",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/AppCheckState"
+          }
+        }
+      },
+      "AppCheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "amber"
+        ]
+      },
+      "AppChecks": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppCheck"
+            }
+          }
+        }
+      },
       "AppMe": {
         "type": "object",
         "description": "The caller as a published App sees them: the object the static host writes into\n`#jc-config` as `user` (AP-95).",
@@ -10850,6 +10962,13 @@
             "items": {
               "$ref": "#/components/schemas/Point"
             }
+          },
+          "passed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys that passed, for a check whose passes a page shows (`apps`, AP-136); empty for\nevery other check."
           },
           "run": {
             "type": [

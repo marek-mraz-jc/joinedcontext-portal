@@ -2096,6 +2096,13 @@
       "noOthers": "Keine andere Gruppe hat diese Rolle.",
       "give": "Rolle einer Gruppe geben",
       "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
+    },
+    "check": {
+      "green": "Funktioniert",
+      "red": "Gestört",
+      "amber": "Länger nicht geprüft",
+      "line": "Geprüft {when}",
+      "lineWithReason": "Geprüft {when}: {reason}"
     }
   },
   "appLifecycle": {

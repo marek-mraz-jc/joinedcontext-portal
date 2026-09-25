@@ -19,6 +19,12 @@ export const EDITOR = { user: "demo.editor@hel.fi", password: process.env.EDITOR
 export const JANITOR = { user: "demo.janitor@hel.fi", password: process.env.JANITOR_PASSWORD ?? "" };
 
 /**
+ * The App probe (T-2795, AP-136): a member of every App's default group who reads `App` and
+ * nothing else, so what it sees is what an App's own people see.
+ */
+export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PASSWORD ?? "" };
+
+/**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
  * (`#username`, `#password`, `#kc-login`), back to the page asked for. Mirrors
  * joinedcontext-presentation/record/acts/_portal.py so a spec and a recording take one path.
@@ -27,7 +33,7 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
-        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD)",
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD)",
     );
   }
   const context = await browser.newContext();

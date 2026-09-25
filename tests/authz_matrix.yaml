@@ -181,6 +181,9 @@ routes:
     rule: "project-verb:propose:Entity"
     expect: [403, 403, 403, 404, 403, 404, 404, 403]
     note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/app-checks
+    rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/agent-runs
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

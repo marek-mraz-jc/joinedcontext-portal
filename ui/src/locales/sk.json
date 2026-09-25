@@ -2096,6 +2096,13 @@
       "noOthers": "Túto rolu nemá žiadna iná skupina.",
       "give": "Prideliť rolu skupine",
       "groupsUnreadable": "Vaša rola nezobrazuje skupiny organizácie."
+    },
+    "check": {
+      "green": "Funguje",
+      "red": "Nefunguje",
+      "amber": "Dlho nekontrolovaná",
+      "line": "Skontrolované {when}",
+      "lineWithReason": "Skontrolované {when}: {reason}"
     }
   },
   "appLifecycle": {
