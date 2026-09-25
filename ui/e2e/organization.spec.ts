@@ -103,6 +103,8 @@ test.describe("the Organization page", () => {
 
     await page.getByRole("tab", { name: "Settings" }).focus();
     await page.keyboard.press("ArrowRight");
+    await expect(page).toHaveURL(/\/organization\/people$/);
+    await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
     await expect(page).toHaveURL(/\/organization\/roles$/);
     await expect(page.getByRole("row", { name: /org-admin/ }).getByText("seeded")).toBeVisible();

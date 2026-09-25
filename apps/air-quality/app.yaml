@@ -35,13 +35,13 @@ spec:
     - name: steward
       title: { en: "Steward", fi: "Ylläpitäjä" }
       description: "Also adds stations, corrects their name, position and note, and removes the stations a steward added."
-  # A user subject is the person's e-mail, which the realm also issues as `preferred_username`
-  # (email as username), so the Portal's `/me` and the gateway match the same person (AP-91).
+  # Each role goes to its default group, `{app}-{role}`, committed beside the App under
+  # grants/users/groups/ (AP-118, ADR-N-031): who holds a role is that group's members.
   access:
     - role: viewer
-      subjects: [{ user: demo.viewer@hel.fi }]
+      subjects: [{ group: air-quality-viewer }]
     - role: steward
-      subjects: [{ user: demo.steward@hel.fi }]
+      subjects: [{ group: air-quality-steward }]
   dataNeeds:
     # Everyone the app admits reads the stations: `AirQualityObserved` of the `helsinki` model.
     - contextSpaceRef:

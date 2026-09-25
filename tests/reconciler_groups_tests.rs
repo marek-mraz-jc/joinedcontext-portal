@@ -318,3 +318,33 @@ async fn nothing_the_wave_answers_carries_the_client_secret() {
         .collect::<Vec<_>>());
     assert!(!said.to_string().contains("s3cret"), "{said}");
 }
+
+/// AP-115: a run records the groups it may not write, where the write doors read them; a
+/// managed group is this platform's own and is not among them.
+#[tokio::test]
+async fn a_run_records_the_realms_unmanaged_groups_for_the_write_doors() {
+    let keycloak = realm().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups")))
+        .and(query_param("briefRepresentation", "false"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "g1", "name": "admins", "attributes": {} },
+            { "id": "g2", "name": "retired", "attributes": { MANAGED_BY: [MANAGED_VALUE] } }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path(format!("{REALM}/groups/g2")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&keycloak)
+        .await;
+    let foreign = Arc::new(joinedcontext_portal::reconciler::foreign::ForeignNames::default());
+
+    sync(&keycloak)
+        .with_foreign(Arc::clone(&foreign))
+        .converge(&mirror_with(vec![]))
+        .await;
+
+    assert!(foreign.has_group("admins"));
+    assert!(!foreign.has_group("retired"));
+}

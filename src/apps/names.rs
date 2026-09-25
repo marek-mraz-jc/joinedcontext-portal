@@ -9,8 +9,14 @@ use crate::auth::Identity;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// Refuses an App named like another project's App (AP-14a). The same App written again in its
-/// own project is an update, not a clash.
+/// Refuses an App named like another project's App (AP-14a), or one whose client `app-{name}`
+/// the realm already holds without this platform having made it (AP-114). The same App written
+/// again in its own project is an update, not a clash. Every refusal names both owners: the
+/// other one only to a caller who may read Apps there (PF-59), and this project always.
+///
+/// The other derived names need no check of their own: the pod, Service and Endpoint
+/// `app-{name}` follow the App name, and a repository `{project}_{name}` is one pair because
+/// neither a project nor an App name may carry `_` (MF-02).
 pub fn check(
     state: &AppState,
     identity: &Identity,
@@ -21,7 +27,7 @@ pub fn check(
     if kind != "App" {
         return Ok(());
     }
-    let Some(owner) = state
+    if let Some(owner) = state
         .mirror
         .find(|env| {
             env.kind == "App"
@@ -29,18 +35,29 @@ pub fn check(
                 && env.metadata.namespace.as_deref() != Some(project)
         })
         .and_then(|env| env.metadata.namespace)
-    else {
-        return Ok(());
-    };
-    let reason = if crate::permissions::for_request(state, identity, &owner).may_read("App") {
-        format!("taken by project {owner}")
-    } else {
-        "taken".to_owned()
-    };
-    Err(ApiError::Denied(format!(
-        "the App name '{name}' is {reason}: /apps/{name}/ is one address for the whole \
-         organization (AP-14a); choose another name"
-    )))
+    {
+        let holder = if crate::permissions::for_request(state, identity, &owner).may_read("App") {
+            format!("project {owner}")
+        } else {
+            "another project".to_owned()
+        };
+        return Err(ApiError::Denied(format!(
+            "the App name '{name}' is taken by {holder}, so project {project} cannot declare it \
+             too: /apps/{name}/ is one address for the whole organization (AP-14a); choose \
+             another name"
+        )));
+    }
+    let client = crate::reconciler::app_clients::client_id(name);
+    let new = state.mirror.get(project, "App", name).is_none();
+    if new && state.foreign_names.has_client(&client) {
+        return Err(ApiError::Denied(format!(
+            "the App '{name}' of project {project} would log in with the Keycloak client \
+             '{client}', which the realm already holds and this platform did not create; it is \
+             never taken over (AP-114). Choose another name, or ask a realm administrator to \
+             rename or remove that client"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -120,7 +137,10 @@ mod tests {
     fn another_projects_app_name_is_refused_without_naming_a_project_the_caller_cannot_read() {
         let state = world(Vec::new());
         let message = refusal(&state, "ovzdusie", "App", "board").expect("a clash");
-        assert!(message.contains("'board' is taken:"), "{message}");
+        assert!(
+            message.contains("'board' is taken by another project, so project ovzdusie"),
+            "{message}"
+        );
         assert!(message.contains("AP-14a"), "{message}");
         assert!(!message.contains("doprava"), "{message}");
     }
@@ -129,7 +149,10 @@ mod tests {
     fn a_caller_who_may_read_apps_there_is_told_which_project_holds_the_name() {
         let state = world(app_reader_in("doprava"));
         let message = refusal(&state, "ovzdusie", "App", "board").expect("a clash");
-        assert!(message.contains("taken by project doprava"), "{message}");
+        assert!(
+            message.contains("taken by project doprava, so project ovzdusie cannot declare it"),
+            "{message}"
+        );
     }
 
     #[test]
@@ -143,5 +166,33 @@ mod tests {
         assert_eq!(refusal(&state, "ovzdusie", "App", "board-2"), None);
         assert_eq!(refusal(&state, "ovzdusie", "Dashboard", "board"), None);
         assert_eq!(refusal(&state, "ovzdusie", "App", ""), None);
+    }
+
+    /// AP-114: a new App whose client `app-{name}` the realm holds unmanaged is refused, naming
+    /// the project and the client; an App already declared here is still updated, and a managed
+    /// client is this platform's own.
+    #[test]
+    fn a_new_app_is_refused_the_client_somebody_else_made_in_the_realm() {
+        let state = world(Vec::new());
+        state
+            .foreign_names
+            .set_clients(std::collections::BTreeSet::from([
+                "app-radar".to_owned(),
+                "app-board".to_owned(),
+            ]));
+        let message = refusal(&state, "ovzdusie", "App", "radar").expect("a clash");
+        assert!(
+            message.contains("App 'radar' of project ovzdusie"),
+            "{message}"
+        );
+        assert!(message.contains("client 'app-radar'"), "{message}");
+        assert!(message.contains("AP-114"), "{message}");
+        assert_eq!(
+            refusal(&state, "doprava", "App", "board"),
+            None,
+            "an App already declared is updated; the reconciler reports its client"
+        );
+        assert_eq!(refusal(&state, "ovzdusie", "App", "radar-2"), None);
+        assert_eq!(refusal(&state, "ovzdusie", "Dashboard", "radar"), None);
     }
 }

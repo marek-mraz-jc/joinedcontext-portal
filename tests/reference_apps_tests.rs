@@ -628,8 +628,13 @@ fn pinned_slug(name: &str) -> Option<EndpointSlug> {
         })
 }
 
+/// The app's grants, its default groups aside: those are the seed's, members included, and
+/// [`every_sample_app_role_goes_to_its_default_group`] holds them.
 fn held_grants(name: &str) -> Vec<(String, String)> {
     files_below(&grants_dir(name))
+        .into_iter()
+        .filter(|(path, _)| !path.starts_with("users/"))
+        .collect()
 }
 
 /// T-2667, CC-61, AP-96: a seeded app is committed by the forge bootstrap, not through the
@@ -663,7 +668,8 @@ fn write_sample_app_grants() {
     for (name, yaml) in reference_apps() {
         let dir = grants_dir(&name);
         let slug = pinned_slug(&name).unwrap_or_else(generate_slug);
-        let _ = std::fs::remove_dir_all(&dir);
+        // The default groups under users/ are written by hand: they carry the demo people.
+        let _ = std::fs::remove_dir_all(dir.join("projects"));
         let Some(compiled) = compiled_grants(&yaml, &slug) else {
             continue;
         };
@@ -671,6 +677,61 @@ fn write_sample_app_grants() {
             let file = dir.join(path);
             std::fs::create_dir_all(file.parent().expect("a folder")).expect("grants dir");
             std::fs::write(file, text).expect("write a grant");
+        }
+    }
+}
+
+/// AP-118, ADR-N-031 §3.5: a seeded app gets what the Portal's door gives a proposed one, so
+/// every role of a sample app goes to its default group `{app}-{role}`, committed beside the app
+/// under `grants/users/groups/` and annotated with it; the demo people are that group's members
+/// and nobody holds a role by name. No other group rides with an app.
+#[test]
+fn every_sample_app_role_goes_to_its_default_group() {
+    use jc_core::kinds::{AppSpec, GroupSpec};
+    for (name, yaml) in reference_apps() {
+        let manifest: RawManifest = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        let project = manifest.metadata.namespace.clone().expect("a project");
+        let spec: AppSpec = serde_json::from_value(manifest.spec.clone()).expect("an App");
+        let mut expected: Vec<String> = spec
+            .roles
+            .iter()
+            .map(|role| format!("users/groups/{name}-{}.yaml", role.name))
+            .collect();
+        expected.sort();
+        let groups: Vec<(String, String)> = files_below(&grants_dir(&name))
+            .into_iter()
+            .filter(|(path, _)| path.starts_with("users/"))
+            .collect();
+        let paths: Vec<&String> = groups.iter().map(|(path, _)| path).collect();
+        assert_eq!(paths, expected.iter().collect::<Vec<_>>(), "apps/{name}");
+        for (path, text) in &groups {
+            let group: RawManifest = serde_yaml_ng::from_str(text).expect("a Group");
+            assert_eq!(group.kind, "Group", "{path}");
+            let annotations = &group.metadata.rest["annotations"];
+            assert_eq!(
+                annotations["joinedcontext.com/app"].as_str(),
+                Some(format!("{project}/{name}").as_str()),
+                "{path}"
+            );
+            let members: GroupSpec =
+                serde_json::from_value(group.spec.clone()).expect("a Group spec");
+            members.validate().expect("valid members");
+            assert!(!members.members.is_empty(), "{path}: the demo people");
+        }
+        for role in &spec.roles {
+            let group = format!("{name}-{}", role.name);
+            let entry = spec
+                .access
+                .iter()
+                .find(|entry| entry.role == role.name)
+                .unwrap_or_else(|| panic!("apps/{name}: role {} goes nowhere", role.name));
+            let subjects = serde_json::to_value(&entry.subjects).expect("subjects");
+            assert_eq!(
+                subjects,
+                serde_json::json!([{ "group": group }]),
+                "apps/{name}: role {} goes to {group} alone",
+                role.name
+            );
         }
     }
 }

@@ -82,6 +82,9 @@ pub struct AppState {
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
+    /// The realm's clients and groups this platform did not create, as the last reconcile run
+    /// listed them (AP-114, AP-115). Always present; empty until a run has listed the realm.
+    pub foreign_names: Arc<crate::reconciler::foreign::ForeignNames>,
     /// Where a workspace Job is written. `None` outside a cluster, exactly like
     /// `app_settings`: a run is then refused rather than scheduled nowhere (AG-33).
     pub kube: Option<Arc<crate::apps::kube::KubeClient>>,
@@ -151,6 +154,7 @@ impl AppState {
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             drift_watch: None,
+            foreign_names: Arc::default(),
             people: None,
             kube: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
@@ -382,7 +386,11 @@ impl AppState {
                         id,
                         secret,
                     ) {
-                        Some(groups) => syncer = syncer.with_groups(Arc::new(groups)),
+                        Some(groups) => {
+                            syncer = syncer.with_groups(Arc::new(
+                                groups.with_foreign(Arc::clone(&state.foreign_names)),
+                            ))
+                        }
                         None => tracing::warn!(
                             "the issuer is not a realm URL, so no Keycloak group is managed"
                         ),
@@ -410,7 +418,11 @@ impl AppState {
                         oidc.client_secret().to_owned(),
                         host,
                     ) {
-                        Some(clients) => syncer = syncer.with_app_clients(Arc::new(clients)),
+                        Some(clients) => {
+                            syncer = syncer.with_app_clients(Arc::new(
+                                clients.with_foreign(Arc::clone(&state.foreign_names)),
+                            ))
+                        }
                         None => tracing::warn!(
                             "the issuer is not a realm URL, so no App client is managed"
                         ),
