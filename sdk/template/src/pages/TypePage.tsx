@@ -10,6 +10,7 @@ import { ExportButton } from "../components/ExportButton";
 import { DateRangeFilter, FilterBar, RangeFilter, SearchBox, SelectFilter } from "../components/filters";
 import { StatTiles } from "../components/StatTiles";
 import type { StatTile } from "../components/StatTiles";
+import { t } from "../i18n";
 import { filtersOf, shapeOf } from "./shape";
 
 function Filter({ binding }: { binding: FilterBinding }) {
@@ -48,7 +49,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
   const measure = shape.numbers[0];
   const tiles: StatTile[] = [
     { label: type, agg: "count" },
-    ...shape.numbers.slice(0, 3).map((attr): StatTile => ({ label: `Average ${attr}`, agg: "avg", attr })),
+    ...shape.numbers.slice(0, 3).map((attr): StatTile => ({ label: t("stat.average", { attr }), agg: "avg", attr })),
   ];
 
   return (
@@ -69,11 +70,11 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
             x={shape.categories[0]}
             y={measure}
             agg={measure ? "avg" : "count"}
-            title={measure ? `Average ${measure} by ${shape.categories[0]}` : `${type} by ${shape.categories[0]}`}
+            title={measure ? t("chart.averageBy", { measure, category: shape.categories[0] }) : t("chart.countBy", { type, category: shape.categories[0] })}
           />
         )}
         {shape.time && (
-          <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={measure ? `${measure} over time` : `${type} over time`} />
+          <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={t("chart.overTime", { measure: measure ?? type })} />
         )}
       </Grid>
       <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={type} />
@@ -83,7 +84,7 @@ export function TypePage({ type, schema }: { type: string; schema?: TypeSchema |
           <EntityDetail row={selected} title={displayName(shape.label ? { ...selected, name: selected[shape.label] } : selected)} onClose={() => setSelectedId(null)} />
           {edit.ok && (
             <button type="button" onClick={() => setEditing(true)}>
-              Edit
+              {t("detail.edit")}
             </button>
           )}
         </div>
