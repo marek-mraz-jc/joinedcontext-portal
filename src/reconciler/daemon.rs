@@ -131,6 +131,9 @@ pub struct Syncer {
         Arc<super::edge_file::EdgeFile>,
         crate::apps::reconciler::Settings,
     )>,
+    /// The certificate and edge Ingress of every published App's host (ADR-N-037, AP-133).
+    /// `None` outside a cluster.
+    app_hosts: Option<Arc<super::app_hosts::AppHosts>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -193,6 +196,7 @@ impl Syncer {
             app_clients: None,
             app_client_secrets: Arc::default(),
             edge_file: None,
+            app_hosts: None,
             activity: None,
             apps_cache_dir: None,
             artifact_store: None,
@@ -308,6 +312,12 @@ impl Syncer {
         settings: crate::apps::reconciler::Settings,
     ) -> Self {
         self.edge_file = Some((edge_file, settings));
+        self
+    }
+
+    /// Makes each run give every published App's host its certificate and Ingress (AP-133).
+    pub fn with_app_hosts(mut self, hosts: Arc<super::app_hosts::AppHosts>) -> Self {
+        self.app_hosts = Some(hosts);
         self
     }
 
@@ -1227,6 +1237,52 @@ impl Syncer {
                     }
                     Err(err) => tracing::warn!(%app, error = %err, "app did not converge"),
                 }
+            }
+        }
+
+        // 6a. Every published App's host: its certificate, requested once, and its edge Ingress;
+        //     a retired App's are removed (ADR-N-037, AP-133). An App whose certificate is not
+        //     issued yet says so, and reads published only once it is.
+        if let (Some(hosts), Some((_, settings))) =
+            (self.app_hosts.as_ref(), self.edge_file.as_ref())
+        {
+            let published: std::collections::BTreeSet<String> = self
+                .mirror
+                .matching(|env| {
+                    env.kind == "App"
+                        && env
+                            .spec
+                            .get("lifecycle")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(jc_core::kinds::AppLifecycle::Published.as_str())
+                })
+                .into_iter()
+                .map(|env| env.metadata.name)
+                .collect();
+            for (name, state) in hosts.converge(&published, &settings.host).await {
+                let (reason, message) = match state {
+                    super::app_hosts::HostState::Ready => continue,
+                    super::app_hosts::HostState::Pending(message) => {
+                        ("CertificatePending", message)
+                    }
+                    super::app_hosts::HostState::Failed(message) => ("HostRefused", message),
+                };
+                tracing::warn!(app = %name, %reason, %message, "the App's host is not served yet");
+                let Some(mut envelope) = self
+                    .mirror
+                    .find(|env| env.kind == "App" && env.metadata.name == name)
+                else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    status.conditions = vec![super::streams::make_condition(
+                        "Ready",
+                        "False",
+                        reason,
+                        &format!("the App's host has no certificate yet (AP-133): {message}"),
+                    )];
+                }
+                self.mirror.upsert(envelope);
             }
         }
 
