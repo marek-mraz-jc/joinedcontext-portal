@@ -122,6 +122,7 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: None,
         pull_secret: Some("ghcr-pull".into()),
+        basemap_base: None,
         release: Some("dev".into()),
         service_account: Some("portal".into()),
     }
