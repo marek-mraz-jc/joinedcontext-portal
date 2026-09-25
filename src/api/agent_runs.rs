@@ -430,6 +430,7 @@ pub async fn create_run(
     origin: RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
+    headers: HeaderMap,
     Json(request): Json<CreateRunRequest>,
 ) -> Result<(StatusCode, Json<CreatedRun>), ApiError> {
     let settings = agent_settings(&state)?;
@@ -527,6 +528,15 @@ pub async fn create_run(
         &request.data_needs,
         &user,
     )?;
+    // AP-132, PF-70: never wider than what the caller holds, as the gateway says it.
+    crate::agents::held::check(
+        crate::agents::held::client(),
+        state.config.gateway_url.as_deref(),
+        caller_token(&state, &headers).as_deref(),
+        &run_endpoints,
+        &request.data_needs,
+    )
+    .await?;
 
     // AG-70: a profile that lists endpoints builds only on the ones it grants, with write for a
     // run that writes.
