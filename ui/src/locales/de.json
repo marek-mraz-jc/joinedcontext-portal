@@ -342,7 +342,12 @@
       "noPolicies": "Dieser Raum hat noch keine Policy.",
       "assignee": "Empfänger",
       "operations": "Operationen",
-      "copyId": "Die ID {id} kopieren"
+      "copyId": "Die ID {id} kopieren",
+      "model": "Datenmodell",
+      "modelEmpty": "Dieser Raum hat noch kein Datenmodell",
+      "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
+      "modelCreate": "Datenmodell anlegen",
+      "modelImport": "Smart Data Model importieren"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",

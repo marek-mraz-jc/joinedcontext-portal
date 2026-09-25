@@ -342,7 +342,12 @@
       "noPolicies": "Prostor zatím nemá politiku.",
       "assignee": "Příjemce",
       "operations": "Operace",
-      "copyId": "Zkopírovat identifikátor {id}"
+      "copyId": "Zkopírovat identifikátor {id}",
+      "model": "Datový model",
+      "modelEmpty": "Tento prostor zatím nemá datový model",
+      "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
+      "modelCreate": "Vytvořit datový model",
+      "modelImport": "Importovat Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
