@@ -83,7 +83,6 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {} }
           <Input
             id={`${id}-scopeQ`}
             value={value.scopeQ ?? ""}
-            placeholder="/scope/1"
             onChange={(event) => onChange({ ...value, scopeQ: event.target.value || undefined })}
           />
         </Field>

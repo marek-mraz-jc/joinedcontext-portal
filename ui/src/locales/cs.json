@@ -335,6 +335,7 @@
     "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář."
   },
   "spaces": {
+    "entitiesUnknown": "Počet není k dispozici: {reason}",
     "lead": "Pojmenované kolekce kontextových dat tohoto projektu; každá entita patří právě do jedné.",
     "title": "Kontextové prostory",
     "empty": "Projekt zatím nemá kontextový prostor.",
@@ -351,10 +352,12 @@
       "ttlDays": "Životnost ve dnech",
       "phase": "Stav",
       "source": "Zdroj",
+      "entities": "Entity",
       "inside": "Obsah",
       "missingUnitCode": "Chybějící jednotka"
     },
     "inside": {
+      "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "open": "Prohlédnout obsah",
       "data": "Data",
       "dataLead": "Vše, co tento prostor drží, nakolik to vaše oprávnění dovolí. Endpoint zobrazuje totéž, zúžené jeho politikou.",
@@ -388,7 +391,6 @@
       "modelImport": "Importovat Smart Data Model"
     },
     "complete": {
-      "spacePlaceholder": "city-bikes",
       "urlPlaceholder": "https://example.org/stations.json",
       "kind": {
         "DataModel": "Datový model",
@@ -661,7 +663,7 @@
       "q": "Dotaz na atributy",
       "qHelp": "Zveřejní se jen entity, které dotazu odpovídají, například age>30. Endpoint zužuje to, co prostor obsahuje, nikdy to nerozšiřuje.",
       "scopeQ": "Rozsah",
-      "scopeQHelp": "Větev rozsahového stromu prostoru, která se zveřejní, například /Helsinki/Kamppi.",
+      "scopeQHelp": "Větev rozsahového stromu prostoru, která se zveřejní: cesta, která začíná znakem /.",
       "geoQ": "Území",
       "geoQHelp": "Území, v němž entity musí ležet; nakreslené na mapě putuje jako georel, geometry a coordinates společně.",
       "temporalQ": "Časový rozsah",
@@ -1021,7 +1023,7 @@
       "readThrough": "Číst přes endpoint",
       "readThroughHint": "Policy endpointu rozhoduje, co pipeline vidí.",
       "entities": "2. Entity",
-      "typePlaceholder": "Typ entity, např. AirQualityObserved",
+      "typePlaceholder": "Typ entity",
       "qHint": "NGSI-LD filtr, např. pm10>50",
       "loadSample": "Načíst vzorek",
       "sampleHint": "Nejvýše {count} entit, čtené vaším přihlášením; označte řádky, má-li se zpracovat jen ty.",
@@ -2062,7 +2064,7 @@
         "none": "Tento endpoint nepublikuje žádné atributy, aplikace nemá co číst.",
         "loginOnly": "Bez ohledu na to, jak je endpoint publikován, vygenerovaná aplikace běží v platformě a otevřít ji může jen přihlášený uživatel.",
         "writeRole": "Zapisovat smí jen tato role aplikace (nepovinné)",
-        "writeRoleHelp": "Ponechte prázdné a zapisovat smí každý, kdo aplikaci otevře. S názvem role, např. steward, zapisují jen lidé, které po zveřejnění přidáte do této role na stránce aplikace.",
+        "writeRoleHelp": "Ponechte prázdné a zapisovat smí každý, kdo aplikaci otevře. S názvem role zapisují jen lidé, které po zveřejnění přidáte do této role na stránce aplikace.",
         "writeRoleInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku písmeno, nejvýše 32 znaků.",
         "access": "Co aplikace smí",
         "accessHelp": "Jen čtení čte entity a jejich historii. Čtení a úpravy také mění a doplňují atributy (updateAttrs, appendAttrs). Plný přístup také vytváří a maže entity (createEntity, deleteEntity). Zapisující volba se posuzuje jako změna v červeném pruhu, pokud ji role níže neomezí.",
@@ -2102,7 +2104,7 @@
         "title": "Nový endpoint",
         "hint": "Navrhne se hned jako samostatná změna. Tvůrce ho použije, jakmile je změna sloučena a endpoint běží.",
         "name": "Název endpointu",
-        "nameHint": "Malá písmena, číslice a pomlčky, např. bikes-app.",
+        "nameHint": "Malá písmena, číslice a pomlčky.",
         "nameInvalid": "Použijte malá písmena, číslice a pomlčky; začátek a konec písmeno nebo číslice, nejvýše 63 znaků.",
         "space": "Kontextový prostor",
         "spaceMissing": "Vyberte kontextový prostor, který endpoint zpřístupní.",
@@ -2441,7 +2443,7 @@
   },
   "entities": {
     "type": "Typ entity",
-    "typePlaceholder": "Typ entity, např. AirQualityObserved",
+    "typePlaceholder": "Typ entity",
     "scopeQ": "Rozsah (scope)",
     "scopeQHint": "NGSI-LD scopeQ, např. /district/1",
     "filters": "Filtry",
@@ -4612,7 +4614,7 @@
       "choose": "Vyberte…",
       "contactName": "Jméno kontaktu",
       "contactEmail": "E-mail kontaktu",
-      "contactHelp": "Rolová adresa, například oddělení otevřených dat, nikdy osobní e-mail.",
+      "contactHelp": "Rolová adresa jako oddělení otevřených dat, nikdy osobní e-mail.",
       "keywords": "Klíčová slova",
       "keywordsHelp": "Oddělená čárkami, v jazyce {language}.",
       "spatialHelp": "Kódy NUTS nebo odkazy na místa oddělené čárkami, například SK032.",

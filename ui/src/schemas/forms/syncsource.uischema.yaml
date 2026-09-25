@@ -77,14 +77,12 @@ spec:
       fields: [interval, mode, conflictPolicy, prune, autoMerge]
   fields:
     name:
-      placeholder: "upstream-{project}"
       help:
         en: Unique identifier for this synchronization job; cannot be changed later.
         sk: Jedinečný identifikátor tejto synchronizačnej úlohy; neskôr ho nemožno zmeniť.
         cs: Jedinečný identifikátor této synchronizační úlohy; později jej nelze změnit.
         de: Eindeutige Kennung für diesen Synchronisationsauftrag; kann später nicht geändert werden.
     title:
-      placeholder: Upstream city definitions
       help:
         en: The name people read in the list of sources, saying where it syncs from and what.
         sk: Názov v zozname zdrojov, ktorý povie, odkiaľ a čo sa synchronizuje.
@@ -104,77 +102,66 @@ spec:
         cs: Název větve, značka nebo konkrétní kontrolní součet verze z repozitáře.
         de: Name des Zweigs, Schlagwort oder bestimmter Versionsstand des Repositorys.
     git.path:
-      placeholder: "projects/{project}"
       help:
         en: Optional relative directory path to synchronize only a subtree of the repository.
         sk: Voliteľná relatívna cesta k priečinku na synchronizáciu iba časti repozitára.
         cs: Volitelná relativní cesta ke složce pro synchronizaci pouze části repozitáře.
         de: Optionaler relativer Pfad, um nur ein Unterverzeichnis des Repositorys einzubinden.
     git.secretRef.name:
-      placeholder: git-credentials
       help:
         en: Name of the stored secret holding access tokens or SSH keys for the repository.
         sk: Názov uloženého tajomstva obsahujúceho prístupové tokeny alebo SSH kľúče k repozitáru.
         cs: Název uloženého tajemství obsahujícího přístupové tokeny nebo SSH klíče k repozitáři.
         de: Name des gespeicherten Secrets mit Zugriffstoken oder SSH-Schlüsseln für das Repository.
     git.secretRef.key:
-      placeholder: token
       help:
         en: Property key inside the secret storing the credential value.
         sk: Kľúč vlastnosti v tajomstve, kde je uložená hodnota prihlasovacieho údaju.
         cs: Klíč vlastnosti v tajemství, kde je uložena hodnota přihlašovacího údaje.
         de: Schlüssel innerhalb des Secrets, unter dem die Zugangsdaten hinterlegt sind.
     bundle.url:
-      placeholder: "https://example.org/bundles/transit.zip"
       help:
         en: Web address of the published bundle archive to download and import.
         sk: Webová adresa zverejneného archívu balíka na stiahnutie a import.
         cs: Webová adresa zveřejněného archivu balíku ke stažení a importu.
         de: Webadresse des veröffentlichten Paketarchivs zum Herunterladen und Importieren.
     bundle.secretRef.name:
-      placeholder: bundle-credentials
       help:
         en: Name of the stored secret holding credentials to download the bundle.
         sk: Názov uloženého tajomstva obsahujúceho prihlasovacie údaje na stiahnutie balíka.
         cs: Název uloženého tajemství obsahujícího přihlašovací údaje ke stažení balíku.
         de: Name des gespeicherten Secrets mit Zugangsdaten zum Herunterladen des Pakets.
     bundle.secretRef.key:
-      placeholder: token
       help:
         en: Property key inside the secret storing the credential value.
         sk: Kľúč vlastnosti v tajomstve, kde je uložená hodnota prihlasovacieho údaju.
         cs: Klíč vlastnosti v tajemství, kde je uložena hodnota přihlašovacího údaje.
         de: Schlüssel innerhalb des Secrets, unter dem die Zugangsdaten hinterlegt sind.
     platformApi.baseUrl:
-      placeholder: "https://hub.example.org"
       help:
         en: Base web address of the remote platform instance serving the API.
         sk: Základná webová adresa vzdialenej inštancie platformy poskytujúcej rozhranie API.
         cs: Základní webová adresa vzdálené instance platformy poskytující rozhraní API.
         de: Basiswebadresse der entfernten Plattforminstanz, die die API bereitstellt.
     platformApi.project:
-      placeholder: "{project}"
       help:
         en: Project identifier on the remote instance to copy resources from.
         sk: Identifikátor projektu na vzdialenej inštancii, z ktorého sa kopírujú prostriedky.
         cs: Identifikátor projektu na vzdálené instanci, ze kterého se kopírují prostředky.
         de: Projektkennung auf der entfernten Instanz, aus der Ressourcen übernommen werden.
     platformApi.secretRef.name:
-      placeholder: platform-api-credentials
       help:
         en: Name of the stored secret holding credentials to access the remote platform.
         sk: Názov uloženého tajomstva obsahujúceho prihlasovacie údaje k vzdialenej platforme.
         cs: Název uloženého tajemství obsahujícího přihlašovací údaje ke vzdálené platformě.
         de: Name des gespeicherten Secrets mit Zugangsdaten für die entfernte Plattform.
     platformApi.secretRef.key:
-      placeholder: token
       help:
         en: Property key inside the secret storing the credential value.
         sk: Kľúč vlastnosti v tajomstve, kde je uložená hodnota prihlasovacieho údaju.
         cs: Klíč vlastnosti v tajemství, kde je uložena hodnota přihlašovacího údaje.
         de: Schlüssel innerhalb des Secrets, unter dem die Zugangsdaten hinterlegt sind.
     interval:
-      placeholder: 6h
       help:
         en: How often the source is polled for updates, such as 30m, 6h, or 1d.
         sk: Ako často sa kontrolujú aktualizácie zdroja, napríklad 30m, 6h alebo 1d.

@@ -77,7 +77,6 @@ spec:
       fields: [csp, limits, egress]
   fields:
     name:
-      placeholder: "air-quality-map"
       help:
         en: The short name of the app; its address and its endpoint are named after it.
         sk: Krátky názov aplikácie; podľa neho sa pomenuje jej adresa aj endpoint.
@@ -108,70 +107,60 @@ spec:
         cs: Složka vedle manifestu v tomto repozitáři, nebo repozitář ve forge organizace.
         de: Ein Ordner neben dem Manifest in diesem Repository oder ein Repository der Organisation.
     source.path:
-      placeholder: "apps/air-quality-map"
       help:
         en: For a folder source, the folder relative to the repository root, without a leading slash.
         sk: Pri zdroji v priečinku cesta k nemu od koreňa repozitára, bez lomky na začiatku.
         cs: U zdroje ve složce cesta k ní od kořene repozitáře, bez lomítka na začátku.
         de: Bei einem Ordner der Pfad ab der Repository-Wurzel, ohne führenden Schrägstrich.
     source.url:
-      placeholder: "https://git.example.org/city/air-quality-map.git"
       help:
         en: For a repository source, its https clone address on the organization's forge.
         sk: Pri zdroji v repozitári jeho adresa na klonovanie cez https vo forge organizácie.
         cs: U zdroje v repozitáři jeho adresa pro klonování přes https ve forge organizace.
         de: Bei einem Repository seine https-Klonadresse auf der Forge der Organisation.
     source.ref:
-      placeholder: main
       help:
         en: For a repository source, the branch, tag or commit CI builds.
         sk: Pri zdroji v repozitári vetva, značka alebo commit, ktorý CI zostaví.
         cs: U zdroje v repozitáři větev, značka nebo commit, který CI sestaví.
         de: Bei einem Repository der Branch, Tag oder Commit, den CI baut.
     source.subdirectory:
-      placeholder: web
       help:
         en: For a repository source, the folder inside it that holds the app, when it is not the root.
         sk: Pri zdroji v repozitári priečinok, v ktorom je aplikácia, ak to nie je koreň.
         cs: U zdroje v repozitáři složka, ve které je aplikace, pokud to není kořen.
         de: Bei einem Repository der Unterordner mit der App, falls sie nicht in der Wurzel liegt.
     build[].tool:
-      placeholder: node
       help:
         en: A toolchain CI installs, by its lowercase name.
         sk: Sada nástrojov, ktorú CI nainštaluje, podľa jej názvu malými písmenami.
         cs: Sada nástrojů, kterou CI nainstaluje, podle jejího názvu malými písmeny.
         de: Eine Werkzeugkette, die CI installiert, mit ihrem Namen in Kleinbuchstaben.
     build[].version:
-      placeholder: "22.11.0"
       help:
         en: The exact version it is pinned to, so two builds of one commit are the same build.
         sk: Presná verzia, na ktorú je pripnutá, aby dve zostavenia jedného commitu boli rovnaké.
         cs: Přesná verze, na kterou je připnutá, aby dvě sestavení jednoho commitu byla stejná.
         de: Die genaue Version, damit zwei Builds eines Commits derselbe Build sind.
     dataNeeds[].contextSpaceRef:
-      placeholder: "{project}"
       help:
         en: The context space this need reads or writes; one entry per space.
         sk: Kontextový priestor, ktorý táto potreba číta alebo zapisuje; jeden záznam na priestor.
         cs: Kontextový prostor, který tato potřeba čte nebo zapisuje; jeden záznam na prostor.
         de: Der Kontextraum, den dieser Bedarf liest oder schreibt; ein Eintrag je Raum.
     dataNeeds[].roles:
-      placeholder: [editor]
       help:
         en: The app roles this need is granted to; empty grants it to every person the app admits.
         sk: Roly aplikácie, ktorým sa táto potreba udeľuje; prázdne ju udelí každému, koho aplikácia pustí.
         cs: Role aplikace, kterým se tato potřeba uděluje; prázdné ji udělí každému, koho aplikace pustí.
         de: Die App-Rollen, denen dieser Bedarf gewährt wird; leer gewährt ihn jeder Person, die die App zulässt.
     dataNeeds[].types:
-      placeholder: [AirQualityObserved]
       help:
         en: The entity types the app needs from that space; at least one.
         sk: Typy entít, ktoré aplikácia z toho priestoru potrebuje; aspoň jeden.
         cs: Typy entit, které aplikace z toho prostoru potřebuje; alespoň jeden.
         de: Die Entitätstypen, die die App aus diesem Raum braucht; mindestens einer.
     dataNeeds[].attrs:
-      placeholder: [pm10, location]
       help:
         en: The attributes it needs; empty means every readable attribute of those types.
         sk: Atribúty, ktoré potrebuje; prázdne znamená každý čitateľný atribút tých typov.
@@ -190,49 +179,42 @@ spec:
         cs: Reprezentace, které její endpoint pro tuto potřebu poskytuje, vedle NGSI-LD.
         de: Die Darstellungen, die ihr Endpoint für diesen Bedarf neben NGSI-LD liefert.
     dataNeeds[].q:
-      placeholder: pm10>=0
       help:
         en: A condition that narrows what the app may read, in the NGSI-LD query language.
         sk: Podmienka, ktorá zužuje, čo smie aplikácia čítať, v dopytovacom jazyku NGSI-LD.
         cs: Podmínka, která zužuje, co smí aplikace číst, v dotazovacím jazyce NGSI-LD.
         de: Eine Bedingung, die das Lesbare einschränkt, in der NGSI-LD-Abfragesprache.
     dataNeeds[].scopeQ:
-      placeholder: "/district/centre/#"
       help:
         en: A scope query that narrows what the app may read to part of the scope tree.
         sk: Dopyt na rozsah, ktorý zužuje čitateľné údaje na časť stromu rozsahov.
         cs: Dotaz na rozsah, který zužuje čitelná data na část stromu rozsahů.
         de: Eine Scope-Abfrage, die das Lesbare auf einen Teil des Scope-Baums begrenzt.
     dataNeeds[].within:
-      placeholder: "/district/centre"
       help:
         en: The scope the app may read inside, as an absolute scope string.
         sk: Rozsah, v ktorom smie aplikácia čítať, ako absolútny reťazec rozsahu.
         cs: Rozsah, ve kterém smí aplikace číst, jako absolutní řetězec rozsahu.
         de: Der Scope, innerhalb dessen die App lesen darf, als absoluter Scope-String.
     dataNeeds[].window:
-      placeholder: P7D
       help:
         en: How far back in time the app may read, as an ISO 8601 duration.
         sk: Ako ďaleko do minulosti smie aplikácia čítať, ako trvanie podľa ISO 8601.
         cs: Jak daleko do minulosti smí aplikace číst, jako trvání podle ISO 8601.
         de: Wie weit zurück die App lesen darf, als ISO-8601-Dauer.
     csp.connectSrc:
-      placeholder: [self, https://tiles.example.org]
       help:
         en: The origins the app may call besides its endpoint; self, none or https without a wildcard.
         sk: Pôvody, ktoré smie aplikácia volať okrem endpointu; self, none alebo https bez zástupných znakov.
         cs: Původy, které smí aplikace volat kromě endpointu; self, none nebo https bez zástupných znaků.
         de: Die Origins, die die App außer ihrem Endpoint aufrufen darf; self, none oder https ohne Platzhalter.
     csp.frameAncestors:
-      placeholder: [self]
       help:
         en: The pages that may show the app in a frame; empty means none may.
         sk: Stránky, ktoré smú aplikáciu zobraziť v rámci; prázdne znamená žiadne.
         cs: Stránky, které smějí aplikaci zobrazit v rámu; prázdné znamená žádné.
         de: Die Seiten, die die App einbetten dürfen; leer bedeutet keine.
     limits.requestsPerMinute:
-      placeholder: 600
       help:
         en: The most requests a minute the app's endpoint answers; empty leaves the default.
         sk: Najviac požiadaviek za minútu, na ktoré endpoint aplikácie odpovie; prázdne ponechá predvolené.
@@ -246,14 +228,12 @@ spec:
         cs: Síť, na kterou smí server aplikace kromě endpointu přistupovat, jako adresa a prefix; schvaluje ji publikující.
         de: Ein Netz, das der Server der App außer ihrem Endpoint erreichen darf, als Adresse mit Präfix; ein Publisher genehmigt es.
     egress[].ports:
-      placeholder: [443]
       help:
         en: The ports the app's server may reach on that network, at least one.
         sk: Porty, na ktoré smie server aplikácie v tej sieti pristupovať, aspoň jeden.
         cs: Porty, na které smí server aplikace v té síti přistupovat, alespoň jeden.
         de: Die Ports, die der Server der App in diesem Netz erreichen darf, mindestens einer.
     limits.maxFileRows:
-      placeholder: 50000
       help:
         en: The most rows one file download from the app's endpoint may return.
         sk: Najviac riadkov, ktoré môže vrátiť jedno stiahnutie súboru z endpointu aplikácie.

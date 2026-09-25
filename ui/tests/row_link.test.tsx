@@ -562,8 +562,8 @@ describe("a person who may not change a record still opens it, read only", () =>
     if (request.method !== "GET") return undefined;
     if (path === "/api/v1/projects/helsinki/subscriptions") return jsonResponse(list([subscription]));
     if (path === "/api/v1/projects/helsinki/subscriptions/alerts") return jsonResponse(subscription);
-    if (path === "/api/v1/projects/helsinki/blueprints") return jsonResponse(list([manifest("Blueprint", "alerting")]));
-    if (path === "/api/v1/projects/helsinki/blueprints/alerting") return jsonResponse(manifest("Blueprint", "alerting"));
+    if (path === "/api/v1/projects/helsinki/layers") return jsonResponse(list([manifest("Layer", "alerting")]));
+    if (path === "/api/v1/projects/helsinki/layers/alerting") return jsonResponse(manifest("Layer", "alerting"));
     return undefined;
   };
 
@@ -581,9 +581,9 @@ describe("a person who may not change a record still opens it, read only", () =>
   });
 
   it("a reader reads a kind without a form as its manifest, not an editor", async () => {
-    await renderRoute({ path: "/projects/helsinki/blueprints/alerting/edit?lang=en", answer, permissions: READER });
+    await renderRoute({ path: "/projects/helsinki/layers/alerting/edit?lang=en", answer, permissions: READER });
     const text = await screen.findByRole("group", { name: "The manifest of alerting" });
-    expect(text).toHaveTextContent("kind: Blueprint");
+    expect(text).toHaveTextContent("kind: Layer");
     expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 # Default form arrangement for Environment (UI-02, T-1545).
-# The values one environment renders the repository with; examples are neutral example.org hosts
-# and a placeholder digest (T-2752).
+# The values one environment renders the repository with; its one example is a placeholder
+# digest (T-2752, T-2882).
 apiVersion: joinedcontext.com/v1alpha1
 kind: UiSchema
 metadata:
@@ -53,35 +53,30 @@ spec:
       fields: [images, secrets, features]
   fields:
     name:
-      placeholder: "staging"
       help:
         en: The name an installation selects this environment by; it cannot change once it exists.
         sk: Názov, podľa ktorého inštalácia toto prostredie vyberá; keď existuje, nemení sa.
         cs: Název, podle něhož instalace toto prostředí vybírá; jakmile existuje, nemění se.
         de: Der Name, über den eine Installation diese Umgebung wählt; er ändert sich nicht mehr.
     orgDomain:
-      placeholder: "staging.example.org"
       help:
         en: The organization's domain in this environment; every manifest's orgDomain is rendered with it.
         sk: Doména organizácie v tomto prostredí; každý manifest s ňou vykreslí svoj orgDomain.
         cs: Doména organizace v tomto prostředí; každý manifest s ní vykreslí svůj orgDomain.
         de: Die Domain der Organisation in dieser Umgebung; jedes orgDomain eines Manifests wird damit gerendert.
     hosts[].component:
-      placeholder: "portal"
       help:
         en: The component the host belongs to, each once.
         sk: Komponent, ku ktorému hostiteľ patrí, každý raz.
         cs: Komponenta, ke které hostitel patří, každá jednou.
         de: Die Komponente, zu der der Host gehört, jede einmal.
     hosts[].host:
-      placeholder: "portal.staging.example.org"
       help:
         en: The host name, without a scheme or a path.
         sk: Názov hostiteľa bez schémy a cesty.
         cs: Název hostitele bez schématu a cesty.
         de: Der Hostname, ohne Schema und Pfad.
     images[].component:
-      placeholder: "portal"
       help:
         en: The component the image is for, each once.
         sk: Komponent, pre ktorý je obraz, každý raz.
@@ -95,21 +90,18 @@ spec:
         cs: Otisk sha256 obrazu; značka je odmítnuta, protože se mění.
         de: Der sha256-Digest des Images; ein Tag wird abgelehnt, weil er sich bewegt.
     secrets.backend:
-      placeholder: "openbao"
       help:
         en: The backend that answers a secretRef here, such as openbao or kubernetes; never a secret.
         sk: Úložisko, ktoré tu odpovedá na secretRef, napríklad openbao alebo kubernetes; nikdy tajomstvo.
         cs: Úložiště, které zde odpovídá na secretRef, například openbao nebo kubernetes; nikdy tajemství.
         de: Das Backend, das hier einen secretRef beantwortet, etwa openbao oder kubernetes; nie ein Secret.
     secrets.mount:
-      placeholder: "jc/staging"
       help:
         en: Where inside that backend the secrets of this environment are kept.
         sk: Kde v tom úložisku sú tajomstvá tohto prostredia.
         cs: Kde v tom úložišti jsou tajemství tohoto prostředí.
         de: Wo in diesem Backend die Secrets dieser Umgebung liegen.
     features[].name:
-      placeholder: "publicEndpoints"
       help:
         en: The feature flag's name, each once.
         sk: Názov prepínača funkcie, každý raz.

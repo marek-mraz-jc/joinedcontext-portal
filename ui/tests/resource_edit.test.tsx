@@ -23,10 +23,10 @@ const PROJECT = "banskabystrica";
 const NAME = "zvolen-ovzdusie";
 
 // A kind with no form of its own, so its Edit opens the manifest as YAML: that path is what this file
-// holds. It read a ContextSourceRegistration until that kind got its form (T-2345).
+// holds. It read a ContextSourceRegistration until that kind got its form (T-2345), then a DataOffer until T-1547 gave it one.
 const OFFER = {
   apiVersion: "joinedcontext.com/v1alpha1",
-  kind: "DataOffer",
+  kind: "Layer",
   metadata: { name: NAME, namespace: PROJECT, title: { en: "Zvolen air quality" } },
   spec: { contextSpaceRef: "hub", purpose: "https://w3id.org/dpv#ResearchAndDevelopment" },
   status: { phase: "Live" },
@@ -49,7 +49,7 @@ function renderList(options: { verbs: string[]; answer?: "change" | "invalid" })
       return json({ subject: "s1", username: "jana.kovacova", roles: [] });
     }
     if (path.endsWith("/permissions/me")) {
-      return json({ grants: [{ rule: { kinds: ["DataOffer"], verbs: options.verbs } }] });
+      return json({ grants: [{ rule: { kinds: ["Layer"], verbs: options.verbs } }] });
     }
     if (request.method === "PUT") {
       return options.answer === "invalid"
@@ -65,10 +65,10 @@ function renderList(options: { verbs: string[]; answer?: "change" | "invalid" })
           )
         : json(CHANGE, 202);
     }
-    if (path.endsWith(`/dataoffers/${NAME}`)) {
+    if (path.endsWith(`/layers/${NAME}`)) {
       return json(OFFER);
     }
-    if (path.endsWith("/dataoffers")) {
+    if (path.endsWith("/layers")) {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [OFFER] });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
@@ -106,7 +106,7 @@ describe("editing a resource from its list", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     document.cookie = "jc_csrf=csrf-token-value";
-    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/layers`);
   });
 
   afterEach(() => {
@@ -130,24 +130,24 @@ describe("editing a resource from its list", () => {
     expect(shown.spec).toEqual(OFFER.spec);
 
     await userEvent.clear(yaml);
-    await userEvent.type(yaml, `kind: DataOffer\nmetadata:\n  name: ${NAME}\nspec:\n  contextSpaceRef: air\n`);
+    await userEvent.type(yaml, `kind: Layer\nmetadata:\n  name: ${NAME}\nspec:\n  contextSpaceRef: air\n`);
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
 
     expect(await screen.findByText(CHANGE.metadata.name)).toBeInTheDocument();
     const sent = puts(fetchMock);
     expect(sent).toHaveLength(1);
-    expect(new URL(sent[0].url).pathname).toBe(`/api/v1/projects/${PROJECT}/dataoffers/${NAME}`);
+    expect(new URL(sent[0].url).pathname).toBe(`/api/v1/projects/${PROJECT}/layers/${NAME}`);
     expect(sent[0].headers.get("x-csrf-token")).toBe("csrf-token-value");
     expect((await sent[0].json()).spec).toEqual({ contextSpaceRef: "air" });
     // Checked before it was proposed (PF-57, T-0956).
-    expect(checksSoFar().some((check) => check.includes("/dataoffers/"))).toBe(true);
+    expect(checksSoFar().some((check) => check.includes("/layers/"))).toBe(true);
   });
 
   it("refuses a renamed manifest before anything is sent", async () => {
     const fetchMock = renderList({ verbs: ["propose"] });
     const { dialog, yaml } = await openEditor();
     await userEvent.clear(yaml);
-    await userEvent.type(yaml, "kind: DataOffer\nmetadata:\n  name: banska-ovzdusie\n");
+    await userEvent.type(yaml, "kind: Layer\nmetadata:\n  name: banska-ovzdusie\n");
     await userEvent.click(within(dialog).getByRole("button", { name: en.resourceEdit.propose }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(`Keep the name ${NAME}`);
@@ -162,12 +162,12 @@ describe("editing a resource from its list", () => {
   });
 
   it("opens the editor on the change the assistant made, and sends nothing until proposed (AG-77)", async () => {
-    rememberPrefill(`/projects/${PROJECT}/dataoffers?edit=${NAME}`, {
+    rememberPrefill(`/projects/${PROJECT}/layers?edit=${NAME}`, {
       ...OFFER,
       status: undefined,
       spec: { ...OFFER.spec, contextSpaceRef: "air" },
     });
-    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}&draft=${NAME}`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/layers?edit=${NAME}&draft=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
     const dialog = await findFormPage();
     const yaml = (await within(dialog).findByRole("textbox", { name: "YAML" })) as HTMLTextAreaElement;
@@ -180,7 +180,7 @@ describe("editing a resource from its list", () => {
   });
 
   it("opens the editor at once for a page opened to edit one resource", async () => {
-    window.history.pushState({}, "", `/projects/${PROJECT}/dataoffers?edit=${NAME}`);
+    window.history.pushState({}, "", `/projects/${PROJECT}/layers?edit=${NAME}`);
     const fetchMock = renderList({ verbs: ["propose"] });
     const dialog = await findFormPage();
     expect(dialog).toHaveTextContent("Edit Zvolen air quality");

@@ -181,20 +181,6 @@ function offersChoices(definition: Record<string, unknown>): boolean {
   );
 }
 
-/** A field whose choices or default already tell the person what a value looks like. */
-function showsItsOwnValue(definition: Record<string, unknown>): boolean {
-  const items = definition.items as
-    { enum?: unknown; oneOf?: unknown } | undefined;
-  return (
-    definition.type === "boolean" ||
-    definition.enum !== undefined ||
-    definition.oneOf !== undefined ||
-    items?.enum !== undefined ||
-    items?.oneOf !== undefined ||
-    definition.default !== undefined
-  );
-}
-
 describe("the help and the example beside every form field", () => {
   for (const [kind, branches] of Object.entries(FORMS)) {
     /** Every field of every branch, each once: what the arrangement has to cover. */
@@ -267,28 +253,26 @@ describe("the help and the example beside every form field", () => {
         ).toEqual([]);
       });
 
-      it("offers an example the field accepts, wherever the field does not show its own values", () => {
+      // One example per form, at most (T-2882, owner rule of 2026-09-25): an example on field
+      // after field drowned the one that helps. It sits on the field whose value carries the
+      // pattern, and it is still a value that field accepts, since "Use the example" writes it.
+      it("shows at most one example, and one the field accepts", () => {
         const { uiSchema } = arrange(manifestFor(kind), {
           properties: allPaths,
           examples: EXAMPLE_VALUES,
         });
-        const missing: string[] = [];
+        const shown: string[] = [];
         const refused: string[] = [];
         for (const { path, definition } of allLeaves) {
-          // A list's example belongs to its items: the control a person types into is the item,
-          // and an example written at the array reads as "Invalid type" (T-2257).
           const where =
             definition.type === "array" ? `${path}[]` : path;
           const example = entryAt(uiSchema as Record<string, unknown>, where)[
             "ui:placeholder"
           ];
-          if (showsItsOwnValue(definition)) {
-            continue;
-          }
           if (example === undefined || String(example).trim() === "") {
-            missing.push(path);
             continue;
           }
+          shown.push(path);
           const pattern = definition.pattern as string | undefined;
           if (pattern && !new RegExp(pattern).test(String(example))) {
             refused.push(
@@ -302,7 +286,7 @@ describe("the help and the example beside every form field", () => {
             refused.push(`${path}: ${String(example)} is not a whole number`);
           }
         }
-        expect(missing, "fields a person faces with a blank input").toEqual([]);
+        expect(shown.length, `${kind} shows examples on ${shown.join(", ")}`).toBeLessThanOrEqual(1);
         expect(refused, "examples the field itself would refuse").toEqual([]);
       });
 

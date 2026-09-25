@@ -76,7 +76,6 @@ spec:
       fields: [q, scopeQ, geoQ, temporalQ, validity]
   fields:
     name:
-      placeholder: "air-quality-public-read"
       help:
         en: The short name this policy is filed under; two policies of a project cannot share one.
         sk: Krátky názov, pod ktorým je politika uložená; dve politiky projektu ho nemôžu zdieľať.
@@ -101,7 +100,6 @@ spec:
         cs: Zda oprávnění patří roli, skupině, jedné osobě, servisnímu účtu nebo DID.
         de: Ob die Berechtigung einer Rolle, Gruppe, Person, einem Dienstkonto oder einer DID gilt.
     assignee.id:
-      placeholder: public
       help:
         en: The name of that role, group, person or account, as the identity provider spells it.
         sk: Názov tej roly, skupiny, osoby alebo účtu tak, ako ho píše poskytovateľ identity.
@@ -114,28 +112,24 @@ spec:
         cs: Co smí příjemce dělat, podle pěti názvů skupin CIM 009 nebo operací za nimi.
         de: Was der Empfänger darf, nach den fünf CIM-009-Gruppennamen oder deren Operationen.
     information[].entities[].type:
-      placeholder: AirQualityObserved
       help:
         en: One entity type this grant covers; a grant with no type covers nothing at all.
         sk: Jeden typ entity, ktorého sa oprávnenie týka; oprávnenie bez typu nepokrýva nič.
         cs: Jeden typ entity, kterého se oprávnění týká; oprávnění bez typu nepokrývá nic.
         de: Ein Entitätstyp dieser Berechtigung; ohne Typ umfasst eine Berechtigung nichts.
     information[].entities[].idPattern:
-      placeholder: "^urn:ngsi-ld:AirQualityObserved:.*$"
       help:
         en: An anchored expression narrowing the grant to the identifiers that match it.
         sk: Ukotvený výraz, ktorý zužuje oprávnenie na identifikátory, ktoré mu zodpovedajú.
         cs: Ukotvený výraz, který zužuje oprávnění na identifikátory, jež mu odpovídají.
         de: Ein verankerter Ausdruck, der die Berechtigung auf passende Kennungen einschränkt.
     information[].propertyNames:
-      placeholder: [pm10, pm25, location]
       help:
         en: The properties this grant reaches; leaving the list empty reaches all of them.
         sk: Vlastnosti, na ktoré oprávnenie dosiahne; prázdny zoznam znamená všetky.
         cs: Vlastnosti, na které oprávnění dosáhne; prázdný seznam znamená všechny.
         de: Die Eigenschaften dieser Berechtigung; eine leere Liste bedeutet alle.
     information[].relationshipNames:
-      placeholder: [refDistrict]
       help:
         en: The relationships this grant reaches; leaving the list empty reaches all of them.
         sk: Vzťahy, na ktoré oprávnenie dosiahne; prázdny zoznam znamená všetky.
@@ -149,35 +143,30 @@ spec:
         cs: Podmínka na atributy; entita, která ji nesplní, do oprávnění nepatří.
         de: Eine Bedingung an die Attribute; eine Entität, die sie verfehlt, fällt heraus.
     scopeQ:
-      placeholder: "/district/centre"
       help:
         en: The branch of the scope tree the grant covers, and everything under it.
         sk: Vetva stromu rozsahov, ktorú oprávnenie pokrýva, a všetko pod ňou.
         cs: Větev stromu rozsahů, kterou oprávnění pokrývá, a vše pod ní.
         de: Der Zweig des Bereichsbaums, den die Berechtigung umfasst, samt allem darunter.
     geoQ:
-      placeholder: "georel=within;geometry=Polygon;coordinates=[[[19.1,48.7],[19.2,48.7],[19.2,48.8],[19.1,48.7]]]"
       help:
         en: The area the grant covers; an entity outside it is neither read nor written.
         sk: Oblasť, ktorú oprávnenie pokrýva; entita mimo nej sa nečíta ani nezapisuje.
         cs: Oblast, kterou oprávnění pokrývá; entita mimo ni se nečte ani nezapisuje.
         de: Das Gebiet der Berechtigung; eine Entität außerhalb wird weder gelesen noch geschrieben.
     temporalQ:
-      placeholder: "timerel=after&timeAt=2026-01-01T00:00:00Z"
       help:
         en: The window of history the grant covers; what falls outside it is not answered.
         sk: Okno histórie, ktoré oprávnenie pokrýva; čo je mimo neho, sa neodpovedá.
         cs: Okno historie, které oprávnění pokrývá; co je mimo ně, se neodpovídá.
         de: Das Zeitfenster der Berechtigung; was außerhalb liegt, wird nicht beantwortet.
     validity.from:
-      placeholder: "2026-01-01T00:00:00Z"
       help:
         en: The instant the grant starts to apply; before it the policy decides nothing.
         sk: Okamih, od ktorého oprávnenie platí; predtým politika nerozhoduje o ničom.
         cs: Okamžik, od kterého oprávnění platí; předtím politika nerozhoduje o ničem.
         de: Der Zeitpunkt, ab dem die Berechtigung gilt; davor entscheidet die Richtlinie nichts.
     validity.to:
-      placeholder: "2026-12-31T23:59:59Z"
       help:
         en: The instant the grant stops; after it every request under this policy is refused.
         sk: Okamih, keď oprávnenie končí; po ňom sa každá požiadavka podľa politiky odmieta.

@@ -43,7 +43,7 @@ test("a demo person signs in to the catalogue through Keycloak", async ({ browse
     }
     expect(new URL(page.url()).pathname, "back on the login page means the sign-in did not finish").not.toMatch(/^\/user\/login/);
     // Signed in: the account masthead offers the way out, which a visitor never sees.
-    await expect(page.locator(".account-masthead").getByRole("link", { name: /log out/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".account-masthead").getByRole("button", { name: /log out/i })).toBeVisible({ timeout: 30_000 });
   } finally {
     await context.close();
   }

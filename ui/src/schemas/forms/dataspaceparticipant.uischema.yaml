@@ -51,7 +51,6 @@ spec:
       fields: [connectorUrl, engine, trustAnchors]
   fields:
     name:
-      placeholder: "participant"
       help:
         en: The short name the participant is filed under; the organization has only this one.
         sk: Krátky názov, pod ktorým je účastník uložený; organizácia má len tohto jedného.
@@ -65,14 +64,12 @@ spec:
         cs: did:web a ověřená doména organizace, jak ji budou znát jiní účastníci.
         de: did:web und die verifizierte Domain der Organisation, wie andere Teilnehmer sie kennen.
     credentialIssuer:
-      placeholder: "https://issuer.example.org"
       help:
         en: The HTTPS address of the service that issues this organization's verifiable credentials.
         sk: Adresa HTTPS služby, ktorá vydáva overiteľné poverenia tejto organizácie.
         cs: Adresa HTTPS služby, která vydává ověřitelná pověření této organizace.
         de: Die HTTPS-Adresse des Dienstes, der die Nachweise dieser Organisation ausstellt.
     connectorUrl:
-      placeholder: "https://connector.example.org"
       help:
         en: The HTTPS address of this organization's connector, where other participants negotiate.
         sk: Adresa HTTPS konektora tejto organizácie, kde iní účastníci vyjednávajú.
@@ -85,7 +82,6 @@ spec:
         cs: Implementace konektoru, která pro tuto organizaci provádí Dataspace Protocol.
         de: Die Connector-Implementierung, die für diese Organisation das Dataspace Protocol ausführt.
     trustAnchors:
-      placeholder: [did:web:authority.example.org]
       help:
         en: The did:web identifiers of issuers and authorities whose credentials this organization trusts, each once.
         sk: Identifikátory did:web vydavateľov a autorít, ktorých povereniam organizácia dôveruje, každý raz.

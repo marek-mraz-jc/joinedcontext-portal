@@ -52,42 +52,36 @@ spec:
       fields: [classes, filter]
   fields:
     name:
-      placeholder: "air-quality-public"
       help:
         en: The short name an endpoint references the projection by.
         sk: Krátky názov, ktorým koncový bod na projekciu odkazuje.
         cs: Krátký název, kterým koncový bod na projekci odkazuje.
         de: Der kurze Name, mit dem ein Endpunkt die Projektion referenziert.
     contextSpaceRef:
-      placeholder: "air-quality"
       help:
         en: The context space of this project whose model the projection narrows.
         sk: Kontextový priestor tohto projektu, ktorého model projekcia zužuje.
         cs: Kontextový prostor tohoto projektu, jehož model projekce zužuje.
         de: Der Kontextraum dieses Projekts, dessen Modell die Projektion einschränkt.
     dataModelRef.name:
-      placeholder: "air-quality"
       help:
         en: The data model of that space.
         sk: Dátový model toho priestoru.
         cs: Datový model toho prostoru.
         de: Das Datenmodell dieses Raums.
     dataModelRef.version:
-      placeholder: "1"
       help:
         en: The served major version of the model, such as 1 or 2.
         sk: Poskytovaná hlavná verzia modelu, napríklad 1 alebo 2.
         cs: Poskytovaná hlavní verze modelu, například 1 nebo 2.
         de: Die bereitgestellte Hauptversion des Modells, etwa 1 oder 2.
     classes[].name:
-      placeholder: "AirQualityObserved"
       help:
         en: A class of the model, each once; a class not listed is not exposed.
         sk: Trieda modelu, každá raz; neuvedená trieda sa nevystavuje.
         cs: Třída modelu, každá jednou; neuvedená třída se nevystavuje.
         de: Eine Klasse des Modells, jede einmal; eine nicht genannte Klasse wird nicht bereitgestellt.
     classes[].slots:
-      placeholder: [pm10]
       help:
         en: The slots kept; none keeps the identity only, the id and the type.
         sk: Ponechané sloty; žiadny ponechá len identitu, id a typ.
@@ -101,21 +95,18 @@ spec:
         cs: Filtr dotazu NGSI-LD, kterým se zúží každé čtení přes projekci.
         de: Ein NGSI-LD-Abfragefilter, der jede Abfrage über die Projektion einschränkt.
     filter.scopeQ:
-      placeholder: "/city/centre"
       help:
         en: A scope filter every read through the projection is narrowed by.
         sk: Filter rozsahu, ktorým sa zúži každé čítanie cez projekciu.
         cs: Filtr rozsahu, kterým se zúží každé čtení přes projekci.
         de: Ein Bereichsfilter, der jede Abfrage über die Projektion einschränkt.
     filter.geoQ:
-      placeholder: "georel=within;geometry=Polygon;coordinates=[[[0,0],[0,1],[1,1],[1,0],[0,0]]]"
       help:
         en: The area reads through the projection are limited to, as an NGSI-LD geo-query.
         sk: Oblasť, na ktorú sa obmedzí čítanie cez projekciu, ako geodopyt NGSI-LD.
         cs: Oblast, na kterou se omezí čtení přes projekci, jako geodotaz NGSI-LD.
         de: Das Gebiet, auf das Abfragen über die Projektion beschränkt sind, als NGSI-LD-Geoabfrage.
     filter.temporalQ:
-      placeholder: "timerel=after;timeAt=2027-01-01T00:00:00Z"
       help:
         en: The time window history reads through the projection are limited to.
         sk: Časové okno, na ktoré sa obmedzí čítanie histórie cez projekciu.

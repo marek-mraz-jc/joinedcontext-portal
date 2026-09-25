@@ -161,7 +161,8 @@ describe("SpaceComplete page", () => {
     expect(screen.getByRole("button", { name: /Propose all/i }).className).toContain("bg-primary");
     expect(screen.getByRole("button", { name: "Complete" }).className).not.toContain("bg-primary");
     expect(screen.getByText(/Once a person approves them/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Space name/i)).toHaveAttribute("placeholder", "city-bikes");
+    // One example per form (T-2882): the feed address carries it; the space picker says what it does.
+    expect(screen.getByLabelText(/Space name/i)).toHaveAttribute("placeholder", en.picker.search);
   });
 
   it("opens with the drafts the assistant completed, ready to propose, without running again (AG-73)", async () => {

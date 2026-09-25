@@ -509,8 +509,8 @@
       },
       "refused-red-verdict": {
         "live": {
-          "spec": "forms-examples.spec.ts",
-          "test": "every create form is green from its own examples"
+          "spec": "verdict-gate.spec.ts",
+          "test": "a check refuses a model that does not exist, names the field, and a fix clears it"
         },
         "assistant": "jc_datasource_check"
       },

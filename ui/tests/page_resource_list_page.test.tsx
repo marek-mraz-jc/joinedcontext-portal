@@ -96,7 +96,8 @@ describe("a kind with no page of its own", () => {
   it("an_empty_kind_says_what_would_fill_it", async () => {
     await renderRoute({ path: PATH, answer: answering([]) });
     expect(await screen.findByText(en.resourceList.empty)).toBeInTheDocument();
-    expect(screen.getByText(en.resourceList.emptyHint)).toBeInTheDocument();
+    // Blueprint has a form since T-1547, so its empty list names the New it offers.
+    expect(screen.getByText(i18n.t("resourceList.emptyHintCreate", { kind: "Blueprint" }))).toBeInTheDocument();
   });
 
   it("survives_0_1_and_500_rows_and_keeps_one_row_action_each", async () => {

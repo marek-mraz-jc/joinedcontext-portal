@@ -119,6 +119,46 @@ describe("the Context Spaces page", () => {
     expect(screen.getAllByRole("button", { name: en.spaces.add })).toHaveLength(2);
   });
 
+  // T-2889: how big each space is, from the broker's count (API/01 §28), sortable by it.
+  it("shows_each_spaces_entity_count_and_sorts_the_biggest_first", async () => {
+    const counts: Record<string, number> = { air: 1200, bikes: 14232, noise: 0 };
+    await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        const usage = /\/spaces\/([a-z-]+)\/usage$/.exec(path);
+        if (usage) return jsonResponse({ entities: counts[usage[1]], observedAt: "2026-09-25T11:40:00Z" });
+        return answering([space("air"), space("bikes"), space("noise")])(path);
+      },
+    });
+    const table = await screen.findByRole("table");
+    await waitFor(() => expect(within(table).getAllByTestId("space-entities")).toHaveLength(3));
+    const shown = () => within(table).getAllByTestId("space-entities").map((cell) => cell.textContent);
+    expect(shown()).toEqual(["1,200", "14,232", "0"]);
+
+    const sort = within(table).getByRole("button", { name: en.spaces.field.entities });
+    const header = sort.closest("th") as HTMLElement;
+    expect(header).toHaveAttribute("aria-sort", "none");
+    await userEvent.click(sort);
+    expect(header).toHaveAttribute("aria-sort", "descending");
+    expect(shown()).toEqual(["14,232", "1,200", "0"]);
+    await userEvent.click(sort);
+    expect(shown()).toEqual(["1,200", "14,232", "0"]);
+  });
+
+  it("says_why_a_count_is_missing_and_never_shows_a_zero_for_it", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: (path) =>
+        path.endsWith("/usage")
+          ? problem(503, "the broker did not answer; try again in a minute")
+          : answering([space("air")])(path),
+    });
+    const table = await screen.findByRole("table");
+    const reason = i18n.t("spaces.entitiesUnknown", { reason: "the broker did not answer; try again in a minute" });
+    expect(await within(table).findByText(reason)).toBeInTheDocument();
+    expect(within(table).queryByTestId("space-entities")).toBeNull();
+  });
+
   it("survives_0_1_and_500_rows", async () => {
     for (const count of [0, 1, 500]) {
       const items = Array.from({ length: count }, (_, index) => space(`space-${index}`));
