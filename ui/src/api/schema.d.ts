@@ -1717,6 +1717,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Data Quality
+         * @description The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).
+         */
+        get: operations["get_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
         parameters: {
             query?: never;
@@ -3169,14 +3189,19 @@ export interface components {
             kind?: string | null;
             name?: string | null;
         };
-        /** @description The runner's counters for the pipeline that feeds an endpoint, read when the search ran. */
+        /** @enum {string} */
+        FreshState: "fresh" | "stale" | "empty" | "untargeted";
+        /** @description How recent the data of one pipeline is. */
         Freshness: {
-            /** Format: int64 */
-            errors?: number | null;
+            /** Format: date-time */
+            newest?: string | null;
+            paused: boolean;
             pipeline: string;
+            state: components["schemas"]["FreshState"];
             /** Format: int64 */
-            received?: number | null;
-            scrapedAt: string;
+            targetSeconds?: number | null;
+            /** @description The pipeline's output type; empty when it names none and the whole space counts. */
+            type: string;
         };
         /**
          * @description How a request authenticated: what `GET /api/v1/auth/me` reports so the UI knows whose
@@ -4066,6 +4091,15 @@ export interface components {
              */
             overlapHours?: number | null;
         };
+        /** @description One failing rule of a space: a SHACL component and the path it is about. */
+        RuleCount: {
+            /** Format: int64 */
+            count: number;
+            /** @description At most five ids of entities that break it. */
+            examples: string[];
+            path: string;
+            rule: string;
+        };
         /**
          * @description Everything the proxy needs to decide one request, and nothing a workspace may see.
          *
@@ -4160,6 +4194,18 @@ export interface components {
         SpaceMapping: {
             from: string;
             to: string;
+        };
+        /** @description What one run found in one space. */
+        SpaceQuality: {
+            /** Format: int64 */
+            checked: number;
+            freshness: components["schemas"]["Freshness"][];
+            /** Format: int64 */
+            invalid: number;
+            /** Format: date-time */
+            observedAt: string;
+            rules: components["schemas"]["RuleCount"][];
+            truncated: boolean;
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
@@ -9886,6 +9932,49 @@ export interface operations {
             };
             /** @description No key database configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_quality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report, or `{}` when the space was not checked yet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceQuality"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

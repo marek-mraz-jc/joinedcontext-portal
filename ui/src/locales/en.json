@@ -413,7 +413,41 @@
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first."
     },
-    "segment": "ids: {segment}"
+    "segment": "ids: {segment}",
+    "quality": {
+      "title": "Data quality",
+      "notYet": "Not checked yet: the platform checks this space's data once a day.",
+      "nothingToCheck": "No entities to check",
+      "valid": "{share} valid",
+      "rulesFailing": "{count, plural, =0 {no rule failing} one {# rule failing} other {# rules failing}}",
+      "allFresh": "fresh",
+      "stale": "{count, plural, one {# pipeline stale} other {# pipelines stale}}",
+      "checkedAt": "{count, plural, one {# entity} other {# entities}} checked {when}.",
+      "truncated": "Only the first 20,000 were read.",
+      "rulesCaption": "The rules the space's entities break",
+      "rule": "Rule",
+      "attribute": "Attribute",
+      "entities": "Entities",
+      "examples": "Examples",
+      "wholeEntity": "the entity itself",
+      "examplesHidden": "Only people who read the space's entities see which ones",
+      "freshnessCaption": "How recent each pipeline's data is",
+      "pipeline": "Pipeline",
+      "type": "Type",
+      "newest": "Newest",
+      "target": "Expected within",
+      "state": "State",
+      "anyType": "any type",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "paused": "Paused",
+      "states": {
+        "fresh": "Fresh",
+        "stale": "Stale",
+        "empty": "Empty",
+        "untargeted": "No target"
+      }
+    }
   },
   "endpoints": {
     "check": "Check",

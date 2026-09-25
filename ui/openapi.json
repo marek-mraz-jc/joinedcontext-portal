@@ -7428,6 +7428,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/quality": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Data Quality",
+        "description": "The last daily run's report of one space: entities checked and invalid, the failing rules with examples, and the freshness of each pipeline writing into it. `{}` before the first run. Example ids only for a caller who reads Entity in the space (DM-70).",
+        "operationId": "get_quality",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report, or `{}` when the space was not checked yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceQuality"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/syncsources/{name}/detach": {
       "post": {
         "tags": [
@@ -12521,26 +12583,42 @@
         },
         "additionalProperties": false
       },
+      "FreshState": {
+        "type": "string",
+        "enum": [
+          "fresh",
+          "stale",
+          "empty",
+          "untargeted"
+        ]
+      },
       "Freshness": {
         "type": "object",
-        "description": "The runner's counters for the pipeline that feeds an endpoint, read when the search ran.",
+        "description": "How recent the data of one pipeline is.",
         "required": [
           "pipeline",
-          "scrapedAt"
+          "type",
+          "state",
+          "paused"
         ],
         "properties": {
-          "errors": {
+          "newest": {
             "type": [
-              "integer",
+              "string",
               "null"
             ],
-            "format": "int64",
-            "minimum": 0
+            "format": "date-time"
+          },
+          "paused": {
+            "type": "boolean"
           },
           "pipeline": {
             "type": "string"
           },
-          "received": {
+          "state": {
+            "$ref": "#/components/schemas/FreshState"
+          },
+          "targetSeconds": {
             "type": [
               "integer",
               "null"
@@ -12548,8 +12626,9 @@
             "format": "int64",
             "minimum": 0
           },
-          "scrapedAt": {
-            "type": "string"
+          "type": {
+            "type": "string",
+            "description": "The pipeline's output type; empty when it names none and the whole space counts."
           }
         }
       },
@@ -15030,6 +15109,36 @@
         },
         "additionalProperties": false
       },
+      "RuleCount": {
+        "type": "object",
+        "description": "One failing rule of a space: a SHACL component and the path it is about.",
+        "required": [
+          "rule",
+          "path",
+          "count",
+          "examples"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most five ids of entities that break it."
+          },
+          "path": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          }
+        }
+      },
       "RunContext": {
         "type": "object",
         "description": "Everything the proxy needs to decide one request, and nothing a workspace may see.\n\nThis is the one place the ticket hash leaves the Portal, and it leaves on the internal\nlistener alone. The budgets are read from the profile at answer time rather than copied into\nthe run row, so lowering a profile's ceiling takes effect on the runs already in flight.",
@@ -15285,6 +15394,49 @@
           }
         },
         "additionalProperties": false
+      },
+      "SpaceQuality": {
+        "type": "object",
+        "description": "What one run found in one space.",
+        "required": [
+          "observedAt",
+          "checked",
+          "invalid",
+          "truncated",
+          "rules",
+          "freshness"
+        ],
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "freshness": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Freshness"
+            }
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleCount"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
       },
       "StartConversation": {
         "type": "object",

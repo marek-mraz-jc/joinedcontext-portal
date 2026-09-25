@@ -200,6 +200,9 @@ routes:
   - route: GET /projects/{project}/app-checks
     rule: "project-verb:read:App"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/spaces/{space}/quality
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/agent-runs
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

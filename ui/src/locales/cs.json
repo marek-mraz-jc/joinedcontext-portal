@@ -413,7 +413,41 @@
       "noDrafts": "Zatím nejsou doplněny žádné návrhy.",
       "needInput": "Zadejte URL endpointu nebo přidejte soubor."
     },
-    "segment": "identifikátory: {segment}"
+    "segment": "identifikátory: {segment}",
+    "quality": {
+      "title": "Kvalita dat",
+      "notYet": "Zatím nekontrolováno: platforma kontroluje data tohoto prostoru jednou denně.",
+      "nothingToCheck": "Žádné entity ke kontrole",
+      "valid": "{share} platných",
+      "rulesFailing": "{count, plural, =0 {žádné porušené pravidlo} one {# porušené pravidlo} few {# porušená pravidla} other {# porušených pravidel}}",
+      "allFresh": "aktuální",
+      "stale": "{count, plural, one {# neaktuální pipeline} few {# neaktuální pipelines} other {# neaktuálních pipelines}}",
+      "checkedAt": "{count, plural, one {# entita zkontrolována} few {# entity zkontrolovány} other {# entit zkontrolováno}} {when}.",
+      "truncated": "Přečetlo se pouze prvních 20 000.",
+      "rulesCaption": "Pravidla, která entity prostoru porušují",
+      "rule": "Pravidlo",
+      "attribute": "Atribut",
+      "entities": "Entity",
+      "examples": "Příklady",
+      "wholeEntity": "celá entita",
+      "examplesHidden": "Které to jsou, vidí jen lidé, kteří čtou entity prostoru",
+      "freshnessCaption": "Jak aktuální jsou data každé pipeline",
+      "pipeline": "Pipeline",
+      "type": "Typ",
+      "newest": "Nejnovější",
+      "target": "Očekávaná do",
+      "state": "Stav",
+      "anyType": "jakýkoli typ",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "paused": "Pozastavená",
+      "states": {
+        "fresh": "Aktuální",
+        "stale": "Neaktuální",
+        "empty": "Prázdné",
+        "untargeted": "Bez cíle"
+      }
+    }
   },
   "endpoints": {
     "check": "Zkontrolovat",

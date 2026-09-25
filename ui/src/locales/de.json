@@ -413,7 +413,41 @@
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
       "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu."
     },
-    "segment": "IDs: {segment}"
+    "segment": "IDs: {segment}",
+    "quality": {
+      "title": "Datenqualität",
+      "notYet": "Noch nicht geprüft: Die Plattform prüft die Daten dieses Raums einmal täglich.",
+      "nothingToCheck": "Keine Entitäten zu prüfen",
+      "valid": "{share} gültig",
+      "rulesFailing": "{count, plural, =0 {keine verletzte Regel} one {# verletzte Regel} other {# verletzte Regeln}}",
+      "allFresh": "aktuell",
+      "stale": "{count, plural, one {# Pipeline veraltet} other {# Pipelines veraltet}}",
+      "checkedAt": "{count, plural, one {# Entität geprüft} other {# Entitäten geprüft}} am {when}.",
+      "truncated": "Nur die ersten 20.000 wurden gelesen.",
+      "rulesCaption": "Die Regeln, die die Entitäten des Raums verletzen",
+      "rule": "Regel",
+      "attribute": "Attribut",
+      "entities": "Entitäten",
+      "examples": "Beispiele",
+      "wholeEntity": "die Entität selbst",
+      "examplesHidden": "Welche es sind, sehen nur Personen, die die Entitäten des Raums lesen",
+      "freshnessCaption": "Wie aktuell die Daten jeder Pipeline sind",
+      "pipeline": "Pipeline",
+      "type": "Typ",
+      "newest": "Neueste",
+      "target": "Erwartet innerhalb",
+      "state": "Zustand",
+      "anyType": "jeder Typ",
+      "minutes": "{count} Min.",
+      "hours": "{count} Std.",
+      "paused": "Angehalten",
+      "states": {
+        "fresh": "Aktuell",
+        "stale": "Veraltet",
+        "empty": "Leer",
+        "untargeted": "Ohne Ziel"
+      }
+    }
   },
   "endpoints": {
     "check": "Prüfen",

@@ -1,5 +1,5 @@
 //! `GET /api/v1/organization/health`: the last published result of every validation check
-//! (OPS-53, API/01 §25).
+//! (OPS-53, API/01 §26).
 //!
 //! The checks run outside the Portal and publish one digest each into the ConfigMap
 //! `jc-validation-results`, which the deployment mounts at `JC_HEALTH_DIR`. The directory is read

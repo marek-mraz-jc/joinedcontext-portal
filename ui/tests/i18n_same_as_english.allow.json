@@ -67,6 +67,8 @@
     "model (LinkML)",
     "ms p99",
     "text",
+    "{count} h",
+    "{count} min",
     "{ms} ms",
     "{seconds} s",
     "Čeština"
@@ -137,6 +139,8 @@
     "model (LinkML)",
     "ms p99",
     "text",
+    "{count} h",
+    "{count} min",
     "{ms} ms",
     "{seconds} s",
     "Čeština"
