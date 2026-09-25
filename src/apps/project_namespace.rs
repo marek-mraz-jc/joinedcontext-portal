@@ -19,13 +19,17 @@ pub const PROJECT_LABEL: &str = "joinedcontext.com/project";
 pub const MANAGED_BY_LABEL: &str = "joinedcontext.com/managed-by";
 /// Its one value.
 pub const MANAGED_BY: &str = "joinedcontext-portal";
+/// The label that names the installation a namespace belongs to, which the APISIX egress policy
+/// selects the release's apps namespaces by.
+pub const RELEASE_LABEL: &str = "joinedcontext.com/release";
 /// The ClusterRole the RoleBinding names: `{release}-portal-apps`, which the deployment creates
 /// with the verbs an App's four objects need and binds nowhere itself.
 pub fn apps_role(release: &str) -> String {
     format!("{release}-portal-apps")
 }
 
-/// The objects of one project's apps namespace, the Namespace first.
+/// The objects of one project's apps namespace in the order they are applied: the Namespace, then
+/// the RoleBinding, which the Portal needs before it may write the NetworkPolicy there.
 pub fn objects(
     project: &str,
     namespace: &str,
@@ -47,6 +51,7 @@ pub fn objects(
         })
     };
     let mut namespace_labels = labels.clone();
+    namespace_labels[RELEASE_LABEL] = json!(release);
     for mode in ["enforce", "audit", "warn"] {
         namespace_labels[format!("pod-security.kubernetes.io/{mode}")] = json!("restricted");
     }
@@ -59,6 +64,21 @@ pub fn objects(
                 "labels": namespace_labels,
                 "annotations": { GENERATED_BY: GENERATOR },
             },
+        }),
+        json!({
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "kind": "RoleBinding",
+            "metadata": meta("joinedcontext-portal"),
+            "roleRef": {
+                "apiGroup": "rbac.authorization.k8s.io",
+                "kind": "ClusterRole",
+                "name": apps_role(release),
+            },
+            "subjects": [{
+                "kind": "ServiceAccount",
+                "name": service_account,
+                "namespace": settings.namespace,
+            }],
         }),
         json!({
             "apiVersion": "networking.k8s.io/v1",
@@ -81,21 +101,6 @@ pub fn objects(
                 }],
                 "egress": [],
             },
-        }),
-        json!({
-            "apiVersion": "rbac.authorization.k8s.io/v1",
-            "kind": "RoleBinding",
-            "metadata": meta("joinedcontext-portal"),
-            "roleRef": {
-                "apiGroup": "rbac.authorization.k8s.io",
-                "kind": "ClusterRole",
-                "name": apps_role(release),
-            },
-            "subjects": [{
-                "kind": "ServiceAccount",
-                "name": service_account,
-                "namespace": settings.namespace,
-            }],
         }),
     ]
 }

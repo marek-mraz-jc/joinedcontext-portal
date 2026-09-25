@@ -168,7 +168,8 @@ async fn the_first_pod_backed_app_creates_its_projects_namespace_before_its_obje
             .position(|a| a == p)
             .unwrap_or_else(|| panic!("{p} not in {applied:?}"))
     };
-    // The namespace, then what makes it safe and usable, then the app.
+    // The namespace, then what makes it safe and usable, then the app. The binding comes before
+    // the policy: without it the Portal may not write a NetworkPolicy there.
     let deployment = "/apis/apps/v1/namespaces/dev-ovzdusie-apps/deployments/app-air";
     assert!(at(NS) < at(deployment));
     let policy =
@@ -178,11 +179,13 @@ async fn the_first_pod_backed_app_creates_its_projects_namespace_before_its_obje
     for object in [policy, binding, pull] {
         assert!(at(object) < at(deployment), "{object} before the app");
     }
+    assert!(at(NS) < at(binding) && at(binding) < at(policy) && at(binding) < at(pull));
 
     let namespace = body(&requests, NS);
     assert_eq!(namespace["kind"], json!("Namespace"));
     let labels = &namespace["metadata"]["labels"];
     assert_eq!(labels["joinedcontext.com/project"], json!("ovzdusie"));
+    assert_eq!(labels["joinedcontext.com/release"], json!("dev"));
     assert_eq!(
         labels["joinedcontext.com/managed-by"],
         json!("joinedcontext-portal")
