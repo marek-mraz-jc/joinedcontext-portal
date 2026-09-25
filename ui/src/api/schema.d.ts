@@ -2088,6 +2088,13 @@ export interface components {
             /** @default strict */
             validation: components["schemas"]["Validation"];
         };
+        Capabilities: {
+            /** @description An endpoint not named here is `read`. */
+            endpoints?: {
+                [key: string]: components["schemas"]["EndpointAccess"];
+            };
+            preset: components["schemas"]["Preset"];
+        };
         /** @description What a search of the project's own catalogue answered (API/01 §18, AG-58). */
         Catalog: {
             items: components["schemas"]["CatalogItem"][];
@@ -2452,6 +2459,11 @@ export interface components {
             project: string;
             projects?: null | components["schemas"]["ProjectAffordances"];
         };
+        /**
+         * @description What the assistant may prepare on one endpoint's entities.
+         * @enum {string}
+         */
+        EndpointAccess: "read" | "readWrite";
         /** @description The sequence number a relayed event was given. */
         EventReceipt: {
             /** Format: int64 */
@@ -2740,6 +2752,7 @@ export interface components {
         };
         /** @description What a person says to a run that is already going (AG-45). */
         MessageRequest: {
+            access?: null | components["schemas"]["Capabilities"];
             /** @description On a conversation: the endpoints the assistant may query from this message on (AG-75). */
             endpointNames?: string[] | null;
             pageContext?: null | components["schemas"]["PageContextRequest"];
@@ -3002,6 +3015,11 @@ export interface components {
             /** @description `light`, `dark` or `system`. */
             theme?: string | null;
         };
+        /**
+         * @description What the assistant may do in the conversation, in three steps.
+         * @enum {string}
+         */
+        Preset: "read" | "propose" | "build";
         /** @description A workspace's preview as a person, an agent or an MCP client reads it. */
         Preview: {
             /** @description The Endpoints of the workspace's project in the preview; empty unless it runs. */
@@ -3335,6 +3353,7 @@ export interface components {
         };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
+            access?: null | components["schemas"]["Capabilities"];
             continues?: string | null;
             /** @description The endpoints the person chose, zero to five, which the assistant may query (AG-75). */
             endpointNames?: string[];

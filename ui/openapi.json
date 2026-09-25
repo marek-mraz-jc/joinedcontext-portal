@@ -8719,6 +8719,28 @@
           }
         }
       },
+      "Capabilities": {
+        "type": "object",
+        "required": [
+          "preset"
+        ],
+        "properties": {
+          "endpoints": {
+            "type": "object",
+            "description": "An endpoint not named here is `read`.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EndpointAccess"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "preset": {
+            "$ref": "#/components/schemas/Preset"
+          }
+        },
+        "additionalProperties": false
+      },
       "Catalog": {
         "type": "object",
         "description": "What a search of the project's own catalogue answered (API/01 §18, AG-58).",
@@ -9688,6 +9710,14 @@
           }
         }
       },
+      "EndpointAccess": {
+        "type": "string",
+        "description": "What the assistant may prepare on one endpoint's entities.",
+        "enum": [
+          "read",
+          "readWrite"
+        ]
+      },
       "EventReceipt": {
         "type": "object",
         "description": "The sequence number a relayed event was given.",
@@ -10376,6 +10406,17 @@
           "text"
         ],
         "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Capabilities",
+                "description": "On a conversation: the capabilities from this message on (AG-92, T-2718)."
+              }
+            ]
+          },
           "endpointNames": {
             "type": [
               "array",
@@ -11144,6 +11185,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "Preset": {
+        "type": "string",
+        "description": "What the assistant may do in the conversation, in three steps.",
+        "enum": [
+          "read",
+          "propose",
+          "build"
+        ]
       },
       "Preview": {
         "type": "object",
@@ -12110,6 +12160,17 @@
         "type": "object",
         "description": "Request payload for starting or continuing an assistant conversation.",
         "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Capabilities",
+                "description": "The capabilities the person chose (AG-92, T-2718): they only narrow."
+              }
+            ]
+          },
           "continues": {
             "type": [
               "string",

@@ -596,6 +596,9 @@ pub struct StartConversation {
     /// The endpoints the person chose, zero to five, which the assistant may query (AG-75).
     #[serde(default)]
     pub endpoint_names: Vec<String>,
+    /// The capabilities the person chose (AG-92, T-2718): they only narrow.
+    #[serde(default)]
+    pub access: Option<crate::agents::capabilities::Capabilities>,
 }
 
 /// The form the question was asked from, as the browser sends it (API/04 §"Start or Continue").
@@ -705,6 +708,12 @@ pub async fn start_conversation(
     // A path ends by proposing its kind; a person who may not cannot take it (AG-87, UI-44).
     if let Some(kind) = request.path.and_then(crate::agents::paths::Path::proposes) {
         grants.check(kind, Verb::Propose, None)?;
+    }
+    if let Some(access) = &request.access {
+        access.check().map_err(ApiError::BadRequest)?;
+        if let Some(path) = request.path.filter(|path| !access.allows_path(*path)) {
+            return Err(ApiError::Denied(access.path_refusal(path)));
+        }
     }
 
     if request.message.trim().is_empty() && request.path.is_none() {
@@ -859,6 +868,7 @@ pub async fn start_conversation(
             form,
             path: request.path,
             page,
+            access: request.access,
         },
     );
 
@@ -1137,6 +1147,7 @@ mod tests {
                 profile: None,
                 continues: None,
                 endpoint_names: Vec::new(),
+            access: None,
                 page_context: None,
                 form_context: Some(FormContextRequest {
                     kind: kind.map(str::to_owned),
@@ -1184,6 +1195,7 @@ mod tests {
             profile: None,
             continues: None,
             endpoint_names: Vec::new(),
+            access: None,
             form_context: None,
             page_context: None,
         })

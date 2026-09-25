@@ -407,6 +407,7 @@ pub fn operations() -> Vec<Operation> {
                             text: input.text,
                             endpoint_names: input.endpoint_names,
                             page_context: None,
+                            access: None,
                         }),
                     )
                     .await?;

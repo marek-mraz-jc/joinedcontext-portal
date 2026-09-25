@@ -230,7 +230,7 @@ pub(super) fn describes(answer: &str) -> Vec<String> {
         .collect()
 }
 
-fn blocks(answer: &str) -> impl Iterator<Item = Value> + '_ {
+pub(super) fn blocks(answer: &str) -> impl Iterator<Item = Value> + '_ {
     share::TOOL_FENCE
         .captures_iter(answer)
         .filter_map(|fence| serde_json::from_str::<Value>(&fence[1]).ok())

@@ -1355,3 +1355,105 @@ async fn the_endpoints_of_an_app_open_the_builder_on_them() {
         .expect("runs");
     assert_eq!(runs.len(), 1, "the conversation started no run of its own");
 }
+
+/// AG-92, T-2718: the capabilities the person chose only narrow. A path outside the preset is
+/// refused before the run starts, and a choice that names no endpoint is no choice at all.
+#[tokio::test]
+async fn a_path_outside_the_chosen_preset_is_refused_before_the_run_starts() {
+    let started = start(
+        BUILDER,
+        json!({ "path": "build-app", "access": { "preset": "read" } }),
+        &["never asked"],
+    )
+    .await;
+    assert_eq!(started.status, StatusCode::FORBIDDEN, "{}", started.body);
+    assert!(
+        started
+            .body
+            .to_string()
+            .contains("'read' do not include the path 'build-app'"),
+        "{}",
+        started.body
+    );
+    let odd = start(
+        BUILDER,
+        json!({ "message": "hi", "access": { "preset": "read", "endpoints": { "Bikes!": "read" } } }),
+        &["never asked"],
+    )
+    .await;
+    assert_eq!(odd.status, StatusCode::BAD_REQUEST, "{}", odd.body);
+    let unknown = start(
+        BUILDER,
+        json!({ "message": "hi", "access": { "preset": "everything" } }),
+        &["never asked"],
+    )
+    .await;
+    assert!(unknown.status.is_client_error(), "{}", unknown.body);
+}
+
+/// AG-92: under `read` a change to entities is refused before it runs and the model is told
+/// why; switched to `propose` with `readWrite` on the endpoint, the same call is no longer the
+/// choice's to refuse.
+#[tokio::test]
+async fn read_refuses_a_change_until_the_person_switches_on_propose() {
+    let write = "```json\n{\"tool\":\"write_entities\",\"endpoint\":\"bikes\",\"entities\":[{\"id\":\"urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:001\",\"attrs\":{\"status\":\"outOfService\"}}]}\n```\n";
+    let started = start(
+        BUILDER,
+        json!({ "message": "set station 001 out of service", "access": { "preset": "read" } }),
+        &[
+            r#"{"path": null, "reason": "a change"}"#,
+            write,
+            "I may only read here; switch on Propose to change it.",
+            write,
+            "Prepared the change.",
+        ],
+    )
+    .await;
+    assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
+    let run = started.body["id"].as_str().expect("run id").to_owned();
+    let refused = |events: &[AgentRunEvent]| {
+        of_kind(events, "tool")
+            .into_iter()
+            .filter(|tool| tool["tool"] == "write_entities")
+            .map(|tool| tool["error"].as_str().unwrap_or_default().to_owned())
+            .collect::<Vec<_>>()
+    };
+    let events = events_until(&started, |e| {
+        e.kind == "thought"
+            && e.payload["text"]
+                .as_str()
+                .is_some_and(|t| t.starts_with("I may only read"))
+    })
+    .await;
+    let first = refused(&events);
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert!(first[0].contains("the person chose 'read'"), "{first:?}");
+
+    let (status, body) = send(
+        &started.state,
+        &started.config,
+        BUILDER,
+        &format!("/api/v1/projects/helsinki/agent-runs/{run}/messages"),
+        json!({ "text": "go on", "access": { "preset": "propose", "endpoints": { "bikes": "readWrite" } } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let events = events_until(&started, |e| {
+        e.kind == "tool"
+            && e.payload["tool"] == "write_entities"
+            && e.seq > 0
+            && !e.payload["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("the person chose 'read'")
+    })
+    .await;
+    let second = refused(&events);
+    assert_eq!(second.len(), 2, "{second:?}");
+    assert!(!second[1].contains("the person chose"), "{second:?}");
+    let message = of_kind(&events, "message")
+        .into_iter()
+        .find(|m| m["text"] == "go on")
+        .expect("the message");
+    assert_eq!(message["access"]["preset"], "propose");
+}

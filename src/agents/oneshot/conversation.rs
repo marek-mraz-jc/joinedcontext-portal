@@ -128,6 +128,18 @@ impl Driver {
                     {
                         *self.page.lock().unwrap_or_else(PoisonError::into_inner) = Some(page);
                     }
+                    // What the person switched on or off is theirs from this message on (AG-92).
+                    if let Some(access) = event
+                        .payload
+                        .get("access")
+                        .filter(|access| !access.is_null())
+                        .and_then(|access| serde_json::from_value(access.clone()).ok())
+                    {
+                        *self
+                            .capabilities
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner) = Some(access);
+                    }
                     let text = event
                         .payload
                         .get("text")
@@ -168,9 +180,15 @@ impl Driver {
         let answer = loop {
             // The path narrows what is offered (AG-89); a hand-over changes it mid-turn.
             let path = self.current_path();
+            let capable = self.capabilities();
             let offered: Vec<_> = every_operation
                 .iter()
                 .filter(|op| path.is_none_or(|path| path.allows(&op.name)))
+                .filter(|op| {
+                    capable.as_ref().is_none_or(|capable| {
+                        capable.allows_tool(&op.name, !tools_registry::acts(&op.name))
+                    })
+                })
                 .cloned()
                 .collect();
             let section = format!(
@@ -197,9 +215,13 @@ impl Driver {
                 )
             })??;
 
-            // A tool outside the path goes back to the model with the path's tools (AG-89), and
-            // a hand-over moves the rest of the turn onto the path it names (AG-88).
-            if let Some((tool, reason)) = self.off_path(&answer) {
+            // A tool outside the path, or outside what the person chose, goes back to the model
+            // with the reason (AG-89, AG-92), and a hand-over moves the rest of the turn onto
+            // the path it names (AG-88).
+            if let Some((tool, reason)) = self
+                .off_capabilities(&answer)
+                .or_else(|| self.off_path(&answer))
+            {
                 self.event(
                     "tool",
                     failed_step(&tool, std::time::Instant::now(), &Value::Null, &reason),
@@ -1356,8 +1378,45 @@ impl Driver {
         u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
-    /// Whether the person may take a path: its kind is one they may propose (AG-87).
+    /// The capabilities the person chose, as the newest message left them (AG-92).
+    fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
+        self.capabilities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// The first call of an answer the chosen capabilities leave out, and why (AG-92): a tool
+    /// that does more than read under `read`, or a change to the entities of an endpoint the
+    /// person left at `read`.
+    fn off_capabilities(&self, answer: &str) -> Option<(String, String)> {
+        let chosen = self.capabilities()?;
+        tools_registry::blocks(answer).find_map(|call| {
+            let tool = call.get("tool").and_then(Value::as_str)?.to_owned();
+            let reads = tool.starts_with("jc_") && !tools_registry::acts(&tool);
+            if !chosen.allows_tool(&tool, reads) {
+                let reason = chosen.refusal(&format!("call {tool}"));
+                return Some((tool, reason));
+            }
+            let endpoint = call.get("endpoint").and_then(Value::as_str)?;
+            (tool == "write_entities" && !chosen.writes(endpoint)).then(|| {
+                let reason = chosen.refusal(&format!(
+                    "prepare a change to the entities of '{endpoint}', which they left at read"
+                ));
+                (tool, reason)
+            })
+        })
+    }
+
+    /// Whether the person may take a path: its kind is one they may propose (AG-87), and the
+    /// capabilities they chose include it (AG-92).
     fn may_take(&self, path: Path) -> Result<(), String> {
+        if let Some(chosen) = self
+            .capabilities()
+            .filter(|chosen| !chosen.allows_path(path))
+        {
+            return Err(chosen.path_refusal(path));
+        }
         let Some(kind) = path.proposes() else {
             return Ok(());
         };

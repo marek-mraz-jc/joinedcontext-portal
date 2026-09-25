@@ -1,4 +1,5 @@
 pub mod access;
+pub mod capabilities;
 pub mod change;
 pub mod code;
 pub mod data_query;

@@ -168,6 +168,9 @@ pub struct MessageRequest {
     /// On a conversation: the page the person is on as they send it (T-2763).
     #[serde(default, rename = "pageContext")]
     pub page_context: Option<crate::api::assistant::PageContextRequest>,
+    /// On a conversation: the capabilities from this message on (AG-92, T-2718).
+    #[serde(default)]
+    pub access: Option<crate::agents::capabilities::Capabilities>,
 }
 
 /// A runtime error the preview frame posted as `jc-error`, relayed by the page that frames it.
@@ -1118,6 +1121,14 @@ pub async fn post_message(
         ));
     }
     let page = crate::api::assistant::page_context(request.page_context.as_ref(), &project)?;
+    if let Some(access) = &request.access {
+        if run.kind != "conversation" {
+            return Err(ApiError::BadRequest(
+                "access is the capabilities of a conversation only".into(),
+            ));
+        }
+        access.check().map_err(ApiError::BadRequest)?;
+    }
     if let Some(names) = &request.endpoint_names {
         if run.kind != "conversation" {
             return Err(ApiError::BadRequest(
@@ -1167,6 +1178,7 @@ pub async fn post_message(
             "text": text,
             "sentBy": user.0.identity.username,
             "page": page,
+            "access": request.access,
         }),
     )
     .await?;
