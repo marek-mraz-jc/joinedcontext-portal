@@ -202,6 +202,15 @@ export function dismissNotice(): void {
   window.dispatchEvent(new Event(CHANGED));
 }
 
+/**
+ * Whether a prefill waits for this path, without taking it: a page that is two pages at one
+ * address (the Data models list and its editor, T-2765) asks this to know which one to mount.
+ */
+export function hasPrefill(pathname: string): boolean {
+  const value = (handed ?? read(PREFILL_KEY)) as { route?: unknown } | null;
+  return value?.route === pathname || replay?.route === pathname;
+}
+
 /** The prefill left for this path, taken once: a second visit starts with an empty form. */
 export function takePrefill(pathname: string): Record<string, unknown> | null {
   const value = (handed ?? read(PREFILL_KEY)) as {

@@ -288,6 +288,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/datamodels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Models Everywhere
+         * @description Every DataModel the caller may read across projects, and the Smart Data Models entries a search of two characters or more matches: what the model and type pickers list.
+         */
+        get: operations["list_organization_datamodels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preferences": {
         parameters: {
             query?: never;
@@ -2127,6 +2147,15 @@ export interface components {
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
         };
+        /** @description One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63). */
+        CatalogueEntry: {
+            description?: string | null;
+            /** @description `dataModel.Environment/AirQualityObserved`. */
+            id: string;
+            name: string;
+            /** @description `dataModel.Environment`. */
+            subject: string;
+        };
         /** @description One model of the Smart Data Models catalogue index, as the wizard lists and searches it. */
         CatalogueModel: {
             /** @description Attribute names, so the wizard can search by attribute without fetching the model. */
@@ -2920,6 +2949,23 @@ export interface components {
             name: string;
             outputSchema: Record<string, never>;
             title: string;
+        };
+        /** @description One `DataModel` of the organization as the pickers list it (DM-63). */
+        OrganizationModel: {
+            classes: string[];
+            lifecycle: string;
+            name: string;
+            project: string;
+            space: string;
+            version: string;
+        };
+        OrganizationModels: {
+            apiVersion: string;
+            /** @description Why no catalogue entries could be listed, when Model Tools did not answer. */
+            catalogueUnavailable?: string | null;
+            items: components["schemas"]["OrganizationModel"][];
+            kind: string;
+            smartDataModels: components["schemas"]["CatalogueEntry"][];
         };
         /** @description The page the question was asked from, as the browser sends it: the route only. */
         PageContextRequest: {
@@ -4057,6 +4103,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_organization_datamodels: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring of a name, project, space or class; at most 100 characters */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The models the caller may read and the matching catalogue entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationModels"];
+                };
+            };
+            /** @description A search longer than 100 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

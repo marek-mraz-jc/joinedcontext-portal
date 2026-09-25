@@ -37,9 +37,9 @@ describe("parseInput", () => {
     expect(parseInput(geoField, "invalid")).toEqual({ error: 'must be "lat, lon"' });
     expect(parseInput(geoField, "100, 200")).toEqual({ error: 'must be "lat, lon"' });
 
-    const selectField: Field = { name: "status", input: "select", options: ["open", "closed"], required: false };
+    const selectField: Field = { name: "status", input: "select", options: [{ value: "open", title: "Open" }, { value: "closed" }], required: false };
     expect(parseInput(selectField, "open")).toEqual({ value: "open" });
-    expect(parseInput(selectField, "unknown")).toEqual({ error: "must be one of open, closed" });
+    expect(parseInput(selectField, "unknown")).toEqual({ error: "must be one of Open, closed" });
 
     const dateField: Field = { name: "created", input: "date", required: false };
     expect(parseInput(dateField, "2025-05-14")).toEqual({ value: "2025-05-14" });

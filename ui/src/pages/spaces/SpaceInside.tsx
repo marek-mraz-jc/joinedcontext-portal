@@ -20,6 +20,7 @@ import {
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
+import { enumsOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
 import {
   Badge,
@@ -267,15 +268,23 @@ function SpaceData({
   space,
   types,
   endpoints,
+  model,
 }: {
   project: string;
   space: string;
   types: string[];
   endpoints: Manifest[];
+  /** The space's DataModel: its enum slots are filtered by picking (UI-86). */
+  model?: Manifest;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [chosen, setChosen] = useState("");
   const type = types.includes(chosen) ? chosen : (types[0] ?? "");
+  const modelSource = useModelSource(project, model);
+  const enums = useMemo(
+    () => enumsOfModel(modelSource, type, i18n.language),
+    [modelSource, type, i18n.language],
+  );
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -352,6 +361,7 @@ function SpaceData({
           project={project}
           config={config}
           source={source}
+          enums={enums}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
       ) : null}
@@ -579,7 +589,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       </Section>
 
       <Section title={t("spaces.inside.data")}>
-        <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} />
+        <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} />
       </Section>
 
       <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>

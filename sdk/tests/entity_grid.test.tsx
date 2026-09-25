@@ -223,6 +223,7 @@ describe("EntityGrid", () => {
         empty: "je prázdne",
         present: "má hodnotu",
         pattern: "vyhovuje",
+        anyOf: "je jedno z",
       },
       value: "Hodnota",
       upperValue: "Horná hodnota",
