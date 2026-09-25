@@ -3906,7 +3906,66 @@
       "QUARTERLY": "čtvrtletně",
       "ANNUAL": "ročně",
       "IRREG": "nepravidelně",
-      "NEVER": "nikdy"
+      "NEVER": "nikdy",
+      "UNKNOWN": "neznámá"
+    },
+    "publish": {
+      "open": "Zveřejnit datovou sadu",
+      "title": "Zveřejnit datovou sadu",
+      "lead": "Vyberte endpoint, zkontrolujte jeho popis do katalogu, prohlédněte si náhled záznamu a navrhněte ho. Datová sada se v katalogu zobrazí po schválení.",
+      "steps": "Kroky",
+      "step": {
+        "pick": "1. Endpoint",
+        "describe": "2. Popis",
+        "preview": "3. Náhled"
+      },
+      "endpoint": "Endpoint",
+      "endpointHelp": "Endpoint, jehož data datová sada nabízí.",
+      "pickFirst": "Nejprve vyberte endpoint.",
+      "describe": "Připravit popis",
+      "drafted": "Připraveno z endpointu {endpoint}, jeho datového modelu a kontaktů organizace. Před náhledem můžete cokoli změnit.",
+      "makesPublic": "Tento endpoint zatím není veřejný. Zveřejněním ho bude moci číst kdokoli bez přihlášení, proto změnu musí schválit poskytovatel.",
+      "missing": "Tato pole se nepodařilo vyplnit: {fields}. Vyplňte je, pokud je znáte.",
+      "member": {
+        "publisher": "poskytovatel",
+        "contactPoint": "kontakt",
+        "license": "licence",
+        "themes": "témata",
+        "keywords": "klíčová slova",
+        "spatial": "území",
+        "temporal": "období",
+        "frequency": "frekvence aktualizace"
+      },
+      "inLanguage": "V jazyce {language}.",
+      "choose": "Vyberte…",
+      "contactName": "Jméno kontaktu",
+      "contactEmail": "E-mail kontaktu",
+      "contactHelp": "Rolová adresa, například oddělení otevřených dat, nikdy osobní e-mail.",
+      "keywords": "Klíčová slova",
+      "keywordsHelp": "Oddělená čárkami, v jazyce {language}.",
+      "spatialHelp": "Kódy NUTS nebo odkazy na místa oddělené čárkami, například SK032.",
+      "start": "Obsahuje data od",
+      "end": "Obsahuje data do",
+      "back": "Zpět",
+      "preview": "Zobrazit náhled záznamu",
+      "propose": "Navrhnout zveřejnění",
+      "proposePublic": "Zpřístupnit veřejně a navrhnout zveřejnění",
+      "afterApproval": "Po schválení se datová sada zobrazí v katalogu při nejbližší synchronizaci.",
+      "close": "Zavřít postup",
+      "error": {
+        "licence": "Vyberte licenci.",
+        "contactBoth": "Uveďte jméno i e-mail kontaktu, nebo ani jedno.",
+        "email": "Zadejte e-mailovou adresu, například opendata@example.org.",
+        "period": "Konec období nemůže být před jeho začátkem."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
     }
   }
 }

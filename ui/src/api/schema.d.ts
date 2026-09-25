@@ -1041,6 +1041,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/catalogue/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft a Catalogue Publication
+         * @description What the one-step publish flow proposes for an Endpoint: its `spec.catalog` drafted from the model and the organization, its `spec.publish.ckan`, and whether publishing makes it public (EP-83). Writes nothing.
+         */
+        post: operations["draft_publication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/changes": {
         parameters: {
             query?: never;
@@ -2500,6 +2520,23 @@ export interface components {
             temporal?: null | components["schemas"]["CatalogueTemporal"];
             themes: components["schemas"]["CatalogueTheme"][];
             title: string;
+        };
+        /** @description The two blocks the flow proposes, and what nothing could fill. */
+        CatalogueDraft: {
+            /** @description The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares. */
+            catalog: Record<string, never>;
+            endpoint: string;
+            /** @description The Endpoint's audience is not `public`: the proposal makes it public, in the red lane. */
+            makesPublic: boolean;
+            /** @description Catalogue members nothing could fill. */
+            missing: string[];
+            /** @description The drafted `spec.publish` (EP-62), or the one the Endpoint already declares. */
+            publish: Record<string, never>;
+        };
+        /** @description Which Endpoint of the project to draft for. */
+        CatalogueDraftRequest: {
+            /** @description The Endpoint's `metadata.name`. */
+            endpoint: string;
         };
         /** @description The Endpoint a dataset describes, on this installation's own host. */
         CatalogueEndpoint: {
@@ -7269,6 +7306,83 @@ export interface operations {
             };
             /** @description Bad gateway from upstream */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    draft_publication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": "bbsk-kpi"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CatalogueDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueDraft"];
+                };
+            };
+            /** @description The body names no Endpoint */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No grant proposes an Endpoint in this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint in this project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project has no CkanInstance to publish to */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

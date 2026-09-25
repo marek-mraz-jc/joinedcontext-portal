@@ -3906,7 +3906,66 @@
       "QUARTERLY": "štvrťročne",
       "ANNUAL": "ročne",
       "IRREG": "nepravidelne",
-      "NEVER": "nikdy"
+      "NEVER": "nikdy",
+      "UNKNOWN": "neznáma"
+    },
+    "publish": {
+      "open": "Zverejniť dataset",
+      "title": "Zverejniť dataset",
+      "lead": "Vyberte endpoint, skontrolujte jeho popis do katalógu, pozrite si náhľad záznamu a navrhnite ho. Dataset sa v katalógu zobrazí po schválení.",
+      "steps": "Kroky",
+      "step": {
+        "pick": "1. Endpoint",
+        "describe": "2. Popis",
+        "preview": "3. Náhľad"
+      },
+      "endpoint": "Endpoint",
+      "endpointHelp": "Endpoint, ktorého dáta dataset ponúka.",
+      "pickFirst": "Najprv vyberte endpoint.",
+      "describe": "Pripraviť popis",
+      "drafted": "Pripravené z endpointu {endpoint}, jeho dátového modelu a kontaktov organizácie. Pred náhľadom môžete čokoľvek zmeniť.",
+      "makesPublic": "Tento endpoint zatiaľ nie je verejný. Zverejnením ho bude môcť čítať ktokoľvek bez prihlásenia, preto zmenu musí schváliť vydavateľ.",
+      "missing": "Tieto polia sa nepodarilo vyplniť: {fields}. Vyplňte ich, ak ich poznáte.",
+      "member": {
+        "publisher": "vydavateľ",
+        "contactPoint": "kontakt",
+        "license": "licencia",
+        "themes": "témy",
+        "keywords": "kľúčové slová",
+        "spatial": "územie",
+        "temporal": "obdobie",
+        "frequency": "frekvencia aktualizácie"
+      },
+      "inLanguage": "V jazyku {language}.",
+      "choose": "Vyberte…",
+      "contactName": "Meno kontaktu",
+      "contactEmail": "E-mail kontaktu",
+      "contactHelp": "Rolová adresa, napríklad oddelenie otvorených dát, nikdy osobný e-mail.",
+      "keywords": "Kľúčové slová",
+      "keywordsHelp": "Oddelené čiarkami, v jazyku {language}.",
+      "spatialHelp": "Kódy NUTS alebo odkazy na miesta oddelené čiarkami, napríklad SK032.",
+      "start": "Obsahuje dáta od",
+      "end": "Obsahuje dáta do",
+      "back": "Späť",
+      "preview": "Zobraziť náhľad záznamu",
+      "propose": "Navrhnúť zverejnenie",
+      "proposePublic": "Sprístupniť verejne a navrhnúť zverejnenie",
+      "afterApproval": "Po schválení sa dataset zobrazí v katalógu pri najbližšej synchronizácii.",
+      "close": "Zavrieť postup",
+      "error": {
+        "licence": "Vyberte licenciu.",
+        "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
+        "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
+        "period": "Koniec obdobia nemôže byť pred jeho začiatkom."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
     }
   }
 }

@@ -17,7 +17,9 @@ import {
   PageFailed,
   PageHeader,
   PageLoading,
+  PermissionGuard,
 } from "../../components/ui";
+import { PublishDatasetDialog } from "./PublishDataset";
 import { FACETS, narrowed, toggled } from "./search";
 import type { CatalogueSearch, FacetName } from "./search";
 
@@ -43,13 +45,17 @@ export function useThemeLabel(): (code: string, fallback?: string) => string {
  * a session. The search lives in the address, so a filtered list is a link one can share.
  */
 export function CataloguePage({
+  project,
   search,
   onSearch,
 }: {
+  /** The project a signed-in person works in; a visitor has none and publishes nothing. */
+  project: string | null;
   search: CatalogueSearch;
   onSearch: (next: CatalogueSearch) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const [publishing, setPublishing] = useState(false);
   const catalogue = useQuery({
     queryKey: catalogueKey(search),
     queryFn: async () =>
@@ -72,11 +78,28 @@ export function CataloguePage({
     placeholderData: keepPreviousData,
   });
 
-  const header = <PageHeader title={t("catalogue.title")} description={t("catalogue.lead")} />;
+  const header = (
+    <PageHeader
+      title={t("catalogue.title")}
+      description={t("catalogue.lead")}
+      actions={
+        project ? (
+          <PermissionGuard project={project} kind="Endpoint" verb="propose">
+            <Button icon={<Icon name="ckan" className="size-4" />} onClick={() => setPublishing(true)}>
+              {t("catalogue.publish.open")}
+            </Button>
+          </PermissionGuard>
+        ) : undefined
+      }
+    />
+  );
 
   return (
     <div className="flex flex-col gap-section">
       {header}
+      {project ? (
+        <PublishDatasetDialog project={project} open={publishing} onOpenChange={setPublishing} />
+      ) : null}
       {/* Keyed by the address's text: a back button or a shared link resets the box to it. */}
       <SearchForm key={search.q ?? ""} search={search} onSearch={onSearch} />
 

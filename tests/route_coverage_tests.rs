@@ -62,6 +62,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("DELETE", "/projects/{project}", "jc_project_delete"),
 ("POST", "/projects/{project}/duplicate", "copies a whole repository of the forge under a new slug (PF-89): a person's decision in the Portal, not a tool a run holds"),
 ("GET", "/projects/{project}/activity", "jc_activity_list"),
+("POST", "/projects/{project}/catalogue/drafts", "drafts the publish form and writes nothing; the proposal is the Endpoint's own, jc_endpoint_propose"),
 ("GET", "/projects/{project}/activity/stream", "a live stream, not a call and an answer"),
 // Drift is read and resolved on the page, not through the assistant (CC-21, UI-26): a
 // resolution is a write to the live space or to the repository, and a model proposing one

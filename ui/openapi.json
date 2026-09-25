@@ -4118,6 +4118,102 @@
         }
       }
     },
+    "/api/v1/projects/{project}/catalogue/drafts": {
+      "post": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Draft a Catalogue Publication",
+        "description": "What the one-step publish flow proposes for an Endpoint: its `spec.catalog` drafted from the model and the organization, its `spec.publish.ckan`, and whether publishing makes it public (EP-83). Writes nothing.",
+        "operationId": "draft_publication",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueDraftRequest"
+              },
+              "example": {
+                "endpoint": "bbsk-kpi"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body names no Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No grant proposes an Endpoint in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project has no CkanInstance to publish to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/changes": {
       "get": {
         "tags": [
@@ -10563,6 +10659,55 @@
             "type": "string"
           }
         }
+      },
+      "CatalogueDraft": {
+        "type": "object",
+        "description": "The two blocks the flow proposes, and what nothing could fill.",
+        "required": [
+          "endpoint",
+          "makesPublic",
+          "catalog",
+          "publish",
+          "missing"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "object",
+            "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "makesPublic": {
+            "type": "boolean",
+            "description": "The Endpoint's audience is not `public`: the proposal makes it public, in the red lane."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Catalogue members nothing could fill."
+          },
+          "publish": {
+            "type": "object",
+            "description": "The drafted `spec.publish` (EP-62), or the one the Endpoint already declares."
+          }
+        }
+      },
+      "CatalogueDraftRequest": {
+        "type": "object",
+        "description": "Which Endpoint of the project to draft for.",
+        "required": [
+          "endpoint"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The Endpoint's `metadata.name`."
+          }
+        },
+        "additionalProperties": false
       },
       "CatalogueEndpoint": {
         "type": "object",

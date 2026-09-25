@@ -165,7 +165,12 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
  * works in a project, the brand and a sign-in button for everybody else. The page itself needs
  * no session, so a link to it can be handed to a citizen.
  */
-function CatalogueFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
+function CatalogueFrame({
+  children,
+}: {
+  /** The page, given the project the signed-in person works in, or `null` for a visitor. */
+  children: (project: string | null) => React.ReactNode;
+}): React.JSX.Element {
   const { status } = useAuth();
   // Until the session is known the frame is not drawn: a page drawn in one frame and moved into
   // the other remounts, and whatever a person had started typing is gone.
@@ -175,17 +180,25 @@ function CatalogueFrame({ children }: { children: React.ReactNode }): React.JSX.
   if (status === "authenticated") {
     return <SignedInCatalogue>{children}</SignedInCatalogue>;
   }
-  return <PublicFrame>{children}</PublicFrame>;
+  return <PublicFrame>{children(null)}</PublicFrame>;
 }
 
-function SignedInCatalogue({ children }: { children: React.ReactNode }): React.JSX.Element {
+function SignedInCatalogue({
+  children,
+}: {
+  children: (project: string | null) => React.ReactNode;
+}): React.JSX.Element {
   const projects = useProjects();
   const first = preferredProject(projects.data);
   if (projects.isPending) {
     return <main aria-busy="true" className="min-h-screen bg-bg" />;
   }
   // Signed in with no project to open, or a project list that failed: the catalogue still reads.
-  return first ? <Shell project={first}>{children}</Shell> : <PublicFrame>{children}</PublicFrame>;
+  return first ? (
+    <Shell project={first}>{children(first)}</Shell>
+  ) : (
+    <PublicFrame>{children(null)}</PublicFrame>
+  );
 }
 
 function PublicFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -218,7 +231,13 @@ const catalogueRoute = createRoute({
     const navigate = catalogueRoute.useNavigate();
     return (
       <CatalogueFrame>
-        <CataloguePage search={search} onSearch={(next) => void navigate({ search: next })} />
+        {(project) => (
+          <CataloguePage
+            project={project}
+            search={search}
+            onSearch={(next) => void navigate({ search: next })}
+          />
+        )}
       </CatalogueFrame>
     );
   },
@@ -231,9 +250,7 @@ const catalogueDatasetRoute = createRoute({
   component: function CatalogueDatasetRoute() {
     const { name } = catalogueDatasetRoute.useParams();
     return (
-      <CatalogueFrame>
-        <DatasetPage name={name} />
-      </CatalogueFrame>
+      <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
     );
   },
 });

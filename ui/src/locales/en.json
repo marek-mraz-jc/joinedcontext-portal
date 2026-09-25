@@ -3906,7 +3906,66 @@
       "QUARTERLY": "quarterly",
       "ANNUAL": "yearly",
       "IRREG": "irregularly",
-      "NEVER": "never"
+      "NEVER": "never",
+      "UNKNOWN": "unknown"
+    },
+    "publish": {
+      "open": "Publish a dataset",
+      "title": "Publish a dataset",
+      "lead": "Pick an endpoint, check its catalogue description, preview the entry and propose it. The dataset appears in the catalogue after the approval.",
+      "steps": "Steps",
+      "step": {
+        "pick": "1. Endpoint",
+        "describe": "2. Description",
+        "preview": "3. Preview"
+      },
+      "endpoint": "Endpoint",
+      "endpointHelp": "The endpoint whose data the dataset offers.",
+      "pickFirst": "Pick an endpoint first.",
+      "describe": "Draft the description",
+      "drafted": "Drafted from endpoint {endpoint}, its data model and the organization's contacts. Change anything before the preview.",
+      "makesPublic": "This endpoint is not public yet. Publishing makes it readable by anyone without signing in, so a publisher has to approve the change.",
+      "missing": "Nothing could fill these fields: {fields}. Fill them if you know them.",
+      "member": {
+        "publisher": "publisher",
+        "contactPoint": "contact",
+        "license": "licence",
+        "themes": "themes",
+        "keywords": "keywords",
+        "spatial": "area",
+        "temporal": "period",
+        "frequency": "update frequency"
+      },
+      "inLanguage": "In the language {language}.",
+      "choose": "Choose…",
+      "contactName": "Contact name",
+      "contactEmail": "Contact e-mail",
+      "contactHelp": "A role address such as an open-data desk, never a person's own e-mail.",
+      "keywords": "Keywords",
+      "keywordsHelp": "Separated by commas, in the language {language}.",
+      "spatialHelp": "NUTS codes or location links, separated by commas, for example SK032.",
+      "start": "Covers data from",
+      "end": "Covers data until",
+      "back": "Back",
+      "preview": "Preview the entry",
+      "propose": "Propose publication",
+      "proposePublic": "Make public and propose publication",
+      "afterApproval": "After the approval the dataset appears in the catalogue on the next reconcile.",
+      "close": "Close the flow",
+      "error": {
+        "licence": "Choose a licence.",
+        "contactBoth": "Give the contact's name and e-mail together, or neither.",
+        "email": "Enter an e-mail address such as opendata@example.org.",
+        "period": "The end of the period cannot be before its start."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
     }
   }
 }

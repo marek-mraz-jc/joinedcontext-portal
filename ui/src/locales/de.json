@@ -3906,7 +3906,66 @@
       "QUARTERLY": "vierteljährlich",
       "ANNUAL": "jährlich",
       "IRREG": "unregelmäßig",
-      "NEVER": "nie"
+      "NEVER": "nie",
+      "UNKNOWN": "unbekannt"
+    },
+    "publish": {
+      "open": "Datensatz veröffentlichen",
+      "title": "Datensatz veröffentlichen",
+      "lead": "Einen Endpunkt wählen, seine Katalogbeschreibung prüfen, den Eintrag in der Vorschau ansehen und vorschlagen. Der Datensatz erscheint nach der Genehmigung im Katalog.",
+      "steps": "Schritte",
+      "step": {
+        "pick": "1. Endpunkt",
+        "describe": "2. Beschreibung",
+        "preview": "3. Vorschau"
+      },
+      "endpoint": "Endpunkt",
+      "endpointHelp": "Der Endpunkt, dessen Daten der Datensatz anbietet.",
+      "pickFirst": "Zuerst einen Endpunkt wählen.",
+      "describe": "Beschreibung entwerfen",
+      "drafted": "Entworfen aus Endpunkt {endpoint}, seinem Datenmodell und den Kontakten der Organisation. Vor der Vorschau lässt sich alles ändern.",
+      "makesPublic": "Dieser Endpunkt ist noch nicht öffentlich. Die Veröffentlichung macht ihn für alle ohne Anmeldung lesbar, deshalb muss ein Herausgeber die Änderung genehmigen.",
+      "missing": "Diese Felder ließen sich nicht füllen: {fields}. Bitte ausfüllen, wenn bekannt.",
+      "member": {
+        "publisher": "Herausgeber",
+        "contactPoint": "Kontakt",
+        "license": "Lizenz",
+        "themes": "Themen",
+        "keywords": "Schlagwörter",
+        "spatial": "Gebiet",
+        "temporal": "Zeitraum",
+        "frequency": "Aktualisierungshäufigkeit"
+      },
+      "inLanguage": "In der Sprache {language}.",
+      "choose": "Auswählen…",
+      "contactName": "Name des Kontakts",
+      "contactEmail": "E-Mail des Kontakts",
+      "contactHelp": "Eine Funktionsadresse wie eine Open-Data-Stelle, nie die E-Mail einer Person.",
+      "keywords": "Schlagwörter",
+      "keywordsHelp": "Durch Kommas getrennt, in der Sprache {language}.",
+      "spatialHelp": "NUTS-Codes oder Ortslinks, durch Kommas getrennt, zum Beispiel SK032.",
+      "start": "Enthält Daten ab",
+      "end": "Enthält Daten bis",
+      "back": "Zurück",
+      "preview": "Eintrag in der Vorschau ansehen",
+      "propose": "Veröffentlichung vorschlagen",
+      "proposePublic": "Öffentlich machen und Veröffentlichung vorschlagen",
+      "afterApproval": "Nach der Genehmigung erscheint der Datensatz beim nächsten Abgleich im Katalog.",
+      "close": "Ablauf schließen",
+      "error": {
+        "licence": "Eine Lizenz wählen.",
+        "contactBoth": "Name und E-Mail des Kontakts gemeinsam angeben oder keines von beiden.",
+        "email": "Eine E-Mail-Adresse wie opendata@example.org eingeben.",
+        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
     }
   }
 }
