@@ -1084,3 +1084,103 @@ async fn a_configured_basemap_is_in_the_config_and_the_policy_admits_only_its_ro
         "the tile host stays behind the Portal: {csp}"
     );
 }
+
+/// The app as the sync writes it: `Live`, and no build written back.
+fn mirror_live_without_build(spec: serde_json::Value) -> Arc<Mirror> {
+    let mirror = mirror_with_app(spec);
+    let mut envelope = mirror
+        .get("ovzdusie", "App", "air-quality")
+        .expect("the app");
+    envelope.status = Some(joinedcontext_portal::resource::Status {
+        phase: joinedcontext_portal::resource::Phase::Live,
+        observed_revision: None,
+        source_url: None,
+        conditions: Vec::new(),
+        build: None,
+        domain_verification: None,
+    });
+    mirror.upsert(envelope);
+    mirror
+}
+
+fn app_status(mirror: &Mirror) -> joinedcontext_portal::resource::Status {
+    mirror
+        .get("ovzdusie", "App", "air-quality")
+        .and_then(|env| env.status)
+        .expect("a status")
+}
+
+/// T-2989, AP-13a: a published App with no build and no bundle the image ships answers 404 on
+/// its host, so it reads Pending with a red Ready naming why, never Live.
+#[tokio::test]
+async fn a_published_app_without_a_build_reads_pending_not_live() {
+    let empty = tempdir::Dir::new("no-build");
+    let mirror = mirror_live_without_build(app_spec("published"));
+    let (status, _) = get_with(empty.path(), mirror.clone(), "/apps/air-quality/").await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "the host has nothing to serve"
+    );
+
+    let apps_dir = empty.path().to_string_lossy().into_owned();
+    assert_eq!(
+        joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror),
+        vec!["air-quality".to_owned()]
+    );
+    let written = app_status(&mirror);
+    assert_eq!(
+        written.phase,
+        joinedcontext_portal::resource::Phase::Pending
+    );
+    let [ready] = written.conditions.as_slice() else {
+        panic!("one condition: {:?}", written.conditions);
+    };
+    assert_eq!(
+        (
+            ready.r#type.as_str(),
+            ready.status.as_str(),
+            ready.reason.as_deref()
+        ),
+        ("Ready", "False", Some("NoBuild"))
+    );
+    assert!(ready
+        .message
+        .as_deref()
+        .is_some_and(|m| m.contains("rebuild")));
+}
+
+/// The rule's edges: a bundle the image ships is served, a named build is 6b's to judge, and an
+/// App that is not published serves nothing by design; none of them is touched.
+#[tokio::test]
+async fn only_a_published_app_with_nothing_to_serve_is_marked() {
+    let shipped = app_root("shipped-no-build", &[("index.html", INDEX)]);
+    let apps_dir = shipped.path().to_string_lossy().into_owned();
+    let mirror = mirror_live_without_build(app_spec("published"));
+    let (status, _) = get_with(shipped.path(), mirror.clone(), "/apps/air-quality/").await;
+    assert_eq!(status, StatusCode::OK, "the shipped bundle serves");
+    assert!(
+        joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror)
+            .is_empty()
+    );
+    assert_eq!(
+        app_status(&mirror).phase,
+        joinedcontext_portal::resource::Phase::Live
+    );
+
+    let empty = tempdir::Dir::new("built-or-draft");
+    let apps_dir = empty.path().to_string_lossy().into_owned();
+    for mirror in [
+        mirror_with_build(app_spec("published"), "8c56954a1f0e"),
+        mirror_live_without_build(app_spec("draft")),
+    ] {
+        assert!(
+            joinedcontext_portal::apps::static_host::report_unbuilt(Some(&apps_dir), &mirror)
+                .is_empty()
+        );
+        assert_eq!(
+            app_status(&mirror).phase,
+            joinedcontext_portal::resource::Phase::Live
+        );
+    }
+}

@@ -320,7 +320,8 @@ impl AppState {
                     Arc::clone(&state.rejected),
                     Arc::clone(&state.pipeline_log),
                 )
-                .with_apps_cache_dir(state.config.apps_cache_dir.clone());
+                .with_apps_cache_dir(state.config.apps_cache_dir.clone())
+                .with_apps_dir(state.config.apps_dir.clone());
             // The root credential of the artifact store reaches this one object and no other,
             // and no workload gets it: every organization is served a derived, scoped pair
             // instead (PF-32, ADR-N-015).

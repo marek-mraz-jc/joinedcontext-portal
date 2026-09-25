@@ -147,6 +147,9 @@ pub struct Syncer {
     /// Where this replica fetches the builds the manifests name (AP-102): the run fetches the
     /// missing ones and checks that each named build is actually there (AP-72).
     apps_cache_dir: Option<String>,
+    /// The bundles this Portal's image ships (AP-87): a published App with no build of its own
+    /// is served from here, and one with neither serves nothing (T-2989).
+    apps_dir: Option<String>,
     /// The artifact store's admin API, held with the root credential. `None` leaves every
     /// organization without a scoped credential and the store untouched (PF-32).
     artifact_store: Option<Arc<crate::artifact_store::Client>>,
@@ -215,6 +218,7 @@ impl Syncer {
             app_hosts: None,
             activity: None,
             apps_cache_dir: None,
+            apps_dir: None,
             artifact_store: None,
             credentials: None,
             pipeline_secrets: None,
@@ -284,6 +288,13 @@ impl Syncer {
     /// names and says which app names a build that never arrived (AP-72, AP-102).
     pub fn with_apps_cache_dir(mut self, apps_cache_dir: Option<String>) -> Self {
         self.apps_cache_dir = apps_cache_dir;
+        self
+    }
+
+    /// Where this Portal's image ships App bundles, so a published App with no build and no
+    /// shipped bundle reads `Pending` instead of `Live` (AP-13a, T-2989).
+    pub fn with_apps_dir(mut self, apps_dir: Option<String>) -> Self {
+        self.apps_dir = apps_dir;
         self
     }
 
@@ -1424,6 +1435,13 @@ impl Syncer {
             }
             tracing::warn!(app = %name, "the build the manifest names is not on the host");
             self.mirror.upsert(envelope);
+        }
+
+        // 6b'. A published App with no build and no bundle the image ships serves nothing: it
+        //      reads Pending with a red Ready, never Live (AP-13a, T-2989).
+        for name in crate::apps::static_host::report_unbuilt(self.apps_dir.as_deref(), &self.mirror)
+        {
+            tracing::warn!(app = %name, "a published App has no build to serve");
         }
 
         // 6c. One writer and one reader per Organization in the artifact store, scoped to that
