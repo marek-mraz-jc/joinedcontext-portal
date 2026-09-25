@@ -12,9 +12,20 @@
  * that blanks because one of two sources is unreachable tells a reader less than nothing.
  */
 import { useEffect, useState } from "react";
-import { endpointSource, Grid, Header, Page, SourceError, transportFor, useClient } from "@joinedcontext/sdk";
-import type { JcEndpoint, RichRow } from "@joinedcontext/sdk";
-import { byKey, toIndicator, unitAsContracted } from "./indicators";
+import type { CSSProperties } from "react";
+import {
+  currentTokens,
+  endpointSource,
+  Grid,
+  Header,
+  Page,
+  SourceError,
+  transportFor,
+  useClient,
+} from "@joinedcontext/sdk";
+import type { DesignTokens, JcEndpoint, RichRow } from "@joinedcontext/sdk";
+import { DistrictChart } from "./DistrictChart";
+import { byKey, districtBars, isWhole, toIndicator, unitAsContracted } from "./indicators";
 import type { Body, Indicator, State } from "./indicators";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
@@ -26,6 +37,14 @@ const SPACE_OF: Record<Body, string> = {
 };
 
 const BODIES: Body[] = ["bbsk", "banskabystrica"];
+
+/**
+ * Each body's colour, from the design tokens (AP-123): the region takes the accent, the city the
+ * palette's second colour, so the two publishers read apart at a glance and a theme recolours both.
+ */
+export function bodyColor(body: Body, tokens: DesignTokens = currentTokens()): string {
+  return body === "bbsk" ? tokens.color.accent : (tokens.chart.palette[1] ?? tokens.color.accent);
+}
 
 /** One page is enough for the 31 indicators the contract declares, and caps a hostile answer. */
 const LIMIT = 200;
@@ -120,7 +139,11 @@ function BodySection({ body, s }: { body: Body; s: Strings }) {
   const headingId = `body-${body}`;
 
   return (
-    <section className="body" aria-labelledby={headingId}>
+    <section
+      className={`body body-${body}`}
+      aria-labelledby={headingId}
+      style={{ "--body": bodyColor(body) } as CSSProperties}
+    >
       <h2 id={headingId}>{s.body[body]}</h2>
       <p className="note">{s.bodyNote[body]}</p>
       {load.status === "loading" && <p role="status">{s.loading}</p>}
@@ -152,9 +175,18 @@ function Group({
 }) {
   const headingId = `group-${body}-${groupKey}`;
   const title = s.indicator[groupKey]?.title ?? groupKey;
+  const bars = districtBars(rows);
+  // The written unit only where every district carries the contracted code; otherwise no unit
+  // beside a bar is truer than the wrong one, and each card still shows its own.
+  const unit = rows.every((row) => row.value === null || unitAsContracted(row))
+    ? (s.indicator[groupKey]?.unit ?? "")
+    : "";
   return (
     <section className="group" aria-labelledby={headingId}>
       <h3 id={headingId}>{title}</h3>
+      {bars.length >= 2 && (
+        <DistrictChart id={`${body}-${groupKey}`} title={title} unit={unit} bars={bars} s={s} />
+      )}
       <Grid columns={4}>
         {rows.map((indicator) => (
           <IndicatorCard key={indicator.id} indicator={indicator} s={s} />
@@ -175,7 +207,7 @@ function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
   const headingId = `card-${indicator.id}`;
 
   return (
-    <article className="card" aria-labelledby={headingId}>
+    <article className={isWhole(indicator.territory) ? "card whole" : "card"} aria-labelledby={headingId}>
       <h4 id={headingId} className="territory">
         {territory}
       </h4>
@@ -205,7 +237,9 @@ function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
 
       {indicator.state && <StateBadge state={indicator.state} s={s} />}
 
-      <dl className="facts">
+      <details className="more">
+        <summary>{s.details}</summary>
+        <dl className="facts">
         {indicator.period && (
           <>
             <dt>{s.window}</dt>
@@ -229,7 +263,8 @@ function IndicatorCard({ indicator, s }: { indicator: Indicator; s: Strings }) {
             <dd className="formula">{indicator.formula}</dd>
           </>
         )}
-      </dl>
+        </dl>
+      </details>
     </article>
   );
 }
