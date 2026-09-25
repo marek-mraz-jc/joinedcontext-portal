@@ -9,7 +9,10 @@
       "crashBody": "Im Portal ist beim Zeichnen dieser Seite etwas fehlgeschlagen. An dem, was Sie angesehen haben, wurde nichts geändert.",
       "crashReference": "Nennen Sie das hier, wenn Sie es melden:",
       "crashReload": "Seite neu laden",
-      "crashHome": "Zum Anfang"
+      "crashHome": "Zum Anfang",
+      "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
+      "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
+      "reference": "Nennen Sie das, wenn Sie es melden:"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",
@@ -27,7 +30,18 @@
       "required": "Pflichtfeld"
     },
     "close": "Schließen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "session": {
+      "title": "Ihre Sitzung ist abgelaufen",
+      "body": "Sie waren eine Weile weg, darum hat das Portal Sie abgemeldet. Diese Seite und was Sie darauf eingegeben haben, sind noch da.",
+      "hereCost": "Melden Sie sich in einem neuen Tab erneut an und kehren Sie dann hierher zurück. Eine Anmeldung hier verlässt diese Seite, und alles Ungespeicherte geht verloren.",
+      "afterSignIn": "Wenn Sie sich im neuen Tab angemeldet haben, kommen Sie hierher zurück und machen Sie weiter.",
+      "signIn": "In neuem Tab anmelden",
+      "continue": "Hier weitermachen",
+      "here": "Lieber hier anmelden",
+      "close": "Nicht jetzt",
+      "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
@@ -59,6 +73,7 @@
     "organization": "Organisation",
     "settings": "Projekteinstellungen",
     "profile": "Ihr Konto",
+    "catalogue": "Katalog",
     "dataagreements": "Datenvereinbarungen",
     "blueprints": "Vorlagen",
     "agentprofiles": "Agentenprofile"
@@ -178,7 +193,12 @@
     "noneMatch": "Keine Änderung passt zu diesen Filtern.",
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
-    "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste."
+    "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste.",
+    "waitsOn": {
+      "pending": "Wartet auf {change}: Geben Sie zuerst diese Änderung frei, dann diese hier.",
+      "merged": "{change}, auf die diese Änderung wartet, ist zusammengeführt.",
+      "rejected": "{change}, auf die diese Änderung wartet, wurde abgelehnt: Was diese Änderung nennt, entsteht nicht. Lehnen Sie sie ab oder schlagen Sie sie neu vor."
+    }
   },
   "lane": {
     "green": "Grün",
@@ -321,7 +341,8 @@
       "ttlDays": "Lebensdauer in Tagen",
       "phase": "Zustand",
       "source": "Quelle",
-      "inside": "Inhalt"
+      "inside": "Inhalt",
+      "missingUnitCode": "Fehlende Einheit"
     },
     "inside": {
       "open": "Inhalt ansehen",
@@ -1144,7 +1165,11 @@
         "required": "erforderlich",
         "many": "mehrere Werte",
         "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
-        "example": "Beispiel: {example}"
+        "example": "Beispiel: {example}",
+        "measuredIn": "Gemessen in {symbol} ({code}); fehlt der unitCode in einem Datensatz, ergänzt ihn das Gateway.",
+        "sourceUnit": "Quelle in einer anderen Einheit?",
+        "sourceUnitOf": "Quelleinheit von {slot}",
+        "addConversion": "Zum Mapping hinzufügen"
       },
       "output": {
         "title": "Abgebildete Ausgabe",
@@ -2886,7 +2911,8 @@
       "none": "Noch nicht geprüft",
       "green": "Geprüft {age}",
       "red": "Prüfung fehlgeschlagen {age}",
-      "stale": "Seit der Prüfung geändert"
+      "stale": "Seit der Prüfung geändert",
+      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}"
     },
     "proposeReason": {
       "none": "Führen Sie zuerst die Prüfung aus: Ohne frisches grünes Urteil wird nichts vorgeschlagen.",
@@ -3857,6 +3883,10 @@
       "NEVER": "Nie, er ist abgeschlossen",
       "UNKNOWN": "Unbekannt"
     },
+    "missingUnitCode": {
+      "fill": "Einheit des Modells ergänzen",
+      "refuse": "Schreibvorgang ablehnen"
+    },
     "agreementRole": {
       "provider": "Anbieter: dieses Projekt teilt",
       "consumer": "Bezieher: dieses Projekt liest"
@@ -3935,6 +3965,168 @@
     "none": "Keine Einheit",
     "noMatch": "Keine UN/CEFACT-Einheit passt. Versuchen Sie das Symbol (µg/m³), den Namen oder den Code (GQ).",
     "more": "{shown} von {total} Einheiten angezeigt. Tippen Sie weiter, um die Liste einzugrenzen."
+  },
+  "catalogue": {
+    "title": "Katalog",
+    "lead": "Alle öffentlichen Datensätze der Open-Data-Kataloge dieser Installation. Suchen, filtern, einen Datensatz öffnen und seine Daten nutzen.",
+    "loading": "Katalog wird geladen…",
+    "unavailable": "Diese Kataloge haben nicht geantwortet, ihre Datensätze fehlen deshalb unten: {catalogues}. In einer Minute erneut versuchen.",
+    "search": {
+      "label": "Datensätze suchen",
+      "placeholder": "Titel, Beschreibung oder Schlagwort",
+      "submit": "Suchen",
+      "clear": "Suche und Filter zurücksetzen"
+    },
+    "facets": {
+      "label": "Filter",
+      "publisher": "Herausgeber",
+      "theme": "Thema",
+      "format": "Format",
+      "licence": "Lizenz",
+      "spatial": "Gebiet",
+      "year": "Zeitraum"
+    },
+    "results": {
+      "label": "Datensätze",
+      "count": "{count, plural, =0 {Kein Datensatz} one {# Datensatz} other {# Datensätze}}",
+      "empty": "Noch kein öffentlicher Datensatz",
+      "emptyHint": "Ein Datensatz erscheint hier, sobald ein Projekt einen Endpunkt in seinem Open-Data-Katalog veröffentlicht.",
+      "noMatch": "Kein Datensatz passt",
+      "noMatchHint": "Einen Filter entfernen oder den Suchtext ändern."
+    },
+    "pages": {
+      "label": "Seiten",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "of": "Seite {page} von {pages}",
+      "first": "Dies ist die erste Seite.",
+      "last": "Dies ist die letzte Seite."
+    },
+    "dataset": {
+      "modified": "aktualisiert {date}",
+      "tags": "Themen und Schlagwörter",
+      "back": "Alle Datensätze",
+      "loading": "Datensatz wird geladen…",
+      "missing": "Kein öffentlicher Datensatz trägt diesen Namen",
+      "missingHint": "Der Datensatz wurde vielleicht entfernt oder nicht mehr öffentlich gemacht. Im Katalog danach suchen.",
+      "period": "{start} – {end}",
+      "open": "offen",
+      "frequency": "Aktualisierung",
+      "contact": "Kontakt",
+      "modifiedLabel": "Letzte Änderung",
+      "inCatalogue": "Im Katalog öffnen",
+      "resources": "Ressourcen",
+      "noResources": "Der Datensatz nennt keine Ressource.",
+      "resource": "Ressource",
+      "links": "Links",
+      "download": "Herunterladen",
+      "preview": "Vorschau",
+      "model": "Datenmodell {name}",
+      "modelDocs": "Modelldokumentation",
+      "noDescription": "Das Modell nennt keine Beschreibung.",
+      "sample": "Stichprobe",
+      "sampleLoading": "Zehn Zeilen werden über den Endpunkt gelesen…",
+      "noSample": "Dieser Datensatz hat keinen Endpunkt dieser Installation, der NGSI-LD liefert, daher gibt es keine Stichprobe.",
+      "sampleEmpty": "Der Endpunkt enthält noch kein {type}.",
+      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen"
+    },
+    "use": {
+      "title": "Diese Daten nutzen",
+      "curl": "Aus der Shell (NGSI-LD)",
+      "csv": "Als CSV herunterladen",
+      "sdk": "In einer App auf diesem Endpunkt",
+      "mcp": "In einem MCP-Client",
+      "copy": "Kopieren: {what}",
+      "copyShort": "Kopieren",
+      "copied": "Kopiert"
+    },
+    "theme": {
+      "AGRI": "Landwirtschaft, Fischerei, Forstwirtschaft und Nahrungsmittel",
+      "ECON": "Wirtschaft und Finanzen",
+      "EDUC": "Bildung, Kultur und Sport",
+      "ENER": "Energie",
+      "ENVI": "Umwelt",
+      "GOVE": "Regierung und öffentlicher Sektor",
+      "HEAL": "Gesundheit",
+      "INTR": "Internationale Themen",
+      "JUST": "Justiz, Rechtssystem und öffentliche Sicherheit",
+      "OP_DATPRO": "Vorläufige Daten",
+      "REGI": "Regionen und Städte",
+      "SOCI": "Bevölkerung und Gesellschaft",
+      "TECH": "Wissenschaft und Technologie",
+      "TRAN": "Verkehr"
+    },
+    "frequency": {
+      "CONT": "laufend",
+      "UPDATE_CONT": "laufend",
+      "HOURLY": "stündlich",
+      "DAILY": "täglich",
+      "WEEKLY": "wöchentlich",
+      "MONTHLY": "monatlich",
+      "QUARTERLY": "vierteljährlich",
+      "ANNUAL": "jährlich",
+      "IRREG": "unregelmäßig",
+      "NEVER": "nie",
+      "UNKNOWN": "unbekannt"
+    },
+    "publish": {
+      "open": "Datensatz veröffentlichen",
+      "title": "Datensatz veröffentlichen",
+      "lead": "Einen Endpunkt wählen, seine Katalogbeschreibung prüfen, den Eintrag in der Vorschau ansehen und vorschlagen. Der Datensatz erscheint nach der Genehmigung im Katalog.",
+      "steps": "Schritte",
+      "step": {
+        "pick": "1. Endpunkt",
+        "describe": "2. Beschreibung",
+        "preview": "3. Vorschau"
+      },
+      "endpoint": "Endpunkt",
+      "endpointHelp": "Der Endpunkt, dessen Daten der Datensatz anbietet.",
+      "pickFirst": "Zuerst einen Endpunkt wählen.",
+      "describe": "Beschreibung entwerfen",
+      "drafted": "Entworfen aus Endpunkt {endpoint}, seinem Datenmodell und den Kontakten der Organisation. Vor der Vorschau lässt sich alles ändern.",
+      "makesPublic": "Dieser Endpunkt ist noch nicht öffentlich. Die Veröffentlichung macht ihn für alle ohne Anmeldung lesbar, deshalb muss ein Herausgeber die Änderung genehmigen.",
+      "missing": "Diese Felder ließen sich nicht füllen: {fields}. Bitte ausfüllen, wenn bekannt.",
+      "member": {
+        "publisher": "Herausgeber",
+        "contactPoint": "Kontakt",
+        "license": "Lizenz",
+        "themes": "Themen",
+        "keywords": "Schlagwörter",
+        "spatial": "Gebiet",
+        "temporal": "Zeitraum",
+        "frequency": "Aktualisierungshäufigkeit"
+      },
+      "inLanguage": "In der Sprache {language}.",
+      "choose": "Auswählen…",
+      "contactName": "Name des Kontakts",
+      "contactEmail": "E-Mail des Kontakts",
+      "contactHelp": "Eine Funktionsadresse wie eine Open-Data-Stelle, nie die E-Mail einer Person.",
+      "keywords": "Schlagwörter",
+      "keywordsHelp": "Durch Kommas getrennt, in der Sprache {language}.",
+      "spatialHelp": "NUTS-Codes oder Ortslinks, durch Kommas getrennt, zum Beispiel SK032.",
+      "start": "Enthält Daten ab",
+      "end": "Enthält Daten bis",
+      "back": "Zurück",
+      "preview": "Eintrag in der Vorschau ansehen",
+      "propose": "Veröffentlichung vorschlagen",
+      "proposePublic": "Öffentlich machen und Veröffentlichung vorschlagen",
+      "afterApproval": "Nach der Genehmigung erscheint der Datensatz beim nächsten Abgleich im Katalog.",
+      "close": "Ablauf schließen",
+      "error": {
+        "licence": "Eine Lizenz wählen.",
+        "contactBoth": "Name und E-Mail des Kontakts gemeinsam angeben oder keines von beiden.",
+        "email": "Eine E-Mail-Adresse wie opendata@example.org eingeben.",
+        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
   },
   "dataagreements": {
     "field": {

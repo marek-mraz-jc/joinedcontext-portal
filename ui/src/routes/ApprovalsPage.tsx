@@ -140,6 +140,16 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
                 <div className="mt-0.5 font-mono text-caption text-fg-subtle">
                   {proposal.metadata.name}
                 </div>
+                {/* A change that waits on another merges after it (MF-48). */}
+                {(proposal.waitsOn ?? [])
+                  .filter((awaited) => awaited.phase !== "Merged")
+                  .map((awaited) => (
+                    <div key={awaited.name} className="mt-0.5 text-caption text-fg-muted">
+                      {awaited.phase === "Rejected"
+                        ? t("approvals.waitsOn.rejected", { change: awaited.name })
+                        : t("approvals.waitsOn.pending", { change: awaited.name })}
+                    </div>
+                  ))}
                 {/* A bundle is more than its headline, and the approval checks all of it. */}
                 {(proposal.fileCount ?? 0) > 1 ? (
                   <div className="mt-0.5 text-caption text-fg-muted">

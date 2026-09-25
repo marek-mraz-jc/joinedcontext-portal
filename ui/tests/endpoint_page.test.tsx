@@ -529,8 +529,10 @@ describe("the endpoint's own settings page", () => {
         "true",
       );
     });
-    // Both doors say which verb on which kind is missing: the endpoint's settings and the filter.
-    expect(screen.getByTitle(/'propose' on 'Endpoint'/)).toBeInTheDocument();
+    // Every door says which verb on which kind is missing: the endpoint's settings, its
+    // publication to the catalogue (EP-83) and the filter.
+    expect(screen.getByRole("button", { name: en.catalogue.publish.open })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByTitle(/'propose' on 'Endpoint'/)).toHaveLength(2);
     expect(screen.getByTitle(/'propose' on 'ModelProjection'/)).toBeInTheDocument();
   });
 

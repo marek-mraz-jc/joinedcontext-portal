@@ -9,7 +9,10 @@
       "crashBody": "V Portáli zlyhalo niečo pri vykresľovaní tejto stránky. Na tom, čo ste si prezerali, sa nič nezmenilo.",
       "crashReference": "Pri hlásení uveďte toto:",
       "crashReload": "Načítať stránku znova",
-      "crashHome": "Späť na začiatok"
+      "crashHome": "Späť na začiatok",
+      "session": "Vaše prihlásenie skončilo. Prihláste sa znova, aby ste to videli.",
+      "forbiddenHint": "Prístup vám môže dať vlastník projektu alebo správca organizácie.",
+      "reference": "Uveďte toto, keď to budete hlásiť:"
     },
     "notFound": {
       "title": "Táto stránka neexistuje",
@@ -27,7 +30,18 @@
       "required": "povinné"
     },
     "close": "Zavrieť",
-    "cancel": "Zrušiť"
+    "cancel": "Zrušiť",
+    "session": {
+      "title": "Vaše prihlásenie skončilo",
+      "body": "Boli ste chvíľu preč, preto vás Portál odhlásil. Táto stránka aj to, čo ste na nej napísali, tu stále sú.",
+      "hereCost": "Prihláste sa znova na novej karte a potom sa vráťte na túto. Prihlásenie tu opustí túto stránku a všetko neuložené sa stratí.",
+      "afterSignIn": "Keď sa na novej karte prihlásite, vráťte sa sem a pokračujte.",
+      "signIn": "Prihlásiť sa na novej karte",
+      "continue": "Pokračovať tu",
+      "here": "Prihlásiť sa radšej tu",
+      "close": "Teraz nie",
+      "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
@@ -59,6 +73,7 @@
     "organization": "Organizácia",
     "settings": "Nastavenia projektu",
     "profile": "Váš účet",
+    "catalogue": "Katalóg",
     "dataagreements": "Dátové dohody",
     "blueprints": "Šablóny",
     "agentprofiles": "Profily agentov"
@@ -178,7 +193,12 @@
     "noneMatch": "Týmto filtrom nezodpovedá žiadna zmena.",
     "workspace": "Z kópie",
     "fromWorkspace": "Z kópie {name}, ktorú pripravil(a) {author}, vrátené {date}: upravené mimo živého projektu a pred návrhom znova skontrolované.",
-    "emptyHint": "Každá zmena tohto projektu tu čaká, kým ju človek prečíta a rozhodne. Teraz nič nečaká; podajte zmenu a objaví sa v tomto zozname."
+    "emptyHint": "Každá zmena tohto projektu tu čaká, kým ju človek prečíta a rozhodne. Teraz nič nečaká; podajte zmenu a objaví sa v tomto zozname.",
+    "waitsOn": {
+      "pending": "Čaká na {change}: najprv schváľte tú zmenu, potom túto.",
+      "merged": "{change}, na ktorú táto zmena čaká, je zlúčená.",
+      "rejected": "{change}, na ktorú táto zmena čaká, bola zamietnutá: to, čo táto zmena menuje, nevznikne. Zamietnite ju alebo ju navrhnite znova."
+    }
   },
   "lane": {
     "green": "Zelená",
@@ -321,7 +341,8 @@
       "ttlDays": "Životnosť v dňoch",
       "phase": "Stav",
       "source": "Zdroj",
-      "inside": "Obsah"
+      "inside": "Obsah",
+      "missingUnitCode": "Chýbajúca jednotka"
     },
     "inside": {
       "open": "Pozrieť obsah",
@@ -1144,7 +1165,11 @@
         "required": "povinné",
         "many": "viac hodnôt",
         "values": "{count, plural, =0 {Hodnoty: {values}} other {Hodnoty: {values} a ďalšie (#)}}",
-        "example": "Príklad: {example}"
+        "example": "Príklad: {example}",
+        "measuredIn": "Meria sa v {symbol} ({code}); ak záznam unitCode nemá, brána ho doplní.",
+        "sourceUnit": "Zdroj v inej jednotke?",
+        "sourceUnitOf": "Jednotka zdroja pre {slot}",
+        "addConversion": "Pridať do mapovania"
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -2886,7 +2911,8 @@
       "none": "Zatiaľ neskontrolované",
       "green": "Skontrolované {age}",
       "red": "Kontrola zlyhala {age}",
-      "stale": "Zmenené od kontroly"
+      "stale": "Zmenené od kontroly",
+      "waiting": "Prejde po schválení {changes} · skontrolované {age}"
     },
     "proposeReason": {
       "none": "Najprv spustite kontrolu: nič sa nenavrhuje bez čerstvého zeleného verdiktu.",
@@ -3857,6 +3883,10 @@
       "NEVER": "Nikdy, je konečný",
       "UNKNOWN": "Neznáme"
     },
+    "missingUnitCode": {
+      "fill": "Doplniť jednotku z modelu",
+      "refuse": "Odmietnuť zápis"
+    },
     "agreementRole": {
       "provider": "Poskytovateľ: tento projekt zdieľa",
       "consumer": "Odberateľ: tento projekt číta"
@@ -3935,6 +3965,168 @@
     "none": "Bez jednotky",
     "noMatch": "Žiadna jednotka UN/CEFACT nezodpovedá. Skúste značku (µg/m³), názov alebo kód (GQ).",
     "more": "Zobrazených {shown} z {total} jednotiek. Píšte ďalej a zoznam sa zúži."
+  },
+  "catalogue": {
+    "title": "Katalóg",
+    "lead": "Všetky verejné datasety otvorených katalógov tejto inštalácie. Vyhľadajte, filtrujte, otvorte dataset a použite jeho dáta.",
+    "loading": "Načítava sa katalóg…",
+    "unavailable": "Tieto katalógy neodpovedali, ich datasety preto nižšie chýbajú: {catalogues}. Skúste to znova o minútu.",
+    "search": {
+      "label": "Hľadať datasety",
+      "placeholder": "Názov, popis alebo kľúčové slovo",
+      "submit": "Hľadať",
+      "clear": "Zrušiť vyhľadávanie a filtre"
+    },
+    "facets": {
+      "label": "Filtre",
+      "publisher": "Vydavateľ",
+      "theme": "Téma",
+      "format": "Formát",
+      "licence": "Licencia",
+      "spatial": "Územie",
+      "year": "Obdobie"
+    },
+    "results": {
+      "label": "Datasety",
+      "count": "{count, plural, =0 {Žiadny dataset} one {# dataset} few {# datasety} other {# datasetov}}",
+      "empty": "Zatiaľ žiadny verejný dataset",
+      "emptyHint": "Dataset sa tu zobrazí, keď projekt zverejní endpoint do svojho katalógu otvorených dát.",
+      "noMatch": "Žiadny dataset nevyhovuje",
+      "noMatchHint": "Odstráňte filter alebo zmeňte hľadaný text."
+    },
+    "pages": {
+      "label": "Stránky",
+      "previous": "Predchádzajúca stránka",
+      "next": "Ďalšia stránka",
+      "of": "Stránka {page} z {pages}",
+      "first": "Toto je prvá stránka.",
+      "last": "Toto je posledná stránka."
+    },
+    "dataset": {
+      "modified": "aktualizované {date}",
+      "tags": "Témy a kľúčové slová",
+      "back": "Všetky datasety",
+      "loading": "Načítava sa dataset…",
+      "missing": "Žiadny verejný dataset nemá tento názov",
+      "missingHint": "Dataset mohol byť odstránený alebo zneverejnený. Vyhľadajte ho v katalógu.",
+      "period": "{start} – {end}",
+      "open": "otvorené",
+      "frequency": "Aktualizácia",
+      "contact": "Kontakt",
+      "modifiedLabel": "Posledná zmena",
+      "inCatalogue": "Otvoriť v katalógu",
+      "resources": "Zdroje",
+      "noResources": "Dataset neuvádza žiadny zdroj.",
+      "resource": "Zdroj",
+      "links": "Odkazy",
+      "download": "Stiahnuť",
+      "preview": "Náhľad",
+      "model": "Dátový model {name}",
+      "modelDocs": "Dokumentácia modelu",
+      "noDescription": "Model neuvádza popis.",
+      "sample": "Ukážka",
+      "sampleLoading": "Číta sa desať riadkov cez endpoint…",
+      "noSample": "Tento dataset nemá endpoint tejto inštalácie, ktorý poskytuje NGSI-LD, preto nemá ukážku.",
+      "sampleEmpty": "Endpoint zatiaľ neobsahuje žiadne {type}.",
+      "sampleCaption": "Najviac desať {type} prečítaných cez endpoint"
+    },
+    "use": {
+      "title": "Použiť tieto dáta",
+      "curl": "Z príkazového riadka (NGSI-LD)",
+      "csv": "Stiahnuť ako CSV",
+      "sdk": "V aplikácii postavenej na tomto endpointe",
+      "mcp": "V klientovi MCP",
+      "copy": "Kopírovať: {what}",
+      "copyShort": "Kopírovať",
+      "copied": "Skopírované"
+    },
+    "theme": {
+      "AGRI": "Poľnohospodárstvo, rybárstvo, lesníctvo a potraviny",
+      "ECON": "Hospodárstvo a financie",
+      "EDUC": "Vzdelávanie, kultúra a šport",
+      "ENER": "Energetika",
+      "ENVI": "Životné prostredie",
+      "GOVE": "Vláda a verejný sektor",
+      "HEAL": "Zdravie",
+      "INTR": "Medzinárodné otázky",
+      "JUST": "Spravodlivosť, právny systém a verejná bezpečnosť",
+      "OP_DATPRO": "Predbežné údaje",
+      "REGI": "Regióny a mestá",
+      "SOCI": "Obyvateľstvo a spoločnosť",
+      "TECH": "Veda a technika",
+      "TRAN": "Doprava"
+    },
+    "frequency": {
+      "CONT": "priebežne",
+      "UPDATE_CONT": "priebežne",
+      "HOURLY": "každú hodinu",
+      "DAILY": "denne",
+      "WEEKLY": "týždenne",
+      "MONTHLY": "mesačne",
+      "QUARTERLY": "štvrťročne",
+      "ANNUAL": "ročne",
+      "IRREG": "nepravidelne",
+      "NEVER": "nikdy",
+      "UNKNOWN": "neznáma"
+    },
+    "publish": {
+      "open": "Zverejniť dataset",
+      "title": "Zverejniť dataset",
+      "lead": "Vyberte endpoint, skontrolujte jeho popis do katalógu, pozrite si náhľad záznamu a navrhnite ho. Dataset sa v katalógu zobrazí po schválení.",
+      "steps": "Kroky",
+      "step": {
+        "pick": "1. Endpoint",
+        "describe": "2. Popis",
+        "preview": "3. Náhľad"
+      },
+      "endpoint": "Endpoint",
+      "endpointHelp": "Endpoint, ktorého dáta dataset ponúka.",
+      "pickFirst": "Najprv vyberte endpoint.",
+      "describe": "Pripraviť popis",
+      "drafted": "Pripravené z endpointu {endpoint}, jeho dátového modelu a kontaktov organizácie. Pred náhľadom môžete čokoľvek zmeniť.",
+      "makesPublic": "Tento endpoint zatiaľ nie je verejný. Zverejnením ho bude môcť čítať ktokoľvek bez prihlásenia, preto zmenu musí schváliť vydavateľ.",
+      "missing": "Tieto polia sa nepodarilo vyplniť: {fields}. Vyplňte ich, ak ich poznáte.",
+      "member": {
+        "publisher": "vydavateľ",
+        "contactPoint": "kontakt",
+        "license": "licencia",
+        "themes": "témy",
+        "keywords": "kľúčové slová",
+        "spatial": "územie",
+        "temporal": "obdobie",
+        "frequency": "frekvencia aktualizácie"
+      },
+      "inLanguage": "V jazyku {language}.",
+      "choose": "Vyberte…",
+      "contactName": "Meno kontaktu",
+      "contactEmail": "E-mail kontaktu",
+      "contactHelp": "Rolová adresa, napríklad oddelenie otvorených dát, nikdy osobný e-mail.",
+      "keywords": "Kľúčové slová",
+      "keywordsHelp": "Oddelené čiarkami, v jazyku {language}.",
+      "spatialHelp": "Kódy NUTS alebo odkazy na miesta oddelené čiarkami, napríklad SK032.",
+      "start": "Obsahuje dáta od",
+      "end": "Obsahuje dáta do",
+      "back": "Späť",
+      "preview": "Zobraziť náhľad záznamu",
+      "propose": "Navrhnúť zverejnenie",
+      "proposePublic": "Sprístupniť verejne a navrhnúť zverejnenie",
+      "afterApproval": "Po schválení sa dataset zobrazí v katalógu pri najbližšej synchronizácii.",
+      "close": "Zavrieť postup",
+      "error": {
+        "licence": "Vyberte licenciu.",
+        "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
+        "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
+        "period": "Koniec obdobia nemôže byť pred jeho začiatkom."
+      }
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC0": "Creative Commons Zero 1.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Data Commons Open Database Licence",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
   },
   "dataagreements": {
     "field": {

@@ -57,7 +57,7 @@ jobs:
         name: the unit list is the platform's code list, unedited (DM-06)
         run: |
           curl -fsSL https://raw.githubusercontent.com/marek-mraz-jc/joinedcontext-platform/main/crates/jc-core/data/unece-rec20.json \
-            | cmp - ui/src/generated/units.json
+            | cmp - sdk/src/sdk/units.json
       - if: steps.has.outputs.ui == 'yes'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with: { version: 10 }

@@ -180,7 +180,7 @@ describe("the grid's own way in", () => {
   it("offers history where the attribute's metadata already is, and only when the source answers it", async () => {
     const plain = fixtureSource(entities);
     const { unmount } = render(<EntityGrid config={config} source={plain} />);
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
     // A source that cannot answer a temporal read offers nothing to click (SDK-29).
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
@@ -188,7 +188,7 @@ describe("the grid's own way in", () => {
 
     const temporal = { ...plain, history: async () => NUMBERS };
     render(<EntityGrid config={config} source={temporal} />);
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
     fireEvent.click(screen.getByRole("button", { name: "History" }));
 
@@ -206,7 +206,7 @@ describe("the grid's own way in", () => {
       pageSize: 10,
     }).config!;
     render(<EntityGrid config={off} source={{ ...fixtureSource(entities), history: async () => NUMBERS }} />);
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
   });

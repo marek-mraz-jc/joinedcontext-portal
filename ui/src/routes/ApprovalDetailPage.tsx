@@ -234,6 +234,22 @@ export function ApprovalDetailPage({
         }
       />
 
+      {/* What this change names comes from another one: it merges after it, and a rejected one
+          means what it names will never exist (MF-48). */}
+      {(proposal.waitsOn ?? []).map((awaited) => (
+        <Alert
+          key={awaited.name}
+          role="status"
+          tone={awaited.phase === "Rejected" ? "danger" : awaited.phase === "Merged" ? "success" : "warning"}
+        >
+          {awaited.phase === "Rejected"
+            ? t("approvals.waitsOn.rejected", { change: awaited.name })
+            : awaited.phase === "Merged"
+              ? t("approvals.waitsOn.merged", { change: awaited.name })
+              : t("approvals.waitsOn.pending", { change: awaited.name })}
+        </Alert>
+      ))}
+
       <dl className="grid grid-cols-1 gap-4 rounded border border-border bg-surface-subtle p-4 sm:grid-cols-2">
         <div>
           <dt className="text-xs font-medium text-surface-fg/70">{t("approvals.author")}</dt>
