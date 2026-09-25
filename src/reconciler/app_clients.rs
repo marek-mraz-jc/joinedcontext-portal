@@ -49,6 +49,12 @@ impl ClientSecret {
     }
 }
 
+impl From<String> for ClientSecret {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 impl std::fmt::Debug for ClientSecret {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ClientSecret(redacted)")
