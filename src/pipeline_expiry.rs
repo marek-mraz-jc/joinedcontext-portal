@@ -252,8 +252,24 @@ fn pipeline_policy<'a>(policies: &'a [(String, PolicySpec)], space: &str) -> Opt
 /// The offset advances by what a page kept: the entities it read minus the ones the gateway
 /// confirmed deleted, so a failed delete is stepped over rather than read forever. A failed read
 /// or delete ends that hour's sweep and is logged; the next hour starts again from the top.
-pub fn render_sweep(project: &str, slug: &str, expiry: &Expiry) -> Value {
-    let hours = expiry.hours().unwrap_or(0);
+///
+/// `None` when the window or the types are not what PL-64 allows: the reconciler reads a
+/// Pipeline with serde, not jc-core's validation, and a window read as zero would delete every
+/// entity of the types, a query naming no type every entity of the space.
+pub fn render_sweep(project: &str, slug: &str, expiry: &Expiry) -> Option<Value> {
+    use jc_core::kinds::pipeline::{EXPIRY_MAX_HOURS, EXPIRY_MAX_TYPES};
+    let hours = expiry
+        .hours()
+        .filter(|hours| (1..=EXPIRY_MAX_HOURS).contains(hours))?;
+    let named = &expiry.types;
+    let types_valid = (1..=EXPIRY_MAX_TYPES).contains(&named.len())
+        && named.iter().enumerate().all(|(at, entity_type)| {
+            jc_core::names::validate_entity_type(entity_type).is_ok()
+                && !named[..at].contains(entity_type)
+        });
+    if !types_valid {
+        return None;
+    }
     let seconds = hours * 3600;
     let types = json!(expiry
         .types
@@ -271,7 +287,7 @@ pub fn render_sweep(project: &str, slug: &str, expiry: &Expiry) -> Value {
             "rate_limit": "pipeline_egress"
         })
     };
-    json!({
+    Some(json!({
         "input": {
             "generate": {
                 "interval": SWEEP_INTERVAL,
@@ -319,7 +335,7 @@ pub fn render_sweep(project: &str, slug: &str, expiry: &Expiry) -> Value {
             }]
         },
         "output": { "drop": {} }
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -514,12 +530,45 @@ mod tests {
         assert!(check(&state, "helsinki", "Endpoint", "x", &json!({})).is_ok());
     }
 
+    /// The reconciler reads a Pipeline with serde, not jc-core's validate(), so a window or a
+    /// type list the door would refuse can still reach the render. It renders no sweep: an
+    /// unparsed window read as zero was a cutoff of now, every entity of the types deleted, and
+    /// a query naming no type reads them all.
+    #[test]
+    fn a_window_or_types_that_do_not_validate_render_no_sweep() {
+        let sweep = |after: &str, types: Vec<&str>| {
+            let expiry: Expiry =
+                serde_json::from_value(json!({ "after": after, "types": types })).expect("expiry");
+            render_sweep("helsinki", "ep-slug", &expiry)
+        };
+        for after in [
+            "30m", "0h", "0d", "366d", "8761h", "", "d", "14", "-1d", "1.5d",
+        ] {
+            assert!(
+                sweep(after, vec!["Vehicle"]).is_none(),
+                "{after:?} renders a sweep"
+            );
+        }
+        assert!(sweep("14d", vec![]).is_none(), "no type names every type");
+        assert!(
+            sweep("14d", vec!["Vehicle"; 2]).is_none(),
+            "a type named twice"
+        );
+        let many: Vec<String> = (0..=jc_core::kinds::pipeline::EXPIRY_MAX_TYPES)
+            .map(|at| format!("Type{at}"))
+            .collect();
+        assert!(sweep("14d", many.iter().map(String::as_str).collect()).is_none());
+        assert!(sweep("14d", vec!["not a type"]).is_none());
+        assert!(sweep("1h", vec!["Vehicle"]).is_some());
+        assert!(sweep("365d", vec!["Vehicle"]).is_some());
+    }
+
     #[test]
     fn the_sweep_reads_and_deletes_through_the_output_endpoint_as_the_pipelines_account() {
         let expiry: Expiry =
             serde_json::from_value(json!({ "after": "2d", "types": ["Vehicle", "Bus"] }))
                 .expect("expiry");
-        let sweep = render_sweep("helsinki", "ep-slug", &expiry);
+        let sweep = render_sweep("helsinki", "ep-slug", &expiry).expect("a valid expiry");
         assert_eq!(sweep["input"]["generate"]["interval"], "1h");
         assert_eq!(sweep["output"], json!({ "drop": {} }));
         let body = &sweep["pipeline"]["processors"][0]["while"];
