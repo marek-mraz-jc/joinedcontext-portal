@@ -1891,10 +1891,13 @@
         "building": "Stavia sa",
         "needsYou": "Čaká na vás",
         "failed": "Zlyhalo",
-        "readyToPublish": "Pripravené na publikovanie"
+        "readyToPublish": "Pripravené na publikovanie",
+        "waitingApproval": "Čaká na schválenie"
       },
       "open": "Otvoriť",
-      "conflict": "{name} sa už stavia. Otvorte ju namiesto toho."
+      "conflict": "{name} sa už stavia. Otvorte ju namiesto toho.",
+      "waiting": "{count, plural, one {Jedna aplikácia čaká na schválenie svojej zmeny.} few {# aplikácie čakajú na schválenie svojich zmien.} other {# aplikácií čaká na schválenie svojich zmien.}} Počas čakania si beh ponechá náhľad.",
+      "openApprovals": "Otvoriť schvaľovanie"
     },
     "kpi": {
       "badge": "KPI"
@@ -2379,7 +2382,10 @@
       "stop": "Zastaviť beh",
       "retry": "Opýtať sa znova",
       "newConversation": "Nová konverzácia",
-      "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu."
+      "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu.",
+      "tryAgain": "Skúsiť znova",
+      "unanswered": "Vaša posledná správa nedostala odpoveď. Nič sa nezmenilo.",
+      "endedBecause": "Dôvod: {reason}."
     },
     "line": {
       "status": "Teraz {status}.",

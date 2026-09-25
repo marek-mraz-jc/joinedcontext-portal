@@ -672,7 +672,7 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "action_inspector.test.tsx",
@@ -1031,14 +1031,6 @@
         "pipeline_studio_functions.test.ts"
       ]
     },
-    "src/pages/pipelines/PipelineWorkbench.tsx": {
-      "controls": {
-        "FilePicker": 1
-      },
-      "tests": [
-        "pipeline_workbench.test.tsx"
-      ]
-    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
         "Button": 2,
@@ -1051,6 +1043,14 @@
         "pipeline_flow_steps.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_test_functions.test.ts"
+      ]
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceComplete.tsx": {
