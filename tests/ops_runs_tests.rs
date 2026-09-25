@@ -21,6 +21,7 @@ use serde_json::{json, Value};
 /// May read and propose in [`PROJECT`], and approves nothing: sees only the runs she started.
 fn lucia() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:lucia".into(),
         username: "lucia".into(),
         email: Some("lucia@banskabystrica.sk".into()),

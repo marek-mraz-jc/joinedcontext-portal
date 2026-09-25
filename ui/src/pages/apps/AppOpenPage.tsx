@@ -6,14 +6,44 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useAuth } from "../../auth/AuthProvider";
+import { useBranding } from "../../branding";
 import { Button, buttonClass, EmptyState, ExternalLink, PageHeader, PageLoading, ResourcePageFailed } from "../../components/ui";
 import { useAppBuild } from "./AppBuildPanel";
 import { appSpec, openBlockedReason } from "./AppsCatalog";
 import { appDisplayName } from "./appTitle";
 
-/** The App's own address. On the Portal's host the static host sends the frame to the apps origin. */
-export function appAddress(name: string): string {
-  return `/apps/${encodeURIComponent(name)}/`;
+/**
+ * The App's own address: on the origin the Portal serves Apps from when it has one (`appsOrigin`
+ * of the branding, from `JC_PORTAL_APPS_URL`), else the path on the Portal's own host.
+ */
+export function appAddress(name: string, appsOrigin?: string | null): string {
+  const path = `/apps/${encodeURIComponent(name)}/`;
+  if (!appsOrigin) return path;
+  try {
+    const url = new URL(path, appsOrigin);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : path;
+  } catch {
+    return path;
+  }
+}
+
+const FRAME_SANDBOX = "allow-scripts allow-forms allow-popups allow-downloads";
+
+/**
+ * What the App's frame may do (AP-122, AP-19): run its scripts, send its forms, open a link in a
+ * new window, download, and never take the Portal's window away. It keeps its own origin
+ * (`allow-same-origin`) only when its address is on another origin than the Portal's: there the
+ * pair gives the App its session and storage as in a window of its own, while on the Portal's
+ * origin the pair would hand it the Portal's CSRF cookie and is no sandbox at all.
+ */
+export function appFrameSandbox(src: string, portalOrigin: string = window.location.origin): string {
+  let origin: string;
+  try {
+    origin = new URL(src, portalOrigin).origin;
+  } catch {
+    return FRAME_SANDBOX;
+  }
+  return origin !== "null" && origin !== portalOrigin ? `${FRAME_SANDBOX} allow-same-origin` : FRAME_SANDBOX;
 }
 
 /** The one App manifest, shared with every page that reads it. */
@@ -67,6 +97,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { appsOrigin } = useBranding();
   const app = useApp(project, name);
   const build = useAppBuild(project, name);
 
@@ -111,7 +142,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const built = manifest.status?.build as { commit?: unknown } | undefined;
   const commit = typeof built?.commit === "string" ? built.commit : null;
   const blocked = openBlockedReason(manifest, build.data?.run ?? null, t);
-  const address = appAddress(name);
+  const address = appAddress(name, appsOrigin);
 
   if (blocked) {
     return (
@@ -136,14 +167,10 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           </>
         }
       />
-      {/* What the App may do (AP-122): run its scripts, send its forms, open a link in a new
-          window, download. No allow-same-origin: a static App is served from the Portal's own
-          origin (AP-14) and the pair would hand it the Portal's CSRF cookie (AP-19). No
-          allow-top-navigation: the App never takes the Portal's window away. */}
       <iframe
         src={address}
         title={t("apps.openPage.frameTitle", { title })}
-        sandbox="allow-scripts allow-forms allow-popups allow-downloads"
+        sandbox={appFrameSandbox(address)}
         referrerPolicy="no-referrer"
         className="min-h-128 w-full flex-1 rounded-xl border border-border bg-surface"
       />

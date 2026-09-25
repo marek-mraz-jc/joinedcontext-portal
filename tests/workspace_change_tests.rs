@@ -15,6 +15,7 @@ const FILE: &str = "projects/ovzdusie/spaces/air/space.yaml";
 
 fn approver() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("petra")
     }

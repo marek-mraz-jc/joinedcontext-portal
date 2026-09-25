@@ -21,6 +21,7 @@ const REPO: &str = "/api/v1/repos/test-owner/test-repo";
 
 fn steward() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:demo.steward".into(),
         username: "demo.steward".into(),
         email: Some("demo.steward@banskabystrica.sk".into()),
@@ -278,6 +279,7 @@ async fn a_viewer_is_refused_in_a_workspace_as_everywhere() {
     let state = state_on(&server).await;
     open(&state, "air-v2", whole_project()).await;
     let viewer = Identity {
+        client: None,
         groups: Vec::new(),
         ..steward()
     };

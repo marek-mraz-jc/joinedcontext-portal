@@ -26,6 +26,7 @@ const PROJECT: &str = "ovzdusie";
 /// here is the reference alone.
 fn steward() -> Identity {
     Identity {
+        client: None,
         subject: "sub-steward".into(),
         username: "steward".into(),
         email: Some("steward@hel.fi".into()),
@@ -264,6 +265,7 @@ async fn waiting_change(awaited_state: &str, merged: bool) -> (MockServer, AppSt
 
 async fn approve(state: &AppState) -> common::Answer {
     let approver = Identity {
+        client: None,
         subject: "sub-approver".into(),
         username: "approver".into(),
         email: Some("approver@hel.fi".into()),

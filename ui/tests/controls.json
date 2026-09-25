@@ -640,7 +640,8 @@
         "Button": 4
       },
       "tests": [
-        "app_open_page.test.tsx"
+        "app_open_page.test.tsx",
+        "browser_security.test.tsx"
       ]
     },
     "src/pages/apps/AppPage.tsx": {
@@ -842,7 +843,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 6,
         "Checkbox": 2
       },
       "tests": [

@@ -40,6 +40,7 @@ const PIPELINE_YAML: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Pipel
 
 fn identity() -> Identity {
     Identity {
+        client: None,
         subject: "sub-jana.kovacova".into(),
         username: "jana.kovacova".into(),
         email: Some(EMAIL.into()),

@@ -95,6 +95,7 @@ mod tests {
             subjects: vec![Subject {
                 user: Some("Jana.Kovacova@hel.fi".into()),
                 group: None,
+                ..Subject::default()
             }],
             role: "steward".into(),
             scope,
