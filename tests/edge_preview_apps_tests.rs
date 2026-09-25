@@ -42,6 +42,7 @@ const WS: &str = "air-v2";
 /// Proposes and reads everywhere: the bootstrap group.
 fn owner() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }
@@ -50,6 +51,7 @@ fn owner() -> Identity {
 /// Reads `ovzdusie` and owns nothing.
 fn viewer() -> Identity {
     Identity {
+        client: None,
         groups: vec!["readers".into()],
         ..person("vera")
     }

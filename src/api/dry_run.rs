@@ -241,6 +241,7 @@ mod tests {
     async fn execute_dry_run_plans_sandbox_space() {
         let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
         let identity = crate::auth::session::Identity {
+            client: None,
             subject: "sub-123".into(),
             username: "demo.developer".into(),
             email: Some("demo@example.com".into()),

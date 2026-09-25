@@ -43,6 +43,7 @@ spec:
 
 fn with_role(identity: Identity) -> Identity {
     Identity {
+        client: None,
         roles: vec![ROLE.to_owned()],
         ..identity
     }

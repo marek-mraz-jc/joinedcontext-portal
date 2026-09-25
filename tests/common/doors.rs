@@ -38,6 +38,7 @@ const KINDS: &[&str] = &[
 
 fn member(username: &str, group: &str) -> Identity {
     Identity {
+        client: None,
         subject: format!("f:1:{username}"),
         username: username.to_owned(),
         email: Some(format!("{username}@banskabystrica.sk")),

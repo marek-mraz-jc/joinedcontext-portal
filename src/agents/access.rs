@@ -177,6 +177,7 @@ mod tests {
         );
         let agent = ops::Caller {
             identity: crate::auth::session::Identity {
+                client: None,
                 subject: "s".into(),
                 username: "jana".into(),
                 email: None,

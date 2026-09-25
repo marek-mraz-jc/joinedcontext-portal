@@ -46,6 +46,7 @@ fn portal_cookies(config: &Config) -> (Vec<String>, String, String) {
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:demo.steward".into(),
             username: "demo.steward".into(),
             email: Some("demo.steward@banskabystrica.sk".into()),

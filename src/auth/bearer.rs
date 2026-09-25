@@ -243,6 +243,7 @@ fn session_of(c: Claims) -> (Session, Option<String>) {
         .unwrap_or_else(|| c.sub.clone());
     let session = Session {
         identity: Identity {
+            client: client.clone(),
             subject: c.sub,
             username,
             email: c.email,
