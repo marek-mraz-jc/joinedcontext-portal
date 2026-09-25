@@ -27,7 +27,12 @@ pub const MAX_AGE_SECONDS: u32 = 300;
     )
 )]
 pub async fn get_branding(State(state): State<AppState>) -> impl IntoResponse {
-    let branding = Branding::load(state.config.branding_file.as_deref());
+    let mut branding = Branding::load(state.config.branding_file.as_deref());
+    branding.apps_origin = state
+        .config
+        .apps_url
+        .as_ref()
+        .map(|url| url.origin().ascii_serialization());
     (
         [(
             header::CACHE_CONTROL,

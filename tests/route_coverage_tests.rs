@@ -24,6 +24,9 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/blueprints", "the organisation's gallery, not a project's data; jc_flow_start runs one by name"),
 ("GET", "/branding", "the instance's look, not a project's data"),
 ("GET", "/branding/{asset}", "the instance's look, not a project's data"),
+("GET", "/catalogue", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-81): not a project's data"),
+("GET", "/catalogue/datasets/{name}", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-82): not a project's data"),
+("GET", "/catalogue/datasets/{name}/sample", "a public Endpoint read anonymously, as any visitor of the catalogue reads it (EP-82)"),
 ("GET", "/forms", "the form definitions the Portal renders, not a project's data"),
 ("GET", "/health", "liveness"),
 ("POST", "/internal/agent-runs/events", "the runner's own callback, authenticated as a workload"),
@@ -40,6 +43,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/mcp", "the MCP door itself, which dispatches this registry"),
 ("GET", "/metrics", "the Prometheus scrape"),
 ("GET", "/openapi.json", "the API document"),
+("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
 ("GET", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
 ("POST", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
 ("GET", "/organization/people/{id}", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
@@ -59,6 +63,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("DELETE", "/projects/{project}", "jc_project_delete"),
 ("POST", "/projects/{project}/duplicate", "copies a whole repository of the forge under a new slug (PF-89): a person's decision in the Portal, not a tool a run holds"),
 ("GET", "/projects/{project}/activity", "jc_activity_list"),
+("POST", "/projects/{project}/catalogue/drafts", "drafts the publish form and writes nothing; the proposal is the Endpoint's own, jc_endpoint_propose"),
 ("GET", "/projects/{project}/activity/stream", "a live stream, not a call and an answer"),
 // Drift is read and resolved on the page, not through the assistant (CC-21, UI-26): a
 // resolution is a write to the live space or to the repository, and a model proposing one

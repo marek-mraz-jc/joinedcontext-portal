@@ -27,6 +27,11 @@ import { ModelsList } from "./pages/models/ModelsList";
 import { ModelPage } from "./pages/models/ModelPage";
 import { ExplorePage } from "./pages/explore/ExplorePage";
 import { CkanPage } from "./pages/ckan/CkanPage";
+import { CataloguePage } from "./pages/catalogue/CataloguePage";
+import { DatasetPage } from "./pages/catalogue/DatasetPage";
+import { parseCatalogueSearch } from "./pages/catalogue/search";
+import { useAuth } from "./auth/AuthProvider";
+import { Button } from "./components/ui";
 import { ImportPage } from "./pages/import/ImportPage";
 import { SpaceInside } from "./pages/spaces/SpaceInside";
 import { AppPage } from "./pages/apps/AppPage";
@@ -153,6 +158,101 @@ function IndexRedirect(): React.JSX.Element {
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: Outlet,
+});
+
+/**
+ * The frame of the public catalogue (EP-81): the Portal's shell for a person who is signed in and
+ * works in a project, the brand and a sign-in button for everybody else. The page itself needs
+ * no session, so a link to it can be handed to a citizen.
+ */
+function CatalogueFrame({
+  children,
+}: {
+  /** The page, given the project the signed-in person works in, or `null` for a visitor. */
+  children: (project: string | null) => React.ReactNode;
+}): React.JSX.Element {
+  const { status } = useAuth();
+  // Until the session is known the frame is not drawn: a page drawn in one frame and moved into
+  // the other remounts, and whatever a person had started typing is gone.
+  if (status === "loading") {
+    return <main aria-busy="true" className="min-h-screen bg-bg" />;
+  }
+  if (status === "authenticated") {
+    return <SignedInCatalogue>{children}</SignedInCatalogue>;
+  }
+  return <PublicFrame>{children(null)}</PublicFrame>;
+}
+
+function SignedInCatalogue({
+  children,
+}: {
+  children: (project: string | null) => React.ReactNode;
+}): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (projects.isPending) {
+    return <main aria-busy="true" className="min-h-screen bg-bg" />;
+  }
+  // Signed in with no project to open, or a project list that failed: the catalogue still reads.
+  return first ? (
+    <Shell project={first}>{children(first)}</Shell>
+  ) : (
+    <PublicFrame>{children(null)}</PublicFrame>
+  );
+}
+
+function PublicFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { t } = useTranslation();
+  const { status, signIn } = useAuth();
+  return (
+    <div className="flex min-h-screen flex-col bg-bg font-sans text-fg">
+      <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
+        <BrandMark short />
+        {status === "anonymous" ? (
+          <Button size="sm" variant="secondary" onClick={() => signIn(window.location.pathname + window.location.search)}>
+            {t("auth.signIn")}
+          </Button>
+        ) : null}
+      </header>
+      <main id="main" className="mx-auto w-full max-w-7xl flex-1 p-6">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+/** Every public dataset of the installation, readable without signing in (EP-81). */
+const catalogueRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/catalogue",
+  validateSearch: parseCatalogueSearch,
+  component: function CatalogueRoute() {
+    const search = catalogueRoute.useSearch();
+    const navigate = catalogueRoute.useNavigate();
+    return (
+      <CatalogueFrame>
+        {(project) => (
+          <CataloguePage
+            project={project}
+            search={search}
+            onSearch={(next) => void navigate({ search: next })}
+          />
+        )}
+      </CatalogueFrame>
+    );
+  },
+});
+
+/** One public dataset: its resources, its model, a sample and how to use it (EP-82). */
+const catalogueDatasetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/catalogue/$name",
+  component: function CatalogueDatasetRoute() {
+    const { name } = catalogueDatasetRoute.useParams();
+    return (
+      <CatalogueFrame>{() => <DatasetPage name={name} />}</CatalogueFrame>
+    );
+  },
 });
 
 const loginRoute = createRoute({
@@ -867,6 +967,8 @@ const devRoutes = import.meta.env.DEV
 
 export const routeTree = rootRoute.addChildren([
   loginRoute,
+  catalogueRoute,
+  catalogueDatasetRoute,
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,

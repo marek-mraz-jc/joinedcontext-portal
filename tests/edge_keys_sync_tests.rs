@@ -123,6 +123,7 @@ fn cookie(config: &Config, username: &str) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: format!("f:1:{username}"),
             username: username.into(),
             email: Some(format!("{username}@banskabystrica.sk")),

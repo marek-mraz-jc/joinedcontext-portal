@@ -19,6 +19,7 @@ const SLUG: &str = "zt4qm7ge2xdv6ksb3ncf5arw2y";
 
 fn owner() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }
@@ -232,6 +233,7 @@ async fn one_preview_per_workspace_and_two_on_the_node() {
 async fn only_the_owner_starts_or_stops_and_a_stranger_learns_nothing() {
     let (_server, state) = world().await;
     let colleague = Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("petra")
     };

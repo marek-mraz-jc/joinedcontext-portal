@@ -273,6 +273,26 @@ Extracts `[longitude, latitude]` coordinates from a GeoProperty.
 function groupBy(rows: Row[], attr: string, agg?: Agg, valueAttr?: string, top?: number): Group[]
 ```
 Groups rows by attribute key and computes an aggregated value for each group.
+
+### Units
+A Property's `unitCode` is a UN/CEFACT Recommendation 20 code (`GQ`, `CEL`); the SDK carries the platform's code list.
+```ts
+function formatValue(value: unknown, unitCode?: string, locale?: string): string
+```
+A value as people read it: `formatValue(23.4, "GQ", "sk")` is `23,4 µg/m³`. Use it wherever a measured value is shown; never print the code.
+```ts
+function unitSymbol(code?: string): string
+function unitTitle(code?: string): string
+```
+The symbol (`µg/m³`, empty for a count) and a hover text (`microgram per cubic metre (GQ)`).
+```ts
+const UNITS: readonly Unit[]
+function unitOf(code?: string): Unit | undefined
+function unitLabel(unit: Unit): string
+function convertible(from: Unit, to: Unit): boolean
+function conversion(from: Unit, to: Unit): { factor: number; offset: number } | undefined
+```
+`Unit` is `{code, name, symbol, deprecated, ucum, qudt, quantityKinds, dimension, factor, offset, frequent}`. `conversion` gives `to = from × factor + offset`, or `undefined` for units of different quantities.
 ```ts
 function toFeatureCollection(rows: Row[], location?: string, properties?: string[]): { type: "FeatureCollection"; features: Array<{ type: "Feature"; id: string; geometry: Geo; properties: Record<string, string | number | boolean | null> }> }
 ```

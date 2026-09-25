@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Column, Row } from "../ngsi";
 import { columnKind, format } from "../ngsi";
+import { unitSymbol } from "../sdk/units";
 
 const PAGE_SIZE = 50;
 
@@ -27,9 +28,12 @@ export function Table({
   sort,
   selected,
   onSelect,
+  units = {},
 }: {
   rows: Row[];
   columns: string[];
+  /** The unit of each quantity column, by attribute, which its header names (DM-06). */
+  units?: Record<string, string>;
   sort?: { attr: string; dir: "asc" | "desc" };
   selected: string | null;
   onSelect: (id: string) => void;
@@ -56,6 +60,7 @@ export function Table({
               <th key={column} scope="col" aria-sort={order?.attr === column ? (order.dir === "asc" ? "ascending" : "descending") : "none"}>
                 <button type="button" onClick={() => toggle(column)}>
                   {column}
+                  {unitSymbol(units[column]) ? ` (${unitSymbol(units[column])})` : ""}
                   {order?.attr === column ? (order.dir === "asc" ? " ▲" : " ▼") : ""}
                 </button>
               </th>

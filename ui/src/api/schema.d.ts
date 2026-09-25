@@ -183,6 +183,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the Catalogue
+         * @description Every public dataset of the installation's open-data catalogues, searched and faceted (EP-81). Public: it lists only what an anonymous caller of the catalogue sees.
+         */
+        get: operations["get_catalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalogue/datasets/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Catalogue Dataset
+         * @description One public dataset: its description, resources, and the Endpoint and model behind it when it is this installation's (EP-82).
+         */
+        get: operations["get_dataset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalogue/datasets/{name}/sample": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sample a Catalogue Dataset
+         * @description Up to ten entities of the dataset's first model class, read anonymously through its Endpoint (EP-82, EP-66).
+         */
+        get: operations["get_sample"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/endpoints": {
         parameters: {
             query?: never;
@@ -454,6 +514,26 @@ export interface paths {
          * @description Ends every session of the person. Needs `disable` on Person and every right the person holds.
          */
         post: operations["sign_out_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Organization Setup
+         * @description What the organization still lacks: each setup step and the installation's own part, done or not. Needs `approve` on Organization at organization scope, as `org-admin` holds it.
+         */
+        get: operations["get_setup"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -975,6 +1055,26 @@ export interface paths {
         get: operations["get_tile"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/catalogue/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft a Catalogue Publication
+         * @description What the one-step publish flow proposes for an Endpoint: its `spec.catalog` drafted from the model and the organization, its `spec.publish.ckan`, and whether publishing makes it public (EP-83). Writes nothing.
+         */
+        post: operations["draft_publication"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2235,6 +2335,11 @@ export interface components {
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
         };
+        /** @description A change another one waits on (MF-48). */
+        AwaitedChange: {
+            name: string;
+            phase: components["schemas"]["ChangePhase"];
+        };
         /** @description The provider's back-channel logout call: one signed token, no session and no bearer (AP-29). */
         BackChannelLogoutForm: {
             /** @description The JWT the provider signed, carrying the `logout_events` claim. */
@@ -2242,6 +2347,14 @@ export interface components {
         };
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
+            /**
+             * @description The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are
+             *     served on the Portal's own. Never taken from the branding file: the route overwrites it
+             *     from the Portal's configuration on every answer, and the in-Portal page of an App frames
+             *     it there (AP-122, T-2840).
+             * @default null
+             */
+            appsOrigin: string | null;
             /**
              * @description The city or region this installation serves.
              * @default
@@ -2391,6 +2504,79 @@ export interface components {
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
         };
+        /** @description One class of the model, described as its LinkML describes it. */
+        CatalogueClass: {
+            description?: string | null;
+            name: string;
+        };
+        /** @description Where questions about the dataset go: a role address (EP-80). */
+        CatalogueContact: {
+            email?: string | null;
+            name?: string | null;
+        };
+        /** @description The data model behind a dataset. */
+        CatalogueDataModel: {
+            classes: components["schemas"]["CatalogueClass"][];
+            /** @description The model's documentation, the dataset's Markdown schema resource. */
+            docsUrl?: string | null;
+            name: string;
+        };
+        /** @description A dataset as the list shows it. */
+        CatalogueDataset: {
+            formats: string[];
+            licence?: null | components["schemas"]["CatalogueLicence"];
+            modified?: string | null;
+            name: string;
+            notes?: string | null;
+            publisher?: null | components["schemas"]["CataloguePublisher"];
+            /** @description EU data-theme codes (`ECON`, `ENVI`, …); the UI names them in the reader's language. */
+            themes: string[];
+            title: string;
+        };
+        /** @description One dataset, as its page shows it. */
+        CatalogueDatasetDetail: {
+            /** @description The dataset on the catalogue's own site. */
+            catalogueUrl: string;
+            contact?: null | components["schemas"]["CatalogueContact"];
+            endpoint?: null | components["schemas"]["CatalogueEndpoint"];
+            /** @description The EU frequency the record names (`dct:accrualPeriodicity`). */
+            frequency?: string | null;
+            keywords: string[];
+            licence?: null | components["schemas"]["CatalogueLicence"];
+            model?: null | components["schemas"]["CatalogueDataModel"];
+            modified?: string | null;
+            name: string;
+            notes?: string | null;
+            publisher?: null | components["schemas"]["CataloguePublisher"];
+            resources: components["schemas"]["CatalogueResource"][];
+            spatial: string[];
+            temporal?: null | components["schemas"]["CatalogueTemporal"];
+            themes: components["schemas"]["CatalogueTheme"][];
+            title: string;
+        };
+        /** @description The two blocks the flow proposes, and what nothing could fill. */
+        CatalogueDraft: {
+            /** @description The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares. */
+            catalog: Record<string, never>;
+            endpoint: string;
+            /** @description The Endpoint's audience is not `public`: the proposal makes it public, in the red lane. */
+            makesPublic: boolean;
+            /** @description Catalogue members nothing could fill. */
+            missing: string[];
+            /** @description The drafted `spec.publish` (EP-62), or the one the Endpoint already declares. */
+            publish: Record<string, never>;
+        };
+        /** @description Which Endpoint of the project to draft for. */
+        CatalogueDraftRequest: {
+            /** @description The Endpoint's `metadata.name`. */
+            endpoint: string;
+        };
+        /** @description The Endpoint a dataset describes, on this installation's own host. */
+        CatalogueEndpoint: {
+            /** @description The representations it serves, which decide the "Use this data" snippets. */
+            representations: string[];
+            url: string;
+        };
         /** @description One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63). */
         CatalogueEntry: {
             description?: string | null;
@@ -2399,6 +2585,27 @@ export interface components {
             name: string;
             /** @description `dataModel.Environment`. */
             subject: string;
+        };
+        /** @description One value of a facet. */
+        CatalogueFacetValue: {
+            count: number;
+            label: string;
+            value: string;
+        };
+        /** @description Every facet of the list. */
+        CatalogueFacets: {
+            format: components["schemas"]["CatalogueFacetValue"][];
+            licence: components["schemas"]["CatalogueFacetValue"][];
+            publisher: components["schemas"]["CatalogueFacetValue"][];
+            spatial: components["schemas"]["CatalogueFacetValue"][];
+            theme: components["schemas"]["CatalogueFacetValue"][];
+            year: components["schemas"]["CatalogueFacetValue"][];
+        };
+        /** @description A licence as the catalogue's register names it. */
+        CatalogueLicence: {
+            id: string;
+            title: string;
+            url?: string | null;
         };
         /** @description One model of the Smart Data Models catalogue index, as the wizard lists and searches it. */
         CatalogueModel: {
@@ -2410,11 +2617,56 @@ export interface components {
             /** @description The model name, `AirQualityObserved`. */
             name: string;
         };
+        /** @description One page of the catalogue. */
+        CataloguePage: {
+            /** @description The datasets of this page. */
+            datasets: components["schemas"]["CatalogueDataset"][];
+            /** @description Counts per facet value, each over the datasets every other filter keeps. */
+            facets: components["schemas"]["CatalogueFacets"];
+            /** @description The page shown, from 1. */
+            page: number;
+            /** @description Datasets per page. */
+            pageSize: number;
+            /** @description Datasets matching the search and every filter. */
+            total: number;
+            /** @description Catalogues that did not answer; the others still did. */
+            unavailable: string[];
+        };
+        /** @description The CKAN organization a dataset belongs to: one per project (Architecture/21 §1). */
+        CataloguePublisher: {
+            name: string;
+            title: string;
+        };
+        /** @description One resource of a dataset (EP-64). */
+        CatalogueResource: {
+            description?: string | null;
+            format: string;
+            name: string;
+            /** @description The DataStore preview, on a resource with an active sheet (EP-65). */
+            previewUrl?: string | null;
+            url: string;
+        };
+        /** @description Up to ten entities of a dataset, read through its Endpoint (EP-82). */
+        CatalogueSample: {
+            columns: string[];
+            rows: string[][];
+            type: string;
+        };
         /** @description One subject of the catalogue: `dataModel.Environment` and the models under it. */
         CatalogueSubject: {
             models?: components["schemas"]["CatalogueModel"][];
             name: string;
             title?: string | null;
+        };
+        /** @description The period a dataset covers; either end may be open. */
+        CatalogueTemporal: {
+            end?: string | null;
+            start?: string | null;
+        };
+        /** @description An EU data theme: its code and its English name (the UI names it in the reader's language). */
+        CatalogueTheme: {
+            code: string;
+            label: string;
         };
         /** @description The `Change` resource describing a proposed configuration update. */
         Change: {
@@ -2488,6 +2740,11 @@ export interface components {
             planFields?: components["schemas"]["FieldChange"][] | null;
             status: components["schemas"]["ChangeStatus"];
             summary: components["schemas"]["ChangeSummary"];
+            /**
+             * @description The changes this one waits on, each with where it stands (MF-48): it names what they
+             *     create, so it merges after them, and a `Rejected` one flags it.
+             */
+            waitsOn?: components["schemas"]["AwaitedChange"][];
             /**
              * @description The workspace this Change brings back, so the approver reads that it was worked on as a
              *     copy first, and whose (UI-63, CC-79).
@@ -3805,6 +4062,16 @@ export interface components {
             kind: string;
             name: string;
         };
+        /** @description One step or operator item and whether it is done. */
+        SetupItem: {
+            done: boolean;
+            id: string;
+        };
+        SetupState: {
+            complete: boolean;
+            operator: components["schemas"]["SetupItem"][];
+            steps: components["schemas"]["SetupItem"][];
+        };
         /**
          * @description Which side a person kept for one conflicting field (CC-80).
          * @enum {string}
@@ -3957,6 +4224,11 @@ export interface components {
             inputDigest: string;
             ok: boolean;
             trace?: unknown;
+            /**
+             * @description The open changes whose resources this manifest names (MF-48): it resolves once they are
+             *     approved, and its own change cannot merge before them. Empty for every other verdict.
+             */
+            waitsOn?: string[];
         };
         /** @description One file of a bundle as the import verified it (MF-42). */
         Verified: {
@@ -4359,6 +4631,125 @@ export interface operations {
             };
             /** @description No such asset is configured */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_catalogue: {
+        parameters: {
+            query?: {
+                /** @description Full-text search, passed to CKAN */
+                q?: string;
+                /** @description CKAN organization names */
+                publisher?: string[];
+                /** @description EU data-theme codes */
+                theme?: string[];
+                /** @description Resource formats */
+                format?: string[];
+                /** @description CKAN licence ids */
+                licence?: string[];
+                /** @description NUTS codes or location IRIs */
+                spatial?: string[];
+                /** @description Calendar years covered */
+                year?: string[];
+                /** @description Page, from 1 */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of datasets and the facets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CataloguePage"];
+                };
+            };
+            /** @description No catalogue answered */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_dataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The dataset's name in the catalogue */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dataset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueDatasetDetail"];
+                };
+            };
+            /** @description No public dataset has this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_sample: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The dataset's name in the catalogue */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sample */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueSample"];
+                };
+            };
+            /** @description No public dataset of an Endpoint here that serves NGSI-LD */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The Endpoint did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5142,6 +5533,35 @@ export interface operations {
             };
             /** @description No Keycloak admin client */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The steps and the operator's part */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupState"];
+                };
+            };
+            /** @description The caller lacks approve on Organization */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6968,6 +7388,83 @@ export interface operations {
             };
             /** @description Bad gateway from upstream */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    draft_publication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": "bbsk-kpi"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CatalogueDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueDraft"];
+                };
+            };
+            /** @description The body names no Endpoint */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No grant proposes an Endpoint in this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint in this project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project has no CkanInstance to publish to */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

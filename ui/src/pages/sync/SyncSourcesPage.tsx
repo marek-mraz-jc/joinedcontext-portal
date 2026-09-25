@@ -58,6 +58,9 @@ interface SyncSourceForm {
   autoMerge?: boolean;
 }
 
+/** What a new source starts from: a mirror every six hours that stops at the first conflict. */
+const EMPTY_FORM: SyncSourceForm = { name: "", interval: "6h", mode: "mirror", conflictPolicy: "fail" };
+
 export function syncSourceToManifest(project: string, form: SyncSourceForm) {
   const { name, title, git, bundle, platformApi, interval, mode, conflictPolicy, ...rest } = form;
   return {
@@ -118,9 +121,13 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
   // `/syncsources/new` opens the form too: the assistant's hand-off and a shared link (T-2582).
   const [adding, setAdding] = useCreateForm();
   const [change, setChange] = useState<Change | null>(null);
+  // Held here, as every kind's page holds its form: the Check and the shared draft read what is
+  // typed, and a closed form starts over (T-2731, PF-57).
+  const [form, setForm] = useState<SyncSourceForm>(EMPTY_FORM);
   const proposal = useProposal(project, "syncsources", (proposed) => {
     setChange(proposed);
     setAdding(false);
+    setForm(EMPTY_FORM);
   });
 
   return (
@@ -165,13 +172,17 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
           if (!open) {
             setAdding(false);
             proposal.reset();
+            setForm(EMPTY_FORM);
           }
         }}
         project={project}
+        draftKind="SyncSource"
+        plural="syncsources"
         title={t("syncSources.dialog.title")}
         description={t("syncSources.dialog.description")}
         schema={syncSourceSchema(t, origin)}
-        formData={{ name: "", interval: "6h", mode: "mirror", conflictPolicy: "fail" }}
+        formData={form}
+        onChange={(next) => setForm(next ?? EMPTY_FORM)}
         submitLabel={t("syncSources.propose")}
         submitting={proposal.mutation.isPending}
         error={proposal.error}

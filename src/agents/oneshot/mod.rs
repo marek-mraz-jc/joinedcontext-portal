@@ -442,6 +442,7 @@ impl Driver {
             app_name: "test".into(),
             created_by: "test-user@hel.fi".into(),
             identity: Identity {
+                client: None,
                 subject: "sub-test-user".into(),
                 username: "test-user".into(),
                 email: Some("test-user@hel.fi".into()),
@@ -1312,6 +1313,7 @@ mod tests {
             app_name: "test".into(),
             created_by: "test-user".into(),
             identity: Identity {
+                client: None,
                 subject: "sub-test-user".into(),
                 username: "test-user".into(),
                 email: None,

@@ -22,7 +22,7 @@ import {
   dashboardFromManifest,
   layerFromManifest,
 } from "../src/pages/dashboards/editors";
-import { expectNoRawKeys, focusables } from "./checks";
+import { expectDenied, expectNoRawKeys, focusables } from "./checks";
 import { expectNoAxeViolations, inEveryLocale, json, list, renderPart } from "./page_contract";
 
 const PROJECT = "helsinki";
@@ -153,8 +153,10 @@ describe("the two editors as dialogs", () => {
     );
 
     const dialog = await screen.findByRole("dialog", { name: en.dashboards.add });
+    // Refused with its reason in reach, not hard-disabled (UI-44, T-1743): the form has a Check
+    // since T-2731, so the reason is said beside the button.
     const propose = within(dialog).getByRole("button", { name: en.dashboards.propose });
-    expect(propose).toBeDisabled();
+    expectDenied(propose);
   });
 });
 

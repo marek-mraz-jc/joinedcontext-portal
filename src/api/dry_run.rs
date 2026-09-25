@@ -56,6 +56,10 @@ pub struct DryRunResult {
     /// manifest into another organization would carry the literal with it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<String>,
+    /// The references that resolve once another open change is approved (MF-48): the verdict
+    /// this check records says so, and the proposal records the changes in its merge request.
+    #[serde(skip)]
+    pub awaited: Vec<crate::references::Awaited>,
 }
 
 /**
@@ -110,6 +114,7 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
         probe: None,
         verdict: Some(Verdict::new(false, findings, None, manifest)),
         findings: Vec::new(),
+        awaited: Vec::new(),
     })
 }
 
@@ -241,6 +246,7 @@ mod tests {
     async fn execute_dry_run_plans_sandbox_space() {
         let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
         let identity = crate::auth::session::Identity {
+            client: None,
             subject: "sub-123".into(),
             username: "demo.developer".into(),
             email: Some("demo@example.com".into()),

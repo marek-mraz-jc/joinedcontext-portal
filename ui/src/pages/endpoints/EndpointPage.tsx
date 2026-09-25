@@ -36,6 +36,7 @@ import { filterSlotsOf, useModelSource } from "../../components/entities/filters
 import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
+import { PublishDatasetDialog } from "../catalogue/PublishDataset";
 import {
   Alert,
   Badge,
@@ -47,6 +48,7 @@ import {
   Select,
   SourceLink,
   Term,
+  Icon,
 } from "../../components/ui";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
@@ -64,7 +66,8 @@ import type { FilterOp } from "@joinedcontext/sdk";
  * named `ModelProjection` the endpoint references (`spec.projectionRef`, MP-01), which is why this page
  * reads the filter from there and says so. There is likewise no `paused`/`retiring` field on an
  * endpoint: `status.phase` is the platform's own and never written from a form, so this page paints no
- * pause button that nothing behind it could honour (T-2286 holds the contract question).
+ * pause button that nothing behind it could honour. Deleting is how an endpoint stops (EP-89, T-2286),
+ * and the last section says so and opens that deletion.
  */
 export function EndpointPage({
   project,
@@ -82,6 +85,7 @@ export function EndpointPage({
   const denied = (verb: "propose" | "delete") =>
     permissions.can("Endpoint", verb) ? undefined : t("permissions.denied", { verb, kind: "Endpoint" });
   const [openAction, setOpenAction] = useState<"saveAs" | "workOnCopy" | "delete" | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   const endpoint = useQuery({
     queryKey: queryKeys.resource(project, "endpoints", name),
@@ -267,6 +271,14 @@ export function EndpointPage({
             {t("endpoints.page.change")}
           </Button>
         </PermissionGuard>
+        {/* The one-step publish flow (EP-83): drafts the catalogue block from the model and the
+            organization, and proposes it with the publication as one Change. */}
+        <PermissionGuard project={project} kind="Endpoint" verb="propose">
+          <Button icon={<Icon name="ckan" className="size-4" />} onClick={() => setPublishing(true)}>
+            {t("catalogue.publish.open")}
+          </Button>
+        </PermissionGuard>
+        <PublishDatasetDialog project={project} endpoint={name} open={publishing} onOpenChange={setPublishing} />
         <ExportButton
           project={project}
           target={{ plural: "endpoints", name }}
@@ -534,6 +546,19 @@ export function EndpointPage({
 
       <Section title={t("endpoints.page.catalog.title")} lead={t("endpoints.page.catalog.lead")}>
         <CatalogSection slug={slug} catalog={spec.catalog} audience={spec.audience ?? "project-list"} />
+      </Section>
+
+      {/* An endpoint has no pause; deleting it through a change is how it stops (EP-89). */}
+      <Section title={t("endpoints.page.stop.title")} lead={t("endpoints.page.stop.lead")}>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={denied("delete") !== undefined}
+          disabledReason={denied("delete")}
+          onClick={() => setOpenAction("delete")}
+        >
+          {t("endpoints.page.stop.delete")}
+        </Button>
       </Section>
     </div>
   );

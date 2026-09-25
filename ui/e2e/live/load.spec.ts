@@ -10,27 +10,13 @@ import { expect, test } from "@playwright/test";
 import { journeyClock } from "./journeys";
 import { APPROVER, STEWARD, approve, proposedChange, signIn } from "./portal";
 import { proposeFrom } from "./kindJourney";
+import { FEED, MAPPING } from "./loadFeed";
 
 const PROJECT = "helsinki";
-const FEED = "https://gbfs.theta.fifteen.eu/gbfs/2.2/helsinki/en/free_bike_status.json";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
 const SOURCE = `hsl-citybikes-free-${SUFFIX}`;
 const PIPELINE = `citybikes-free-${SUFFIX}`;
 const TARGET = "urn:ngsi-ld:Endpoint:hel.fi:helsinki:helsinki-all";
-
-// One GBFS document in, one Vehicle per bike out (PL-48: the array is split by the runner).
-const MAPPING = [
-  'let domain = env("JC_ORG_DOMAIN")',
-  'let seen = this.last_updated.number().ts_format("2006-01-02T15:04:05Z")',
-  "root = this.data.bikes.map_each(b -> {",
-  '  "id": "urn:ngsi-ld:Vehicle:%v:helsinki:%v".format($domain, b.bike_id),',
-  '  "type": "Vehicle",',
-  '  "vehicleType": { "type": "Property", "value": "bicycle" },',
-  '  "location": { "type": "GeoProperty", "value": { "type": "Point", "coordinates": [b.lon, b.lat] } },',
-  '  "serviceStatus": { "type": "Property", "value": if b.is_disabled { "outOfService" } else if b.is_reserved { "reserved" } else { "available" }, "observedAt": $seen },',
-  '  "dateObserved": { "type": "Property", "value": $seen }',
-  "})",
-].join("\n");
 
 test("a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore", async ({ browser }, info) => {
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/datasources?lang=en`);
