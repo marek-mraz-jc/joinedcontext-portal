@@ -2310,7 +2310,10 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(run["status"], json!("expired"));
-    assert_eq!(run["error"], json!("lease expired unattended"));
+    assert_eq!(
+        run["error"],
+        json!("the run's time ran out before it finished; start it again from the Apps page")
+    );
     assert!(run["finishedAt"].as_str().is_some());
 
     let (_, context) = internal_call(
@@ -2357,6 +2360,80 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
 
     let reaped_again = reaper::reap_expired(&state).await;
     assert_eq!(reaped_again, 0);
+}
+
+/// T-2772: a run that reached `awaiting_approval` waits on the approval's lease, days rather than
+/// the build's twenty minutes, so the reaper leaves it; once that lease runs out too, the run
+/// says what was lost and that its change stays open, on the record and on the stream.
+#[tokio::test]
+async fn a_run_waiting_for_approval_keeps_days_and_says_what_its_expiry_lost() {
+    let config = config();
+    let (state, app, internal) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let created = create_run(&app, &cookie).await;
+    let id = created["id"].as_str().expect("id").to_owned();
+
+    for status in [
+        "starting",
+        "building",
+        "testing",
+        "previewing",
+        "awaiting_approval",
+    ] {
+        let (code, answer) = internal_call(
+            &internal,
+            Some(proxy_bearer()),
+            Method::POST,
+            "/internal/agent-runs/events",
+            Some(json!({ "runId": id, "kind": "status", "payload": { "status": status } })),
+        )
+        .await;
+        assert_eq!(code, StatusCode::CREATED, "{status}: {answer}");
+    }
+    let run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(run.status, "awaiting_approval");
+    let lease = chrono::DateTime::parse_from_rfc3339(&run.expires_at).expect("an RFC 3339 lease");
+    assert!(
+        lease.with_timezone(&chrono::Utc) - chrono::Utc::now() > chrono::Duration::days(6),
+        "the approval lease is days: {}",
+        run.expires_at
+    );
+    assert_eq!(
+        reaper::reap_expired(&state).await,
+        0,
+        "a run inside its lease stays"
+    );
+
+    state
+        .agents
+        .set_expiry(&id, "2000-01-01T00:00:00Z")
+        .await
+        .expect("an old lease");
+    assert_eq!(reaper::reap_expired(&state).await, 1);
+    let (_, ended) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
+        None,
+    )
+    .await;
+    assert_eq!(ended["status"], json!("expired"));
+    let error = ended["error"].as_str().unwrap_or_default();
+    assert!(error.contains("the change stays open"), "{error}");
+    let events = state.agents.events_since(&id, 0).await.expect("events");
+    let last = events
+        .iter()
+        .rev()
+        .find(|event| event.kind == "status")
+        .expect("a status event");
+    assert_eq!(last.payload["status"], "expired");
+    assert_eq!(last.payload["reason"], json!(error), "the stream says why");
 }
 
 #[tokio::test]

@@ -467,6 +467,7 @@
       }
     },
     "rateClass": {
+      "none": "Kein Limit",
       "strict": "Streng",
       "standard": "Standard",
       "open": "Offen",
@@ -714,7 +715,39 @@
         "order": "West liegt links von Ost und Süd unter Nord."
       }
     },
-    "ofApp": "Der Endpunkt der App {app}"
+    "ofApp": "Der Endpunkt der App {app}",
+    "filterEditor": {
+      "label": "Filter dieses Endpunkts",
+      "types": "Entitätstypen, die er bedient",
+      "noType": "Behalten Sie mindestens einen Typ: ein Endpunkt ohne Typ liefert nichts.",
+      "hidden": "Verborgene Attribute",
+      "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
+      "identityOnly": "Nur Identität: id und type.",
+      "createsProjection": "Dieser Endpunkt nennt noch keine Projektion. Ein vorgeschlagener Filter legt die Projektion {name} aus dem Modell des Raums an, zusammen mit dem Endpunkt, der sie nennt."
+    },
+    "proof": {
+      "title": "Was dieser Filter liefert",
+      "type": "Typ",
+      "served": "Von diesem Endpunkt geliefert",
+      "original": "Original im Raum",
+      "sides": "Seite des Vergleichs",
+      "caption": "{type}: was der Endpunkt liefert neben dem, was der Raum enthält, eine Zeile je Entität",
+      "summary": "Liefert {served} von {total} {type} · verborgene Attribute: {hidden}",
+      "summaryServedOnly": "Liefert {served} {type}",
+      "loading": "Lese, was der Filter liefert...",
+      "originalUnreadable": "Sie können den Raum selbst nicht lesen, daher zeigt der Vergleich, was der Endpunkt heute liefert, nicht Ihren Entwurf.",
+      "notServed": "nicht geliefert",
+      "notServedMark": "Nicht geliefert: der Filter lässt diese Entität weg.",
+      "hiddenMark": "nicht geliefert",
+      "empty": "Keine Entitäten auf dieser Seite.",
+      "refused": "Der Filterentwurf wurde abgelehnt: {reason}",
+      "failed": "Was der Filter liefert, konnte nicht gelesen werden: {reason}",
+      "notLive": "Der Vergleich liest über den Endpunkt und erscheint, sobald der Endpunkt aktiv ist.",
+      "noType": "Der Vergleich braucht mindestens einen Typ, den der Endpunkt bedient.",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "window": "Entitäten {from} bis {to} von {total}"
+    }
   },
   "datasources": {
     "title": "Datenquellen",
@@ -1068,6 +1101,70 @@
       },
       "newest": "Neueste",
       "older": "Ältere Zeilen"
+    },
+    "workbench": {
+      "failed": "Der Schritt konnte nicht laufen; versuchen Sie es erneut.",
+      "running": "Läuft auf der Stichprobe…",
+      "advanced": "Erweiterter Editor",
+      "advancedHint": "Der Ablauf, mehrere Quellen, Prozessorschritte und eine KPI, auf demselben Entwurf.",
+      "source": {
+        "title": "Quelle",
+        "hint": "Wählen Sie, woher die Datensätze kommen, oder geben Sie eine Datei davon an.",
+        "pick": "Woher die Datensätze kommen",
+        "none": "Datenquelle oder Endpunkt wählen",
+        "type": "Zu lesender Entitätstyp",
+        "pickType": "Typ wählen",
+        "file": "Stichprobendatei wählen",
+        "fileTaken": "Stichprobe: {name}",
+        "fileDrop": "CSV- oder JSON-Datei hierher ziehen oder wählen"
+      },
+      "sample": {
+        "title": "Stichprobe",
+        "hint": "Die ersten Datensätze, die die Quelle liefert, so wie die Pipeline sie liest.",
+        "waiting": "Wählen Sie eine Quelle oder geben Sie eine Datei an, um ihre Datensätze zu sehen.",
+        "empty": "Die Quelle hat keine Datensätze geliefert.",
+        "count": "{count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
+        "caption": "Datensätze der Stichprobe"
+      },
+      "mapping": {
+        "title": "Abbildung",
+        "hint": "Schreiben Sie in Bloblang, wie aus einem Datensatz eine Entität wird; jeder Slot sagt, was er nimmt.",
+        "slotsOf": "Was {type} nimmt",
+        "slots": "Was das Modell nimmt",
+        "noModel": "Der Zielraum nennt kein Datenmodell, daher ist kein Slot bekannt.",
+        "pickTarget": "Wählen Sie in Schritt 6 den Zielendpunkt, um zu sehen, was sein Modell nimmt.",
+        "required": "erforderlich",
+        "many": "mehrere Werte",
+        "values": "{count, plural, =0 {Werte: {values}} other {Werte: {values} und # weitere}}",
+        "example": "Beispiel: {example}"
+      },
+      "output": {
+        "title": "Abgebildete Ausgabe",
+        "hint": "Jeder Datensatz, wie er geschrieben würde, mit jedem Problem an seinem Feld.",
+        "waiting": "Schreiben Sie eine Abbildung und geben Sie eine Stichprobe an, um das Ergebnis zu sehen.",
+        "line": "Zeile {line}",
+        "count": "{count, plural, =0 {Die Abbildung hat keinen Datensatz erzeugt.} one {Die Abbildung hat # Datensatz erzeugt.} other {Die Abbildung hat # Datensätze erzeugt.}}",
+        "caption": "Abgebildete Datensätze",
+        "record": "Datensatz",
+        "written": "Wie geschrieben",
+        "problems": "Probleme"
+      },
+      "validation": {
+        "title": "Validierung",
+        "hint": "Nur Datensätze, die das Modell des Raums annimmt, werden geschrieben; der Rest kommt auf die Liste der abgelehnten.",
+        "waiting": "Die Urteile folgen, sobald die Abbildung Datensätze erzeugt.",
+        "valid": "gültig",
+        "allValid": "{count, plural, one {# Datensatz ist} other {Alle # Datensätze sind}} gültig gegen {model} {version}.",
+        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
+      },
+      "target": {
+        "title": "Ziel und Speichern",
+        "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
+        "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
+        "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
+        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+      }
     }
   },
   "dashboards": {
@@ -1801,10 +1898,13 @@
         "building": "Wird gebaut",
         "needsYou": "Wartet auf Sie",
         "failed": "Fehlgeschlagen",
-        "readyToPublish": "Bereit zur Veröffentlichung"
+        "readyToPublish": "Bereit zur Veröffentlichung",
+        "waitingApproval": "Wartet auf Freigabe"
       },
       "open": "Öffnen",
-      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen."
+      "conflict": "{name} wird bereits gebaut. Öffnen Sie es stattdessen.",
+      "waiting": "{count, plural, one {Eine Anwendung wartet auf die Freigabe ihrer Änderung.} other {# Anwendungen warten auf die Freigabe ihrer Änderungen.}} Der Lauf behält seine Vorschau, solange er wartet.",
+      "openApprovals": "Freigaben öffnen"
     },
     "kpi": {
       "badge": "KPI"
@@ -2162,6 +2262,9 @@
     "review": "Änderungen prüfen",
     "apply": "Anwenden",
     "discard": "Änderungen verwerfen",
+    "attribute": "Attribut",
+    "before": "Vorher",
+    "after": "Nachher",
     "observedKeep": "beibehalten, wann jeder Wert beobachtet wurde",
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
@@ -2289,7 +2392,10 @@
       "stop": "Lauf stoppen",
       "retry": "Erneut fragen",
       "newConversation": "Neues Gespräch",
-      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier."
+      "sendFailed": "Die Nachricht wurde nicht gesendet: {reason}. Was Sie geschrieben haben, steht noch hier.",
+      "tryAgain": "Erneut versuchen",
+      "unanswered": "Ihre letzte Nachricht wurde nicht beantwortet. Es wurde nichts geändert.",
+      "endedBecause": "Grund: {reason}."
     },
     "line": {
       "status": "Jetzt {status}.",
@@ -2730,7 +2836,7 @@
     "continue": "Fortsetzen",
     "continueMessage": "Setze dieses Gespräch fort.",
     "continues": "setzt eine frühere Unterhaltung fort",
-    "empty": "Noch nichts. Fragen Sie den Assistenten oder beginnen Sie unten eine Arbeit.",
+    "empty": "Noch nichts. Öffnen Sie den Assistenten, wählen Sie einen Weg oder stellen Sie eine Frage; seine Gespräche und seine Arbeit erscheinen hier.",
     "started": "Gestartet",
     "actions": "Aktionen",
     "access": {

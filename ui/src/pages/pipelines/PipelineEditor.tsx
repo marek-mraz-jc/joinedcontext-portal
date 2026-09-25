@@ -13,6 +13,8 @@ import { Alert, buttonClass, Icon, safeHref } from "../../components/ui";
 import { pipelineSchema, pipelineUiSchemaFor } from "../../schemas/kinds";
 import type { EndpointOption, PipelineShown } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
+import { PipelineWorkbench } from "./PipelineWorkbench";
+import type { UiSchema } from "../../components/forms/types";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {
@@ -325,6 +327,20 @@ export function shownFor(form: PipelineForm | undefined): PipelineShown {
   };
 }
 
+/**
+ * The form under the workbench (PL-58): the workbench owns the target and the Bloblang mapping,
+ * so the form does not ask them twice. How the rest is grouped and folded is the Pipeline's
+ * UiSchema manifest's (UI-02).
+ */
+export function workbenchUiSchema(base: UiSchema): UiSchema {
+  const compute = ((base as Record<string, unknown>).compute ?? {}) as Record<string, unknown>;
+  return {
+    ...base,
+    targetEndpoint: { "ui:widget": "hidden" },
+    compute: { ...compute, bloblang: { "ui:widget": "hidden" } },
+  } as UiSchema;
+}
+
 /** The known values plus the one already chosen, so an edit never loses its own reference. */
 function withCurrent(values: string[], current: string | undefined): string[] {
   return current && !values.includes(current) ? [...values, current] : values;
@@ -442,7 +458,10 @@ export function PipelineEditorDialog({
   // Keyed on what decides it, not on the draft: a new arrangement on every keystroke would make
   // RJSF rebuild the input being typed into.
   const shownKey = JSON.stringify(shownFor(draft));
-  const uiSchema = useMemo(() => pipelineUiSchemaFor(JSON.parse(shownKey) as PipelineShown), [shownKey]);
+  const uiSchema = useMemo(
+    () => workbenchUiSchema(pipelineUiSchemaFor(JSON.parse(shownKey) as PipelineShown)),
+    [shownKey],
+  );
   const source = useMemo<ManifestSource<PipelineForm>>(
     () => ({
       toManifest: (form) => toEnvelope(project, form, base),
@@ -500,15 +519,38 @@ export function PipelineEditorDialog({
           onRetry={() => void endpoints.refetch()}
         />
       ) : null}
-      <PipelineStudio
+      <PipelineWorkbench
         project={project}
         draft={draft}
         onChange={(form) => setDraft(completeOutput(form))}
         dataSources={dataSourceList}
         endpoints={endpointList}
+        targets={endpointOptions}
         toManifest={source.toManifest}
         onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
-      />
+      >
+        {/* What the six steps do not cover (several sources, processor steps, a KPI, the flow
+            view) stays one fold away, on the same draft (ADR-N-034). */}
+        <details className="rounded-lg border border-border p-3">
+          <summary className="cursor-pointer text-body font-semibold text-fg">
+            {t("pipelines.workbench.advanced")}
+            <span className="ml-2 font-normal text-caption text-fg-muted">
+              {t("pipelines.workbench.advancedHint")}
+            </span>
+          </summary>
+          <div className="mt-3">
+            <PipelineStudio
+              project={project}
+              draft={draft}
+              onChange={(form) => setDraft(completeOutput(form))}
+              dataSources={dataSourceList}
+              endpoints={endpointList}
+              toManifest={source.toManifest}
+              onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
+            />
+          </div>
+        </details>
+      </PipelineWorkbench>
       {draft?.compute?.kind === "bloblang" ? (
         <Alert
           tone="info"

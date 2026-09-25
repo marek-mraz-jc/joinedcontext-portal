@@ -308,6 +308,10 @@ impl AppState {
             let mut syncer = Syncer::new(Arc::clone(&client), Arc::clone(&state.mirror))
                 .with_webhook_secrets(Arc::clone(&state.webhook_secrets))
                 .with_activity(state.activity.clone())
+                .with_pipeline_outcomes(
+                    Arc::clone(&state.rejected),
+                    Arc::clone(&state.pipeline_log),
+                )
                 .with_apps_cache_dir(state.config.apps_cache_dir.clone());
             // The root credential of the artifact store reaches this one object and no other,
             // and no workload gets it: every organization is served a derived, scoped pair

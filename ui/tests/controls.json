@@ -672,7 +672,7 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "action_inspector.test.tsx",
@@ -772,7 +772,7 @@
     },
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 4,
         "Checkbox": 2
       },
       "tests": [
@@ -808,10 +808,19 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 5,
+        "Checkbox": 2
       },
       "tests": [
         "part_operation_groups.test.tsx"
+      ]
+    },
+    "src/pages/endpoints/FilterProof.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_filter_proof.test.tsx"
       ]
     },
     "src/pages/endpoints/ModelPicker.tsx": {
@@ -1034,6 +1043,14 @@
         "pipeline_flow_steps.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_test_functions.test.ts"
+      ]
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceComplete.tsx": {
