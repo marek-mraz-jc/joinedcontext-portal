@@ -569,6 +569,9 @@ async fn propose_checked(
             );
             verdict.waits_on = result.awaited.iter().map(|a| a.change.clone()).collect();
             verdict
+                .findings
+                .extend(crate::apps::renamed_shape(&manifest));
+            verdict
         };
         record_check_as(user, front, state, project, &manifest, &verdict).await;
         result.verdict = Some(verdict);

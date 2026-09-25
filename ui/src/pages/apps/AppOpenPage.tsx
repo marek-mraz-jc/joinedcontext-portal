@@ -44,13 +44,66 @@ const FRAME_SANDBOX = "allow-scripts allow-forms allow-popups allow-downloads";
  * origin the pair would hand it the Portal's CSRF cookie and is no sandbox at all.
  */
 export function appFrameSandbox(src: string, portalOrigin: string = window.location.origin): string {
-  let origin: string;
+  return appFrameOrigin(src, portalOrigin) === "null" ? FRAME_SANDBOX : `${FRAME_SANDBOX} allow-same-origin`;
+}
+
+/**
+ * The origin the App's framed document has, and so the one its messages carry: its own when it
+ * keeps it (another origin than the Portal's), else the opaque `"null"` of a sandbox without
+ * `allow-same-origin`.
+ */
+export function appFrameOrigin(src: string, portalOrigin: string = window.location.origin): string {
   try {
-    origin = new URL(src, portalOrigin).origin;
+    const origin = new URL(src, portalOrigin).origin;
+    return origin !== portalOrigin ? origin : "null";
   } catch {
-    return FRAME_SANDBOX;
+    return "null";
   }
-  return origin !== "null" && origin !== portalOrigin ? `${FRAME_SANDBOX} allow-same-origin` : FRAME_SANDBOX;
+}
+
+/** How long the Open page waits after the frame's load for the App to say it is up (T-2941). */
+export const FRAME_ANSWER_MS = 8000;
+
+/**
+ * Whether the framed App has gone silent (AP-122, T-2941). An App built with the SDK posts
+ * `{kind: "jc-ready"}` once it is mounted; a frame the browser refused (the realm's sign-in form,
+ * which may not be framed) fires its `load` all the same and says nothing. Only a message from
+ * this frame's own window and the App's origin counts. An App built before the SDK sent the
+ * message, or without the SDK, stays silent too, so what this drives never covers the frame.
+ */
+function useFrameSilence(address: string) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const answered = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The address the silence was seen on: a new address is a new visit, silent until it is not.
+  const [silentOn, setSilentOn] = useState<string | null>(null);
+  useEffect(() => {
+    answered.current = false;
+    const expected = appFrameOrigin(address);
+    const listen = (event: MessageEvent) => {
+      const own = frame.current?.contentWindow;
+      if (!own || event.source !== own || event.origin !== expected) return;
+      const data: unknown = event.data;
+      if (typeof data !== "object" || data === null || (data as { kind?: unknown }).kind !== "jc-ready") return;
+      answered.current = true;
+      clearTimeout(timer.current);
+      setSilentOn(null);
+    };
+    window.addEventListener("message", listen);
+    return () => {
+      window.removeEventListener("message", listen);
+      clearTimeout(timer.current);
+    };
+  }, [address]);
+  // The App's script may answer before its document's `load`; an answer counts for the whole visit.
+  const onLoad = () => {
+    clearTimeout(timer.current);
+    if (answered.current) return;
+    timer.current = setTimeout(() => {
+      if (!answered.current) setSilentOn(address);
+    }, FRAME_ANSWER_MS);
+  };
+  return [frame, { silent: silentOn === address, onLoad, dismiss: () => setSilentOn(null) }] as const;
 }
 
 /** The one App manifest, shared with every page that reads it. */
@@ -134,6 +187,11 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const build = useAppBuild(project, name);
   const [frameArea, fullscreen] = useFullscreen();
   const [fullscreenFailed, setFullscreenFailed] = useState<string | null>(null);
+  const address = appAddress(name, appsOrigin);
+  const [frame, silence] = useFrameSilence(address);
+  const signInAgain = () => {
+    signIn(`${window.location.pathname}${window.location.search}`);
+  };
 
   const toApp = () => {
     void navigate({
@@ -175,7 +233,6 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const manifest = app.data;
   const title = localized(manifest.metadata.title, i18n.language, fallbackTitle);
   const blocked = openBlockedReason(manifest, build.data?.run ?? null, t);
-  const address = appAddress(name, appsOrigin);
 
   if (blocked) {
     return (
@@ -221,9 +278,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
             variant="ghost"
             title={t("apps.openPage.signInHint")}
             aria-describedby="app-open-sign-in-hint"
-            onClick={() => {
-              signIn(`${window.location.pathname}${window.location.search}`);
-            }}
+            onClick={signInAgain}
           >
             {t("apps.openPage.signInAgain")}
           </Button>
@@ -237,8 +292,29 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
           {t("apps.openPage.fullscreenFailed", { reason: fullscreenFailed })}
         </p>
       ) : null}
+      {/* Above the frame, never over it: an App that renders without saying so stays usable. */}
+      <div role="status" aria-live="polite">
+        {silence.silent ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border bg-surface-muted px-3 py-2 sm:px-4">
+            <p className="min-w-0 flex-1 text-caption text-fg">
+              <span className="font-semibold">{t("apps.openPage.silentTitle")}</span> {t("apps.openPage.silentBody")}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button size="sm" variant="primary" onClick={signInAgain}>
+                {t("apps.openPage.signInAgain")}
+              </Button>
+              {/* "Open in new window" is the bar's own link just above: one control, one name. */}
+              <Button size="sm" variant="ghost" onClick={silence.dismiss}>
+                {t("apps.openPage.silentDismiss")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
       <div ref={frameArea} data-testid="app-frame-area" className="flex min-h-0 flex-1 flex-col bg-surface">
         <iframe
+          ref={frame}
+          onLoad={silence.onLoad}
           src={address}
           title={t("apps.openPage.frameTitle", { title })}
           sandbox={appFrameSandbox(address)}

@@ -34,10 +34,13 @@ describe("the locales", () => {
     expect(LOCALES.en.staleNote).toContain("three hours");
   });
 
-  it("names a station after its own id, because the model publishes no name", () => {
-    expect(nameOf("station-1", LOCALES.sk)).toBe("Stanica 1");
-    expect(nameOf("station-1", LOCALES.en)).toBe("Station 1");
+  it("names a station by the name it publishes, and after its own id when it publishes none", () => {
+    expect(nameOf({ localId: "eea-SK0263A", name: "Stanica SK0263A, mestské pozadie" }, LOCALES.sk)).toBe(
+      "Stanica SK0263A, mestské pozadie",
+    );
+    expect(nameOf({ localId: "station-1", name: null }, LOCALES.sk)).toBe("Stanica 1");
+    expect(nameOf({ localId: "station-1", name: null }, LOCALES.en)).toBe("Station 1");
     // An id in another shape is shown as it is rather than dressed up.
-    expect(nameOf("mesto-juh", LOCALES.en)).toBe("Station mesto-juh");
+    expect(nameOf({ localId: "mesto-juh", name: null }, LOCALES.en)).toBe("Station mesto-juh");
   });
 });

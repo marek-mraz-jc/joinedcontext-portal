@@ -101,6 +101,30 @@ test.describe("an App inside the Portal (AP-122)", () => {
     });
   }
 
+  // T-2941: the stub App carries no SDK, so it never says it is up; 8 s after its load the page
+  // offers the sign-in above the frame, readable in both themes, and names each control once.
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`offers the sign-in above a silent App's frame (${colorScheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme });
+      await page.clock.install();
+      await stub(page);
+      await page.goto("/projects/helsinki/apps/city-bikes/open?lang=en");
+      await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
+      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+
+      await page.clock.runFor(8_000);
+      const status = page.getByRole("status").filter({ hasText: "The app has not answered." });
+      await expect(status).toBeVisible();
+      await expect(status.getByRole("button", { name: "Sign in again" })).toBeVisible();
+      await expect(page.getByRole("link", { name: /Open in new window/ })).toHaveCount(1);
+      await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
+      expect(await axeViolations(page)).toEqual([]);
+
+      await status.getByRole("button", { name: "Hide this message" }).click();
+      await expect(page.getByText("The app has not answered.")).toHaveCount(0);
+    });
+  }
+
   test("a retired App shows its state and no frame", async ({ page }) => {
     await stub(page);
     await page.goto("/projects/helsinki/apps/old-map/open?lang=en");

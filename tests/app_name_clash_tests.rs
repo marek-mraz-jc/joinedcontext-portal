@@ -209,3 +209,51 @@ async fn a_new_app_whose_client_the_realm_holds_unmanaged_is_refused_at_every_do
     .await;
     assert_eq!(free.status, StatusCode::OK, "{}", free.text);
 }
+
+/// AP-124: an App still written `static` passes the dry run, and its verdict says what to write
+/// instead; the same App written `ui` passes with no warning.
+#[tokio::test]
+async fn the_dry_run_warns_an_old_shape_name_and_passes_the_new_one_silently() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+    let checked = format!("{APPS}?dryRun=All");
+
+    let old = send(
+        &state,
+        person("narrow"),
+        "POST",
+        &checked,
+        Some(app("air-desk")),
+    )
+    .await;
+    assert_eq!(old.status, StatusCode::OK, "{}", old.text);
+    let verdict = &serde_json::from_str::<Value>(&old.text).expect("json")["verdict"];
+    assert_eq!(verdict["ok"], json!(true), "{verdict}");
+    let warning = verdict["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .find(|f| f["path"] == json!("spec.kind"))
+        .unwrap_or_else(|| panic!("a spec.kind warning: {verdict}"));
+    assert_eq!(warning["level"], json!("warning"));
+    assert!(
+        warning["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("write `kind: ui`")),
+        "{warning}"
+    );
+
+    let mut new = app("air-desk");
+    new["spec"]["kind"] = json!("ui");
+    let fresh = send(&state, person("narrow"), "POST", &checked, Some(new)).await;
+    assert_eq!(fresh.status, StatusCode::OK, "{}", fresh.text);
+    let verdict = &serde_json::from_str::<Value>(&fresh.text).expect("json")["verdict"];
+    assert!(
+        !verdict["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .any(|f| f["path"] == json!("spec.kind")),
+        "{verdict}"
+    );
+}

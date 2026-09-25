@@ -21,8 +21,6 @@ spec:
   - geojson
   fileLimits:
     maxFileRows: 5000
-  rateLimits:
-    requestsPerMinute: 300
   roles:
   - name: viewer
     subjects:

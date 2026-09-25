@@ -175,6 +175,8 @@ pub struct Syncer {
         Arc<crate::pipeline_outcomes::RejectedStore>,
         Arc<crate::pipeline_log::LogStore>,
     )>,
+    /// Each Live stream's written count and when it last moved, across syncs (T-2967).
+    stalls: super::stall::StallWatch,
 }
 
 impl Syncer {
@@ -195,6 +197,7 @@ impl Syncer {
             leadership: None,
             converger: None,
             streams: None,
+            stalls: super::stall::StallWatch::default(),
             registrations: None,
             drift: None,
             quality: None,
@@ -1178,6 +1181,13 @@ impl Syncer {
                     counters.insert(ns.clone(), deployer.metrics(ns).await);
                 }
             }
+            // The streams Live this run; a paused or deleted one is forgotten by the stall watch.
+            let live: std::collections::BTreeSet<(String, String)> = outcomes
+                .iter()
+                .filter(|(_, _, outcome)| matches!(outcome, StreamOutcome::Live))
+                .map(|(ns, name, _)| (ns.clone(), name.clone()))
+                .collect();
+            let now = std::time::Instant::now();
             for (ns, name, outcome) in outcomes {
                 let Some(mut envelope) = fresh_mirror.get(&ns, "Pipeline", &name) else {
                     continue;
@@ -1190,19 +1200,25 @@ impl Syncer {
 
                 match outcome {
                     StreamOutcome::Live => {
+                        // Errors and nothing ever sent, else records in and nothing out for the
+                        // stall window (T-2967); an unreachable runner changes neither.
+                        let body = counters.get(&ns).and_then(Option::as_deref);
+                        let verdict = body
+                            .and_then(|body| failing(body, &name))
+                            .map(|said| ("NothingWritten", said))
+                            .or_else(|| {
+                                let metrics =
+                                    crate::api::pipelines::scrape(body?, &name, String::new());
+                                self.stalls
+                                    .observe(&ns, &name, &metrics, now)
+                                    .map(|said| ("Stalled", said))
+                            });
                         if let Some(status) = envelope.status.as_mut() {
                             status.phase = crate::resource::Phase::Live;
-                            status.conditions = match counters
-                                .get(&ns)
-                                .and_then(Option::as_deref)
-                                .and_then(|body| failing(body, &name))
-                            {
-                                Some(said) => vec![make_condition(
-                                    "StreamWriting",
-                                    "False",
-                                    "NothingWritten",
-                                    &said,
-                                )],
+                            status.conditions = match verdict {
+                                Some((reason, said)) => {
+                                    vec![make_condition("StreamWriting", "False", reason, &said)]
+                                }
                                 None => Vec::new(),
                             };
                         }
@@ -1239,6 +1255,7 @@ impl Syncer {
                     }
                 }
             }
+            self.stalls.retain(&live);
         } else {
             mark_streams_pending(
                 &fresh_mirror,
@@ -2101,7 +2118,32 @@ fn pipeline_references(
         .and_then(crate::api::assistant::ref_name);
     if let Some(name) = data_source {
         if let Some(source) = mirror.get(namespace, "DataSource", &name) {
-            references.extend(list(source.spec.get("secrets")));
+            // The connector's `spec.secrets` (PL-50), and every credential its typed fields
+            // name (an HTTP source's `authorization.headerRef`, an MQTT password, a TLS CA)
+            // under the name its compiled stream expects: `spec.secrets` alone left praha's
+            // Golemio key out of the runner (T-2957, T-2880).
+            let declared = list(source.spec.get("secrets"));
+            let typed: Vec<jc_core::envelope::SecretRef> = serde_json::from_value::<
+                jc_core::kinds::data_source::DataSourceSpec,
+            >(source.spec.clone())
+            .map(|spec| {
+                spec.secret_refs()
+                    .into_iter()
+                    .map(|reference| {
+                        let mut named = reference.clone();
+                        named.env_var.get_or_insert_with(|| {
+                            jc_core::kinds::data_source::env_var_of(&name, reference)
+                        });
+                        named
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+            for reference in declared.into_iter().chain(typed) {
+                if !references.contains(&reference) {
+                    references.push(reference);
+                }
+            }
         }
     }
     references
@@ -2796,5 +2838,62 @@ output_error{stream="kpi"} 6
             .last_error
             .unwrap()
             .contains("none of the 1 candidate files"));
+    }
+
+    /// T-2880: an HTTP source's `authorization.headerRef` reaches the runner under the name its
+    /// compiled stream reads (`DS_{SOURCE}_{KEY}`), beside the Pipeline's own `secretRefs`.
+    #[test]
+    fn an_http_sources_header_credential_is_resolved_for_its_pipeline() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let envelope = |kind: &str, name: &str, spec: serde_json::Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, "praha"),
+            spec,
+            status: None,
+        };
+        let mirror = Mirror::new();
+        mirror.upsert(envelope(
+            "DataSource",
+            "golemio-park-and-ride",
+            serde_json::json!({
+                "type": "http",
+                "http": {
+                    "url": "https://api.golemio.cz/v3/parking-measurements",
+                    "verb": "GET",
+                    "authorization": {
+                        "header": "X-Access-Token",
+                        "headerRef": { "name": "golemio", "key": "token" }
+                    }
+                }
+            }),
+        ));
+        let pipeline = envelope(
+            "Pipeline",
+            "park-and-ride-occupancy",
+            serde_json::json!({
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "golemio-park-and-ride" } },
+                "secretRefs": [{ "name": "extra", "key": "k", "envVar": "EXTRA" }]
+            }),
+        );
+        let references = pipeline_references(&mirror, "praha", &pipeline);
+        let named: Vec<(&str, Option<&str>)> = references
+            .iter()
+            .map(|r| (r.name.as_str(), r.env_var.as_deref()))
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("extra", Some("EXTRA")),
+                ("golemio", Some("DS_GOLEMIO_PARK_AND_RIDE_TOKEN"))
+            ]
+        );
+        // A source that names no credential adds none.
+        mirror.upsert(envelope(
+            "DataSource",
+            "golemio-park-and-ride",
+            serde_json::json!({ "type": "http", "http": { "url": "https://example.org/x", "verb": "GET" } }),
+        ));
+        assert_eq!(pipeline_references(&mirror, "praha", &pipeline).len(), 1);
     }
 }

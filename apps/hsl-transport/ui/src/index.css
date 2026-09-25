@@ -13,7 +13,16 @@
     --ink: #e2e8f0;
     --muted: #94a3b8;
     --line: #1e293b;
+    /* The SDK's cards read these; without them a card stays light under the dark page's ink. */
+    --jc-color-card: #111c33;
+    --jc-color-line: #1e293b;
+    --jc-color-ink: #e2e8f0;
+    --jc-color-muted: #94a3b8;
   }
+}
+
+.jc-card {
+  color: var(--ink);
 }
 
 * {
@@ -26,11 +35,10 @@ body {
   background: var(--surface);
 }
 
-/* The SDK's Page and Header (T-2825, SDK-12) around a map that takes the rest of the window: the
-   heading and the lines keep their height, the map never less than a phone's worth. */
+/* The SDK's Page and Header (T-2825, SDK-12) around the map and its charts: on a laptop and wider
+   the map takes two thirds of the window's height beside the charts, on a phone the map comes
+   first at a phone's worth of height and the charts follow below it (T-2926). */
 .app .jc-page {
-  height: 100dvh;
-  grid-template-rows: auto minmax(18rem, 1fr) auto;
   padding: var(--jc-gutter, 0.75rem);
 }
 
@@ -39,11 +47,79 @@ body {
   font-size: 0.875rem;
 }
 
+.map-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
 .map {
-  min-height: 0;
+  height: 60dvh;
+  min-height: 18rem;
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
+}
+
+@media (min-width: 48rem) {
+  .map {
+    height: calc(100dvh - 9rem);
+  }
+}
+
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.bars {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(3.5rem, 7rem) 1fr 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  height: 0.8rem;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty,
+.note {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
 }
 
 .lines {

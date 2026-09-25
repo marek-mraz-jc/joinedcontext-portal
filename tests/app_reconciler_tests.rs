@@ -25,6 +25,7 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: None,
         pull_secret: None,
+        basemap_base: None,
         release: Some("dev".into()),
         service_account: Some("portal".into()),
     }
@@ -695,6 +696,137 @@ fn needs_reaching_into_two_spaces_do_not_become_one_endpoint() {
     );
 }
 
+/// AP-04 (T-2933): a `ui` App reads one further space of its project, read only, through that
+/// space's public Endpoints; its needs there compile into no grant, and the App's own endpoint and
+/// grants stay those of its own space.
+#[test]
+fn a_ui_apps_further_space_compiles_into_no_grant() {
+    let rendered = render(
+        &app(json!({
+            "kind": "ui",
+            "source": { "path": "." },
+            "build": { "node": "22" },
+            "dataNeeds": [
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+                    "types": ["AirQualityObserved"],
+                    "operations": ["queryEntity"],
+                    "representations": ["ngsi-ld"]
+                },
+                {
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "registre" },
+                    "types": ["AdministrativeArea"],
+                    "operations": ["queryEntity", "retrieveEntity"],
+                    "representations": ["geojson"]
+                }
+            ]
+        })),
+        None,
+        &generate_slug(),
+        &settings(),
+    )
+    .expect("a ui app may read one further space");
+    let endpoint: EndpointSpec =
+        serde_json::from_value(rendered.endpoint.spec.clone()).expect("an Endpoint");
+    assert_eq!(endpoint.context_space_ref.name(), "ovzdusie");
+    assert_eq!(
+        rendered.endpoint.spec["enabledRepresentations"],
+        json!(["ngsi-ld"]),
+        "the further need's representations are not the own endpoint's"
+    );
+    let names: Vec<&str> = rendered
+        .policies
+        .iter()
+        .map(|policy| policy.metadata.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        ["app-air-quality-today-1"],
+        "one grant, of the own space"
+    );
+    assert!(!format!("{:?}", rendered.policies).contains("AdministrativeArea"));
+}
+
+/// AP-04 (T-2933): a further space is read only, holds no role, is one space and only a `ui`
+/// App's: every other shape is refused and names the space.
+#[test]
+fn a_further_space_that_writes_holds_a_role_is_a_third_or_a_pods_is_refused() {
+    let own = json!({
+        "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+        "types": ["AirQualityObserved"],
+        "operations": ["queryEntity"]
+    });
+    let further = |space: &str, extra: Value| {
+        let mut need = json!({
+            "contextSpaceRef": { "kind": "ContextSpace", "name": space },
+            "types": ["AdministrativeArea"],
+            "operations": ["queryEntity"]
+        });
+        for (key, value) in extra.as_object().expect("an object") {
+            need[key] = value.clone();
+        }
+        need
+    };
+    let ui = |needs: Vec<Value>| {
+        render(
+            &app(json!({
+                "kind": "ui",
+                "source": { "path": "." },
+                "build": { "node": "22" },
+                "visibility": "roles",
+                "roles": [{ "name": "steward" }],
+                "dataNeeds": needs
+            })),
+            None,
+            &generate_slug(),
+            &settings(),
+        )
+    };
+
+    let writes = ui(vec![
+        own.clone(),
+        further(
+            "registre",
+            json!({ "operations": ["queryEntity", "updateAttrs"] }),
+        ),
+    ])
+    .expect_err("a further space is read only");
+    assert!(
+        matches!(&writes, RenderError::FurtherSpace { space } if space == "registre"),
+        "got {writes:?}"
+    );
+    let role = ui(vec![
+        own.clone(),
+        further("registre", json!({ "roles": ["steward"] })),
+    ])
+    .expect_err("a further space grants no role");
+    assert!(
+        matches!(role, RenderError::FurtherSpace { .. }),
+        "got {role:?}"
+    );
+    let third = ui(vec![
+        own.clone(),
+        further("registre", json!({})),
+        further("doprava", json!({})),
+    ])
+    .expect_err("one further space, not two");
+    assert!(
+        matches!(&third, RenderError::SeveralSpaces { second, .. } if second == "doprava"),
+        "got {third:?}"
+    );
+    let pod = render(
+        &app(json!({ "dataNeeds": [own, further("registre", json!({}))] })),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect_err("a pod reads through its one endpoint");
+    assert!(
+        matches!(pod, RenderError::SeveralSpaces { .. }),
+        "got {pod:?}"
+    );
+}
+
 #[test]
 fn a_manifest_with_nowhere_to_put_a_secret_stays_that_way() {
     // AP-16: the App kind refuses `secretRef` at parse time, and rendering never invents one.
@@ -835,6 +967,31 @@ fn a_pod_app_is_handed_the_sdk_configuration_of_its_one_endpoint() {
     assert!(
         config.get("user").is_none(),
         "the person is the backend's to add, per request"
+    );
+}
+
+/// AP-67: with a basemap configured a pod App is handed its project's style, the one the static
+/// host writes for a `ui` App, so its map never falls back to a plain background; without one
+/// the key is absent (the equality above).
+#[test]
+fn a_pod_app_is_handed_its_projects_basemap_when_one_is_configured() {
+    let settings = Settings {
+        basemap_base: Some("https://portal.bb.example.com/".into()),
+        ..settings()
+    };
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings,
+    )
+    .expect("renders");
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let value = env(container(&deployment, "app"), "JC_APP_CONFIG")["value"].clone();
+    let config: Value = serde_json::from_str(value.as_str().expect("a string")).expect("JSON");
+    assert_eq!(
+        config["basemap"],
+        "https://portal.bb.example.com/api/v1/projects/ovzdusie/basemap/default/style.json"
     );
 }
 

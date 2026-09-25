@@ -20,10 +20,14 @@ test.describe("who may edit a station record", () => {
   test("an anonymous reader sees the measurements and no control", async ({ page }) => {
     await page.goto(BASE);
 
-    await expect(page.getByRole("heading", { name: "Kallio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Kallio", exact: true })).toBeVisible();
     await expect(page.getByText("34.2 µg/m³")).toBeVisible();
     await expect(page.getByText("You are viewing anonymously.")).toBeVisible();
-    await expect(page.getByRole("button")).toHaveCount(0);
+    // Nothing that writes: no form and no Add, Edit, Save, Remove or Confirm. The station picker
+    // beside the map (T-2925) is reading, and an anonymous reader has it like everyone else.
+    await expect(page.getByRole("form")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^(Add|Edit|Save|Remove|Confirm)\b/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Kallio/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("a signed-in viewer is named on the page and sees Edit disabled with the reason", async ({ page }) => {
@@ -47,7 +51,7 @@ test.describe("who may edit a station record", () => {
     await add.getByLabel("Longitude").fill("24.95");
     await add.getByLabel("Latitude").fill("60.19");
     await add.getByRole("button", { name: "Add station" }).click();
-    await expect(page.getByRole("heading", { name: "Vallila" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Vallila", exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Edit Vallila" }).click();
     const edit = page.getByRole("form", { name: "Edit Vallila" });
@@ -59,7 +63,7 @@ test.describe("who may edit a station record", () => {
     await expect(page.getByRole("button", { name: "Remove Kallio" })).toBeDisabled();
     await page.getByRole("button", { name: "Remove Vallila" }).click();
     await page.getByRole("button", { name: "Confirm removal of Vallila" }).click();
-    await expect(page.getByRole("heading", { name: "Vallila" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Vallila", exact: true })).toHaveCount(0);
   });
 
   // The buttons are a convenience; the refusal is the control. These call the app the way a

@@ -43,6 +43,22 @@ sent, in the same place a refusal appears. That bound is the model's own
 (`^[^<>]{0,500}$`); the gateway does not yet validate writes against a space's published schema
 (DM-27), so today this is where it holds.
 
+## Charts and names (T-2966)
+
+Above the table, the records of one cube at a time are drawn as charts: a line over the periods
+(a month or quarter joins the period), bars across the territories at the latest period, or
+columns across a key, such as the city's residents by age. The table draws the indicator and the
+territory by name with the code beside it, the number with the publisher's unit text, and the
+URN behind a disclosure; its filters still ask the endpoint about the codes.
+
+The names are the statistics office's own category labels, in Slovak and English, in
+`ui/src/labels.ts`. `labels.mjs` writes that file from the URLs the pipelines read; run it again
+when a pipeline reads another cube:
+
+```
+node labels.mjs ../../../joinedcontext-deployment/components/context-gateway/seed
+```
+
 ## No history, on purpose
 
 The steward's grant is `retrieveOps` and `updateAttrs` (T-2434). It reaches no temporal

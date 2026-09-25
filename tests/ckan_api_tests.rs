@@ -203,10 +203,37 @@ async fn the_status_names_the_catalogue_and_every_published_resource() {
             format!("https://localhost/api/endpoint/{SLUG}/ngsi-ld/v1/"),
             format!("https://localhost/api/endpoint/{SLUG}/file.geojson"),
             format!("https://localhost/api/endpoint/{SLUG}/file.csv"),
+            // Every Endpoint serves its MCP instance unless `mcp: false` (EP-24, T-2901).
+            format!("https://localhost/api/endpoint/{SLUG}/mcp"),
             format!("https://localhost/api/endpoint/{SLUG}/schema/index.json"),
         ],
         "every resource is served by the endpoint itself (EP-66)"
     );
+}
+
+/// EP-24: an Endpoint that turns its MCP instance off publishes no MCP resource either.
+#[tokio::test]
+async fn an_endpoint_without_mcp_publishes_no_mcp_resource() {
+    let mirror = seeded();
+    let mut spec = endpoint_spec(json!({
+        "ckan": {
+            "instanceRef": { "kind": "CkanInstance", "name": "open-data" },
+            "organization": "mesto-banska-bystrica",
+            "name": "kvalita-ovzdusia",
+        }
+    }));
+    spec["mcp"] = json!(false);
+    mirror.upsert(envelope("Endpoint", "ovzdusie-public", spec));
+    let (status, body) = status_of(mirror).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let urls: Vec<&str> = body["publications"][0]["resources"]
+        .as_array()
+        .expect("resources")
+        .iter()
+        .map(|resource| resource["url"].as_str().expect("a url"))
+        .collect();
+    assert!(!urls.is_empty(), "{body}");
+    assert!(!urls.iter().any(|url| url.ends_with("/mcp")), "{urls:?}");
 }
 
 /// EP-67: the answer names the secret, never its value.

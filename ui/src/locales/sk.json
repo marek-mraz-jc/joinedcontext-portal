@@ -77,6 +77,7 @@
     "blueprints": "Šablóny",
     "agentprofiles": "Profily agentov",
     "dataoffers": "Dátové ponuky",
+    "scopedefinitions": "Definície rozsahov",
     "dataspaceparticipants": "Dátový priestor",
     "environments": "Prostredia",
     "projections": "Projekcie modelov"
@@ -1144,6 +1145,7 @@
     "credentialsOfSource": "Drží ich jeho zdroj dát {name}",
     "noCredential": "Žiadne",
     "writesType": "Zapisuje",
+    "notWriting": "Nezapisuje nič",
     "rejected": {
       "open": "Odmietnuté záznamy",
       "title": "Odmietnuté záznamy pipeliny {name}",
@@ -2232,7 +2234,10 @@
       "fullscreen": "Celá obrazovka",
       "fullscreenExit": "Opustiť celú obrazovku",
       "fullscreenUnavailable": "Tento prehliadač tu celú obrazovku neponúka.",
-      "fullscreenFailed": "Prehliadač neprepol na celú obrazovku: {reason}"
+      "fullscreenFailed": "Prehliadač neprepol na celú obrazovku: {reason}",
+      "silentTitle": "Aplikácia neodpovedala.",
+      "silentBody": "Ak zostáva prázdna, jej prihlásenie pravdepodobne vypršalo. Prihláste sa znova v tomto okne alebo otvorte aplikáciu v samostatnom okne.",
+      "silentDismiss": "Skryť túto správu"
     },
     "retire": {
       "title": "Vyradiť {name}",
@@ -4718,6 +4723,12 @@
       "verbs": "Čo smie robiť",
       "endpoints": "Koncové body",
       "endpoint": "Koncový bod"
+    }
+  },
+  "scopedefinitions": {
+    "field": {
+      "name": "Názov",
+      "scopeString": "Cesta rozsahu"
     }
   },
   "dataoffers": {

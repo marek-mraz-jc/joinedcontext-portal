@@ -626,14 +626,13 @@ impl AppClientSync {
         Ok(id)
     }
 
-    /// The App's roles, who holds each, and its audiences, brought to the manifest (AP-113).
+    /// The App's roles and who holds each, brought to the manifest (AP-113).
     /// What the realm held and the manifest does not say goes, and is reported as drift.
     async fn converge_grants(
         &self,
         token: &str,
         uuid: &str,
         spec: &AppSpec,
-        audiences: &[String],
         index: &mut RealmIndex,
         outcome: &mut ClientOutcome,
     ) -> Result<(), String> {
@@ -759,10 +758,7 @@ impl AppClientSync {
                 }
             }
         }
-
-        self.admin
-            .converge_audiences(token, uuid, audiences, "the App", outcome)
-            .await
+        Ok(())
     }
 
     async fn secret(&self, token: &str, uuid: &str) -> Result<ClientSecret, String> {
@@ -975,17 +971,32 @@ impl AppClientSync {
             }
         };
         // The login works without the roles, so a failure here keeps the secret on the edge.
-        let grants = match &app.spec {
+        // The audiences are what that login's token reaches, so they are brought in place
+        // whatever the roles did: a refused role mapping once left a login whose token named no
+        // endpoint, and every read the App made was a 401 (T-2965).
+        let failed: Vec<String> = match &app.spec {
             Some(spec) => {
-                self.converge_grants(token, &uuid, spec, audiences, index, &mut outcome)
-                    .await
+                let grants = self
+                    .converge_grants(token, &uuid, spec, index, &mut outcome)
+                    .await;
+                let reach = self
+                    .admin
+                    .converge_audiences(token, &uuid, audiences, "the App", &mut outcome)
+                    .await;
+                [
+                    grants.err().map(|err| format!("roles of {id}: {err}")),
+                    reach.err().map(|err| format!("audiences of {id}: {err}")),
+                ]
+                .into_iter()
+                .flatten()
+                .collect()
             }
-            None => {
-                Err("the App manifest does not parse, so its roles were not written".to_owned())
-            }
+            None => vec![format!(
+                "roles of {id}: the App manifest does not parse, so its roles were not written"
+            )],
         };
-        if let Err(err) = grants {
-            outcome.error = Some(format!("roles of {id}: {err}"));
+        if !failed.is_empty() {
+            outcome.error = Some(failed.join("; "));
         }
         match self.secret(token, &uuid).await {
             Ok(secret) => (outcome, Some(secret)),
