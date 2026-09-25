@@ -397,6 +397,88 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
             ));
         }
     }
+    grants.extend(account_grants(mirror, &organization, identity));
+    grants
+}
+
+/// The account a bearer token speaks for (PF-46, PF-49): its `azp` is the derived client id of
+/// exactly one `ServiceAccount`, and its user is that client's own service account, so a person
+/// who signed in through some client is never mistaken for it. An id two accounts derive is
+/// nobody's, as at the gateway (T-1454).
+fn account_of(mirror: &Mirror, identity: &Identity) -> Option<(String, ServiceAccountSpec)> {
+    use jc_core::kinds::service_account::keycloak_client_id;
+    let client = identity.client.as_deref()?;
+    if !identity
+        .username
+        .eq_ignore_ascii_case(&format!("service-account-{client}"))
+    {
+        return None;
+    }
+    let mut matches = mirror.namespaces().into_iter().flat_map(|namespace| {
+        mirror
+            .list(&namespace, "ServiceAccount", &ListOptions::default())
+            .items
+            .into_iter()
+            .filter(move |env| keycloak_client_id(&namespace, &env.metadata.name) == client)
+    });
+    let env = matches.next()?;
+    if matches.next().is_some() {
+        tracing::warn!(
+            client,
+            "two ServiceAccounts derive this Keycloak client id; it grants nothing"
+        );
+        return None;
+    }
+    match serde_json::from_value::<ServiceAccountSpec>(env.spec) {
+        Ok(spec) => Some((env.metadata.name, spec)),
+        Err(e) => {
+            tracing::warn!(account = %env.metadata.name, error = %e, "ServiceAccount in the mirror does not parse; it grants nothing");
+            None
+        }
+    }
+}
+
+/// The rules of the caller's own `ServiceAccount`: each of its `roles` that names a `Role`, on
+/// the scope beside it, without `approve` (PF-58: a workload proposes, a person approves). Its
+/// other roles are the gateway's templates and grant nothing here (CC-60).
+fn account_grants(
+    mirror: &Mirror,
+    organization: &[(String, RoleSpec)],
+    identity: &Identity,
+) -> Vec<(Reach, Grant)> {
+    let Some((account, spec)) = account_of(mirror, identity) else {
+        return Vec::new();
+    };
+    let mut grants = Vec::new();
+    for granted in &spec.roles {
+        let Some(reach) = Reach::of(&granted.scope) else {
+            continue;
+        };
+        let Some((role_name, role)) = role_of(mirror, organization, &reach, &granted.role) else {
+            continue;
+        };
+        for rule in role.rules {
+            let verbs: Vec<Verb> = rule
+                .verbs
+                .iter()
+                .copied()
+                .filter(|verb| *verb != Verb::Approve)
+                .collect();
+            if verbs.is_empty() {
+                continue;
+            }
+            grants.push((
+                reach.clone(),
+                Grant {
+                    role: role_name.clone(),
+                    binding: format!("serviceaccount/{account}"),
+                    scope: reach.name(),
+                    space: None,
+                    rule: Rule { verbs, ..rule },
+                },
+            ));
+        }
+    }
     grants
 }
 

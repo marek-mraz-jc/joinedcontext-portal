@@ -67,6 +67,7 @@ fn cookie(config: &Config, username: &str, roles: Vec<&str>) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: format!("sub-{username}"),
             username: username.to_owned(),
             email: None,

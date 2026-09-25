@@ -29,6 +29,7 @@ fn session_cookie(config: &Config) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: "sub-steward".into(),
             username: "steward.user".into(),
             email: Some("steward@banskabystrica.sk".into()),

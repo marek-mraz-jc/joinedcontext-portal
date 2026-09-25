@@ -170,6 +170,7 @@ mod tests {
 
     fn who(email: &str) -> Identity {
         Identity {
+            client: None,
             subject: format!("f:1:{email}"),
             username: email.split('@').next().unwrap_or(email).to_owned(),
             email: Some(email.to_owned()),

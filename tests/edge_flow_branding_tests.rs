@@ -99,6 +99,7 @@ fn cookie(config: &Config, roles: &[&str]) -> String {
     let now = session::now_unix();
     let session = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:jana.editor".into(),
             username: "jana.editor".into(),
             email: Some("jana.editor@banskabystrica.sk".into()),

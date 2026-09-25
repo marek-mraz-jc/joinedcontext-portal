@@ -142,6 +142,7 @@ async fn world(bundled: &str) -> (MockServer, AppState) {
 
 fn steward() -> Identity {
     Identity {
+        client: None,
         groups: vec!["portal-approver".into()],
         ..person("jana")
     }

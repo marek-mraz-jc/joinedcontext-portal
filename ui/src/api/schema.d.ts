@@ -520,6 +520,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Organization Setup
+         * @description What the organization still lacks: each setup step and the installation's own part, done or not. Needs `approve` on Organization at organization scope, as `org-admin` holds it.
+         */
+        get: operations["get_setup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preferences": {
         parameters: {
             query?: never;
@@ -2328,6 +2348,14 @@ export interface components {
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
             /**
+             * @description The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are
+             *     served on the Portal's own. Never taken from the branding file: the route overwrites it
+             *     from the Portal's configuration on every answer, and the in-Portal page of an App frames
+             *     it there (AP-122, T-2840).
+             * @default null
+             */
+            appsOrigin: string | null;
+            /**
              * @description The city or region this installation serves.
              * @default
              */
@@ -4034,6 +4062,16 @@ export interface components {
             kind: string;
             name: string;
         };
+        /** @description One step or operator item and whether it is done. */
+        SetupItem: {
+            done: boolean;
+            id: string;
+        };
+        SetupState: {
+            complete: boolean;
+            operator: components["schemas"]["SetupItem"][];
+            steps: components["schemas"]["SetupItem"][];
+        };
         /**
          * @description Which side a person kept for one conflicting field (CC-80).
          * @enum {string}
@@ -5495,6 +5533,35 @@ export interface operations {
             };
             /** @description No Keycloak admin client */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The steps and the operator's part */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupState"];
+                };
+            };
+            /** @description The caller lacks approve on Organization */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
