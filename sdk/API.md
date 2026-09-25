@@ -2,7 +2,7 @@
 
 ### How an app is built
 `src/main.tsx` calls `startApp(App, { tokens })`.
-Pages compose the template's components with this package's hooks. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
+Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
 Backend functions live in `functions/{name}.ts` using `@joinedcontext/sdk/server`.
 Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
