@@ -181,7 +181,8 @@ function answerOf(output: unknown): unknown {
   }
 }
 
-export function viewOf(output: unknown): QueryView {
+/** `language` picks a `languageMap`'s value in the reader's language (T-2769). */
+export function viewOf(output: unknown, language?: string): QueryView {
   const answer = answerOf(output);
   const entities = entitiesOf(answer);
   if (entities !== null) {
@@ -198,7 +199,7 @@ export function viewOf(output: unknown): QueryView {
       columns,
       rows: entities.slice(0, MAX_ROWS).map((entity) => ({
         id: localId(entity.id as string),
-        cells: columns.map((column) => textOf(entity[column])),
+        cells: columns.map((column) => textOf(entity[column], language)),
       })),
       // A page of a longer set says the set's size, not the page's, when the answer carries it.
       total:
@@ -212,7 +213,7 @@ export function viewOf(output: unknown): QueryView {
       kind: "fields",
       fields: Object.entries(answer)
         .filter(([key]) => key !== "@context")
-        .map(([key, value]) => [key, textOf(value)]),
+        .map(([key, value]) => [key, textOf(value, language)]),
     };
   }
   const text = typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
@@ -220,7 +221,7 @@ export function viewOf(output: unknown): QueryView {
 }
 
 /** The card of a `query_endpoint` step, or none when the payload is not one. */
-export function queryResultOf(payload: Record<string, unknown>): QueryResult | null {
+export function queryResultOf(payload: Record<string, unknown>, language?: string): QueryResult | null {
   if (payload.tool !== "query_endpoint" || !isRecord(payload.input)) {
     return null;
   }
@@ -236,7 +237,7 @@ export function queryResultOf(payload: Record<string, unknown>): QueryResult | n
     endpoint,
     tool,
     argument: key === undefined ? undefined : `${key}: ${String(args[key])}`,
-    view: viewOf(payload.output),
+    view: viewOf(payload.output, language),
   };
 }
 

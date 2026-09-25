@@ -52,6 +52,70 @@ describe("the conversation panel", () => {
     expect(log?.textContent).toContain("42 stations");
   });
 
+  /// T-2769: the owner copied "- oimintasuunnitelman" and "helsinki-leoqi" out of the dock. A
+  /// long answer and a ten-row grid reach the page whole, every character of them.
+  it("draws a long answer and a ten-row grid whole", () => {
+    const words = ["Liiketoimintasuunnitelman", "helsinki-af5kileoqi", "Plasma Online Art", "description"];
+    const text = Array.from({ length: 140 }, (_, at) => `${words[at % words.length]} ${at}.`).join(" ");
+    expect(text.length).toBeGreaterThan(3000);
+    const entities = Array.from({ length: 10 }, (_, at) => ({
+      id: `urn:ngsi-ld:Event:hel.fi:helsinki:helsinki-af5kileoq${at}`,
+      type: "Event",
+      name: { type: "LanguageProperty", languageMap: { fi: `Liiketoimintasuunnitelman ilta ${at}`, en: `Business plan evening ${at}` } },
+    }));
+    const { container } = panel([
+      { seq: 1, kind: "message", payload: { text: "what are the events in Helsinki??" } },
+      {
+        seq: 2,
+        kind: "tool",
+        payload: {
+          tool: "query_endpoint",
+          status: "ok",
+          input: { endpoint: "helsinki-events", name: "query_entities", arguments: { type: "Event" } },
+          output: { structuredContent: { entities } },
+        },
+      },
+      { seq: 3, kind: "thought", payload: { text } },
+    ]);
+    const shown = container.textContent ?? "";
+    expect(shown).toContain(text);
+    for (let at = 0; at < 10; at++) {
+      expect(shown).toContain(`Business plan evening ${at}`);
+      expect(shown).toContain(`helsinki-af5kileoq${at}`);
+    }
+  });
+
+  it("draws the grid's language values in the reader's language", async () => {
+    // The Portal's own languages; a reader in one of them reads the value in it (T-2769).
+    await i18n.changeLanguage("de");
+    const { container } = panel([
+      {
+        seq: 1,
+        kind: "tool",
+        payload: {
+          tool: "query_endpoint",
+          status: "ok",
+          input: { endpoint: "helsinki-events", name: "query_entities", arguments: { type: "Event" } },
+          output: {
+            structuredContent: {
+              entities: [
+                {
+                  id: "urn:ngsi-ld:Event:hel.fi:helsinki:e1",
+                  type: "Event",
+                  name: { type: "LanguageProperty", languageMap: { en: "Business plan evening", de: "Abend des Geschäftsplans" } },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    // The card, not the step's raw output behind Details, which keeps the answer as it came.
+    const card = container.querySelector('[data-testid="query-result"]');
+    expect(card?.textContent).toContain("Abend des Geschäftsplans");
+    expect(card?.textContent).not.toContain("Business plan evening");
+  });
+
   it("renders markup from the workspace as text, never as markup (AP-53)", () => {
     const { container } = panel([
       {

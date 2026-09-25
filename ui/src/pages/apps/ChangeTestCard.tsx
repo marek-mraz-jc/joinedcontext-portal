@@ -63,7 +63,7 @@ export function changeTestOf(payload: Record<string, unknown>): ChangeTest | nul
 }
 
 export function ChangeTestCard({ test }: { test: ChangeTest }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { dataSource, endpoint, url } = test.source;
   const ranOn =
     dataSource !== undefined
@@ -95,7 +95,7 @@ export function ChangeTestCard({ test }: { test: ChangeTest }): JSX.Element {
           ))}
         </ul>
       ) : null}
-      {test.sample !== undefined ? <QueryAnswer view={viewOf(test.sample)} /> : null}
+      {test.sample !== undefined ? <QueryAnswer view={viewOf(test.sample, i18n.resolvedLanguage ?? i18n.language)} /> : null}
     </section>
   );
 }

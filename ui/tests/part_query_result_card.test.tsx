@@ -187,6 +187,23 @@ describe("a value as words (T-2760)", () => {
   });
 });
 
+describe("the grid in the reader's language (T-2769)", () => {
+  it("fills every cell of a language map in the reader's language, never the map", () => {
+    const events = [
+      entity(1, { name: { type: "LanguageProperty", languageMap: { en: "Market Square", fi: "Kauppatori", sv: "Salutorget" } } }),
+    ];
+    const fi = viewOf(events, "fi");
+    const en = viewOf(events);
+    if (fi.kind !== "table" || en.kind !== "table") {
+      throw new Error("a table");
+    }
+    const at = fi.columns.indexOf("name");
+    expect(fi.rows[0].cells[at]).toBe("Kauppatori");
+    expect(en.rows[0].cells[at]).toBe("Market Square");
+    expect(JSON.stringify(fi)).not.toContain("languageMap");
+  });
+});
+
 describe("a wide value in the card (T-2460)", () => {
   const line = Array.from({ length: 400 }, (_, i) => [24.9 + i * 0.001, 60.1 + i * 0.0005]);
   const alert = (index: number, extra: Record<string, unknown> = {}) =>

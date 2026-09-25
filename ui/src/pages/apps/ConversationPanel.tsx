@@ -373,7 +373,7 @@ export function ConversationPanel({
   /** The endpoints the conversation queries, so a found one says it is in use. */
   usedEndpoints?: string[];
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
   const progress = progressOf(events);
   const answered = answeredSearches(events);
@@ -506,7 +506,7 @@ export function ConversationPanel({
                 event.payload.tool === "propose_endpoint" ? proposalOf(event.payload.output) : null;
               const kpi =
                 event.payload.tool === "compute_kpi" ? kpiOf(event.payload.output, event.payload.input) : null;
-              const queried = queryResultOf(event.payload);
+              const queried = queryResultOf(event.payload, i18n.resolvedLanguage ?? i18n.language);
               const kpiPipeline =
                 event.payload.tool === "draft_kpi_pipeline" ? kpiPipelineOf(event.payload.output) : null;
               const tested = changeTestOf(event.payload);
