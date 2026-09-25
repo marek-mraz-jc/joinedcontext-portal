@@ -3601,6 +3601,7 @@
       "groups": "Skupiny",
       "service-accounts": "Servisní účty",
       "projects": "Projekty",
+      "applications": "Všechny aplikace",
       "setup": "Nastavení",
       "health": "Stav ověření"
     },
@@ -3640,6 +3641,18 @@
       "throughOrganization": "{count, plural, one {# přes organizaci} few {# přes organizaci} other {# přes organizaci}}",
       "settings": "Nastavení",
       "export": "Exportovat"
+    },
+    "applications": {
+      "title": "Všechny aplikace",
+      "lead": "Každá aplikace každého projektu, který smíte číst. Exportujte ji jako repozitář a manifest; export importujte do projektu pod jménem, jako změnu v červeném pruhu.",
+      "caption": "Aplikace organizace",
+      "name": "Aplikace",
+      "lifecycle": "Životní cyklus",
+      "source": "Sestavuje se z",
+      "noRepository": "Žádný repozitář této forge",
+      "noLifecycle": "Nenastaveno",
+      "empty": "Zatím žádná aplikace",
+      "emptyHint": "Aplikace, kterou projekt sestavuje, se objeví zde, a „Importovat aplikaci“ přidá jednu z exportu."
     },
     "people": {
       "title": "Lidé",
@@ -4144,6 +4157,33 @@
     "secretHint": "Zadejte název tajemství, nikdy jeho hodnotu.",
     "default": "Výchozí: {value}.",
     "useDefault": "Použít výchozí"
+  },
+  "appImport": {
+    "title": "Importovat aplikaci",
+    "lead": "Vytvoří repozitář aplikace z exportu a pak aplikaci navrhne ve vybraném projektu.",
+    "button": "Importovat aplikaci",
+    "project": "Projekt",
+    "projectHint": "Projekt, do kterého aplikace přibude.",
+    "chooseProject": "Vyberte projekt",
+    "noProject": "Nejprve vyberte projekt.",
+    "noProjects": "Zatím není projekt, do kterého importovat.",
+    "file": "Vyberte archiv exportu",
+    "fileHint": "Soubor .zip, který zapsal Export na této záložce.",
+    "chosen": "Vybráno: {name}",
+    "noFile": "Nejprve vyberte archiv exportu.",
+    "name": "Jméno v projektu",
+    "nameHint": "Nechte prázdné pro zachování exportovaného jména. Malá písmena, číslice a pomlčky, nejvýše 63.",
+    "nameInvalid": "Použijte malá písmena, číslice a pomlčky, na začátku a na konci písmeno nebo číslici, nejvýše 63.",
+    "check": "Zkontrolovat archiv",
+    "import": "Importovat",
+    "repository": "Repozitář k vytvoření",
+    "redLane": "Import navrhne aplikaci jako změnu v červeném pruhu; sestaví se, jakmile ji schválí administrátor."
+  },
+  "appExport": {
+    "button": "Exportovat",
+    "labelFor": "Exportovat {name}",
+    "noRepository": "Tato aplikace se nesestavuje z žádného repozitáře této forge, takže není co zabalit.",
+    "refused": "{name} nebyla exportována: {reason}"
   },
   "choice": {
     "language": {

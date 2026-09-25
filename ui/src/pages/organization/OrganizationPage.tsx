@@ -34,6 +34,7 @@ import { Groups } from "../access/Groups";
 import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
+import { OrganizationApplications } from "./OrganizationApplications";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
@@ -48,6 +49,7 @@ export const ORGANIZATION_TABS = [
   "groups",
   "service-accounts",
   "projects",
+  "applications",
   "setup",
   "health",
 ] as const;
@@ -304,6 +306,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
+        {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
         {tab === "health" ? <ValidationHealth /> : null}
       </div>

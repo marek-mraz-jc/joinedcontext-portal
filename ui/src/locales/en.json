@@ -3601,6 +3601,7 @@
       "groups": "Groups",
       "service-accounts": "Service accounts",
       "projects": "Projects",
+      "applications": "All applications",
       "setup": "Setup",
       "health": "Health"
     },
@@ -3640,6 +3641,18 @@
       "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
       "settings": "Settings",
       "export": "Export"
+    },
+    "applications": {
+      "title": "All applications",
+      "lead": "Every App of every project you may read. Export one as its repository and manifest; import an export into a project under a name, as a red-lane change.",
+      "caption": "The organization's applications",
+      "name": "App",
+      "lifecycle": "Lifecycle",
+      "source": "Builds from",
+      "noRepository": "No repository of this forge",
+      "noLifecycle": "Not set",
+      "empty": "No App yet",
+      "emptyHint": "An App a project builds appears here, and Import app adds one from an export."
     },
     "people": {
       "title": "People",
@@ -4144,6 +4157,33 @@
     "secretHint": "Type the name of a secret, never its value.",
     "default": "Default: {value}.",
     "useDefault": "Use the default"
+  },
+  "appImport": {
+    "title": "Import an App",
+    "lead": "Creates the App repository from an export, then proposes the App in the project you choose.",
+    "button": "Import app",
+    "project": "Project",
+    "projectHint": "The project the App joins.",
+    "chooseProject": "Choose a project",
+    "noProject": "Choose the project first.",
+    "noProjects": "There is no project to import into yet.",
+    "file": "Choose the export archive",
+    "fileHint": "A .zip written by Export on this tab.",
+    "chosen": "Chosen: {name}",
+    "noFile": "Choose an export archive first.",
+    "name": "Name in the project",
+    "nameHint": "Leave empty to keep the exported name. Lowercase letters, digits and hyphens, at most 63.",
+    "nameInvalid": "Use lowercase letters, digits and hyphens, starting and ending with a letter or digit, at most 63.",
+    "check": "Check the archive",
+    "import": "Import",
+    "repository": "Repository to create",
+    "redLane": "Import proposes the App as a red-lane change; it builds once an administrator approves it."
+  },
+  "appExport": {
+    "button": "Export",
+    "labelFor": "Export {name}",
+    "noRepository": "This App builds from no repository of this forge, so there is nothing to bundle.",
+    "refused": "{name} was not exported: {reason}"
   },
   "choice": {
     "language": {
