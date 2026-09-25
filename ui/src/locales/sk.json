@@ -1414,6 +1414,18 @@
         "credential": "Údaj",
         "expires": "Platnosť do",
         "lastUsed": "Naposledy použitý"
+      },
+      "claim": {
+        "title": "Kľúč, o ktorý požiadal váš MCP klient",
+        "hint": "Potvrďte ho tu a kľúč sa zobrazí. Váš MCP klient ho nedostal.",
+        "mint": "Vytvoriť nový kľúč pre poverenie {credential} účtu {account}.",
+        "rotate": "Vymeniť kľúč {keyId} účtu {account}: vytvorí sa nástupca a súčasný kľúč funguje ešte {hours} h.",
+        "expires": "Nový kľúč platí do {date}.",
+        "until": "Odkaz platí do {time}.",
+        "confirmMint": "Vytvoriť a zobraziť kľúč",
+        "confirmRotate": "Vymeniť a zobraziť kľúč",
+        "cancel": "Teraz nie",
+        "gone": "Tento odkaz vypršal, už bol použitý alebo patrí niekomu inému. Požiadajte o kľúč znova vo svojom MCP klientovi."
       }
     },
     "matrix": {
@@ -2423,6 +2435,11 @@
     "applying": "Uplatňujem…",
     "refusedHere": "odmietnuté",
     "notInList": "nie je v zozname",
+    "relationSearch": "Hľadať",
+    "relationNone": "Nič, čo môžete čítať, sa nezhoduje",
+    "relationRemove": "Odstrániť",
+    "relationFailed": "Vyhľadávanie zlyhalo",
+    "relationMore": "a ďalšie",
     "map": {
       "panel": "Mapa",
       "offTheMap": "nie je na mape",
@@ -3166,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Odchýlka od repozitára",
+      "notYet": "Kontrola odchýlok ešte neprebehla: platforma porovná počiatočné entity tohto priestoru s repozitárom pri ďalšom prechode.",
+      "clean": "Priestor obsahuje to, čo deklaruje repozitár.",
+      "found": "{count, plural, one {# entita sa líši od repozitára.} few {# entity sa líšia od repozitára.} other {# entít sa líši od repozitára.}}",
+      "observed": "Skontrolované {when}.",
+      "caption": "Entity priestoru {space}, ktoré sa líšia od repozitára",
+      "entity": "Entita",
+      "kind": "Odchýlka",
+      "attributes": "Atribúty",
+      "resolution": "Riešenie",
+      "resolve": "Vyriešiť",
+      "resolveLabel": "Vyriešiť odchýlku entity {id}",
+      "mayNotResolve": "Na riešenie potrebujete právo navrhovať entity v tomto projekte.",
+      "wholeEntity": "Celá entita"
+    },
     "modal": {
       "title": "Čo sa zmenilo v „{id}“",
       "lead": {

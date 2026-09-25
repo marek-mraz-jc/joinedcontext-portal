@@ -1414,6 +1414,18 @@
         "credential": "Údaj",
         "expires": "Platnost do",
         "lastUsed": "Naposledy použit"
+      },
+      "claim": {
+        "title": "Klíč, o který požádal váš MCP klient",
+        "hint": "Potvrďte ho zde a klíč se zobrazí. Váš MCP klient ho nedostal.",
+        "mint": "Vytvořit nový klíč pro pověření {credential} účtu {account}.",
+        "rotate": "Vyměnit klíč {keyId} účtu {account}: vytvoří se nástupce a současný klíč funguje ještě {hours} h.",
+        "expires": "Nový klíč platí do {date}.",
+        "until": "Odkaz platí do {time}.",
+        "confirmMint": "Vytvořit a zobrazit klíč",
+        "confirmRotate": "Vyměnit a zobrazit klíč",
+        "cancel": "Teď ne",
+        "gone": "Tento odkaz vypršel, byl už použit nebo patří někomu jinému. Požádejte o klíč znovu ve svém MCP klientovi."
       }
     },
     "matrix": {
@@ -2423,6 +2435,11 @@
     "applying": "Uplatňuji…",
     "refusedHere": "odmítnuto",
     "notInList": "není v seznamu",
+    "relationSearch": "Hledat",
+    "relationNone": "Nic, co můžete číst, neodpovídá",
+    "relationRemove": "Odebrat",
+    "relationFailed": "Vyhledávání selhalo",
+    "relationMore": "a další",
     "map": {
       "panel": "Mapa",
       "offTheMap": "není na mapě",
@@ -3166,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Odchylka od repozitáře",
+      "notYet": "Kontrola odchylek ještě neproběhla: platforma porovná počáteční entity tohoto prostoru s repozitářem při dalším průchodu.",
+      "clean": "Prostor obsahuje to, co deklaruje repozitář.",
+      "found": "{count, plural, one {# entita se liší od repozitáře.} few {# entity se liší od repozitáře.} other {# entit se liší od repozitáře.}}",
+      "observed": "Zkontrolováno {when}.",
+      "caption": "Entity prostoru {space}, které se liší od repozitáře",
+      "entity": "Entita",
+      "kind": "Odchylka",
+      "attributes": "Atributy",
+      "resolution": "Řešení",
+      "resolve": "Vyřešit",
+      "resolveLabel": "Vyřešit odchylku entity {id}",
+      "mayNotResolve": "K řešení potřebujete právo navrhovat entity v tomto projektu.",
+      "wholeEntity": "Celá entita"
+    },
     "modal": {
       "title": "Co se změnilo v „{id}“",
       "lead": {

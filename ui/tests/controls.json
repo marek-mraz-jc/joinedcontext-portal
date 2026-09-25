@@ -592,7 +592,7 @@
     },
     "src/pages/access/ServiceAccounts.tsx": {
       "controls": {
-        "Button": 9
+        "Button": 12
       },
       "tests": [
         "service_accounts_view.test.tsx",
@@ -1124,6 +1124,14 @@
       },
       "tests": [
         "space_complete.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SpaceDrift.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_drift.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceInside.tsx": {

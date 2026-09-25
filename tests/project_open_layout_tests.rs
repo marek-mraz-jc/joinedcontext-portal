@@ -427,3 +427,49 @@ async fn a_project_change_keeps_its_id_and_its_repository() {
         "{read:?}"
     );
 }
+
+/// PF-106: the gateway's forge user reads the configuration's repositories and nothing more,
+/// so a project repository the Portal opens names it as a reader; without `JC_GITEA_READER`
+/// nobody is added.
+#[tokio::test]
+async fn the_gateway_reads_a_project_repository_the_portal_opens() {
+    let (server, mut state) = world(false).await;
+    Mock::given(method("PUT"))
+        .and(path(format!("{NEW}/collaborators/jc-gateway")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
+    let uri = server.uri();
+    let client = joinedcontext_portal::git::GiteaClient::from_env(|key| {
+        match key {
+            "JC_GITEA_URL" => Some(uri.as_str()),
+            "JC_GITEA_OWNER" => Some("test-owner"),
+            "JC_GITEA_REPO" => Some("test-repo"),
+            "JC_GITEA_TOKEN" => Some("token-xyz"),
+            "JC_GITEA_READER" => Some("jc-gateway"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config")
+    .expect("configured");
+    state.gitea = Some(std::sync::Arc::new(client));
+    let (status, text) = open(&state).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{text}");
+    assert_eq!(
+        received(&server, "PUT", &format!("{NEW}/collaborators/jc-gateway")).await,
+        vec![json!({ "permission": "read" })]
+    );
+
+    let (server, state) = world(false).await;
+    let (status, text) = open(&state).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{text}");
+    let added = server
+        .received_requests()
+        .await
+        .expect("requests")
+        .into_iter()
+        .filter(|r| r.url.path().contains("/collaborators/"))
+        .count();
+    assert_eq!(added, 0, "a reader was added that nobody named");
+}

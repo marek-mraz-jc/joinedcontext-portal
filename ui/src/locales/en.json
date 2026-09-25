@@ -1414,6 +1414,18 @@
         "credential": "Credential",
         "expires": "Expires",
         "lastUsed": "Last used"
+      },
+      "claim": {
+        "title": "A key your MCP client asked for",
+        "hint": "Confirm it here to see the key. Your MCP client was not given it.",
+        "mint": "Mint a new key for the credential {credential} of {account}.",
+        "rotate": "Rotate key {keyId} of {account}: a successor is minted, and the current key keeps working for {hours, plural, one {# hour} other {# hours}}.",
+        "expires": "The new key expires {date}.",
+        "until": "This link works until {time}.",
+        "confirmMint": "Mint and show the key",
+        "confirmRotate": "Rotate and show the key",
+        "cancel": "Not now",
+        "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
       }
     },
     "matrix": {
@@ -2423,6 +2435,11 @@
     "applying": "Applying…",
     "refusedHere": "refused",
     "notInList": "not in the list",
+    "relationSearch": "Search",
+    "relationNone": "Nothing you can read matches",
+    "relationRemove": "Remove",
+    "relationFailed": "The search failed",
+    "relationMore": "and more",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",
@@ -3166,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Drift from the repository",
+      "notYet": "No drift scan has run yet: the platform compares this space's seed entities with the repository on its next pass.",
+      "clean": "The space holds what the repository declares.",
+      "found": "{count, plural, one {# entity differs from the repository.} other {# entities differ from the repository.}}",
+      "observed": "Scanned {when}.",
+      "caption": "Entities of {space} that differ from the repository",
+      "entity": "Entity",
+      "kind": "Drift",
+      "attributes": "Attributes",
+      "resolution": "Resolution",
+      "resolve": "Resolve",
+      "resolveLabel": "Resolve the drift of {id}",
+      "mayNotResolve": "Resolving needs the right to propose entities in this project.",
+      "wholeEntity": "The whole entity"
+    },
     "modal": {
       "title": "What changed in ‘{id}’",
       "lead": {

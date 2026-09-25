@@ -126,6 +126,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/serviceaccounts/{name}/keys", "jc_service_account_key_mint"),
 ("DELETE", "/projects/{project}/serviceaccounts/{name}/keys/{keyId}", "jc_service_account_key_revoke"),
 ("POST", "/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate", "jc_service_account_key_rotate"),
+("GET", "/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}", "a key an MCP client asked for, read by the person who asked before it is minted (PF-104)"),
+("POST", "/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}", "a key an MCP client asked for, minted by the person who asked in the Portal: an operation would hand the token back to a model (PF-104)"),
 ("POST", "/projects/{project}/syncsources/{name}/detach", "jc_syncsource_detach"),
 ("POST", "/projects/{project}/syncsources/{name}/pause", "jc_syncsource_pause"),
 ("GET", "/projects/{project}/syncsources/{name}/status", "jc_syncsource_status"),

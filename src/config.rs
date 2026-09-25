@@ -416,7 +416,14 @@ fn build_pod_settings(
 /// A pod-backed App also needs (AP-108):
 ///
 /// - `JC_PORTAL_APPS_REGISTRY` — the host, and port if any, of the forge's container registry;
-///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`.
+///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`, the
+///   organization being the applications' own when they have one of their own.
+/// - `JC_GITEA_APPS_OWNER` — the forge organization the generated applications' repositories,
+///   packages and images live in, apart from the configuration's (PF-106); the configuration's
+///   organization when unset.
+/// - `JC_GITEA_APPS_TOKEN` — the token of the applications' own machine user, which writes their
+///   repositories and packages and nothing of the configuration's; set with the owner or not at
+///   all.
 /// - `JC_PORTAL_APPS_PULL_SECRET_NAME` — the name of the `dockerconfigjson` Secret in the apps
 ///   namespace a node pulls app images with (a forge token that reads packages only).
 /// - `JC_PORTAL_APISIX_NAMESPACE` — the namespace the installation runs APISIX in, the only one
@@ -471,12 +478,16 @@ fn app_settings(
                     ),
                 });
             }
-            let owner = set("JC_GITEA_OWNER").ok_or_else(|| ConfigError::Invalid {
-                var: "JC_PORTAL_APPS_REGISTRY",
-                reason:
-                    "the images live under the forge's organization, and JC_GITEA_OWNER is not set"
+            // The applications' organization when there is one (PF-106): their images are
+            // published there, beside their repositories.
+            let owner = set("JC_GITEA_APPS_OWNER")
+                .or_else(|| set("JC_GITEA_OWNER"))
+                .ok_or_else(|| ConfigError::Invalid {
+                    var: "JC_PORTAL_APPS_REGISTRY",
+                    reason: "the images live under the forge's organization, and JC_GITEA_OWNER \
+                             is not set"
                         .to_owned(),
-            })?;
+                })?;
             Some(format!("{registry}/{owner}"))
         }
     };
@@ -1700,6 +1711,21 @@ mod tests {
         );
         assert_eq!(dev.pull_secret.as_deref(), Some("app-registry"));
         assert_eq!(dev.apisix_namespace, "dev");
+
+        // PF-106: an installation whose applications have their own organization publishes and
+        // pulls their images there.
+        let apart = Config::from_vars(with(vec![
+            ("JC_PORTAL_APPS_REGISTRY", "2.28.67.127.sslip.io"),
+            ("JC_GITEA_OWNER", "joinedcontext"),
+            ("JC_GITEA_APPS_OWNER", "joinedcontext-apps"),
+        ]))
+        .unwrap()
+        .app_settings
+        .unwrap();
+        assert_eq!(
+            apart.image_of("air-quality", "sha256:ab").as_deref(),
+            Some("2.28.67.127.sslip.io/joinedcontext-apps/app-air-quality@sha256:ab")
+        );
 
         for (var, value) in [
             ("JC_PORTAL_APPS_REGISTRY", "https://forge.example.org"),

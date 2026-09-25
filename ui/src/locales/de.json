@@ -1414,6 +1414,18 @@
         "credential": "Zugangsdaten",
         "expires": "Gültig bis",
         "lastUsed": "Zuletzt benutzt"
+      },
+      "claim": {
+        "title": "Ein Schlüssel, den Ihr MCP-Client angefordert hat",
+        "hint": "Bestätigen Sie ihn hier, um den Schlüssel zu sehen. Ihr MCP-Client hat ihn nicht erhalten.",
+        "mint": "Einen neuen Schlüssel für die Anmeldeinformation {credential} von {account} erstellen.",
+        "rotate": "Schlüssel {keyId} von {account} rotieren: Ein Nachfolger wird erstellt, der aktuelle Schlüssel funktioniert noch {hours, plural, one {# Stunde} other {# Stunden}}.",
+        "expires": "Der neue Schlüssel läuft am {date} ab.",
+        "until": "Der Link gilt bis {time}.",
+        "confirmMint": "Erstellen und Schlüssel anzeigen",
+        "confirmRotate": "Rotieren und Schlüssel anzeigen",
+        "cancel": "Nicht jetzt",
+        "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
       }
     },
     "matrix": {
@@ -2423,6 +2435,11 @@
     "applying": "Wird angewendet…",
     "refusedHere": "abgelehnt",
     "notInList": "nicht in der Liste",
+    "relationSearch": "Suchen",
+    "relationNone": "Nichts, was Sie lesen dürfen, passt",
+    "relationRemove": "Entfernen",
+    "relationFailed": "Die Suche ist fehlgeschlagen",
+    "relationMore": "und weitere",
     "map": {
       "panel": "Karte",
       "offTheMap": "nicht auf der Karte",
@@ -3166,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Abweichung vom Repository",
+      "notYet": "Noch keine Abweichungsprüfung: Die Plattform vergleicht die Seed-Entitäten dieses Raums beim nächsten Durchlauf mit dem Repository.",
+      "clean": "Der Raum enthält, was das Repository deklariert.",
+      "found": "{count, plural, one {# Entität weicht vom Repository ab.} other {# Entitäten weichen vom Repository ab.}}",
+      "observed": "Geprüft {when}.",
+      "caption": "Entitäten von {space}, die vom Repository abweichen",
+      "entity": "Entität",
+      "kind": "Abweichung",
+      "attributes": "Attribute",
+      "resolution": "Auflösung",
+      "resolve": "Auflösen",
+      "resolveLabel": "Abweichung von {id} auflösen",
+      "mayNotResolve": "Zum Auflösen brauchen Sie das Recht, in diesem Projekt Entitäten vorzuschlagen.",
+      "wholeEntity": "Die ganze Entität"
+    },
     "modal": {
       "title": "Was sich in „{id}“ geändert hat",
       "lead": {

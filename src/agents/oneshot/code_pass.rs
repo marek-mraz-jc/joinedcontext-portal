@@ -1014,7 +1014,7 @@ impl Driver {
             return Ok(());
         }
         let repo = match &self.repository {
-            Some(name) => gitea.for_repository(name.clone()),
+            Some(name) => gitea.for_application(name.clone()),
             None => (*gitea).clone(),
         };
         let first = committed.is_empty();

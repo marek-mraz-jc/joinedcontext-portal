@@ -342,7 +342,14 @@ pub async fn import(
     // somebody's, and is never adopted (PF-86).
     let clients: Vec<GiteaClient> = planned
         .iter()
-        .map(|plan| gitea.for_repository(plan.repository.clone()))
+        .map(|plan| {
+            // An application's repository goes where the generated ones live (PF-106).
+            if plan.role == "application" {
+                gitea.for_application(plan.repository.clone())
+            } else {
+                gitea.for_repository(plan.repository.clone())
+            }
+        })
         .collect();
     for (plan, client) in planned.iter().zip(&clients) {
         if client.default_branch().await.is_ok() {
@@ -477,6 +484,7 @@ async fn land<'a>(
         .find(|(_, plan)| plan.role == "project")
         .map(|(client, _)| client.clone())
         .ok_or_else(|| ApiError::Internal("the project repository is missing".into()))?;
+    project_client.let_the_reader_in().await?;
     let mounted = project_client.for_project(project_client.repo.clone(), project);
     let applications: BTreeMap<String, String> = clients
         .iter()

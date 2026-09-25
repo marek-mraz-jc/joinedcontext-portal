@@ -36,7 +36,10 @@
         "assistant": "jc_resource_get"
       },
       "edit-settings": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}"
@@ -52,7 +55,10 @@
     },
     "people": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_person_create",
         "routes": [
           "POST /api/v1/organization/people"
@@ -66,49 +72,70 @@
         "assistant": "jc_person_get"
       },
       "edit": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_person_edit",
         "routes": [
           "PATCH /api/v1/organization/people/{id}"
         ]
       },
       "disable": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_person_disable",
         "routes": [
           "POST /api/v1/organization/people/{id}/disable"
         ]
       },
       "enable": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_person_enable",
         "routes": [
           "POST /api/v1/organization/people/{id}/enable"
         ]
       },
       "reset-password": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "personOnly": "a reset sends a person a way into their account; an agent that can start one can take the account over",
         "routes": [
           "POST /api/v1/organization/people/{id}/reset-password"
         ]
       },
       "remove-second-factor": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "personOnly": "removing a second factor weakens a person's sign-in and is decided by an administrator in person",
         "routes": [
           "POST /api/v1/organization/people/{id}/remove-second-factor"
         ]
       },
       "sign-out-everywhere": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out"
+        },
         "assistant": "jc_person_sign_out",
         "routes": [
           "POST /api/v1/organization/people/{id}/sign-out"
         ]
       },
       "remove": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out"
+        },
         "personOnly": "removing a person deletes their account and cannot be proposed as a Change a second person approves",
         "routes": [
           "DELETE /api/v1/organization/people/{id}"
@@ -124,7 +151,10 @@
     },
     "groups": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: a settings edit rejected, a new person edited, disabled, enabled and reset, a group with a role, and the person's page"
+        },
         "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/{plural}"
@@ -151,7 +181,10 @@
         ]
       },
       "retire": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out"
+        },
         "assistant": "jc_resource_delete",
         "routes": [
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
@@ -174,7 +207,10 @@
     },
     "project": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "assistant": "jc_project_create",
         "routes": [
           "POST /api/v1/projects"
@@ -188,14 +224,20 @@
         "assistant": "jc_project_get"
       },
       "copy": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "personOnly": "copying a whole repository of the forge under a new slug is a person's decision in the Portal, not a tool a run holds (PF-89)",
         "routes": [
           "POST /api/v1/projects/{project}/duplicate"
         ]
       },
       "retire": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "personOnly": "deleting a project removes its repository and every resource in it, and no agent may take that act (AG-11)",
         "routes": [
           "DELETE /api/v1/projects/{project}"
@@ -523,7 +565,10 @@
         "assistant": "jc_pipeline_metrics"
       },
       "retry-rejected": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "pipeline-workbench.spec.ts",
+          "test": "a pipeline built in the workbench writes only what the model takes"
+        },
         "personOnly": "a person replays the records they picked on the pipeline page once the fix merged; the assistant changes the mapping with `jc_pipeline_propose` (PL-61)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
@@ -590,7 +635,10 @@
         "assistant": "jc_endpoint_list_all"
       },
       "try-it": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "workspace-preview.spec.ts",
+          "test": "a copy's preview answers on its own addresses and stops answering when stopped"
+        },
         "assistant": "jc_ask"
       },
       "edit": {
@@ -651,7 +699,10 @@
         ]
       },
       "retire": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9d. a grant on the walk's space is approved, then removed from the policies page"
+        },
         "assistant": "jc_resource_delete",
         "routes": [
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
@@ -720,28 +771,40 @@
         ]
       },
       "sync-now": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, and is detached"
+        },
         "assistant": "jc_syncsource_sync",
         "routes": [
           "POST /api/v1/projects/{project}/syncsources/{name}/sync"
         ]
       },
       "pause": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, and is detached"
+        },
         "assistant": "jc_syncsource_pause",
         "routes": [
           "POST /api/v1/projects/{project}/syncsources/{name}/pause"
         ]
       },
       "detach": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, and is detached"
+        },
         "assistant": "jc_syncsource_detach",
         "routes": [
           "POST /api/v1/projects/{project}/syncsources/{name}/detach"
         ]
       },
       "webhook": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, and is detached"
+        },
         "personOnly": "a webhook is the remote repository calling in with its signature; no person or agent takes this step by hand",
         "routes": [
           "POST /api/v1/webhooks/sync/{project}/{name}"
@@ -873,21 +936,31 @@
         ]
       },
       "mint-key": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9a. a service account's API key is minted, rotated and revoked"
+        },
         "personOnly": "a key is a credential shown once to the person who minted it; an agent never receives one (AG-11)",
         "routes": [
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys"
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys",
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}"
         ]
       },
       "rotate-key": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9a. a service account's API key is minted, rotated and revoked"
+        },
         "personOnly": "a rotated key is a new credential shown once to a person, never to an agent (AG-11)",
         "routes": [
           "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate"
         ]
       },
       "revoke-key": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9a. a service account's API key is minted, rotated and revoked"
+        },
         "assistant": "jc_service_account_key_revoke",
         "routes": [
           "DELETE /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}"
@@ -923,7 +996,10 @@
         ]
       },
       "status": {
-        "liveOwed": "T-2849",
+        "live": {
+          "spec": "ckan.spec.ts",
+          "test": "ckan/status: a steward reads each catalogue and each published endpoint the status names"
+        },
         "assistant": "jc_ckan_status"
       },
       "publish-dataset": {
@@ -953,7 +1029,10 @@
         ]
       },
       "answer-question": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-app.spec.ts",
+          "test": "the assistant's Build an app path makes an app that opens in the Portal and on its own, behind a login"
+        },
         "personOnly": "the run asks the person, and an agent answering its own question would decide for them (AG-11)",
         "routes": [
           "POST /api/v1/projects/{project}/agent-runs/{id}/answers"
@@ -992,7 +1071,10 @@
         ]
       },
       "cancel": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-app.spec.ts",
+          "test": "a person stops an app run the assistant started, and the run says it was stopped"
+        },
         "assistant": "jc_run_cancel",
         "routes": [
           "POST /api/v1/projects/{project}/agent-runs/{id}/cancel"
@@ -1139,28 +1221,34 @@
         ]
       },
       "reject": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9c. a blueprint proposes a flow from its form, and the approver rejects it"
+        },
         "personOnly": "rejecting decides a change as approving does, and only a person decides one (AG-11)",
         "routes": [
           "POST /api/v1/projects/{project}/changes/{id}/reject"
         ]
       },
       "drift-adopt": {
-        "liveOwed": "T-2746",
+        "liveOwed": "T-2867",
         "personOnly": "which side of a drift wins is a resolution a person picks, held to propose on Entity",
         "routes": [
           "POST /api/v1/projects/{project}/drift/{space}/{id}/adopt"
         ]
       },
       "drift-revert": {
-        "liveOwed": "T-2746",
+        "liveOwed": "T-2867",
         "personOnly": "a revert writes the repository's entity into the live space at once, with no Change to approve, so a person picks it",
         "routes": [
           "POST /api/v1/projects/{project}/drift/{space}/{id}/revert"
         ]
       },
       "blueprint": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9c. a blueprint proposes a flow from its form, and the approver rejects it"
+        },
         "assistant": "jc_flow_start",
         "routes": [
           "POST /api/v1/projects/{project}/flows"

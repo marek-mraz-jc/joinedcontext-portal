@@ -40,6 +40,8 @@ export type Observed = "keep" | "now";
 export interface Refusal {
   id: string;
   detail: string;
+  /** The attribute the endpoint refused, where it said which, so the grid marks that cell. */
+  slot?: string;
 }
 
 export interface ApplyResult {
@@ -113,7 +115,7 @@ export async function applyChanges(options: ApplyOptions): Promise<ApplyResult> 
       await source.patch(entity.id, attrsBody(entity.changes, observed, now));
       applied.push(entity.id);
     } catch (err) {
-      refused.push({ id: entity.id, detail: detailOf(err, fallback) });
+      refused.push({ id: entity.id, detail: detailOf(err, fallback), slot: err instanceof SourceError ? err.slot : undefined });
     }
   }
   return { applied, refused };
