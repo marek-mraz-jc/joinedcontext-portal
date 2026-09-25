@@ -31,6 +31,7 @@ import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
+import { ValidationHealth } from "./ValidationHealth";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
@@ -42,6 +43,7 @@ export const ORGANIZATION_TABS = [
   "service-accounts",
   "projects",
   "setup",
+  "health",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -260,6 +262,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
+        {tab === "health" ? <ValidationHealth /> : null}
       </div>
     </div>
   );

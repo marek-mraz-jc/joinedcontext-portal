@@ -65,7 +65,7 @@
     "explore": "Procházet data",
     "assistant": "Asistent",
     "sync": "Synchronizace",
-    "activity": "Activity",
+    "activity": "Aktivita",
     "import": "Import",
     "workspaces": "Kopie",
     "policies": "Politiky",
@@ -413,7 +413,41 @@
       "noDrafts": "Zatím nejsou doplněny žádné návrhy.",
       "needInput": "Zadejte URL endpointu nebo přidejte soubor."
     },
-    "segment": "identifikátory: {segment}"
+    "segment": "identifikátory: {segment}",
+    "quality": {
+      "title": "Kvalita dat",
+      "notYet": "Zatím nekontrolováno: platforma kontroluje data tohoto prostoru jednou denně.",
+      "nothingToCheck": "Žádné entity ke kontrole",
+      "valid": "{share} platných",
+      "rulesFailing": "{count, plural, =0 {žádné porušené pravidlo} one {# porušené pravidlo} few {# porušená pravidla} other {# porušených pravidel}}",
+      "allFresh": "aktuální",
+      "stale": "{count, plural, one {# neaktuální pipeline} few {# neaktuální pipelines} other {# neaktuálních pipelines}}",
+      "checkedAt": "{count, plural, one {# entita zkontrolována} few {# entity zkontrolovány} other {# entit zkontrolováno}} {when}.",
+      "truncated": "Přečetlo se pouze prvních 20 000.",
+      "rulesCaption": "Pravidla, která entity prostoru porušují",
+      "rule": "Pravidlo",
+      "attribute": "Atribut",
+      "entities": "Entity",
+      "examples": "Příklady",
+      "wholeEntity": "celá entita",
+      "examplesHidden": "Které to jsou, vidí jen lidé, kteří čtou entity prostoru",
+      "freshnessCaption": "Jak aktuální jsou data každé pipeline",
+      "pipeline": "Pipeline",
+      "type": "Typ",
+      "newest": "Nejnovější",
+      "target": "Očekávaná do",
+      "state": "Stav",
+      "anyType": "jakýkoli typ",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "paused": "Pozastavená",
+      "states": {
+        "fresh": "Aktuální",
+        "stale": "Neaktuální",
+        "empty": "Prázdné",
+        "untargeted": "Bez cíle"
+      }
+    }
   },
   "endpoints": {
     "check": "Zkontrolovat",
@@ -427,24 +461,24 @@
     "generateSlug": "Vygenerovat slug",
     "copyUrl": "Kopírovat URL",
     "copied": "Zkopírováno",
-    "slugHint": "The address is created for you and never changes, even when the endpoint is renamed.",
+    "slugHint": "Adresa se vytvoří za vás a nikdy se nezmění, ani když koncový bod přejmenujete.",
     "picker": {
-      "title": "Model projection",
-      "hint": "Pick the classes and slots this endpoint exposes. The policy and projection are generated together.",
-      "noModel": "This space has no DataModel, so no projection can be drawn.",
-      "identityOnly": "identity only (id, type)",
-      "writable": "Writable",
-      "idPattern": "ID pattern",
-      "scope": "Scope",
-      "q": "Write query constraint",
-      "readQ": "Read filter (q)",
-      "reuse": "Projection",
-      "drawNew": "Draw a new one",
-      "sharedBy": "Shared by: {endpoints}",
-      "detach": "Detach and copy",
+      "title": "Projekce modelu",
+      "hint": "Vyberte třídy a sloty, které tento koncový bod zpřístupní. Politika a projekce se vytvoří společně.",
+      "noModel": "Tento prostor nemá DataModel, takže projekci nelze navrhnout.",
+      "identityOnly": "pouze identita (id, type)",
+      "writable": "Zapisovatelné",
+      "idPattern": "Vzor ID",
+      "scope": "Rozsah",
+      "q": "Omezení zápisu (dotaz)",
+      "readQ": "Filtr čtení (q)",
+      "reuse": "Projekce",
+      "drawNew": "Navrhnout novou",
+      "sharedBy": "Sdílejí: {endpoints}",
+      "detach": "Odpojit a zkopírovat",
       "nothingTicked": "Zaškrtněte alespoň jednu třídu, kterou má endpoint zpřístupnit.",
-      "projectionName": "Projection name",
-      "preview": "Generated manifests",
+      "projectionName": "Název projekce",
+      "preview": "Vytvořené manifesty",
       "identityAlways": "Každý záznam má id a typ, proto je toto vždy zveřejněno."
     },
     "audience": {
@@ -468,7 +502,7 @@
       "burst": "Špička",
       "caching": "Vyrovnávací paměť",
       "maxAge": "Životnost ve vyrovnávací paměti (sekundy)",
-      "publicUrl": "Public address",
+      "publicUrl": "Veřejná adresa",
       "types": "Typy entit",
       "hiddenAttributes": "Skryté atributy",
       "viewMapping": "Mapování pohledu",
@@ -582,29 +616,29 @@
       }
     },
     "audienceOption": {
-      "project-list": "Selected projects: only the projects you tick",
-      "organization": "Organization: every project of the organization",
-      "public": "Public: anyone with the address"
+      "project-list": "Vybrané projekty: pouze projekty, které označíte",
+      "organization": "Organizace: každý projekt organizace",
+      "public": "Veřejné: kdokoli s adresou"
     },
     "refreshOption": {
       "onChange": "Když se entita změní",
       "onReconcile": "Při každé rekonciliaci"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD API",
+      "ngsi-ld": "NGSI-LD rozhraní",
       "geojson": "GeoJSON",
       "csv": "CSV",
       "json": "JSON",
       "xlsx": "Excel (xlsx)",
-      "zip": "ZIP download",
+      "zip": "ZIP ke stažení",
       "ogc-features": "OGC API Features",
       "sta": "SensorThings API",
-      "mcp": "MCP for AI assistants"
+      "mcp": "MCP pro AI asistenty"
     },
     "section": {
-      "projection": "Which classes and attributes it shows",
-      "hidden": "Hide attributes",
-      "manifests": "Show the manifests this proposes"
+      "projection": "Které třídy a atributy zobrazuje",
+      "hidden": "Skrýt atributy",
+      "manifests": "Zobrazit manifesty, které to navrhuje"
     },
     "filter": {
       "q": "Dotaz na atributy",
@@ -788,9 +822,9 @@
     "noSecret": "žádné",
     "type": {
       "mqtt": "MQTT broker",
-      "http": "HTTP endpoint",
-      "websocket": "WebSocket stream",
-      "gtfs-rt": "GTFS-realtime feed"
+      "http": "HTTP koncový bod",
+      "websocket": "WebSocket proud",
+      "gtfs-rt": "GTFS-realtime zdroj"
     },
     "dialog": {
       "create": "Nový zdroj dat",
@@ -819,7 +853,7 @@
       "scheme": "Schéma",
       "credential": "Odkaz na přihlašovací údaj",
       "openMessage": "Úvodní zpráva",
-      "feed": "Feed",
+      "feed": "Zdroj dat (feed)",
       "tls": "TLS",
       "caCert": "Odkaz na certifikační autoritu",
       "secretName": "Název tajemství",
@@ -916,7 +950,7 @@
       "envVar": "Proměnná prostředí",
       "quotas": "Kvóty",
       "maxMemoryMb": "Paměť (MB)",
-      "cpuMillicores": "CPU (millicores)",
+      "cpuMillicores": "CPU (milijádra)",
       "classChoice": {
         "auto": "Automaticky, podle periody",
         "resident": "Stále běží",
@@ -965,7 +999,7 @@
         "datasource": "Datový zdroj tohoto projektu (externí feed)",
         "space": "Context space tohoto projektu"
       },
-      "space": "Context space",
+      "space": "Kontextový prostor",
       "readThrough": "Číst přes endpoint",
       "readThroughHint": "Policy endpointu rozhoduje, co pipeline vidí.",
       "entities": "2. Entity",
@@ -987,23 +1021,23 @@
         "count": "Počet"
       },
       "preset": {
-        "title": "Preset",
-        "load": "Load (DataSource)",
-        "kpi": "Analyse (KPI)"
+        "title": "Předvolba",
+        "load": "Načtení (DataSource)",
+        "kpi": "Analýza (KPI)"
       },
       "kpi": {
-        "title": "Analyse (KPI)",
-        "lead": "Aggregate context data from an endpoint into a KeyPerformanceIndicator entity written to the project KPI space.",
-        "endpoint": "Source endpoint",
-        "type": "Entity type",
-        "attribute": "Attribute",
-        "aggregate": "Aggregate",
-        "period": "Period",
-        "name": "Indicator name",
-        "test": "Test on the endpoint's page",
-        "testing": "Testing…",
-        "computedValue": "Computed value",
-        "nothingRead": "Nothing was read from that endpoint for this type and attribute, so there is nothing to compute."
+        "title": "Analýza (KPI)",
+        "lead": "Agreguje kontextová data z koncového bodu do entity KeyPerformanceIndicator zapsané do KPI prostoru projektu.",
+        "endpoint": "Zdrojový koncový bod",
+        "type": "Typ entity",
+        "attribute": "Atribut",
+        "aggregate": "Agregace",
+        "period": "Období",
+        "name": "Název ukazatele",
+        "test": "Otestovat na stránce koncového bodu",
+        "testing": "Testuje se…",
+        "computedValue": "Vypočtená hodnota",
+        "nothingRead": "Z tohoto koncového bodu se pro tento typ a atribut nic nepřečetlo, takže není co vypočítat."
       }
     },
     "test": {
@@ -1739,7 +1773,7 @@
       "openClass": "Otevřít {name} ve struktuře",
       "more": "a dalších {count}",
       "from": "z {name}",
-      "enumBox": "Enum {name}: {values}",
+      "enumBox": "Výčet {name}: {values}",
       "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
       "zoomIn": "Přiblížit",
       "zoomOut": "Oddálit",
@@ -1997,9 +2031,9 @@
     },
     "newAction": "Vygenerovat vlastní aplikaci",
     "builds": {
-      "title": "Builds",
-      "line": "{state}, started {when}",
-      "open": "Open"
+      "title": "Sestavení",
+      "line": "{state}, spuštěno {when}",
+      "open": "Otevřít"
     },
     "drafts": {
       "title": "Rozpracované",
@@ -2040,7 +2074,7 @@
       "representations": "Reprezentace",
       "within": "V rozsahu",
       "window": "Časové okno",
-      "csp": "Content Security Policy",
+      "csp": "Content Security Policy (CSP)",
       "connectSrc": "Smí volat",
       "frameAncestors": "Smí ji vložit",
       "limits": "Limity",
@@ -2072,22 +2106,22 @@
         "commit": "Sestaveno z commitu {commit}"
       }
     },
-    "rebuildAction": "Rebuild",
-    "retireAction": "Retire",
-    "latestRun": "Latest build run",
-    "package": "Package",
-    "previewOnlyPreview": "Only a preview can be previewed here",
-    "publishOnlyPreview": "Only a preview can be published",
-    "rebuildOnlyPublished": "Only a published application is built",
-    "rebuildRunning": "A build is running",
-    "retireOnlyPublished": "Only a published application can be retired",
+    "rebuildAction": "Znovu sestavit",
+    "retireAction": "Vyřadit",
+    "latestRun": "Poslední sestavení",
+    "package": "Balíček",
+    "previewOnlyPreview": "Zde lze zobrazit náhled pouze náhledové verze",
+    "publishOnlyPreview": "Zveřejnit lze pouze náhledovou verzi",
+    "rebuildOnlyPublished": "Sestavuje se pouze zveřejněná aplikace",
+    "rebuildRunning": "Probíhá sestavení",
+    "retireOnlyPublished": "Vyřadit lze pouze zveřejněnou aplikaci",
     "openDisabled": {
-      "draft": "Nothing published yet",
-      "preview": "A preview opens from the menu",
-      "retired": "This application is retired",
-      "building": "Building…",
-      "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "draft": "Zatím není nic zveřejněno",
+      "preview": "Náhled se otevírá z nabídky",
+      "retired": "Tato aplikace je vyřazena",
+      "building": "Sestavuje se…",
+      "failed": "Sestavení selhalo",
+      "notBuilt": "Zatím se neposkytuje žádné sestavení"
     },
     "openPage": {
       "details": "Podrobnosti aplikace",
@@ -2099,11 +2133,11 @@
       "signInAgain": "Přihlásit se znovu"
     },
     "retire": {
-      "title": "Retire {name}",
-      "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
-      "hint": "This opens a merge request. The source and its builds stay in the forge.",
-      "confirm": "Open the merge request",
-      "cancel": "Cancel"
+      "title": "Vyřadit {name}",
+      "body": "Vyřazení odebere aplikaci publiku {visibility}: její adresa přestane odpovídat, jakmile se změna schválí.",
+      "hint": "Otevře se žádost o sloučení. Zdrojový kód a jeho sestavení zůstanou ve forge.",
+      "confirm": "Otevřít žádost o sloučení",
+      "cancel": "Zrušit"
     },
     "roles": {
       "title": "Role a členové",
@@ -2126,6 +2160,13 @@
       "noOthers": "Tuto roli nemá žádná jiná skupina.",
       "give": "Přidělit roli skupině",
       "groupsUnreadable": "Vaše role nezobrazuje skupiny organizace."
+    },
+    "check": {
+      "green": "Funguje",
+      "red": "Nefunguje",
+      "amber": "Dlouho nekontrolovaná",
+      "line": "Zkontrolováno {when}",
+      "lineWithReason": "Zkontrolováno {when}: {reason}"
     }
   },
   "appLifecycle": {
@@ -2442,7 +2483,7 @@
     "removeLead": "{id} se odstraní z prostoru přes tento endpoint.",
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
-    "deleteDenied": "This endpoint's grant does not let you delete a {type}",
+    "deleteDenied": "Oprávnění tohoto koncového bodu vám nedovoluje smazat {type}",
     "export": "Exportovat tuto stránku",
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
@@ -2502,7 +2543,7 @@
       "closed": "Spuštění skončilo, už nic nečte.",
       "agent": "Asistent",
       "you": "Vy",
-      "somethingElse": "Something else…",
+      "somethingElse": "Něco jiného…",
       "emptyHint": "Napište, co se má postavit nebo změnit; asistent odpovídá tady a zeptá se, když potřebuje rozhodnutí.",
       "dropped": "Živé spojení se přerušilo. To, co je napsáno výše, může být nedokončené; otevřete běh znovu, abyste ho dál sledovali.",
       "stalled": "Žádná odpověď už {seconds} sekund. Běh možná ještě pracuje, nebo se zastavil.",
@@ -2552,8 +2593,8 @@
       "elapsed": "{seconds} s od spuštění"
     },
     "chat": {
-      "show": "Show the assistant",
-      "hide": "Hide the assistant"
+      "show": "Zobrazit asistenta",
+      "hide": "Skrýt asistenta"
     },
     "progress": {
       "working": "Pracuje…",
@@ -2825,7 +2866,7 @@
       "formats": "Poskytováno jako {formats}; nejprve se čte {recommended}",
       "fromModel": "z datového modelu"
     },
-    "trail": "Pages the assistant opened",
+    "trail": "Stránky, které asistent otevřel",
     "prefilledNotice": "Toto vyplnil asistent. Zkontroluj to před návrhem.",
     "paths": {
       "integrate-pipeline": {
@@ -2995,40 +3036,40 @@
     "testRun": "Testovací běh"
   },
   "activity": {
-    "title": "Activity",
-    "lead": "What is happening in this project: the reconciler, the pipelines, the gateway, the broker and the catalogue, newest first.",
-    "empty": "Nothing has happened here yet.",
-    "time": "When",
-    "kind": "What",
-    "source": "Who says so",
-    "summary": "What happened",
-    "object": "Object",
-    "tail": "Live tail",
-    "tailOn": "Following",
-    "tailOff": "Paused",
+    "title": "Aktivita",
+    "lead": "Co se děje v tomto projektu: reconciler, pipelines, brána, broker a katalog, nejnovější nahoře.",
+    "empty": "Zatím se tu nic nestalo.",
+    "time": "Kdy",
+    "kind": "Co",
+    "source": "Kdo to hlásí",
+    "summary": "Co se stalo",
+    "object": "Objekt",
+    "tail": "Průběžný záznam",
+    "tailOn": "Sleduje se",
+    "tailOff": "Pozastaveno",
     "filter": {
-      "kind": "Kind",
-      "source": "Source",
-      "severity": "Severity",
-      "space": "Context Space",
-      "all": "Any"
+      "kind": "Druh",
+      "source": "Zdroj",
+      "severity": "Závažnost",
+      "space": "Kontextový prostor",
+      "all": "Jakékoli"
     },
     "severity": {
       "info": "Info",
-      "warning": "Warning",
-      "error": "Error"
+      "warning": "Varování",
+      "error": "Chyba"
     },
-    "more": "Show older",
-    "panelTitle": "Recent activity",
-    "panelEmpty": "Nothing has happened to this one yet.",
-    "announce": "{count, plural, one {# new error} other {# new errors}}",
-    "lastHour": "What happened in the last hour",
+    "more": "Zobrazit starší",
+    "panelTitle": "Nedávná aktivita",
+    "panelEmpty": "S tímto se zatím nic nestalo.",
+    "announce": "{count, plural, one {# nová chyba} few {# nové chyby} other {# nových chyb}}",
+    "lastHour": "Co se stalo za poslední hodinu",
     "bucket": {
-      "messages": "Messages ingested",
-      "changes": "Changes applied",
-      "requests": "Requests served",
-      "forwards": "Forwards",
-      "denials": "Refusals"
+      "messages": "Přijaté zprávy",
+      "changes": "Uplatněné změny",
+      "requests": "Obsloužené požadavky",
+      "forwards": "Přeposlání",
+      "denials": "Odmítnutí"
     },
     "emptyHint": "Vše, co tu platforma udělá, se objeví v tomto seznamu: použitá změna, propustnost pipeline, odmítnutý požadavek. Načtěte datový zdroj nebo schvalte změnu a přijdou první řádky.",
     "kinds": {
@@ -3478,7 +3519,8 @@
       "groups": "Skupiny",
       "service-accounts": "Servisní účty",
       "projects": "Projekty",
-      "setup": "Nastavení"
+      "setup": "Nastavení",
+      "health": "Stav ověření"
     },
     "settings": {
       "title": "Nastavení",
@@ -3701,6 +3743,37 @@
           "hint": "Plánované zálohy databáze do objektového úložiště (postgres.backups)."
         }
       }
+    },
+    "health": {
+      "title": "Stav ověření",
+      "lead": "Každá kontrola, která ověřuje tuto instalaci, podle jejího posledního zveřejněného běhu: odchylky a dodavatelský řetězec, shoda se standardy, matice oprávnění, výkonnostní limity, zkouška obnovy a živá prověrka.",
+      "hidden": "Stav ověření vidí pouze administrátor organizace.",
+      "caption": "Ověřovací kontroly a jejich poslední běh",
+      "check": "Kontrola",
+      "state": "Stav",
+      "lastRun": "Poslední běh",
+      "results": "Výsledky",
+      "trend": "Posledních 7 dní",
+      "failures": "Selhání",
+      "empty": "Žádná kontrola zatím nezveřejnila výsledek",
+      "emptyHint": "Každá kontrola zveřejní výsledek po svém běhu; první se objeví po nejbližší hodinové dávce.",
+      "unreadableHint": "Zveřejněný výsledek tato stránka neumí přečíst; zveřejněte ho znovu.",
+      "counts": "{pass} úspěšných, {fail} selhaných, {error} chyb, {skip} přeskočených",
+      "trendLabel": "{runs, plural, one {# běh} few {# běhy} other {# běhů}} za 7 dní, z toho {red} červených",
+      "showFailures": "{count, plural, one {Zobrazit # selhání} few {Zobrazit # selhání} other {Zobrazit # selhání}}",
+      "task": "(úkol {task})",
+      "states": {
+        "green": "Zelená",
+        "red": "Červená",
+        "stale": "Neaktuální",
+        "unreadable": "Nečitelná"
+      },
+      "summary": {
+        "green": "Vše je zelené",
+        "red": "{count, plural, one {# kontrola červená} few {# kontroly červené} other {# kontrol červených}}",
+        "stale": "{count, plural, one {# kontrola neaktuální} few {# kontroly neaktuální} other {# kontrol neaktuálních}}",
+        "unreadable": "{count, plural, one {# výsledek nečitelný} few {# výsledky nečitelné} other {# výsledků nečitelných}}"
+      }
     }
   },
   "projectDelete": {
@@ -3918,7 +3991,7 @@
       "CC_BYSA_4_0": "Creative Commons Uveďte původ – Zachovejte licenci 4.0",
       "CC0": "Creative Commons Zero (volné dílo)",
       "ODC_BY": "Open Data Commons Uveďte původ",
-      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_ODBL": "Open Database License (ODbL)",
       "ODC_PDDL": "Open Data Commons Věnování volnému dílu"
     },
     "dataTheme": {
@@ -4099,7 +4172,7 @@
       "lead": "Vyberte endpoint, zkontrolujte jeho popis do katalogu, prohlédněte si náhled záznamu a navrhněte ho. Datová sada se v katalogu zobrazí po schválení.",
       "steps": "Kroky",
       "step": {
-        "pick": "1. Endpoint",
+        "pick": "1. Koncový bod",
         "describe": "2. Popis",
         "preview": "3. Náhled"
       },
