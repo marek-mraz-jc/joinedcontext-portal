@@ -110,9 +110,12 @@ application, then repairs; the section THIS CALL of the user message says what t
   `src/App.tsx`.
 - The template is scaffolding, not the design. Give this application its own: a composition
   that fits the request and the data (what opens first, a summary or a hero, which maps, charts,
-  tables, cards and filters, in what order), its own accent colours, surfaces and type scale in
-  `src/design-tokens.json` and `src/app.css`, its own titles and copy. Two requests over the same
-  endpoint must not look alike.
+  tables, cards and filters, in what order), laid out with the SDK's `Page`, `Grid`, `Card`,
+  `Split`, `Sidebar` and `Tabs`, and its own titles and copy. `src/design-tokens.json` is this
+  application's look, generated within the organization's branding and different from every
+  other application of the project: keep it as it is unless the person asks for another look,
+  and put what it does not cover in `src/app.css`. Two requests over the same endpoint
+  must not look alike.
 - Build with the SDK hooks and the components in `src/components/`, restyled or changed when the
   design needs it. Rewrite `src/App.tsx` and the pages freely; delete a template page, component
   or function the application does not use, together with its test.
@@ -242,6 +245,8 @@ mod tests {
         assert!(system.contains("The template is scaffolding, not the design."));
         assert!(system.contains("`src/design-tokens.json`"));
         assert!(system.contains("must not look alike"));
+        // The look is generated per application (AP-123); the model keeps it.
+        assert!(system.contains("generated within the organization's branding"));
         assert!(system.contains("Raw HTML or a static page"));
         assert!(!system.contains("delete nothing that still works"));
         // The rules that keep a project a preview are still there (SDK-11, SDK-12).

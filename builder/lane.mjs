@@ -13,6 +13,8 @@
 //                                      layer and prints the manifest digest (AP-105)
 //   node lane.mjs upload <build-dir>   uploads bundle-{commit} and sbom-{commit} as the run's
 //                                      artifacts and writes the build to $GITHUB_OUTPUT
+//   node lane.mjs seed <from> <to>     starts a fullstack build's target/ from the image's
+//                                      precompiled dependencies (AP-106), never failing a build
 //   node lane.mjs propose <owner/repo> proposes status.build as the lane, from the build job's
 //                                      outputs (JC_DIGEST, JC_COMMIT, JC_SDK_VERSION, JC_BUILT_AT)
 //                                      to JC_PORTAL_URL with JC_LANE_TOKEN
@@ -21,7 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const TEMPLATE = new URL("./package.json", import.meta.url);
@@ -336,6 +338,30 @@ export async function propose(api, token, repository, build, fetchImpl = fetch, 
   }
 }
 
+/**
+ * A job's `target/` started from the dependencies this release precompiled, in CI, from its
+ * reference apps' lockfiles (AP-106, T-2794), so a fullstack build compiles its own crate and the
+ * dependencies its lock does not share with them rather than every crate. A copy with its times
+ * kept, never a link: nothing a build writes reaches the image or the next job, and the work
+ * directory is still wiped after every job (AP-81). A seed that is missing, or that fails to copy
+ * part way, leaves an empty `to` and a clean build: it never fails one. Returns what it did.
+ */
+export function seed(from, to) {
+  rmSync(to, { recursive: true, force: true });
+  if (!existsSync(from)) {
+    mkdirSync(to, { recursive: true });
+    return "no precompiled dependencies in this image: every crate is compiled";
+  }
+  try {
+    cpSync(from, to, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    return `the precompiled dependencies of ${from} are the start of this build`;
+  } catch (err) {
+    rmSync(to, { recursive: true, force: true });
+    mkdirSync(to, { recursive: true });
+    return `the precompiled dependencies could not be copied (${err instanceof Error ? err.message : String(err)}): every crate is compiled`;
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, appDir, outDir] = process.argv.slice(2);
   try {
@@ -382,6 +408,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await uploadArtifact(env.ACTIONS_RESULTS_URL, env.ACTIONS_RUNTIME_TOKEN, `sbom-${build.commit}`, readFileSync(join(appDir, "sbom.cdx.json")));
       appendFileSync(env.GITHUB_OUTPUT, outputs);
       console.log(`uploaded the build of ${build.commit} as ${build.digest}`);
+    } else if (command === "seed" && appDir && outDir) {
+      console.log(seed(appDir, outDir));
     } else if (command === "propose" && appDir) {
       // The runner gives every job the Portal's in-cluster address (AP-81).
       const api = process.env.JC_PORTAL_URL ?? "";
@@ -399,7 +427,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`proposed status.build: ${change?.metadata?.name ?? "accepted"}`);
     } else {
       throw new Error(
-        "usage: lane.mjs deps <app-dir> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
+        "usage: lane.mjs deps <app-dir> | seed <from> <to> | functions <app-dir> <out-dir> | app <owner/repo> | sbom <node_modules> <out> | image <layer.tar> <dir> | upload <build-dir> | propose <owner/repo>",
       );
     }
   } catch (err) {

@@ -363,7 +363,10 @@ Backend functions run in QuickJS without browser Web APIs: no `fetch`, `URLSearc
 ```ts
 function stubTransport(fixture?: Fixture): StubTransport
 ```
-Creates an in-memory transport holding entity fixtures and recording request calls.
+Creates an in-memory transport holding entity fixtures and recording request calls. The fixture
+carries `entities`, `schema`, `access`, `functions`, `temporal` (the temporal read's answer as the
+broker's `temporalValues` bodies, filtered by the asked type) and `refuse` (a response to send
+instead, per request).
 ```ts
 function stubClient(fixture?: Fixture, config?: Partial<JcConfig>): Client & { transport: StubTransport }
 ```
