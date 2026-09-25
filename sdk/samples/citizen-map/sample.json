@@ -5,23 +5,7 @@
   "archetype": "citizen-map",
   "audience": "citizens",
   "layout": "hero-map",
-  "keywords": [
-    "map",
-    "near",
-    "nearest",
-    "find",
-    "where",
-    "station",
-    "stations",
-    "stop",
-    "bike",
-    "bikes",
-    "citizen",
-    "resident",
-    "public",
-    "place",
-    "places"
-  ],
+  "keywords": ["map", "near", "nearest", "station", "stations", "stop", "bike", "bikes", "citizen", "resident", "public", "place", "places"],
   "dataNeeds": [
     {
       "types": [

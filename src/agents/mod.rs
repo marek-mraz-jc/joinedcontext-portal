@@ -23,6 +23,7 @@ pub mod profile;
 pub mod reaper;
 pub mod repository;
 pub mod run;
+pub mod samples;
 pub mod share;
 pub mod store;
 pub mod theme;

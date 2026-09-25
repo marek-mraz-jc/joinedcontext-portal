@@ -5,7 +5,7 @@
   "archetype": "data-story",
   "audience": "public",
   "layout": "narrative-column",
-  "keywords": ["story", "stories", "narrative", "article", "explainer", "public", "citizens", "report", "annual", "storytelling", "journalism", "press", "open-data", "insight", "insights", "scroll", "scrollytelling"],
+  "keywords": ["story", "stories", "narrative", "article", "explainer", "public", "citizens", "annual", "storytelling", "journalism", "press", "open-data", "insight", "insights", "scroll", "scrollytelling"],
   "ready": "How clean was the air?",
   "dataNeeds": [
     {

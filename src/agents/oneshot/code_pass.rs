@@ -575,6 +575,12 @@ impl Driver {
             let fence = path.rsplit('.').next().unwrap_or("text");
             pack.push_str(&format!("### {path}\n```{fence}\n{content}\n```\n"));
         }
+        // The example of the request's kind, for writing and completing; a repair stays on its problems.
+        if matches!(fix, None | Some(Fix::Complete)) {
+            if let Some(sample) = crate::agents::samples::section(&self.prompt) {
+                pack.push_str(&sample);
+            }
+        }
         pack.push_str(
             "\n## THE DATA\n\nData needs (types and attributes the person asked for):\n```json\n",
         );

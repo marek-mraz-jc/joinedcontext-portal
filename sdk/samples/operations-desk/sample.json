@@ -5,7 +5,7 @@
   "archetype": "operations-desk",
   "audience": "staff",
   "layout": "desk",
-  "keywords": ["desk", "queue", "operations", "operator", "dispatcher", "incident", "incidents", "alert", "alerts", "ticket", "tickets", "triage", "acknowledge", "bulk", "staff", "manage"],
+  "keywords": ["desk", "queue", "operations", "operator", "dispatcher", "incident", "incidents", "alert", "alerts", "ticket", "tickets", "triage", "acknowledge", "bulk", "staff"],
   "ready": "Alerts desk",
   "dataNeeds": [
     {

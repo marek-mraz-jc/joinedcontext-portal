@@ -5,7 +5,7 @@
   "archetype": "realtime-monitor",
   "audience": "operators",
   "layout": "tile-grid-with-log",
-  "keywords": ["realtime", "real-time", "live", "monitor", "monitoring", "sensor", "sensors", "alert", "alerts", "alarm", "alarms", "threshold", "sparkline", "sparklines", "control-room", "status", "now", "iot", "feed", "stream"],
+  "keywords": ["realtime", "real-time", "live", "monitor", "monitoring", "sensor", "sensors", "alert", "alerts", "alarm", "alarms", "threshold", "sparkline", "sparklines", "control-room", "iot", "feed", "stream"],
   "ready": "Air quality now",
   "dataNeeds": [
     {

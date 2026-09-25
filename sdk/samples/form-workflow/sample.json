@@ -5,7 +5,7 @@
   "archetype": "form-workflow",
   "audience": "residents",
   "layout": "form-with-list",
-  "keywords": ["form", "forms", "report", "reports", "request", "requests", "submit", "submission", "submissions", "application", "applications", "feedback", "complaint", "complaints", "wizard", "steps", "survey", "register", "registration", "service-request", "ticket"],
+  "keywords": ["form", "forms", "report", "reports", "request", "requests", "submit", "submission", "submissions", "feedback", "complaint", "complaints", "wizard", "steps", "survey", "register", "registration", "service-request", "ticket"],
   "ready": "Report a problem",
   "dataNeeds": [
     {
