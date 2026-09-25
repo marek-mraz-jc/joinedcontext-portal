@@ -9,6 +9,10 @@ kind: App
 metadata:
   name: banskabystrica-ovzdusie
   namespace: banskabystrica
+  annotations:
+    # The Portal image ships this bundle (Dockerfile, /srv/apps), so the App names no
+    # repository of its own; the Portal accepts the mark only where the bundle is (AP-87).
+    joinedcontext.com/shipped-with: portal
   title:
     sk: "Ovzdušie v Banskej Bystrici"
     en: "Air quality in Banská Bystrica"
@@ -40,5 +44,3 @@ spec:
       temporalQ:
         window: P1D
       representations: [ngsi-ld, geojson]
-  limits:
-    requestsPerMinute: 600
