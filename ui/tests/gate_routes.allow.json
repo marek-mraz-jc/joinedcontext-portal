@@ -8,8 +8,8 @@
   ],
   "mocked": {
     "/projects/$project/ckan": {
-      "task": "T-1765",
-      "why": "the page has no test of its own at all; its form task writes the first one"
+      "task": "T-2849",
+      "why": "worker-10 rebuilds the open data page under T-2726; T-2849 writes its mocked spec and live journey on the rebuilt page"
     }
   },
   "live": {}

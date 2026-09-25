@@ -153,7 +153,8 @@ export async function editAsYaml(
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("ControlOrMeta+V");
-  await dialog.getByRole("button", { name: "Propose change" }).click();
+  // A form that holds a draft proposes what its check passed (PF-57): Check first when it asks.
+  await proposeFrom(dialog);
 }
 
 /** Waits until the resource answers on its route with a phase that is neither pending nor an error. */

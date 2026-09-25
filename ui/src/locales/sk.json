@@ -3280,6 +3280,7 @@
       "keepOurs": "Ponechať z kópie",
       "takeTheirs": "Prevziať z projektu",
       "update": "Aktualizovať z projektu",
+      "updated": "{count, plural, =0 {Kópia už má všetko, čo projekt zmenil.} one {Aktualizované z projektu: prevzatý # súbor.} few {Aktualizované z projektu: prevzaté # súbory.} other {Aktualizované z projektu: prevzatých # súborov.}}",
       "updateBlocked": "Pred aktualizáciou odpovedzte na každé pole, ktoré zmenil aj projekt.",
       "propose": "Navrhnúť ako jednu zmenu",
       "proposeBlocked": "Pred návrhom kópie ako jednej zmeny vyriešte súbory, ktoré zmenil aj projekt.",
