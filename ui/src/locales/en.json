@@ -3173,6 +3173,7 @@
       "lastSeen": "Last active",
       "noMatch": "Nobody matches “{search}”.",
       "empty": "The realm has no people yet.",
+      "emptyHint": "Everyone who signs in to the organization’s realm appears here. Add someone with New person.",
       "noSession": "No open session",
       "pages": "Pages of people",
       "previous": "Previous",

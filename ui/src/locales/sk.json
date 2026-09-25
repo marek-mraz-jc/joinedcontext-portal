@@ -3173,6 +3173,7 @@
       "lastSeen": "Naposledy aktívny",
       "noMatch": "Nikto nezodpovedá „{search}“.",
       "empty": "Doména zatiaľ nemá žiadnych ľudí.",
+      "emptyHint": "Každý, kto sa prihlási do domény organizácie, sa zobrazí tu. Niekoho pridáte tlačidlom Nová osoba.",
       "noSession": "Žiadna otvorená relácia",
       "pages": "Strany ľudí",
       "previous": "Predchádzajúca",

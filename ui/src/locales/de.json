@@ -3173,6 +3173,7 @@
       "lastSeen": "Zuletzt aktiv",
       "noMatch": "Niemand passt zu „{search}“.",
       "empty": "Die Domäne hat noch keine Personen.",
+      "emptyHint": "Wer sich in der Anmeldedomäne der Organisation anmeldet, erscheint hier. Mit „Neue Person“ fügen Sie jemanden hinzu.",
       "noSession": "Keine offene Sitzung",
       "pages": "Seiten der Personen",
       "previous": "Zurück",
