@@ -74,6 +74,18 @@ function periodSeconds(period: string | undefined): number | undefined {
  * The 30-second rule (Architecture/08 §1): `auto` runs push-based and sub-30-second pipelines
  * in the resident runner, everything slower as a CronJob. An explicit class always wins.
  */
+/**
+ * Why a Live stream lands nothing, from its `StreamWriting` condition, or `null` when it writes
+ * (T-2967): the reconciler sets it when the runner counts errors and nothing sent, or records
+ * taken in for ten minutes with nothing sent, rejected or failed.
+ */
+export function notWriting(pipeline: Manifest): string | null {
+  const condition = (pipeline.status?.conditions ?? []).find(
+    (candidate) => candidate.type === "StreamWriting" && candidate.status === "False",
+  );
+  return condition ? (condition.message ?? condition.reason ?? "") : null;
+}
+
 export function executionClass(spec: PipelineSpec): "resident" | "scheduled" {
   if (spec.class === "resident" || spec.class === "scheduled") {
     return spec.class;
@@ -422,6 +434,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           const klass = executionClass(spec);
           // Absent means running: a pipeline is only paused by an explicit `false`.
           const running = spec.enabled !== false;
+          const stalled = notWriting(pipeline);
           return (
             <TableRow key={pipeline.metadata.name}>
               <TableCell primary>
@@ -458,6 +471,16 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                       : pipeline.status?.phase
                   }
                 />
+                {/* Live says the stream is deployed; whether anything lands is this condition
+                    (T-2967): hsl-hfp-vehicles read Live for half an hour of writing nothing. */}
+                {stalled !== null ? (
+                  <div className="mt-1">
+                    <Badge tone="warning" title={stalled || undefined}>
+                      {t("pipelines.notWriting")}
+                      {stalled ? <span className="sr-only">: {stalled}</span> : null}
+                    </Badge>
+                  </div>
+                ) : null}
               </TableCell>
               <TableCell secondary>
                 <StreamMetrics
