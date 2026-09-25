@@ -14,6 +14,15 @@ import { sdkAlias } from "../vite.config";
  * detail, a grid of cards, the NGSI-LD grid) are built with vite from the sources and served from
  * memory. At each width the page must not scroll sideways, no two blocks may overlap, and axe
  * must find nothing at WCAG 2.1 AA. A screenshot per view and width is attached to the report.
+ *
+ * The same three checks run against published applications when `JC_APP_URLS` names them
+ * (space-separated), for the integrator after an apply:
+ *
+ *   JC_APP_URLS="https://dev.joinedcontext.com/apps/helsinki-bikes/ …" \
+ *     [JC_STORAGE_STATE=signed-in.json] pnpm exec playwright test e2e/responsive.spec.ts -g live
+ *
+ * `JC_STORAGE_STATE` is a Playwright storage state of a signed-in person, for an App behind the
+ * login; a public App needs none.
  */
 const PAGE = "http://responsive.test/";
 const WIDTHS = [
@@ -115,7 +124,7 @@ const HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 
 const files: Record<string, string> = {};
 
-test.beforeAll(async () => {
+async function buildFixture(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
   // Inside the package, not in /tmp: the entry imports `../src` and needs this `node_modules`.
   const work = join(here, "..", "node_modules", ".responsive-fixture");
@@ -142,8 +151,7 @@ test.beforeAll(async () => {
   };
   walk(out, "");
   files["/"] = files["/index.html"];
-  files["/axe.js"] = readFileSync(join(here, "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
-});
+}
 
 async function serve(page: Page, problems: string[]): Promise<void> {
   page.on("pageerror", (error) => problems.push(error.message));
@@ -180,8 +188,11 @@ const BLOCKS = [
   ".jc-header nav",
 ].join(", ");
 
+/** What a published App may be built from besides the template's classes. */
+const LIVE_BLOCKS = `${BLOCKS}, article, aside, figure, form, table`;
+
 /** Pairs of visible blocks, neither inside the other, whose boxes intersect by more than a pixel. */
-async function overlaps(page: Page): Promise<string[]> {
+async function overlaps(page: Page, blocks = BLOCKS): Promise<string[]> {
   return page.evaluate((selector) => {
     const name = (el: Element) =>
       `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.textContent ?? "").trim().slice(0, 30)}"`;
@@ -200,11 +211,32 @@ async function overlaps(page: Page): Promise<string[]> {
       }
     }
     return found;
-  }, BLOCKS);
+  }, blocks);
 }
 
+/** No sideways scroll, no overlapping blocks, nothing axe finds; the screenshot attached first. */
+async function checkWidth(page: Page, name: string, width: number, blocks: string, testInfo: import("@playwright/test").TestInfo): Promise<void> {
+  await testInfo.attach(`${name}-${width}.png`, {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  });
+  const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  if (width < 600) {
+    // On a phone a table is cards, not a strip to scroll through.
+    const scrolling = await page.locator(".jc-table-wrap").evaluateAll((wraps) =>
+      wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth + 1).length,
+    );
+    expect(scrolling, "a table scrolls sideways on a phone").toBe(0);
+  }
+  expect(await overlaps(page, blocks)).toEqual([]);
+  expect(await axeViolations(page)).toEqual([]);
+}
+
+const AXE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "axe-core", "axe.min.js"), "utf8");
+
 async function axeViolations(page: Page): Promise<string[]> {
-  await page.addScriptTag({ url: `${PAGE}axe.js` });
+  await page.addScriptTag({ content: AXE });
   return page.evaluate(async () => {
     const axe = (window as unknown as { axe: { run: (context: Document, options: object) => Promise<{ violations: { id: string; nodes: { target: string[] }[] }[] }> } }).axe;
     const result = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });
@@ -218,37 +250,43 @@ const VIEWS = [
   { name: "layout primitives", path: "?view=layout", ready: "All readings" },
 ];
 
-for (const view of VIEWS) {
-  for (const size of WIDTHS) {
-    test(`${view.name} at ${size.width} px: no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
-      const problems: string[] = [];
-      await serve(page, problems);
-      await page.setViewportSize(size);
-      await page.goto(`${PAGE}${view.path}`);
-      await expect(page.getByText(view.ready).first()).toBeVisible();
-      // The charts draw after the rows, in an effect: wait for their canvases before measuring.
-      const charts = page.locator(".jc-chart-canvas");
-      for (let i = 0; i < (await charts.count()); i++) {
-        await expect(charts.nth(i).locator("canvas")).toBeVisible();
-      }
-
-      await testInfo.attach(`${view.name}-${size.width}.png`, {
-        body: await page.screenshot({ fullPage: true }),
-        contentType: "image/png",
+test.describe("the template's views", () => {
+  test.beforeAll(buildFixture);
+  for (const view of VIEWS) {
+    for (const size of WIDTHS) {
+      test(`${view.name} at ${size.width} px: no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
+        const problems: string[] = [];
+        await serve(page, problems);
+        await page.setViewportSize(size);
+        await page.goto(`${PAGE}${view.path}`);
+        await expect(page.getByText(view.ready).first()).toBeVisible();
+        // The charts draw after the rows, in an effect: wait for their canvases before measuring.
+        const charts = page.locator(".jc-chart-canvas");
+        for (let i = 0; i < (await charts.count()); i++) {
+          await expect(charts.nth(i).locator("canvas")).toBeVisible();
+        }
+        await checkWidth(page, view.name, size.width, BLOCKS, testInfo);
+        expect(problems).toEqual([]);
       });
-
-      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
-      if (size.width < 600) {
-        // On a phone a table is cards, not a strip to scroll through.
-        const scrolling = await page.locator(".jc-table-wrap").evaluateAll((wraps) =>
-          wraps.filter((wrap) => wrap.scrollWidth > wrap.clientWidth + 1).length,
-        );
-        expect(scrolling, "a table scrolls sideways on a phone").toBe(0);
-      }
-      expect(await overlaps(page)).toEqual([]);
-      expect(await axeViolations(page)).toEqual([]);
-      expect(problems).toEqual([]);
-    });
+    }
   }
-}
+});
+
+const LIVE = (process.env.JC_APP_URLS ?? "").split(/\s+/).filter(Boolean);
+
+test.describe("live", () => {
+  if (process.env.JC_STORAGE_STATE) {
+    test.use({ storageState: process.env.JC_STORAGE_STATE });
+  }
+  for (const url of LIVE) {
+    for (const size of WIDTHS) {
+      test(`live ${url} at ${size.width} px: no sideways scroll, no overlap, axe clean`, async ({ page }, testInfo) => {
+        await page.setViewportSize(size);
+        const answer = await page.goto(url);
+        expect(answer?.status(), `${url} answers`).toBeLessThan(400);
+        await page.waitForLoadState("networkidle");
+        await checkWidth(page, new URL(url).pathname.replace(/\W+/g, "-"), size.width, LIVE_BLOCKS, testInfo);
+      });
+    }
+  }
+});
