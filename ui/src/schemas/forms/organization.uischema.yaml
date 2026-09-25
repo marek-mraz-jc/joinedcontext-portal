@@ -25,7 +25,7 @@ spec:
       Die Organisation ist die Stelle, der jedes Projekt hier gehört: ihre Internet-Domain benennt
       jede Entität, ihre Sprachen bietet das Portal an, und ihre Kontakte stehen für sie ein. Die
       Projektregeln unten bestimmen, wer ein Projekt eröffnet, wer es liest und was es enthalten darf.
-  order: [domain, locales, defaultLocale, contacts, projects]
+  order: [domain, locales, defaultLocale, contacts, projects, policies, limits]
   groups:
     - title:
         en: The organization
@@ -60,7 +60,31 @@ spec:
         cs: Kdo smí otevřít projekt, kdo čte projekty a co smí nový projekt obsahovat.
         de: Wer ein Projekt eröffnen darf, wer die Projekte liest und was ein neues enthalten darf.
       fields: [projects]
+    - title:
+        en: Policies and limits
+        sk: Pravidlá a limity
+        cs: Pravidla a limity
+        de: Richtlinien und Grenzwerte
+      description:
+        en: What the organization allows and how much the platform does for it, each inside the range the operator sets.
+        sk: Čo organizácia povoľuje a koľko pre ňu platforma urobí, každé v rozsahu, ktorý nastaví prevádzkovateľ.
+        cs: Co organizace povoluje a kolik pro ni platforma udělá, každé v rozsahu, který nastaví provozovatel.
+        de: Was die Organisation erlaubt und wie viel die Plattform für sie leistet, jeweils im Bereich, den der Betreiber setzt.
+      fields: [policies, limits]
   fields:
+    policies.apps.public:
+      help:
+        en: Whether a project may publish an app everyone can open without signing in.
+        sk: Či môže projekt zverejniť aplikáciu, ktorú otvorí ktokoľvek bez prihlásenia.
+        cs: Zda smí projekt zveřejnit aplikaci, kterou otevře kdokoli bez přihlášení.
+        de: Ob ein Projekt eine App veröffentlichen darf, die jeder ohne Anmeldung öffnet.
+    policies.agents.models:
+      placeholder: [claude-sonnet-5]
+      help:
+        en: The models the assistant may use, by the name the installation gives them; leave it out to allow every one.
+        sk: Modely, ktoré môže asistent používať, podľa názvu v inštalácii; vynechajte, aby boli povolené všetky.
+        cs: Modely, které smí asistent používat, podle názvu v instalaci; vynechte, aby byly povoleny všechny.
+        de: Die Modelle, die der Assistent nutzen darf, mit dem Namen der Installation; weglassen erlaubt jedes.
     domain:
       placeholder: "city.example"
       help:

@@ -148,6 +148,10 @@ pub struct Config {
     /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
     /// secret, both together or neither; PF-63). `None` leaves the `Group` manifests read and the realm written by nobody.
     pub keycloak_admin: Option<(String, String)>,
+    /// The operator's bounds on what an Organization may set (`JC_PORTAL_ORGANIZATION_BOUNDS_FILE`,
+    /// the file the deployment renders `portal.organizationBounds` into; PF-97, ADR-N-035). No
+    /// file keeps every entry at the catalog's built-in bound.
+    pub organization_bounds: jc_core::kinds::OrganizationBounds,
     /// Where an App's four Kubernetes objects are applied (`JC_PORTAL_APPS_NAMESPACE` with
     /// `JC_PORTAL_ORG_DOMAIN`; AP-13, AP-18, T-0411). `None` leaves
     /// the reconciler reading apps and applying nothing, which is what a Portal outside a
@@ -778,6 +782,36 @@ impl std::fmt::Debug for BasemapConfig {
 }
 
 /// The basemap configuration block, or `None` when this Portal proxies no basemap (AP-67).
+/// The operator's bounds file (PF-97). Absent, every entry keeps its built-in bound. A file that
+/// cannot be read, is no map of catalog paths, holds a range upside down or loosens a security
+/// bound stops the start: a Portal holding organizations to bounds nobody meant is worse than one
+/// that says why it did not start.
+fn organization_bounds(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<jc_core::kinds::OrganizationBounds, ConfigError> {
+    const VAR: &str = "JC_PORTAL_ORGANIZATION_BOUNDS_FILE";
+    let Some(path) = lookup(VAR).filter(|path| !path.trim().is_empty()) else {
+        return Ok(jc_core::kinds::OrganizationBounds::default());
+    };
+    let invalid = |reason: String| ConfigError::Invalid { var: VAR, reason };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| invalid(format!("cannot read '{path}': {e}")))?;
+    // An empty file is a deployment that set no bound: the built-in ones.
+    if text.trim().is_empty() {
+        return Ok(jc_core::kinds::OrganizationBounds::default());
+    }
+    let bounds: jc_core::kinds::OrganizationBounds =
+        serde_yaml_ng::from_str(&text).map_err(|e| {
+            invalid(format!(
+                "'{path}' is no map of catalog paths to {{min, max}}: {e}"
+            ))
+        })?;
+    bounds
+        .validate()
+        .map_err(|e| invalid(format!("'{path}': {e}")))?;
+    Ok(bounds)
+}
+
 fn basemap_config(
     lookup: &impl Fn(&str) -> Option<String>,
 ) -> Result<Option<BasemapConfig>, ConfigError> {
@@ -1248,6 +1282,7 @@ impl Config {
             bootstrap_admins,
             journey_users,
             keycloak_admin,
+            organization_bounds: organization_bounds(&lookup)?,
             app_settings,
             build_pods,
             agent_settings,
@@ -1301,6 +1336,7 @@ impl Config {
             bootstrap_admins: "portal-approver".to_owned(),
             journey_users: Vec::new(),
             keycloak_admin: None,
+            organization_bounds: jc_core::kinds::OrganizationBounds::default(),
         }
     }
 
@@ -1341,6 +1377,63 @@ mod tests {
         for bad in ["0", "-5", "a week"] {
             assert!(with(Some(bad)).is_err(), "{bad}");
         }
+    }
+
+    /// T-2716 (PF-97): the operator's bounds file; none keeps the built-in bounds, and a file
+    /// that loosens a security bound, names no catalog path or cannot be read stops the start.
+    #[test]
+    fn the_organization_bounds_are_the_operators_file_or_the_built_in_ones() {
+        let dir = std::env::temp_dir().join(format!("jc-bounds-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a temp dir");
+        let file = |name: &str, text: &str| {
+            let path = dir.join(name);
+            std::fs::write(&path, text).expect("the bounds file");
+            path.to_string_lossy().into_owned()
+        };
+        let with = |path: Option<String>| {
+            organization_bounds(&move |name: &str| {
+                (name == "JC_PORTAL_ORGANIZATION_BOUNDS_FILE")
+                    .then(|| path.clone())
+                    .flatten()
+            })
+        };
+        assert_eq!(with(None).expect("no file"), Default::default());
+        assert_eq!(
+            with(Some(file("empty.yaml", "\n"))).expect("empty"),
+            Default::default()
+        );
+
+        let tight = with(Some(file(
+            "tight.yaml",
+            "spec.projects.quota.contextSpaces: { max: 20 }\n\
+             spec.limits.signIn.sessionIdleMinutes: { max: 120 }\n",
+        )))
+        .expect("a tighter security bound and a quota ceiling are the operator's to set");
+        let quota = jc_core::kinds::org_settings::entry_at("spec.projects.quota.contextSpaces")
+            .expect("a catalog entry");
+        assert_eq!(tight.range(quota), (0, Some(20)));
+
+        for (name, text) in [
+            (
+                "loose.yaml",
+                "spec.limits.signIn.sessionIdleMinutes: { max: 600 }\n",
+            ),
+            ("unknown.yaml", "spec.limits.nothing: { max: 1 }\n"),
+            (
+                "upside.yaml",
+                "spec.projects.quota.apps: { min: 5, max: 1 }\n",
+            ),
+            ("typo.yaml", "spec.projects.quota.apps: { maximum: 5 }\n"),
+        ] {
+            let refused = with(Some(file(name, text))).expect_err(name).to_string();
+            assert!(
+                refused.contains("JC_PORTAL_ORGANIZATION_BOUNDS_FILE"),
+                "{refused}"
+            );
+        }
+        let missing = dir.join("absent.yaml").to_string_lossy().into_owned();
+        assert!(with(Some(missing)).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
