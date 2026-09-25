@@ -103,10 +103,14 @@ const chartOf = (title: string) => {
 };
 const optionOf = (title: string): Record<string, any> => chartOf(title).setOption.mock.calls.at(-1)![0];
 /** Clicks a bar of the chart captioned `title`, as ECharts reports it, and lets React draw the result. */
-const clickBar = (title: string, name: string) => {
-  const { click } = chartOf(title);
-  expect(click, `${title} listens for clicks`).toBeDefined();
-  act(() => click!({ name }));
+const clickBar = async (title: string, name: string) => {
+  // The chart is built after the list shows, a beat later on a loaded runner.
+  const click = await waitFor(() => {
+    const { click } = chartOf(title);
+    expect(click, `${title} listens for clicks`).toBeDefined();
+    return click!;
+  });
+  act(() => click({ name }));
 };
 const listed = () => within(screen.getByRole("list", { name: "Upcoming events" })).getAllByRole("heading").map((h) => h.textContent);
 
@@ -183,14 +187,14 @@ describe("the events page", () => {
   it("shows only the day or the register whose bar is clicked, and the chip puts them back", async () => {
     events();
     await waitFor(() => expect(listed()).toHaveLength(5));
-    clickBar("Events per day, next 30 days", "2030-10-22");
+    await clickBar("Events per day, next 30 days", "2030-10-22");
     expect(listed()).toEqual(["Story hour"]);
     fireEvent.click(screen.getByRole("button", { name: "Show every day, not only 22 Oct" }));
     await waitFor(() => expect(listed()).toHaveLength(5));
-    clickBar("Events by register", "Culture centres");
+    await clickBar("Events by register", "Culture centres");
     expect(listed()).toEqual(["Dance workshop", "Jazz at Stoa"]);
     // A second click on the same bar is the way back too.
-    clickBar("Events by register", "Culture centres");
+    await clickBar("Events by register", "Culture centres");
     expect(listed()).toHaveLength(5);
   });
 
