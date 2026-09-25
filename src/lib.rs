@@ -28,6 +28,7 @@ pub mod permissions;
 pub mod pipeline_log;
 pub mod pipeline_outcomes;
 pub mod pipeline_secrets;
+pub mod pipeline_status;
 pub mod pipeline_validation;
 pub mod plan;
 pub mod quality;

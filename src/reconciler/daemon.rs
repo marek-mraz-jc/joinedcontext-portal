@@ -18,7 +18,7 @@
 //! the projects and a new pod of a rolling update is ready while the old one holds the lock
 //! (OPS-51).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -171,6 +171,9 @@ pub struct Syncer {
         Option<Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>>,
     /// Each pipeline's refused records and run log (PL-61, PL-62): a pipeline the repository no
     /// longer holds takes them with it. `None` keeps them, which a unit test's syncer does.
+    /// What this replica's streams concluded, shared with the replicas that do not reconcile
+    /// (T-2976). `None` without a database: a follower then says it does not know.
+    pipeline_status: Option<Arc<crate::pipeline_status::Store>>,
     pipeline_outcomes: Option<(
         Arc<crate::pipeline_outcomes::RejectedStore>,
         Arc<crate::pipeline_log::LogStore>,
@@ -218,6 +221,7 @@ impl Syncer {
             webhook_secrets: None,
             ckan: None,
             domains: None,
+            pipeline_status: None,
             pipeline_outcomes: None,
         }
     }
@@ -290,6 +294,11 @@ impl Syncer {
     }
 
     /// Forgets the refused records and the log of a pipeline once it is gone (PL-61, PL-62).
+    pub fn with_pipeline_status(mut self, store: Arc<crate::pipeline_status::Store>) -> Self {
+        self.pipeline_status = Some(store);
+        self
+    }
+
     pub fn with_pipeline_outcomes(
         mut self,
         rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
@@ -873,11 +882,17 @@ impl Syncer {
         // A follower stops here: what the runner accepted, what the cluster runs and what the
         //    forge enforces are the leader's to converge, so its stream pipelines say so.
         if !leader {
-            mark_streams_pending(
-                &fresh_mirror,
-                "Follower",
-                "another replica reconciles the streams; this one serves the repository",
-            );
+            let saved = match self.pipeline_status.as_ref() {
+                Some(store) => store
+                    .load(crate::pipeline_status::FRESH)
+                    .await
+                    .unwrap_or_else(|err| {
+                        tracing::warn!(error = %err, "the leader's pipeline phases could not be read");
+                        HashMap::new()
+                    }),
+                None => HashMap::new(),
+            };
+            serve_leaders_phases(&fresh_mirror, &saved);
             self.mirror.replace_all(&fresh_mirror);
             return Ok((loaded, revision));
         }
@@ -1282,6 +1297,14 @@ impl Syncer {
                 )];
             }
             fresh_mirror.upsert(envelope);
+        }
+
+        // What this run concluded about every stream pipeline, for the replicas that serve
+        // without reconciling (T-2976). Best effort: a follower that cannot read it says so.
+        if let Some(store) = self.pipeline_status.as_ref() {
+            if let Err(err) = store.save(&stream_phases(&fresh_mirror)).await {
+                tracing::warn!(error = %err, "the pipeline phases were not shared with the other replicas");
+            }
         }
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
@@ -1752,6 +1775,74 @@ impl Syncer {
                 }
             }
         })
+    }
+}
+
+/// The status of every stream pipeline `mirror` holds, as this run left it (T-2976).
+fn stream_phases(
+    mirror: &Mirror,
+) -> HashMap<crate::pipeline_status::Key, crate::pipeline_status::Saved> {
+    let mut phases = HashMap::new();
+    for ns in mirror.namespaces() {
+        let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
+        for envelope in page.items {
+            let Ok(spec) = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
+                envelope.spec.clone(),
+            ) else {
+                continue;
+            };
+            let Some(status) = envelope.status.as_ref().filter(|_| eligible(&spec)) else {
+                continue;
+            };
+            phases.insert(
+                (ns.clone(), envelope.metadata.name.clone()),
+                crate::pipeline_status::Saved {
+                    phase: status.phase,
+                    conditions: status.conditions.clone(),
+                },
+            );
+        }
+    }
+    phases
+}
+
+/// A follower's stream pipelines: what the leader last concluded where it said something fresh,
+/// else `Pending` with the `Follower` reason, because this replica cannot know (T-2976).
+fn serve_leaders_phases(
+    mirror: &Mirror,
+    saved: &HashMap<crate::pipeline_status::Key, crate::pipeline_status::Saved>,
+) {
+    for ns in mirror.namespaces() {
+        let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
+        for mut envelope in page.items {
+            let Ok(spec) = serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(
+                envelope.spec.clone(),
+            ) else {
+                continue;
+            };
+            if !eligible(&spec) {
+                continue;
+            }
+            let key = (ns.clone(), envelope.metadata.name.clone());
+            if let Some(status) = envelope.status.as_mut() {
+                match saved.get(&key) {
+                    Some(leaders) => {
+                        status.phase = leaders.phase;
+                        status.conditions = leaders.conditions.clone();
+                    }
+                    None => {
+                        status.phase = crate::resource::Phase::Pending;
+                        status.conditions = vec![make_condition(
+                            "StreamDeployed",
+                            "False",
+                            "Follower",
+                            "another replica reconciles the streams and has said nothing recent about this one",
+                        )];
+                    }
+                }
+            }
+            mirror.upsert(envelope);
+        }
     }
 }
 
@@ -2838,6 +2929,77 @@ output_error{stream="kpi"} 6
             .last_error
             .unwrap()
             .contains("none of the 1 candidate files"));
+    }
+
+    /// T-2976: a follower serves what the leader last concluded, a Live pipeline stays Live, and
+    /// only a pipeline the leader said nothing fresh about is Pending with the Follower reason.
+    #[test]
+    fn a_follower_serves_the_leaders_phases_and_pending_only_where_it_cannot_know() {
+        use crate::pipeline_status::Saved;
+        use crate::resource::{ObjectMeta, Phase, ResourceEnvelope, Status, API_VERSION};
+        let stream = |name: &str| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Pipeline".to_owned(),
+            metadata: ObjectMeta::new(name, "helsinki"),
+            spec: serde_json::json!({
+                "class": "auto",
+                "period": "60s",
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "hsl" } },
+                "compute": { "kind": "bloblang", "bloblang": "root = this" },
+                "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all"
+            }),
+            status: Some(Status {
+                phase: Phase::Live,
+                observed_revision: None,
+                source_url: None,
+                conditions: Vec::new(),
+                build: None,
+                domain_verification: None,
+            }),
+        };
+        let mirror = Mirror::new();
+        for name in ["hsl-hfp-vehicles", "stalled", "new-one"] {
+            mirror.upsert(stream(name));
+        }
+        let stalled = vec![make_condition(
+            "StreamWriting",
+            "False",
+            "Stalled",
+            "records in, nothing out",
+        )];
+        let saved = HashMap::from([
+            (
+                ("helsinki".to_owned(), "hsl-hfp-vehicles".to_owned()),
+                Saved {
+                    phase: Phase::Live,
+                    conditions: Vec::new(),
+                },
+            ),
+            (
+                ("helsinki".to_owned(), "stalled".to_owned()),
+                Saved {
+                    phase: Phase::Live,
+                    conditions: stalled.clone(),
+                },
+            ),
+        ]);
+
+        serve_leaders_phases(&mirror, &saved);
+
+        let status = |name: &str| {
+            mirror
+                .get("helsinki", "Pipeline", name)
+                .and_then(|envelope| envelope.status)
+                .expect("a status")
+        };
+        assert_eq!(status("hsl-hfp-vehicles").phase, Phase::Live);
+        assert!(status("hsl-hfp-vehicles").conditions.is_empty());
+        assert_eq!(status("stalled").conditions, stalled);
+        let unknown = status("new-one");
+        assert_eq!(unknown.phase, Phase::Pending);
+        assert_eq!(unknown.conditions[0].reason.as_deref(), Some("Follower"));
+        // And the leader's own record of the same mirror is what a follower reads back.
+        assert_eq!(stream_phases(&mirror).len(), 3);
     }
 
     /// T-2880: an HTTP source's `authorization.headerRef` reaches the runner under the name its
