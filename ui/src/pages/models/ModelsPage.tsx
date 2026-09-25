@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { readModelSource, writeModelSource } from "../../api/datamodelSource";
@@ -13,10 +13,10 @@ import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
+import { Link } from "@tanstack/react-router";
 import { LinkmlEditor } from "./LinkmlEditor";
-import { MappingsEditor } from "./MappingsEditor";
-import type { MappingModel } from "./MappingsEditor";
 import { ModelFileDrop } from "./ModelFileDrop";
+import { spaceOfModel } from "./modelUsage";
 import { mergeModels } from "./linkml";
 import { SmartDataModelsImport } from "./SmartDataModelsImport";
 import type { CatalogueModel } from "./SmartDataModelsImport";
@@ -33,12 +33,14 @@ import {
 import type { Lifecycle } from "./breaking_detector";
 
 /**
- * The models page: import a model, edit it, map it (DM-07, DM-13, DM-17, DM-23, DM-33).
+ * The model editor: import a model, or edit one (DM-07, DM-13, DM-17, DM-23). The Data models
+ * page opens here from its list (`?new=…`, `?edit=<name>`, T-2765); a model's Mappings live on
+ * the model's own page.
  *
  * The document lives here as text and nowhere else. The shared `LinkmlEditor` edits that one
- * string, the import wizard replaces it and the mappings tab reads it, so the views cannot hold
- * different models. Nothing on this page writes to the platform: saving a model is a repository
- * change, which is the ordinary lane flow (CC-32, CC-63; the contract is T-0576).
+ * string and the import wizard replaces it, so the views cannot hold different models. Nothing
+ * on this page writes to the platform: saving a model is a repository change, which is the
+ * ordinary lane flow (CC-32, CC-63; the contract is T-0576).
  */
 export interface ModelsPageProps {
   project: string;
@@ -49,16 +51,11 @@ export interface ModelsPageProps {
    * is loaded from the portal route when name is provided.
    */
   baseline?: { source?: string; version: string; lifecycle: Lifecycle; name: string };
-  /**
-   * The other models this one can be mapped to and from (DM-33). The document being edited is
-   * always among them, so a mapping can be written before it is published.
-   */
-  mappable?: MappingModel[];
 }
 
-type Tab = "import" | "editor" | "mappings";
+type Tab = "import" | "editor";
 
-const TABS: Tab[] = ["import", "editor", "mappings"];
+const TABS: Tab[] = ["import", "editor"];
 
 /** How long a keystroke waits before the draft is kept, as the resource form waits (UI-47). */
 const DRAFT_DEBOUNCE_MS = 600;
@@ -80,7 +77,6 @@ export function ModelsPage({
   project,
   locales = ["sk", "en", "de", "cs"],
   baseline,
-  mappable = [],
 }: ModelsPageProps): JSX.Element {
   const { t } = useTranslation();
   // A new model's IRIs are minted under the organization's own domain (DM-13), never a guess.
@@ -95,6 +91,9 @@ export function ModelsPage({
       edit: params.get("edit") ?? undefined,
       // The draft this page was holding when it was last open (DM-57, T-1029).
       draft: params.get("draft") ?? undefined,
+      // How a new model starts, from the list's three ways (T-2765), and the space it is for.
+      start: params.get("new") ?? undefined,
+      space: params.get("space") ?? undefined,
       source: typeof prefill?.source === "string" ? prefill.source : undefined,
       operations: Array.isArray(prefill?.operations) ? (prefill.operations as Operation[]) : undefined,
     };
@@ -102,7 +101,7 @@ export function ModelsPage({
   const prefilled = handedOff.source;
   const [editing, setEditing] = useState(baseline ? undefined : handedOff.edit);
   const [tabChoice, setTab] = useState<Tab | undefined>(
-    baseline || prefilled || editing ? "editor" : undefined,
+    baseline || prefilled || editing || handedOff.start === "blank" ? "editor" : undefined,
   );
   const [chosen, setChosen] = useState(baseline);
   const [breakingConfirmed, setBreakingConfirmed] = useState(false);
@@ -116,7 +115,7 @@ export function ModelsPage({
   const [checkInfo, setCheckInfo] = useState<{ severity: string; version: string } | null>(null);
   const [changeNotice, setChangeNotice] = useState<Change | null>(null);
   const [nameChoice, setNewName] = useState<string | undefined>(undefined);
-  const [spaceChoice, setNewSpace] = useState<string | undefined>(undefined);
+  const [spaceChoice, setNewSpace] = useState<string | undefined>(handedOff.space);
   /** The version of the shared draft this page last kept, for the next keep (AG-61). */
   const [kept, setKept] = useState<{ name: string; version: number } | null>(null);
   const [heldConflict, setHeldConflict] = useState(false);
@@ -257,36 +256,6 @@ export function ModelsPage({
     return () => clearTimeout(timer);
   }, [keeping, project, targetName, source, newSpace, keptVersion]);
 
-  // The project's other models, each with its source, so the Mappings tab has a pair to map
-  // between (T-0795). A model the manifest carries inline is read from the manifest.
-  const otherModels = (models.data ?? []).filter((manifest) => manifest.metadata.name !== activeModelName);
-  const otherSources = useQueries({
-    queries: otherModels.map((manifest) => ({
-      queryKey: ["datamodel-source", project, manifest.metadata.name],
-      retry: false,
-      queryFn: async () => {
-        return readModelSource(project, manifest.metadata.name);
-      },
-    })),
-  });
-  const others: MappingModel[] = [
-    ...mappable,
-    ...otherModels.flatMap((manifest, index) => {
-      const spec = manifest.spec as { version?: unknown; linkml?: unknown };
-      const inline = typeof spec.linkml === "string" && spec.linkml.includes("\n") ? spec.linkml : undefined;
-      const text = inline ?? otherSources[index]?.data;
-      return text === undefined
-        ? []
-        : [
-            {
-              name: manifest.metadata.name,
-              version: typeof spec.version === "string" ? spec.version : "1.0.0",
-              source: text,
-            },
-          ];
-    }),
-  ];
-
   const changes = useMemo(
     () => (publishedSource ? classifyChanges(parseModel(publishedSource), model) : []),
     [publishedSource, model],
@@ -312,6 +281,20 @@ export function ModelsPage({
     queryFn: () => listOf("endpoints"),
     select: (list) => asManifests(list.items ?? []),
   });
+
+  // One model per space (DM-61): a space that has one already is named, and a new model is not
+  // offered it. The space's own pointer and the models that name it both count.
+  const occupied = useMemo(() => {
+    const held = new Map<string, string>();
+    for (const one of models.data ?? []) {
+      const space = spaceOfModel(one, spaces.data ?? []);
+      if (space !== undefined && one.metadata.name !== activeModelName) {
+        held.set(space, one.metadata.name);
+      }
+    }
+    return held;
+  }, [models.data, spaces.data, activeModelName]);
+  const spaceTakenBy = creating && newSpace ? occupied.get(newSpace) : undefined;
 
   const consumers = useMemo(() => {
     const name = published?.name ?? model.name;
@@ -424,6 +407,13 @@ export function ModelsPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <Link
+        to="/projects/$project/models"
+        params={{ project }}
+        className="focus-ring w-fit text-body text-primary-soft-fg underline hover:no-underline"
+      >
+        {t("models.page.back")}
+      </Link>
       <PageHeader
         title={t("models.title")}
         aside={
@@ -432,7 +422,7 @@ export function ModelsPage({
           </p>
         }
         actions={
-          targetName && (!creating || newSpace) ? (
+          targetName && (!creating || (newSpace && !spaceTakenBy)) ? (
             <>
               <Button size="sm" onClick={handleCheck} disabled={checking || saving || taken}>
                 {t("models.source.saveCheck")}
@@ -547,7 +537,8 @@ export function ModelsPage({
             <ModelFileDrop project={project} onPopulate={onPopulate} />
             <SmartDataModelsImport
               onImport={onImport}
-              spaces={(spaces.data ?? []).map((space) => space.metadata.name)}
+              // A new model goes to a space that has none (DM-61).
+              spaces={(spaces.data ?? []).map((space) => space.metadata.name).filter((space) => !occupied.has(space))}
             />
           </div>
         ) : null}
@@ -583,11 +574,16 @@ export function ModelsPage({
                       onChange={(event) => setNewSpace(event.target.value)}
                     >
                       <option value="">{t("models.create.chooseSpace")}</option>
-                      {(spaces.data ?? []).map((space) => (
-                        <option key={space.metadata.name} value={space.metadata.name}>
-                          {space.metadata.name}
-                        </option>
-                      ))}
+                      {(spaces.data ?? []).map((space) => {
+                        const holder = occupied.get(space.metadata.name);
+                        return (
+                          <option key={space.metadata.name} value={space.metadata.name} disabled={holder !== undefined}>
+                            {holder === undefined
+                              ? space.metadata.name
+                              : t("models.create.spaceHas", { space: space.metadata.name, model: holder })}
+                          </option>
+                        );
+                      })}
                     </Select>
                   </Field>
                   {targetName ? (
@@ -599,6 +595,11 @@ export function ModelsPage({
                 {taken ? (
                   <p role="alert" className="text-sm text-danger-fg">
                     {t("models.create.taken", { name: targetName })}
+                  </p>
+                ) : null}
+                {spaceTakenBy ? (
+                  <p role="alert" className="text-sm text-danger-fg">
+                    {t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}
                   </p>
                 ) : null}
                 {heldConflict ? (
@@ -614,21 +615,6 @@ export function ModelsPage({
             ) : null}
             <LinkmlEditor source={source} onChange={setSource} locales={locales} />
           </div>
-        ) : null}
-        {tab === "mappings" ? (
-          <MappingsEditor
-            project={project}
-            models={[
-              { name: model.name ?? "draft", version: nextVersion, source },
-              ...others.filter((candidate) => candidate.name !== model.name),
-            ]}
-            spaceOf={(name) =>
-              (spaces.data ?? []).find(
-                (space) => refName((space.spec as { dataModelRef?: unknown })?.dataModelRef) === name,
-              )?.metadata.name
-            }
-            onProposed={setChangeNotice}
-          />
         ) : null}
       </div>
     </div>
