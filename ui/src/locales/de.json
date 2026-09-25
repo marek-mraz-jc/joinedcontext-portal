@@ -3183,6 +3183,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Abweichung vom Repository",
+      "notYet": "Noch keine Abweichungsprüfung: Die Plattform vergleicht die Seed-Entitäten dieses Raums beim nächsten Durchlauf mit dem Repository.",
+      "clean": "Der Raum enthält, was das Repository deklariert.",
+      "found": "{count, plural, one {# Entität weicht vom Repository ab.} other {# Entitäten weichen vom Repository ab.}}",
+      "observed": "Geprüft {when}.",
+      "caption": "Entitäten von {space}, die vom Repository abweichen",
+      "entity": "Entität",
+      "kind": "Abweichung",
+      "attributes": "Attribute",
+      "resolution": "Auflösung",
+      "resolve": "Auflösen",
+      "resolveLabel": "Abweichung von {id} auflösen",
+      "mayNotResolve": "Zum Auflösen brauchen Sie das Recht, in diesem Projekt Entitäten vorzuschlagen.",
+      "wholeEntity": "Die ganze Entität"
+    },
     "modal": {
       "title": "Was sich in „{id}“ geändert hat",
       "lead": {
