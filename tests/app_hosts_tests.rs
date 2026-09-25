@@ -211,10 +211,14 @@ async fn a_retired_app_loses_its_certificate_and_ingress() {
             .mount(&server)
             .await;
     }
-    let states = hosts(&server)
-        .converge(&BTreeSet::new(), "city.example")
-        .await;
+    let hosts = hosts(&server);
+    let states = hosts.converge(&BTreeSet::new(), "city.example").await;
     assert!(states.is_empty());
+    assert!(
+        deleted(&server).await.is_empty(),
+        "converging creates; only retire removes"
+    );
+    hosts.retire(&BTreeSet::new()).await;
     let mut gone = deleted(&server).await;
     gone.sort();
     assert_eq!(

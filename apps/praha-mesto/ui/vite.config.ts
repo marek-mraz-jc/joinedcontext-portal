@@ -13,6 +13,8 @@ export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
+  // MapLibre's worker is an ES module importing the library's shared chunk (src/main.tsx).
+  worker: { format: "es" },
   test: {
     globals: true,
     environment: "jsdom",
