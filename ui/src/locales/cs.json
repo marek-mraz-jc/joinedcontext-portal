@@ -3185,6 +3185,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Odchylka od repozitáře",
+      "notYet": "Kontrola odchylek ještě neproběhla: platforma porovná počáteční entity tohoto prostoru s repozitářem při dalším průchodu.",
+      "clean": "Prostor obsahuje to, co deklaruje repozitář.",
+      "found": "{count, plural, one {# entita se liší od repozitáře.} few {# entity se liší od repozitáře.} other {# entit se liší od repozitáře.}}",
+      "observed": "Zkontrolováno {when}.",
+      "caption": "Entity prostoru {space}, které se liší od repozitáře",
+      "entity": "Entita",
+      "kind": "Odchylka",
+      "attributes": "Atributy",
+      "resolution": "Řešení",
+      "resolve": "Vyřešit",
+      "resolveLabel": "Vyřešit odchylku entity {id}",
+      "mayNotResolve": "K řešení potřebujete právo navrhovat entity v tomto projektu.",
+      "wholeEntity": "Celá entita"
+    },
     "modal": {
       "title": "Co se změnilo v „{id}“",
       "lead": {

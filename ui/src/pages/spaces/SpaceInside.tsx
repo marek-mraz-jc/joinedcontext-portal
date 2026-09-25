@@ -26,6 +26,7 @@ import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
+import { SpaceDrift } from "./SpaceDrift";
 import { SpaceQuality } from "./SpaceQuality";
 import {
   Alert,
@@ -705,6 +706,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={t("spaces.quality.title")}>
         <SpaceQuality project={project} space={name} />
+      </Section>
+
+      <Section title={t("drift.section.title")}>
+        <SpaceDrift project={project} space={name} />
       </Section>
 
       <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>

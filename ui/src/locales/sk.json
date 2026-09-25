@@ -3185,6 +3185,22 @@
     }
   },
   "drift": {
+    "section": {
+      "title": "Odchýlka od repozitára",
+      "notYet": "Kontrola odchýlok ešte neprebehla: platforma porovná počiatočné entity tohto priestoru s repozitárom pri ďalšom prechode.",
+      "clean": "Priestor obsahuje to, čo deklaruje repozitár.",
+      "found": "{count, plural, one {# entita sa líši od repozitára.} few {# entity sa líšia od repozitára.} other {# entít sa líši od repozitára.}}",
+      "observed": "Skontrolované {when}.",
+      "caption": "Entity priestoru {space}, ktoré sa líšia od repozitára",
+      "entity": "Entita",
+      "kind": "Odchýlka",
+      "attributes": "Atribúty",
+      "resolution": "Riešenie",
+      "resolve": "Vyriešiť",
+      "resolveLabel": "Vyriešiť odchýlku entity {id}",
+      "mayNotResolve": "Na riešenie potrebujete právo navrhovať entity v tomto projekte.",
+      "wholeEntity": "Celá entita"
+    },
     "modal": {
       "title": "Čo sa zmenilo v „{id}“",
       "lead": {
