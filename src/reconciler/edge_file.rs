@@ -16,11 +16,17 @@
 //! secret, its cookie host-only on its host. Header stripping, security headers and rate limits
 //! therefore stay where helm renders them. The composed file holds every App's client secret,
 //! which is why it is a Secret; nothing here logs it or puts it in an error.
+//!
+//! The rates are the one thing of helm's routes this wave changes (ADR-N-035): every
+//! `limit-count` whose entry carries the label [`RATE_CLASS`] counts the Organization's
+//! `spec.limits.edge.requestsPerMinute` for that class, so a changed limit reaches the edge on
+//! the next run and needs no helm release.
 
 use std::collections::BTreeMap;
 
 use base64::Engine as _;
-use jc_core::kinds::AppLifecycle;
+use jc_core::kinds::org_settings::entry_at;
+use jc_core::kinds::{AppLifecycle, OrganizationBounds, OrganizationLimits};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 
@@ -50,6 +56,74 @@ const APPS_SURFACE: &str = "apps-surface";
 const CONTEXT_ENDPOINT: &str = "context-endpoint";
 /// The base's route whose upstream is the Portal, which serves a `static` App's files.
 const PORTAL_UI: &str = "portal-ui";
+/// The label of a base entry whose `limit-count` the Organization sets, naming its route class.
+pub const RATE_CLASS: &str = "jc-rate-class";
+
+/// Each route class and the setting that sets its rate (ADR-N-035).
+const RATE_CLASSES: [&str; 5] = ["web", "api", "dataRead", "dataWrite", "publicEndpoint"];
+
+/// Requests a minute per route class, as the edge counts them (ADR-N-035).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EdgeRates(BTreeMap<&'static str, u32>);
+
+impl EdgeRates {
+    /// The organization's rate per class, else the catalog's default, held inside the operator's
+    /// bound, so a bound lowered after the change was approved still holds.
+    pub fn of(limits: Option<&OrganizationLimits>, bounds: &OrganizationBounds) -> Self {
+        let set = limits.map(|limits| &limits.edge.requests_per_minute);
+        let mut rates = BTreeMap::new();
+        for class in RATE_CLASSES {
+            let Some(entry) = entry_at(&format!("spec.limits.edge.requestsPerMinute.{class}"))
+            else {
+                continue;
+            };
+            let own = set.and_then(|rates| match class {
+                "web" => rates.web,
+                "api" => rates.api,
+                "dataRead" => rates.data_read,
+                "dataWrite" => rates.data_write,
+                _ => rates.public_endpoint,
+            });
+            let (min, max) = bounds.range(entry);
+            if let Some(rate) = own.or(entry.default) {
+                // `max`/`min` rather than `clamp`: an operator file with min above max must not
+                // panic here. APISIX refuses a count of 0, and one refused entry stops the file.
+                rates.insert(class, rate.min(max.unwrap_or(u32::MAX)).max(min).max(1));
+            }
+        }
+        Self(rates)
+    }
+
+    /// The rate of one class, `None` for a class the catalog does not know.
+    pub fn of_class(&self, class: &str) -> Option<u32> {
+        self.0.get(class).copied()
+    }
+}
+
+/// Sets every labelled `limit-count` of the base to its class's rate. An entry of a class this
+/// Portal does not know keeps helm's count.
+fn apply_rates(document: &mut Value, rates: &EdgeRates) {
+    for list in ["plugin_configs", "routes"] {
+        let Some(items) = document.get_mut(list).and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for item in items {
+            let Some(rate) = item["labels"][RATE_CLASS]
+                .as_str()
+                .and_then(|class| rates.of_class(class))
+            else {
+                continue;
+            };
+            if let Some(limit) = item
+                .get_mut("plugins")
+                .and_then(|plugins| plugins.get_mut("limit-count"))
+                .filter(|limit| limit.is_object())
+            {
+                limit["count"] = json!(rate);
+            }
+        }
+    }
+}
 
 /// Where an App's own route sends its requests.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,13 +261,16 @@ fn framed_by_portal(plugins: &mut Value, host: &str) {
     push(headers, "remove", json!("X-Frame-Options"));
 }
 
-/// The base with every App's routes added, ending `#END` (AP-112, AP-133).
-pub fn compose(base: &str, apps: &[EdgeApp]) -> Result<Composed, ComposeError> {
+/// The base with the Organization's rates and every App's routes added, ending `#END`
+/// (AP-112, AP-133, ADR-N-035).
+pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeRates) -> Result<Composed, ComposeError> {
     let mut document: Value =
         serde_yaml_ng::from_str(base).map_err(|err| ComposeError::Unreadable(err.to_string()))?;
     if !document.is_object() {
         return Err(ComposeError::Unreadable("not a mapping".into()));
     }
+    // Before the App routes copy the base's chains, so they count the same rates.
+    apply_rates(&mut document, rates);
     let endpoint_route = by_id(&document, "routes", CONTEXT_ENDPOINT)?.clone();
     let portal_route = by_id(&document, "routes", PORTAL_UI)?.clone();
     let surface_plugins = by_id(&document, "plugin_configs", APPS_SURFACE)?["plugins"].clone();
@@ -454,6 +531,8 @@ pub struct EdgeFile {
     kube: KubeClient,
     /// Where APISIX runs, and both objects live.
     namespace: String,
+    /// The operator's bounds the Organization's rates are held inside (ADR-N-035).
+    bounds: OrganizationBounds,
 }
 
 /// A kube error as a sentence that names the object and the status, never the body sent.
@@ -468,11 +547,27 @@ fn said(object: &str, err: &KubeError) -> String {
 
 impl EdgeFile {
     pub fn new(kube: KubeClient, namespace: String) -> Self {
-        Self { kube, namespace }
+        Self {
+            kube,
+            namespace,
+            bounds: OrganizationBounds::default(),
+        }
     }
 
-    /// Composes the file for these Apps and writes it when it differs from what is served.
-    pub async fn converge(&self, apps: &[EdgeApp]) -> (EdgeOutcome, Vec<(String, String)>) {
+    /// The operator's bounds (`JC_ORGANIZATION_BOUNDS`) in place of the built-in ones.
+    pub fn with_bounds(mut self, bounds: OrganizationBounds) -> Self {
+        self.bounds = bounds;
+        self
+    }
+
+    /// Composes the file for these Apps and the Organization's limits, and writes it when it
+    /// differs from what is served.
+    pub async fn converge(
+        &self,
+        apps: &[EdgeApp],
+        limits: Option<&OrganizationLimits>,
+    ) -> (EdgeOutcome, Vec<(String, String)>) {
+        let rates = EdgeRates::of(limits, &self.bounds);
         let base = match self
             .kube
             .get_config_map(&self.namespace, BASE_CONFIG_MAP)
@@ -496,7 +591,7 @@ impl EdgeFile {
                 Vec::new(),
             );
         };
-        let composed = match compose(&base, apps) {
+        let composed = match compose(&base, apps, &rates) {
             Ok(composed) => composed,
             Err(err) => return (EdgeOutcome::Failed(err.to_string()), Vec::new()),
         };
@@ -625,7 +720,7 @@ routes:
 
     #[test]
     fn no_app_leaves_the_base_as_it_is_and_ends_the_file() {
-        let composed = compose(BASE, &[]).expect("composes");
+        let composed = compose(BASE, &[], &EdgeRates::default()).expect("composes");
         assert!(composed.file.ends_with("\n#END\n"), "{}", composed.file);
         assert_eq!(
             parsed(&composed.file),
@@ -646,6 +741,7 @@ routes:
                     namespace: "jc-helsinki-apps".into(),
                 },
             )],
+            &EdgeRates::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -742,8 +838,12 @@ routes:
 
     #[test]
     fn a_public_app_passes_and_a_static_app_is_served_by_the_static_host() {
-        let composed =
-            compose(BASE, &[app("hsl-transport", true, Upstream::Static)]).expect("composes");
+        let composed = compose(
+            BASE,
+            &[app("hsl-transport", true, Upstream::Static)],
+            &EdgeRates::default(),
+        )
+        .expect("composes");
         let file = parsed(&composed.file);
         let route = by_id(&file, "routes", "app-hsl-transport").expect("the App route");
         assert_eq!(route["upstream_id"], "portal-ui");
@@ -782,6 +882,7 @@ routes:
                     },
                 ),
             ],
+            &EdgeRates::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -822,7 +923,12 @@ routes:
             "",
         );
         assert_ne!(base, BASE, "the fixture changed");
-        let composed = compose(&base, &[app("a", false, Upstream::Static)]).expect("composes");
+        let composed = compose(
+            &base,
+            &[app("a", false, Upstream::Static)],
+            &EdgeRates::default(),
+        )
+        .expect("composes");
         let file = parsed(&composed.file);
         let headers = &by_id(&file, "plugin_configs", "app-a").expect("plugins")["plugins"]
             ["response-rewrite"]["headers"];
@@ -840,6 +946,7 @@ routes:
                 app("b-app", false, Upstream::Static),
                 app("a-app", false, Upstream::Static),
             ],
+            &EdgeRates::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -863,6 +970,7 @@ routes:
                 app("a-app", false, Upstream::Static),
                 app("b-app", false, Upstream::Static),
             ],
+            &EdgeRates::default(),
         )
         .expect("composes");
         assert_eq!(composed.file, again.file);
@@ -872,13 +980,13 @@ routes:
     fn a_base_without_the_surfaces_is_refused_by_name() {
         let without = BASE.replace("id: context-endpoint", "id: something-else");
         assert_eq!(
-            compose(&without, &[]),
+            compose(&without, &[], &EdgeRates::default()),
             Err(ComposeError::Missing(
                 "routes entry context-endpoint".into()
             ))
         );
         assert!(matches!(
-            compose("routes: [", &[]),
+            compose("routes: [", &[], &EdgeRates::default()),
             Err(ComposeError::Unreadable(_))
         ));
     }
@@ -889,7 +997,12 @@ routes:
             "routes:\n",
             "routes:\n  - id: app-portal\n    uri: /x\n    upstream_id: portal-ui\n",
         );
-        let composed = compose(&base, &[app("portal", false, Upstream::Static)]).expect("composes");
+        let composed = compose(
+            &base,
+            &[app("portal", false, Upstream::Static)],
+            &EdgeRates::default(),
+        )
+        .expect("composes");
         assert_eq!(composed.skipped.len(), 1);
         assert!(!composed.file.contains("secret-of-portal"));
     }
@@ -898,7 +1011,7 @@ routes:
     fn a_base_without_the_portal_route_is_refused_by_name() {
         let without = BASE.replace("id: portal-ui\n    uri", "id: elsewhere\n    uri");
         assert_eq!(
-            compose(&without, &[]),
+            compose(&without, &[], &EdgeRates::default()),
             Err(ComposeError::Missing("routes entry portal-ui".into()))
         );
     }
@@ -916,6 +1029,7 @@ routes:
                 app("b-app", true, Upstream::Static),
                 reads_none,
             ],
+            &EdgeRates::default(),
         )
         .expect("composes");
         let file = parsed(&composed.file);
@@ -936,8 +1050,12 @@ routes:
     /// upstream, the rest of the path and the query carried over.
     #[test]
     fn the_old_path_moves_to_the_host_without_a_session() {
-        let composed =
-            compose(BASE, &[app("air-quality", false, Upstream::Static)]).expect("composes");
+        let composed = compose(
+            BASE,
+            &[app("air-quality", false, Upstream::Static)],
+            &EdgeRates::default(),
+        )
+        .expect("composes");
         let file = parsed(&composed.file);
         let moved = by_id(&file, "routes", "app-air-quality-moved").expect("the redirect");
         assert_eq!(moved["host"], "city.example");
@@ -970,7 +1088,106 @@ routes:
 
     #[test]
     fn a_compose_error_never_carries_a_secret() {
-        let err = compose("[", &[app("a", false, Upstream::Static)]).expect_err("unreadable");
+        let err = compose(
+            "[",
+            &[app("a", false, Upstream::Static)],
+            &EdgeRates::default(),
+        )
+        .expect_err("unreadable");
         assert!(!err.to_string().contains("secret-of"));
+    }
+
+    /// [`BASE`] with its chains labelled by class, a labelled route of its own chain, and two
+    /// limit-counts the Organization does not set: one unlabelled, one of an unknown class.
+    fn rated() -> String {
+        let limit = |count: u32| json!({"count": count, "time_window": 60, "key": "remote_addr"});
+        let mut document = parsed(BASE);
+        let configs = document["plugin_configs"]
+            .as_array_mut()
+            .expect("plugin_configs");
+        configs[0]["labels"] = json!({RATE_CLASS: "web"});
+        configs[0]["plugins"]["limit-count"] = limit(300);
+        configs[1]["labels"] = json!({RATE_CLASS: "publicEndpoint"});
+        configs[1]["plugins"]["limit-count"] = limit(5000);
+        configs.push(json!({"id": "keycloak", "plugins": {"limit-count": limit(600)}}));
+        let routes = document["routes"].as_array_mut().expect("routes");
+        routes.push(
+            json!({"id": "context-space-write", "uri": "/cs/*", "upstream_id": "portal-ui",
+            "labels": {RATE_CLASS: "dataWrite"}, "plugins": {"limit-count": limit(1200)}}),
+        );
+        routes.push(
+            json!({"id": "odd", "uri": "/odd/*", "upstream_id": "portal-ui",
+            "labels": {RATE_CLASS: "nosuchclass"}, "plugins": {"limit-count": limit(7)}}),
+        );
+        serde_yaml_ng::to_string(&document).expect("yaml") + "#END\n"
+    }
+
+    fn count(file: &Value, list: &str, id: &str) -> Value {
+        by_id(file, list, id).expect("the entry")["plugins"]["limit-count"]["count"].clone()
+    }
+
+    fn limits(json: Value) -> OrganizationLimits {
+        serde_json::from_value(json).expect("limits")
+    }
+
+    #[test]
+    fn the_organizations_rates_reach_every_labelled_limit_count() {
+        let set = limits(json!({"edge": {"requestsPerMinute": {"web": 900, "dataWrite": 50}}}));
+        let rates = EdgeRates::of(Some(&set), &OrganizationBounds::default());
+        let file = parsed(&compose(&rated(), &[], &rates).expect("composes").file);
+
+        assert_eq!(count(&file, "plugin_configs", "apps-surface"), json!(900));
+        assert_eq!(count(&file, "routes", "context-space-write"), json!(50));
+        // Not set by the organization: the catalog's default.
+        assert_eq!(
+            count(&file, "plugin_configs", "context-endpoint"),
+            json!(5000)
+        );
+        // No label, or a class this Portal does not know: helm's count stays.
+        assert_eq!(count(&file, "plugin_configs", "keycloak"), json!(600));
+        assert_eq!(count(&file, "routes", "odd"), json!(7));
+    }
+
+    #[test]
+    fn without_an_organization_every_class_counts_its_default() {
+        let rates = EdgeRates::of(None, &OrganizationBounds::default());
+        assert_eq!(rates.of_class("web"), Some(300));
+        assert_eq!(rates.of_class("api"), Some(1200));
+        assert_eq!(rates.of_class("dataRead"), Some(1200));
+        assert_eq!(rates.of_class("dataWrite"), Some(1200));
+        assert_eq!(rates.of_class("publicEndpoint"), Some(5000));
+        assert_eq!(rates.of_class("nosuchclass"), None);
+    }
+
+    #[test]
+    fn a_rate_above_the_ceiling_counts_the_ceiling() {
+        let set = limits(json!({"edge": {"requestsPerMinute": {"web": 1_000_000, "api": 5000}}}));
+        // The built-in ceiling for web, and an operator's tighter one for api.
+        let bounds = OrganizationBounds(BTreeMap::from([(
+            "spec.limits.edge.requestsPerMinute.api".to_string(),
+            jc_core::kinds::org_settings::Bound {
+                min: Some(10),
+                max: Some(2000),
+            },
+        )]));
+        let rates = EdgeRates::of(Some(&set), &bounds);
+        assert_eq!(rates.of_class("web"), Some(3000));
+        assert_eq!(rates.of_class("api"), Some(2000));
+    }
+
+    #[test]
+    fn apps_copy_the_rated_surface_chain() {
+        let set = limits(json!({"edge": {"requestsPerMinute": {"web": 42}}}));
+        let rates = EdgeRates::of(Some(&set), &OrganizationBounds::default());
+        let file = parsed(
+            &compose(
+                &rated(),
+                &[app("air-quality", false, Upstream::Static)],
+                &rates,
+            )
+            .expect("composes")
+            .file,
+        );
+        assert_eq!(count(&file, "plugin_configs", "app-air-quality"), json!(42));
     }
 }
