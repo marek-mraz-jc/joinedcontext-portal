@@ -325,6 +325,57 @@ describe("the conversation panel", () => {
     expect(screen.getByLabelText(en.agentRun.conversation.placeholder)).toHaveValue("");
   });
 
+  /// T-2772: a turn that ended without an answer offers the same message again, in this
+  /// conversation, one press; an answered turn and an older failure offer nothing.
+  it("offers Try again on a failed answer and sends the last message again", async () => {
+    const asked = { seq: 1, kind: "message", payload: { text: "how many bikes are free?", sentBy: "jana" } };
+    const failed = {
+      seq: 2,
+      kind: "thought",
+      payload: { text: "The answer failed: the model service did not answer in time.", failed: true },
+    };
+    panel([asked, failed]);
+    expect(screen.getByText(failed.payload.text)).toBeInTheDocument();
+    expect(screen.getByText(en.agentRun.conversation.unanswered)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.agentRun.conversation.tryAgain }));
+    expect(sent).toHaveBeenCalledWith("how many bikes are free?");
+  });
+
+  it("offers no Try again once the failed answer is followed by an answer", () => {
+    panel([
+      { seq: 1, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+      { seq: 2, kind: "thought", payload: { text: "The answer failed: busy.", failed: true } },
+      { seq: 3, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+      { seq: 4, kind: "thought", payload: { text: "12 stations have free bikes." } },
+    ]);
+    expect(screen.queryByRole("button", { name: en.agentRun.conversation.tryAgain })).toBeNull();
+    expect(screen.queryByText(en.agentRun.conversation.unanswered)).toBeNull();
+  });
+
+  /// T-2772: an ended conversation says who or what ended it, as the status said.
+  it("says why an ended conversation ended", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ConversationPanel
+          project="helsinki"
+          events={[
+            { seq: 1, kind: "message", payload: { text: "bikes?", sentBy: "jana" } },
+            { seq: 2, kind: "status", payload: { status: "cancelled", reason: "cancelled by jana.kovacova" } },
+          ]}
+          streaming
+          answering={false}
+          sending={false}
+          live={false}
+          onAnswer={() => {}}
+          onSend={sent}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("ended-because")).toHaveTextContent(
+      en.agentRun.conversation.endedBecause.replace("{reason}", "cancelled by jana.kovacova"),
+    );
+  });
+
   it("will not send whitespace", async () => {
     const user = userEvent.setup();
     panel([]);

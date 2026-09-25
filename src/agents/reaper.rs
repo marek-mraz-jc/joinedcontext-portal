@@ -24,13 +24,8 @@ pub async fn reap_expired(state: &AppState) -> usize {
 
     let mut reaped = 0;
     for run in expired {
-        match crate::api::agent_runs::end_run(
-            state,
-            &run,
-            AgentRunStatus::Expired,
-            "lease expired unattended",
-        )
-        .await
+        match crate::api::agent_runs::end_run(state, &run, AgentRunStatus::Expired, &why(&run))
+            .await
         {
             Ok(_) => {
                 reaped += 1;
@@ -42,6 +37,23 @@ pub async fn reap_expired(state: &AppState) -> usize {
         }
     }
     reaped
+}
+
+/// What an expired run lost, in words its owner acts on (T-2772). A run that waited for approval
+/// lost only itself: its change stays open, and approving it still publishes the application.
+fn why(run: &crate::agents::run::AgentRun) -> String {
+    if run.status != AgentRunStatus::AwaitingApproval.as_str() {
+        return "the run's time ran out before it finished; start it again from the Apps page"
+            .to_owned();
+    }
+    let change = run
+        .merge_request
+        .map(|number| format!("its change #{number}"))
+        .unwrap_or_else(|| "its change".to_owned());
+    format!(
+        "the run waited longer than its lease for {change} to be approved; the change stays open \
+         under Changes, and approving it still publishes the application"
+    )
 }
 
 /// Spawns the periodic background reaper loop (runs every 30 seconds, skips missed ticks).

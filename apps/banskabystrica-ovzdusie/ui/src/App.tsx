@@ -12,9 +12,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
-import type { GeoJSONSource, StyleSpecification } from "maplibre-gl";
+import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { endpointSource, EntityHistory, Grid, Header, Page, SourceError, Split, transportFor, useClient } from "@joinedcontext/sdk";
+import { endpointSource, EntityHistory, Grid, Header, Page, SourceError, Split, styleFor, transportFor, useClient } from "@joinedcontext/sdk";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
 import { BAND_COLOUR, bandOf, stationsOf } from "./stations";
 import type { Band, Station } from "./stations";
@@ -31,24 +31,6 @@ const LIMIT = 200;
 const BANSKA_BYSTRICA: [number, number] = [19.1462, 48.7359];
 
 const SOURCE_ID = "stations";
-
-/**
- * A keyless raster basemap with its attribution, so the screen runs on a cluster with no map
- * account and no key anywhere in the manifest.
- */
-const STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
 
 type Load =
   | { status: "loading" }
@@ -189,6 +171,9 @@ function StationMap({
   onPick: (id: string) => void;
   s: Strings;
 }) {
+  // The basemap is the platform's, named in the document the Portal served; the app names no tile
+  // host of its own, which the app's policy would refuse anyway (AP-67, AP-12).
+  const { basemap } = useClient().config;
   const holder = useRef<HTMLDivElement | null>(null);
   const map = useRef<MapLibreMap | null>(null);
   const ready = useRef(false);
@@ -197,7 +182,7 @@ function StationMap({
 
   useEffect(() => {
     if (!holder.current || map.current) return;
-    const drawn = new MapLibreMap({ container: holder.current, style: STYLE, center: centre, zoom: 11 });
+    const drawn = new MapLibreMap({ container: holder.current, style: styleFor(basemap), center: centre, zoom: 11 });
     drawn.on("load", () => {
       ready.current = true;
       drawn.addSource(SOURCE_ID, { type: "geojson", data: collection });
@@ -238,6 +223,7 @@ function StationMap({
       {/* The map is a picture of the list below it, which carries the same stations in text and
           is what a screen reader reads (UI-15); the map itself pans and zooms by keyboard. */}
       <div className="jc-map-canvas" ref={holder} data-testid="jc-map" role="application" aria-label={s.mapLabel} />
+      {!basemap && <p className="jc-map-notice">{s.noBasemap}</p>}
     </div>
   );
 }

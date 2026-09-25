@@ -443,6 +443,32 @@ export function ConversationPanel({
     foot.current?.scrollIntoView?.({ block: "nearest" });
   }, [events.length]);
 
+  // A turn that ended without an answer (T-2772): its reason is the newest line, and the way on
+  // is the same message sent again in this conversation, one press.
+  const newest = events.length > 0 ? events[events.length - 1] : undefined;
+  const unanswered =
+    newest?.kind === "thought" && newest.payload.failed === true
+      ? ([...events]
+          .reverse()
+          .find(
+            (event) =>
+              event.kind === "message" && event.payload.sentBy !== "agent" && typeof event.payload.text === "string",
+          )?.payload.text as string | undefined)
+      : undefined;
+  const endedBecause = [...events]
+    .reverse()
+    .find((event) => event.kind === "status" && typeof event.payload.reason === "string" && event.payload.reason !== "")
+    ?.payload.reason as string | undefined;
+  const sendAgain = (text: string): void => {
+    setFailed(null);
+    const answer = onSend(text);
+    if (answer && typeof (answer as Promise<unknown>).then === "function") {
+      void (answer as Promise<unknown>).catch((error: unknown) =>
+        setFailed(error instanceof Error ? error.message : t("app.error.generic")),
+      );
+    }
+  };
+
   const send = (): void => {
     const text = draft.trim();
     if (text === "" || sending) {
@@ -656,6 +682,20 @@ export function ConversationPanel({
             which is the reset without a clock read during the render (T-1761). */}
         <StallNotice key={events.length} working={working} onCancel={onCancel} onRetry={onRetry} />
 
+        {live && unanswered !== undefined && unanswered.trim() !== "" ? (
+          <Alert
+            tone="warning"
+            className="mt-2"
+            actions={
+              <Button variant="primary" size="xs" disabled={sending} onClick={() => sendAgain(unanswered)}>
+                {t("agentRun.conversation.tryAgain")}
+              </Button>
+            }
+          >
+            {t("agentRun.conversation.unanswered")}
+          </Alert>
+        ) : null}
+
         {questions.map((question) => (
           <div
             key={question.questionId}
@@ -733,7 +773,14 @@ export function ConversationPanel({
         </form>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3">
-          <p className="text-sm text-fg-muted">{t("agentRun.conversation.closed")}</p>
+          <div className="text-sm text-fg-muted">
+            <p>{t("agentRun.conversation.closed")}</p>
+            {/* Who or what ended it, as the Portal said on the status (T-2772): a conversation
+                that says only "cancelled" between two steps leaves the person guessing. */}
+            {endedBecause !== undefined ? (
+              <p data-testid="ended-because">{t("agentRun.conversation.endedBecause", { reason: endedBecause })}</p>
+            ) : null}
+          </div>
           {/* An ended run reads nothing more; without this the only way back to a working chat
               was the dock's close button, which nobody reads as "start again" (T-2463). */}
           {onNewConversation ? (
