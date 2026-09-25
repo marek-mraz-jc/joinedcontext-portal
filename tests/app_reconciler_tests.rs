@@ -23,6 +23,8 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: None,
         pull_secret: None,
+        release: Some("dev".into()),
+        service_account: Some("portal".into()),
     }
 }
 
