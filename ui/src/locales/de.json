@@ -3245,6 +3245,7 @@
       "keepOurs": "Aus der Kopie behalten",
       "takeTheirs": "Aus dem Projekt übernehmen",
       "update": "Aus dem Projekt aktualisieren",
+      "updated": "{count, plural, =0 {Die Kopie hat bereits alles, was das Projekt geändert hat.} one {Aus dem Projekt aktualisiert: # Datei übernommen.} other {Aus dem Projekt aktualisiert: # Dateien übernommen.}}",
       "updateBlocked": "Beantworten Sie vor dem Aktualisieren jedes Feld, das auch das Projekt geändert hat.",
       "propose": "Als eine Änderung vorschlagen",
       "proposeBlocked": "Lösen Sie die Dateien, die auch das Projekt geändert hat, bevor Sie die Kopie als eine Änderung vorschlagen.",
