@@ -1141,6 +1141,7 @@ impl Syncer {
         //     back replace the last run's, so a retired App's secret is gone with its client.
         if let Some(clients) = self.app_clients.as_ref() {
             let run = clients.converge(&fresh_mirror).await;
+            super::app_clients::record(&fresh_mirror, &run.outcomes);
             for outcome in &run.outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
