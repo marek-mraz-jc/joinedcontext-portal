@@ -59,6 +59,38 @@ export async function overlaps(page: Page, blocks: string = BLOCKS): Promise<str
   }, blocks);
 }
 
+/**
+ * Controls a person cannot fully see or reach because a box that hides its overflow cuts them
+ * off: a pager button pushed past the edge of a card, a save button wider than its panel. A
+ * scrolling box is not counted, since its content is one scroll away.
+ */
+export async function clippedControls(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const controls = document.querySelectorAll("button, input, select, textarea, a[href], [role='button'], [tabindex]:not([tabindex='-1'])");
+    const found: string[] = [];
+    for (const control of controls) {
+      const box = control.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0 || getComputedStyle(control).visibility === "hidden") continue;
+      for (let parent = control.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        const hides = ["hidden", "clip"];
+        // Inside a box that scrolls, the control is reachable however far out it sits.
+        if ([style.overflowX, style.overflowY].some((overflow) => overflow === "auto" || overflow === "scroll")) break;
+        if (!hides.includes(style.overflowX) && !hides.includes(style.overflowY)) continue;
+        const clip = parent.getBoundingClientRect();
+        // A one-pixel box that hides its overflow is how text is kept for a screen reader only.
+        if (clip.width <= 1 || clip.height <= 1) break;
+        if (box.left < clip.left - 1 || box.right > clip.right + 1 || box.top < clip.top - 1 || box.bottom > clip.bottom + 1) {
+          const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim().slice(0, 30);
+          found.push(`${control.tagName.toLowerCase()} "${name}" in ${parent.tagName.toLowerCase()}.${[...parent.classList].join(".")}`);
+          break;
+        }
+      }
+    }
+    return found;
+  });
+}
+
 /** Where axe-core sits, found from this module the way Node finds an import. */
 function axePath(): string {
   try {
@@ -109,8 +141,8 @@ export async function axeViolations(page: Page): Promise<string[]> {
 
 /**
  * Everything wrong with the page at the width it has: a sideways scroll, a table that scrolls
- * sideways on a phone (it should be cards there), overlapping blocks and axe violations. Empty
- * means the view passes.
+ * sideways on a phone (it should be cards there), overlapping blocks, controls a box cuts off and
+ * axe violations. Empty means the view passes.
  */
 export async function layoutProblems(page: Page, blocks: string = BLOCKS): Promise<string[]> {
   const problems: string[] = [];
@@ -126,6 +158,7 @@ export async function layoutProblems(page: Page, blocks: string = BLOCKS): Promi
     if (scrolling > 0) problems.push(`${scrolling} table(s) scroll sideways on a phone`);
   }
   for (const pair of await overlaps(page, blocks)) problems.push(`overlap: ${pair}`);
+  for (const control of await clippedControls(page)) problems.push(`cut off: ${control}`);
   for (const violation of await axeViolations(page)) problems.push(`axe ${violation}`);
   return problems;
 }
