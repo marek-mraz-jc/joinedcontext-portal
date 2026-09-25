@@ -1,9 +1,16 @@
-/* The components' classes, over the token variables the SDK sets from design-tokens.json. */
+/* The components' classes, over the token variables the SDK sets from design-tokens.json. Phone
+   first (T-2777, UI-84): each view works from 375 px up, and widens by the room it is given. */
+
+/* The page is the app: no margin around the shell, so a framed app has one scrollbar, the frame's. */
+body {
+  margin: 0;
+}
 
 .jc-shell {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--jc-font-body, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
   color: var(--jc-color-ink, #0f172a);
   background: var(--jc-color-surface, #ffffff);
@@ -31,13 +38,18 @@
   font-weight: 700;
 }
 
+/* Many pages scroll sideways on a phone rather than pushing the page wider than the screen. */
 .jc-header nav {
   display: flex;
   gap: var(--jc-space-1, 0.25rem);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .jc-header nav button {
   all: unset;
+  flex: none;
   cursor: pointer;
   padding: var(--jc-space-2, 0.5rem) var(--jc-space-3, 0.75rem);
   border-bottom: 2px solid transparent;
@@ -60,6 +72,7 @@
   flex: 1;
   padding: var(--jc-space-4, 1rem);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-space-4, 1rem);
   align-content: start;
 }
@@ -93,6 +106,7 @@
 }
 
 .jc-table-wrap {
+  container-type: inline-size;
   overflow-x: auto;
   border: 1px solid var(--jc-color-line, #e2e8f0);
   border-radius: var(--jc-radius-md, 6px);
@@ -179,7 +193,7 @@
 
 .jc-detail dl {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   gap: var(--jc-space-2, 0.5rem) var(--jc-space-4, 1rem);
   margin: 0;
 }
@@ -225,10 +239,32 @@
 }
 
 .jc-form {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--jc-space-3, 0.75rem);
-  max-width: 32rem;
+  max-width: 120rem;
+}
+
+/* One column on a phone, two from 40rem of the form's own width, three from 100rem (a form at
+   1800 px and wider). */
+.jc-form-fields {
+  display: grid;
+  gap: var(--jc-space-3, 0.75rem) var(--jc-space-4, 1rem);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@container (width >= 40rem) {
+  .jc-form-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (width >= 100rem) {
+  .jc-form-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .jc-field {
@@ -241,6 +277,15 @@
   font-size: var(--jc-font-size-sm, 0.75rem);
   color: var(--jc-color-muted, #64748b);
   font-weight: 500;
+}
+
+/* One input per language of a LanguageProperty, stacked under the field's name. */
+.jc-field .jc-languages {
+  display: grid;
+  gap: var(--jc-space-1, 0.25rem);
+  font-size: inherit;
+  color: inherit;
+  font-weight: inherit;
 }
 
 .jc-field-error {
@@ -275,11 +320,17 @@
   margin-bottom: var(--jc-space-2, 0.5rem);
 }
 
+/* Its height follows its width, within what a screen can show; a `height` prop overrides it. */
 .jc-chart-canvas {
   width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 14rem;
+  max-height: 28rem;
 }
 
+/* The map fills the width; its height follows the window unless a `height` prop sets it. */
 .jc-map {
+  height: clamp(18rem, 60vh, 44rem);
   position: relative;
   border: 1px solid var(--jc-color-line, #e2e8f0);
   border-radius: var(--jc-radius-md, 6px);
@@ -359,10 +410,89 @@
   outline-offset: 1px;
 }
 
+/* A table narrower than 36rem shows each row as a card of label and value; the header row stays,
+   as a line of sort buttons, so sorting still works. */
+@container (width < 36rem) {
+  .jc-table,
+  .jc-table tbody,
+  .jc-table tr,
+  .jc-table td {
+    display: block;
+  }
+  .jc-table thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--jc-space-1, 0.25rem);
+    padding: var(--jc-space-2, 0.5rem);
+    background: var(--jc-color-card, #f8fafc);
+    border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+  }
+  .jc-table thead th {
+    position: static;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+  .jc-table thead th button {
+    padding: var(--jc-space-1, 0.25rem) var(--jc-space-2, 0.5rem);
+    border: 1px solid var(--jc-color-line, #e2e8f0);
+    border-radius: var(--jc-radius-sm, 4px);
+  }
+  .jc-table tbody tr {
+    padding: var(--jc-space-2, 0.5rem) var(--jc-space-3, 0.75rem);
+    border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+  }
+  .jc-table td {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: var(--jc-space-2, 0.5rem);
+    padding: var(--jc-space-1, 0.25rem) 0;
+    border: none;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .jc-table td::before {
+    content: attr(data-label);
+    color: var(--jc-color-muted, #64748b);
+    font-size: var(--jc-font-size-sm, 0.75rem);
+    font-weight: 500;
+  }
+}
+
+/* A finger, or a phone's width: every control at least 44 px tall, the map's buttons 44 px square. */
+@media (pointer: coarse), (width < 40rem) {
+  .jc-shell :is(button, select, input:not([type="checkbox"], [type="radio"])),
+  .jc-header nav button {
+    min-height: var(--jc-target, 2.75rem);
+  }
+  .jc-header nav button {
+    display: inline-flex;
+    align-items: center;
+  }
+  .jc-table thead th button {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--jc-target, 2.75rem);
+  }
+  .jc-map .maplibregl-ctrl-group button {
+    width: var(--jc-target, 2.75rem);
+    height: var(--jc-target, 2.75rem);
+  }
+}
+
 @media (max-width: 40rem) {
   .jc-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .jc-header nav {
+    width: 100%;
+  }
+  .jc-detail dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jc-detail dd {
+    margin-bottom: var(--jc-space-2, 0.5rem);
   }
   .jc-filterbar {
     flex-direction: column;

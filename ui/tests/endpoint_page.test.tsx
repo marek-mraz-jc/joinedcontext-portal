@@ -261,8 +261,12 @@ describe("the endpoint's own settings page", () => {
     // What it answers, and what it keeps back.
     expect(screen.getByRole("link", { name: "ngsi-ld" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "geojson" })).toBeInTheDocument();
-    expect(screen.getByText("AirQualityObserved")).toBeInTheDocument();
-    expect(screen.getByText("reportedBy")).toBeInTheDocument();
+    // Read in its own section: the filter editor further down names the type as well (T-2776).
+    const answers = screen
+      .getByRole("heading", { name: en.endpoints.page.whatItAnswers })
+      .closest("section") as HTMLElement;
+    expect(within(answers).getByText("AirQualityObserved")).toBeInTheDocument();
+    expect(within(answers).getByText("reportedBy")).toBeInTheDocument();
 
     // Who may call it: the policy the URN names, what it grants, and to whom (T-2282, GW34).
     expect(screen.getByRole("link", { name: "readers" })).toBeInTheDocument();

@@ -7,6 +7,7 @@
  * the authoritative artifacts come from Model Tools (DM-18).
  */
 import { parseDocument, type Document } from "yaml";
+import { unitOf } from "../../units";
 
 /** The NGSI-LD kinds a slot may declare (DM-05), in the annotation Model Tools reads. */
 export const NGSI_LD_KINDS = [
@@ -43,48 +44,6 @@ export const RESERVED_NAMESPACES = [
 
 /** A slot carrying this annotation cites an upstream term, so a reserved IRI is a citation. */
 export const UPSTREAM_ANNOTATION = "upstream_source";
-
-/**
- * UN/CEFACT common codes for the units a municipal model actually measures in (DM-06).
- *
- * The full CEFACT recommendation 20 is thousands of codes; this is the working set the unit
- * picker offers, and any other code can still be typed. `ucum` is what LinkML's `unit.ucum_code`
- * takes, `code` is the CEFACT common code that travels in `exact_mappings`, and `qudt` and
- * `quantityKind` are the anchor beside it (DM-59): the IRI a federated reader dereferences, and
- * the dimension that lets two organisations' measurements be aligned rather than two opaque
- * codes compared.
- *
- * This is the crosswalk, and it is here because here is where a person picks a unit; the model
- * records the choice and every generator reads the model. Model Tools keeps the same table for
- * the one path with no person in it — inferring a model from a sample —
- * (`tools/model-tools/src/infer_schema.py`, `UNIT_UCUM` and `UNIT_QUDT`, in the other
- * repository). Nothing can compare the two from inside one checkout, so a code added here
- * belongs there in the same change. Both were read out of QUDT's own vocabulary by
- * `qudt:ucumCode`, never written from memory: `ug/m3` is `MassDensity` to QUDT, not the
- * `MassConcentration` a person would guess.
- */
-export const UNIT_CODES = [
-  { code: "GQ", ucum: "ug/m3", label: "microgram per cubic metre", qudt: "MicroGM-PER-M3", quantityKind: "MassDensity" },
-  { code: "M1", ucum: "mg/L", label: "milligram per litre", qudt: "MilliGM-PER-L", quantityKind: "MassConcentration" },
-  { code: "CEL", ucum: "Cel", label: "degree Celsius", qudt: "DEG_C", quantityKind: "Temperature" },
-  { code: "P1", ucum: "%", label: "percent", qudt: "PERCENT", quantityKind: "DimensionlessRatio" },
-  { code: "MTR", ucum: "m", label: "metre", qudt: "M", quantityKind: "Length" },
-  { code: "KMT", ucum: "km", label: "kilometre", qudt: "KiloM", quantityKind: "Length" },
-  { code: "MTS", ucum: "m/s", label: "metre per second", qudt: "M-PER-SEC", quantityKind: "Speed" },
-  { code: "KMH", ucum: "km/h", label: "kilometre per hour", qudt: "KiloM-PER-HR", quantityKind: "LinearVelocity" },
-  { code: "SEC", ucum: "s", label: "second", qudt: "SEC", quantityKind: "Time" },
-  { code: "HUR", ucum: "h", label: "hour", qudt: "HR", quantityKind: "Time" },
-  { code: "KGM", ucum: "kg", label: "kilogram", qudt: "KiloGM", quantityKind: "Mass" },
-  { code: "TNE", ucum: "t", label: "tonne", qudt: "TONNE", quantityKind: "Mass" },
-  { code: "LTR", ucum: "L", label: "litre", qudt: "L", quantityKind: "Volume" },
-  { code: "MTQ", ucum: "m3", label: "cubic metre", qudt: "M3", quantityKind: "Volume" },
-  { code: "KWH", ucum: "kW.h", label: "kilowatt hour", qudt: "KiloW-HR", quantityKind: "Energy" },
-  { code: "WTT", ucum: "W", label: "watt", qudt: "W", quantityKind: "Power" },
-  { code: "A24", ucum: "cd/m2", label: "candela per square metre", qudt: "CD-PER-M2", quantityKind: "Luminance" },
-  { code: "2N", ucum: "dB", label: "decibel", qudt: "DeciB", quantityKind: "SoundPressureLevel" },
-  { code: "HPA", ucum: "hPa", label: "hectopascal", qudt: "HectoPA", quantityKind: "ForcePerArea" },
-  { code: "C62", ucum: "1", label: "one (dimensionless)", qudt: "NUM", quantityKind: "Dimensionless" },
-] as const;
 
 /** The LinkML ranges the editor offers, and how a dashboard may use each of them (DM-20). */
 export const RANGES = [
@@ -127,6 +86,12 @@ export interface LinkmlSlot {
   maximum_value?: number;
   /** The profiles this slot belongs to, as LinkML `subsets`: which of them a projection takes. */
   subsets?: string[];
+  /** The other end of a relationship, as LinkML `inverse` (DM-64). */
+  inverse?: string;
+  /** Whether the target is written inside the entity; a relationship never is (DM-64). */
+  inlined?: boolean;
+  /** The delete rule a relationship's source end carries, as written (DM-66). */
+  on_delete?: string;
 }
 
 export interface LinkmlClass {
@@ -190,6 +155,8 @@ export interface Diagnostic {
   message: string;
   /** What the message is about, so the structured view can point at the same thing. */
   path?: string;
+  /** The relationship rule it breaks, the identifier the server and Model Tools use (DM-68). */
+  rule?: RelationshipRule;
 }
 
 export const EMPTY_MODEL: LinkmlModel = {
@@ -275,6 +242,9 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     minimum_value: typeof raw.minimum_value === "number" ? raw.minimum_value : undefined,
     subsets: names(raw.subsets),
     maximum_value: typeof raw.maximum_value === "number" ? raw.maximum_value : undefined,
+    inverse: text(raw.inverse),
+    inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
+    on_delete: text(annotated.on_delete),
   };
 }
 
@@ -397,7 +367,11 @@ export function reservedNamespace(
  * `locales` are the organisation's configured languages; a title missing one of them is a
  * warning here and a block at publish time (DM-15).
  */
-export function diagnose(source: string, locales: string[] = []): Diagnostic[] {
+export function diagnose(
+  source: string,
+  locales: string[] = [],
+  imported: Record<string, LinkmlModel> = {},
+): Diagnostic[] {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
     return document.errors.map((error) => ({
@@ -493,17 +467,30 @@ export function diagnose(source: string, locales: string[] = []): Diagnostic[] {
         path: `slots.${slot.name}`,
       });
     }
-    if (slot.unit && !slot.unit.ucum_code && !unitCode(slot.unit)) {
-      found.push({
-        ...where,
-        severity: "warning",
-        message: `slot '${slot.name}' declares a unit without a UN/CEFACT common code, so exports and dashboards cannot label it`,
-        path: `slots.${slot.name}`,
-      });
-    }
+    found.push(...unitProblems(slot, where));
     found.push(
       ...missingLocales(slot.title, locales, `slot '${slot.name}'`, where, `slots.${slot.name}`),
     );
+  }
+
+  // One IRI means one thing: two slots bound to it in different units would put two numbers
+  // for the same measurement on the wire, and a federated reader could not tell which is right.
+  const unitsByIri = new Map<string, LinkmlSlot>();
+  for (const slot of model.slots) {
+    const code = unitCode(slot.unit);
+    if (!slot.slot_uri || code === undefined) continue;
+    const first = unitsByIri.get(slot.slot_uri);
+    const firstCode = unitCode(first?.unit);
+    if (first === undefined) {
+      unitsByIri.set(slot.slot_uri, slot);
+    } else if (firstCode !== code) {
+      found.push({
+        ...at(["slots", slot.name]),
+        severity: "error",
+        message: `slots '${first.name}' and '${slot.name}' are both bound to '${slot.slot_uri}' but measure in ${firstCode ?? ""} and ${code}; one IRI takes one unit`,
+        path: `slots.${slot.name}`,
+      });
+    }
   }
 
   // The annotation is free text in YAML, so a typo would only surface at generation.
@@ -519,13 +506,89 @@ export function diagnose(source: string, locales: string[] = []): Diagnostic[] {
     }
   }
 
+  // Relationships are strict (DM-68): every broken rule is an error that blocks Save, and the
+  // server refuses the same list through Model Tools, so this is the early copy, not the gate.
+  const { problems, unverified } = relationshipsOf(model, imported);
+  for (const problem of problems) {
+    found.push({
+      ...at(problem.path.split(".")),
+      severity: "error",
+      message: problem.message,
+      path: problem.path,
+      rule: problem.rule,
+    });
+  }
+  for (const [path, range] of unverified) {
+    found.push({
+      ...at(path.split(".")),
+      severity: "warning",
+      message: `${path.split(".").pop()} points at '${range}', which is no class of this model; the imports it may come from are not loaded here, so saving checks it`,
+      path,
+    });
+  }
   return found;
 }
 
-/** The CEFACT common code a unit carries in `exact_mappings`, per DM-06. */
+/**
+ * The CEFACT common code a unit carries in `exact_mappings` (DM-06): the `ucefact:` mapping,
+ * whichever position it has, and the `unece:` spelling older models used.
+ */
 export function unitCode(unit: LinkmlUnit | undefined): string | undefined {
-  const mapping = unit?.exact_mappings?.find((entry) => entry.includes(":"));
-  return mapping?.split(":").pop() || undefined;
+  const mapping = unit?.exact_mappings?.find((entry) => /^(ucefact|unece):/.test(entry));
+  return mapping?.slice(mapping.indexOf(":") + 1) || undefined;
+}
+
+const NUMERIC_RANGES = ["integer", "float", "double", "decimal"];
+
+/**
+ * A slot name that reads as a measured quantity (DM-06): a number of such a slot without a unit
+ * is a number nobody can compare. A heuristic, so what it finds is a warning.
+ */
+const QUANTITY_NAME =
+  /temperature|concentration|speed|velocity|pressure|humidity|precipitation|rainfall|distance|length|height|depth|width|weight|mass|energy|power|volume|duration|flow|level|pm10|pm25|pm2_5|no2|so2|co2|o3/i;
+
+/** What is wrong with a slot's unit, if anything (DM-06, DM-59). */
+function unitProblems(slot: LinkmlSlot, where: Pick<Diagnostic, "line" | "column">): Diagnostic[] {
+  const path = `slots.${slot.name}`;
+  const code = unitCode(slot.unit);
+  const numeric = NUMERIC_RANGES.includes(slot.range ?? "");
+  if (slot.unit === undefined) {
+    return numeric && slot.kind === "Property" && QUANTITY_NAME.test(slot.name)
+      ? [
+          {
+            ...where,
+            severity: "warning",
+            message: `slot '${slot.name}' is a number that reads as a measured quantity but declares no unit; pick one, or every reader guesses`,
+            path,
+          },
+        ]
+      : [];
+  }
+  const found: Diagnostic[] = [];
+  if (code === undefined) {
+    found.push({
+      ...where,
+      severity: "warning",
+      message: `slot '${slot.name}' declares a unit without a UN/CEFACT common code, so exports and dashboards cannot label it`,
+      path,
+    });
+  } else if (unitOf(code) === undefined) {
+    found.push({
+      ...where,
+      severity: "error",
+      message: `slot '${slot.name}' declares unit '${code}', which is not a UN/CEFACT Recommendation 20 code; pick one from the unit list`,
+      path,
+    });
+  }
+  if (!numeric) {
+    found.push({
+      ...where,
+      severity: "error",
+      message: `slot '${slot.name}' declares a unit but its range is '${slot.range ?? "string"}'; a unit belongs on a number (integer, float, double or decimal)`,
+      path,
+    });
+  }
+  return found;
 }
 
 function missingLocales(
@@ -824,9 +887,23 @@ export interface GraphNode {
 export interface GraphEdge {
   from: string;
   to: string;
-  kind: "is_a" | "mixin" | "range" | "enum";
-  /** The slot whose range draws the line, for a `range` or an `enum` edge. */
+  kind: "is_a" | "mixin" | "range" | "enum" | "relationship";
+  /** The slot whose range draws the line, for a `range` or an `enum` edge; a relationship's source slot. */
   label?: string;
+  /** A relationship's other end: the slot on `to` pointing back (DM-64). */
+  inverse?: string;
+  cardinality?: Cardinality;
+  /** How many `from` entities one `to` entity is joined to, and the other way round (DM-65). */
+  fromMultiplicity?: Multiplicity;
+  toMultiplicity?: Multiplicity;
+}
+
+export type Multiplicity = "1" | "0..1" | "1..*" | "*";
+
+/** How many entities of the other class one end holds: its `multivalued` and `required` flags. */
+export function multiplicity(end: RelationshipEnd): Multiplicity {
+  if (end.required) return end.multivalued ? "1..*" : "1";
+  return end.multivalued ? "*" : "0..1";
 }
 
 /**
@@ -874,6 +951,9 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     });
   }
 
+  // A relationship is one line, not one per end; its ends draw no `range` line of their own.
+  const pairs = relationshipsOf(model).relationships;
+  const ends = new Set(pairs.flatMap((pair) => [pair.source, pair.target].map((end) => `${end.class}.${end.slot}`)));
   const edges: GraphEdge[] = [];
   for (const klass of model.classes) {
     if (klass.is_a !== undefined && byName.has(klass.is_a)) {
@@ -885,6 +965,9 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       }
     }
     for (const slot of classSlots(model, klass)) {
+      if (ends.has(`${klass.name}.${slot.name}`)) {
+        continue;
+      }
       if (slot.range !== undefined && byName.has(slot.range)) {
         edges.push({ from: klass.name, to: slot.range, kind: "range", label: slot.name });
       } else if (slot.range !== undefined && enumNames.has(slot.range)) {
@@ -892,5 +975,285 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       }
     }
   }
+  for (const pair of pairs) {
+    edges.push({
+      from: pair.source.class,
+      to: pair.target.class,
+      kind: "relationship",
+      label: pair.source.slot,
+      inverse: pair.target.slot,
+      cardinality: pair.cardinality,
+      // At the target's end of the line: how many targets one source holds, and back.
+      toMultiplicity: multiplicity(pair.source),
+      fromMultiplicity: multiplicity(pair.target),
+    });
+  }
   return { nodes, edges };
+}
+
+/** What happens to the entities referencing one that is deleted (DM-66); `restrict` by default. */
+export const ON_DELETE_RULES = ["restrict", "cascade", "set-null"] as const;
+export type OnDelete = (typeof ON_DELETE_RULES)[number];
+
+/** Read from the source class to the target class (DM-65). */
+export const CARDINALITIES = ["one-to-one", "one-to-many", "many-to-one", "many-to-many"] as const;
+export type Cardinality = (typeof CARDINALITIES)[number];
+
+/** The rule identifiers of Architecture/11 §1.2, shared with the save route and Model Tools. */
+export type RelationshipRule =
+  | "range-not-a-class"
+  | "class-range-not-relationship"
+  | "primitive-range"
+  | "inverse-missing"
+  | "inverse-not-reciprocal"
+  | "slot-in-two-relationships"
+  | "required-on-computed-end"
+  | "on-delete-unknown"
+  | "on-delete-on-both-ends";
+
+/** One end of a relationship: the class, its slot and what the slot says of the other class. */
+export interface RelationshipEnd {
+  class: string;
+  slot: string;
+  multivalued: boolean;
+  required: boolean;
+}
+
+/** A relationship whose two ends agree (DM-64): what the editor, the diagram and forms read. */
+export interface Relationship {
+  source: RelationshipEnd;
+  target: RelationshipEnd;
+  cardinality: Cardinality;
+  onDelete: OnDelete;
+  /** The end whose entities hold the NGSI-LD Relationship; the other is a query (DM-67). */
+  stored: "source" | "target";
+}
+
+export interface RelationshipProblem {
+  rule: RelationshipRule;
+  /** `slots.{name}`, or `classes.{class}.attributes.{name}` for an inline slot. */
+  path: string;
+  message: string;
+}
+
+/** The cardinality two `multivalued` flags make, read from the source (DM-65). */
+export function cardinalityOf(sourceMany: boolean, targetMany: boolean): Cardinality {
+  if (sourceMany) return targetMany ? "many-to-many" : "one-to-many";
+  return targetMany ? "many-to-one" : "one-to-one";
+}
+
+/** The two `multivalued` flags of a cardinality: the source slot's and the target slot's. */
+export function flagsOf(cardinality: Cardinality): { source: boolean; target: boolean } {
+  return {
+    source: cardinality === "one-to-many" || cardinality === "many-to-many",
+    target: cardinality === "many-to-one" || cardinality === "many-to-many",
+  };
+}
+
+/** Where a foreign key would be: the "many" side, or the source of 1:1 and N:M (DM-67). */
+export function storedEnd(cardinality: Cardinality): "source" | "target" {
+  return cardinality === "one-to-many" ? "target" : "source";
+}
+
+/** The shipped import every model may name, and the class it brings (DM-09). */
+const CORE_IMPORT = "ngsi-ld-core";
+
+/** A slot where one class has it: listed or inline, with its `slot_usage` applied. */
+interface Placed {
+  owner: string;
+  slot: LinkmlSlot;
+  path: string;
+  /** Declaration order, which decides the source of a pair no `on_delete` marks (DM-64). */
+  order: number;
+}
+
+/**
+ * Every relationship of the model and every rule it breaks (DM-64…DM-69).
+ *
+ * `imported` are the models the model imports, by import name, as far as the caller has them.
+ * A range naming no class the model can see is an error when every import is in hand, and is
+ * returned as `unverified` otherwise: the save route resolves the imports and decides.
+ */
+export function relationshipsOf(
+  model: LinkmlModel,
+  imported: Record<string, LinkmlModel> = {},
+): { relationships: Relationship[]; problems: RelationshipProblem[]; unverified: [string, string][] } {
+  const all = withImports(model, imported);
+  const classes = new Set(all.classes.map((klass) => klass.name));
+  const imports = (model.imports ?? []).map(importName).filter((name): name is string => name !== undefined);
+  if (imports.includes(CORE_IMPORT)) classes.add("Entity");
+  const complete = imports.every((name) => name === CORE_IMPORT || imported[name] !== undefined);
+  const enums = new Set(all.enums.map((entry) => entry.name));
+  const primitives = new Set<string>(RANGES);
+
+  // Where each slot sits. A declared slot listed by two classes is one slot with two owners.
+  const declaredOrder = new Map(model.slots.map((slot, index) => [slot.name, index]));
+  const listedBy = new Map<string, string[]>();
+  for (const klass of model.classes) {
+    for (const name of klass.slots) listedBy.set(name, [...(listedBy.get(name) ?? []), klass.name]);
+  }
+  const placedIn = (klass: LinkmlClass, order: (name: string, inline: boolean) => number): Placed[] =>
+    classSlots(all, klass).map((slot) => {
+      const inline = !klass.slots.includes(slot.name);
+      return {
+        owner: klass.name,
+        slot,
+        path: inline ? `classes.${klass.name}.attributes.${slot.name}` : `slots.${slot.name}`,
+        order: order(slot.name, inline),
+      };
+    });
+  let inlineOrder = model.slots.length;
+  const own: Placed[] = model.classes.flatMap((klass) =>
+    placedIn(klass, (name, inline) => (inline ? inlineOrder++ : (declaredOrder.get(name) ?? 0))),
+  );
+  const endOn = (klass: string, name: string): Placed | undefined => {
+    const holder = all.classes.find((one) => one.name === klass);
+    return holder === undefined ? undefined : placedIn(holder, () => Number.MAX_SAFE_INTEGER).find((one) => one.slot.name === name);
+  };
+
+  const problems: RelationshipProblem[] = [];
+  const unverified: [string, string][] = [];
+  const relationships: Relationship[] = [];
+  const seen = new Set<string>();
+  const reported = new Set<string>();
+  const problem = (rule: RelationshipRule, path: string, message: string) => {
+    const key = `${rule}|${path}`;
+    if (!reported.has(key)) {
+      reported.add(key);
+      problems.push({ rule, path, message });
+    }
+  };
+
+  for (const end of own) {
+    const { slot, owner, path } = end;
+    const range = slot.range;
+    const classRange = range !== undefined && classes.has(range);
+    if (slot.kind !== "Relationship") {
+      // A nested value's class describes its shape (the importer's `address`), no entity (DM-68).
+      if (classRange && slot.kind !== "JsonProperty" && slot.inlined !== true) {
+        problem(
+          "class-range-not-relationship",
+          path,
+          `${slot.name} on ${owner} points at the class ${range} but is a ${slot.kind}; a slot whose range is a class is a Relationship`,
+        );
+      }
+      continue;
+    }
+    // An external reference: the id of an entity outside the model, with nothing to check.
+    if (range === undefined || range === "uriorcurie") {
+      if (slot.inverse !== undefined) {
+        problem(
+          "range-not-a-class",
+          path,
+          `${slot.name} on ${owner} names the inverse ${slot.inverse} but its range is no class; name the class it points at`,
+        );
+      }
+      continue;
+    }
+    if (primitives.has(range) || enums.has(range)) {
+      problem(
+        "primitive-range",
+        path,
+        `${slot.name} on ${owner} is a Relationship with the range ${range}; a Relationship points at a class, or at uriorcurie for an entity outside the model`,
+      );
+      continue;
+    }
+    if (!classRange) {
+      if (complete) {
+        problem("range-not-a-class", path, `${slot.name} on ${owner} points at ${range}, which is no class of this model or of its imports`);
+      } else {
+        unverified.push([path, range]);
+      }
+      continue;
+    }
+    if (slot.on_delete !== undefined && !(ON_DELETE_RULES as readonly string[]).includes(slot.on_delete)) {
+      problem("on-delete-unknown", path, `${slot.name} on ${owner} has on_delete '${slot.on_delete}'; it is one of ${ON_DELETE_RULES.join(", ")}`);
+    }
+    if (!path.startsWith("classes.") && (listedBy.get(slot.name) ?? []).length > 1) {
+      problem(
+        "slot-in-two-relationships",
+        path,
+        `${slot.name} is used by ${(listedBy.get(slot.name) ?? []).join(" and ")}, so it would be an end of two relationships; give each class a slot of its own`,
+      );
+      continue;
+    }
+    if (slot.inverse === undefined) {
+      problem(
+        "inverse-missing",
+        path,
+        `${slot.name} (${owner} → ${range}) names no inverse; add the slot on ${range} that points back`,
+      );
+      continue;
+    }
+    const other = endOn(range, slot.inverse);
+    if (other === undefined) {
+      const holder = all.classes.find((one) => one.name === range);
+      problem(
+        "inverse-missing",
+        path,
+        holder?.from !== undefined
+          ? `${slot.name} names the inverse ${slot.inverse}, which ${range} from ${holder.from} does not have; declare the relationship in that model, or make ${slot.name} an external reference`
+          : `${slot.name} names the inverse ${slot.inverse}, which ${range} does not have`,
+      );
+      continue;
+    }
+    if (other.slot.name === slot.name && other.owner === owner) {
+      problem("inverse-not-reciprocal", path, `${slot.name} names itself as its inverse; the other end is a slot of its own`);
+      continue;
+    }
+    if (other.slot.kind !== "Relationship" || other.slot.range !== owner || other.slot.inverse !== slot.name) {
+      problem(
+        "inverse-not-reciprocal",
+        path,
+        `${slot.name} (${owner} → ${range}) names ${range}.${slot.inverse} as its inverse, which ${
+          other.slot.kind !== "Relationship"
+            ? "is not a Relationship"
+            : other.slot.range !== owner
+              ? `points at ${other.slot.range ?? "nothing"}, not at ${owner}`
+              : `names ${other.slot.inverse ?? "no inverse"} back, not ${slot.name}`
+        }`,
+      );
+      continue;
+    }
+    const key = [`${owner}.${slot.name}`, `${range}.${other.slot.name}`].sort().join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const otherOrder = own.find((one) => one.owner === range && one.slot.name === other.slot.name)?.order ?? Number.MAX_SAFE_INTEGER;
+    if (slot.on_delete !== undefined && other.slot.on_delete !== undefined) {
+      problem(
+        "on-delete-on-both-ends",
+        path,
+        `both ${slot.name} and ${other.slot.name} carry on_delete; it goes on the source end only`,
+      );
+      continue;
+    }
+    const thisIsSource =
+      slot.on_delete !== undefined || (other.slot.on_delete === undefined && end.order <= otherOrder);
+    const [source, target] = thisIsSource ? [end, other] : [other, end];
+    const cardinality = cardinalityOf(source.slot.multivalued === true, target.slot.multivalued === true);
+    const stored = storedEnd(cardinality);
+    const computed = stored === "source" ? target : source;
+    if (computed.slot.required) {
+      problem(
+        "required-on-computed-end",
+        computed.path,
+        `${computed.slot.name} on ${computed.owner} is computed from ${(stored === "source" ? source : target).slot.name} and cannot be required; make the stored end required instead`,
+      );
+    }
+    const onDelete = (source.slot.on_delete ?? "restrict") as OnDelete;
+    relationships.push({
+      source: { class: source.owner, slot: source.slot.name, multivalued: source.slot.multivalued === true, required: source.slot.required === true },
+      target: { class: target.owner, slot: target.slot.name, multivalued: target.slot.multivalued === true, required: target.slot.required === true },
+      cardinality,
+      onDelete: (ON_DELETE_RULES as readonly string[]).includes(onDelete) ? onDelete : "restrict",
+      stored,
+    });
+  }
+  return { relationships, problems, unverified };
+}
+
+/** The relationships whose two ends agree; a broken one is a diagnostic, not a relationship. */
+export function relationships(model: LinkmlModel, imported: Record<string, LinkmlModel> = {}): Relationship[] {
+  return relationshipsOf(model, imported).relationships;
 }

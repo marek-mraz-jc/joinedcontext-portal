@@ -63,6 +63,10 @@ export interface GridLabels {
   review: string;
   apply: string;
   discard: string;
+  /** The review's column headers: which attribute, its stored value and the one about to be sent. */
+  attribute: string;
+  before: string;
+  after: string;
   observedKeep: string;
   observedNow: string;
   applying: string;
@@ -121,6 +125,9 @@ export const DEFAULT_LABELS: GridLabels = {
   review: "Review the changes",
   apply: "Apply",
   discard: "Discard the changes",
+  attribute: "Attribute",
+  before: "Before",
+  after: "After",
   observedKeep: "keep when each value was observed",
   observedNow: "these values were observed now",
   applying: "Applying…",

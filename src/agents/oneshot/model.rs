@@ -2,8 +2,27 @@
 
 use super::*;
 
-/// The pause before a model call that failed at a gateway is asked again.
+/// The pause before a model call the provider could not answer is asked again.
 const RETRY_AFTER_MS: u64 = 1000;
+/// The longest a provider's own `Retry-After` is waited for: a person waits in front of it.
+const RETRY_AFTER_MAX_MS: u64 = 5000;
+
+/// A status worth one more try (T-2772): busy, too early, timed out at a gateway, or failing for a
+/// moment. A refusal of the credentials or of the request is not.
+fn retryable(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 408 | 425 | 429 | 500 | 502 | 503 | 504)
+}
+
+/// How long to wait before the retry: the provider's `Retry-After` in seconds, at most
+/// [`RETRY_AFTER_MAX_MS`], else [`RETRY_AFTER_MS`].
+fn backoff(headers: &reqwest::header::HeaderMap) -> std::time::Duration {
+    let asked = headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .map(|seconds| seconds.saturating_mul(1000).min(RETRY_AFTER_MAX_MS));
+    std::time::Duration::from_millis(asked.unwrap_or(RETRY_AFTER_MS))
+}
 
 /// How often a streamed answer's words are written as a `partial` event: at most two a second
 /// (API/04 §4, ADR-N-032).
@@ -72,27 +91,44 @@ impl Driver {
     /// One POST to the proxy, asked once more when a gateway failed, answering the response
     /// only when it succeeded: a 402 is the key's credit, any other refusal says its status.
     async fn send_llm(&self, path: &str, body: &Value) -> Result<reqwest::Response, CallError> {
-        // A gateway that failed for a moment is asked once more before the person is told: on
-        // dev one 502 from the provider ended an answer and had the person send it again.
+        // A provider that was busy or failed for a moment is asked once more before the person
+        // is told: on dev one 502 ended an answer and had the person send it again, and a 429 or
+        // a dropped connection reads the same (T-2772). A call that timed out is not asked
+        // again: the person already waited the whole turn, and Try again is theirs to press.
         let mut tries = 0;
         let response = loop {
             tries += 1;
-            let response = self
+            let sent = self
                 .http
                 .post(format!("{}{path}", self.proxy_base))
                 .bearer_auth(&self.bearer)
                 .json(body)
                 .send()
-                .await
-                .map_err(|err| {
-                    CallError::Failed(format!(
-                        "the model call did not go through the proxy: {err}"
-                    ))
-                })?;
+                .await;
+            let response = match sent {
+                Ok(response) => response,
+                Err(err) if tries == 1 && !err.is_timeout() => {
+                    tracing::warn!(error = %err, "the model call did not go through; asking once more");
+                    tokio::time::sleep(std::time::Duration::from_millis(RETRY_AFTER_MS)).await;
+                    continue;
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "the model call did not go through the proxy");
+                    return Err(CallError::Failed(if err.is_timeout() {
+                        "the model service did not answer in time. Your question was not \
+                         answered and nothing was changed; send the message again in a moment."
+                            .to_owned()
+                    } else {
+                        "the model service could not be reached. Your question was not answered \
+                         and nothing was changed; send the message again in a moment."
+                            .to_owned()
+                    }));
+                }
+            };
             let status = response.status();
-            if tries == 1 && matches!(status.as_u16(), 502..=504) {
-                tracing::warn!(%status, "the model call failed at a gateway; asking once more");
-                tokio::time::sleep(std::time::Duration::from_millis(RETRY_AFTER_MS)).await;
+            if tries == 1 && retryable(status) {
+                tracing::warn!(%status, "the model provider could not answer; asking once more");
+                tokio::time::sleep(backoff(response.headers())).await;
                 continue;
             }
             break response;
@@ -735,6 +771,9 @@ impl Driver {
             .set_status(&self.run_id, status, None)
             .await
             .map_err(|err| err.to_string())?;
+        if status == AgentRunStatus::AwaitingApproval {
+            crate::api::agent_runs::lease_for_approval(&self.state, &self.run_id).await;
+        }
         self.event(
             "status",
             json!({ "status": status.as_str(), "timestamp": now_rfc3339() }),

@@ -482,28 +482,31 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
       {open && (
         <section className="jc-grid-review" aria-label={labels.review}>
-          <table>
-            <thead>
-              <tr>
-                <th>{labels.id}</th>
-                <th>{labels.filter}</th>
-                <th>{labels.observedKeep}</th>
-                <th>{labels.apply}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingChanges.flatMap((entity) =>
-                entity.changes.map((change) => (
-                  <tr key={`${entity.id}-${change.attribute}`}>
-                    <td title={entity.id}>{entity.id}</td>
-                    <td>{change.attribute}</td>
-                    <td>{change.before === undefined ? "—" : String(change.before)}</td>
-                    <td>{String(change.after)}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
+          {/* Scrolls sideways on a phone, so the keyboard can reach it as well (WCAG 2.1.1). */}
+          <div className="jc-grid-review-rows" tabIndex={0} role="group" aria-label={labels.review}>
+            <table>
+              <thead>
+                <tr>
+                  <th>{labels.id}</th>
+                  <th>{labels.attribute}</th>
+                  <th>{labels.before}</th>
+                  <th>{labels.after}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingChanges.flatMap((entity) =>
+                  entity.changes.map((change) => (
+                    <tr key={`${entity.id}-${change.attribute}`}>
+                      <td title={entity.id}>{entity.id}</td>
+                      <td>{change.attribute}</td>
+                      <td>{change.before === undefined ? "—" : String(change.before)}</td>
+                      <td>{String(change.after)}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          </div>
           {/* What happens to `observedAt`, chosen once for the batch: a corrected value that keeps
               the old timestamp claims to have been observed then (UI-67). */}
           <fieldset>

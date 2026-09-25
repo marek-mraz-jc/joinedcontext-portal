@@ -6,6 +6,11 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: process.env.JC_BASE_PATH ?? "/apps/air-quality/",
   plugins: [react()],
+  // `@joinedcontext/sdk` is linked from this repository and carries its own `react` in
+  // `sdk/node_modules`; deduping keeps one copy. Built from its own repository there is one anyway.
+  resolve: {
+    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+  },
   test: {
     globals: true,
     environment: "jsdom",

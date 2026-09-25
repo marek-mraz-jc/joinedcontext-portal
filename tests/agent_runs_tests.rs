@@ -2310,7 +2310,10 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(run["status"], json!("expired"));
-    assert_eq!(run["error"], json!("lease expired unattended"));
+    assert_eq!(
+        run["error"],
+        json!("the run's time ran out before it finished; start it again from the Apps page")
+    );
     assert!(run["finishedAt"].as_str().is_some());
 
     let (_, context) = internal_call(
@@ -2357,6 +2360,80 @@ async fn expired_runs_are_reaped_and_ticket_invalidated_while_live_runs_remain()
 
     let reaped_again = reaper::reap_expired(&state).await;
     assert_eq!(reaped_again, 0);
+}
+
+/// T-2772: a run that reached `awaiting_approval` waits on the approval's lease, days rather than
+/// the build's twenty minutes, so the reaper leaves it; once that lease runs out too, the run
+/// says what was lost and that its change stays open, on the record and on the stream.
+#[tokio::test]
+async fn a_run_waiting_for_approval_keeps_days_and_says_what_its_expiry_lost() {
+    let config = config();
+    let (state, app, internal) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let created = create_run(&app, &cookie).await;
+    let id = created["id"].as_str().expect("id").to_owned();
+
+    for status in [
+        "starting",
+        "building",
+        "testing",
+        "previewing",
+        "awaiting_approval",
+    ] {
+        let (code, answer) = internal_call(
+            &internal,
+            Some(proxy_bearer()),
+            Method::POST,
+            "/internal/agent-runs/events",
+            Some(json!({ "runId": id, "kind": "status", "payload": { "status": status } })),
+        )
+        .await;
+        assert_eq!(code, StatusCode::CREATED, "{status}: {answer}");
+    }
+    let run = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("store")
+        .expect("run");
+    assert_eq!(run.status, "awaiting_approval");
+    let lease = chrono::DateTime::parse_from_rfc3339(&run.expires_at).expect("an RFC 3339 lease");
+    assert!(
+        lease.with_timezone(&chrono::Utc) - chrono::Utc::now() > chrono::Duration::days(6),
+        "the approval lease is days: {}",
+        run.expires_at
+    );
+    assert_eq!(
+        reaper::reap_expired(&state).await,
+        0,
+        "a run inside its lease stays"
+    );
+
+    state
+        .agents
+        .set_expiry(&id, "2000-01-01T00:00:00Z")
+        .await
+        .expect("an old lease");
+    assert_eq!(reaper::reap_expired(&state).await, 1);
+    let (_, ended) = call(
+        &app,
+        &cookie,
+        Method::GET,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}"),
+        None,
+    )
+    .await;
+    assert_eq!(ended["status"], json!("expired"));
+    let error = ended["error"].as_str().unwrap_or_default();
+    assert!(error.contains("the change stays open"), "{error}");
+    let events = state.agents.events_since(&id, 0).await.expect("events");
+    let last = events
+        .iter()
+        .rev()
+        .find(|event| event.kind == "status")
+        .expect("a status event");
+    assert_eq!(last.payload["status"], "expired");
+    assert_eq!(last.payload["reason"], json!(error), "the stream says why");
 }
 
 #[tokio::test]
@@ -4555,4 +4632,164 @@ async fn a_person_who_is_not_a_journey_cannot_mark_a_run() {
     .await;
     assert_eq!(status, StatusCode::OK, "{listed}");
     assert!(ids(&listed).is_empty(), "{listed}");
+}
+
+/// AP-132, PF-70: a run's data needs are read against the caller's own `/access` document, which
+/// the context gateway answers for the caller's token; a need wider than it is refused, naming the
+/// operation, and a session with no token asks for no write.
+mod held {
+    use super::*;
+    use wiremock::matchers::{header as has_header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn gateway(actions: &[&str]) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/api/endpoint/{SLUG}/access")))
+            .and(has_header(
+                "authorization",
+                format!("Bearer {}", token()).as_str(),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "permissions": [{
+                    "resource": { "type": "BikeHireDockingStation" },
+                    "actions": actions,
+                    "attributes": "*"
+                }],
+                "prohibitions": []
+            })))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// One token for the whole module: an ES256 signature differs every time it is made.
+    fn token() -> String {
+        static TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        TOKEN
+            .get_or_init(|| {
+                common::REALM.person_token_of(
+                    "portal-api",
+                    "portal-api",
+                    STEWARD,
+                    &["portal-approver"],
+                )
+            })
+            .clone()
+    }
+
+    fn config_with(gateway: &MockServer) -> Config {
+        let uri = gateway.uri();
+        Config::from_vars(|key| match key {
+            "JC_PORTAL_GATEWAY_URL" => Some(uri.clone()),
+            "JC_AGENTS_NAMESPACE" => Some("agents".into()),
+            "JC_AGENT_PROXY_BASE" => {
+                Some("http://jc-agent-proxy.agents.svc.cluster.local:8080".into())
+            }
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.clone()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api".into()),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret".into()),
+            "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT.into()),
+            "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver".into()),
+            _ => None,
+        })
+        .expect("a Portal with a gateway")
+    }
+
+    async fn portal(config: &Config) -> axum::Router {
+        let state =
+            AppState::new(config.clone(), None).with_mirror(mirror(Some(builder_profile_spec())));
+        state
+            .bearer
+            .as_ref()
+            .expect("a realm")
+            .refresh()
+            .await
+            .expect("jwks");
+        server::app(state)
+    }
+
+    async fn create_as_bearer(app: &axum::Router, body: Value) -> (StatusCode, Value) {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/v1/projects/{PROJECT}/agent-runs"))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", token()))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .expect("a request"),
+            )
+            .await
+            .expect("a response");
+        let status = response.status();
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("a body")
+            .to_bytes();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    fn writing() -> Value {
+        let mut body = create_body();
+        body["dataNeeds"][0]["operations"] =
+            json!(["queryEntity", "retrieveEntity", "updateAttrs"]);
+        body
+    }
+
+    #[tokio::test]
+    async fn a_need_within_the_callers_grant_starts_and_a_wider_one_is_named() {
+        let reader = gateway(&["queryEntity", "retrieveEntity"]).await;
+        let app = portal(&config_with(&reader)).await;
+
+        let (status, body) = create_as_bearer(&app, create_body()).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+
+        let (status, body) = create_as_bearer(&app, writing()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        let errors = body["errors"].to_string();
+        assert!(
+            errors.contains("updateAttrs BikeHireDockingStation on endpoint 'helsinki-bikes'"),
+            "{body}"
+        );
+
+        let editor = gateway(&["queryEntity", "retrieveEntity", "updateAttrs"]).await;
+        let app = portal(&config_with(&editor)).await;
+        let (status, body) = create_as_bearer(&app, writing()).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+        assert_eq!(body["allowsWrite"], json!(true));
+    }
+
+    #[tokio::test]
+    async fn a_cookie_session_asks_for_no_write_and_a_silent_gateway_is_503() {
+        let reader = gateway(&["queryEntity", "retrieveEntity"]).await;
+        let config = config_with(&reader);
+        let app = portal(&config).await;
+        let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+        let (status, body) = call(
+            &app,
+            &cookie,
+            Method::POST,
+            &format!("/api/v1/projects/{PROJECT}/agent-runs"),
+            Some(writing()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(body["errors"].to_string().contains("no token"), "{body}");
+
+        let silent = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(502))
+            .mount(&silent)
+            .await;
+        let app = portal(&config_with(&silent)).await;
+        let (status, body) = create_as_bearer(&app, create_body()).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    }
 }

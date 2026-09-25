@@ -343,7 +343,6 @@ pub fn plan(call: &DraftKpiPipeline, world: &World) -> Result<Plan, String> {
                         "slug": world.new_slug,
                         "audience": "public",
                         "enabledRepresentations": ["ngsi-ld", "csv", "json"],
-                        "rateLimits": { "requestsPerMinute": 300, "burst": 50 },
                     },
                 }),
             });
@@ -789,6 +788,8 @@ mod tests {
         let endpoint = &plan.space_drafts[1].manifest["spec"];
         assert_eq!(endpoint["slug"], "newslugnewslugnewslugnewsl");
         assert_eq!(endpoint["contextSpaceRef"], "transportation-kpi");
+        // Nobody asked for a limit, so the draft sets none (T-2775, EP-20).
+        assert!(endpoint.get("rateLimits").is_none(), "{endpoint}");
         // The write grant copies the assignee of the project's own indicator space.
         assert_eq!(
             plan.space_drafts[2].manifest["spec"]["assignee"],

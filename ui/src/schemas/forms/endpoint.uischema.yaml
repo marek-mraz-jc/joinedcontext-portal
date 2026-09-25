@@ -66,10 +66,10 @@ spec:
         cs: Provoz a vyrovnávací paměť
         de: Datenverkehr und Zwischenspeicher
       description:
-        en: Request rate limits and response cache duration.
-        sk: Limity požiadaviek a trvanie vyrovnávacej pamäte pre odpovede.
-        cs: Limity požadavků a trvání vyrovnávací paměti pro odpovědi.
-        de: Anfragelimits und Cache-Dauer für Antworten.
+        en: Optional request rate limit (none unless you set one) and response cache duration.
+        sk: Voliteľný limit požiadaviek (bez limitu, kým ho nenastavíte) a trvanie vyrovnávacej pamäte pre odpovede.
+        cs: Volitelný limit požadavků (bez limitu, dokud jej nenastavíte) a trvání vyrovnávací paměti pro odpovědi.
+        de: Optionales Anfragelimit (keines, solange Sie keines setzen) und Cache-Dauer für Antworten.
       folded: true
       fields: [rateLimits, caching]
     - title:
@@ -138,10 +138,10 @@ spec:
         de: Andere Projekte der Organisation, die diesen Endpunkt bei eingeschränkter Zielgruppe lesen dürfen.
     rateLimits.requestsPerMinute:
       help:
-        en: Maximum request rate allowed per client to protect the service.
-        sk: Maximálna frekvencia požiadaviek na klienta chrániaca službu pred preťažením.
-        cs: Maximální frekvence požadavků na klienta chránící službu před přetížením.
-        de: Maximale Anfragerate pro Client zum Schutz des Dienstes vor Überlastung.
+        en: No limit. Set one to protect a public endpoint; it then caps the requests of each client per minute.
+        sk: Bez limitu. Nastavte ho na ochranu verejného rozhrania; potom obmedzí požiadavky každého klienta za minútu.
+        cs: Bez limitu. Nastavte jej na ochranu veřejného rozhraní; pak omezí požadavky každého klienta za minutu.
+        de: Kein Limit. Setzen Sie eines, um einen öffentlichen Endpunkt zu schützen; es begrenzt dann die Anfragen jedes Clients pro Minute.
     rateLimits.burst:
       placeholder: 50
       advanced: true

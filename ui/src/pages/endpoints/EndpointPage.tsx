@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ApiError, api, queryKeys, unwrap, whilePending } from "../../api/client";
+import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
@@ -26,17 +26,21 @@ import {
   endpointUrl,
 } from "../../components/endpoints/links";
 import { spaceOf } from "../../components/endpoints/sharing";
-import { bindingOf } from "../../components/endpoints/policyBinding";
+import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CopyUrlButton } from "../../routes/EndpointsPage";
 import { CatalogSection } from "./CatalogSection";
+import { FilterProof, classesWithSlots } from "./FilterProof";
+import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
+import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
 import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Field,
   Input,
   PageHeader,
@@ -122,6 +126,23 @@ export function EndpointPage({
       ),
   });
 
+  // The space's model, for an endpoint that names no projection yet: the filter editor starts from
+  // its classes and slots, and a proposed filter creates the projection (T-2776, MP-01).
+  const models = useQuery({
+    queryKey: queryKeys.list(project, "datamodels"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "datamodels" } },
+        }),
+      ),
+  });
+  const endpointSpace = endpoint.data ? spaceOf(endpoint.data as Manifest) : undefined;
+  const spaceModel = asManifests(models.data?.items ?? []).find(
+    (model) => (model.spec as { contextSpaceRef?: string }).contextSpaceRef === endpointSpace,
+  );
+  const modelSource = useModelSource(project, spaceModel);
+
   if (endpoint.isPending) {
     return <p role="status">{t("app.loading")}</p>;
   }
@@ -155,6 +176,20 @@ export function EndpointPage({
     ? asManifests(projections.data?.items ?? []).find((p) => p.metadata.name === projectionName)
     : undefined;
   const target = { project, kind: "Endpoint", plural: "endpoints", name } as const;
+  // The projection the filter editor edits: the one the endpoint names, or one drawn from the
+  // space's model that a proposed filter creates.
+  const filtered =
+    projection ??
+    (space && spaceModel && modelSource
+      ? projectionFromModel(
+          project,
+          name,
+          space,
+          spaceModel,
+          modelSource,
+          asManifests(projections.data?.items ?? []).map((one) => one.metadata.name),
+        )
+      : undefined);
 
   // The actions that open a dialog are rendered beside the menu, never inside it: the menu unmounts
   // its content when it closes and would take an open dialog with it (T-2279).
@@ -379,24 +414,33 @@ export function EndpointPage({
       </Section>
 
       <Section title={t("endpoints.page.filtering")} lead={t("endpoints.page.filteringLead")}>
-        {projection ? (
+        {filtered ? (
           <>
             <FilterForm
               project={project}
-              projection={projection}
-              slug={slug}
+              projection={filtered}
+              creating={projection === undefined}
+              endpoint={manifest}
+              segment={space ? spaceSegment(project, space, asManifests(spaces.data?.items ?? [])) : ""}
+              enums={modelSource ? enumsOfClasses(modelSource, classesOf(filtered)) : {}}
               live={(manifest.status?.phase ?? "").toLowerCase() === "live"}
             />
-            <p className="text-caption text-fg-muted">
-              {t("endpoints.page.filterLivesOn")}{" "}
-              <Link
-                to="/projects/$project/$plural"
-                params={{ project, plural: "projections" }}
-                className="text-primary-soft-fg underline hover:no-underline"
-              >
-                {projectionName}
-              </Link>
-            </p>
+            {projection ? (
+              <p className="text-caption text-fg-muted">
+                {t("endpoints.page.filterLivesOn")}{" "}
+                <Link
+                  to="/projects/$project/$plural"
+                  params={{ project, plural: "projections" }}
+                  className="text-primary-soft-fg underline hover:no-underline"
+                >
+                  {projectionName}
+                </Link>
+              </p>
+            ) : (
+              <p className="text-caption text-fg-muted">
+                {t("endpoints.filterEditor.createsProjection", { name: filtered.metadata.name })}
+              </p>
+            )}
           </>
         ) : (
           <p className="text-sm text-fg-muted">{t("endpoints.page.noProjection")}</p>
@@ -508,48 +552,108 @@ export function EndpointPage({
 function FilterForm({
   project,
   projection,
-  slug,
+  creating,
+  endpoint,
+  segment,
+  enums,
   live,
 }: {
   project: string;
   projection: Manifest;
-  /** The endpoint the counts are read through; both are what it answers itself. */
-  slug: string;
+  /** The permissible values of each enum attribute of the model, by attribute (T-2706). */
+  enums: Record<string, string[]>;
+  /** The projection does not exist yet: a proposal creates it with the endpoint that names it. */
+  creating: boolean;
+  /** The endpoint whose hidden attributes the editor holds; its slug is what the proof reads. */
+  endpoint: Manifest;
+  /** The `{space}` segment of the space's canonical surface (PF-84). */
+  segment: string;
   live: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const spec = endpoint.spec as EndpointSpec;
+  const slug = spec.slug ?? "";
   const stored = filterOf(projection);
+  const storedClasses = classesWithSlots(projection);
+  const storedHidden = spec.projection?.hiddenAttributes ?? [];
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(FILTER_KEYS.map((key) => [key, stored[key] ?? ""])),
   );
-  const [change, setChange] = useState<Change | null>(null);
+  const [served, setServed] = useState<string[]>(() => storedClasses.map((klass) => klass.name));
+  const [hidden, setHidden] = useState<string[]>(storedHidden);
+  const [changes, setChanges] = useState<Change[]>([]);
+
+  const filter = Object.fromEntries(
+    FILTER_KEYS.map((key) => [key, draft[key]?.trim() ?? ""]).filter(([, value]) => value !== ""),
+  ) as Record<string, string>;
+  const classes = storedClasses.filter((klass) => served.includes(klass.name));
+  // A drawn projection holds every class and slot of the model and no condition, so it is touched
+  // once it narrows something; a stored one, once it differs from what is stored.
+  const projectionTouched =
+    FILTER_KEYS.some((key) => (draft[key]?.trim() ?? "") !== (stored[key] ?? "")) ||
+    classes.length !== storedClasses.length;
+  const hiddenTouched = !sameSet(hidden, storedHidden);
 
   const propose = useMutation({
     mutationFn: async () => {
-      const filter = Object.fromEntries(
-        FILTER_KEYS.map((key) => [key, draft[key]?.trim() ?? ""]).filter(([, value]) => value !== ""),
-      );
-      // The status is the platform's to compute and never travels back (MF-04).
-      const rest = { ...projection };
-      delete (rest as { status?: unknown }).status;
-      const body = {
-        ...rest,
-        spec: {
-          ...(projection.spec as Record<string, unknown>),
-          ...(Object.keys(filter).length > 0 ? { filter } : {}),
-        },
-      };
-      if (Object.keys(filter).length === 0) {
-        delete (body.spec as { filter?: unknown }).filter;
+      if (creating && projectionTouched) {
+        // The projection and the endpoint that names it are one proposal, checked together: the
+        // endpoint alone would name a projection that does not exist yet (MF-23).
+        const { projection: _stored, ...kept } = spec;
+        void _stored;
+        const rest = { ...endpoint };
+        delete (rest as { status?: unknown }).status;
+        const named = {
+          ...rest,
+          spec: {
+            ...kept,
+            projectionRef: { kind: "ModelProjection", name: projection.metadata.name },
+            ...(hidden.length > 0 ? { projection: { hiddenAttributes: hidden } } : {}),
+          },
+        };
+        const drawn = {
+          ...projection,
+          spec: {
+            ...(projection.spec as Record<string, unknown>),
+            classes,
+            ...(Object.keys(filter).length > 0 ? { filter } : {}),
+          },
+        };
+        return [await proposeBundle(project, [drawn, named])];
       }
-      return proposeChecked(project, "projections", body as ResourceProposal, false);
+      const proposed: unknown[] = [];
+      if (projectionTouched) {
+        // The status is the platform's to compute and never travels back (MF-04).
+        const rest = { ...projection };
+        delete (rest as { status?: unknown }).status;
+        const body = {
+          ...rest,
+          spec: { ...(projection.spec as Record<string, unknown>), classes, filter },
+        };
+        if (Object.keys(filter).length === 0) {
+          delete (body.spec as { filter?: unknown }).filter;
+        }
+        proposed.push(await proposeChecked(project, "projections", body as ResourceProposal, false));
+      }
+      if (hiddenTouched) {
+        // Hidden attributes live on the endpoint itself (EP-61), so they are a change of their own.
+        const rest = { ...endpoint };
+        delete (rest as { status?: unknown }).status;
+        const { projection: _stored, ...kept } = spec;
+        void _stored;
+        const body = {
+          ...rest,
+          spec: { ...kept, ...(hidden.length > 0 ? { projection: { hiddenAttributes: hidden } } : {}) },
+        };
+        proposed.push(await proposeChecked(project, "endpoints", body as ResourceProposal, false));
+      }
+      return proposed;
     },
-    onSuccess: (result) => {
-      if (isChange(result)) {
-        setChange(result);
-      }
+    onSuccess: (results) => {
+      setChanges(results.filter(isChange));
       void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "projections") });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.resource(project, "endpoints", endpoint.metadata.name) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
   });
@@ -557,8 +661,9 @@ function FilterForm({
   const faults = Object.fromEntries(
     FILTER_KEYS.map((key) => [key, filterFault(key, draft[key] ?? "")]),
   ) as Record<string, string | undefined>;
-  const faulty = Object.values(faults).some(Boolean);
-  const untouched = FILTER_KEYS.every((key) => (draft[key]?.trim() ?? "") === (stored[key] ?? ""));
+  const noType = classes.length === 0;
+  const faulty = Object.values(faults).some(Boolean) || noType;
+  const untouched = !projectionTouched && !hiddenTouched;
   const failure =
     propose.error instanceof ApiError
       ? (propose.error.problem?.detail ?? propose.error.message)
@@ -566,58 +671,208 @@ function FilterForm({
         ? t("app.error.generic")
         : null;
 
-  if (change) {
-    return <ChangeNotice change={change} project={project} />;
+  if (changes.length > 0) {
+    return (
+      <div className="space-y-2">
+        {changes.map((change) => (
+          <ChangeNotice key={change.metadata?.name ?? JSON.stringify(change)} change={change} project={project} />
+        ))}
+      </div>
+    );
   }
 
   return (
-    <form
-      className="space-y-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        propose.mutate();
-      }}
-    >
-      {failure ? (
-        <Alert tone="danger" role="alert">
-          {failure}
-        </Alert>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {FILTER_KEYS.map((key) => (
-          <Field
-            key={key}
-            id={`filter-${key}`}
-            label={t(`endpoints.filter.${key}`)}
-            help={t(`endpoints.filter.${key}Help`)}
-            errors={faults[key] ? [t(`endpoints.filter.fault.${faults[key] as string}`)] : undefined}
-          >
-            <Input
+    <div className="grid gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <form
+        className="space-y-3"
+        aria-label={t("endpoints.filterEditor.label")}
+        onSubmit={(event) => {
+          event.preventDefault();
+          propose.mutate();
+        }}
+      >
+        {failure ? (
+          <Alert tone="danger" role="alert">
+            {failure}
+          </Alert>
+        ) : null}
+        <fieldset className="space-y-2">
+          <legend className="text-caption font-medium">{t("endpoints.filterEditor.types")}</legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {storedClasses.map((klass) => (
+              <Checkbox
+                key={klass.name}
+                id={`filter-type-${klass.name}`}
+                label={klass.name}
+                checked={served.includes(klass.name)}
+                onChange={(event) =>
+                  setServed(
+                    event.target.checked
+                      ? [...served, klass.name]
+                      : served.filter((name) => name !== klass.name),
+                  )
+                }
+              />
+            ))}
+          </div>
+          {noType ? (
+            <p role="alert" className="text-caption text-danger">
+              {t("endpoints.filterEditor.noType")}
+            </p>
+          ) : null}
+        </fieldset>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {FILTER_KEYS.map((key) => (
+            <Field
+              key={key}
               id={`filter-${key}`}
-              value={draft[key] ?? ""}
-              placeholder={t("endpoints.page.filterEmpty")}
-              aria-invalid={faults[key] ? true : undefined}
-              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
-            />
-          </Field>
-        ))}
-      </div>
-      <MatchCount slug={slug} type={classesOf(projection)[0]} q={draft.q ?? ""} live={live} />
-      <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
-      <ConditionBuilder
-        attributes={slotsOf(projection)}
-        onAdd={(term) =>
-          setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
-        }
+              label={t(`endpoints.filter.${key}`)}
+              help={t(`endpoints.filter.${key}Help`)}
+              errors={faults[key] ? [t(`endpoints.filter.fault.${faults[key] as string}`)] : undefined}
+            >
+              <Input
+                id={`filter-${key}`}
+                value={draft[key] ?? ""}
+                placeholder={t("endpoints.page.filterEmpty")}
+                aria-invalid={faults[key] ? true : undefined}
+                onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+              />
+            </Field>
+          ))}
+        </div>
+        <MatchCount slug={slug} type={classesOf(projection)[0]} q={draft.q ?? ""} live={live} />
+        <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
+        <ConditionBuilder
+          attributes={slotsOf(projection)}
+          enums={enums}
+          onAdd={(term) =>
+            setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
+          }
+        />
+        <fieldset className="space-y-2">
+          <legend className="text-caption font-medium">{t("endpoints.filterEditor.hidden")}</legend>
+          <p className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
+          {classes.map((klass) => (
+            <div key={klass.name} className="space-y-1">
+              <p className="text-caption font-medium text-fg-muted">{klass.name}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {klass.slots.length === 0 ? (
+                  <span className="text-caption text-fg-muted">{t("endpoints.filterEditor.identityOnly")}</span>
+                ) : null}
+                {klass.slots.map((slot) => (
+                  <Checkbox
+                    key={slot}
+                    id={`filter-hide-${klass.name}-${slot}`}
+                    label={slot}
+                    checked={hidden.includes(slot)}
+                    onChange={(event) =>
+                      setHidden(
+                        event.target.checked ? [...hidden, slot] : hidden.filter((name) => name !== slot),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </fieldset>
+        <PermissionGuard project={project} kind="ModelProjection" verb="propose">
+          <Button type="submit" disabled={untouched || faulty || propose.isPending}>
+            {t("endpoints.page.filterPropose")}
+          </Button>
+        </PermissionGuard>
+      </form>
+      <FilterProof
+        slug={slug}
+        segment={segment}
+        live={live}
+        draft={{ classes, filter, hiddenAttributes: hidden }}
       />
-      <PermissionGuard project={project} kind="ModelProjection" verb="propose">
-        <Button type="submit" disabled={untouched || faulty || propose.isPending}>
-          {t("endpoints.page.filterPropose")}
-        </Button>
-      </PermissionGuard>
-    </form>
+    </div>
   );
 }
+
+/**
+ * A projection of every class of the space's model with every slot the class declares, as the
+ * starting point of an endpoint's first filter (MP-01). It is named after the endpoint, or
+ * `{endpoint}-filter` when a projection already has that name.
+ *
+ * A slot a class only inherits (`is_a` an imported `Entity`, whose `location` it carries) is not
+ * listed: the write path checks a projection against the class's own slots (jc-core
+ * `linkml_classes`) and would refuse it. The proof beside the editor strikes such an attribute
+ * before anything is proposed, so the person sees what the first filter would stop serving.
+ */
+export function projectionFromModel(
+  project: string,
+  endpoint: string,
+  space: string,
+  model: Manifest,
+  source: string,
+  taken: string[],
+): Manifest {
+  const parsed = parseModel(source);
+  const version = String((model.spec as { version?: string | number }).version ?? "1").split(".")[0] || "1";
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "ModelProjection",
+    metadata: {
+      name: taken.includes(endpoint) ? `${endpoint}-filter` : endpoint,
+      namespace: project,
+      labels: { "joinedcontext.com/space": space },
+    },
+    spec: {
+      contextSpaceRef: space,
+      dataModelRef: { kind: "DataModel", name: model.metadata.name, version },
+      classes: parsed.classes.map((klass) => ({
+        name: klass.name,
+        slots: filterSlotsOf(source, klass.name).map((slot) => slot.name),
+      })),
+    },
+  } as Manifest;
+}
+
+/** Proposes manifests as one checked import, the way the endpoint form proposes a projection (PF-57). */
+async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
+  const send = async (dryRun: boolean) => {
+    const response = await globalThis.fetch(
+      new Request(
+        `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "x-csrf-token": readCsrfToken() ?? "" },
+          body: JSON.stringify({ manifests, conflictPolicy: "replace" }),
+        },
+      ),
+    );
+    if (!response.ok) {
+      const problem = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new ApiError(response.status, problem?.detail || `HTTP ${response.status}`);
+    }
+    return response.json() as Promise<unknown>;
+  };
+  await send(true);
+  return send(false);
+}
+
+/** The permissible values of every enum attribute of these classes, by attribute name. */
+export function enumsOfClasses(source: string, classes: string[]): Record<string, string[]> {
+  const found: Record<string, string[]> = {};
+  for (const klass of classes) {
+    for (const slot of filterSlotsOf(source, klass)) {
+      if (slot.values && slot.values.length > 0) {
+        found[slot.name] = slot.values;
+      }
+    }
+  }
+  return found;
+}
+
+/** Two lists holding the same names, in any order. */
+function sameSet(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((name) => right.includes(name));
+}
+
 
 /** The results count header of a counted NGSI-LD read (CIM 009 6.3.13). */
 const RESULTS_COUNT = "NGSILD-Results-Count";
@@ -885,9 +1140,12 @@ export function slotsOf(projection: Manifest): string[] {
  */
 function ConditionBuilder({
   attributes,
+  enums = {},
   onAdd,
 }: {
   attributes: string[];
+  /** An attribute with permissible values is compared against one of them, picked (T-2706). */
+  enums?: Record<string, string[]>;
   onAdd: (term: string) => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -927,7 +1185,15 @@ function ConditionBuilder({
       <p className="text-caption font-medium text-fg-muted">{t("endpoints.condition.title")}</p>
       <div className="flex flex-wrap items-end gap-2">
         <Field id="condition-attr" label={t("endpoints.condition.attribute")} className="min-w-40">
-          <Select id="condition-attr" value={attr} onChange={(event) => setAttr(event.target.value)}>
+          <Select
+            id="condition-attr"
+            value={attr}
+            onChange={(event) => {
+              setAttr(event.target.value);
+              // A value typed for one attribute is rarely one of the next one's permitted values.
+              setValue("");
+            }}
+          >
             {attributes.length === 0 ? <option value="">{t("endpoints.condition.noAttributes")}</option> : null}
             {attributes.map((name) => (
               <option key={name} value={name}>
@@ -951,11 +1217,22 @@ function ConditionBuilder({
         </Field>
         {needsValue ? (
           <Field id="condition-value" label={t("endpoints.condition.value")} className="min-w-40">
-            <Input
-              id="condition-value"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
+            {enums[attr] && (op === "equals" || op === "notEquals") ? (
+              <Select id="condition-value" value={value} onChange={(event) => setValue(event.target.value)}>
+                <option value="">{t("form.choose")}</option>
+                {enums[attr].map((permitted) => (
+                  <option key={permitted} value={permitted}>
+                    {permitted}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Input
+                id="condition-value"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            )}
           </Field>
         ) : null}
         <Button type="button" variant="secondary" onClick={add}>

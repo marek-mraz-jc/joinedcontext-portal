@@ -501,6 +501,7 @@
       }
     },
     "rateClass": {
+      "none": "Bez limitu",
       "strict": "Prísna",
       "standard": "Štandardná",
       "open": "Otvorená",
@@ -728,7 +729,39 @@
         "order": "Západ je vľavo od východu a juh pod severom."
       }
     },
-    "ofApp": "Rozhranie aplikácie {app}"
+    "ofApp": "Rozhranie aplikácie {app}",
+    "filterEditor": {
+      "label": "Filter tohto rozhrania",
+      "types": "Typy entít, ktoré obsluhuje",
+      "noType": "Ponechajte aspoň jeden typ: rozhranie bez typu neobsluhuje nič.",
+      "hidden": "Skryté atribúty",
+      "hiddenHelp": "Zaškrtnutý atribút sa nikdy neposkytne v žiadnom formáte. Názov sa skryje v každom type, ktorý ho má.",
+      "identityOnly": "Iba identita: id a type.",
+      "createsProjection": "Toto rozhranie zatiaľ nemá projekciu. Filter, ktorý navrhnete, vytvorí projekciu {name} z modelu priestoru spolu s rozhraním, ktoré ju používa."
+    },
+    "proof": {
+      "title": "Čo tento filter poskytuje",
+      "type": "Typ",
+      "served": "Poskytuje toto rozhranie",
+      "original": "Originál v priestore",
+      "sides": "Strana porovnania",
+      "caption": "{type}: čo rozhranie poskytuje vedľa toho, čo priestor obsahuje, jeden riadok na entitu",
+      "summary": "Poskytuje {served} z {total} {type} · skryté atribúty: {hidden}",
+      "summaryServedOnly": "Poskytuje {served} {type}",
+      "loading": "Čítam, čo filter poskytuje...",
+      "originalUnreadable": "Samotný priestor čítať nemôžete, preto porovnanie ukazuje, čo rozhranie poskytuje dnes, a nie váš návrh.",
+      "notServed": "neposkytuje sa",
+      "notServedMark": "Neposkytuje sa: filter túto entitu vynecháva.",
+      "hiddenMark": "neposkytuje sa",
+      "empty": "Na tejto strane nie sú žiadne entity.",
+      "refused": "Návrh filtra bol odmietnutý: {reason}",
+      "failed": "Nepodarilo sa prečítať, čo filter poskytuje: {reason}",
+      "notLive": "Porovnanie číta cez rozhranie, preto sa zobrazí, keď je rozhranie aktívne.",
+      "noType": "Porovnanie potrebuje aspoň jeden typ, ktorý rozhranie obsluhuje.",
+      "previous": "Predchádzajúca strana",
+      "next": "Ďalšia strana",
+      "window": "Entity {from} až {to} z {total}"
+    }
   },
   "datasources": {
     "title": "Zdroje údajov",
@@ -1674,6 +1707,7 @@
       },
       "willBecome": "Uloží sa ako verzia {version}",
       "refused": "Zmena bola odmietnutá: {reason}",
+      "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
       "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:"
     },
@@ -1689,7 +1723,19 @@
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}",
       "from": "z {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
+      "zoomIn": "Priblížiť",
+      "zoomOut": "Oddialiť",
+      "fit": "Prispôsobiť",
+      "zoomLevel": "Priblíženie {percent} %",
+      "openRelationship": "Otvoriť vzťah {name} / {inverse} medzi {source} a {target}",
+      "addRelationship": "Pridať vzťah z {name}",
+      "table": "Vzťahy v nákrese",
+      "tableRelationship": "Vzťah",
+      "tableField": "Pole",
+      "tableInverse": "Inverzné pole",
+      "tableMultiplicity": "Násobnosť"
     },
     "field": {
       "name": "Názov",
@@ -1765,12 +1811,78 @@
       "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
     },
     "hints": {
-      "title": "Tento model zatiaľ nemá triedu. Tri spôsoby, ako začať:",
-      "sdm": "Importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
+      "title": "Tento model zatiaľ nemá triedu. Tri kroky na začiatok:",
+      "sdm": "Alebo importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
       "sdmAction": "Importovať Smart Data Model",
       "klass": "Pridajte triedu: pomenujte ju v poli pod Triedami, napríklad School.",
       "klassAction": "Pomenovať prvú triedu",
-      "relation": "Pridajte vzťah: keď sú dve triedy, dajte jednej slot, ktorého rozsah je tá druhá, napríklad School má users triedy User."
+      "relation": "Pridajte vzťah: pod Vzťahmi vyberte cieľovú triedu a kardinalitu, napríklad jedna School má veľa entít User.",
+      "field": "Pridajte pole: pri otvorenej triede ho pomenujte pod Atribútmi, napríklad name."
+    },
+    "rangeBasic": "Základné typy",
+    "rangeEnums": "Enumy",
+    "rangeClasses": "Triedy (otvorí Pridať vzťah)",
+    "relationships": {
+      "title": "Vzťahy",
+      "intro": "Odkazy z {owner} na entity triedy. Entity ukladajú jeden koniec; inverzný sa počíta pri čítaní.",
+      "none": "{owner} zatiaľ nemá vzťah.",
+      "name": "Názov",
+      "other": "Druhá trieda",
+      "cardinality": "Kardinalita",
+      "inverse": "Inverzný",
+      "required": "Povinný",
+      "onDelete": "Pri zmazaní",
+      "actions": "Akcie",
+      "remove": "Odstrániť",
+      "removeLabel": "Odstrániť vzťah {name}",
+      "cardinalityOf": "Kardinalita vzťahu {name}",
+      "onDeleteOf": "Pri zmazaní, vzťah {name}",
+      "confirmTitle": "Odstrániť vzťah {name}?",
+      "confirmBody": "Z modelu odídu oba konce: {source}.{sourceSlot} a {target}.{targetSlot}.",
+      "sentence": {
+        "one-to-one": "Jedna {source} má jednu {target}",
+        "one-to-many": "Jedna {source} má veľa entít {target}",
+        "many-to-one": "Veľa entít {source} zdieľa jednu {target}",
+        "many-to-many": "Veľa entít {source} má veľa entít {target}"
+      },
+      "cardinalityName": {
+        "one-to-one": "Jedna k jednej",
+        "one-to-many": "Jedna k mnohým",
+        "many-to-one": "Mnohé k jednej",
+        "many-to-many": "Mnohé k mnohým"
+      },
+      "onDeleteName": {
+        "restrict": "Zakázať",
+        "cascade": "Kaskádovo",
+        "set-null": "Vyprázdniť"
+      },
+      "onDeleteHint": {
+        "restrict": "Zmazanie entity sa odmietne, kým na ňu iné ešte odkazujú.",
+        "cascade": "Zmazanie entity zmaže aj entity, ktoré na ňu odkazujú.",
+        "set-null": "Zmazanie entity odstráni vzťah z entít, ktoré na ňu odkazovali."
+      },
+      "missingInverse": "{name} odkazuje na {target}, ale neuvádza inverzný koniec, takže ešte nie je vzťahom.",
+      "addInverse": "Pridať inverzný {inverse} na {target}",
+      "add": {
+        "title": "Pridať vzťah z {owner}",
+        "cardinalityHint": "Čítaná z {owner} k cieľovej triede.",
+        "target": "Cieľová trieda",
+        "targetHint": "Trieda tohto modelu; inverzný koniec sa zapíše na ňu.",
+        "targetNone": "Vyberte triedu",
+        "name": "Názov na {owner}",
+        "nameHint": "Pole na {owner}, ktoré odkazuje na cieľ, navrhnuté podľa cieľa.",
+        "inverse": "Inverzný na {target}",
+        "inverseHint": "Pole na cieli, ktoré odkazuje späť. Každý vzťah ho má.",
+        "requiredOn": "Povinný na {owner}",
+        "requiredStored": "Každá entita {owner} musí jednu uviesť.",
+        "requiredComputed": "Počíta sa pri čítaní z druhého konca, preto nemôže byť povinný.",
+        "onDeleteHint": "Čo sa stane s entitami, ktoré odkazujú na zmazanú.",
+        "submit": "Pridať vzťah",
+        "nameEmpty": "Pomenujte pole.",
+        "nameInvalid": "Len písmená, číslice a _, na začiatku písmeno.",
+        "nameTaken": "Pole s názvom {name} už existuje.",
+        "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov."
+      }
     }
   },
   "apps": {
@@ -1830,10 +1942,17 @@
         "unavailable": "Endpoint zatiaľ nepublikuje model, takže z neho nemožno nič odvodiť.",
         "none": "Tento endpoint nepublikuje žiadne atribúty, takže aplikácia nemá čo čítať.",
         "loginOnly": "Bez ohľadu na to, ako je endpoint publikovaný, vygenerovaná aplikácia beží v platforme a otvoriť ju môže len prihlásený používateľ.",
-        "write": "Aplikácia smie tieto entity aj upravovať ({actions}). Každé uloženie prejde pravidlami zápisu rozhrania.",
         "writeRole": "Zapisovať smie len táto rola aplikácie (nepovinné)",
         "writeRoleHelp": "Nechajte prázdne a zapisovať smie každý, kto aplikáciu otvorí. S názvom roly, napr. steward, zapisujú len ľudia, ktorých po zverejnení pridáte do tejto roly na stránke aplikácie.",
-        "writeRoleInvalid": "Použite malé písmená, číslice a pomlčky, na začiatku písmeno, najviac 32 znakov."
+        "writeRoleInvalid": "Použite malé písmená, číslice a pomlčky, na začiatku písmeno, najviac 32 znakov.",
+        "access": "Čo aplikácia smie",
+        "accessHelp": "Len čítanie číta entity a ich históriu. Čítanie a úpravy aj mení a dopĺňa atribúty (updateAttrs, appendAttrs). Plný prístup aj vytvára a maže entity (createEntity, deleteEntity). Zapisujúca voľba sa posudzuje ako zmena v červenom pruhu, ak ju rola nižšie neobmedzí.",
+        "accessHeld": "Ponúka sa len to, čo dovoľuje váš vlastný prístup k tomuto endpointu: aplikácia nikdy nesmie viac ako vy.",
+        "presets": {
+          "read": "Len čítanie",
+          "update": "Čítanie a úpravy",
+          "full": "Plný prístup"
+        }
       },
       "preview": {
         "title": "Čo vám tento endpoint dáva",
@@ -1872,10 +1991,13 @@
         "building": "Stavia sa",
         "needsYou": "Čaká na vás",
         "failed": "Zlyhalo",
-        "readyToPublish": "Pripravené na publikovanie"
+        "readyToPublish": "Pripravené na publikovanie",
+        "waitingApproval": "Čaká na schválenie"
       },
       "open": "Otvoriť",
-      "conflict": "{name} sa už stavia. Otvorte ju namiesto toho."
+      "conflict": "{name} sa už stavia. Otvorte ju namiesto toho.",
+      "waiting": "{count, plural, one {Jedna aplikácia čaká na schválenie svojej zmeny.} few {# aplikácie čakajú na schválenie svojich zmien.} other {# aplikácií čaká na schválenie svojich zmien.}} Počas čakania si beh ponechá náhľad.",
+      "openApprovals": "Otvoriť schvaľovanie"
     },
     "kpi": {
       "badge": "KPI"
@@ -1969,22 +2091,25 @@
     },
     "roles": {
       "title": "Roly a členovia",
-      "lead": "Kto smie čo v tejto aplikácii. Pridanie alebo odobratie člena navrhne zmenu aplikácie, ktorú posúdi schvaľovateľ.",
+      "lead": "Kto smie čo robiť v tejto aplikácii. Každá rola má predvolenú skupinu: pridanie alebo odobratie osoby navrhne zmenu tejto skupiny a pridelenie roly inej skupine navrhne zmenu aplikácie. Každú zmenu posúdi schvaľovateľ.",
       "count": "Členovia: {count}",
       "nobody": "Túto rolu zatiaľ nemá nikto.",
       "groupMember": "Skupina {group}",
       "remove": "Odobrať",
       "removeLabel": "Odobrať {member} z roly {role}",
-      "kind": "Pridať",
-      "kindUser": "Osobu",
-      "kindGroup": "Skupinu",
       "email": "E-mail",
       "group": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "add": "Pridať člena",
       "needEmail": "Zadajte e-mailovú adresu osoby.",
       "needGroup": "Vyberte skupinu.",
-      "already": "Túto rolu už má."
+      "already": "Túto rolu už má.",
+      "defaultGroup": "Predvolená skupina {group}",
+      "noDefaultGroup": "Predvolená skupina {group} ešte neexistuje: príde s ďalšou zmenou aplikácie.",
+      "addPerson": "Pridať osobu",
+      "others": "Ďalšie skupiny a osoby s touto rolou",
+      "noOthers": "Túto rolu nemá žiadna iná skupina.",
+      "give": "Prideliť rolu skupine",
+      "groupsUnreadable": "Vaša rola nezobrazuje skupiny organizácie."
     }
   },
   "appLifecycle": {
@@ -2233,6 +2358,9 @@
     "review": "Skontrolovať zmeny",
     "apply": "Uplatniť",
     "discard": "Zahodiť zmeny",
+    "attribute": "Atribút",
+    "before": "Pred zmenou",
+    "after": "Po zmene",
     "observedKeep": "ponechať, kedy bola hodnota pozorovaná",
     "observedNow": "tieto hodnoty boli pozorované teraz",
     "applying": "Uplatňujem…",
@@ -2360,7 +2488,10 @@
       "stop": "Zastaviť beh",
       "retry": "Opýtať sa znova",
       "newConversation": "Nová konverzácia",
-      "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu."
+      "sendFailed": "Správa sa neodoslala: {reason}. To, čo ste napísali, je stále tu.",
+      "tryAgain": "Skúsiť znova",
+      "unanswered": "Vaša posledná správa nedostala odpoveď. Nič sa nezmenilo.",
+      "endedBecause": "Dôvod: {reason}."
     },
     "line": {
       "status": "Teraz {status}.",
@@ -3759,5 +3890,12 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
+  },
+  "units": {
+    "search": "Hľadať podľa kódu, značky, názvu alebo veličiny",
+    "frequent": "Často používané",
+    "none": "Bez jednotky",
+    "noMatch": "Žiadna jednotka UN/CEFACT nezodpovedá. Skúste značku (µg/m³), názov alebo kód (GQ).",
+    "more": "Zobrazených {shown} z {total} jednotiek. Píšte ďalej a zoznam sa zúži."
   }
 }

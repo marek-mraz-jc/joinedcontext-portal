@@ -627,7 +627,7 @@
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
         "Button": 3,
-        "Checkbox": 3
+        "Checkbox": 2
       },
       "tests": [
         "app_generator.test.tsx",
@@ -680,7 +680,7 @@
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "action_inspector.test.tsx",
@@ -756,7 +756,7 @@
     },
     "src/pages/apps/RolesAndMembers.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 4
       },
       "tests": [
         "app_roles_members.test.tsx"
@@ -816,10 +816,19 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 5,
+        "Checkbox": 2
       },
       "tests": [
         "part_operation_groups.test.tsx"
+      ]
+    },
+    "src/pages/endpoints/FilterProof.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_filter_proof.test.tsx"
       ]
     },
     "src/pages/endpoints/ModelPicker.tsx": {
@@ -890,6 +899,17 @@
         "import_wizard.test.tsx"
       ]
     },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "linkml_editor.test.tsx",
+        "linkml_er_diagram.test.tsx",
+        "linkml_imports_enums.test.tsx",
+        "part_linkml_graph_view.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlPreviewPanel.tsx": {
       "controls": {
         "Button": 1
@@ -908,7 +928,8 @@
         "linkml_enum_values.test.tsx",
         "linkml_imports_enums.test.tsx",
         "linkml_source_editor.test.tsx",
-        "linkml_visual_editor.test.tsx"
+        "linkml_visual_editor.test.tsx",
+        "relationship_editor.test.tsx"
       ]
     },
     "src/pages/models/MappingsEditor.tsx": {
@@ -971,6 +992,16 @@
         "models_page_save.test.tsx"
       ]
     },
+    "src/pages/models/RelationshipEditor.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 2,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "relationship_editor.test.tsx"
+      ]
+    },
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
@@ -1030,14 +1061,6 @@
         "pipeline_studio_functions.test.ts"
       ]
     },
-    "src/pages/pipelines/PipelineWorkbench.tsx": {
-      "controls": {
-        "FilePicker": 1
-      },
-      "tests": [
-        "pipeline_workbench.test.tsx"
-      ]
-    },
     "src/pages/pipelines/PipelineTest.tsx": {
       "controls": {
         "Button": 2,
@@ -1050,6 +1073,14 @@
         "pipeline_flow_steps.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_test_functions.test.ts"
+      ]
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "controls": {
+        "FilePicker": 1
+      },
+      "tests": [
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceComplete.tsx": {

@@ -7,12 +7,14 @@
 //! without this platform managing it: the reconciler never takes such a group over (PF-63).
 //! Both are refused before a Change exists, naming both owners.
 
+use jc_core::kinds::{Rule, Verb};
 use jc_core::ObjectMeta;
+use serde_json::Value;
 
 use crate::apps::reconciler::APP_LABEL;
 use crate::auth::Identity;
 use crate::error::ApiError;
-use crate::permissions::ORG_NAMESPACE;
+use crate::permissions::{Effective, Grant, ORG_NAMESPACE};
 use crate::state::AppState;
 
 /// Refuses a `Group` whose name another owner holds (AP-115). Writing a group again under the
@@ -72,6 +74,90 @@ fn owner(state: &AppState, identity: &Identity, app: Option<&String>) -> String 
         }
         _ => "an App of another project".to_owned(),
     }
+}
+
+/// The App whose default group the organization's `Group` `name` is, as `(project, App)`, when
+/// the group is annotated with it and that App exists (AP-118).
+fn app_of(state: &AppState, name: &str) -> Option<(String, Value)> {
+    let held = state.mirror.get(ORG_NAMESPACE, "Group", name)?;
+    let (project, app) = held.metadata.annotations.get(APP_LABEL)?.split_once('/')?;
+    let app = state.mirror.get(project, "App", app)?;
+    Some((project.to_owned(), serde_json::to_value(app).ok()?))
+}
+
+/// Whether the caller may read the organization's `Group` `name` because it is the default group
+/// of an App they may read in its project (AP-119): the App page shows who holds each role.
+pub fn may_read_as_app_group(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    kind: &str,
+    name: &str,
+) -> bool {
+    project == ORG_NAMESPACE
+        && kind == "Group"
+        && app_of(state, name).is_some_and(|(owner, app)| {
+            crate::permissions::for_request(state, identity, &owner).may_read_manifest("App", &app)
+        })
+}
+
+/// What the caller may propose in `project`: their own grants, and for an update of an App's
+/// default group that keeps its annotation, the right to propose that `Group` when they may
+/// propose the App itself (AP-119). A project's steward keeps the members of their Apps' groups
+/// and no other group of the organization; the grant creates, moves and deletes no group.
+pub fn for_proposal(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    kind: &str,
+    update: bool,
+    manifest: &Value,
+) -> Effective {
+    let mut effective = crate::permissions::for_request(state, identity, project);
+    if !update || project != ORG_NAMESPACE || kind != "Group" || effective.may(kind, Verb::Propose)
+    {
+        return effective;
+    }
+    let Some(name) = manifest.pointer("/metadata/name").and_then(Value::as_str) else {
+        return effective;
+    };
+    let Some((owner, app)) = app_of(state, name) else {
+        return effective;
+    };
+    let kept = manifest
+        .pointer("/metadata/annotations")
+        .and_then(|annotations| annotations.get(APP_LABEL))
+        .and_then(Value::as_str);
+    let annotated = state
+        .mirror
+        .get(ORG_NAMESPACE, "Group", name)
+        .and_then(|held| held.metadata.annotations.get(APP_LABEL).cloned());
+    if kept.is_none() || kept.map(str::to_owned) != annotated {
+        return effective;
+    }
+    // The App's own check, constraints and the build lane's status-only rule included.
+    if crate::permissions::for_request(state, identity, &owner)
+        .check("App", Verb::Propose, Some(&app))
+        .is_err()
+    {
+        return effective;
+    }
+    let app_name = app
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    effective.grants.push(Grant {
+        role: format!("propose on App {app_name}"),
+        binding: format!("the default group of App {app_name} (AP-119)"),
+        scope: format!("project:{owner}"),
+        space: None,
+        rule: Rule {
+            kinds: vec!["Group".to_owned()],
+            verbs: vec![Verb::Propose],
+            constraints: Vec::new(),
+        },
+    });
+    effective
 }
 
 #[cfg(test)]
@@ -223,5 +309,177 @@ mod tests {
             None
         );
         assert_eq!(refusal(&state, "Role", &meta("admins", None)), None);
+    }
+
+    /// `world` with the App `board` of `doprava` and jana bound in `project` to a role with
+    /// `rule` (JSON of one rule).
+    fn with_role(project: &str, rule: serde_json::Value) -> AppState {
+        let state = world(None);
+        state.mirror.upsert(manifest(
+            "App",
+            ObjectMeta::new("board", "doprava"),
+            json!({ "class": "ui" }),
+        ));
+        state.mirror.upsert(manifest(
+            "Role",
+            ObjectMeta::new("app-role", ORG_NAMESPACE),
+            json!({ "rules": [rule] }),
+        ));
+        state.mirror.upsert(manifest(
+            "RoleBinding",
+            ObjectMeta::new("jana-app-role", ORG_NAMESPACE),
+            json!({
+                "subjects": [{ "user": "jana@hel.fi" }],
+                "role": "app-role",
+                "scope": { "project": project },
+            }),
+        ));
+        state
+    }
+
+    fn group_write(name: &str, app: Option<&str>) -> serde_json::Value {
+        let mut manifest = json!({
+            "apiVersion": API_VERSION,
+            "kind": "Group",
+            "metadata": { "name": name, "namespace": ORG_NAMESPACE },
+            "spec": { "members": [{ "user": "eva@hel.fi" }] },
+        });
+        if let Some(app) = app {
+            manifest["metadata"]["annotations"] = json!({ APP_LABEL: app });
+        }
+        manifest
+    }
+
+    fn may_propose(state: &AppState, update: bool, manifest: &serde_json::Value) -> bool {
+        for_proposal(
+            state,
+            &who("jana@hel.fi"),
+            ORG_NAMESPACE,
+            "Group",
+            update,
+            manifest,
+        )
+        .check("Group", Verb::Propose, Some(manifest))
+        .is_ok()
+    }
+
+    /// AP-119: whoever may propose the App proposes its default group's members, keeping the
+    /// annotation; nothing else of the organization.
+    #[test]
+    fn the_apps_steward_proposes_its_default_group_and_no_other() {
+        let steward = with_role("doprava", json!({ "kinds": ["App"], "verbs": ["propose"] }));
+        assert!(may_propose(
+            &steward,
+            true,
+            &group_write("board-viewer", Some("doprava/board"))
+        ));
+        // An organization group, a group moved or unannotated, a new group: all refused.
+        assert!(!may_propose(
+            &steward,
+            true,
+            &group_write("operators", None)
+        ));
+        assert!(!may_propose(
+            &steward,
+            true,
+            &group_write("operators", Some("doprava/board"))
+        ));
+        assert!(!may_propose(
+            &steward,
+            true,
+            &group_write("board-viewer", None)
+        ));
+        assert!(!may_propose(
+            &steward,
+            true,
+            &group_write("board-viewer", Some("doprava/other"))
+        ));
+        assert!(!may_propose(
+            &steward,
+            false,
+            &group_write("board-viewer", Some("doprava/board"))
+        ));
+        assert!(!may_propose(
+            &steward,
+            true,
+            &group_write("fresh-viewer", Some("doprava/board"))
+        ));
+        // The grant reaches only the organization's namespace, where Groups live.
+        assert!(!for_proposal(
+            &steward,
+            &who("jana@hel.fi"),
+            "doprava",
+            "Group",
+            true,
+            &group_write("board-viewer", Some("doprava/board"))
+        )
+        .may("Group", Verb::Propose));
+    }
+
+    /// The steward of another project, a reader of the App and the build lane (whose `propose`
+    /// on App writes `status.build` only) propose none of its groups.
+    #[test]
+    fn nobody_without_propose_on_that_app_proposes_its_group() {
+        let write = group_write("board-viewer", Some("doprava/board"));
+        for state in [
+            with_role(
+                "ovzdusie",
+                json!({ "kinds": ["App"], "verbs": ["propose"] }),
+            ),
+            with_role("doprava", json!({ "kinds": ["App"], "verbs": ["read"] })),
+            with_role(
+                "doprava",
+                json!({
+                    "kinds": ["App"],
+                    "verbs": ["propose"],
+                    "constraints": [{ "field": "status.build" }],
+                }),
+            ),
+        ] {
+            assert!(!may_propose(&state, true, &write));
+        }
+    }
+
+    /// AP-119: whoever may read the App reads its default groups, and no other group.
+    #[test]
+    fn the_apps_reader_reads_its_default_group_and_no_other() {
+        let reader = with_role("doprava", json!({ "kinds": ["App"], "verbs": ["read"] }));
+        let jana = who("jana@hel.fi");
+        assert!(may_read_as_app_group(
+            &reader,
+            &jana,
+            ORG_NAMESPACE,
+            "Group",
+            "board-viewer"
+        ));
+        assert!(!may_read_as_app_group(
+            &reader,
+            &jana,
+            ORG_NAMESPACE,
+            "Group",
+            "operators"
+        ));
+        assert!(!may_read_as_app_group(
+            &reader,
+            &jana,
+            ORG_NAMESPACE,
+            "Role",
+            "board-viewer"
+        ));
+        assert!(!may_read_as_app_group(
+            &reader,
+            &jana,
+            "doprava",
+            "Group",
+            "board-viewer"
+        ));
+        let elsewhere = with_role("ovzdusie", json!({ "kinds": ["App"], "verbs": ["read"] }));
+        assert!(!may_read_as_app_group(
+            &elsewhere,
+            &jana,
+            ORG_NAMESPACE,
+            "Group",
+            "board-viewer"
+        ));
     }
 }

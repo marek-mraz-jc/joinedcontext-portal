@@ -430,6 +430,7 @@ pub async fn create_run(
     origin: RunOrigin,
     State(state): State<AppState>,
     Path(project): Path<String>,
+    headers: HeaderMap,
     Json(request): Json<CreateRunRequest>,
 ) -> Result<(StatusCode, Json<CreatedRun>), ApiError> {
     let settings = agent_settings(&state)?;
@@ -527,6 +528,15 @@ pub async fn create_run(
         &request.data_needs,
         &user,
     )?;
+    // AP-132, PF-70: never wider than what the caller holds, as the gateway says it.
+    crate::agents::held::check(
+        crate::agents::held::client(),
+        state.config.gateway_url.as_deref(),
+        caller_token(&state, &headers).as_deref(),
+        &run_endpoints,
+        &request.data_needs,
+    )
+    .await?;
 
     // AG-70: a profile that lists endpoints builds only on the ones it grants, with write for a
     // run that writes.
@@ -1917,7 +1927,11 @@ pub(crate) async fn end_run(
         }
     }
     let ended = ended.map_err(status_error)?;
-    publish_event(state, &run.id, "status", status_payload(status)).await?;
+    // Who or what ended it travels with the status, so the stream says it and not only the
+    // run's record (T-2772): "cancelled by jana.kovacova", a lease that ran out.
+    let mut payload = status_payload(status);
+    payload["reason"] = serde_json::json!(reason);
+    publish_event(state, &run.id, "status", payload).await?;
     Ok(ended)
 }
 
@@ -2043,6 +2057,7 @@ pub async fn publish_run(
             .set_status(&id, AgentRunStatus::AwaitingApproval, None)
             .await
             .map_err(status_error)?;
+        lease_for_approval(&state, &id).await;
         publish_event(
             &state,
             &id,
@@ -2390,6 +2405,19 @@ pub(crate) fn agent_settings(state: &AppState) -> Result<&AgentSettings, ApiErro
     state.config.agent_settings.as_ref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no agent runner configured (AG-33)".into())
     })
+}
+
+/// A run that proposed waits for its change's approval on the approval's lease, not on what was
+/// left of the build's wall clock (T-2772): the reaper reads `expires_at`, and an approver has
+/// days. A store that refuses leaves the old lease, and the run expires as it did before.
+pub(crate) async fn lease_for_approval(state: &AppState, run_id: &str) {
+    let Some(settings) = state.config.agent_settings.as_ref() else {
+        return;
+    };
+    let until = expiry(settings.approval_ttl_secs);
+    if let Err(err) = state.agents.set_expiry(run_id, &until).await {
+        tracing::warn!(run = %run_id, error = %err, "the approval lease was not given");
+    }
 }
 
 pub(crate) fn expiry(ttl_secs: i64) -> String {
