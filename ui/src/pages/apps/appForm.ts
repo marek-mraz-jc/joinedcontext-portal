@@ -12,6 +12,8 @@ export interface AppDataNeedForm {
   scopeQ?: string;
   within?: string;
   window?: string;
+  /** The App roles this need is granted to; none is every caller (AP-96). */
+  roles?: string[];
 }
 
 export interface AppForm {
@@ -107,6 +109,7 @@ export function toAppEnvelope(project: string, form: AppForm, stored?: unknown):
           scopeQ: text(need.scopeQ),
           geoQ: text(need.within) ? { within: { scopeRef: text(need.within) } } : undefined,
           temporalQ: text(need.window) ? { window: text(need.window) } : undefined,
+          roles: list(need.roles),
         }),
       ),
       ...(csp ? { csp } : {}),
@@ -159,6 +162,7 @@ export function fromAppEnvelope(manifest: unknown): AppForm {
         ...(need.scopeQ ? { scopeQ: need.scopeQ as string } : {}),
         ...(within ? { within } : {}),
         ...(window ? { window } : {}),
+        ...(Array.isArray(need.roles) && need.roles.length > 0 ? { roles: need.roles as string[] } : {}),
       };
     }),
     ...(spec.csp ? { csp: spec.csp as AppForm["csp"] } : {}),

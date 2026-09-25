@@ -2048,7 +2048,8 @@
       "maxFileRows": "Řádky na stažení souboru",
       "egress": "Odchozí sítě",
       "egressCidr": "Síť",
-      "egressPorts": "Porty"
+      "egressPorts": "Porty",
+      "needRoles": "Jen pro role"
     },
     "build": {
       "title": "Sestavení ve forge",

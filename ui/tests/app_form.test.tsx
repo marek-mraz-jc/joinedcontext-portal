@@ -211,6 +211,20 @@ describe("the App form", () => {
     expect(edited.spec.access).toEqual(access);
   });
 
+  it("keeps the roles a data need is granted to, so an edit opens no write to every caller (AP-96)", () => {
+    const gated = { ...FILLED, dataNeeds: [{ ...FILLED.dataNeeds[0], roles: ["editor"] }] };
+    expect(errorsOf(gated)).toBe("");
+    const manifest = toAppEnvelope(PROJECT, gated) as { spec: { dataNeeds: { roles?: string[] }[] } };
+    expect(manifest.spec.dataNeeds[0].roles).toEqual(["editor"]);
+    const edited = toAppEnvelope(PROJECT, fromAppEnvelope(manifest), manifest) as {
+      spec: { dataNeeds: { roles?: string[] }[] };
+    };
+    expect(edited.spec.dataNeeds[0].roles).toEqual(["editor"]);
+    expect(errorsOf({ ...FILLED, dataNeeds: [{ ...FILLED.dataNeeds[0], roles: ["Editor"] }] })).toContain(
+      ".dataNeeds.0.roles",
+    );
+  });
+
   it("names every field in all four languages", async () => {
     for (const locale of ["en", "sk", "cs", "de"] as const) {
       await i18n.changeLanguage(locale);

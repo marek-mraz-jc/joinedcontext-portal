@@ -156,6 +156,13 @@ spec:
         sk: Kontextový priestor, ktorý táto potreba číta alebo zapisuje; jeden záznam na priestor.
         cs: Kontextový prostor, který tato potřeba čte nebo zapisuje; jeden záznam na prostor.
         de: Der Kontextraum, den dieser Bedarf liest oder schreibt; ein Eintrag je Raum.
+    dataNeeds[].roles:
+      placeholder: [editor]
+      help:
+        en: The app roles this need is granted to; empty grants it to every person the app admits.
+        sk: Roly aplikácie, ktorým sa táto potreba udeľuje; prázdne ju udelí každému, koho aplikácia pustí.
+        cs: Role aplikace, kterým se tato potřeba uděluje; prázdné ji udělí každému, koho aplikace pustí.
+        de: Die App-Rollen, denen dieser Bedarf gewährt wird; leer gewährt ihn jeder Person, die die App zulässt.
     dataNeeds[].types:
       placeholder: [AirQualityObserved]
       help:

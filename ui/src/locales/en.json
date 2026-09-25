@@ -2048,7 +2048,8 @@
       "maxFileRows": "Rows per file download",
       "egress": "Outbound networks",
       "egressCidr": "Network",
-      "egressPorts": "Ports"
+      "egressPorts": "Ports",
+      "needRoles": "Only for roles"
     },
     "build": {
       "title": "Build on the forge",

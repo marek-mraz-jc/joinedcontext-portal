@@ -2492,6 +2492,14 @@ export function appSchema(
               title: t("apps.field.window"),
               pattern: ISO_DURATION_PATTERN,
             },
+            // The App roles this need is granted to; none is every caller the endpoint admits
+            // (AP-96), so the list is kept however the rest of the need is edited.
+            roles: {
+              type: "array",
+              title: t("apps.field.needRoles"),
+              items: { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" },
+              uniqueItems: true,
+            },
           },
         },
       },

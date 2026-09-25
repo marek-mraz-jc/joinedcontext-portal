@@ -2048,7 +2048,8 @@
       "maxFileRows": "Riadky na stiahnutie súboru",
       "egress": "Odchádzajúce siete",
       "egressCidr": "Sieť",
-      "egressPorts": "Porty"
+      "egressPorts": "Porty",
+      "needRoles": "Len pre roly"
     },
     "build": {
       "title": "Zostavenie vo forge",
