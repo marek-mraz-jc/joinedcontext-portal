@@ -246,6 +246,12 @@
   border-bottom-color: currentColor;
 }
 
+/* A stored value its enum does not list (UI-86): marked by a border and the words in the option,
+   never by colour alone. */
+.jc-grid-cell-invalid {
+  border: 1px dashed currentColor;
+}
+
 .jc-grid-tbody tr[data-refused] td {
   outline: 1px dashed currentColor;
   outline-offset: -1px;

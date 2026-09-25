@@ -14,7 +14,7 @@ import { EntityGrid } from "./EntityGrid";
 import { idChunks, SourceError } from "./source";
 import type { EntitySource, GridQuery } from "./source";
 import type { ResolvedGridConfig } from "./config";
-import type { GridLabels } from "./useEntityGrid";
+import type { GridLabelsInput } from "./useEntityGrid";
 import type { RichRow } from "./model";
 
 export interface CompareLabels {
@@ -60,7 +60,7 @@ export interface EntityCompareProps {
   right: EntitySource;
   labels?: Partial<CompareLabels>;
   /** The strings of the two grids themselves, from the host's own catalogue. */
-  gridLabels?: Partial<GridLabels>;
+  gridLabels?: GridLabelsInput;
 }
 
 /** A page already read, as a source: both sides render through the grid without reading again. */

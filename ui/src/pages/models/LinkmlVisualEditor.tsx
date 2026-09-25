@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { localized } from "../../api/manifest";
 import {
   Alert,
   Button,
@@ -53,7 +54,7 @@ export function LinkmlVisualEditor({
   diagnostics = [],
   locales = [],
 }: LinkmlVisualEditorProps): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const model = useMemo(() => parseModel(source), [source]);
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
@@ -61,7 +62,8 @@ export function LinkmlVisualEditor({
   const [newClass, setNewClass] = useState("");
   const [newSlot, setNewSlot] = useState("");
   const [newEnum, setNewEnum] = useState("");
-  const [newValue, setNewValue] = useState("");
+  // One box per enum: a shared one filled every enum's box with what was typed in one (T-2706).
+  const [newValues, setNewValues] = useState<Record<string, string>>({});
   const [iriError, setIriError] = useState<string | null>(null);
   // The IRI field keeps what was typed even while it is refused: a controlled input that
   // drops the keystroke would fight the person editing it.
@@ -146,12 +148,12 @@ export function LinkmlVisualEditor({
   };
 
   const addEnumValue = (enumName: string) => {
-    const value = newValue.trim();
+    const value = (newValues[enumName] ?? "").trim();
     if (!value) {
       return;
     }
     if (run({ op: "addEnumValue", enum: enumName, value })) {
-      setNewValue("");
+      setNewValues((all) => ({ ...all, [enumName]: "" }));
     }
   };
 
@@ -214,16 +216,77 @@ export function LinkmlVisualEditor({
             {model.enums.map((entry) => (
               <li key={entry.name} className="rounded border border-border p-2">
                 <p className="text-sm font-medium">{entry.name}</p>
-                <ul className="ml-3 list-disc text-xs text-surface-fg/80">
+                {/* Each value with what a person reads for it (UI-86): the grid, the forms and
+                    the filter show these titles, so they are written here, beside the value. */}
+                <ul className="mt-1 flex flex-col gap-1">
                   {entry.permissible_values.map((value) => (
-                    <li key={value.name}>{value.name}</li>
+                    <li key={value.name}>
+                      <details>
+                        <summary className="cursor-pointer text-xs">
+                          <span className="font-mono">{value.name}</span>
+                          {value.title ? ` · ${localized(value.title, i18n.language, value.name)}` : ""}
+                        </summary>
+                        <div className="mt-1 flex flex-col gap-1 pl-3">
+                          {locales.map((locale) => (
+                            <Field
+                              key={locale}
+                              id={`enum-${entry.name}-${value.name}-title-${locale}`}
+                              label={t("models.titleIn", { locale })}
+                            >
+                              <Input
+                                id={`enum-${entry.name}-${value.name}-title-${locale}`}
+                                value={value.title?.[locale] ?? ""}
+                                onChange={(event) =>
+                                  run({
+                                    op: "setEnumValue",
+                                    enum: entry.name,
+                                    value: value.name,
+                                    field: "title",
+                                    locale,
+                                    text: event.target.value,
+                                  })
+                                }
+                              />
+                            </Field>
+                          ))}
+                          <Field
+                            id={`enum-${entry.name}-${value.name}-description`}
+                            label={t("models.description")}
+                          >
+                            <Input
+                              id={`enum-${entry.name}-${value.name}-description`}
+                              value={value.description ?? ""}
+                              onChange={(event) =>
+                                run({
+                                  op: "setEnumValue",
+                                  enum: entry.name,
+                                  value: value.name,
+                                  field: "description",
+                                  text: event.target.value,
+                                })
+                              }
+                            />
+                          </Field>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="w-fit"
+                            onClick={() => run({ op: "removeEnumValue", enum: entry.name, value: value.name })}
+                          >
+                            {t("models.removeEnumValue", { value: value.name })}
+                          </Button>
+                        </div>
+                      </details>
+                    </li>
                   ))}
                 </ul>
                 <div className="mt-1 flex gap-1">
                   <Input
                     aria-label={t("models.newEnumValue", { name: entry.name })}
-                    value={newValue}
-                    onChange={(event) => setNewValue(event.target.value)}
+                    value={newValues[entry.name] ?? ""}
+                    onChange={(event) =>
+                      setNewValues((all) => ({ ...all, [entry.name]: event.target.value }))
+                    }
                   />
                   <Button
                     size="sm"

@@ -342,7 +342,12 @@
       "noPolicies": "Prostor zatím nemá politiku.",
       "assignee": "Příjemce",
       "operations": "Operace",
-      "copyId": "Zkopírovat identifikátor {id}"
+      "copyId": "Zkopírovat identifikátor {id}",
+      "model": "Datový model",
+      "modelEmpty": "Tento prostor zatím nemá datový model",
+      "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
+      "modelCreate": "Vytvořit datový model",
+      "modelImport": "Importovat Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -1296,6 +1301,7 @@
     "newSlot": "Nový atribut",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníku {name}",
+    "removeEnumValue": "Odebrat hodnotu {value}",
     "classUri": "IRI třídy",
     "description": "Popis",
     "titleIn": "Název ({locale})",
@@ -1390,7 +1396,9 @@
       "file": "Uloží se jako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvem {name}. Zvolte jiný název.",
       "held": "Uloženo jako sdílený koncept {name}; po obnovení stránky je stále zde, dokud model neuložíte.",
-      "heldConflict": "Tento koncept mezitím uložil někdo jiný. Obnovte stránku, abyste viděli jeho verzi; do té doby se vaše neukládá."
+      "heldConflict": "Tento koncept mezitím uložil někdo jiný. Obnovte stránku, abyste viděli jeho verzi; do té doby se vaše neukládá.",
+      "spaceHas": "{space} (už má {model})",
+      "spaceTaken": "Prostor {space} už má model {model} a prostor má jeden model. Zvolte jiný prostor nebo otevřete {model} a přidejte do něj své třídy."
     },
     "infer": {
       "title": "Model ze souboru",
@@ -1455,6 +1463,65 @@
       "published": "Zveřejněný",
       "deprecated": "Zastaralý",
       "retired": "Vyřazený"
+    },
+    "page": {
+      "listLead": "Všechny datové modely tohoto projektu: jeden pro každý kontextový prostor a co je na něm postaveno.",
+      "listCaption": "Datové modely projektu",
+      "new": {
+        "blank": "Nový prázdný model",
+        "file": "Nový model ze souboru",
+        "sdm": "Nový model ze Smart Data Models"
+      },
+      "emptyTitle": "Zatím žádný datový model",
+      "emptyLead": "Vytvořte ho pro prostor: začněte prázdný, odvoďte ho ze souboru nebo importujte Smart Data Model.",
+      "search": "Hledat podle názvu, titulku nebo třídy",
+      "everySpace": "Všechny prostory",
+      "lastChange": "Poslední změna",
+      "usedBy": "Používá ho",
+      "noMatch": "Hledání a zvolenému prostoru neodpovídá žádný model.",
+      "unused": "Zatím nic",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} few {# endpointy} other {# endpointů}}",
+        "Pipeline": "{count, plural, one {# pipeline} few {# pipelines} other {# pipelines}}",
+        "App": "{count, plural, one {# aplikace} few {# aplikace} other {# aplikací}}",
+        "Dashboard": "{count, plural, one {# dashboard} few {# dashboardy} other {# dashboardů}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Kontextový prostor",
+        "Endpoint": "Endpointy",
+        "Pipeline": "Pipelines",
+        "Subscription": "Odběry",
+        "App": "Aplikace",
+        "Dashboard": "Dashboardy",
+        "Mapping": "Mapování"
+      },
+      "unusedLead": "Nic v tomto projektu model zatím nepoužívá: nejmenuje ho žádný prostor, endpoint, pipeline, aplikace ani dashboard.",
+      "back": "Všechny datové modely",
+      "edit": "Upravit model",
+      "notFound": "Datový model {name} neexistuje",
+      "notFoundLead": "Možná byl přejmenován nebo odstraněn, nebo patří jinému projektu. Seznam ukazuje každý model, který smíte číst.",
+      "sourceFailed": "LinkML modelu se nepodařilo načíst: {reason}",
+      "views": "Pohledy na model",
+      "view": {
+        "overview": "Přehled",
+        "diagram": "Diagram",
+        "form": "Formulář",
+        "yaml": "YAML",
+        "used": "Kde se používá",
+        "history": "Historie",
+        "mappings": "Mapování"
+      },
+      "class": "Třída",
+      "relationship": "vztah",
+      "enum": "výběr",
+      "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
+      "formClass": "Třída",
+      "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
+      "yaml": "LinkML modelu",
+      "copyYaml": "Kopírovat YAML",
+      "downloadYaml": "Stáhnout YAML",
+      "copied": "Zkopírováno.",
+      "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně."
     }
   },
   "apps": {
@@ -1876,6 +1943,7 @@
       "isEmpty": "je prázdné",
       "present": "má hodnotu",
       "pattern": "odpovídá",
+      "anyOf": "je jednou z",
       "gt": "je větší než",
       "gte": "je alespoň",
       "lt": "je menší než",
@@ -1911,6 +1979,7 @@
     "observedNow": "tyto hodnoty byly pozorovány nyní",
     "applying": "Uplatňuji…",
     "refusedHere": "odmítnuto",
+    "notInList": "není v seznamu",
     "map": {
       "panel": "Mapa",
       "offTheMap": "není na mapě",
@@ -2229,6 +2298,43 @@
         "use": "Použít tuto adresu",
         "invalid": "Zadejte celou adresu začínající http:// nebo https://."
       }
+    },
+    "prose": {
+      "copyId": "Kopírovat celý identifikátor",
+      "copied": "Zkopírováno",
+      "table": "Tabulka v odpovědi"
+    },
+    "follow": {
+      "title": "Jak {name} přejde do provozu",
+      "aChange": "změnu",
+      "proposed": "Navrženo: {kind} {name}",
+      "reading": "Načítá se změna…",
+      "unread": "Změnu se nepodařilo načíst",
+      "rejected": "Zamítnuto: nic se nezměnilo",
+      "approved": "Schváleno",
+      "waiting": "Čeká na osobu, která smí v tomto projektu schvalovat změny {kind}",
+      "red": "Změna červeného pruhu se schvaluje na vlastní stránce, kde se znovu napíše její název.",
+      "approve": "Schválit",
+      "deploy": "Po schválení přejde do provozu",
+      "deploying": "Nasazuje se…",
+      "live": "V provozu",
+      "open": "{kind} je v provozu: otevřít",
+      "stage": {
+        "done": "Hotovo",
+        "working": "Probíhá",
+        "waiting": "Čeká",
+        "failed": "Selhalo",
+        "later": "Zatím ne"
+      },
+      "test": {
+        "later": "Otestuje se po spuštění",
+        "reading": "Čte se několik řádků z {name} vaším jménem…",
+        "read": "{count, plural, one {Přečten # řádek} few {Přečteny # řádky} other {Přečteno # řádků}} z {total} {type} z {name}",
+        "empty": "{name} je v provozu a zatím nemá žádné entity",
+        "failed": "Testovací čtení selhalo",
+        "again": "Číst znovu",
+        "explore": "Otevřít v Průzkumníku"
+      }
     }
   },
   "assistant": {
@@ -2345,6 +2451,19 @@
         "noWrite": "Vaše role přes tento endpoint nezapisuje."
       },
       "pathLeft": "Ne při volbě {preset}: zapněte to ve Schopnostech."
+    },
+    "full": {
+      "conversations": "Konverzace",
+      "search": "Hledat v konverzacích",
+      "none": "Zatím tu nejsou žádné konverzace.",
+      "noMatch": "Žádná konverzace se neptá na „{words}“.",
+      "untitled": "Konverzace začatá z cesty",
+      "more": "Zobrazit dalších {count}",
+      "showList": "Zobrazit konverzace",
+      "hideList": "Skrýt konverzace",
+      "data": "Data a schopnosti",
+      "showData": "Zobrazit data a schopnosti",
+      "hideData": "Skrýt data a schopnosti"
     }
   },
   "permissions": {

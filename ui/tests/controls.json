@@ -12,13 +12,14 @@
     "src/assistant/AssistantDock.tsx": {
       "controls": {
         "button": 1,
-        "Button": 10
+        "Button": 11
       },
       "tests": [
         "agent_run.test.tsx",
         "app_route.test.tsx",
         "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
+        "assistant_full_screen.test.tsx",
         "assistant_layout.test.tsx",
         "assistant_open.test.tsx",
         "assistant_turns.test.tsx",
@@ -34,6 +35,14 @@
       "tests": [
         "assistant_capabilities.test.tsx",
         "assistant_open.test.tsx"
+      ]
+    },
+    "src/assistant/ConversationList.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "assistant_full_screen.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -636,6 +645,14 @@
         "part_run_cards.test.tsx"
       ]
     },
+    "src/pages/apps/ChangeFollowCard.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "change_follow_card.test.tsx"
+      ]
+    },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
         "Button": 4
@@ -682,6 +699,14 @@
       "tests": [
         "kpi_pipeline_card.test.tsx",
         "part_kpi_pipeline_card.test.tsx"
+      ]
+    },
+    "src/pages/apps/Prose.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "prose.test.tsx"
       ]
     },
     "src/pages/apps/QuestionData.tsx": {
@@ -788,6 +813,7 @@
         "Button": 7
       },
       "tests": [
+        "explore_enum_pick.test.tsx",
         "explore_page.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
@@ -841,10 +867,11 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 7,
         "Checkbox": 3
       },
       "tests": [
+        "linkml_enum_values.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx"
       ]
@@ -867,6 +894,14 @@
         "part_model_file_drop.test.tsx"
       ]
     },
+    "src/pages/models/ModelPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
     "src/pages/models/ModelSubsetPicker.tsx": {
       "controls": {
         "Checkbox": 2
@@ -874,6 +909,22 @@
       "tests": [
         "model_subset.test.tsx",
         "part_model_subset_picker.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelViews.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "models_list_page.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelsList.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "models_list_page.test.tsx"
       ]
     },
     "src/pages/models/ModelsPage.tsx": {
@@ -943,7 +994,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "endpoint_admits_person.test.ts",

@@ -145,6 +145,8 @@ export interface LinkmlEnumValue {
   name: string;
   meaning?: string;
   description?: string;
+  /** What a person reads for the value, per language (UI-86); LinkML's `title`. */
+  title?: Record<string, string>;
 }
 
 export interface LinkmlEnum {
@@ -315,10 +317,13 @@ export function parseModel(source: string): LinkmlModel {
     const permissible = Object.entries(record(raw.permissible_values)).map(
       ([valueName, entry]) => {
         const details = record(entry);
+        const title = text(details.title);
         return {
           name: valueName,
           meaning: text(details.meaning),
           description: text(details.description),
+          // A plain string title is the model's one language; a map is read per language.
+          title: title ? { en: title } : languageMap(details.title),
         };
       },
     );

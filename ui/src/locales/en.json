@@ -342,7 +342,12 @@
       "noPolicies": "This space has no policy yet.",
       "assignee": "Assignee",
       "operations": "Operations",
-      "copyId": "Copy the id {id}"
+      "copyId": "Copy the id {id}",
+      "model": "Data model",
+      "modelEmpty": "This space has no data model yet",
+      "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
+      "modelCreate": "Create a data model",
+      "modelImport": "Import a Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -1296,6 +1301,7 @@
     "newSlot": "New slot",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
+    "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
@@ -1404,7 +1410,9 @@
       "file": "Saved as {name}.linkml.yaml",
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
-      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do."
+      "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
+      "spaceHas": "{space} (already has {model})",
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
     },
     "infer": {
       "title": "Model from a file",
@@ -1455,6 +1463,65 @@
       "published": "Published",
       "deprecated": "Deprecated",
       "retired": "Retired"
+    },
+    "page": {
+      "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "listCaption": "The project's data models",
+      "new": {
+        "blank": "New blank model",
+        "file": "New model from a file",
+        "sdm": "New model from Smart Data Models"
+      },
+      "emptyTitle": "No data model yet",
+      "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
+      "search": "Search by name, title or class",
+      "everySpace": "Every space",
+      "lastChange": "Last change",
+      "usedBy": "Used by",
+      "noMatch": "No model matches the search and the space chosen.",
+      "unused": "Nothing yet",
+      "uses": {
+        "Endpoint": "{count, plural, one {# endpoint} other {# endpoints}}",
+        "Pipeline": "{count, plural, one {# pipeline} other {# pipelines}}",
+        "App": "{count, plural, one {# app} other {# apps}}",
+        "Dashboard": "{count, plural, one {# dashboard} other {# dashboards}}"
+      },
+      "usedKind": {
+        "ContextSpace": "Context Space",
+        "Endpoint": "Endpoints",
+        "Pipeline": "Pipelines",
+        "Subscription": "Subscriptions",
+        "App": "Applications",
+        "Dashboard": "Dashboards",
+        "Mapping": "Mappings"
+      },
+      "unusedLead": "Nothing in this project uses the model yet: no space, endpoint, pipeline, app or dashboard names it.",
+      "back": "All data models",
+      "edit": "Edit model",
+      "notFound": "No data model named {name}",
+      "notFoundLead": "It may have been renamed or removed, or it belongs to another project. The list shows every model you may read.",
+      "sourceFailed": "The model's LinkML could not be read: {reason}",
+      "views": "Views of the model",
+      "view": {
+        "overview": "Overview",
+        "diagram": "Diagram",
+        "form": "Form",
+        "yaml": "YAML",
+        "used": "Where used",
+        "history": "History",
+        "mappings": "Mappings"
+      },
+      "class": "Class",
+      "relationship": "relationship",
+      "enum": "pick list",
+      "noClasses": "This model declares no class yet, so it generates no form.",
+      "formClass": "Class",
+      "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
+      "yaml": "The model's LinkML",
+      "copyYaml": "Copy the YAML",
+      "downloadYaml": "Download the YAML",
+      "copied": "Copied.",
+      "copyFailed": "The browser did not allow copying; select the text and copy it instead."
     }
   },
   "apps": {
@@ -1876,6 +1943,7 @@
       "isEmpty": "is empty",
       "present": "has a value",
       "pattern": "matches",
+      "anyOf": "is one of",
       "gt": "is greater than",
       "gte": "is at least",
       "lt": "is less than",
@@ -1911,6 +1979,7 @@
     "observedNow": "these values were observed now",
     "applying": "Applying…",
     "refusedHere": "refused",
+    "notInList": "not in the list",
     "map": {
       "panel": "Map",
       "offTheMap": "not on the map",
@@ -2229,6 +2298,43 @@
         "use": "Use this address",
         "invalid": "Give a full address starting with http:// or https://."
       }
+    },
+    "prose": {
+      "copyId": "Copy the whole id",
+      "copied": "Copied",
+      "table": "A table in the answer"
+    },
+    "follow": {
+      "title": "How {name} goes live",
+      "aChange": "a change",
+      "proposed": "Proposed the {kind} {name}",
+      "reading": "Reading the change…",
+      "unread": "The change could not be read",
+      "rejected": "Rejected: nothing was changed",
+      "approved": "Approved",
+      "waiting": "Waits for a person who may approve {kind} changes in this project",
+      "red": "A red-lane change is approved on its own page, where its name is typed back.",
+      "approve": "Approve",
+      "deploy": "Goes live once approved",
+      "deploying": "Deploying…",
+      "live": "Live",
+      "open": "The {kind} is live: open it",
+      "stage": {
+        "done": "Done",
+        "working": "In progress",
+        "waiting": "Waiting",
+        "failed": "Failed",
+        "later": "Not yet"
+      },
+      "test": {
+        "later": "Tested once live",
+        "reading": "Reading a few rows of {name} as you…",
+        "read": "{count, plural, one {Read # row} other {Read # rows}} of {total} {type} from {name}",
+        "empty": "{name} is live and holds no entities yet",
+        "failed": "The test read failed",
+        "again": "Read again",
+        "explore": "Open it in Explore"
+      }
     }
   },
   "assistant": {
@@ -2345,6 +2451,19 @@
         "noWrite": "Your role does not write through this endpoint."
       },
       "pathLeft": "Not with {preset}: switch it on in Capabilities."
+    },
+    "full": {
+      "conversations": "Conversations",
+      "search": "Search conversations",
+      "none": "No conversations here yet.",
+      "noMatch": "No conversation asks about “{words}”.",
+      "untitled": "A conversation started from a path",
+      "more": "Show {count} more",
+      "showList": "Show the conversations",
+      "hideList": "Hide the conversations",
+      "data": "Data and capabilities",
+      "showData": "Show the data and capabilities",
+      "hideData": "Hide the data and capabilities"
     }
   },
   "permissions": {
