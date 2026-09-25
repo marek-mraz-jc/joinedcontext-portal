@@ -15,7 +15,7 @@
  *    Delete in the menu keeps its reason too (UI-44).
  * 6. The page says a change is proposed and reviewed before any control.
  * 7. An endpoint has no pause: the page says deleting is how it stops and opens that deletion, which
- *    a viewer is refused with its reason; no pause control is painted (EP-87, T-2286).
+ *    a viewer is refused with its reason; no pause control is painted (EP-89, T-2286).
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -555,7 +555,7 @@ describe("the endpoint's own settings page", () => {
     expect(remove).toHaveAttribute("title", expect.stringContaining("delete"));
   });
 
-  it("says an endpoint stops by being deleted and opens that deletion (EP-87)", async () => {
+  it("says an endpoint stops by being deleted and opens that deletion (EP-89)", async () => {
     renderPage();
     const user = userEvent.setup();
 
@@ -571,7 +571,7 @@ describe("the endpoint's own settings page", () => {
     expect(within(dialog).getByRole("button", { name: new RegExp(en.resourceDelete.propose) })).toBeInTheDocument();
   });
 
-  it("refuses a viewer the deletion that stops an endpoint, with its reason (EP-87)", async () => {
+  it("refuses a viewer the deletion that stops an endpoint, with its reason (EP-89)", async () => {
     renderPage({ permissions: VIEWER });
 
     await waitFor(() => {
