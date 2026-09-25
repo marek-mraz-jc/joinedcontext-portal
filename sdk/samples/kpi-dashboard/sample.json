@@ -15,5 +15,5 @@
     }
   ],
   "access": "Read-only; the indicators may be public.",
-  "sdk": ["useEntities", "format", "Page", "Header", "Grid", "Card", "ChartCard", "lineOption"]
+  "sdk": ["useEntities", "format", "Page", "Header", "Grid", "Card", "ChartCard", "currentTokens"]
 }
