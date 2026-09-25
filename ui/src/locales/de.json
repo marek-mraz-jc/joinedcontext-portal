@@ -210,6 +210,8 @@
     "draftHelp": "Noch nicht eingereicht, nur lokal gespeichert.",
     "pendingApproval": "Wartet auf Freigabe",
     "pendingApprovalHelp": "Wartet auf Freigabe oder Ablehnung.",
+    "notDeployed": "Nicht bereitgestellt",
+    "notDeployedHelp": "Gemergt, läuft aber nicht: ein Kontingent ist ausgeschöpft, es ist pausiert oder die Plattform führt diese Art nicht aus. Die Details nennen den Grund.",
     "deploying": "Wird bereitgestellt",
     "deployingHelp": "Freigegeben und gemergt; der Reconciler wendet die Änderung an.",
     "live": "Aktiv",

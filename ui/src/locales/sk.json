@@ -210,6 +210,8 @@
     "draftHelp": "Zatiaľ nenavrhnuté, uložené len lokálne.",
     "pendingApproval": "Čaká na schválenie",
     "pendingApprovalHelp": "Čaká na schválenie alebo zamietnutie schvaľovateľom.",
+    "notDeployed": "Nenasadené",
+    "notDeployedHelp": "Zlúčené, ale nebeží: kvóta je vyčerpaná, je pozastavené alebo ide o druh, ktorý platforma nespúšťa. Podrobnosti uvádzajú dôvod.",
     "deploying": "Nasadzuje sa",
     "deployingHelp": "Schválené a zlúčené; rekonciliátor to práve nasadzuje.",
     "live": "Aktívne",
