@@ -91,10 +91,10 @@ spec:
         de: Ein statisches Frontend läuft im Browser mit den Rechten der Person; ein Dienst mit eigener Identität.
     visibility:
       help:
-        en: Who reaches the app once it is published; a published app may not be private.
-        sk: Kto sa k aplikácii dostane po zverejnení; zverejnená aplikácia nesmie byť súkromná.
-        cs: Kdo se k aplikaci dostane po zveřejnění; zveřejněná aplikace nesmí být soukromá.
-        de: Wer die App nach der Veröffentlichung erreicht; eine veröffentlichte App ist nie privat.
+        en: Who reaches the app once it is published; it asks for a login unless you choose public. Public means anyone on the internet opens it without signing in, and a publisher must approve that.
+        sk: Kto sa k aplikácii dostane po zverejnení; pýta si prihlásenie, kým nezvolíte verejnú. Verejná znamená, že ju ktokoľvek na internete otvorí bez prihlásenia, a to musí schváliť publikujúci.
+        cs: Kdo se k aplikaci dostane po zveřejnění; vyžaduje přihlášení, dokud nezvolíte veřejnou. Veřejná znamená, že ji kdokoli na internetu otevře bez přihlášení, a to musí schválit publikující.
+        de: Wer die App nach der Veröffentlichung erreicht; sie verlangt eine Anmeldung, außer Sie wählen öffentlich. Öffentlich heißt, jeder im Internet öffnet sie ohne Anmeldung, und das muss ein Publisher genehmigen.
     embeddable:
       help:
         en: Whether the Portal may show the app inside its own page, in a frame.

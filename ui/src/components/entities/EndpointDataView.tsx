@@ -10,7 +10,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { EntityCompare, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import { EntityCompare, enumsOf, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { Button, Field, Select } from "../ui";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
@@ -58,6 +58,12 @@ export function EndpointDataView({
 
   const types = useMemo(() => publishedTypes(schema.data), [schema.data]);
   const type = types.find((each) => each.name === chosen) ?? types[0];
+  // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
+  const enums = useMemo(() => {
+    const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
+    const defs = { ...document.$defs, ...document.definitions };
+    return type ? enumsOf(defs[type.name], defs, i18n.language) : {};
+  }, [schema.data, type, i18n.language]);
 
   const config = useMemo(() => {
     if (!type) {
@@ -139,7 +145,7 @@ export function EndpointDataView({
           gridLabels={labels}
         />
       ) : (
-        <PortalEntityGrid key={`${slug}-${type.name}`} project={project} config={config} />
+        <PortalEntityGrid key={`${slug}-${type.name}`} project={project} config={config} enums={enums} />
       )}
     </div>
   );

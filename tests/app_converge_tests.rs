@@ -32,6 +32,8 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: Some("forge.bb.example.com/joinedcontext".into()),
         pull_secret: Some("app-registry".into()),
+        release: Some("dev".into()),
+        service_account: Some("portal".into()),
     }
 }
 
@@ -135,11 +137,12 @@ fn only_the_cluster_was_called(requests: &[Request]) {
     }
 }
 
-const DEPLOYMENT: &str = "/apis/apps/v1/namespaces/joinedcontext/deployments/app-air-quality-today";
-const SERVICE: &str = "/api/v1/namespaces/joinedcontext/services/app-air-quality-today";
-const SECRET: &str = "/api/v1/namespaces/joinedcontext/secrets/app-air-quality-today-endpoint";
+const DEPLOYMENT: &str =
+    "/apis/apps/v1/namespaces/dev-ovzdusie-apps/deployments/app-air-quality-today";
+const SERVICE: &str = "/api/v1/namespaces/dev-ovzdusie-apps/services/app-air-quality-today";
+const SECRET: &str = "/api/v1/namespaces/dev-ovzdusie-apps/secrets/app-air-quality-today-endpoint";
 const POLICY: &str =
-    "/apis/networking.k8s.io/v1/namespaces/joinedcontext/networkpolicies/app-air-quality-today";
+    "/apis/networking.k8s.io/v1/namespaces/dev-ovzdusie-apps/networkpolicies/app-air-quality-today";
 
 #[tokio::test]
 async fn a_published_app_becomes_its_four_objects_on_the_cluster_and_nothing_on_the_realm() {
@@ -306,9 +309,15 @@ async fn a_retired_app_has_its_objects_deleted() {
         .filter(|request| request.method.as_str() == "DELETE")
         .map(|request| request.url.path())
         .collect();
-    assert_eq!(deleted.len(), 4, "{deleted:?}");
+    // In the project's namespace, and where it ran before projects had one (AP-116).
+    assert_eq!(deleted.len(), 8, "{deleted:?}");
     for api_path in [DEPLOYMENT, SERVICE, SECRET, POLICY] {
         assert!(deleted.contains(&api_path), "{api_path} was not deleted");
+        let legacy = api_path.replace("/dev-ovzdusie-apps/", "/joinedcontext/");
+        assert!(
+            deleted.contains(&legacy.as_str()),
+            "{legacy} was not deleted"
+        );
     }
 }
 

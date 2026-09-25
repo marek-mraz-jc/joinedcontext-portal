@@ -31,6 +31,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 interface Scope {
   organization?: string;
@@ -55,7 +56,7 @@ type Place = string;
  */
 export type BindingScope = "organization" | "project" | "all";
 
-interface GrantForm {
+export interface GrantForm {
   subjectKind: "user" | "group";
   subject: string;
   role: string;
@@ -231,7 +232,8 @@ export function GrantRoleDialog({
     const gaps = { subject: form.subject.trim() === "", role: form.role === "" };
     if (gaps.subject || gaps.role) {
       setMissing(gaps);
-      (gaps.subject ? subjectRef.current : roleRef.current)?.focus();
+      // The group picker is its own control, found by the id its field gives it.
+      (gaps.subject ? (subjectRef.current ?? document.getElementById(`${ids}-subject`)) : roleRef.current)?.focus();
       return;
     }
     setMissing({});
@@ -309,15 +311,30 @@ export function GrantRoleDialog({
             required
             errors={missing.subject ? [t("form.required")] : undefined}
           >
-            <Input
-              id={`${ids}-subject`}
-              ref={subjectRef}
-              value={form.subject}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={form.subjectKind === "user" ? "firstname.lastname@example.org" : "city-leadership"}
-              onChange={(event) => set({ subject: event.target.value })}
-            />
+            {form.subjectKind === "group" ? (
+              // A group is one the organization has (ADR-N-033); a person is typed until the People
+              // list exists (T-2684).
+              <ResourceNamePicker
+                id={`${ids}-subject`}
+                label={t("access.roles.groupLabel")}
+                labelled
+                from={{ project: ORG_NAMESPACE, plural: "groups" }}
+                value={form.subject}
+                onChange={(subject) => set({ subject })}
+                required
+                invalid={missing.subject}
+              />
+            ) : (
+              <Input
+                id={`${ids}-subject`}
+                ref={subjectRef}
+                value={form.subject}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="firstname.lastname@example.org"
+                onChange={(event) => set({ subject: event.target.value })}
+              />
+            )}
           </Field>
           <Field
             id={`${ids}-role`}

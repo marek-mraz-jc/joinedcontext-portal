@@ -383,7 +383,7 @@ fn workspace_of(branch: &str) -> Option<String> {
 
 /// The branch prefixes of a change that carries several resources and names none of them:
 /// `blueprints::flow_branch`, `import`'s headless bundle, `projects`' deletion.
-const BUNDLE_PREFIXES: [&str; 3] = ["flow-", "import-", "delete-project-"];
+const BUNDLE_PREFIXES: [&str; 4] = ["flow-", "import-", "delete-project-", "remove-person-"];
 
 /// The headline of a bundle: the first manifest among its files that lives in `project`, the
 /// `Project` manifest first when the bundle deletes one. Every file is still approved on its own
@@ -408,7 +408,12 @@ async fn bundle_headline(
     if !bundle {
         return Ok(None);
     }
-    let home = format!("projects/{project}/");
+    // The organization's own manifests are under `users/`; a person's removal is one (PF-93).
+    let home = if project == crate::permissions::ORG_NAMESPACE {
+        "users/".to_owned()
+    } else {
+        format!("projects/{project}/")
+    };
     let mut files: Vec<_> = gitea
         .pull_request_files(pr.number)
         .await?

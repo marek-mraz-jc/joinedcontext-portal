@@ -105,9 +105,6 @@ export function mappingSchema(t: (key: string) => string): JsonSchema {
 
 /** Code in a text area; no autocomplete, so a browser does not offer one city's code on another's. */
 export const mappingUiSchema: UiSchema = {
-  // A mapping reads one of the project's models and writes another (ADR-N-033).
-  source: { name: { "ui:widget": "dataModelPicker" } },
-  target: { name: { "ui:widget": "dataModelPicker" } },
   native: {
     items: {
       source: { "ui:widget": "textarea", "ui:options": { rows: 6 }, "ui:autocomplete": "off" },

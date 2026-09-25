@@ -34,6 +34,8 @@ export interface LinkmlEditorProps {
   subset?: Subset;
   onSubsetChange?: (subset: Subset) => void;
   initialView?: EditorView;
+  /** Where the empty model's "Import a Smart Data Model" hint goes, when the page offers it. */
+  onImport?: () => void;
 }
 
 const EDIT_VIEWS: EditorView[] = ["structure", "source", "graph", "preview"];
@@ -46,11 +48,14 @@ export function LinkmlEditor({
   subset,
   onSubsetChange,
   initialView,
+  onImport,
 }: LinkmlEditorProps): JSX.Element {
   const { t } = useTranslation();
   const picking = onSubsetChange !== undefined;
   const views = picking ? SUBSET_VIEWS : EDIT_VIEWS;
   const [view, setView] = useState<EditorView>(initialView ?? views[0]);
+  // The class a click in the diagram opened, so the structure view opens on that one.
+  const [opened, setOpened] = useState<string | undefined>(undefined);
 
   const model = useMemo(() => parseModel(source), [source]);
   const diagnostics = useMemo(() => diagnose(source, locales), [source, locales]);
@@ -73,15 +78,24 @@ export function LinkmlEditor({
       <div {...tabPanelProps("linkml-view", view)}>
         {view === "structure" ? (
           <LinkmlVisualEditor
+            key={opened}
+            initialClass={opened}
             source={source}
             onChange={onChange}
             diagnostics={diagnostics}
             locales={locales}
+            onImport={onImport}
           />
         ) : null}
         {view === "graph" ? (
           // Read-only, and clicking a class opens it where it can be edited (T-1111).
-          <LinkmlGraphView source={source} onOpenClass={() => setView("structure")} />
+          <LinkmlGraphView
+            source={source}
+            onOpenClass={(name) => {
+              setOpened(name);
+              setView("structure");
+            }}
+          />
         ) : null}
         {view === "source" ? (
           <LinkmlSourceEditor source={source} onChange={onChange} diagnostics={diagnostics} />

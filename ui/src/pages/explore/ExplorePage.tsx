@@ -10,10 +10,11 @@ import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, fetchEntity, filterSlotsOf, useModelSource } from "../../components/entities/filters";
+import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
+import { TypeLink } from "../models/ModelLinks";
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/SpaceInside";
 import { useIdentity } from "../../auth/AuthProvider";
 
@@ -111,6 +112,8 @@ export function ExplorePage({
   // and on. It also stops the LinkML being parsed once per render.
   const modelSource = useModelSource(project, model);
   const slots = useMemo(() => filterSlotsOf(modelSource, query.type), [modelSource, query.type]);
+  // An enum slot is edited and filtered in the grid by picking its values (UI-86).
+  const enums = useMemo(() => enumsOfModel(modelSource, query.type, locale), [modelSource, query.type, locale]);
   const access = useAccess(slug);
   const denied = useMemo(
     () => deniedAttributes(access.data, query.type, slots, t),
@@ -316,6 +319,11 @@ export function ExplorePage({
           denied={denied}
         />
       ) : null}
+      {space && query.type ? (
+        <p className="text-caption text-fg-muted">
+          {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
+        </p>
+      ) : null}
       {space ? <AccessPanel slug={slug} type={query.type} access={access} /> : null}
 
       {config ? (
@@ -323,6 +331,7 @@ export function ExplorePage({
           key={`${slug}-${query.type}-${generation}`}
           project={project}
           config={config}
+          enums={enums}
           onRows={onRows}
           renderers={renderers}
           toolbar={

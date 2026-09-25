@@ -39,14 +39,25 @@ pub const FIELD_MANAGER: &str = "portal-app-reconciler";
 const APPLY_PATCH: &str = "application/apply-patch+yaml";
 
 /// The kinds an App and its agent runs compile into (AP-13, AP-15, AP-26, AG-33, EP-02).
-const KINDS: [(&str, &str, &str); 6] = [
+const KINDS: [(&str, &str, &str); 8] = [
     ("apps/v1", "Deployment", "deployments"),
     ("v1", "Service", "services"),
     ("v1", "Secret", "secrets"),
     ("networking.k8s.io/v1", "NetworkPolicy", "networkpolicies"),
     ("batch/v1", "Job", "jobs"),
     ("v1", "ServiceAccount", "serviceaccounts"),
+    // A project's apps namespace and the Portal's binding in it (AP-116); an admission policy
+    // keeps both to `{release}-{project}-apps` (AP-117).
+    ("v1", "Namespace", "namespaces"),
+    (
+        "rbac.authorization.k8s.io/v1",
+        "RoleBinding",
+        "rolebindings",
+    ),
 ];
+
+/// The one kind of [`KINDS`] that lives outside every namespace.
+const CLUSTER_SCOPED: &str = "namespaces";
 
 /// Why a request to the API server did not do what it was asked.
 #[derive(Debug, thiserror::Error)]
@@ -194,11 +205,13 @@ impl KubeClient {
 
     /// Applies one object, creating it or bringing it back to what the manifest says (CC-18).
     pub async fn apply(&self, object: &Value) -> Result<(), KubeError> {
-        let path = path_of(
-            object_kind(object)?,
-            namespace_of(object)?,
-            name_of(object)?,
-        )?;
+        let plural = object_kind(object)?;
+        let namespace = if plural == CLUSTER_SCOPED {
+            ""
+        } else {
+            namespace_of(object)?
+        };
+        let path = path_of(plural, namespace, name_of(object)?)?;
         let url = self.url(&format!("{path}?fieldManager={FIELD_MANAGER}&force=true"))?;
         let response = self
             .http
@@ -371,8 +384,16 @@ fn name_of(object: &Value) -> Result<&str, KubeError> {
 /// The API path of one object, with both names checked before they become path segments.
 ///
 /// A name is a DNS label everywhere in Kubernetes, so checking it here costs nothing and closes
-/// the only way a manifest could reach a path the Portal was not meant to call.
+/// the only way a manifest could reach a path the Portal was not meant to call. A namespace is
+/// addressed by its name alone, and the namespace argument is ignored for it.
 fn path_of(plural: &str, namespace: &str, name: &str) -> Result<String, KubeError> {
+    if plural == CLUSTER_SCOPED {
+        jc_core::names::validate_dns1123_label(name).map_err(|_| KubeError::NotAName {
+            field: "metadata.name",
+            value: name.to_owned(),
+        })?;
+        return Ok(format!("/api/v1/namespaces/{name}"));
+    }
     for (field, value) in [("metadata.namespace", namespace), ("metadata.name", name)] {
         jc_core::names::validate_dns1123_label(value).map_err(|_| KubeError::NotAName {
             field,

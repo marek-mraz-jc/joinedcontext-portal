@@ -83,6 +83,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
       empty: t("entityGrid.ops.isEmpty"),
       present: t("entityGrid.ops.present"),
       pattern: t("entityGrid.ops.pattern"),
+      anyOf: t("entityGrid.ops.anyOf"),
     },
     value: t("entityGrid.value"),
     upperValue: t("entityGrid.upperValue"),
@@ -122,6 +123,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     observedNow: t("entityGrid.observedNow"),
     applying: t("entityGrid.applying"),
     refusedHere: t("entityGrid.refusedHere"),
+    notInList: t("entityGrid.notInList"),
   };
 }
 

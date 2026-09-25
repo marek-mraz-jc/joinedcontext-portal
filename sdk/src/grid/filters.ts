@@ -11,6 +11,7 @@
  * `(` answers 400.
  */
 import type { MetaKey } from "./useEntityGrid";
+import type { EnumOption } from "../enums";
 
 /** What a filter asks. `between` uses both values; `empty` and `present` use none. */
 export type FilterOp =
@@ -24,7 +25,9 @@ export type FilterOp =
   | "between"
   | "empty"
   | "present"
-  | "pattern";
+  | "pattern"
+  /** One of the picked values of an enum: NGSI-LD's value list, `attr=="a","b"` (UI-86). */
+  | "anyOf";
 
 /** One column's filter: the column's own key, what it asks, and the typed value(s). */
 export interface ColumnFilter {
@@ -32,6 +35,8 @@ export interface ColumnFilter {
   value: string;
   /** The upper bound of `between`. */
   value2?: string;
+  /** The values `anyOf` picked. */
+  values?: string[];
 }
 
 /**
@@ -48,6 +53,8 @@ export type FilterKind =
   | "number"
   | "date"
   | "relationship"
+  /** An attribute whose schema is an enum: its values are picked, never typed (UI-86). */
+  | "enum"
   | "id"
   | "geo"
   | "none"
@@ -57,6 +64,7 @@ const TEXT_OPS: FilterOp[] = ["contains", "equals", "notEquals", "empty", "prese
 const ORDERED_OPS: FilterOp[] = ["equals", "notEquals", "gt", "gte", "lt", "lte", "between", "empty", "present"];
 const REF_OPS: FilterOp[] = ["equals", "notEquals", "empty", "present"];
 const ID_OPS: FilterOp[] = ["pattern", "equals"];
+const ENUM_OPS: FilterOp[] = ["anyOf", "empty", "present"];
 
 /** The operators a column offers; `[]` for one that cannot be filtered at the endpoint. */
 export function opsForKind(kind: FilterKind): FilterOp[] {
@@ -70,6 +78,8 @@ export function opsForKind(kind: FilterKind): FilterOp[] {
       return [...REF_OPS];
     case "id":
       return [...ID_OPS];
+    case "enum":
+      return [...ENUM_OPS];
     // A geometry is filtered by the map's own geo query (georel), not by a typed value.
     default:
       return [];
@@ -92,6 +102,9 @@ export function complete(filter: ColumnFilter | undefined): boolean {
   const needed = valuesNeeded(filter.op);
   if (needed === 0) {
     return true;
+  }
+  if (filter.op === "anyOf") {
+    return (filter.values ?? []).length > 0;
   }
   if (filter.value.trim() === "") {
     return false;
@@ -172,6 +185,9 @@ function termOf(
       return `${path}<=${literal(filter.value, kind)}`;
     case "between":
       return `${path}>=${literal(filter.value, kind)};${path}<=${literal(filter.value2 ?? "", kind)}`;
+    // An enum's values are strings: each is quoted, whatever it looks like.
+    case "anyOf":
+      return `${path}==${(filter.values ?? []).map((value) => literal(value, "text")).join(",")}`;
     // A pattern belongs to the id, which is not part of `q`.
     case "pattern":
       return undefined;
@@ -184,6 +200,8 @@ export interface FilterColumn {
   attr: string | null;
   meta?: MetaKey | null;
   kind: FilterKind;
+  /** The permissible values of an `enum` column. */
+  options?: EnumOption[];
 }
 
 /**
