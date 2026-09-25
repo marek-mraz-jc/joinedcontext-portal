@@ -36,6 +36,7 @@ fn session_cookie(
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: format!("sub-{username}"),
             username: username.to_string(),
             email: email.map(str::to_string),

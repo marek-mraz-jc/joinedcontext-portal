@@ -26,8 +26,16 @@ languages:
 "##;
 
 async fn branding(file: Option<&str>) -> (StatusCode, Option<String>, Value) {
+    branding_with(file, None).await
+}
+
+async fn branding_with(
+    file: Option<&str>,
+    apps_url: Option<&str>,
+) -> (StatusCode, Option<String>, Value) {
     let mut config = Config::for_tests();
     config.branding_file = file.map(str::to_owned);
+    config.apps_url = apps_url.map(|url| url.parse().expect("an apps url"));
     let app = server::app(AppState::new(config, None));
 
     let response = app
@@ -241,4 +249,19 @@ async fn an_answer_no_route_declared_public_is_never_cacheable() {
             response.status(),
         );
     }
+}
+
+/// AP-122, T-2840: the in-Portal page frames an App at the origin Apps are served from, and
+/// only the Portal's configuration says which that is; a branding file cannot name one.
+#[tokio::test]
+async fn the_apps_origin_comes_from_the_configuration_and_never_from_the_file() {
+    let path = written("instanceName: \"X\"\nappsOrigin: \"https://evil.example\"\n");
+    let file = path.display().to_string();
+
+    let (_, _, without) = branding_with(Some(&file), None).await;
+    let (_, _, with) = branding_with(Some(&file), Some("https://apps.example.org")).await;
+    let _ = std::fs::remove_file(&path);
+
+    assert!(without.get("appsOrigin").is_none(), "{without}");
+    assert_eq!(with["appsOrigin"], json!("https://apps.example.org"));
 }

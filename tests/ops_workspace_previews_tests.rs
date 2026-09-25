@@ -45,6 +45,7 @@ fn files() -> Vec<(&'static str, String)> {
 /// Another steward of the project, who owns no workspace.
 fn petra() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:petra".into(),
         username: "petra".into(),
         email: Some("petra@banskabystrica.sk".into()),

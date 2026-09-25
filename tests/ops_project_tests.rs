@@ -49,6 +49,7 @@ const FILES: &[(&str, &str)] = &[
 /// Reads the air space of [`PROJECT`] and nothing else of it.
 fn zuzana() -> Identity {
     Identity {
+        client: None,
         subject: "f:1:zuzana".into(),
         username: "zuzana".into(),
         email: Some("zuzana@banskabystrica.sk".into()),

@@ -27,6 +27,7 @@ const REPO: &str = "/api/v1/repos/test-owner/test-repo";
 
 fn identity(username: &str, groups: &[&str]) -> Identity {
     Identity {
+        client: None,
         subject: format!("sub-{username}"),
         username: username.to_string(),
         email: Some(format!("{username}@banskabystrica.sk")),

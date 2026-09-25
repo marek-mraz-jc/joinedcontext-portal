@@ -71,6 +71,7 @@ fn config_with(proxy_base: &str, runner: Option<&str>) -> Config {
 
 fn person(email: &str, groups: &[&str]) -> Identity {
     Identity {
+        client: None,
         subject: format!("f:1:{email}"),
         username: email.split('@').next().unwrap_or(email).to_owned(),
         email: Some(email.to_owned()),

@@ -20,7 +20,7 @@ const ui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const portal = resolve(ui, "..");
 
 /** What was owed when the gate was written; the counts may shrink, never grow. */
-const OWED_ON_2026_09_25 = { live: 43, assistant: 17, unclaimed: 5 };
+const OWED_ON_2026_09_25 = { live: 32, assistant: 14, unclaimed: 5 };
 
 const coverage = JSON.parse(readFileSync(join(ui, "tests/workflow_coverage.json"), "utf8")) as Coverage;
 const openapi = JSON.parse(readFileSync(join(ui, "openapi.json"), "utf8")) as {

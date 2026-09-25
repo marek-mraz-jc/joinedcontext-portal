@@ -3,13 +3,14 @@
  * leave the first behind. The dialog fixes the name of a resource that exists — in the form and
  * in the YAML view, which is the one that used to get through (MF-11, MF-12).
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { answeringChecks } from "./checks";
 import { findFormPage } from "./formPage";
 
 function MockEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
@@ -82,6 +83,7 @@ function renderDashboards() {
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", answeringChecks(globalThis.fetch));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
@@ -135,7 +137,12 @@ describe("renaming a resource that exists", () => {
     // the last edit). On a loaded CI runner that pause happened by itself and the draft save was
     // counted as a proposal (T-2575); here it always happens, so both paths are held every run.
     await new Promise((resolve) => setTimeout(resolve, 900));
-    await userEvent.click(within(dialog).getByRole("button", { name: en.dashboards.propose }));
+    // Checked first: the form proposes only what its check passed (PF-57, T-2731). The server's
+    // check sees a new name and passes it; the form refuses the rename on Propose.
+    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    const propose = within(dialog).getByRole("button", { name: en.dashboards.propose });
+    await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled", "true"));
+    await userEvent.click(propose);
 
     expect(await within(dialog).findByText(/Keep the name bikes/)).toBeInTheDocument();
     // The only write is the draft, under the name the resource keeps; nothing is proposed.
