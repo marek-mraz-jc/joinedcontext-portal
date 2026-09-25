@@ -610,18 +610,12 @@ impl Driver {
                     }),
                 )
                 .await?;
-                let mut prose = share::prose_of(answer);
-                if prose.is_empty() {
-                    prose = format!(
-                        "Drafted the endpoint '{}'; review it in the form and propose it.",
-                        params.name
-                    );
-                }
-                self.thought(&prose).await?;
                 let manifest = serde_json::to_value(&proposal.endpoint).unwrap_or_else(|_| {
                     serde_json::to_value(&proposal.prefill).unwrap_or(Value::Null)
                 });
-                let _ = self
+                // The form opens on this draft: one that was not kept would open an empty form
+                // while the chat says it is filled (T-2763), so the person reads why instead.
+                if let Err(err) = self
                     .state
                     .drafts
                     .put(
@@ -633,7 +627,30 @@ impl Driver {
                         &self.created_by,
                         "assistant",
                     )
-                    .await;
+                    .await
+                {
+                    let why = match err {
+                        crate::ops::drafts::DraftError::Db(detail) => {
+                            tracing::warn!(project = %self.project, %detail, "endpoint draft not kept");
+                            "the drafts cannot be written now".to_owned()
+                        }
+                        other => other.to_string(),
+                    };
+                    let prose = format!(
+                        "The endpoint '{}' was rendered but not kept as a draft, so no form opens: {why}",
+                        params.name
+                    );
+                    self.thought(&prose).await?;
+                    return Ok(prose);
+                }
+                let mut prose = share::prose_of(answer);
+                if prose.is_empty() {
+                    prose = format!(
+                        "Drafted the endpoint '{}'; review it in the form and propose it.",
+                        params.name
+                    );
+                }
+                self.thought(&prose).await?;
                 self.event(
                     "navigate",
                     json!({
