@@ -196,6 +196,20 @@ struct Conversation {
     seeded: Vec<ResourceEnvelope>,
 }
 
+/// A step's payload without its `elapsedMs`, which every `navigate` and `tool` event carries
+/// (T-2697): the rest is compared whole, so nothing else travels with it.
+fn timed(payload: &Value) -> Value {
+    let mut rest = payload.clone();
+    let elapsed = rest
+        .as_object_mut()
+        .and_then(|fields| fields.remove("elapsedMs"));
+    assert!(
+        elapsed.as_ref().is_some_and(Value::is_u64),
+        "no elapsedMs in {payload}"
+    );
+    rest
+}
+
 /// The run's events from the first `tool` event named `conversation.tool` on, once the run has
 /// published it and everything after it the driver publishes in the same turn.
 async fn converse_with(
@@ -659,7 +673,7 @@ async fn a_removal_opens_the_typed_confirmation_of_the_resource_and_a_person_wit
         .find(|e| e.kind == "navigate")
         .expect("the removal dialog opens");
     assert_eq!(
-        navigate.payload,
+        timed(&navigate.payload),
         json!({ "route": "/projects/helsinki/spaces?delete=helsinki" })
     );
 
@@ -893,7 +907,7 @@ async fn taking_a_role_away_opens_the_removal_of_its_binding_on_the_access_page(
         .find(|e| e.kind == "navigate")
         .expect("the removal dialog opens");
     assert_eq!(
-        navigate.payload,
+        timed(&navigate.payload),
         json!({ "route": "/projects/helsinki/settings/members?delete=lead-steward" })
     );
 }
@@ -2347,7 +2361,7 @@ async fn the_grid_opens_narrowed_by_the_question_and_a_call_without_an_endpoint_
         .find(|e| e.kind == "navigate")
         .expect("the grid opens");
     assert_eq!(
-        navigate.payload,
+        timed(&navigate.payload),
         json!({ "route": "/projects/helsinki/explore?endpoint=helsinki-all&type=BikeHireDockingStation&q=availableBikeNumber%3D%3D0" })
     );
 

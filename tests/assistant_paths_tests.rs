@@ -822,6 +822,18 @@ async fn a_file_becomes_a_drafted_space_without_the_model() {
         of_kind(&events, "change").is_empty(),
         "nothing is proposed: the person sends the change on the page"
     );
+    // T-2697: every step and every page opened says when in the run it happened, in order.
+    let times: Vec<u64> = events
+        .iter()
+        .filter(|e| e.kind == "tool" || e.kind == "navigate")
+        .map(|e| {
+            e.payload["elapsedMs"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("no elapsedMs on {} {}", e.kind, e.payload))
+        })
+        .collect();
+    assert!(times.len() >= 3, "{times:?}");
+    assert!(times.windows(2).all(|w| w[0] <= w[1]), "{times:?}");
     let calls = started.proxy.received_requests().await.unwrap_or_default();
     assert!(
         calls.is_empty(),
@@ -1311,12 +1323,14 @@ async fn the_endpoints_of_an_app_open_the_builder_on_them() {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
     let events = events_until(&started, |e| e.kind == "navigate").await;
+    let navigate = of_kind(&events, "navigate");
+    assert_eq!(navigate.len(), 1, "{navigate:?}");
+    assert_eq!(navigate[0]["route"], "/projects/helsinki/apps/new");
     assert_eq!(
-        of_kind(&events, "navigate"),
-        [
-            &json!({ "route": "/projects/helsinki/apps/new", "prefill": { "endpoints": ["bikes", "air"] } })
-        ]
+        navigate[0]["prefill"],
+        json!({ "endpoints": ["bikes", "air"] })
     );
+    assert!(navigate[0]["elapsedMs"].is_u64(), "{}", navigate[0]);
     assert!(
         of_kind(&events, "thought")
             .iter()

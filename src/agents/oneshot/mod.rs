@@ -551,7 +551,16 @@ impl Driver {
     }
 
     /// [`Self::event`], answering the event as stored, its sequence number included.
-    async fn append(&self, kind: &str, payload: Value) -> Result<AgentRunEvent, String> {
+    async fn append(&self, kind: &str, mut payload: Value) -> Result<AgentRunEvent, String> {
+        // Every step and every page opened says when it happened in the run (T-2697, API/04 §4):
+        // a journey reads where the time went from the events alone.
+        if matches!(kind, "tool" | "navigate") {
+            if let Value::Object(fields) = &mut payload {
+                fields
+                    .entry("elapsedMs")
+                    .or_insert_with(|| json!(self.elapsed_ms()));
+            }
+        }
         let text = payload.to_string();
         let payload = if self.redacted(&text) == text {
             payload
