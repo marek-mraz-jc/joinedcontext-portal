@@ -159,6 +159,14 @@
         "save_as.test.tsx"
       ]
     },
+    "src/components/SessionEndedDialog.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "session_ended.test.tsx"
+      ]
+    },
     "src/components/WorkOnCopyDialog.tsx": {
       "controls": {
         "Button": 3

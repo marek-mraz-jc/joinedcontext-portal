@@ -9,7 +9,10 @@
       "crashBody": "Something in the Portal failed while drawing this page. Nothing you were looking at was changed.",
       "crashReference": "Quote this when you report it:",
       "crashReload": "Load the page again",
-      "crashHome": "Go to the start"
+      "crashHome": "Go to the start",
+      "session": "Your session ended. Sign in again to see this.",
+      "forbiddenHint": "A project owner or an organization administrator can give you access.",
+      "reference": "Quote this when you report it:"
     },
     "notFound": {
       "title": "This page does not exist",
@@ -27,7 +30,18 @@
       "required": "required"
     },
     "close": "Close",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "session": {
+      "title": "Your session ended",
+      "body": "You were away for a while, so the Portal signed you out. This page and what you typed on it are still here.",
+      "hereCost": "Sign in again in a new tab, then come back to this one. Signing in here leaves this page, and anything not saved is lost.",
+      "afterSignIn": "When you have signed in in the new tab, come back here and continue.",
+      "signIn": "Sign in in a new tab",
+      "continue": "Continue here",
+      "here": "Sign in here instead",
+      "close": "Not now",
+      "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
+    }
   },
   "nav": {
     "approvalsPending": "{count, plural, one {# change waits for your approval} other {# changes wait for your approval}}",

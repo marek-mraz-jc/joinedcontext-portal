@@ -33,6 +33,7 @@ pub mod plan;
 pub mod quotas;
 pub mod reconciler;
 pub mod references;
+pub mod request_id;
 pub mod resource;
 pub mod server;
 pub mod spaces;
