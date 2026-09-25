@@ -10,6 +10,7 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  servedRepresentations,
 } from "../components/endpoints/links";
 import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
 import {
@@ -177,7 +178,7 @@ export function AllEndpointsPage(): JSX.Element {
                   </TableCell>
                   <TableCell>
                     <ul className="flex flex-wrap gap-1">
-                      {(spec.enabledRepresentations ?? []).map((rep) => (
+                      {servedRepresentations(spec).map((rep) => (
                         <li key={rep}>
                           {slug && REPRESENTATION_PATHS[rep] ? (
                             <EndpointLink href={endpointUrl(slug, REPRESENTATION_PATHS[rep])}>

@@ -19,6 +19,7 @@ import {
   EndpointLink,
   ENDPOINT_LINKS,
   REPRESENTATION_PATHS,
+  servedRepresentations,
 } from "../src/components/endpoints/links";
 import { ExportButton } from "../src/components/export/ExportButton";
 
@@ -94,6 +95,26 @@ describe("the endpoint link pill", () => {
     expect(catalogueUrl("air quality/../admin")).toBe(
       `https://data.${window.location.host}/dataset/air%20quality%2F..%2Fadmin`,
     );
+  });
+});
+
+describe("what an endpoint serves", () => {
+  // EP-24, T-2901: MCP is on for every Endpoint, public or internal, without being listed.
+  it("adds_mcp_to_every_endpoint_that_does_not_opt_out", () => {
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["mcp", "ngsi-ld"] })).toEqual(["mcp", "ngsi-ld"]);
+    expect(servedRepresentations({})).toEqual(["mcp"]);
+  });
+
+  it("leaves_mcp_out_only_when_the_manifest_says_mcp_false", () => {
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: false })).toEqual(["ngsi-ld"]);
+    // Anything but the boolean false is not an opt-out: the gateway would serve the instance.
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: "false" })).toEqual(["ngsi-ld", "mcp"]);
+  });
+
+  it("drops_a_list_entry_that_is_not_a_name", () => {
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld"]);
+    expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(["mcp"]);
   });
 });
 
