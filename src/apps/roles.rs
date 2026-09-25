@@ -128,6 +128,7 @@ pub fn refusal(
     title: Option<&jc_core::i18n::Text>,
     project: &str,
     headers: &HeaderMap,
+    portal_origin: Option<&str>,
 ) -> Response {
     let locale = locale(headers);
     let pick = |map: &BTreeMap<String, String>, fallback: &str| {
@@ -161,10 +162,13 @@ pub fn refusal(
         header::CACHE_CONTROL,
         HeaderValue::from_static("private, no-store"),
     );
-    headers.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'"),
-    );
+    // The Portal frames the page when it opens the App (AP-122), so the refusal shows there.
+    if let Ok(csp) = HeaderValue::from_str(&format!(
+        "default-src 'none'; frame-ancestors {}",
+        portal_origin.unwrap_or("'none'")
+    )) {
+        headers.insert(header::CONTENT_SECURITY_POLICY, csp);
+    }
     response
 }
 
@@ -305,11 +309,23 @@ mod tests {
             HeaderValue::from_static("sk-SK,sk;q=0.9,en;q=0.8"),
         );
         let title = jc_core::i18n::Text::from("Alerts");
-        let response = refusal(&spec, "alerts", Some(&title), "helsinki", &headers);
+        let response = refusal(
+            &spec,
+            "alerts",
+            Some(&title),
+            "helsinki",
+            &headers,
+            Some("https://portal.hel.fi"),
+        );
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
         assert_eq!(
             response.headers()[header::CACHE_CONTROL],
             "private, no-store"
+        );
+        // Shown inside the Portal's frame when the App is opened there (AP-122), nowhere else.
+        assert_eq!(
+            response.headers()[header::CONTENT_SECURITY_POLICY],
+            "default-src 'none'; frame-ancestors https://portal.hel.fi"
         );
         let body = futures_util::FutureExt::now_or_never(axum::body::to_bytes(
             response.into_body(),

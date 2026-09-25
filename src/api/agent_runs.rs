@@ -1993,6 +1993,15 @@ pub async fn publish_run(
         )));
     }
 
+    let events = state
+        .agents
+        .events_since(&id, 0)
+        .await
+        .map_err(unavailable)?;
+    if let Some(held) = tests_hold(run.preview_url.as_deref(), &events) {
+        return Err(ApiError::Conflict(held));
+    }
+
     // The application is published the way every other manifest is: one merge request, the
     // project's own approval rules, no path around review (AP-10, AP-55).
     let manifest = app_manifest(&run, publish_source(&state, &run).await?);
@@ -2043,6 +2052,54 @@ pub async fn publish_run(
         .await?;
     }
     Ok(response)
+}
+
+/// Why the version on screen is not published yet (SDK-38): its tests failed, or still run in the
+/// sandbox. A version with no `tests` event (the first, quick one), or whose tests were skipped
+/// or could not run, is left to the build lane, which runs them again at publication (SDK-24).
+fn tests_hold(preview_url: Option<&str>, events: &[AgentRunEvent]) -> Option<String> {
+    let version: u64 = preview_url?
+        .split_once("?v=")?
+        .1
+        .split('&')
+        .next()?
+        .parse()
+        .ok()?;
+    let tests = events.iter().rev().find(|event| {
+        event.kind == "tests"
+            && event.payload.get("version").and_then(|v| v.as_u64()) == Some(version)
+    })?;
+    match tests.payload.get("outcome").and_then(|o| o.as_str()) {
+        Some("running") => Some(format!(
+            "version {version}'s tests are still running; publish once they pass (SDK-38)"
+        )),
+        Some("failed") => {
+            let names: Vec<String> = tests
+                .payload
+                .get("failures")
+                .and_then(|f| f.as_array())
+                .into_iter()
+                .flatten()
+                .take(5)
+                .filter_map(|failure| {
+                    let name = failure.get("name")?.as_str()?;
+                    let file = failure.get("file").and_then(|f| f.as_str()).unwrap_or("");
+                    Some(format!("{file} › {name}"))
+                })
+                .collect();
+            let failed = tests
+                .payload
+                .get("failed")
+                .and_then(|f| f.as_u64())
+                .unwrap_or(0);
+            Some(format!(
+                "version {version} fails {failed} of its tests, so it is not published; ask the \
+                 assistant to fix them first (SDK-38): {}",
+                names.join("; ")
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// Where the published application's source is, as its manifest says (AP-02).
@@ -2649,6 +2706,78 @@ pub fn preview_router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::{app_manifest, caller_token, is_function_name};
+
+    mod tests_hold {
+        use super::super::{tests_hold, AgentRunEvent};
+        use serde_json::{json, Value};
+
+        fn event(kind: &str, payload: Value) -> AgentRunEvent {
+            AgentRunEvent {
+                run_id: "r".into(),
+                seq: 0,
+                kind: kind.into(),
+                payload,
+                created_at: String::new(),
+            }
+        }
+
+        const ON_SCREEN: Option<&str> = Some("/api/v1/projects/p/agent-runs/r/preview?v=3");
+
+        #[test]
+        fn a_version_whose_tests_fail_or_still_run_is_held_and_the_failures_are_named() {
+            let failed = json!({
+                "version": 3, "outcome": "failed", "passed": 1, "failed": 7,
+                "failures": (0..7).map(|n| json!({"file": "src/app.test.tsx", "name": format!("case {n}"), "message": "x"})).collect::<Vec<_>>(),
+            });
+            let held = tests_hold(ON_SCREEN, &[event("tests", failed)]).expect("held");
+            assert!(held.contains("version 3 fails 7"), "{held}");
+            assert!(held.contains("src/app.test.tsx › case 4"), "{held}");
+            assert!(!held.contains("case 5"), "at most five named: {held}");
+
+            let running = json!({"version": 3, "outcome": "running"});
+            assert!(tests_hold(ON_SCREEN, &[event("tests", running)])
+                .expect("held")
+                .contains("still running"));
+        }
+
+        #[test]
+        fn only_the_newest_result_of_the_version_on_screen_counts() {
+            let old_failure = event(
+                "tests",
+                json!({"version": 2, "outcome": "failed", "failed": 1}),
+            );
+            let rerun = [
+                event("tests", json!({"version": 3, "outcome": "running"})),
+                event(
+                    "tests",
+                    json!({"version": 3, "outcome": "passed", "passed": 4, "failed": 0}),
+                ),
+            ];
+            let mut events = vec![old_failure];
+            events.extend(rerun);
+            assert_eq!(tests_hold(ON_SCREEN, &events), None);
+        }
+
+        #[test]
+        fn skipped_errored_untested_or_unknown_versions_are_left_to_the_build_lane() {
+            for outcome in ["skipped", "error", "passed"] {
+                let e = event("tests", json!({"version": 3, "outcome": outcome}));
+                assert_eq!(tests_hold(ON_SCREEN, &[e]), None, "{outcome}");
+            }
+            let failed = event("tests", json!({"version": 3, "outcome": "failed"}));
+            assert_eq!(tests_hold(ON_SCREEN, &[event("preview", json!({}))]), None);
+            assert_eq!(tests_hold(None, std::slice::from_ref(&failed)), None);
+            assert_eq!(
+                tests_hold(Some("/preview"), std::slice::from_ref(&failed)),
+                None
+            );
+            assert_eq!(
+                tests_hold(Some("/preview?v=x"), std::slice::from_ref(&failed)),
+                None
+            );
+            assert!(tests_hold(Some("/preview?v=3&t=1"), &[failed]).is_some());
+        }
+    }
 
     mod origin {
         use super::super::{listed_origin, run_origin, RunOrigin, RUN_ORIGIN_HEADER};

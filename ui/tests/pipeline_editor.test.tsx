@@ -240,6 +240,8 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
         (request.method === "POST" || request.method === "PUT") &&
         !request.url.endsWith("/access/check") &&
         !request.url.endsWith("/pipelines/test") &&
+        // The workbench's steps sample, try and check; they write nothing either (PL-63).
+        !/\/ops\/jc_pipeline_(sample_source|try_mapping|validate)$/.test(request.url) &&
         // The form's own draft, shared with the other windows; it writes nothing to Git (AG-61).
         !request.url.includes("/drafts/") &&
         // The Check's dry run answers a verdict and writes nothing either (AG-62).
@@ -250,9 +252,10 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 async function openNew() {
   await userEvent.click(await screen.findByRole("button", { name: en.pipelines.add }));
   const dialog = await findFormPage();
-  // The selects are filled from the project's lists once they arrive: the target's is the
-  // form's own, the source is picked in the studio (T-2754).
-  await within(dialog).findByRole("option", { name: "public-air" });
+  // The selects are filled from the project's lists once they arrive: the target is the
+  // workbench's last step, the source its first (T-2754, T-2709).
+  const target = within(dialog).getByLabelText(en.pipelines.field.targetEndpoint);
+  await within(target).findByRole("option", { name: "public-air" });
   return dialog;
 }
 
@@ -728,6 +731,12 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const formField = (name: string) => dialog.querySelector(`#root_${name}`) as HTMLElement;
     const geo = () => formField("source_query_geoQ");
     const trigger = () => formField("source_trigger_subscription_type");
+    // The form's own fields sit folded under More options, shut when the dialog opens (PL-58).
+    const summary = [...dialog.querySelectorAll("summary")].find((one) => one.textContent?.startsWith("More options"));
+    const more = summary?.closest("details");
+    expect(more).not.toHaveAttribute("open");
+    await userEvent.click(summary as HTMLElement);
+    expect(more).toHaveAttribute("open");
 
     // Nothing chosen: no source fields, no compute fields, no schedule.
     expect(geo()).not.toBeVisible();
@@ -1016,7 +1025,9 @@ describe("the pipeline editor against the UI contract", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
     const dialog = await findFormPage();
-    await within(dialog).findByRole("option", { name: "public-air" });
+    await within(within(dialog).getByLabelText(i18n.t("pipelines.field.targetEndpoint"))).findByRole("option", {
+      name: "public-air",
+    });
 
     // The dialog carries the form/YAML tabs; the studio inside it has a set of its own, so both
     // answer to this name and what matters is that the name is the locale's, not English.
