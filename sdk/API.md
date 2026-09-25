@@ -172,7 +172,7 @@ function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport //
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
 ```
-Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`. The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists. The Endpoint's Policy decides every write.
+Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`. The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists, and an Endpoint's 404 on `history` is an empty series, since the Endpoint answers an entity with no instances and one its grants do not reach alike (T-2972). The Endpoint's Policy decides every write.
 ```ts
 function toRichRow(entity: object, language?: string): RichRow // { id, type, createdAt, modifiedAt, scope, cells, raw }
 function toRichCell(attr: unknown, language: string): RichCell | null // { kind, value, unitCode, observedAt, datasetId, createdAt, modifiedAt, object, geometryType, languageMap, sub }
