@@ -2526,7 +2526,7 @@
                 "$ref": "#/components/schemas/CreateRunRequest"
               },
               "example": {
-                "appClass": "fullstack",
+                "appClass": "ui-rust",
                 "appName": "city-bikes-overview",
                 "dataNeeds": [
                   {
@@ -4879,6 +4879,118 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/datamodels/{name}/share": {
+      "post": {
+        "tags": [
+          "datamodels"
+        ],
+        "summary": "Share Model with the Organization",
+        "description": "Proposes a red-lane Change of the organization repository that copies the published model's source byte for byte, with spec.origin (DM-77). Only an organization-scope approver of DataModel approves it.",
+        "operationId": "share_model",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "DataModel name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Empty, or the model's name typed by an organization administrator sharing their own model",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ShareBody"
+                  }
+                ]
+              },
+              "example": {
+                "confirm": "air-quality"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The Change, waiting for an organization approver or merged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The model imports a model of the project, or the body does not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No propose on DataModel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such model the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not published, the name is held by an organization model of another origin, or the organization's copy already has this source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -12270,7 +12382,7 @@
         "properties": {
           "appClass": {
             "type": "string",
-            "description": "`static`, `service` or `fullstack`, as the `App` kind spells them."
+            "description": "`ui` or `ui-rust`, as the `App` kind spells them (AP-124); `static` and `fullstack` are\nread as them for one release, and `ui-node` is refused until it is built."
           },
           "appName": {
             "type": "string",
@@ -13786,6 +13898,14 @@
           }
         }
       },
+      "ModelLevel": {
+        "type": "string",
+        "description": "Where a model lives (DM-75, DM-79).",
+        "enum": [
+          "organization",
+          "project"
+        ]
+      },
       "Need": {
         "type": "object",
         "description": "One thing a copy cannot carry (CC-84, API/01 §10).",
@@ -14211,11 +14331,11 @@
       },
       "OrganizationModel": {
         "type": "object",
-        "description": "One `DataModel` of the organization as the pickers list it (DM-63).",
+        "description": "One `DataModel` of the organization as the pickers list it (DM-63, DM-79).",
         "required": [
           "name",
+          "level",
           "project",
-          "space",
           "version",
           "lifecycle",
           "classes"
@@ -14227,17 +14347,36 @@
               "type": "string"
             }
           },
+          "level": {
+            "$ref": "#/components/schemas/ModelLevel"
+          },
           "lifecycle": {
             "type": "string"
           },
           "name": {
             "type": "string"
           },
+          "origin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SharedFrom",
+                "description": "The project model an organization model was shared from (DM-77); absent on every other."
+              }
+            ]
+          },
           "project": {
-            "type": "string"
+            "type": "string",
+            "description": "The project it belongs to; `org` for an organization model."
           },
           "space": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The space whose model it is; absent for a model no space owns (DM-75)."
           },
           "version": {
             "type": "string"
@@ -16042,6 +16181,46 @@
             "items": {
               "$ref": "#/components/schemas/SetupItem"
             }
+          }
+        }
+      },
+      "ShareBody": {
+        "type": "object",
+        "description": "The body of a share: the model's name typed back by an organization administrator who\napproves their own share at once (PF-58, CC-19). Without it the Change waits for one.",
+        "properties": {
+          "confirm": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SharedFrom": {
+        "type": "object",
+        "description": "Where an organization model was shared from (DM-77): what lets that project offer to use the\norganization's copy instead of its own (DM-78).",
+        "required": [
+          "project",
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "The version that was shared."
           }
         }
       },

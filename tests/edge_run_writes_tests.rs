@@ -177,7 +177,7 @@ fn a_run(id: &str, project: &str, who: &str, status: AgentRunStatus, kind: &str)
         kind: kind.to_owned(),
         unattended: false,
         continues: None,
-        app_class: "fullstack".to_owned(),
+        app_class: "ui-rust".to_owned(),
         visibility: "project".to_owned(),
         prompt: "a prompt nobody else may read".to_owned(),
         prompt_digest: digest_prompt("a prompt"),

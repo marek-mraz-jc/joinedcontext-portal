@@ -140,6 +140,7 @@ pub const PORTAL_ONLY_KINDS: &[KindInfo] = &[KindInfo {
     scope: Scope::Project,
     path_template: "projects/{project}/spaces/{space}/entities/seed/{name}.yaml",
     project_path_template: None,
+    spaceless_path_template: None,
 }];
 
 /// Every kind the resource API serves: the jc-core catalogue first, the Portal-only kinds after,

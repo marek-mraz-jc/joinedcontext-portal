@@ -262,7 +262,7 @@ describe("the other edit forms fill their references from a typed manifest", () 
         dataNeeds: [{ contextSpaceRef: { kind: "ContextSpace", name: "praha-mesto" }, types: ["BikeHireDockingStation"] }],
       },
     });
-    expect(app).toMatchObject({ name: "bikes", kind: "static", visibility: "public", source: { from: "path", path: "apps/bikes" } });
+    expect(app).toMatchObject({ name: "bikes", kind: "ui", visibility: "public", source: { from: "path", path: "apps/bikes" } });
     expect(app.dataNeeds).toEqual([expect.objectContaining({ contextSpaceRef: "praha-mesto", types: ["BikeHireDockingStation"] })]);
   });
 

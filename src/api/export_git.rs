@@ -199,7 +199,7 @@ pub async fn archive(
         "kind": "Project",
         "metadata": { "name": project, "namespace": crate::permissions::ORG_NAMESPACE },
         "spec": {
-            "organizationRef": organization,
+            "organizationRef": organization.clone(),
             "repository": { "name": project },
             "ref": "main",
         },
@@ -207,6 +207,13 @@ pub async fn archive(
     let entry = serde_yaml_ng::to_string(&entry)
         .map_err(|e| ApiError::Internal(format!("the registry entry did not serialise: {e}")))?;
     entries.push((format!("projects/{project}.yaml"), entry.into_bytes()));
+
+    // Every organization model the project imports travels with it, schema files only (MF-49).
+    let organization_name = serde_json::from_value::<jc_core::envelope::Ref>(organization)
+        .map_err(|e| ApiError::Internal(format!("the registry entry's organizationRef: {e}")))?;
+    let (models, model_files) =
+        crate::api::bundle_models::carry(state, project, organization_name.name()).await?;
+    entries.extend(model_files);
 
     let files = entries
         .iter()
@@ -236,6 +243,7 @@ pub async fn archive(
             readme: None,
             schemas: None,
             repositories,
+            models,
         },
         status: None,
     };

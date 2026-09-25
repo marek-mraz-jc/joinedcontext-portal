@@ -25,10 +25,16 @@ import { contextSpaceSchema, policySchema, policyUiSchema } from "../src/schemas
 import { mappingSchema, mappingUiSchema } from "../src/schemas/mapping";
 
 const MODELS = [
-  { name: "air-quality", project: "helsinki", space: "air", version: "1.2.0", lifecycle: "published", classes: ["AirQualityObserved"] },
-  { name: "mobility", project: "helsinki", space: "mobility", version: "0.3.0", lifecycle: "draft", classes: ["BikeHireDockingStation", "Road"] },
-  { name: "kpi", project: "bbsk", space: "kpi", version: "2.0.0", lifecycle: "published", classes: ["KeyPerformanceIndicator"] },
+  { name: "air-quality", level: "project", project: "helsinki", space: "air", version: "1.2.0", lifecycle: "published", classes: ["AirQualityObserved"] },
+  { name: "mobility", level: "project", project: "helsinki", space: "mobility", version: "0.3.0", lifecycle: "draft", classes: ["BikeHireDockingStation", "Road"] },
+  { name: "kpi", level: "project", project: "bbsk", space: "kpi", version: "2.0.0", lifecycle: "published", classes: ["KeyPerformanceIndicator"] },
 ];
+/** An organization model named like a project's, and a project model no space owns (DM-75). */
+const LEVELS = [
+  { name: "kpi", level: "organization", project: "org", version: "2.1.0", lifecycle: "published", classes: ["Territory"] },
+  { name: "shared", level: "project", project: "helsinki", version: "1.0.0", lifecycle: "published", classes: ["Kiosk"] },
+];
+let extra: typeof LEVELS = [];
 const SDM = [
   { id: "dataModel.Environment/AirQualityObserved", name: "AirQualityObserved", subject: "dataModel.Environment", description: "Air quality" },
 ];
@@ -56,7 +62,7 @@ function stubFetch() {
         return Response.json({
           apiVersion: "joinedcontext.com/v1alpha1",
           kind: "List",
-          items: MODELS,
+          items: [...extra, ...MODELS],
           smartDataModels: search.length >= 2 ? SDM.filter((e) => e.name.toLowerCase().includes(search.toLowerCase())) : [],
         });
       }
@@ -79,6 +85,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(async () => {
   failList = false;
+  extra = [];
   source = SOURCE;
   await i18n.changeLanguage("en");
   stubFetch();
@@ -88,21 +95,27 @@ afterEach(() => {
 });
 
 describe("DataModelPicker", () => {
-  it("lists every model the server returned, own project first, grouped by project and space with the version", async () => {
+  it("lists every model the server returned, own project first, then the organization's, grouped by level, project and space with the version", async () => {
     const user = userEvent.setup();
+    extra = LEVELS;
     wrap(<DataModelPicker label="Data model" project="bbsk" value={[]} onChange={() => {}} />);
     await user.click(screen.getByRole("combobox", { name: "Data model" }));
     const list = await screen.findByRole("listbox", { name: "Data model" });
     const options = await within(list).findAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([
-      expect.stringContaining("kpi"),
+      expect.stringContaining("KeyPerformanceIndicator"),
+      expect.stringContaining("Territory"),
+      expect.stringContaining("shared"),
       expect.stringContaining("air-quality"),
       expect.stringContaining("mobility"),
     ]);
-    expect(list.textContent).toContain("bbsk / kpi");
-    expect(list.textContent).toContain("helsinki / air");
-    expect(options[1].textContent).toContain("v1.2.0");
-    expect(options[2].textContent).toContain("v0.3.0 · draft");
+    // DM-79: each entry's level is said, the organization's models apart from every project's.
+    expect(list.textContent).toContain("Project bbsk / kpi");
+    expect(list.textContent).toContain("Organization models");
+    expect(list.textContent).toContain("Project helsinki / air");
+    expect(list.textContent).toContain("Project helsinki");
+    expect(options[3].textContent).toContain("v1.2.0");
+    expect(options[4].textContent).toContain("v0.3.0 · draft");
   });
 
   it("is operated by keyboard: arrows move, Enter picks, Escape closes", async () => {
@@ -181,6 +194,19 @@ describe("TypePicker", () => {
     expect(list.textContent).not.toContain("AirQualityObserved");
   });
 
+  it("finds an organization model the space imports by its level, not a project model of the same name", async () => {
+    source = "imports:\n  - linkml:types\n  - org.kpi.v2\nclasses: {}\n";
+    extra = LEVELS;
+    const user = userEvent.setup();
+    wrap(<TypePicker label="Type" project="helsinki" space="mobility" value={[]} onChange={() => {}} />);
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
+    const list = screen.getByRole("listbox");
+    expect(list.textContent).toContain("Imported from the organization model kpi");
+    expect(list.textContent).toContain("Territory");
+    expect(list.textContent).not.toContain("KeyPerformanceIndicator");
+  });
+
   it("takes several types as removable pills", async () => {
     const user = userEvent.setup();
     let value: string[] = ["Road"];
@@ -203,10 +229,14 @@ describe("TypePicker", () => {
 
   it("without a space lists every model of the project, grouped by model, and nothing of another project", async () => {
     const user = userEvent.setup();
+    extra = LEVELS;
     wrap(<TypePicker label="Type" project="helsinki" value={[]} onChange={() => {}} />);
     await user.click(screen.getByRole("combobox"));
-    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
-    expect(screen.getByRole("listbox").textContent).not.toContain("KeyPerformanceIndicator");
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(4));
+    const list = screen.getByRole("listbox");
+    expect(list.textContent).not.toContain("KeyPerformanceIndicator");
+    expect(list.textContent).toContain("shared (project model)");
+    expect(list.textContent).not.toContain("undefined");
     expect(requests.some((r) => r.endsWith("/source"))).toBe(false);
   });
 
@@ -221,8 +251,14 @@ describe("TypePicker", () => {
 describe("importedNames", () => {
   it("reads model names from imports and skips LinkML built-ins and unreadable sources", () => {
     expect(importedNames("imports:\n  - linkml:types\n  - ../air/air-quality.linkml.yaml\n  - https://example.org/models/kpi.yaml\n")).toEqual([
-      "air-quality",
-      "kpi",
+      { name: "air-quality" },
+      { name: "kpi" },
+    ]);
+    // DM-76: a platform-model import carries its level; a malformed one is only a name.
+    expect(importedNames("imports: [org.kpi.v2, project.air-quality.v1, org.bad]\n")).toEqual([
+      { name: "kpi", level: "organization" },
+      { name: "air-quality", level: "project" },
+      { name: "org.bad" },
     ]);
     expect(importedNames("classes: {}\n")).toEqual([]);
     expect(importedNames(": : not yaml [")).toEqual([]);

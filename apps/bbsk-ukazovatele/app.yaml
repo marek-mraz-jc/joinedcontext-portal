@@ -21,7 +21,7 @@ metadata:
     sk: "Ukazovatele Banskobystrického samosprávneho kraja a mesta Banská Bystrica vedľa seba: hodnota, jednotka, obdobie a čas výpočtu, pri každom je uvedené, koho číslo to je."
     en: "The indicators of the Banská Bystrica self-governing region and of the city of Banská Bystrica side by side: value, unit, window and when it was computed, each card saying whose number it is."
 spec:
-  kind: static
+  kind: ui
   source:
     path: ./apps/bbsk-ukazovatele
   build:

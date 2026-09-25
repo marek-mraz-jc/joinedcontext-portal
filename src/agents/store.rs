@@ -491,7 +491,7 @@ mod tests {
             kind: "application".to_owned(),
             unattended: false,
             continues: None,
-            app_class: "static".to_owned(),
+            app_class: "ui".to_owned(),
             visibility: "project".to_owned(),
             prompt: "a live bike availability dashboard".to_owned(),
             prompt_digest: "sha256:abc".to_owned(),
