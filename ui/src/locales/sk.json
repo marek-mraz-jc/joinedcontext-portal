@@ -1390,7 +1390,7 @@
         "until": "Odkaz platí do {time}.",
         "confirmMint": "Vytvoriť a zobraziť kľúč",
         "confirmRotate": "Vymeniť a zobraziť kľúč",
-        "later": "Teraz nie",
+        "cancel": "Teraz nie",
         "gone": "Tento odkaz vypršal, už bol použitý alebo patrí niekomu inému. Požiadajte o kľúč znova vo svojom MCP klientovi."
       }
     },

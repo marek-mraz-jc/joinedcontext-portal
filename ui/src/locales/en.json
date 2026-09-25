@@ -1390,7 +1390,7 @@
         "until": "This link works until {time}.",
         "confirmMint": "Mint and show the key",
         "confirmRotate": "Rotate and show the key",
-        "later": "Not now",
+        "cancel": "Not now",
         "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
       }
     },

@@ -341,12 +341,12 @@ function KeyClaimDialog({
       }}
       title={t("access.keys.claim.title")}
       description={t("access.keys.claim.hint")}
-      closeLabel={t("access.keys.claim.later")}
+      closeLabel={t("access.keys.claim.cancel")}
       footer={
         asked ? (
           <>
             <Button variant="secondary" onClick={onClose}>
-              {t("access.keys.claim.later")}
+              {t("access.keys.claim.cancel")}
             </Button>
             <Button variant="primary" loading={use.isPending} onClick={() => use.mutate()}>
               {asked.action === "rotate" ? t("access.keys.claim.confirmRotate") : t("access.keys.claim.confirmMint")}

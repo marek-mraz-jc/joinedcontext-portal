@@ -1390,7 +1390,7 @@
         "until": "Der Link gilt bis {time}.",
         "confirmMint": "Erstellen und Schlüssel anzeigen",
         "confirmRotate": "Rotieren und Schlüssel anzeigen",
-        "later": "Nicht jetzt",
+        "cancel": "Nicht jetzt",
         "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
       }
     },
