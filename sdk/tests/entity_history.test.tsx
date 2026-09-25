@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
+import { currentTokens } from "../src/sdk/tokens";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource, SourceError } from "../src/grid/source";
 import type { HistoryPoint, HistoryWindow } from "../src/grid/source";
@@ -65,12 +66,15 @@ describe("one attribute's history", () => {
       lastN: MAX_POINTS,
     });
 
-    const panel = screen.getByRole("region", { name: /History availableBikeNumber/ });
-    // The entity it is about, the values, and the unit they are measured in.
-    expect(panel.textContent).toContain(ID);
-    expect(within(panel).getByText("2026-09-19T09:00:00Z")).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: "History: availableBikeNumber" });
+    // The attribute, the values and the unit they are measured in; never the id nobody reads
+    // (T-2991), and the times as a clock says them, with the instant kept for a machine.
+    expect(panel.textContent).not.toContain(ID);
+    const at = panel.querySelector('time[datetime="2026-09-19T09:00:00Z"]');
+    expect(at?.textContent).toBeTruthy();
+    expect(at?.textContent).not.toContain("2026-09-19T");
     expect(within(panel).getAllByText("C62").length).toBeGreaterThan(0);
-    expect(within(panel).getByRole("img", { name: /History availableBikeNumber/ })).toBeInTheDocument();
+    expect(within(panel).getByRole("img", { name: "History: availableBikeNumber" })).toBeInTheDocument();
   });
 
   it("reads the window a person picks, and asks again for it", async () => {
@@ -173,6 +177,7 @@ describe("the grid's own way in", () => {
     {
       id: ID,
       type: "BikeHireDockingStation",
+      name: { type: "Property", value: "Kamppi" },
       availableBikeNumber: { type: "Property", value: 5, unitCode: "C62" },
     },
   ];
@@ -192,10 +197,12 @@ describe("the grid's own way in", () => {
     fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
     fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-    const panel = await screen.findByRole("region", { name: /History availableBikeNumber/ });
-    expect(panel.textContent).toContain(ID);
+    // The column as its label says it and the row by its name: the panel says which entity it
+    // is about in words, never by its id (T-2991).
+    const panel = await screen.findByRole("region", { name: "History: Bikes — Kamppi" });
+    expect(panel.textContent).not.toContain(ID);
     fireEvent.click(within(panel).getByRole("button", { name: L.close }));
-    expect(screen.queryByRole("region", { name: /History availableBikeNumber/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: /History: Bikes/ })).toBeNull();
   });
 
   it("offers nothing when the config never asked for history", async () => {
@@ -209,5 +216,51 @@ describe("the grid's own way in", () => {
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
+  });
+});
+
+describe("the chart a person reads (T-2991)", () => {
+  const PM10: HistoryPoint[] = [
+    { at: "2026-09-25T11:00:00Z", value: 8.2191 },
+    { at: "2026-09-25T15:00:00Z", value: 0.5181 },
+    { at: "2026-09-25T19:00:00Z", value: 5.8445 },
+  ];
+
+  it("draws the series in the palette's colour on a time axis and a value axis naming the unit", async () => {
+    const { source } = withHistory(async () => PM10);
+    render(
+      <EntityHistory
+        source={source}
+        id="urn:ngsi-ld:AirQualityObserved:hel.fi:banskabystrica-verejne:eea-SK0263A"
+        attr="pm10"
+        unit="µg/m³"
+        heading="History of PM10"
+        locale="sk"
+        fractionDigits={1}
+        now={() => new Date("2026-09-25T20:00:00Z")}
+      />,
+    );
+    const chart = await screen.findByRole("img", { name: "History of PM10" });
+    const line = chart.querySelector("polyline");
+    expect(line?.getAttribute("stroke")).toBe(currentTokens().chart.palette[0]);
+    expect(line?.getAttribute("stroke")).not.toBe("currentColor");
+    expect(within(chart).getByText("µg/m³")).toBeInTheDocument();
+    // One marker per point, each saying its time and its value in the page's language on hover.
+    const titles = [...chart.querySelectorAll("circle > title")].map((title) => title.textContent);
+    expect(titles).toHaveLength(3);
+    expect(titles[0]).toMatch(/8,2 µg\/m³$/);
+    // Time labels along the axis, not ISO instants.
+    expect(chart.textContent).not.toContain("2026-09-25T");
+
+    // The heading is the App's, and the table writes the values as the page's language does.
+    const panel = screen.getByRole("region", { name: "History of PM10" });
+    expect(within(panel).getByRole("heading", { name: "History of PM10" })).toBeInTheDocument();
+    expect(panel.textContent).not.toContain("urn:ngsi-ld");
+    expect(within(panel).getByRole("table").textContent).toContain("0,5");
+    expect(within(panel).getByRole("table").textContent).not.toContain("0.5181");
+  });
+
+  it("keeps the raw numbers in the CSV a spreadsheet reads", async () => {
+    expect(asCsv(PM10, "pm10")).toContain("2026-09-25T11:00:00Z,8.2191");
   });
 });

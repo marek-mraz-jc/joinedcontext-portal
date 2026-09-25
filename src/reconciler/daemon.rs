@@ -805,6 +805,8 @@ impl Syncer {
 
         // 5. Compile the live status of every resource and swap the mirror in one step, so a
         //    reader never sees a half-built repository (MF-04).
+        // The conditions this run starts from, so one that says the same again keeps its time.
+        let transitions = super::transitions::Transitions::of(&self.mirror);
         let fresh_mirror = Mirror::new();
         fresh_mirror.set_layout(scratch.layout);
         fresh_mirror.set_repositories(
@@ -904,6 +906,7 @@ impl Syncer {
                 None => HashMap::new(),
             };
             serve_leaders_phases(&fresh_mirror, &saved);
+            transitions.keep_all(&fresh_mirror);
             self.mirror.replace_all(&fresh_mirror);
             return Ok((loaded, revision));
         }
@@ -1344,6 +1347,7 @@ impl Syncer {
             self.say_published(&reports).await;
         }
 
+        transitions.keep_all(&fresh_mirror);
         self.mirror.replace_all(&fresh_mirror);
 
         // 6. Converge what an App compiles into (T-0411, AP-18, AP-21). The mirror is already
@@ -1424,6 +1428,7 @@ impl Syncer {
                         &format!("the App's host has no certificate yet (AP-133): {message}"),
                     )];
                 }
+                transitions.keep(&mut envelope);
                 self.mirror.upsert(envelope);
             }
         }
@@ -1449,13 +1454,17 @@ impl Syncer {
                 )];
             }
             tracing::warn!(app = %name, "the build the manifest names is not on the host");
+            transitions.keep(&mut envelope);
             self.mirror.upsert(envelope);
         }
 
         // 6b'. A published App with no build and no bundle the image ships serves nothing: it
         //      reads Pending with a red Ready, never Live (AP-13a, T-2989).
-        for name in crate::apps::static_host::report_unbuilt(self.apps_dir.as_deref(), &self.mirror)
-        {
+        for name in crate::apps::static_host::report_unbuilt(
+            self.apps_dir.as_deref(),
+            &self.mirror,
+            &transitions,
+        ) {
             tracing::warn!(app = %name, "a published App has no build to serve");
         }
 
@@ -1496,6 +1505,7 @@ impl Syncer {
                                 &err.to_string(),
                             )];
                         }
+                        transitions.keep(&mut envelope);
                         self.mirror.upsert(envelope);
                     }
                 }

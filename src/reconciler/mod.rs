@@ -23,6 +23,7 @@ pub mod registrations;
 pub mod stall;
 pub mod streams;
 pub mod subscriptions;
+pub mod transitions;
 pub mod workload_clients;
 
 pub use daemon::{SyncError, SyncStatus, Syncer};
