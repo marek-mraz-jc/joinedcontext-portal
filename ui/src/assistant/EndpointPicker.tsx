@@ -66,10 +66,9 @@ interface Choice {
   audience: string;
 }
 
-/** The project's endpoints as choices, read once per project and shared by every bar. */
-function useChoices(project: string): { choices: Choice[]; loading: boolean } {
-  const { i18n } = useTranslation();
-  const query = useQuery({
+/** The project's endpoints, one query for every bar and for the dock's prefetch (T-2719). */
+export function endpointsQuery(project: string) {
+  return {
     queryKey: queryKeys.list(project, "endpoints"),
     queryFn: async () =>
       unwrap(
@@ -77,7 +76,13 @@ function useChoices(project: string): { choices: Choice[]; loading: boolean } {
           params: { path: { project, plural: "endpoints" } },
         }),
       ),
-  });
+  };
+}
+
+/** The project's endpoints as choices, read once per project and shared by every bar. */
+function useChoices(project: string): { choices: Choice[]; loading: boolean } {
+  const { i18n } = useTranslation();
+  const query = useQuery(endpointsQuery(project));
   const choices = useMemo(
     () =>
       asManifests(query.data?.items ?? []).map((endpoint) => {

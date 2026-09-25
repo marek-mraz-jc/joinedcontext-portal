@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Button, Field, PermissionGuard, Textarea } from "../components/ui";
 import type { JSX } from "react";
 import { clsx } from "clsx";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../api/client";
@@ -13,6 +14,7 @@ import { AppGenerator } from "../pages/apps/AppGenerator";
 import { appDisplayName, useEndpointTitles } from "../pages/apps/appTitle";
 import {
   DataBar,
+  endpointsQuery,
   MAX_ENDPOINTS,
   rememberEndpoints,
   runEndpointNames,
@@ -179,6 +181,44 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     settlePrefill(pathname);
   }, [navigated, pathname]);
   const [open, setOpen] = useState(() => Boolean(parseRun(runSnapshot())));
+  // Opened by the person (the bubble, Ctrl/Cmd+K), the panel lands on its text box, ready to
+  // type; opened because a run was remembered, it leaves the focus where it was (T-2719).
+  const focusBox = useRef(false);
+  useEffect(() => {
+    if (open && focusBox.current) {
+      focusBox.current = false;
+      document.querySelector<HTMLElement>("#assistant-empty-composer, #run-message")?.focus();
+    }
+  });
+  // Ctrl/Cmd+K from any page opens the assistant and a second press closes it. The shortcut only
+  // moves the focus: nothing is sent and no conversation starts by it.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
+        return;
+      }
+      event.preventDefault();
+      setOpen((was) => {
+        focusBox.current = !was;
+        return !was;
+      });
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  // The endpoints the data bar offers are read while the page is idle, so opening does not wait.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const read = () => {
+      void queryClient.prefetchQuery(endpointsQuery(project));
+    };
+    const handle = window.setTimeout(read, 1000);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [project, queryClient]);
   const [building, setBuilding] = useState(false);
   const [layout, setLayout] = useState<Layout>(storedLayout);
   useEffect(() => {
@@ -420,7 +460,9 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         aria-expanded={false}
         aria-label={t("assistant.open")}
         title={t("assistant.open")}
+        aria-keyshortcuts="Control+K Meta+K"
         onClick={() => {
+          focusBox.current = true;
           setOpen(true);
         }}
         className="focus-ring fixed bottom-4 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-3 hover:bg-primary-hover"

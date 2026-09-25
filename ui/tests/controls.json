@@ -20,6 +20,7 @@
         "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
         "assistant_layout.test.tsx",
+        "assistant_open.test.tsx",
         "assistant_turns.test.tsx",
         "form_assistant_dock.test.tsx"
       ]
@@ -31,7 +32,8 @@
         "Switch": 1
       },
       "tests": [
-        "assistant_capabilities.test.tsx"
+        "assistant_capabilities.test.tsx",
+        "assistant_open.test.tsx"
       ]
     },
     "src/assistant/EndpointPicker.tsx": {
@@ -41,6 +43,7 @@
       "tests": [
         "assistant_capabilities.test.tsx",
         "assistant_endpoints.test.tsx",
+        "assistant_open.test.tsx",
         "part_endpoint_picker.test.tsx"
       ]
     },
