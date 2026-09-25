@@ -17,7 +17,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use super::static_host::{
-    app_root, integrity_of, is_origin, published_app, served_config, sri_sha384, to_apps_origin,
+    app_root, integrity_of, off_its_origin, published_app, served_config, sri_sha384,
 };
 use crate::api::agent_runs::{invoke, is_function_name, InvokeError, RefusedStatus};
 use crate::auth::session::EDGE_TOKEN_HEADER;
@@ -38,10 +38,8 @@ pub(super) async fn call(
     Query(query): Query<BTreeMap<String, String>>,
     body: Bytes,
 ) -> Response {
-    if let Some(apps_url) = state.config.apps_url.as_ref() {
-        if !is_origin(&headers, apps_url) {
-            return to_apps_origin(apps_url, &uri);
-        }
+    if let Some(refused) = off_its_origin(&state, &headers, &name, &uri) {
+        return refused;
     }
     let not_found =
         || ApiError::NotFound(format!("app '{name}' has no function '{function}'")).into_response();

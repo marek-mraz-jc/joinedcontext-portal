@@ -110,11 +110,11 @@ pub struct Config {
     /// writable, and `{apps_dir}` need not be. `None` fetches nothing, and an App whose
     /// `status.build` names a build keeps serving the bundle the image ships.
     pub apps_cache_dir: Option<String>,
-    /// The origin apps are served from (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`; AP-26,
-    /// ADR-N-019). When set, `/apps/*` is served only on that origin and answered with a `308`
-    /// to it on any other host, above all the Portal's own: an app on the Portal origin would
-    /// call the Portal API with the viewer's session (T-2476). `None` serves on every host, as
-    /// a Portal without an edge in front of it does.
+    /// The apex every App's own origin sits under (`JC_PORTAL_APPS_URL`, e.g. `https://{domain}`;
+    /// AP-26, AP-133, ADR-N-037): App `name` is served only on `{name}.apps.{domain}` and
+    /// answered with a `308` there on any other host, above all the Portal's own, where it would
+    /// call the Portal API with the viewer's session (T-2476), and another App's. `None` serves
+    /// on every host, as a Portal without an edge in front of it does.
     pub apps_url: Option<Url>,
     /// The file the deployment renders `global.branding` into (`JC_BRANDING_FILE`; UI-30,
     /// OPS-46). `None` serves
@@ -496,8 +496,15 @@ fn app_settings(
         "JC_PORTAL_SERVICE_ACCOUNT",
         set("JC_PORTAL_SERVICE_ACCOUNT"),
     )?;
+    let apex = apps_url(lookup)?
+        .and_then(|apps| apps.host_str().map(str::to_owned))
+        .unwrap_or_else(|| host.strip_prefix("portal.").unwrap_or(&host).to_owned());
+    // Validated with the rest of the configuration where the Portal reads it itself.
+    let gateway_url = set("JC_PORTAL_GATEWAY_URL").map(|url| url.trim_end_matches('/').to_owned());
     Ok(Some(crate::apps::reconciler::Settings {
         host,
+        apex,
+        gateway_url,
         namespace,
         org_domain,
         apisix_namespace,
@@ -1661,6 +1668,41 @@ mod tests {
         // Not a variable of its own: the host is the Portal's public URL. No realm and no
         // sidecar image any more: the login front is the edge's one `edge` client (ADR-N-019).
         assert_eq!(settings.host, "bb.example.sk");
+        assert_eq!(settings.apex, "bb.example.sk");
+        assert_eq!(settings.gateway_url, None);
+
+        // AP-133, AP-134: the Apps' hosts sit under the apps origin's host, else under the
+        // Portal's host without its `portal.` label; the gateway is the Portal's own.
+        let apex = |extra: &'static [(&'static str, &'static str)]| {
+            Config::from_vars(|k| {
+                extra
+                    .iter()
+                    .find(|(key, _)| *key == k)
+                    .map(|(_, value)| (*value).to_owned())
+                    .or_else(|| complete(k))
+            })
+            .expect("a complete configuration")
+            .app_settings
+            .expect("every part is there")
+        };
+        let on_dev = apex(&[
+            ("JC_PORTAL_PUBLIC_URL", "https://portal.dev.example.com"),
+            (
+                "JC_PORTAL_GATEWAY_URL",
+                "http://context-gateway.dev.svc.cluster.local:8080/",
+            ),
+        ]);
+        assert_eq!(on_dev.host, "portal.dev.example.com");
+        assert_eq!(on_dev.apex, "dev.example.com");
+        assert_eq!(
+            on_dev.gateway_url.as_deref(),
+            Some("http://context-gateway.dev.svc.cluster.local:8080")
+        );
+        let named = apex(&[
+            ("JC_PORTAL_PUBLIC_URL", "https://portal.dev.example.com"),
+            ("JC_PORTAL_APPS_URL", "https://city.example.org"),
+        ]);
+        assert_eq!(named.apex, "city.example.org");
 
         for missing in ["JC_PORTAL_APPS_NAMESPACE", "JC_PORTAL_ORG_DOMAIN"] {
             let config = Config::from_vars(|k| match k == missing {

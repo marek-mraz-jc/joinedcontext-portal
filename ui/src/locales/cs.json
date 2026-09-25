@@ -2109,7 +2109,11 @@
       "frameAncestors": "Smí ji vložit",
       "limits": "Limity",
       "requestsPerMinute": "Požadavky za minutu",
-      "maxFileRows": "Řádky na stažení souboru"
+      "maxFileRows": "Řádky na stažení souboru",
+      "egress": "Odchozí sítě",
+      "egressCidr": "Síť",
+      "egressPorts": "Porty",
+      "needRoles": "Jen pro role"
     },
     "build": {
       "title": "Sestavení ve forge",
@@ -2151,7 +2155,9 @@
       "retired": "Tato aplikace je vyřazena",
       "building": "Sestavuje se…",
       "failed": "Sestavení selhalo",
-      "notBuilt": "Zatím se neposkytuje žádné sestavení"
+      "notBuilt": "Zatím se neposkytuje žádné sestavení",
+      "certificate": "Adresa aplikace se zabezpečuje, trvá to asi minutu",
+      "host": "Adresu aplikace se nepodařilo připravit; důvod vidí správce"
     },
     "openPage": {
       "details": "Podrobnosti aplikace",

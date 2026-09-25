@@ -2109,7 +2109,11 @@
       "frameAncestors": "May be framed by",
       "limits": "Limits",
       "requestsPerMinute": "Requests per minute",
-      "maxFileRows": "Rows per file download"
+      "maxFileRows": "Rows per file download",
+      "egress": "Outbound networks",
+      "egressCidr": "Network",
+      "egressPorts": "Ports",
+      "needRoles": "Only for roles"
     },
     "build": {
       "title": "Build on the forge",
@@ -2151,7 +2155,9 @@
       "retired": "This application is retired",
       "building": "Building…",
       "failed": "Build failed",
-      "notBuilt": "No build is served yet"
+      "notBuilt": "No build is served yet",
+      "certificate": "Its address is being secured, which takes a minute",
+      "host": "Its address could not be set up; an administrator sees why"
     },
     "openPage": {
       "details": "App details",

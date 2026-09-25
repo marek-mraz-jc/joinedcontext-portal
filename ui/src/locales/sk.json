@@ -2109,7 +2109,11 @@
       "frameAncestors": "Smie ju vložiť",
       "limits": "Limity",
       "requestsPerMinute": "Požiadavky za minútu",
-      "maxFileRows": "Riadky na stiahnutie súboru"
+      "maxFileRows": "Riadky na stiahnutie súboru",
+      "egress": "Odchádzajúce siete",
+      "egressCidr": "Sieť",
+      "egressPorts": "Porty",
+      "needRoles": "Len pre roly"
     },
     "build": {
       "title": "Zostavenie vo forge",
@@ -2151,7 +2155,9 @@
       "retired": "Táto aplikácia je vyradená",
       "building": "Zostavuje sa…",
       "failed": "Zostavenie zlyhalo",
-      "notBuilt": "Zatiaľ sa neposkytuje žiadne zostavenie"
+      "notBuilt": "Zatiaľ sa neposkytuje žiadne zostavenie",
+      "certificate": "Adresa aplikácie sa zabezpečuje, trvá to asi minútu",
+      "host": "Adresu aplikácie sa nepodarilo pripraviť; dôvod vidí správca"
     },
     "openPage": {
       "details": "Podrobnosti aplikácie",

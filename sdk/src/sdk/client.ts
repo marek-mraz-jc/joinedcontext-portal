@@ -523,7 +523,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
       const path =
         config.transport === "bridge"
           ? `/functions/${name}`
-          : `/apps/${config.appName ?? ""}/api/functions/${name}`;
+          : `/api/functions/${name}`;
 
       const resp = await transport({ method: "POST", path, body });
       if (resp.status < 200 || resp.status >= 300) {

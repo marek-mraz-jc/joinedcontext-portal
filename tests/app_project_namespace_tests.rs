@@ -25,6 +25,8 @@ const PULL: &str = "/api/v1/namespaces/joinedcontext/secrets/app-registry";
 fn settings() -> Settings {
     Settings {
         host: "bb.example.com".into(),
+        apex: "bb.example.com".into(),
+        gateway_url: Some("http://context-gateway.jc.svc.cluster.local:8080".into()),
         namespace: "joinedcontext".into(),
         org_domain: "banskabystrica.sk".into(),
         apisix_namespace: "apisix".into(),
