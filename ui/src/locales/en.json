@@ -58,7 +58,8 @@
     "subscriptions": "Subscriptions",
     "organization": "Organization",
     "settings": "Project settings",
-    "profile": "Your account"
+    "profile": "Your account",
+    "catalogue": "Catalogue"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -3745,5 +3746,108 @@
     },
     "createNamed": "New: “{name}”",
     "list": "Choices"
+  },
+  "catalogue": {
+    "title": "Catalogue",
+    "lead": "Every public dataset of this installation's open-data catalogues. Search, filter, open a dataset and use its data.",
+    "loading": "Loading the catalogue…",
+    "unavailable": "These catalogues did not answer, so their datasets are missing below: {catalogues}. Try again in a minute.",
+    "search": {
+      "label": "Search datasets",
+      "placeholder": "Title, description or keyword",
+      "submit": "Search",
+      "clear": "Clear search and filters"
+    },
+    "facets": {
+      "label": "Filters",
+      "publisher": "Publisher",
+      "theme": "Theme",
+      "format": "Format",
+      "licence": "Licence",
+      "spatial": "Area",
+      "year": "Period"
+    },
+    "results": {
+      "label": "Datasets",
+      "count": "{count, plural, =0 {No dataset} one {# dataset} other {# datasets}}",
+      "empty": "No public dataset yet",
+      "emptyHint": "A dataset is listed here once a project publishes an endpoint to its open-data catalogue.",
+      "noMatch": "No dataset matches",
+      "noMatchHint": "Remove a filter or change the search text."
+    },
+    "pages": {
+      "label": "Pages",
+      "previous": "Previous page",
+      "next": "Next page",
+      "of": "Page {page} of {pages}",
+      "first": "This is the first page.",
+      "last": "This is the last page."
+    },
+    "dataset": {
+      "modified": "updated {date}",
+      "tags": "Themes and keywords",
+      "back": "All datasets",
+      "loading": "Loading the dataset…",
+      "missing": "No public dataset has this name",
+      "missingHint": "The dataset may have been removed or made private. Search the catalogue for it.",
+      "period": "{start} – {end}",
+      "open": "open",
+      "frequency": "Updated",
+      "contact": "Contact",
+      "modifiedLabel": "Last change",
+      "inCatalogue": "Open in the catalogue",
+      "resources": "Resources",
+      "noResources": "The dataset lists no resource.",
+      "resource": "Resource",
+      "links": "Links",
+      "download": "Download",
+      "preview": "Preview",
+      "model": "Data model {name}",
+      "modelDocs": "Model documentation",
+      "noDescription": "No description in the model.",
+      "sample": "Sample",
+      "sampleLoading": "Reading ten rows through the endpoint…",
+      "noSample": "This dataset has no endpoint of this installation that serves NGSI-LD, so there is no sample.",
+      "sampleEmpty": "The endpoint holds no {type} yet.",
+      "sampleCaption": "Up to ten {type} read through the endpoint"
+    },
+    "use": {
+      "title": "Use this data",
+      "curl": "From a shell (NGSI-LD)",
+      "csv": "Download as CSV",
+      "sdk": "In an App built on this endpoint",
+      "mcp": "In an MCP client",
+      "copy": "Copy: {what}",
+      "copyShort": "Copy",
+      "copied": "Copied"
+    },
+    "theme": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "OP_DATPRO": "Provisional data",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "frequency": {
+      "CONT": "continuously",
+      "UPDATE_CONT": "continuously",
+      "HOURLY": "hourly",
+      "DAILY": "daily",
+      "WEEKLY": "weekly",
+      "MONTHLY": "monthly",
+      "QUARTERLY": "quarterly",
+      "ANNUAL": "yearly",
+      "IRREG": "irregularly",
+      "NEVER": "never"
+    }
   }
 }

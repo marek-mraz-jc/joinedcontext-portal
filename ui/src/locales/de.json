@@ -58,7 +58,8 @@
     "subscriptions": "Abonnements",
     "organization": "Organisation",
     "settings": "Projekteinstellungen",
-    "profile": "Ihr Konto"
+    "profile": "Ihr Konto",
+    "catalogue": "Katalog"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -3745,5 +3746,108 @@
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl"
+  },
+  "catalogue": {
+    "title": "Katalog",
+    "lead": "Alle öffentlichen Datensätze der Open-Data-Kataloge dieser Installation. Suchen, filtern, einen Datensatz öffnen und seine Daten nutzen.",
+    "loading": "Katalog wird geladen…",
+    "unavailable": "Diese Kataloge haben nicht geantwortet, ihre Datensätze fehlen deshalb unten: {catalogues}. In einer Minute erneut versuchen.",
+    "search": {
+      "label": "Datensätze suchen",
+      "placeholder": "Titel, Beschreibung oder Schlagwort",
+      "submit": "Suchen",
+      "clear": "Suche und Filter zurücksetzen"
+    },
+    "facets": {
+      "label": "Filter",
+      "publisher": "Herausgeber",
+      "theme": "Thema",
+      "format": "Format",
+      "licence": "Lizenz",
+      "spatial": "Gebiet",
+      "year": "Zeitraum"
+    },
+    "results": {
+      "label": "Datensätze",
+      "count": "{count, plural, =0 {Kein Datensatz} one {# Datensatz} other {# Datensätze}}",
+      "empty": "Noch kein öffentlicher Datensatz",
+      "emptyHint": "Ein Datensatz erscheint hier, sobald ein Projekt einen Endpunkt in seinem Open-Data-Katalog veröffentlicht.",
+      "noMatch": "Kein Datensatz passt",
+      "noMatchHint": "Einen Filter entfernen oder den Suchtext ändern."
+    },
+    "pages": {
+      "label": "Seiten",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "of": "Seite {page} von {pages}",
+      "first": "Dies ist die erste Seite.",
+      "last": "Dies ist die letzte Seite."
+    },
+    "dataset": {
+      "modified": "aktualisiert {date}",
+      "tags": "Themen und Schlagwörter",
+      "back": "Alle Datensätze",
+      "loading": "Datensatz wird geladen…",
+      "missing": "Kein öffentlicher Datensatz trägt diesen Namen",
+      "missingHint": "Der Datensatz wurde vielleicht entfernt oder nicht mehr öffentlich gemacht. Im Katalog danach suchen.",
+      "period": "{start} – {end}",
+      "open": "offen",
+      "frequency": "Aktualisierung",
+      "contact": "Kontakt",
+      "modifiedLabel": "Letzte Änderung",
+      "inCatalogue": "Im Katalog öffnen",
+      "resources": "Ressourcen",
+      "noResources": "Der Datensatz nennt keine Ressource.",
+      "resource": "Ressource",
+      "links": "Links",
+      "download": "Herunterladen",
+      "preview": "Vorschau",
+      "model": "Datenmodell {name}",
+      "modelDocs": "Modelldokumentation",
+      "noDescription": "Das Modell nennt keine Beschreibung.",
+      "sample": "Stichprobe",
+      "sampleLoading": "Zehn Zeilen werden über den Endpunkt gelesen…",
+      "noSample": "Dieser Datensatz hat keinen Endpunkt dieser Installation, der NGSI-LD liefert, daher gibt es keine Stichprobe.",
+      "sampleEmpty": "Der Endpunkt enthält noch kein {type}.",
+      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen"
+    },
+    "use": {
+      "title": "Diese Daten nutzen",
+      "curl": "Aus der Shell (NGSI-LD)",
+      "csv": "Als CSV herunterladen",
+      "sdk": "In einer App auf diesem Endpunkt",
+      "mcp": "In einem MCP-Client",
+      "copy": "Kopieren: {what}",
+      "copyShort": "Kopieren",
+      "copied": "Kopiert"
+    },
+    "theme": {
+      "AGRI": "Landwirtschaft, Fischerei, Forstwirtschaft und Nahrungsmittel",
+      "ECON": "Wirtschaft und Finanzen",
+      "EDUC": "Bildung, Kultur und Sport",
+      "ENER": "Energie",
+      "ENVI": "Umwelt",
+      "GOVE": "Regierung und öffentlicher Sektor",
+      "HEAL": "Gesundheit",
+      "INTR": "Internationale Themen",
+      "JUST": "Justiz, Rechtssystem und öffentliche Sicherheit",
+      "OP_DATPRO": "Vorläufige Daten",
+      "REGI": "Regionen und Städte",
+      "SOCI": "Bevölkerung und Gesellschaft",
+      "TECH": "Wissenschaft und Technologie",
+      "TRAN": "Verkehr"
+    },
+    "frequency": {
+      "CONT": "laufend",
+      "UPDATE_CONT": "laufend",
+      "HOURLY": "stündlich",
+      "DAILY": "täglich",
+      "WEEKLY": "wöchentlich",
+      "MONTHLY": "monatlich",
+      "QUARTERLY": "vierteljährlich",
+      "ANNUAL": "jährlich",
+      "IRREG": "unregelmäßig",
+      "NEVER": "nie"
+    }
   }
 }

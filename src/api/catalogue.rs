@@ -174,7 +174,7 @@ pub struct CatalogueTheme {
 }
 
 /// The EU data-theme vocabulary (`http://publications.europa.eu/resource/authority/data-theme`).
-const THEMES: [(&str, &str); 13] = [
+const THEMES: [(&str, &str); 14] = [
     ("AGRI", "Agriculture, fisheries, forestry and food"),
     ("ECON", "Economy and finance"),
     ("EDUC", "Education, culture and sport"),
@@ -188,6 +188,7 @@ const THEMES: [(&str, &str); 13] = [
     ("REGI", "Regions and cities"),
     ("SOCI", "Population and society"),
     ("TECH", "Science and technology"),
+    ("TRAN", "Transport"),
 ];
 
 /// The English name of a theme code; a code outside the vocabulary names itself.

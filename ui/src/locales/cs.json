@@ -58,7 +58,8 @@
     "subscriptions": "Odběry",
     "organization": "Organizace",
     "settings": "Nastavení projektu",
-    "profile": "Váš účet"
+    "profile": "Váš účet",
+    "catalogue": "Katalog"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -3745,5 +3746,108 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti"
+  },
+  "catalogue": {
+    "title": "Katalog",
+    "lead": "Všechny veřejné datové sady otevřených katalogů této instalace. Vyhledejte, filtrujte, otevřete datovou sadu a použijte její data.",
+    "loading": "Načítá se katalog…",
+    "unavailable": "Tyto katalogy neodpověděly, jejich datové sady proto níže chybí: {catalogues}. Zkuste to znovu za minutu.",
+    "search": {
+      "label": "Hledat datové sady",
+      "placeholder": "Název, popis nebo klíčové slovo",
+      "submit": "Hledat",
+      "clear": "Zrušit hledání a filtry"
+    },
+    "facets": {
+      "label": "Filtry",
+      "publisher": "Poskytovatel",
+      "theme": "Téma",
+      "format": "Formát",
+      "licence": "Licence",
+      "spatial": "Území",
+      "year": "Období"
+    },
+    "results": {
+      "label": "Datové sady",
+      "count": "{count, plural, =0 {Žádná datová sada} one {# datová sada} few {# datové sady} other {# datových sad}}",
+      "empty": "Zatím žádná veřejná datová sada",
+      "emptyHint": "Datová sada se zde zobrazí, když projekt zveřejní endpoint do svého katalogu otevřených dat.",
+      "noMatch": "Žádná datová sada nevyhovuje",
+      "noMatchHint": "Odeberte filtr nebo změňte hledaný text."
+    },
+    "pages": {
+      "label": "Stránky",
+      "previous": "Předchozí stránka",
+      "next": "Další stránka",
+      "of": "Stránka {page} z {pages}",
+      "first": "Toto je první stránka.",
+      "last": "Toto je poslední stránka."
+    },
+    "dataset": {
+      "modified": "aktualizováno {date}",
+      "tags": "Témata a klíčová slova",
+      "back": "Všechny datové sady",
+      "loading": "Načítá se datová sada…",
+      "missing": "Žádná veřejná datová sada nemá tento název",
+      "missingHint": "Datová sada mohla být odstraněna nebo znepřístupněna. Vyhledejte ji v katalogu.",
+      "period": "{start} – {end}",
+      "open": "otevřené",
+      "frequency": "Aktualizace",
+      "contact": "Kontakt",
+      "modifiedLabel": "Poslední změna",
+      "inCatalogue": "Otevřít v katalogu",
+      "resources": "Zdroje",
+      "noResources": "Datová sada neuvádí žádný zdroj.",
+      "resource": "Zdroj",
+      "links": "Odkazy",
+      "download": "Stáhnout",
+      "preview": "Náhled",
+      "model": "Datový model {name}",
+      "modelDocs": "Dokumentace modelu",
+      "noDescription": "Model neuvádí popis.",
+      "sample": "Ukázka",
+      "sampleLoading": "Čte se deset řádků přes endpoint…",
+      "noSample": "Tato datová sada nemá endpoint této instalace, který poskytuje NGSI-LD, proto nemá ukázku.",
+      "sampleEmpty": "Endpoint zatím neobsahuje žádné {type}.",
+      "sampleCaption": "Nejvýše deset {type} přečtených přes endpoint"
+    },
+    "use": {
+      "title": "Použít tato data",
+      "curl": "Z příkazového řádku (NGSI-LD)",
+      "csv": "Stáhnout jako CSV",
+      "sdk": "V aplikaci postavené na tomto endpointu",
+      "mcp": "V klientovi MCP",
+      "copy": "Kopírovat: {what}",
+      "copyShort": "Kopírovat",
+      "copied": "Zkopírováno"
+    },
+    "theme": {
+      "AGRI": "Zemědělství, rybářství, lesnictví a potraviny",
+      "ECON": "Hospodářství a finance",
+      "EDUC": "Vzdělávání, kultura a sport",
+      "ENER": "Energetika",
+      "ENVI": "Životní prostředí",
+      "GOVE": "Vláda a veřejný sektor",
+      "HEAL": "Zdraví",
+      "INTR": "Mezinárodní otázky",
+      "JUST": "Spravedlnost, právní systém a veřejná bezpečnost",
+      "OP_DATPRO": "Předběžné údaje",
+      "REGI": "Regiony a města",
+      "SOCI": "Obyvatelstvo a společnost",
+      "TECH": "Věda a technika",
+      "TRAN": "Doprava"
+    },
+    "frequency": {
+      "CONT": "průběžně",
+      "UPDATE_CONT": "průběžně",
+      "HOURLY": "každou hodinu",
+      "DAILY": "denně",
+      "WEEKLY": "týdně",
+      "MONTHLY": "měsíčně",
+      "QUARTERLY": "čtvrtletně",
+      "ANNUAL": "ročně",
+      "IRREG": "nepravidelně",
+      "NEVER": "nikdy"
+    }
   }
 }
