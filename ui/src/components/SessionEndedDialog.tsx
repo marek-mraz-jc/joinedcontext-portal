@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { api } from "../api/client";
 import { clearSessionEnded, useSessionEnded } from "../api/sessionEnded";
 import { Button, buttonClass, Dialog, safeHref } from "./ui";
 
@@ -31,7 +32,9 @@ export function SessionEndedDialog(): JSX.Element | null {
   const carryOn = async () => {
     setChecking(true);
     try {
-      const response = await fetch("/api/v1/auth/me", { credentials: "same-origin" });
+      // Through the typed client (UI-07); a 401 on /auth/me does not announce the session
+      // ended again, so asking cannot reopen this dialog on itself.
+      const { response } = await api.GET("/api/v1/auth/me");
       if (response.ok) {
         close();
         await queryClient.invalidateQueries();

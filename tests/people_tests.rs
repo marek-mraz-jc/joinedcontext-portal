@@ -726,3 +726,159 @@ async fn a_person_nothing_names_is_deleted_at_once() {
     assert_eq!(answer.status, StatusCode::NO_CONTENT, "{}", answer.text);
     assert_eq!(received(&kc, "DELETE", "/users/eva-id").await.len(), 1);
 }
+
+/// One operation of the registry, as the assistant or an MCP client calls it (T-2732).
+async fn op(state: &AppState, who: &str, name: &str, input: Value) -> common::Answer {
+    send(
+        state,
+        person(who),
+        "POST",
+        &format!("/api/v1/projects/{ORG_NAMESPACE}/ops/{name}"),
+        Some(input),
+    )
+    .await
+}
+
+/// T-2732, AG-77: every person operation calls its route, so it answers as the page's call does.
+#[tokio::test]
+async fn the_person_operations_do_what_the_routes_do() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+
+    let listed = op(
+        &state,
+        "ada",
+        "jc_person_list",
+        json!({ "search": "hel.fi" }),
+    )
+    .await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text);
+    assert!(listed.text.contains("jana@hel.fi"), "{}", listed.text);
+
+    let read = op(&state, "ada", "jc_person_get", json!({ "id": "jana-id" })).await;
+    assert_eq!(read.status, StatusCode::OK, "{}", read.text);
+    assert!(read.text.contains("jana@hel.fi"), "{}", read.text);
+
+    let edited = op(
+        &state,
+        "ada",
+        "jc_person_edit",
+        json!({ "id": "jana-id", "firstName": "Jana" }),
+    )
+    .await;
+    assert_eq!(edited.status, StatusCode::OK, "{}", edited.text);
+    let put = received(&kc, "PUT", "/users/jana-id").await;
+    let written: Value = serde_json::from_slice(&put[0].body).expect("a user");
+    assert_eq!(written["firstName"], "Jana");
+
+    for (name, verb, suffix) in [
+        ("jc_person_disable", "PUT", "/users/jana-id"),
+        ("jc_person_enable", "PUT", "/users/jana-id"),
+        ("jc_person_sign_out", "POST", "/users/jana-id/logout"),
+    ] {
+        let before = received(&kc, verb, suffix).await.len();
+        let answer = op(&state, "ada", name, json!({ "id": "jana-id" })).await;
+        assert_eq!(answer.status, StatusCode::OK, "{name}: {}", answer.text);
+        assert!(
+            received(&kc, verb, suffix).await.len() > before,
+            "{name} reached no realm call"
+        );
+    }
+
+    let unknown = op(&state, "ada", "jc_person_get", json!({ "id": "nobody-id" })).await;
+    assert_eq!(unknown.status, StatusCode::NOT_FOUND, "{}", unknown.text);
+    let stray = op(
+        &state,
+        "ada",
+        "jc_person_edit",
+        json!({ "id": "jana-id", "password": "x" }),
+    )
+    .await;
+    // A field the route does not take is refused by the registry before the realm is asked.
+    assert_eq!(
+        stray.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        stray.text
+    );
+    assert!(stray.text.contains("password"), "{}", stray.text);
+}
+
+/// T-2732, PF-92: the route answers a temporary password once, to the person at the Portal; the
+/// operation's answer reaches a model, so it never carries one and says who hands one over.
+#[tokio::test]
+async fn creating_a_person_through_an_operation_never_answers_the_password() {
+    let (kc, gitea) = (realm(false).await, forge().await);
+    let state = state_with(&kc, &gitea);
+
+    let created = op(
+        &state,
+        "pia",
+        "jc_person_create",
+        json!({ "email": "new@example.org", "firstName": "Nora", "lastName": "Nová" }),
+    )
+    .await;
+    assert_eq!(created.status, StatusCode::OK, "{}", created.text);
+    let set = received(&kc, "PUT", "/new-id/reset-password").await;
+    let credential: Value = serde_json::from_slice(&set[0].body).expect("a credential");
+    let password = credential["value"].as_str().expect("a password was set");
+    assert!(
+        !created.text.contains(password),
+        "the password reached the answer"
+    );
+    let answer: Value = serde_json::from_str(&created.text).expect("json");
+    assert!(answer.get("temporaryPassword").is_none(), "{answer}");
+    assert_eq!(answer["emailSent"], false);
+    assert!(
+        answer["handOver"]
+            .as_str()
+            .is_some_and(|text| text.contains("Reset password")),
+        "{answer}"
+    );
+}
+
+/// T-2732, PF-91, PF-93: the operations refuse whom the routes refuse — a person with no verb on
+/// Person, and a people-admin acting on an administrator — and the realm hears nothing.
+#[tokio::test]
+async fn the_person_operations_refuse_whom_the_routes_refuse() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+
+    for (name, input) in [
+        ("jc_person_list", json!({})),
+        ("jc_person_get", json!({ "id": "ada-id" })),
+        (
+            "jc_person_create",
+            json!({ "email": "x@example.org", "firstName": "X", "lastName": "Y" }),
+        ),
+        (
+            "jc_person_edit",
+            json!({ "id": "ada-id", "firstName": "A" }),
+        ),
+        ("jc_person_disable", json!({ "id": "ada-id" })),
+        ("jc_person_enable", json!({ "id": "ada-id" })),
+        ("jc_person_sign_out", json!({ "id": "ada-id" })),
+    ] {
+        let answer = op(&state, "jana", name, input).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::FORBIDDEN,
+            "{name}: {}",
+            answer.text
+        );
+    }
+
+    for name in ["jc_person_disable", "jc_person_sign_out"] {
+        let answer = op(&state, "pia", name, json!({ "id": "ada-id" })).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::FORBIDDEN,
+            "{name}: {}",
+            answer.text
+        );
+    }
+    assert!(received(&kc, "PUT", "/users/ada-id").await.is_empty());
+    assert!(received(&kc, "POST", "/users/ada-id/logout")
+        .await
+        .is_empty());
+}

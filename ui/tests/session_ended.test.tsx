@@ -64,7 +64,9 @@ describe("the session-ended dialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: en.app.session.continue }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(fetch).toHaveBeenCalledWith("/api/v1/auth/me", { credentials: "same-origin" });
+    // Asked through the typed client (UI-07), both times.
+    const asked = fetch.mock.calls.map(([request]) => new URL((request as Request).url).pathname);
+    expect(asked).toEqual(["/api/v1/auth/me", "/api/v1/auth/me"]);
     expect(invalidate).toHaveBeenCalled();
     expect(screen.getByLabelText("Draft")).toHaveValue("half a manifest");
   });
