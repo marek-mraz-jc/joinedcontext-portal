@@ -52,7 +52,10 @@
     },
     "people": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: settings, a new person, a group with a role, and the person's page"
+        },
         "assistant": "jc_person_create",
         "routes": [
           "POST /api/v1/organization/people"
@@ -101,14 +104,20 @@
         ]
       },
       "sign-out-everywhere": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out"
+        },
         "assistant": "jc_person_sign_out",
         "routes": [
           "POST /api/v1/organization/people/{id}/sign-out"
         ]
       },
       "remove": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out"
+        },
         "personOnly": "removing a person deletes their account and cannot be proposed as a Change a second person approves",
         "routes": [
           "DELETE /api/v1/organization/people/{id}"
@@ -124,7 +133,10 @@
     },
     "groups": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "2. the organization: settings, a new person, a group with a role, and the person's page"
+        },
         "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/{plural}"

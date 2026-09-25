@@ -18,7 +18,7 @@ mkdir -p "$out"
 cd "$ui" || exit 2
 
 # The model-spending specs, by file: each of their tests is a conversation with the model.
-spending='/(assistant-paths|app-generated-full|build-samples)\.spec\.ts$'
+spending='/(assistant-paths|assistant-evals|app-generated-full|build-samples|readiness-app)\.spec\.ts$'
 mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending")
 
 PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \
