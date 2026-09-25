@@ -15,6 +15,7 @@ pub mod drift;
 pub mod edge_file;
 pub mod foreign;
 pub mod groups;
+pub mod hub_scopes;
 pub mod leader;
 pub mod project_teams;
 pub mod realm;

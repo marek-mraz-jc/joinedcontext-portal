@@ -50,6 +50,14 @@ export function endpointUrl(slug: string, path: string): string {
   return `${window.location.origin}/api/endpoint/${encodeURIComponent(slug)}${path}`;
 }
 
+/**
+ * The MCP hub: one connector over every Endpoint the caller may read, the Endpoint named on each
+ * call (EP-87, ADR-N-025). On this origin like every Endpoint URL the Portal shows.
+ */
+export function hubUrl(): string {
+  return `${window.location.origin}/api/mcp`;
+}
+
 /** The open-data catalogue entry of an endpoint: the catalogue lives at `data.{host}`. */
 export function catalogueUrl(endpointName: string): string {
   return `https://data.${window.location.host}/dataset/${encodeURIComponent(endpointName)}`;
