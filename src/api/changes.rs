@@ -1533,33 +1533,49 @@ pub(crate) async fn approve_build(
     manifest_path: &str,
     change: Change,
 ) -> Change {
+    let message = format!(
+        "Merge change proposal {}: {}\n\nApproved by the Portal: the build lane's status.build, \
+         checked against the App's repository and published (AP-73, AP-104)",
+        change.metadata.name, pr.title
+    );
+    merge_if_only(state, gitea, pr, &[manifest_path], &message, change).await
+}
+
+/// Merges `pr` now, pinned to the commit the Portal wrote, when every file it changes is one of
+/// `paths` and none is deleted: the build lane's `status.build` (AP-104) and a green blueprint
+/// flow (CC-63, CC-65, AG-14) are merged by the Portal only while the merge request holds exactly
+/// what the Portal checked. A merge request with any other file, one whose files cannot be read,
+/// or one the forge will not merge comes back as the pending Change it was, waiting for a person.
+pub(crate) async fn merge_if_only(
+    state: &AppState,
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    paths: &[&str],
+    message: &str,
+    change: Change,
+) -> Change {
     let id = change.metadata.name.clone();
-    let only_the_manifest = match gitea.pull_request_files(pr.number).await {
+    let only_these = match gitea.pull_request_files(pr.number).await {
         Ok(files) => {
             !files.is_empty()
                 && files
                     .iter()
-                    .all(|file| file.path == manifest_path && !file.deleted)
+                    .all(|file| !file.deleted && paths.contains(&file.path.as_str()))
         }
         Err(err) => {
-            tracing::warn!(change = %id, error = %err, "the build's change waits for a person: its files could not be read");
+            tracing::warn!(change = %id, error = %err, "the change waits for a person: its files could not be read");
             return change;
         }
     };
-    if !only_the_manifest {
-        tracing::warn!(change = %id, path = %manifest_path, "the build's change carries more than the App's manifest and waits for a person (AP-73)");
+    if !only_these {
+        tracing::warn!(change = %id, "the change carries a file the Portal did not check and waits for a person");
         return change;
     }
-    let message = format!(
-        "Merge change proposal {id}: {}\n\nApproved by the Portal: the build lane's status.build, \
-         checked against the App's repository and published (AP-73, AP-104)",
-        pr.title
-    );
-    if let Err(err) = merge_when_ready(gitea, pr.number, &message, &pr.head_sha, &id).await {
-        tracing::warn!(change = %id, error = %err, "the build's change waits for a person: the forge did not merge it");
+    if let Err(err) = merge_when_ready(gitea, pr.number, message, &pr.head_sha, &id).await {
+        tracing::warn!(change = %id, error = %err, "the change waits for a person: the forge did not merge it");
         return change;
     }
-    tracing::info!(change = %id, "the Portal approved the build lane's change (AP-104)");
+    tracing::info!(change = %id, "the Portal merged the change as proposed");
     sync_soon(state);
     let mut change = change;
     change.status.phase = ChangePhase::Deploying;
