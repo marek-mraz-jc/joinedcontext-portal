@@ -26,7 +26,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
-import { APPROVER, STEWARD, VIEWER, approve, csrf, goSignedIn, portalReady, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, goSignedIn, portalReady, proposedChange, proposeDelete, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
 import { proposeFrom } from "./kindJourney";
 
 type Session = { context: BrowserContext; page: Page };
@@ -48,6 +48,7 @@ const KPI = `rdy-kpi-${SUFFIX}`;
 const ACCOUNT = `rdy-sa-${SUFFIX}`;
 const SYNC = `rdy-sync-${SUFFIX}`;
 const FLOW = `rdy-flow-${SUFFIX}`;
+const POLICY = `rdy-policy-${SUFFIX}`;
 const MINE = new RegExp(`^rdy-[a-z]+-${SUFFIX}$`);
 const ROLE = "model-editor";
 const APP = "helsinki-alerts";
@@ -182,6 +183,7 @@ async function cleanUp(keepPerson = false): Promise<void> {
   for (const { metadata } of policies.filter((one) => one.metadata.name.startsWith(READ) || one.metadata.name.startsWith(WRITE))) {
     await removeCompletely(steward, PROJECT, "policies", metadata.name);
   }
+  await removeCompletely(steward, PROJECT, "policies", POLICY);
   await removeCompletely(steward, PROJECT, "spaces", SPACE);
   await removeCompletely(steward, PROJECT, "datamodels", MODEL);
   await sweepDrafts(steward.context, page, PROJECT, MINE);
@@ -749,6 +751,38 @@ test("9c. a blueprint proposes a flow from its form, and the approver rejects it
     }, { timeout: 60_000 })
     .toBe("Rejected");
   expect(await status(page, `/api/v1/projects/${PROJECT}/pipelines/${FLOW}`), "a rejected flow made no pipeline").toBe(404);
+});
+
+test("9d. a grant on the walk's space is approved, then removed from the policies page", async () => {
+  test.setTimeout(600_000);
+  const page = steward.page;
+  // No title, so the list's row shows the name the removal is typed back with.
+  const policy = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Policy",
+    metadata: { name: POLICY, namespace: PROJECT },
+    spec: {
+      contextSpaceRef: { kind: "ContextSpace", name: SPACE },
+      assigner: "did:web:hel.fi",
+      assignee: { kind: "serviceAccount", id: "pipelines" },
+      operations: ["queryBatch"],
+    },
+  };
+  await checkManifest(page, steward.context, PROJECT, policy);
+  const proposed = await page.request.post(`/api/v1/projects/${PROJECT}/policies`, {
+    headers: { "x-csrf-token": await csrf(steward.context) },
+    data: policy,
+  });
+  expect(proposed.status(), await proposed.text()).toBe(202);
+  await approveAsked(approver, PROJECT, ((await proposed.json()) as { metadata: { name: string } }).metadata.name);
+  await listed(page, PROJECT, "policies", POLICY);
+
+  // The administrator's typed name approves the removal as it is proposed (PF-58).
+  const removal = await proposeDelete(page, PROJECT, "policies", POLICY);
+  expect(removal).toMatch(/^chg-/);
+  await expect
+    .poll(() => status(page, `/api/v1/projects/${PROJECT}/policies/${POLICY}`), { timeout: 300_000, intervals: [5_000] })
+    .toBe(404);
 });
 
 test("10. nothing of the walk is left, the person is signed out everywhere and removed, and the steward signs out", async () => {

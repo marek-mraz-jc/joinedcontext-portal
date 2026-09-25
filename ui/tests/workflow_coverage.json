@@ -207,7 +207,10 @@
     },
     "project": {
       "create": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "assistant": "jc_project_create",
         "routes": [
           "POST /api/v1/projects"
@@ -221,14 +224,20 @@
         "assistant": "jc_project_get"
       },
       "copy": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "personOnly": "copying a whole repository of the forge under a new slug is a person's decision in the Portal, not a tool a run holds (PF-89)",
         "routes": [
           "POST /api/v1/projects/{project}/duplicate"
         ]
       },
       "retire": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness-project.spec.ts",
+          "test": "a project is opened, duplicated where it can be, and deleted"
+        },
         "personOnly": "deleting a project removes its repository and every resource in it, and no agent may take that act (AG-11)",
         "routes": [
           "DELETE /api/v1/projects/{project}"
@@ -690,7 +699,10 @@
         ]
       },
       "retire": {
-        "liveOwed": "T-2746",
+        "live": {
+          "spec": "readiness.spec.ts",
+          "test": "9d. a grant on the walk's space is approved, then removed from the policies page"
+        },
         "assistant": "jc_resource_delete",
         "routes": [
           "DELETE /api/v1/projects/{project}/{plural}/{name}"
