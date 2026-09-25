@@ -24,6 +24,7 @@ import { agentProfileSchema } from "../src/schemas/agentprofile";
 import { dataOfferSchema } from "../src/schemas/dataoffer";
 import { dataSpaceParticipantSchema } from "../src/schemas/dataspaceparticipant";
 import { environmentSchema } from "../src/schemas/environment";
+import { modelProjectionSchema } from "../src/schemas/modelprojection";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
 
@@ -99,6 +100,8 @@ const FORMS: Record<string, JsonSchema[]> = {
   DataSpaceParticipant: [dataSpaceParticipantSchema(t)],
   // Created and edited on Organization → Environments (T-1545).
   Environment: [environmentSchema(t)],
+  // Created and edited on its project list, besides the endpoint form's own (T-1548).
+  ModelProjection: [modelProjectionSchema(t)],
   // Edited on the Organization page's Settings tab (T-2605).
   Organization: [kinds.organizationSchema(t)],
   // Edited on Project settings → General (T-2606).

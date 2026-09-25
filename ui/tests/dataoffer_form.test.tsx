@@ -37,7 +37,11 @@ describe("the DataOffer manifest the form writes", () => {
   it("is what jc-core reads: typed endpoints, the offer as an object, nothing it does not declare", () => {
     const manifest = toDataOfferManifest(PROJECT, FILLED) as { kind: string; metadata: unknown; spec: Record<string, unknown> };
     expect(manifest.kind).toBe("DataOffer");
-    expect(manifest.metadata).toEqual({ name: "air-offer", namespace: PROJECT });
+    expect(manifest.metadata).toEqual({
+      name: "air-offer",
+      namespace: PROJECT,
+      labels: { "joinedcontext.com/space": "air" },
+    });
     expect(manifest.spec).toEqual({
       contextSpaceRef: "air",
       endpointRefs: [{ kind: "Endpoint", name: "air-public" }],
@@ -55,6 +59,7 @@ describe("the DataOffer manifest the form writes", () => {
       { ...FILLED, endpointRefs: [" air-public ", ""], policy: "permission: use", containsPersonalData: true, purpose: " " },
       { metadata: { name: "air-offer", title: { en: "Air offer" } } },
     ) as { metadata: unknown; spec: Record<string, unknown> };
+    // An edit keeps the stored labels: a new space label would move the file (MF-06).
     expect(manifest.metadata).toEqual({ name: "air-offer", namespace: PROJECT, title: { en: "Air offer" } });
     expect(manifest.spec).toEqual({
       contextSpaceRef: "air",
@@ -139,7 +144,7 @@ describe("the DataOffers page", () => {
 
     await waitFor(() => expect(sent.filter((one) => !one.dryRun)).toHaveLength(1));
     const proposed = sent.find((one) => !one.dryRun)!.body as { metadata: unknown; spec: unknown };
-    expect(proposed.metadata).toEqual({ name: "air-offer", namespace: PROJECT });
+    expect(proposed.metadata).toEqual({ name: "air-offer", namespace: PROJECT, labels: { "joinedcontext.com/space": "air" } });
     expect(proposed.spec).toEqual((toDataOfferManifest(PROJECT, FILLED) as { spec: unknown }).spec);
   });
 

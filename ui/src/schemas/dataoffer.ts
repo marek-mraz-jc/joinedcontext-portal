@@ -1,6 +1,7 @@
 import type { JsonSchema, UiSchema } from "../components/forms/types";
 import { storedMetadata } from "../api/manifest";
 import { DNS1123 } from "./kinds";
+import { SPACE_LABEL } from "./modelprojection";
 
 /**
  * The DataOffer form (T-1543, DS-07, DS-08, DS-14): the endpoints of one context space this project
@@ -69,12 +70,21 @@ function parsed(text: string | undefined): unknown {
 /** The form as the manifest the API stores; what the form has no field for travels on from `stored`. */
 export function toDataOfferManifest(project: string, form: DataOfferForm, stored?: unknown): unknown {
   const purpose = filled(form.purpose);
+  const space = filled(form.contextSpaceRef);
+  const metadata = storedMetadata(stored) as { labels?: Record<string, string> };
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "DataOffer",
-    metadata: { ...storedMetadata(stored), name: form.name, namespace: project },
+    // The space as the label the repository path is derived from, so an offer is filed under its space.
+    metadata: {
+      ...metadata,
+      name: form.name,
+      namespace: project,
+      // On create only: a label written on an edit would move the file and leave the old one behind.
+      ...(space && stored === undefined ? { labels: { ...metadata.labels, [SPACE_LABEL]: space } } : {}),
+    },
     spec: {
-      contextSpaceRef: filled(form.contextSpaceRef),
+      contextSpaceRef: space,
       endpointRefs: (form.endpointRefs ?? []).flatMap((name) => {
         const endpoint = filled(name);
         return endpoint ? [{ kind: "Endpoint", name: endpoint }] : [];

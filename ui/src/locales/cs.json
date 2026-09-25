@@ -79,7 +79,8 @@
     "agentprofiles": "Profily agentů",
     "dataoffers": "Datové nabídky",
     "dataspaceparticipants": "Datový prostor",
-    "environments": "Prostředí"
+    "environments": "Prostředí",
+    "projections": "Projekce modelů"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -4317,6 +4318,24 @@
       "features": "Přepínače funkcí",
       "feature": "Přepínač",
       "enabled": "Zapnutý"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Název",
+      "contextSpaceRef": "Kontextový prostor",
+      "dataModelRef": "Datový model",
+      "dataModel": "Model",
+      "version": "Hlavní verze",
+      "classes": "Vystavené třídy",
+      "class": "Třída",
+      "slots": "Ponechané sloty",
+      "slot": "Slot",
+      "filter": "Filtr",
+      "q": "Filtr dotazu",
+      "scopeQ": "Filtr rozsahu",
+      "geoQ": "Filtr oblasti",
+      "temporalQ": "Časový filtr"
     }
   }
 }

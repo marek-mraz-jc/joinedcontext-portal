@@ -79,7 +79,8 @@
     "agentprofiles": "Agent profiles",
     "dataoffers": "Data offers",
     "dataspaceparticipants": "Data space",
-    "environments": "Environments"
+    "environments": "Environments",
+    "projections": "Model projections"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -4317,6 +4318,24 @@
       "features": "Feature flags",
       "feature": "Flag",
       "enabled": "On"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "dataModelRef": "Data model",
+      "dataModel": "Model",
+      "version": "Major version",
+      "classes": "Exposed classes",
+      "class": "Class",
+      "slots": "Slots kept",
+      "slot": "Slot",
+      "filter": "Filter",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
     }
   }
 }
