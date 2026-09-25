@@ -523,6 +523,45 @@ pub fn bump_version(current: &SemVer, severity: &str) -> Result<SemVer, ApiError
     SemVer::new(&bumped).map_err(|e| ApiError::BadRequest(e.to_string()))
 }
 
+/// The four generated artifacts of the model `name` at `major` as its manifest names them, and
+/// each as `(path in the model's folder, content)` (DM-02).
+pub(crate) fn artifact_files(
+    name: &str,
+    major: impl std::fmt::Display,
+    artifacts: &Artifacts,
+) -> Result<(GeneratedArtifacts, Vec<(String, String)>), ApiError> {
+    let pretty = |value: &Option<Value>, what: &str| {
+        serde_json::to_string_pretty(value.as_ref().unwrap_or(&json!({})))
+            .map_err(|e| ApiError::Internal(format!("serialize {what}: {e}")))
+    };
+    let files = vec![
+        (
+            format!("json-schema/{name}.v{major}.json"),
+            pretty(&artifacts.json_schema, "json schema")?,
+        ),
+        (
+            format!("context/{name}.v{major}.jsonld"),
+            pretty(&artifacts.context, "context")?,
+        ),
+        (
+            format!("docs/{name}.md"),
+            artifacts.docs.clone().unwrap_or_default(),
+        ),
+        (
+            format!("examples/{name}.example.jsonld"),
+            pretty(&artifacts.example, "example")?,
+        ),
+    ];
+    let at = |i: usize| Some(format!("./{}", files[i].0));
+    let spec = GeneratedArtifacts {
+        json_schema: at(0),
+        context: at(1),
+        docs: at(2),
+        example: at(3),
+    };
+    Ok((spec, files))
+}
+
 /// The artifacts Model Tools renders from one LinkML source (DM-02); the export reuses it for a
 /// model whose repository holds no JSON Schema (MF-41).
 pub(crate) async fn compile_artifacts(
@@ -1077,12 +1116,7 @@ pub(crate) async fn propose_model(
     classes.sort();
     classes.dedup();
 
-    let artifacts_spec = GeneratedArtifacts {
-        json_schema: Some(format!("./json-schema/{name}.v{major}.json")),
-        context: Some(format!("./context/{name}.v{major}.jsonld")),
-        docs: Some(format!("./docs/{name}.md")),
-        example: Some(format!("./examples/{name}.example.jsonld")),
-    };
+    let (artifacts_spec, artifact_writes) = artifact_files(name, major, &artifacts)?;
 
     let mut new_spec = proposal.envelope.spec.clone();
     new_spec["version"] = Value::String(target_version.to_string());
@@ -1101,20 +1135,6 @@ pub(crate) async fn propose_model(
 
     let manifest_yaml = serde_yaml_ng::to_string(&updated_envelope)
         .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
-
-    let json_schema_content =
-        serde_json::to_string_pretty(&artifacts.json_schema.clone().unwrap_or_else(|| json!({})))
-            .map_err(|e| ApiError::Internal(format!("serialize json schema: {e}")))?;
-
-    let context_content =
-        serde_json::to_string_pretty(&artifacts.context.clone().unwrap_or_else(|| json!({})))
-            .map_err(|e| ApiError::Internal(format!("serialize context: {e}")))?;
-
-    let docs_content = artifacts.docs.clone().unwrap_or_default();
-
-    let example_content =
-        serde_json::to_string_pretty(&artifacts.example.clone().unwrap_or_else(|| json!({})))
-            .map_err(|e| ApiError::Internal(format!("serialize example: {e}")))?;
 
     let gitea = state
         .forge_for(project)
@@ -1135,21 +1155,17 @@ pub(crate) async fn propose_model(
 
     let manifest_path = format!("{folder}/{name}.yaml");
     let source_path = format!("{folder}/{confined_linkml}");
-    let schema_path = format!("{folder}/json-schema/{name}.v{major}.json");
-    let context_path = format!("{folder}/context/{name}.v{major}.jsonld");
-    let docs_path = format!("{folder}/docs/{name}.md");
-    let example_path = format!("{folder}/examples/{name}.example.jsonld");
-
-    let writes = [
-        (&manifest_path, manifest_yaml.as_str()),
-        (&source_path, source_str),
-        (&schema_path, json_schema_content.as_str()),
-        (&context_path, context_content.as_str()),
-        (&docs_path, docs_content.as_str()),
-        (&example_path, example_content.as_str()),
+    let mut writes = vec![
+        (manifest_path, manifest_yaml),
+        (source_path, source_str.to_owned()),
     ];
+    writes.extend(
+        artifact_writes
+            .into_iter()
+            .map(|(file, content)| (format!("{folder}/{file}"), content)),
+    );
 
-    for (file_p, content) in writes {
+    for (file_p, content) in &writes {
         let existing_sha = gitea
             .get_file(file_p, &branch)
             .await

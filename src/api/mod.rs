@@ -7,6 +7,7 @@ pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;
+pub mod bundle_models;
 pub mod catalogue;
 pub mod catalogue_draft;
 pub mod changes;

@@ -359,6 +359,7 @@ fn bundle_index(
         }),
         // A YAML bundle; a git-native export lists its repositories here (MF-45).
         repositories: Vec::new(),
+        models: Vec::new(),
     };
     let bundle = serde_json::json!({
         "apiVersion": API_VERSION,
