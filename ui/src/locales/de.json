@@ -1446,10 +1446,12 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt.",
+      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
-      "more": "und {count} weitere"
+      "more": "und {count} weitere",
+      "from": "aus {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1523,6 +1525,14 @@
       "downloadYaml": "YAML herunterladen",
       "copied": "Kopiert.",
       "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst."
+    },
+    "hints": {
+      "title": "Dieses Modell hat noch keine Klasse. Drei Wege zum Anfang:",
+      "sdm": "Ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
+      "sdmAction": "Smart Data Model importieren",
+      "klass": "Eine Klasse hinzufügen: im Feld unter Klassen benennen, zum Beispiel School.",
+      "klassAction": "Die erste Klasse benennen",
+      "relation": "Eine Beziehung hinzufügen: sobald es zwei Klassen gibt, einer einen Slot geben, dessen Range die andere ist, zum Beispiel School hat users der Klasse User."
     }
   },
   "apps": {

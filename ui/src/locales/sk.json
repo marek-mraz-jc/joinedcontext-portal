@@ -1446,10 +1446,12 @@
     "dimensionLabel": "Použitie v dashboarde",
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu.",
+      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
-      "more": "a ďalších {count}"
+      "more": "a ďalších {count}",
+      "from": "z {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Názov",
@@ -1523,6 +1525,14 @@
       "downloadYaml": "Stiahnuť YAML",
       "copied": "Skopírované.",
       "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne."
+    },
+    "hints": {
+      "title": "Tento model zatiaľ nemá triedu. Tri spôsoby, ako začať:",
+      "sdm": "Importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
+      "sdmAction": "Importovať Smart Data Model",
+      "klass": "Pridajte triedu: pomenujte ju v poli pod Triedami, napríklad School.",
+      "klassAction": "Pomenovať prvú triedu",
+      "relation": "Pridajte vzťah: keď sú dve triedy, dajte jednej slot, ktorého rozsah je tá druhá, napríklad School má users triedy User."
     }
   },
   "apps": {

@@ -613,7 +613,7 @@ export function ModelsPage({
                 ) : null}
               </section>
             ) : null}
-            <LinkmlEditor source={source} onChange={setSource} locales={locales} />
+            <LinkmlEditor source={source} onChange={setSource} locales={locales} onImport={() => setTab("import")} />
           </div>
         ) : null}
       </div>

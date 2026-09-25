@@ -139,7 +139,19 @@ export interface LinkmlClass {
   is_a?: string;
   /** The classes this one mixes in, as LinkML `mixins`. */
   mixins?: string[];
+  /**
+   * The slots the class declares inline, as LinkML `attributes`: a Smart Data Model writes most
+   * of its fields this way. Kept apart from `slots`, which is the list operations write back.
+   */
+  attributes?: LinkmlSlot[];
+  /** How the class narrows a slot it uses, as LinkML `slot_usage`. */
+  slot_usage?: Record<string, SlotUsage>;
+  /** The import the class came from, when it is not the model's own. */
+  from?: string;
 }
+
+/** What a class may narrow of a slot it uses (LinkML `slot_usage`); only what it names. */
+export type SlotUsage = Partial<Pick<LinkmlSlot, "range" | "required" | "multivalued" | "description">>;
 
 export interface LinkmlEnumValue {
   name: string;
@@ -152,6 +164,8 @@ export interface LinkmlEnumValue {
 export interface LinkmlEnum {
   name: string;
   permissible_values: LinkmlEnumValue[];
+  /** The import the enum came from, when it is not the model's own. */
+  from?: string;
 }
 
 /** The projection the structured view renders. Never the thing that is saved. */
@@ -264,7 +278,6 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
   };
 }
 
-/** The structured projection of a source that parses; `EMPTY_MODEL` for one that does not. */
 /** A list of names as the metamodel writes them: a YAML sequence of strings, or nothing. */
 function names(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
@@ -274,6 +287,17 @@ function names(value: unknown): string[] | undefined {
   return found.length > 0 ? found : undefined;
 }
 
+/** What a `slot_usage` entry narrows: only the fields it writes, so the rest stay the slot's. */
+function usageOf(raw: Record<string, unknown>): SlotUsage {
+  const usage: SlotUsage = {};
+  if (text(raw.range)) usage.range = text(raw.range);
+  if (typeof raw.required === "boolean") usage.required = raw.required;
+  if (typeof raw.multivalued === "boolean") usage.multivalued = raw.multivalued;
+  if (text(raw.description)) usage.description = text(raw.description);
+  return usage;
+}
+
+/** The structured projection of a source that parses; `EMPTY_MODEL` for one that does not. */
 export function parseModel(source: string): LinkmlModel {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
@@ -305,6 +329,10 @@ export function parseModel(source: string): LinkmlModel {
       // breaking-change detector see what the YAML says instead of only the flat class list.
       is_a: text(raw.is_a),
       mixins: names(raw.mixins),
+      attributes: Object.entries(record(raw.attributes)).map(([slot, value]) => slotOf(slot, record(value))),
+      slot_usage: Object.fromEntries(
+        Object.entries(record(raw.slot_usage)).map(([slot, value]) => [slot, usageOf(record(value))]),
+      ),
     };
   });
 
@@ -730,31 +758,85 @@ export function slotDimension(affordance: Affordance): "sizeBy" | "colorBy" | un
   return affordance === "select" ? "colorBy" : undefined;
 }
 
-/** One class as the graph draws it: a box with its own slots, on a row by its depth. */
-export interface GraphNode {
-  name: string;
-  /** The slots this class declares itself, without the inherited ones. */
-  slots: string[];
-  /** How far down the `is_a` chain it sits, which is the row it is drawn on. */
-  depth: number;
+/**
+ * Every slot a class has, as it has it: the `slots` it lists (narrowed by its `slot_usage`),
+ * then its own `attributes`. A listed slot the model does not declare is left out; `diagnose`
+ * reports it.
+ */
+export function classSlots(model: LinkmlModel, klass: LinkmlClass): LinkmlSlot[] {
+  const declared = new Map(model.slots.map((slot) => [slot.name, slot]));
+  const listed = klass.slots.flatMap((name) => {
+    const slot = declared.get(name);
+    return slot === undefined ? [] : [{ ...slot, ...klass.slot_usage?.[name] }];
+  });
+  const own = new Set(listed.map((slot) => slot.name));
+  return [...listed, ...(klass.attributes ?? []).filter((slot) => !own.has(slot.name))];
 }
 
-/** One line between two classes, and why it is there. */
+/** Where an import points, as the name of a model: `./air.linkml.yaml` and `air` are both `air`. */
+export function importName(target: string): string | undefined {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^https?:/i.test(target)) {
+    // A CURIE such as `linkml:types` names the metamodel's own schemas, not a model of ours.
+    return undefined;
+  }
+  const last = target.split(/[/#?]/).filter((part) => part !== "" && part !== ".").at(-1);
+  const name = last?.replace(/\.linkml\.ya?ml$|\.ya?ml$/i, "");
+  return name === undefined || name === "" ? undefined : name;
+}
+
+/**
+ * The model with what it imports: every class, slot and enum of an imported model the model
+ * does not declare itself, the classes and enums marked with the import they came from. The
+ * model's own declaration wins a name both carry, as LinkML resolves it.
+ */
+export function withImports(model: LinkmlModel, imported: Record<string, LinkmlModel>): LinkmlModel {
+  const classes = [...model.classes];
+  const slots = [...model.slots];
+  const enums = [...model.enums];
+  const has = (list: { name: string }[], name: string) => list.some((one) => one.name === name);
+  for (const [from, other] of Object.entries(imported)) {
+    for (const klass of other.classes) {
+      if (!has(classes, klass.name)) classes.push({ ...klass, from: klass.from ?? from });
+    }
+    for (const slot of other.slots) {
+      if (!has(slots, slot.name)) slots.push(slot);
+    }
+    for (const entry of other.enums) {
+      if (!has(enums, entry.name)) enums.push({ ...entry, from: entry.from ?? from });
+    }
+  }
+  return { ...model, classes, slots, enums };
+}
+
+/** One box of the graph: a class with its own slots, or an enum with its values. */
+export interface GraphNode {
+  name: string;
+  kind: "class" | "enum";
+  /** A class's own slots (listed and inline), without the inherited ones; an enum's values. */
+  slots: string[];
+  /** How far down the `is_a` chain it sits, which is the row it is drawn on; enums go last. */
+  depth: number;
+  /** The import it came from, when it is not the model's own. */
+  from?: string;
+}
+
+/** One line between two boxes, and why it is there. */
 export interface GraphEdge {
   from: string;
   to: string;
-  kind: "is_a" | "mixin" | "range";
-  /** The slot whose range draws the line, for a `range` edge. */
+  kind: "is_a" | "mixin" | "range" | "enum";
+  /** The slot whose range draws the line, for a `range` or an `enum` edge. */
   label?: string;
 }
 
 /**
- * The model as classes and the lines between them (DM-13, T-1111).
+ * The model as boxes and the lines between them (DM-13, T-1111, T-2720).
  *
- * Three kinds of line, because a reader asks three different questions of a model: what a class
- * specialises (`is_a`), what it mixes in (`mixins`), and which class one of its slots points at
- * (a `range` that names another class). A slot whose range is a primitive or an enum draws no
- * line — it is inside the box.
+ * Four kinds of line, because a reader asks four different questions of a model: what a class
+ * specialises (`is_a`), what it mixes in (`mixins`), which class one of its slots points at (a
+ * `range` that names another class), and which enum a slot picks from. A slot whose range is a
+ * primitive draws no line: it is inside the box. Enums are boxes of their own, with their values,
+ * on a row below the classes.
  *
  * The depth is the length of the `is_a` chain, computed here rather than by a layout library:
  * a class graph is a forest of short chains, and rows by depth put every parent above its
@@ -762,7 +844,7 @@ export interface GraphEdge {
  */
 export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const byName = new Map(model.classes.map((klass) => [klass.name, klass]));
-  const slotsByName = new Map(model.slots.map((slot) => [slot.name, slot]));
+  const enumNames = new Set(model.enums.map((entry) => entry.name));
 
   const depthOf = (klass: LinkmlClass, seen: Set<string> = new Set()): number => {
     // A cycle is a model somebody is still editing, not a reason to hang: the chain stops.
@@ -776,9 +858,21 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
 
   const nodes: GraphNode[] = model.classes.map((klass) => ({
     name: klass.name,
-    slots: klass.slots,
+    kind: "class",
+    slots: [...klass.slots, ...(klass.attributes ?? []).map((slot) => slot.name).filter((name) => !klass.slots.includes(name))],
     depth: depthOf(klass),
+    ...(klass.from ? { from: klass.from } : {}),
   }));
+  const enumRow = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.depth)) + 1;
+  for (const entry of model.enums) {
+    nodes.push({
+      name: entry.name,
+      kind: "enum",
+      slots: entry.permissible_values.map((value) => value.name),
+      depth: enumRow,
+      ...(entry.from ? { from: entry.from } : {}),
+    });
+  }
 
   const edges: GraphEdge[] = [];
   for (const klass of model.classes) {
@@ -790,10 +884,11 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
         edges.push({ from: klass.name, to: mixin, kind: "mixin" });
       }
     }
-    for (const name of klass.slots) {
-      const range = slotsByName.get(name)?.range;
-      if (range !== undefined && byName.has(range)) {
-        edges.push({ from: klass.name, to: range, kind: "range", label: name });
+    for (const slot of classSlots(model, klass)) {
+      if (slot.range !== undefined && byName.has(slot.range)) {
+        edges.push({ from: klass.name, to: slot.range, kind: "range", label: slot.name });
+      } else if (slot.range !== undefined && enumNames.has(slot.range)) {
+        edges.push({ from: klass.name, to: slot.range, kind: "enum", label: slot.name });
       }
     }
   }

@@ -33,9 +33,9 @@ import {
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";
-import { ModelForm, ModelYaml } from "./ModelViews";
+import { ModelForm, ModelYaml, useImportSources } from "./ModelViews";
 import { ProposeLink, useProjectList, useProjectManifests } from "./ModelsList";
-import { parseModel } from "./linkml";
+import { classSlots, parseModel } from "./linkml";
 import type { LinkmlModel } from "./linkml";
 import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
 import type { ModelUse } from "./modelUsage";
@@ -93,9 +93,9 @@ function ClassesTable({ model }: { model: LinkmlModel }): JSX.Element {
             </TableCell>
             <TableCell>
               <ul className="flex flex-col gap-0.5">
-                {klass.slots.map((name) => {
-                  const slot = model.slots.find((one) => one.name === name);
-                  const range = slot?.range;
+                {classSlots(model, klass).map((slot) => {
+                  const name = slot.name;
+                  const range = slot.range;
                   return (
                     <li key={name}>
                       <span className="font-mono">{name}</span>
@@ -105,8 +105,8 @@ function ClassesTable({ model }: { model: LinkmlModel }): JSX.Element {
                       ) : range && enums.has(range) ? (
                         <Badge className="ml-2">{t("models.page.enum")}</Badge>
                       ) : null}
-                      {slot?.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
-                      {slot?.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
+                      {slot.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
+                      {slot.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
                     </li>
                   );
                 })}
@@ -185,6 +185,7 @@ export function ModelPage({
   const source = useSourceOf(project, model);
   const parsed = useMemo(() => (source.data ? parseModel(source.data) : undefined), [source.data]);
   const uses = useMemo(() => (model ? usesOfModel(model, all) : []), [model, all]);
+  const imports = useImportSources(project, name, source.data ?? "");
 
   const back = (
     <Link
@@ -285,6 +286,7 @@ export function ModelPage({
               <div className="flex flex-col gap-4">
                 <LinkmlGraphView
                   source={source.data}
+                  imports={imports}
                   onOpenClass={() => {
                     setView("form");
                   }}

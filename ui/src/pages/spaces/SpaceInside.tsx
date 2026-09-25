@@ -563,7 +563,7 @@ function SpaceModel({
           {t("models.source.loading")}
         </p>
       ) : (
-        <ModelViews source={source.data} name={name} id="space-model-views" />
+        <ModelViews project={project} source={source.data} name={name} id="space-model-views" />
       )}
     </div>
   );

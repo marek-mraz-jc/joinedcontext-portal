@@ -869,11 +869,12 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 7,
+        "Button": 9,
         "Checkbox": 3
       },
       "tests": [
         "linkml_enum_values.test.tsx",
+        "linkml_imports_enums.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx"
       ]

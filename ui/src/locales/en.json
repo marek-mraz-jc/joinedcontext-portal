@@ -1446,10 +1446,12 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class.",
+      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
-      "more": "and {count} more"
+      "more": "and {count} more",
+      "from": "from {name}",
+      "enumBox": "Enum {name}: {values}"
     },
     "field": {
       "name": "Name",
@@ -1523,6 +1525,14 @@
       "downloadYaml": "Download the YAML",
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it instead."
+    },
+    "hints": {
+      "title": "This model has no class yet. Three ways to start:",
+      "sdm": "Import a Smart Data Model: its classes, fields and enums arrive written.",
+      "sdmAction": "Import a Smart Data Model",
+      "klass": "Add a class: name it in the box under Classes, for example School.",
+      "klassAction": "Name the first class",
+      "relation": "Add a relation: once there are two classes, give one a slot whose range is the other, for example School has users of the class User."
     }
   },
   "apps": {
