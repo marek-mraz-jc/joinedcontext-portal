@@ -38,14 +38,16 @@ pub const FIELD_MANAGER: &str = "portal-app-reconciler";
 /// Server-side apply's content type; the body is JSON, which is YAML.
 const APPLY_PATCH: &str = "application/apply-patch+yaml";
 
-/// The kinds an App and its agent runs compile into (AP-13, AP-15, AP-26, AG-33, EP-02).
-const KINDS: [(&str, &str, &str); 8] = [
+/// The kinds an App, its agent runs and its build pods compile into (AP-13, AP-15, AP-26, AG-33,
+/// EP-02, AP-131).
+const KINDS: [(&str, &str, &str); 9] = [
     ("apps/v1", "Deployment", "deployments"),
     ("v1", "Service", "services"),
     ("v1", "Secret", "secrets"),
     ("networking.k8s.io/v1", "NetworkPolicy", "networkpolicies"),
     ("batch/v1", "Job", "jobs"),
     ("v1", "ServiceAccount", "serviceaccounts"),
+    ("v1", "PersistentVolumeClaim", "persistentvolumeclaims"),
     // A project's apps namespace and the Portal's binding in it (AP-116); an admission policy
     // keeps both to `{release}-{project}-apps` (AP-117).
     ("v1", "Namespace", "namespaces"),
@@ -233,9 +235,14 @@ impl KubeClient {
         name: &str,
     ) -> Result<(), KubeError> {
         let path = path_of(plural_of(api_version, kind)?, namespace, name)?;
+        // A Job deleted over the API orphans its pods unless asked otherwise; kubectl asks for
+        // the same background collection.
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("propagationPolicy", "Background");
         let response = self
             .http
-            .delete(self.url(&path)?)
+            .delete(url)
             .headers(self.headers("application/json")?)
             .send()
             .await
@@ -267,6 +274,36 @@ impl KubeClient {
         }
         let body = self.checked(response, path).await?;
         Ok(Some(body))
+    }
+
+    /// The objects of one kind in a namespace that carry `label_selector`, as the API server
+    /// lists them; one page, because what the Portal lists is bounded by what it created.
+    pub async fn list(
+        &self,
+        api_version: &str,
+        kind: &str,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<Vec<Value>, KubeError> {
+        let plural = plural_of(api_version, kind)?;
+        let item = path_of(plural, namespace, "list")?;
+        let path = item.trim_end_matches("/list").to_owned();
+        let mut url = self.url(&path)?;
+        url.query_pairs_mut()
+            .append_pair("labelSelector", label_selector);
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers("application/json")?)
+            .send()
+            .await
+            .map_err(|err| KubeError::Transport(err.to_string()))?;
+        let body = self.checked(response, path).await?;
+        Ok(body
+            .get("items")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
     }
 
     /// Reads one ConfigMap, or `None` when it does not exist. The one kind the Portal reads and
