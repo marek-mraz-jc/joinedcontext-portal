@@ -1,9 +1,11 @@
 /**
  * Sweeps what takes and e2e left behind in helsinki (T-0667, T-0750): every resource whose name
  * carries a take's HHMM suffix, or the fixed name an act creates, is deleted through the
- * Portal's own delete, a Red change the approver approves with the name typed back, so the
+ * Portal's own delete, a Red change the janitor approves with the name typed back, so the
  * reconciler drops what it had deployed. Dependents first, then the spaces, then the models the spaces referenced.
- * Only these names, only this project; nothing to sweep is a pass.
+ * Only these names, only this project; nothing to sweep is a pass. The janitor's role reaches these
+ * names and no other (T-2627, deployment seed/helsinki/helsinki-role-janitor.yaml), so a name added
+ * here that the role's pattern does not cover is refused at the approval, not swept by accident.
  *
  * A copy is swept too, and by its own door (T-1592): a workspace is not a resource under
  * `/projects/{project}/{plural}`, it is discarded, and an expired one is invisible to the list it
@@ -12,7 +14,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { APPROVER, STEWARD, approve, listedNames, signIn } from "./portal";
+import { JANITOR, STEWARD, approve, listedNames, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 /** A take's suffix is the HH:MM it started at; an act with a fixed name is listed by it. */
@@ -28,15 +30,19 @@ const SWEEP: { plural: string; residue: (name: string) => boolean }[] = [
   { plural: "endpoints", residue: (name) => JOURNEY.test(name) || /^bikes-regional-[a-z0-9]+$/.test(name) },
   { plural: "pipelines", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
   { plural: "datasources", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
-  { plural: "dashboards", residue: (name) => JOURNEY.test(name) || TAKE.test(name) || name === "city-bikes" || name === "city-bike-stations" },
+  // `city-bikes`, which a take once created, is the seeded dashboard now: never residue.
+  { plural: "dashboards", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
   // A dashboard names its layers, so the layers go after it (T-1546).
   { plural: "layers", residue: (name) => JOURNEY.test(name) },
   // What the kind journeys make (T-1539, T-1540): nothing refers to them.
   { plural: "csrs", residue: (name) => JOURNEY.test(name) },
   { plural: "ckaninstances", residue: (name) => JOURNEY.test(name) },
+  { plural: "subscriptions", residue: (name) => JOURNEY.test(name) },
+  // A journey's service account (T-1550): nothing it made refers to it once the journey ends.
+  { plural: "serviceaccounts", residue: (name) => JOURNEY.test(name) },
   { plural: "apps", residue: (name) => JOURNEY.test(name) || TAKE.test(name) || name === "large-map-city" },
   // A space references its model (dataModelRef), so the space goes first.
-  { plural: "spaces", residue: (name) => /^citybikes-\d{4}$/.test(name) || JOURNEY.test(name) || name === "city-bikes" || name === "city-bike-stations" },
+  { plural: "spaces", residue: (name) => /^citybikes-\d{4}$/.test(name) || JOURNEY.test(name) },
   { plural: "datamodels", residue: (name) => /^citybikes-\d{4}$/.test(name) || JOURNEY.test(name) },
 ];
 
@@ -111,7 +117,7 @@ test("no residue of takes or e2e is left in helsinki", async ({ browser }) => {
   }
   test.info().annotations.push({ type: "residue", description: found.join(", ") || "none" });
   if (found.length > 0) {
-    const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
+    const approver = await signIn(browser, JANITOR, `/projects/${PROJECT}/approvals?lang=en`);
     for (const item of found) {
       const [plural, name] = item.split("/");
       const change = await proposeDelete(steward.page, steward.context, plural, name);

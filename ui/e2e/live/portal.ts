@@ -12,6 +12,11 @@ export const VIEWER = { user: "demo.viewer@hel.fi", password: process.env.VIEWER
  * gets, and a role they hand out may carry no verb they lack (PF-50).
  */
 export const EDITOR = { user: "demo.editor@hel.fi", password: process.env.EDITOR_PASSWORD ?? "" };
+/**
+ * The residue sweep's approver (T-2627): bound to `janitor`, which approves and deletes only
+ * journey- and take-named resources of helsinki, so the sweep needs no demo person's delete.
+ */
+export const JANITOR = { user: "demo.janitor@hel.fi", password: process.env.JANITOR_PASSWORD ?? "" };
 
 /**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
@@ -22,7 +27,7 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
-        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD)",
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD)",
     );
   }
   const context = await browser.newContext();
