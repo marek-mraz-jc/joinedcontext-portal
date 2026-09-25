@@ -6,6 +6,8 @@ pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;
+pub mod catalogue;
+pub mod catalogue_draft;
 pub mod changes;
 pub mod ckan;
 pub mod datamodels;
@@ -31,6 +33,7 @@ pub mod preferences;
 pub mod projects;
 pub mod resources;
 pub mod service_accounts;
+pub mod setup;
 pub mod sync;
 pub mod sync_sources;
 pub mod webhook;
@@ -56,6 +59,8 @@ pub fn router() -> Router<AppState> {
         .merge(pipeline_test::router())
         .merge(blueprints::router())
         .merge(branding::router())
+        .merge(catalogue::router())
+        .merge(catalogue_draft::router())
         .merge(changes::router())
         .merge(ckan::router())
         .merge(datamodels::router())
@@ -70,6 +75,7 @@ pub fn router() -> Router<AppState> {
         .merge(ops::router())
         .merge(permissions::router())
         .merge(people::router())
+        .merge(setup::router())
         .merge(pipelines::router())
         .merge(preferences::router())
         .merge(projects::router())

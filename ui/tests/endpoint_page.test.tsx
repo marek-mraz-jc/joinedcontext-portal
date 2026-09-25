@@ -14,6 +14,8 @@
  * 5. A viewer reads all of it and cannot propose: the control is disabled with the reason, and the
  *    Delete in the menu keeps its reason too (UI-44).
  * 6. The page says a change is proposed and reviewed before any control.
+ * 7. An endpoint has no pause: the page says deleting is how it stops and opens that deletion, which
+ *    a viewer is refused with its reason; no pause control is painted (EP-89, T-2286).
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -529,8 +531,10 @@ describe("the endpoint's own settings page", () => {
         "true",
       );
     });
-    // Both doors say which verb on which kind is missing: the endpoint's settings and the filter.
-    expect(screen.getByTitle(/'propose' on 'Endpoint'/)).toBeInTheDocument();
+    // Every door says which verb on which kind is missing: the endpoint's settings, its
+    // publication to the catalogue (EP-83) and the filter.
+    expect(screen.getByRole("button", { name: en.catalogue.publish.open })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByTitle(/'propose' on 'Endpoint'/)).toHaveLength(2);
     expect(screen.getByTitle(/'propose' on 'ModelProjection'/)).toBeInTheDocument();
   });
 
@@ -551,6 +555,37 @@ describe("the endpoint's own settings page", () => {
     const remove = within(menu).getByRole("menuitem", { name: new RegExp(en.resourceDelete.button) });
     expect(remove).toHaveAttribute("aria-disabled", "true");
     expect(remove).toHaveAttribute("title", expect.stringContaining("delete"));
+  });
+
+  it("says an endpoint stops by being deleted and opens that deletion (EP-89)", async () => {
+    renderPage();
+    const user = userEvent.setup();
+
+    const section = (await screen.findByRole("heading", { name: en.endpoints.page.stop.title })).closest("section");
+    expect(section).not.toBeNull();
+    expect(within(section as HTMLElement).getByText(en.endpoints.page.stop.lead)).toBeInTheDocument();
+    // No control pretends to pause what the manifest cannot pause.
+    expect(screen.queryByRole("button", { name: /pause|resume|retire/i })).not.toBeInTheDocument();
+
+    await user.click(within(section as HTMLElement).getByRole("button", { name: en.endpoints.page.stop.delete }));
+    // The same deletion as the menu's: the name typed back, then a change for an approver.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: new RegExp(en.resourceDelete.propose) })).toBeInTheDocument();
+  });
+
+  it("refuses a viewer the deletion that stops an endpoint, with its reason (EP-89)", async () => {
+    renderPage({ permissions: VIEWER });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: new RegExp(en.endpoints.page.stop.delete) })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    });
+    expect(screen.getByRole("button", { name: new RegExp(en.endpoints.page.stop.delete) })).toHaveAttribute(
+      "title",
+      expect.stringContaining("'delete' on 'Endpoint'"),
+    );
   });
 
   it("says why an endpoint could not be read instead of an empty page", async () => {

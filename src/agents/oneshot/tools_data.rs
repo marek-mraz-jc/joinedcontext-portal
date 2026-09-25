@@ -743,6 +743,7 @@ mod tests {
             files: None,
             file_count: None,
             workspace: None,
+            waits_on: Vec::new(),
         }
     }
 

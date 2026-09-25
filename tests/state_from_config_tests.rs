@@ -211,6 +211,7 @@ async fn no_database_still_starts_with_a_non_durable_agent_store() {
 fn session(subject: &str, issued_at: i64) -> Session {
     Session {
         identity: Identity {
+            client: None,
             subject: subject.into(),
             username: "demo.steward".into(),
             email: None,

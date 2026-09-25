@@ -15,6 +15,11 @@ use crate::api::agent_runs::{
 };
 use crate::api::assistant::{AgentAccessList, OperationAccess, ProfileAccess, StartConversation};
 use crate::api::blueprints::FlowRequest;
+use crate::api::catalogue::{
+    CatalogueClass, CatalogueContact, CatalogueDataModel, CatalogueDataset, CatalogueDatasetDetail,
+    CatalogueEndpoint, CatalogueFacetValue, CatalogueFacets, CatalogueLicence, CataloguePage,
+    CataloguePublisher, CatalogueResource, CatalogueSample, CatalogueTemporal, CatalogueTheme,
+};
 use crate::api::changes::{ChangeAuthor, ChangeList, ChangeProposal, ChangeSummary};
 use crate::api::ckan::{
     CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
@@ -113,6 +118,7 @@ use crate::tools::model_tools::{
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
         crate::api::people::list_people,
+        crate::api::setup::get_setup,
         crate::api::people::create_person,
         crate::api::people::get_person,
         crate::api::people::edit_person,
@@ -148,6 +154,10 @@ use crate::tools::model_tools::{
         crate::api::mutate::patch,
         crate::api::changes::list_changes,
         crate::api::ckan::get_status,
+        crate::api::catalogue::get_catalogue,
+        crate::api::catalogue::get_dataset,
+        crate::api::catalogue::get_sample,
+        crate::api::catalogue_draft::draft_publication,
         crate::api::federation::get_graph,
         crate::api::changes::get_change,
         crate::api::changes::approve_change,
@@ -213,6 +223,23 @@ use crate::tools::model_tools::{
         Fonts,
         Languages,
         CkanStatus,
+        CataloguePage,
+        CatalogueDataset,
+        CatalogueDatasetDetail,
+        CataloguePublisher,
+        CatalogueLicence,
+        CatalogueFacets,
+        CatalogueFacetValue,
+        CatalogueTemporal,
+        CatalogueContact,
+        CatalogueResource,
+        CatalogueEndpoint,
+        CatalogueDataModel,
+        CatalogueClass,
+        CatalogueTheme,
+        CatalogueSample,
+        crate::api::catalogue_draft::CatalogueDraftRequest,
+        crate::api::catalogue_draft::CatalogueDraft,
         InstanceSummary,
         PublicationStatus,
         ResourceLink,
@@ -333,6 +360,7 @@ use crate::tools::model_tools::{
         (name = "auth", description = "Sign-in, sign-out and the current identity"),
         (name = "resources", description = "Resource operations"),
         (name = "people", description = "The people of the organization's realm (PF-90)"),
+        (name = "organization", description = "What a new organization still lacks (PF-90, UI-82)"),
         (name = "permissions", description = "What the caller may do in a project (PF-50)"),
         (name = "tools", description = "Model Tools schema generation and preview"),
         (name = "ops", description = "One operation registry behind every door (AG-59, ADR-N-021)"),

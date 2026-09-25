@@ -453,6 +453,7 @@ pub async fn delete_with_identity(
             probe: None,
             verdict: None,
             findings: Vec::new(),
+            awaited: Vec::new(),
         }));
     }
 
@@ -628,6 +629,7 @@ mod tests {
     fn dummy_user() -> CurrentUser {
         CurrentUser(Session {
             identity: Identity {
+                client: None,
                 subject: "sub-123".into(),
                 username: "demo.developer".into(),
                 email: Some("demo@example.com".into()),

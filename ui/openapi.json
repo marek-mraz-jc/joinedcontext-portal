@@ -431,6 +431,227 @@
         }
       }
     },
+    "/api/v1/catalogue": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Search the Catalogue",
+        "description": "Every public dataset of the installation's open-data catalogues, searched and faceted (EP-81). Public: it lists only what an anonymous caller of the catalogue sees.",
+        "operationId": "get_catalogue",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Full-text search, passed to CKAN",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "publisher",
+            "in": "query",
+            "description": "CKAN organization names",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "theme",
+            "in": "query",
+            "description": "EU data-theme codes",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Resource formats",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "licence",
+            "in": "query",
+            "description": "CKAN licence ids",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "spatial",
+            "in": "query",
+            "description": "NUTS codes or location IRIs",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Calendar years covered",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page, from 1",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of datasets and the facets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CataloguePage"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No catalogue answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalogue/datasets/{name}": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Read a Catalogue Dataset",
+        "description": "One public dataset: its description, resources, and the Endpoint and model behind it when it is this installation's (EP-82).",
+        "operationId": "get_dataset",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The dataset's name in the catalogue",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueDatasetDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No public dataset has this name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalogue/datasets/{name}/sample": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Sample a Catalogue Dataset",
+        "description": "Up to ten entities of the dataset's first model class, read anonymously through its Endpoint (EP-82, EP-66).",
+        "operationId": "get_sample",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The dataset's name in the catalogue",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sample",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueSample"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No public dataset of an Endpoint here that serves NGSI-LD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Endpoint did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/endpoints": {
       "get": {
         "tags": [
@@ -1363,6 +1584,38 @@
           },
           "503": {
             "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/setup": {
+      "get": {
+        "tags": [
+          "organization"
+        ],
+        "summary": "Get Organization Setup",
+        "description": "What the organization still lacks: each setup step and the installation's own part, done or not. Needs `approve` on Organization at organization scope, as `org-admin` holds it.",
+        "operationId": "get_setup",
+        "responses": {
+          "200": {
+            "description": "The steps and the operator's part",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupState"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks approve on Organization",
             "content": {
               "application/json": {
                 "schema": {
@@ -3886,6 +4139,102 @@
           },
           "502": {
             "description": "Bad gateway from upstream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/catalogue/drafts": {
+      "post": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Draft a Catalogue Publication",
+        "description": "What the one-step publish flow proposes for an Endpoint: its `spec.catalog` drafted from the model and the organization, its `spec.publish.ckan`, and whether publishing makes it public (EP-83). Writes nothing.",
+        "operationId": "draft_publication",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueDraftRequest"
+              },
+              "example": {
+                "endpoint": "bbsk-kpi"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body names no Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No grant proposes an Endpoint in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project has no CkanInstance to publish to",
             "content": {
               "application/json": {
                 "schema": {
@@ -10017,6 +10366,22 @@
           }
         }
       },
+      "AwaitedChange": {
+        "type": "object",
+        "description": "A change another one waits on (MF-48).",
+        "required": [
+          "name",
+          "phase"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ChangePhase"
+          }
+        }
+      },
       "BackChannelLogoutForm": {
         "type": "object",
         "description": "The provider's back-channel logout call: one signed token, no session and no bearer (AP-29).",
@@ -10034,6 +10399,14 @@
         "type": "object",
         "description": "Everything the Portal shows that names or themes an installation.",
         "properties": {
+          "appsOrigin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The origin published Apps are served from (`JC_PORTAL_APPS_URL`), absent when they are\nserved on the Portal's own. Never taken from the branding file: the route overwrites it\nfrom the Portal's configuration on every answer, and the in-Portal page of an App frames\nit there (AP-122, T-2840).",
+            "default": null
+          },
           "city": {
             "type": "string",
             "description": "The city or region this installation serves.",
@@ -10278,6 +10651,330 @@
           }
         }
       },
+      "CatalogueClass": {
+        "type": "object",
+        "description": "One class of the model, described as its LinkML describes it.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueContact": {
+        "type": "object",
+        "description": "Where questions about the dataset go: a role address (EP-80).",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CatalogueDataModel": {
+        "type": "object",
+        "description": "The data model behind a dataset.",
+        "required": [
+          "name",
+          "classes"
+        ],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueClass"
+            }
+          },
+          "docsUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model's documentation, the dataset's Markdown schema resource."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueDataset": {
+        "type": "object",
+        "description": "A dataset as the list shows it.",
+        "required": [
+          "name",
+          "title",
+          "formats",
+          "themes"
+        ],
+        "properties": {
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "licence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueLicence"
+              }
+            ]
+          },
+          "modified": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CataloguePublisher"
+              }
+            ]
+          },
+          "themes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "EU data-theme codes (`ECON`, `ENVI`, …); the UI names them in the reader's language."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueDatasetDetail": {
+        "type": "object",
+        "description": "One dataset, as its page shows it.",
+        "required": [
+          "name",
+          "title",
+          "keywords",
+          "themes",
+          "spatial",
+          "catalogueUrl",
+          "resources"
+        ],
+        "properties": {
+          "catalogueUrl": {
+            "type": "string",
+            "description": "The dataset on the catalogue's own site."
+          },
+          "contact": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueContact"
+              }
+            ]
+          },
+          "endpoint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueEndpoint",
+                "description": "The Endpoint of this installation the dataset describes, when it names one."
+              }
+            ]
+          },
+          "frequency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The EU frequency the record names (`dct:accrualPeriodicity`)."
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "licence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueLicence"
+              }
+            ]
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueDataModel",
+                "description": "The model the Endpoint's space holds."
+              }
+            ]
+          },
+          "modified": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CataloguePublisher"
+              }
+            ]
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueResource"
+            }
+          },
+          "spatial": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "temporal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogueTemporal"
+              }
+            ]
+          },
+          "themes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueTheme"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueDraft": {
+        "type": "object",
+        "description": "The two blocks the flow proposes, and what nothing could fill.",
+        "required": [
+          "endpoint",
+          "makesPublic",
+          "catalog",
+          "publish",
+          "missing"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "object",
+            "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "makesPublic": {
+            "type": "boolean",
+            "description": "The Endpoint's audience is not `public`: the proposal makes it public, in the red lane."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Catalogue members nothing could fill."
+          },
+          "publish": {
+            "type": "object",
+            "description": "The drafted `spec.publish` (EP-62), or the one the Endpoint already declares."
+          }
+        }
+      },
+      "CatalogueDraftRequest": {
+        "type": "object",
+        "description": "Which Endpoint of the project to draft for.",
+        "required": [
+          "endpoint"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The Endpoint's `metadata.name`."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CatalogueEndpoint": {
+        "type": "object",
+        "description": "The Endpoint a dataset describes, on this installation's own host.",
+        "required": [
+          "url",
+          "representations"
+        ],
+        "properties": {
+          "representations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The representations it serves, which decide the \"Use this data\" snippets."
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "CatalogueEntry": {
         "type": "object",
         "description": "One Smart Data Models catalogue entry as the pickers list it (DM-12, DM-63).",
@@ -10303,6 +11000,99 @@
           "subject": {
             "type": "string",
             "description": "`dataModel.Environment`."
+          }
+        }
+      },
+      "CatalogueFacetValue": {
+        "type": "object",
+        "description": "One value of a facet.",
+        "required": [
+          "value",
+          "label",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueFacets": {
+        "type": "object",
+        "description": "Every facet of the list.",
+        "required": [
+          "publisher",
+          "theme",
+          "format",
+          "licence",
+          "spatial",
+          "year"
+        ],
+        "properties": {
+          "format": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          },
+          "licence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          },
+          "publisher": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          },
+          "spatial": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          },
+          "theme": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          },
+          "year": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFacetValue"
+            }
+          }
+        }
+      },
+      "CatalogueLicence": {
+        "type": "object",
+        "description": "A licence as the catalogue's register names it.",
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10337,6 +11127,131 @@
           }
         }
       },
+      "CataloguePage": {
+        "type": "object",
+        "description": "One page of the catalogue.",
+        "required": [
+          "total",
+          "page",
+          "pageSize",
+          "datasets",
+          "facets",
+          "unavailable"
+        ],
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueDataset"
+            },
+            "description": "The datasets of this page."
+          },
+          "facets": {
+            "$ref": "#/components/schemas/CatalogueFacets",
+            "description": "Counts per facet value, each over the datasets every other filter keeps."
+          },
+          "page": {
+            "type": "integer",
+            "description": "The page shown, from 1.",
+            "minimum": 0
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Datasets per page.",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "description": "Datasets matching the search and every filter.",
+            "minimum": 0
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Catalogues that did not answer; the others still did."
+          }
+        }
+      },
+      "CataloguePublisher": {
+        "type": "object",
+        "description": "The CKAN organization a dataset belongs to: one per project (Architecture/21 §1).",
+        "required": [
+          "name",
+          "title"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueResource": {
+        "type": "object",
+        "description": "One resource of a dataset (EP-64).",
+        "required": [
+          "name",
+          "format",
+          "url"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "format": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "previewUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The DataStore preview, on a resource with an active sheet (EP-65)."
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueSample": {
+        "type": "object",
+        "description": "Up to ten entities of a dataset, read through its Endpoint (EP-82).",
+        "required": [
+          "type",
+          "columns",
+          "rows"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
       "CatalogueSubject": {
         "type": "object",
         "description": "One subject of the catalogue: `dataModel.Environment` and the models under it.",
@@ -10358,6 +11273,40 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CatalogueTemporal": {
+        "type": "object",
+        "description": "The period a dataset covers; either end may be open.",
+        "properties": {
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CatalogueTheme": {
+        "type": "object",
+        "description": "An EU data theme: its code and its English name (the UI names it in the reader's language).",
+        "required": [
+          "code",
+          "label"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
           }
         }
       },
@@ -10552,6 +11501,13 @@
           },
           "summary": {
             "$ref": "#/components/schemas/ChangeSummary"
+          },
+          "waitsOn": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AwaitedChange"
+            },
+            "description": "The changes this one waits on, each with where it stands (MF-48): it names what they\ncreate, so it merges after them, and a `Rejected` one flags it."
           },
           "workspace": {
             "type": [
@@ -14227,6 +15183,47 @@
         },
         "additionalProperties": false
       },
+      "SetupItem": {
+        "type": "object",
+        "description": "One step or operator item and whether it is done.",
+        "required": [
+          "id",
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "SetupState": {
+        "type": "object",
+        "required": [
+          "complete",
+          "steps",
+          "operator"
+        ],
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "operator": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupItem"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetupItem"
+            }
+          }
+        }
+      },
       "Side": {
         "type": "string",
         "description": "Which side a person kept for one conflicting field (CC-80).",
@@ -14665,7 +15662,14 @@
           "ok": {
             "type": "boolean"
           },
-          "trace": {}
+          "trace": {},
+          "waitsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The open changes whose resources this manifest names (MF-48): it resolves once they are\napproved, and its own change cannot merge before them. Empty for every other verdict."
+          }
         },
         "additionalProperties": false
       },
@@ -14823,6 +15827,10 @@
     {
       "name": "people",
       "description": "The people of the organization's realm (PF-90)"
+    },
+    {
+      "name": "organization",
+      "description": "What a new organization still lacks (PF-90, UI-82)"
     },
     {
       "name": "permissions",

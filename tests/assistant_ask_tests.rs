@@ -47,6 +47,7 @@ fn cookie(config: &Config, email: &str) -> String {
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: format!("f:1:{email}"),
             username: email.split('@').next().unwrap_or(email).to_owned(),
             email: Some(email.to_owned()),

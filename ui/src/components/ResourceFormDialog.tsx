@@ -5,6 +5,7 @@ import validator from "./forms/validator";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { errorMessageKey, SchemaForm } from "./forms/SchemaForm";
+import { mergeObjects } from "@rjsf/utils";
 import type { ErrorSchema } from "@rjsf/utils";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import { portalThemeWidgets } from "./forms/theme";
@@ -101,10 +102,15 @@ type View = "form" | "yaml";
 
 const VIEWS: View[] = ["form", "yaml"];
 
-/** The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30). */
-const VERDICT_TONE: Record<"none" | "green" | "red" | "stale", BadgeTone> = {
+/**
+ * The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30).
+ * `waiting` passes and names a resource an open change creates (MF-48): proposable, and its change
+ * merges after that one.
+ */
+const VERDICT_TONE: Record<"none" | "green" | "waiting" | "red" | "stale", BadgeTone> = {
   none: "neutral",
   green: "success",
+  waiting: "info",
   red: "danger",
   stale: "warning",
 };
@@ -134,6 +140,17 @@ function atPath(root: ErrorSchema, path: string[]): string[] {
   const list = (node.__errors as string[] | undefined) ?? [];
   node.__errors = list;
   return list;
+}
+
+/**
+ * The form's field a finding's manifest path names: `metadata.name` is the form's `name`, and a
+ * form that holds the spec's fields at its top level (most do, through `source`) has
+ * `spec.contextSpaceRef` as `contextSpaceRef` (T-2731, UI-45).
+ */
+function fieldPath(path: string, schema: JsonSchema): string[] {
+  const segments = path.replace(/^metadata\./, "").split(".");
+  const flat = segments[0] === "spec" && !(schema.properties && "spec" in schema.properties);
+  return flat ? segments.slice(1) : segments;
 }
 
 /** One frame for every manifest form: the schema decides the fields, the caller the kind. */
@@ -523,10 +540,11 @@ export function ResourceFormDialog<T>({
     return () => clearInterval(timer);
   }, [open, hasVerdict]);
 
-  const verdictState = useMemo<"none" | "green" | "red" | "stale">(() => {
+  const verdictState = useMemo<"none" | "green" | "waiting" | "red" | "stale">(() => {
     if (!internalVerdict) return "none";
     if (internalVerdict.inputDigest !== currentDigest) return "stale";
-    return internalVerdict.ok ? "green" : "red";
+    if (!internalVerdict.ok) return "red";
+    return (internalVerdict.waitsOn ?? []).length > 0 ? "waiting" : "green";
   }, [internalVerdict, currentDigest]);
 
   /**
@@ -732,8 +750,7 @@ export function ResourceFormDialog<T>({
   }
 
   /**
-   * A finding the server made, on the field it names: `metadata.name` is this form's `name` field
-   * (UI-45, T-1491). A finding with no path stays in the list under the verdict, where it was.
+   * A finding the server made, on the field it names (`fieldPath`; UI-45, T-1491). A finding with no path stays in the list under the verdict, where it was.
    */
   const findingErrors = useMemo<ErrorSchema | undefined>(() => {
     const located = (internalVerdict?.findings ?? []).filter(
@@ -744,10 +761,23 @@ export function ResourceFormDialog<T>({
     }
     const marked: ErrorSchema = {};
     for (const finding of located) {
-      atPath(marked, finding.path.replace(/^metadata\./, "").split(".")).push(forPeople(finding.message));
+      atPath(marked, fieldPath(finding.path, schema)).push(forPeople(finding.message));
     }
     return marked;
-  }, [internalVerdict]);
+  }, [internalVerdict, schema]);
+
+  /**
+   * What the fields say: the browser's own refusals and the server's findings together. The
+   * server's used to be dropped whenever the browser marked any field at all, so a name another
+   * project holds went unsaid on the name while the space picker was marked (T-2731, UI-45); a
+   * field both judge shows both sentences.
+   */
+  const shownErrors = useMemo<ErrorSchema | undefined>(() => {
+    if (schemaErrors === undefined || findingErrors === undefined) {
+      return schemaErrors ?? findingErrors;
+    }
+    return mergeObjects(findingErrors, schemaErrors, "preventDuplicates") as ErrorSchema;
+  }, [schemaErrors, findingErrors]);
 
   /** The check runs on what the active view holds: the form, or the YAML read back into it. */
   function runCheck() {
@@ -832,6 +862,8 @@ export function ResourceFormDialog<T>({
     <Badge data-testid="draft-verdict" tone={VERDICT_TONE[verdictState]}>
       {verdictState === "none" && t("drafts.verdict.none")}
       {verdictState === "green" && t("drafts.verdict.green", { age: verdictAge })}
+      {verdictState === "waiting" &&
+        t("drafts.verdict.waiting", { changes: (internalVerdict?.waitsOn ?? []).join(", "), age: verdictAge })}
       {verdictState === "red" && t("drafts.verdict.red", { age: verdictAge })}
       {verdictState === "stale" && t("drafts.verdict.stale")}
     </Badge>
@@ -1030,7 +1062,7 @@ export function ResourceFormDialog<T>({
               submitLabel={submitLabel}
               submitDisabledReason={effectiveSubmitDisabledReason}
               submitting={submitting || saving}
-              extraErrors={schemaErrors ?? findingErrors}
+              extraErrors={shownErrors}
               onSubmit={handleSubmit}
               onChange={(next) => {
                 // What the browser refused is about the form as it was: a keystroke makes it stale,

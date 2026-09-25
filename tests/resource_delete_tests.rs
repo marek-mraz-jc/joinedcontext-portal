@@ -27,6 +27,7 @@ fn make_session_cookie(config: &Config) -> String {
     let now = session::now_unix();
     let s = Session {
         identity: Identity {
+            client: None,
             subject: "f:1:demo.steward".into(),
             username: "demo.steward".into(),
             email: Some("demo.steward@banskabystrica.sk".into()),
@@ -1019,6 +1020,7 @@ mod under_identity {
 
     fn who(name: &str, groups: &[&str]) -> Identity {
         Identity {
+            client: None,
             subject: format!("sub-{name}"),
             username: name.into(),
             email: Some(format!("{name}@hel.fi")),

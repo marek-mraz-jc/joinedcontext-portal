@@ -98,6 +98,7 @@ mod tests {
 
     fn identity(email: &str) -> Identity {
         Identity {
+            client: None,
             subject: "0f6c".to_owned(),
             username: email.to_owned(),
             email: Some(email.to_owned()),

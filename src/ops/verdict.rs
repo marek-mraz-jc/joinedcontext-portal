@@ -46,6 +46,10 @@ pub struct Verdict {
     #[schema(value_type = String, format = DateTime)]
     pub checked_at: DateTime<Utc>,
     pub input_digest: String,
+    /// The open changes whose resources this manifest names (MF-48): it resolves once they are
+    /// approved, and its own change cannot merge before them. Empty for every other verdict.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub waits_on: Vec<String>,
 }
 
 impl Verdict {
@@ -56,6 +60,7 @@ impl Verdict {
             trace,
             checked_at: Utc::now(),
             input_digest: digest_of(input),
+            waits_on: Vec::new(),
         }
     }
 

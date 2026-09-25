@@ -51,7 +51,8 @@ const WORKSPACE = {
   scope: { kind: "project" },
   previewState: "none",
   createdAt: "2026-09-18T09:00:00Z",
-  expiresAt: "2026-09-25T09:00:00Z",
+  // Far ahead: a date that passes turns this copy expired and fails every test that opens it.
+  expiresAt: "2099-09-25T09:00:00Z",
   changes: 3,
 };
 const file = (path: string, kind: string, operation: string, lane = "yellow") => ({
@@ -384,6 +385,8 @@ describe("bring back", () => {
     await userEvent.click(within(note).getByLabelText(/Take the project's/));
     await userEvent.click(update);
     await waitFor(() => expect(propose).not.toHaveAttribute("aria-disabled"));
+    // The update says what it did, or a person clicks and sees nothing happen (T-2729).
+    expect(screen.getByRole("status")).toHaveTextContent("Updated from the project: 1 file taken in.");
     expect(requests.find((r) => r.path.endsWith("/update"))?.body).toEqual({
       resolutions: [
         { path: "projects/helsinki/pipelines/a.yaml", field: "spec.period", keep: "ours" },
@@ -394,6 +397,19 @@ describe("bring back", () => {
     await userEvent.click(propose);
     const link = await screen.findByText("chg-00000009");
     expect(link.closest("a")?.getAttribute("href")).toBe("/projects/helsinki/approvals/chg-00000009");
+  });
+
+  it("says so when the project changed nothing the copy does not already have", async () => {
+    compare = { files: CONFLICT.files, conflicts: [] };
+    handler = (req, url) => {
+      if (url.pathname.endsWith("/compare")) return json(compare);
+      if (url.pathname.endsWith("/update")) return json({ taken: [], merged: [], baseRevision: "b1", comparison: compare });
+      if (url.pathname.endsWith("/workspaces/air-v2") && req.method === "GET") return json(WORKSPACE);
+      return undefined;
+    };
+    show(<BringBackPage project="helsinki" name="air-v2" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Update from the project" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("The copy already has everything the project changed.");
   });
 
   // UI-62, T-1503: a bring back whose comparison fails offers no proposal built on nothing.

@@ -8,6 +8,7 @@ import { applyChanges, MAX_ENTITIES } from "./apply";
 import type { Observed, Refusal } from "./apply";
 import { EntityHistory } from "./EntityHistory";
 import { GridMap } from "./GridMap";
+import { unitTitle } from "../sdk/units";
 import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
@@ -421,7 +422,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     data-mark={col.attr && marks?.columns?.[col.attr] ? "column" : undefined}
                     title={
                       (col.attr ? marks?.columns?.[col.attr] : undefined) ??
-                      (col.pinned ? cellOf(row, col).text : undefined)
+                      (col.pinned ? cellOf(row, col).text : undefined) ??
+                      unitHover(cellOf(row, col).cell, col.meta)
                     }
                   >
                     {renderCellContent(row, col)}
@@ -779,4 +781,10 @@ function EditableCell({
       onChange={(e) => onChange(e.target.value)}
     />
   );
+}
+
+/** The hover of a value in a unit: its unit's name and code, `microgram per cubic metre (GQ)` (DM-06). */
+function unitHover(cell: RichCell | RichCell[] | undefined, meta: string | null): string | undefined {
+  if (meta || !cell || Array.isArray(cell) || cell.kind !== "property" || !cell.unitCode) return undefined;
+  return unitTitle(cell.unitCode);
 }

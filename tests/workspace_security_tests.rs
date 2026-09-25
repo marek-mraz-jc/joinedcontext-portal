@@ -15,6 +15,7 @@ const WS: &str = "/api/v1/projects/helsinki/workspaces";
 
 fn grouped(name: &str, group: &str) -> Identity {
     Identity {
+        client: None,
         groups: vec![group.into()],
         ..person(name)
     }

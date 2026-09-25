@@ -149,6 +149,7 @@ async fn world(open: bool, branch_exists: bool) -> (MockServer, AppState) {
 /// `mirror_of` resolves the copy as this caller sees it).
 fn jana(state: &AppState) -> Identity {
     Identity {
+        client: None,
         subject: "jana".into(),
         username: "jana".into(),
         email: Some("jana@hel.fi".into()),

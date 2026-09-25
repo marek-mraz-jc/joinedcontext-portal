@@ -127,7 +127,7 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers the seven tabs, the address's one selected", async () => {
+  it("names itself once and offers the eight tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
@@ -139,6 +139,7 @@ describe("the Organization page", () => {
       en.organization.tab.groups,
       en.organization.tab["service-accounts"],
       en.organization.tab.projects,
+      en.organization.tab.setup,
     ]);
     expect(screen.getByRole("tab", { name: en.organization.tab.roles })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "organization-tab-roles");

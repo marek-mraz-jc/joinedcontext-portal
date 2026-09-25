@@ -159,6 +159,14 @@
         "save_as.test.tsx"
       ]
     },
+    "src/components/SessionEndedDialog.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "session_ended.test.tsx"
+      ]
+    },
     "src/components/WorkOnCopyDialog.tsx": {
       "controls": {
         "Button": 3
@@ -632,7 +640,8 @@
         "Button": 3
       },
       "tests": [
-        "app_open_page.test.tsx"
+        "app_open_page.test.tsx",
+        "browser_security.test.tsx"
       ]
     },
     "src/pages/apps/AppPage.tsx": {
@@ -779,6 +788,32 @@
         "assistant_page.test.tsx"
       ]
     },
+    "src/pages/catalogue/CataloguePage.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 1
+      },
+      "tests": [
+        "catalogue_page.test.tsx"
+      ]
+    },
+    "src/pages/catalogue/DatasetPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "catalogue_page.test.tsx"
+      ]
+    },
+    "src/pages/catalogue/PublishDataset.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 1
+      },
+      "tests": [
+        "catalogue_publish.test.tsx"
+      ]
+    },
     "src/pages/ckan/CkanPage.tsx": {
       "controls": {
         "Button": 1
@@ -808,7 +843,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 7,
         "Checkbox": 2
       },
       "tests": [
@@ -1075,6 +1110,14 @@
         "pipeline_workbench.test.tsx"
       ]
     },
+    "src/pages/pipelines/SlotUnit.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "slot_unit.test.tsx"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "controls": {
         "Button": 3
@@ -1119,6 +1162,14 @@
       "tests": [
         "page_try_it_page.test.tsx",
         "try_it.test.tsx"
+      ]
+    },
+    "src/router.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "part_router.test.tsx"
       ]
     },
     "src/routes/AllEndpointsPage.tsx": {

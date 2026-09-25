@@ -60,7 +60,7 @@ describe("a dashboard's grid widget", () => {
   it("shows the widget's title and the entities its endpoint answers with", async () => {
     show({ columns: [{ attr: "availableBikeNumber", label: "Bikes" }] });
     expect(screen.getByRole("heading", { name: "Docking stations" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     expect(reads().some((url) => url.startsWith("/api/endpoint/helsinki-bikes/ngsi-ld/v1/entities"))).toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe("a dashboard's grid widget", () => {
 
   it("has no axe violation, drawn and refused", async () => {
     const drawn = show({ columns: [{ attr: "availableBikeNumber", label: "Bikes" }] });
-    await waitFor(() => expect(screen.getByText("5 C62")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     await expectNoAxeViolations(drawn.container);
     drawn.unmount();
 

@@ -199,3 +199,40 @@ async fn security_headers_present_on_endpoints() {
         );
     }
 }
+
+/// UI-16, T-2747: every answer carries the request's reference, the edge's when it is a plain
+/// token, a fresh one when there is none or when the header could forge a log line.
+#[tokio::test]
+async fn every_answer_names_its_request() {
+    let app = server::app(AppState::new(Config::for_tests(), None));
+    let id_of = |response: &axum::response::Response| {
+        response
+            .headers()
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+    };
+
+    let edge = "3f2c1a9e-6b1d-4c3e-9a8f-0d1e2f3a4b5c";
+    let request = Request::get("/api/v1/health")
+        .header("x-request-id", edge)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(id_of(&response).as_deref(), Some(edge));
+
+    for sent in [None, Some("x\tlevel=error forged"), Some("short")] {
+        let mut request = Request::get("/api/v1/nothing-here");
+        if let Some(sent) = sent {
+            request = request.header("x-request-id", sent);
+        }
+        let response = app
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let id = id_of(&response).expect("an id on every answer, a 404 included");
+        assert_eq!(id.len(), 32, "{sent:?} → {id}");
+        assert!(id.bytes().all(|b| b.is_ascii_hexdigit()));
+    }
+}
