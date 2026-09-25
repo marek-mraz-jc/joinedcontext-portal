@@ -422,6 +422,7 @@ export function EndpointPage({
               creating={projection === undefined}
               endpoint={manifest}
               segment={space ? spaceSegment(project, space, asManifests(spaces.data?.items ?? [])) : ""}
+              enums={modelSource ? enumsOfClasses(modelSource, classesOf(filtered)) : {}}
               live={(manifest.status?.phase ?? "").toLowerCase() === "live"}
             />
             {projection ? (
@@ -554,10 +555,13 @@ function FilterForm({
   creating,
   endpoint,
   segment,
+  enums,
   live,
 }: {
   project: string;
   projection: Manifest;
+  /** The permissible values of each enum attribute of the model, by attribute (T-2706). */
+  enums: Record<string, string[]>;
   /** The projection does not exist yet: a proposal creates it with the endpoint that names it. */
   creating: boolean;
   /** The endpoint whose hidden attributes the editor holds; its slug is what the proof reads. */
@@ -740,6 +744,7 @@ function FilterForm({
         <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
         <ConditionBuilder
           attributes={slotsOf(projection)}
+          enums={enums}
           onAdd={(term) =>
             setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
           }
@@ -848,6 +853,19 @@ async function proposeBundle(project: string, manifests: unknown[]): Promise<unk
   };
   await send(true);
   return send(false);
+}
+
+/** The permissible values of every enum attribute of these classes, by attribute name. */
+export function enumsOfClasses(source: string, classes: string[]): Record<string, string[]> {
+  const found: Record<string, string[]> = {};
+  for (const klass of classes) {
+    for (const slot of filterSlotsOf(source, klass)) {
+      if (slot.values && slot.values.length > 0) {
+        found[slot.name] = slot.values;
+      }
+    }
+  }
+  return found;
 }
 
 /** Two lists holding the same names, in any order. */
@@ -1122,9 +1140,12 @@ export function slotsOf(projection: Manifest): string[] {
  */
 function ConditionBuilder({
   attributes,
+  enums = {},
   onAdd,
 }: {
   attributes: string[];
+  /** An attribute with permissible values is compared against one of them, picked (T-2706). */
+  enums?: Record<string, string[]>;
   onAdd: (term: string) => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -1164,7 +1185,15 @@ function ConditionBuilder({
       <p className="text-caption font-medium text-fg-muted">{t("endpoints.condition.title")}</p>
       <div className="flex flex-wrap items-end gap-2">
         <Field id="condition-attr" label={t("endpoints.condition.attribute")} className="min-w-40">
-          <Select id="condition-attr" value={attr} onChange={(event) => setAttr(event.target.value)}>
+          <Select
+            id="condition-attr"
+            value={attr}
+            onChange={(event) => {
+              setAttr(event.target.value);
+              // A value typed for one attribute is rarely one of the next one's permitted values.
+              setValue("");
+            }}
+          >
             {attributes.length === 0 ? <option value="">{t("endpoints.condition.noAttributes")}</option> : null}
             {attributes.map((name) => (
               <option key={name} value={name}>
@@ -1188,11 +1217,22 @@ function ConditionBuilder({
         </Field>
         {needsValue ? (
           <Field id="condition-value" label={t("endpoints.condition.value")} className="min-w-40">
-            <Input
-              id="condition-value"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
+            {enums[attr] && (op === "equals" || op === "notEquals") ? (
+              <Select id="condition-value" value={value} onChange={(event) => setValue(event.target.value)}>
+                <option value="">{t("form.choose")}</option>
+                {enums[attr].map((permitted) => (
+                  <option key={permitted} value={permitted}>
+                    {permitted}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Input
+                id="condition-value"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            )}
           </Field>
         ) : null}
         <Button type="button" variant="secondary" onClick={add}>

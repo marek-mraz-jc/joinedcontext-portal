@@ -55,7 +55,7 @@ const PROJECTION = {
   spec: {
     contextSpaceRef: "helsinki",
     dataModelRef: { kind: "DataModel", name: "helsinki", version: "1" },
-    classes: [{ name: "Event", slots: ["name", "startDate", "source"] }],
+    classes: [{ name: "Event", slots: ["name", "startDate", "source", "eventStatus"] }],
   },
 };
 
@@ -122,6 +122,12 @@ const MODEL = {
       "      name: {}",
       "      startDate: {range: datetime}",
       "      source: {}",
+      "      eventStatus: {range: EventStatus}",
+      "enums:",
+      "  EventStatus:",
+      "    permissible_values:",
+      "      scheduled: {}",
+      "      cancelled: {}",
       "",
     ].join("\n"),
   },
@@ -383,11 +389,28 @@ describe("the endpoint's filter editor and its proof", () => {
     expect(drawn.kind).toBe("ModelProjection");
     expect(drawn.metadata.name).toBe(NAME);
     expect(drawn.spec.dataModelRef).toEqual({ kind: "DataModel", name: "helsinki", version: "1" });
-    expect(drawn.spec.classes).toEqual([{ name: "Event", slots: ["name", "startDate", "source"] }]);
+    expect(drawn.spec.classes).toEqual([{ name: "Event", slots: ["name", "startDate", "source", "eventStatus"] }]);
     expect(drawn.spec.filter).toEqual({ q: 'startDate>="2026-09-25"' });
     expect(named.kind).toBe("Endpoint");
     expect(named.spec.projectionRef).toEqual({ kind: "ModelProjection", name: NAME });
     expect(named.spec.projection).toEqual({ hiddenAttributes: ["source"] });
     expect(await screen.findByText(/chg-bundle/)).toBeInTheDocument();
+  });
+
+  it("offers an enum attribute's permitted values as a list, not a text box (T-2706)", async () => {
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.selectOptions(await screen.findByLabelText(en.endpoints.condition.attribute), "eventStatus");
+    const value = await screen.findByRole("combobox", { name: en.endpoints.condition.value });
+    expect(Array.from((value as HTMLSelectElement).options, (option) => option.value)).toEqual([
+      "",
+      "scheduled",
+      "cancelled",
+    ]);
+    await user.selectOptions(value, "cancelled");
+    await user.selectOptions(screen.getByLabelText(en.endpoints.condition.operator), "notEquals");
+    await user.click(screen.getByRole("button", { name: en.endpoints.condition.add }));
+    expect(screen.getByLabelText(en.endpoints.filter.q)).toHaveValue('eventStatus!="cancelled"');
   });
 });
