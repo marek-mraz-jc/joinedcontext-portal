@@ -23,6 +23,8 @@ const indicators = (entities: unknown[]): Indicator[] =>
     .filter((indicator): indicator is Indicator => indicator !== null);
 
 const REGION = indicators(region);
+const region0 = () => ({ ...(region.find((e) => e.name.value === "obyvatelstvo-stav-kraj") as Record<string, unknown>) });
+const city0 = () => ({ ...(city[0] as Record<string, unknown> & { name: { value: string } }) });
 const CITY = indicators(city);
 
 describe("reading an indicator", () => {
@@ -34,6 +36,18 @@ describe("reading an indicator", () => {
   it("takes the body from the id and never from the endpoint it arrived on", () => {
     expect(new Set(REGION.map((i) => i.body))).toEqual(new Set(["bbsk"]));
     expect(new Set(CITY.map((i) => i.body))).toEqual(new Set(["banskabystrica"]));
+  });
+
+  it("credits an indicator by its space, since both bodies share the Organization's domain", () => {
+    // The ids dev serves (T-2455): both projects belong to the one Organization, `hel.fi`.
+    const region = toIndicator(
+      rows([{ ...region0(), id: "urn:ngsi-ld:KeyPerformanceIndicator:hel.fi:bbsk-kpi:obyvatelstvo-stav-kraj" }])[0],
+    );
+    const mesto = toIndicator(
+      rows([{ ...city0(), id: `urn:ngsi-ld:KeyPerformanceIndicator:hel.fi:banskabystrica-kpi:${city0().name.value}` }])[0],
+    );
+    expect(region?.body).toBe("bbsk");
+    expect(mesto?.body).toBe("banskabystrica");
   });
 
   it("splits a district whose name is three words at the territory and not at the last hyphen", () => {
@@ -104,12 +118,13 @@ describe("what the model refuses", () => {
     expect(toIndicator(rows([entity({ name: { type: "Property", value: "pm10-24h-mesto" } })])[0])).toBeNull();
   });
 
-  it("refuses an id of a body this application does not know", () => {
-    expect(
-      toIndicator(
-        rows([entity({ id: "urn:ngsi-ld:KeyPerformanceIndicator:zilina.sk:kpi:obyvatelstvo-stav-kraj" })])[0],
-      ),
-    ).toBeNull();
+  it("refuses a KPI outside the two indicator spaces, whoever's prefix its space carries", () => {
+    // Development/10 §1: a body's indicators sit in its `-kpi` space and nowhere else.
+    for (const space of ["kpi", "zilina-kpi", "bbsk-kraj", "banskabystrica-mesto", "ovzdusie"]) {
+      expect(
+        toIndicator(rows([entity({ id: `urn:ngsi-ld:KeyPerformanceIndicator:hel.fi:${space}:obyvatelstvo-stav-kraj` })])[0]),
+      ).toBeNull();
+    }
   });
 
   it("refuses an id that is not the six-segment URN", () => {

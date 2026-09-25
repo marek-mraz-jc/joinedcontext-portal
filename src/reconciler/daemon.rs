@@ -124,6 +124,13 @@ pub struct Syncer {
     /// what the edge file is composed with (AP-112). Never logged.
     app_client_secrets:
         Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>>,
+    /// The APISIX file the edge serves, composed from helm's base and every published App's
+    /// routes (ADR-N-030, AP-112), with the settings that say where each App runs. `None`
+    /// outside a cluster: the edge then serves helm's base alone.
+    edge_file: Option<(
+        Arc<super::edge_file::EdgeFile>,
+        crate::apps::reconciler::Settings,
+    )>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -179,6 +186,7 @@ impl Syncer {
             people: None,
             app_clients: None,
             app_client_secrets: Arc::default(),
+            edge_file: None,
             activity: None,
             apps_cache_dir: None,
             artifact_store: None,
@@ -273,6 +281,16 @@ impl Syncer {
     /// Makes each run bring every published App's Keycloak client to what the App says (AP-111).
     pub fn with_app_clients(mut self, clients: Arc<super::app_clients::AppClientSync>) -> Self {
         self.app_clients = Some(clients);
+        self
+    }
+
+    /// Makes each run write the edge's APISIX file with every published App's routes (AP-112).
+    pub fn with_edge_file(
+        mut self,
+        edge_file: Arc<super::edge_file::EdgeFile>,
+        settings: crate::apps::reconciler::Settings,
+    ) -> Self {
+        self.edge_file = Some((edge_file, settings));
         self
     }
 
@@ -833,8 +851,15 @@ impl Syncer {
             .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
             .await;
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47).
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
         if let Some(deployer) = self.streams.as_ref() {
+            if let Some(schemas) = deployer.model_schemas() {
+                schemas.replace(crate::pipeline_validation::load(
+                    &repository,
+                    scratch.path(),
+                ));
+            }
             let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
             // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
             // stream, the Portal says Live, and the counters are the only witness (T-0914). One
@@ -1062,6 +1087,33 @@ impl Syncer {
                     .app_client_secrets
                     .write()
                     .unwrap_or_else(|poisoned| poisoned.into_inner()) = run.secrets;
+            }
+        }
+
+        // 5e. The file the edge serves: helm's base with the routes of every App whose client
+        //     the step above has in place (ADR-N-030, AP-112). A failure leaves APISIX serving
+        //     the last file it read.
+        if let Some((edge_file, settings)) = self.edge_file.as_ref() {
+            let secrets = self
+                .app_client_secrets
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
+            let (apps, mut skipped) =
+                super::edge_file::edge_apps(&fresh_mirror, &secrets, settings);
+            let (outcome, refused) = edge_file.converge(&apps).await;
+            skipped.extend(refused);
+            for (app, reason) in &skipped {
+                tracing::warn!(%app, %reason, "published App has no route at the edge");
+            }
+            match outcome {
+                super::edge_file::EdgeOutcome::Written { apps } => {
+                    tracing::info!(apps, "edge file written")
+                }
+                super::edge_file::EdgeOutcome::Unchanged { .. } => {}
+                super::edge_file::EdgeOutcome::Failed(reason) => {
+                    tracing::warn!(%reason, "edge file not written")
+                }
             }
         }
 

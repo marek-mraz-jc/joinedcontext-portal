@@ -460,7 +460,31 @@
       "openData": "Open data",
       "datastore": "Data sheet",
       "sheetFrom": "Sheet built from",
-      "sheetRefresh": "Sheet refresh"
+      "sheetRefresh": "Sheet refresh",
+      "catalog": {
+        "title": "Catalogue description",
+        "publisher": "Publisher",
+        "publisherName": "Publisher name",
+        "publisherUri": "Publisher web address",
+        "contactPoint": "Contact point",
+        "contactName": "Contact desk",
+        "contactEmail": "Contact e-mail",
+        "license": "Licence",
+        "attribution": "Attribution text",
+        "themes": "Themes",
+        "keywords": "Keywords",
+        "spatial": "Area covered",
+        "temporal": "Period covered",
+        "temporalStart": "Covered from",
+        "temporalEnd": "Covered until",
+        "frequency": "Updated",
+        "source": "Original datasets",
+        "sourceUrl": "Original dataset address",
+        "sourceTitle": "Original dataset name",
+        "sourceDescription": "Original dataset description",
+        "pipeline": "Filled by pipeline",
+        "legislation": "Applicable law"
+      }
     },
     "rateClass": {
       "strict": "Strict",
@@ -619,7 +643,43 @@
       "noFileLimits": "The platform's own file limits apply.",
       "publication": "Published as open data",
       "notSet": "not set",
-      "filterPropose": "Propose this filter"
+      "filterPropose": "Propose this filter",
+      "catalog": {
+        "title": "In the catalogue",
+        "lead": "What every open-data catalogue reads about this endpoint, and what a user may do with the data.",
+        "notCatalogued": "No catalogue description yet: the record names only its title, its formats and its access rights. Change the settings to add a publisher, a licence and what the data covers.",
+        "publisher": "Published by",
+        "licence": "Licence",
+        "frequency": "Updated",
+        "contact": "Questions to",
+        "coverage": "Covers",
+        "period": "{start} to {end}",
+        "ongoing": "today",
+        "origin": "Comes from",
+        "byPipeline": "filled by the pipeline {name}",
+        "themes": "Themes",
+        "offer": "What a user may do",
+        "noLicence": "No licence is named, so the record makes no offer: a user cannot tell what they may do with the data.",
+        "thePublisher": "the publisher",
+        "who": {
+          "public": "Anyone",
+          "organization": "Anyone in the organization",
+          "project-list": "The listed projects of the organization"
+        },
+        "use": {
+          "none": "{who} may use this data for any purpose, without conditions.",
+          "attribute": "{who} may use this data if they credit {publisher}.",
+          "shareAlike": "{who} may use this data if they credit {publisher}."
+        },
+        "shareAlike": "What they publish from it goes out under the same licence.",
+        "raw": {
+          "jsonld": "DCAT-AP record (JSON-LD)",
+          "turtle": "DCAT-AP record (Turtle)",
+          "odrl": "Your access as ODRL",
+          "lead": "The document as a harvester or a data-space connector reads it from this endpoint.",
+          "failed": "The endpoint did not answer. It answers once the change that created it is approved and applied."
+        }
+      }
     },
     "condition": {
       "title": "Add a condition",
@@ -821,7 +881,8 @@
       "latency": "ms p99",
       "unavailable": "No numbers: the runner is not answering.",
       "paused": "Not running",
-      "scheduled": "Runs on its schedule"
+      "scheduled": "Runs on its schedule",
+      "rejected": "rejected"
     },
     "pause": "Pause",
     "pauseHint": "Proposes a change that stops this pipeline.",
@@ -951,7 +1012,63 @@
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
     "noCredential": "None",
-    "writesType": "Writes"
+    "writesType": "Writes",
+    "rejected": {
+      "open": "Rejected records",
+      "title": "Rejected records of {name}",
+      "lead": "Records the data model refused, newest first. They were not written. Fix the mapping or the model, let the change merge, then pick the records and retry them.",
+      "caption": "Rejected records",
+      "close": "Close",
+      "empty": "No rejected records",
+      "emptyHint": "Every record this pipeline read passed its space's data model.",
+      "total": "{count, plural, one {# record kept} other {# records kept}} (the newest 1000)",
+      "at": "Refused at",
+      "rule": "Rule",
+      "reason": "Reason",
+      "record": "Record",
+      "step": "In step {step}",
+      "pick": "Pick the record refused at {at}",
+      "pickPage": "Pick every record on this page",
+      "picked": "{count, plural, one {# record picked} other {# records picked}}",
+      "pickFirst": "Pick the records to retry first.",
+      "tooMany": "Retry at most 100 records at a time.",
+      "retry": "{count, plural, =0 {Retry after fix} one {Retry # record after fix} other {Retry # records after fix}}",
+      "retrying": "Retrying…",
+      "replayed": "{count, plural, =0 {No record was replayed.} one {# record was replayed through the current model; if it still breaks the model it comes back here.} other {# records were replayed through the current model; any that still break the model come back here.}}",
+      "maskedKept": "{count, plural, one {# record stays on the list: a value of it was masked as a secret, and replaying it would write the mask. The pipeline's next read of its source brings it again.} other {# records stay on the list: a value of each was masked as a secret, and replaying them would write the mask. The pipeline's next read of its source brings them again.}}",
+      "newest": "Newest",
+      "older": "Older records"
+    },
+    "runs": {
+      "open": "Runs and log",
+      "title": "Runs of {name}",
+      "lead": "Each run with how many records it wrote, how many the data model rejected and how many failed in a step. Open a run to read its log, one line per record.",
+      "caption": "Runs",
+      "close": "Close",
+      "empty": "No runs yet",
+      "emptyHint": "The first run shows here once the pipeline has read its source.",
+      "run": "Run",
+      "hour": "Hour from {at}",
+      "sent": "Written",
+      "rejected": "Rejected",
+      "failed": "Failed",
+      "log": "Log",
+      "show": "Show the log of {run}",
+      "logCaption": "Log of the run {run}",
+      "noLines": "The lines of this run have aged out; the counts above stay.",
+      "at": "Time",
+      "record": "Record",
+      "outcome": "Outcome",
+      "message": "Message",
+      "noId": "(no id)",
+      "outcomes": {
+        "sent": "Written",
+        "rejected": "Rejected",
+        "failed": "Failed"
+      },
+      "newest": "Newest",
+      "older": "Older lines"
+    }
   },
   "dashboards": {
     "lead": "Maps drawn from the endpoints of this project.",
@@ -2560,7 +2677,8 @@
       "all": "All",
       "live": "Running",
       "ended": "Ended",
-      "mine": "Only mine"
+      "mine": "Only mine",
+      "testRuns": "Show test runs"
     },
     "kinds": {
       "conversation": "Conversation",
@@ -2609,7 +2727,8 @@
     "showMore": "Show {count} more ({left} left)",
     "table": {
       "name": "Name"
-    }
+    },
+    "testRun": "Test run"
   },
   "activity": {
     "title": "Activity",
@@ -3076,7 +3195,8 @@
       "administrative": "Administration",
       "technical": "Technology",
       "data-protection": "Data protection",
-      "security": "Security"
+      "security": "Security",
+      "open-data": "Open-data desk"
     },
     "visibility": {
       "organization": "Every signed-in person of the organization",
@@ -3146,6 +3266,7 @@
       "lastSeen": "Last active",
       "noMatch": "Nobody matches “{search}”.",
       "empty": "The realm has no people yet.",
+      "emptyHint": "Everyone who signs in to the organization’s realm appears here. Add someone with New person.",
       "noSession": "No open session",
       "pages": "Pages of people",
       "previous": "Previous",
@@ -3461,6 +3582,41 @@
       "associationOps": "Read everything and subscribe",
       "federationOps": "Federate",
       "redirectionOps": "Forward everything"
+    },
+    "licence": {
+      "CC_BY_4_0": "Creative Commons Attribution 4.0",
+      "CC_BYSA_4_0": "Creative Commons Attribution-ShareAlike 4.0",
+      "CC0": "Creative Commons Zero (public domain)",
+      "ODC_BY": "Open Data Commons Attribution",
+      "ODC_ODBL": "Open Database Licence (ODbL)",
+      "ODC_PDDL": "Open Data Commons Public Domain Dedication"
+    },
+    "dataTheme": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "frequency": {
+      "CONT": "Continuously",
+      "HOURLY": "Every hour",
+      "DAILY": "Every day",
+      "WEEKLY": "Every week",
+      "MONTHLY": "Every month",
+      "QUARTERLY": "Every quarter",
+      "ANNUAL": "Every year",
+      "IRREG": "Irregularly",
+      "NEVER": "Never, it is final",
+      "UNKNOWN": "Not known"
     }
   },
   "picker": {

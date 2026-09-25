@@ -274,6 +274,8 @@ pub fn operations() -> Vec<Operation> {
                     })?;
                     let (_, Json(created)) = crate::api::agent_runs::create_run(
                         as_user(caller),
+                        // Through the registry a run is a person's: no header reaches it (AG-93).
+                        crate::agents::run::RunOrigin::Person,
                         State(state.clone()),
                         Path(project.to_owned()),
                         Json(request),

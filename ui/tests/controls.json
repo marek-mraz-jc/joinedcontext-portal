@@ -765,7 +765,7 @@
     "src/pages/assistant/AssistantPage.tsx": {
       "controls": {
         "Button": 3,
-        "Checkbox": 1
+        "Checkbox": 2
       },
       "tests": [
         "assistant_page.test.tsx"
@@ -788,6 +788,14 @@
         "page_data_sources_page.test.tsx",
         "raw_values_on_pages.test.tsx",
         "runner_input_schema.test.ts"
+      ]
+    },
+    "src/pages/endpoints/CatalogSection.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_catalog.test.tsx"
       ]
     },
     "src/pages/endpoints/EndpointPage.tsx": {
@@ -975,6 +983,23 @@
         "pipeline_flow_steps.test.tsx"
       ]
     },
+    "src/pages/pipelines/PipelineRejected.tsx": {
+      "controls": {
+        "Button": 3,
+        "Checkbox": 2
+      },
+      "tests": [
+        "pipeline_rejected.test.tsx"
+      ]
+    },
+    "src/pages/pipelines/PipelineRuns.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "pipeline_runs.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineStudio.tsx": {
       "controls": {
         "Button": 6,
@@ -1088,6 +1113,7 @@
       },
       "tests": [
         "editor_round_trip.test.ts",
+        "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx"
       ]
     },

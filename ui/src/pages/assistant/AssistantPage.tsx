@@ -34,6 +34,8 @@ interface RunRecord {
   kind?: string;
   unattended?: boolean;
   continues?: string | null;
+  /** `journey` for a run of the Portal's own live journeys (AG-93). */
+  origin?: string;
   status: string;
   prompt: string;
   createdAt: string;
@@ -75,8 +77,11 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
   // page ten thousand pixels tall.
   const [shown, setShown] = useState(RUNS_PER_PAGE);
   const [mineFilter, setMineFilter] = useState<boolean>(false);
+  // The live journeys' test runs are left out unless asked for (AG-93, T-2816): they crowded the
+  // history people read. Nothing is deleted; this only asks the server for them too.
+  const [testRuns, setTestRuns] = useState<boolean>(false);
 
-  const runsKey = ["projects", project, "agent-runs", { kind: kindFilter, mine: mineFilter }];
+  const runsKey = ["projects", project, "agent-runs", { kind: kindFilter, mine: mineFilter, testRuns }];
 
   const runsQuery = useQuery({
     queryKey: runsKey,
@@ -84,7 +89,12 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
       const result = await api.GET("/api/v1/projects/{project}/agent-runs", {
         params: {
           path: { project },
-          query: { limit: 100, kind: kindFilter || undefined, mine: mineFilter || undefined },
+          query: {
+            limit: 100,
+            kind: kindFilter || undefined,
+            mine: mineFilter || undefined,
+            origin: testRuns ? "all" : undefined,
+          },
         },
       });
       return unwrap(result);
@@ -182,6 +192,11 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             onChange={(e) => setMineFilter(e.target.checked)}
             label={t("assistantPage.filters.mine")}
           />
+          <Checkbox
+            checked={testRuns}
+            onChange={(e) => setTestRuns(e.target.checked)}
+            label={t("assistantPage.filters.testRuns")}
+          />
         </div>
       </Card>
 
@@ -234,6 +249,12 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                         </span>
                         {run.continues ? (
                           <> · <span className="italic">{t("assistantPage.continues")}</span></>
+                        ) : null}
+                        {run.origin === "journey" ? (
+                          <>
+                            {" · "}
+                            <Badge>{t("assistantPage.testRun")}</Badge>
+                          </>
                         ) : null}
                       </span>
                     </div>

@@ -415,6 +415,7 @@ export function People(): JSX.Element {
                       <EmptyState
                         bare
                         title={search ? t("organization.people.noMatch", { search }) : t("organization.people.empty")}
+                        description={search ? undefined : t("organization.people.emptyHint")}
                       />
                     </TableEmpty>
                   ) : (
