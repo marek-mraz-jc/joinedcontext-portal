@@ -1782,10 +1782,14 @@
     "dimensionLabel": "Použití v dashboardu",
     "graph": {
       "title": "Třídy modelu a co je spojuje",
-      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu.",
+      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
-      "more": "a dalších {count}",
+      "row": {
+        "pk": "{name}: {type}, klíč, který identifikuje každou entitu",
+        "fk": "{name}: {type}, odkaz na jinou třídu",
+        "plain": "{name}: {type}"
+      },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
       "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
