@@ -25,6 +25,7 @@ fn settings() -> Settings {
         apisix_namespace: "apisix".into(),
         image_repository: None,
         pull_secret: None,
+        basemap_base: None,
         release: Some("dev".into()),
         service_account: Some("portal".into()),
     }
@@ -966,6 +967,31 @@ fn a_pod_app_is_handed_the_sdk_configuration_of_its_one_endpoint() {
     assert!(
         config.get("user").is_none(),
         "the person is the backend's to add, per request"
+    );
+}
+
+/// AP-67: with a basemap configured a pod App is handed its project's style, the one the static
+/// host writes for a `ui` App, so its map never falls back to a plain background; without one
+/// the key is absent (the equality above).
+#[test]
+fn a_pod_app_is_handed_its_projects_basemap_when_one_is_configured() {
+    let settings = Settings {
+        basemap_base: Some("https://portal.bb.example.com/".into()),
+        ..settings()
+    };
+    let rendered = render(
+        &app(json!({})),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings,
+    )
+    .expect("renders");
+    let deployment = rendered.workload.expect("a pod").deployment;
+    let value = env(container(&deployment, "app"), "JC_APP_CONFIG")["value"].clone();
+    let config: Value = serde_json::from_str(value.as_str().expect("a string")).expect("JSON");
+    assert_eq!(
+        config["basemap"],
+        "https://portal.bb.example.com/api/v1/projects/ovzdusie/basemap/default/style.json"
     );
 }
 

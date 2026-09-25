@@ -661,6 +661,26 @@ fn every_sample_app_carries_the_grants_the_reconciler_compiles_for_it() {
     }
 }
 
+/// T-2775, EP-20: a sample app is seeded and vendored into the forge, and a seed sets no rate
+/// limit nobody chose, so no sample app names `spec.limits.requestsPerMinute`, and none of its
+/// compiled Endpoints carries `spec.rateLimits` (the deployment's seed test holds the same rule).
+#[test]
+fn no_sample_app_sets_a_rate_limit() {
+    for (name, yaml) in reference_apps() {
+        let manifest: RawManifest = serde_yaml_ng::from_str(&yaml).expect("a manifest");
+        assert!(
+            manifest.spec.pointer("/limits/requestsPerMinute").is_none(),
+            "apps/{name} sets spec.limits.requestsPerMinute: a seed sets no limit nobody chose"
+        );
+        for (path, text) in held_grants(&name) {
+            assert!(
+                !text.contains("rateLimits"),
+                "apps/{name}/grants/{path} carries spec.rateLimits"
+            );
+        }
+    }
+}
+
 /// Writes `apps/*/grants/`, keeping each app's slug once it has one (EP-02).
 #[test]
 #[ignore = "writes apps/*/grants; run after changing a sample app's needs, roles or visibility"]

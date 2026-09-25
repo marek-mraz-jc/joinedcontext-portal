@@ -38,5 +38,4 @@ spec:
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, geojson]
   limits:
-    requestsPerMinute: 1200
     maxFileRows: 5000

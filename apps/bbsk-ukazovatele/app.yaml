@@ -54,5 +54,3 @@ spec:
       attrs: [name, divisionLevel, location]
       operations: [queryEntity]
       representations: [ngsi-ld]
-  limits:
-    requestsPerMinute: 120

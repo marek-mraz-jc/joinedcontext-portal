@@ -530,7 +530,12 @@ pub fn content_security_policy(
     let csp = spec.csp.as_ref();
     let mut connect = vec!["'self'".to_string()];
     if let Some(csp) = csp {
-        connect.extend(csp.connect_src.iter().filter(|s| *s != "self").map(quoted));
+        connect.extend(
+            csp.connect_src
+                .iter()
+                .filter(|s| *s != "self")
+                .filter_map(|s| quoted(s)),
+        );
     }
     let mut img = "'self' data: blob:".to_string();
     if let Some(prefix) = basemap {
@@ -547,7 +552,7 @@ pub fn content_security_policy(
                     // `'none'` beside an origin would still admit the origin; the Portal's
                     // frame stays, whatever the manifest says.
                     .filter(|s| *s != "none" && Some(s.as_str()) != portal_origin)
-                    .map(quoted),
+                    .filter_map(|s| quoted(s)),
             );
         }
     }
@@ -557,19 +562,51 @@ pub fn content_security_policy(
         (true, false) => "'none'".to_owned(),
     };
 
+    // The frames an App shows of its own: itself and the https origins its manifest names, never
+    // more (AP-12). `default-src 'self'` alone refused every nested frame.
+    let mut frame = vec!["'self'".to_string()];
+    if let Some(csp) = csp {
+        frame.extend(
+            csp.frame_src
+                .iter()
+                .filter(|s| *s != "self")
+                .filter_map(|s| quoted(s)),
+        );
+    }
+
     format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; \
          style-src 'self' 'unsafe-inline'; img-src {img}; font-src 'self' data:; \
-         form-action 'self'; connect-src {}; frame-ancestors {frame_ancestors}",
-        connect.join(" ")
+         form-action 'self'; connect-src {}; frame-src {}; frame-ancestors {frame_ancestors}",
+        connect.join(" "),
+        frame.join(" ")
     )
 }
 
-/// CSP keywords are quoted, origins are not.
-fn quoted(source: &String) -> String {
-    match source.as_str() {
-        "self" | "none" => format!("'{source}'"),
-        other => other.to_string(),
+/// CSP keywords are quoted, origins are not. A source is written into the header only when it
+/// is one https source expression and nothing else: jc-core refuses `*` but not a `;` or a space,
+/// and either would let a manifest value open a directive of its own
+/// (`https://a.example; script-src 'unsafe-inline'`). Anything else is left out (AP-12).
+fn quoted(source: &str) -> Option<String> {
+    match source {
+        "self" | "none" => Some(format!("'{source}'")),
+        other => {
+            let allowed = |b: u8| b.is_ascii_alphanumeric() || b"-._~:/%".contains(&b);
+            let url = url::Url::parse(other).ok()?;
+            let plain = other.bytes().all(allowed)
+                && url.scheme() == "https"
+                && url.host().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none();
+            if plain {
+                Some(other.to_string())
+            } else {
+                tracing::warn!(source = %other.chars().take(80).collect::<String>(), "a CSP source of an App is not one https source expression and is left out");
+                None
+            }
+        }
     }
 }
 
@@ -642,6 +679,72 @@ mod tests {
         assert!(
             !csp.contains('*'),
             "a wildcard never reaches the header: {csp}"
+        );
+    }
+
+    #[test]
+    fn an_app_frames_itself_and_only_the_https_origins_it_declares() {
+        // Nothing declared: its own frames only, and still no third party (AP-12).
+        assert!(content_security_policy(&spec(), Some(PORTAL), None)
+            .contains("frame-src 'self'; frame-ancestors"));
+        let mut spec = spec();
+        spec.csp = Some(ContentSecurityPolicy {
+            frame_src: vec![
+                "https://www.openstreetmap.org".into(),
+                "self".into(),
+                "https://video.example.fi/embed/".into(),
+            ],
+            connect_src: Vec::new(),
+            frame_ancestors: Vec::new(),
+        });
+        let csp = content_security_policy(&spec, Some(PORTAL), None);
+        assert!(
+            csp.contains(
+                "frame-src 'self' https://www.openstreetmap.org https://video.example.fi/embed/;"
+            ),
+            "{csp}"
+        );
+        // The frame an App shows is not a frame that may show the App.
+        assert!(
+            csp.ends_with("frame-ancestors https://portal.example.sk"),
+            "{csp}"
+        );
+    }
+
+    #[test]
+    fn a_manifest_value_never_opens_a_directive_of_its_own() {
+        // jc-core refuses `*` but not `;` or a space: the header must not carry either (AP-12).
+        let mut spec = spec();
+        spec.embeddable = true;
+        let hostile = [
+            "https://a.example; script-src 'unsafe-inline' 'unsafe-eval'",
+            "https://a.example 'unsafe-inline'",
+            "https://a.example,https://b.example",
+            "http://plain.example",
+            "https://user:pw@a.example",
+            "https://a.example/?q=1",
+            "javascript:alert(1)",
+            "data:",
+            "",
+        ];
+        spec.csp = Some(ContentSecurityPolicy {
+            frame_src: hostile.iter().map(|s| s.to_string()).collect(),
+            connect_src: hostile.iter().map(|s| s.to_string()).collect(),
+            frame_ancestors: hostile.iter().map(|s| s.to_string()).collect(),
+        });
+        let csp = content_security_policy(&spec, Some(PORTAL), None);
+        assert_eq!(csp.matches("script-src").count(), 1, "{csp}");
+        assert!(!csp.contains("unsafe-eval"), "{csp}");
+        assert!(!csp.contains("a.example"), "{csp}");
+        assert!(
+            !csp.contains("plain.example") && !csp.contains("javascript"),
+            "{csp}"
+        );
+        assert!(csp.contains("frame-src 'self';"), "{csp}");
+        assert!(csp.contains("connect-src 'self';"), "{csp}");
+        assert!(
+            csp.ends_with("frame-ancestors https://portal.example.sk"),
+            "{csp}"
         );
     }
 

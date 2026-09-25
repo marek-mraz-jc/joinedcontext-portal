@@ -2232,7 +2232,10 @@
       "fullscreen": "Celá obrazovka",
       "fullscreenExit": "Opustit celou obrazovku",
       "fullscreenUnavailable": "Tento prohlížeč zde celou obrazovku nenabízí.",
-      "fullscreenFailed": "Prohlížeč nepřepnul na celou obrazovku: {reason}"
+      "fullscreenFailed": "Prohlížeč nepřepnul na celou obrazovku: {reason}",
+      "silentTitle": "Aplikace neodpověděla.",
+      "silentBody": "Pokud zůstává prázdná, pravděpodobně vypršelo její přihlášení. Přihlaste se znovu v tomto okně, nebo aplikaci otevřete v samostatném okně.",
+      "silentDismiss": "Skrýt tuto zprávu"
     },
     "retire": {
       "title": "Vyřadit {name}",

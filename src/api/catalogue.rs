@@ -858,9 +858,10 @@ fn endpoint_url(base: &Url, slug: &str) -> String {
     format!("{origin}/api/endpoint/{slug}/")
 }
 
-/// What an Endpoint spec serves: the listed representations plus `mcp`, which every Endpoint
-/// serves unless `spec.mcp` is `false` (EP-24). The gateway reads the same rule from jc-core's
-/// `EndpointSpec::served_representations`, so the page and the instance agree.
+/// What an Endpoint spec serves: the listed representations, then `ngsi-ld` and `geojson`,
+/// which every Endpoint serves (EP-10, T-2939), and `mcp` unless `spec.mcp` is `false` (EP-24).
+/// The gateway reads the same rule from jc-core's `EndpointSpec::served_representations`, so
+/// the page and the instance agree.
 pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
     let mut served: Vec<String> = spec["enabledRepresentations"]
         .as_array()
@@ -868,8 +869,11 @@ pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|r| r.as_str().map(str::to_owned))
         .collect();
-    if spec["mcp"] != Value::Bool(false) && !served.iter().any(|r| r == "mcp") {
-        served.push("mcp".to_owned());
+    let mcp = (spec["mcp"] != Value::Bool(false)).then_some("mcp");
+    for always in ["ngsi-ld", "geojson"].into_iter().chain(mcp) {
+        if !served.iter().any(|r| r == always) {
+            served.push(always.to_owned());
+        }
     }
     served
 }
@@ -1367,30 +1371,33 @@ classes:
         }
     }
 
-    /// EP-24: MCP is on without being listed, internal or public; only `mcp: false` leaves it
-    /// out, and a listed one is not doubled.
+    /// EP-10, EP-24: NGSI-LD, GeoJSON and MCP are on without being listed, internal or
+    /// public; only `mcp: false` leaves MCP out, and a listed one is not doubled.
     #[test]
-    fn every_endpoint_serves_mcp_unless_it_opts_out() {
+    fn every_endpoint_serves_ngsi_ld_geojson_and_mcp_unless_it_opts_out() {
         let served = |spec: Value| served_representations(&spec);
         assert_eq!(
             served(
                 json!({ "audience": "project-list", "enabledRepresentations": ["ngsi-ld", "csv"] })
             ),
-            ["ngsi-ld", "csv", "mcp"]
+            ["ngsi-ld", "csv", "geojson", "mcp"]
         );
         assert_eq!(
-            served(json!({ "enabledRepresentations": ["mcp", "ngsi-ld"] })),
-            ["mcp", "ngsi-ld"]
+            served(json!({ "enabledRepresentations": ["mcp", "geojson", "ngsi-ld"] })),
+            ["mcp", "geojson", "ngsi-ld"]
         );
         assert_eq!(
-            served(json!({ "enabledRepresentations": ["ngsi-ld"], "mcp": false })),
-            ["ngsi-ld"]
+            served(json!({ "enabledRepresentations": ["csv"], "mcp": false })),
+            ["csv", "ngsi-ld", "geojson"]
         );
-        assert_eq!(served(json!({ "mcp": true })), ["mcp"]);
+        assert_eq!(
+            served(json!({ "mcp": true })),
+            ["ngsi-ld", "geojson", "mcp"]
+        );
         assert_eq!(
             served(json!({})),
-            ["mcp"],
-            "a spec with no list still serves MCP"
+            ["ngsi-ld", "geojson", "mcp"],
+            "a spec with no list still serves the uniform surface"
         );
     }
 }
