@@ -206,3 +206,68 @@ async fn a_binding_to_a_group_no_manifest_declares_is_refused_before_a_change_ex
     .await;
     assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
 }
+
+/// AP-115: a Group the realm holds unmanaged, or an App's default group written over the
+/// organization's own, is refused at the propose door naming both owners; the same group
+/// written again under its owner passes.
+#[tokio::test]
+async fn a_group_name_another_owner_holds_is_refused_naming_both() {
+    let gitea = forge().await;
+    let state = common::state_on(&gitea);
+    bound(&state, "keeper", json!(["propose", "read"]));
+    state.mirror.upsert(envelope(
+        "Group",
+        "city-leads",
+        ORG_NAMESPACE,
+        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+    ));
+    state
+        .foreign_names
+        .set_groups(std::collections::BTreeSet::from(["admins".to_owned()]));
+    let groups = "/api/v1/projects/org/groups?dryRun=All";
+
+    let foreign = common::checked_send(
+        &state,
+        person("keeper"),
+        "POST",
+        groups,
+        Some(group("admins", &["lead@hel.fi"])),
+    )
+    .await;
+    assert_eq!(foreign.status, StatusCode::FORBIDDEN, "{}", foreign.text);
+    assert!(
+        foreign.text.contains("'admins' for the organization")
+            && foreign.text.contains("never taken over"),
+        "{}",
+        foreign.text
+    );
+
+    let mut default_group = group("city-leads", &["lead@hel.fi"]);
+    default_group["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/city" });
+    let clash = common::checked_send(
+        &state,
+        person("keeper"),
+        "PUT",
+        "/api/v1/projects/org/groups/city-leads?dryRun=All",
+        Some(default_group),
+    )
+    .await;
+    assert_eq!(clash.status, StatusCode::FORBIDDEN, "{}", clash.text);
+    assert!(
+        clash.text.contains("belongs to the organization")
+            && clash.text.contains("the App city of project doprava")
+            && clash.text.contains("AP-115"),
+        "{}",
+        clash.text
+    );
+
+    let same = common::checked_send(
+        &state,
+        person("keeper"),
+        "PUT",
+        "/api/v1/projects/org/groups/city-leads?dryRun=All",
+        Some(group("city-leads", &["lead@hel.fi", "second@hel.fi"])),
+    )
+    .await;
+    assert_eq!(same.status, StatusCode::OK, "{}", same.text);
+}

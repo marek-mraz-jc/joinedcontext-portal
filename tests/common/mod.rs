@@ -441,12 +441,18 @@ pub const ROUTER_PROMPT: &str = "route a person's message to one of the assistan
 /// A stub model that routes free text to no path, ahead of a test's scripted answers, so a script
 /// written for the conversation's own turns reads the same as before paths (T-2693).
 pub async fn route_to_no_path(proxy: &MockServer) {
+    route_to(proxy, None).await;
+}
+
+/// A stub model that routes free text to `path` (an id such as `share-data`), or to none.
+pub async fn route_to(proxy: &MockServer, route: Option<&str>) {
+    let routed = json!({ "path": route, "reason": "a script" }).to_string();
     Mock::given(method("POST"))
         .and(path("/v1/llm/chat/completions"))
         .and(wiremock::matchers::body_string_contains(ROUTER_PROMPT))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "id": "chatcmpl-router", "object": "chat.completion",
-            "choices": [{ "index": 0, "message": { "role": "assistant", "content": "{\"path\": null, \"reason\": \"a script\"}" }, "finish_reason": "stop" }],
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": routed }, "finish_reason": "stop" }],
             "usage": { "total_tokens": 10 }
         })))
         .with_priority(1)

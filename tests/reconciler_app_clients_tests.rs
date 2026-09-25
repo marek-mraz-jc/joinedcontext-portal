@@ -11,6 +11,8 @@
 //! is removed and reported, a subject the realm does not know yet is a warning, and the audience
 //! mappers name `app-{name}` and the slug of every Endpoint the App reads, nothing else.
 
+use std::sync::Arc;
+
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, desired, AppClientSync};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -315,7 +317,9 @@ async fn a_managed_client_whose_app_is_gone_is_deleted_and_a_draft_gets_none() {
         .mount(&keycloak)
         .await;
 
+    let foreign = Arc::new(joinedcontext_portal::reconciler::foreign::ForeignNames::default());
     let run = sync(&keycloak)
+        .with_foreign(Arc::clone(&foreign))
         .converge(&mirror_with(vec![app("helsinki", "drafty", "draft")]))
         .await;
 
@@ -326,6 +330,9 @@ async fn a_managed_client_whose_app_is_gone_is_deleted_and_a_draft_gets_none() {
     assert_eq!(run.outcomes.len(), 1);
     assert_eq!(run.outcomes[0].app, "old");
     assert!(run.secrets.is_empty());
+    // AP-114: the unmanaged `app-*` client is what the write doors refuse a new App for.
+    assert!(foreign.has_client("app-theirs"));
+    assert!(!foreign.has_client("app-old") && !foreign.has_client("edge"));
 }
 
 #[tokio::test]
