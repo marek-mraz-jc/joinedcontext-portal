@@ -41,5 +41,3 @@ spec:
       attrs: [indicator, refArea, refPeriod, value, unitText, dateObserved, stewardNote]
       operations: [queryEntity, retrieveEntity, updateAttrs]
       representations: [ngsi-ld]
-  limits:
-    requestsPerMinute: 300

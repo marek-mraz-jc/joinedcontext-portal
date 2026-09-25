@@ -44,5 +44,3 @@ spec:
       attrs: [name, currentValue, calculationPeriod, calculationFormula, derivedFrom, computedBy, updatedAt]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld]
-  limits:
-    requestsPerMinute: 120
