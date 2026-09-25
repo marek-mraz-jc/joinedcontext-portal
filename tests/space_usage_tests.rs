@@ -1,4 +1,4 @@
-//! T-2889, API/01 §28: a space's size is the broker's count of its tenant, read with the same
+//! T-2889, API/01 §29: a space's size is the broker's count of its tenant, read with the same
 //! rights as the space, kept for five minutes, and a broker that cannot answer is a reason, never
 //! a zero.
 

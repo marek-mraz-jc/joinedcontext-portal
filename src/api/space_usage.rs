@@ -1,5 +1,5 @@
 //! `GET /api/v1/projects/{project}/spaces/{space}/usage`: how much a space holds, as the broker
-//! counts it (API/01 §28, T-2889).
+//! counts it (API/01 §29, T-2889).
 
 use axum::extract::{Path, State};
 use axum::routing::get;

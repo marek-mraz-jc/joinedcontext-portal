@@ -82,7 +82,7 @@ pub struct AppState {
     /// What the last data-quality run found, by space (DM-74). Empty until the leader has run
     /// one, which the API answers as "not checked yet".
     pub quality: Arc<crate::quality::Store>,
-    /// How much each space holds, as the broker counts it (API/01 §28).
+    /// How much each space holds, as the broker counts it (API/01 §29).
     pub space_usage: Arc<crate::space_usage::Counter>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.

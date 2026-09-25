@@ -1,4 +1,4 @@
-//! How much a space holds, as the broker that holds it counts it (API/01 §28, T-2889).
+//! How much a space holds, as the broker that holds it counts it (API/01 §29, T-2889).
 //!
 //! The broker keeps a space's entities in its tenant and answers the tenant's counts on its admin
 //! surface (`GET /q/tenants/{tenant}`), the one the Portal already reaches for registrations. A
