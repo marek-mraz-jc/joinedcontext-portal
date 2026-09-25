@@ -17,6 +17,7 @@ import {
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
+  servedRepresentations,
 } from "../../components/endpoints/links";
 import { SharedWithBadge, admitsPerson } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
@@ -776,7 +777,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                     <TableCell>
                       <Representations
                         slug={endpointSlug}
-                        representations={spec.enabledRepresentations ?? []}
+                        representations={servedRepresentations(spec)}
                       />
                     </TableCell>
                     <TableCell>

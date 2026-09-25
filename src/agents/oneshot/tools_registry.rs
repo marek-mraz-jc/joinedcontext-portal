@@ -869,12 +869,7 @@ fn describe_option(state: &AppState, project: &str, kind: &str, item: &Value) ->
     if kind == "Endpoint" {
         let name = item.get("name").and_then(Value::as_str)?;
         if let Some(endpoint) = state.mirror.get(project, kind, name) {
-            let representations: Vec<&str> = endpoint.spec["enabledRepresentations"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect();
+            let representations = crate::api::catalogue::served_representations(&endpoint.spec);
             if !representations.is_empty() {
                 parts.push(representations.join(", "));
             }
