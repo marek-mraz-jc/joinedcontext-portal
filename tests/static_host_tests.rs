@@ -173,13 +173,15 @@ async fn every_app_response_carries_its_own_policy_and_not_the_portals() {
     let (_, headers, _) = get_from(dir.path(), app_spec("published"), "/apps/air-quality/").await;
 
     let csp = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
-    assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+    // No apps origin of its own: the App shares the Portal's, so not even the Portal frames it.
+    assert!(csp.ends_with("frame-ancestors 'none'"), "{csp}");
     assert!(csp.contains("connect-src 'self';"), "{csp}");
     assert!(
         !csp.contains("worker-src"),
         "the Portal's policy is not the app's: {csp}"
     );
-    assert_eq!(headers[header::X_FRAME_OPTIONS], "DENY");
+    // SAMEORIGIN or DENY would refuse the Portal's frame (AP-122).
+    assert!(headers.get(header::X_FRAME_OPTIONS).is_none());
     assert_eq!(headers["x-content-type-options"], "nosniff");
 }
 
@@ -194,10 +196,10 @@ async fn an_embeddable_app_may_be_framed_by_the_named_origin() {
 
     let csp = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
     assert!(
-        csp.contains("frame-ancestors https://portal.example.sk"),
+        csp.ends_with("frame-ancestors https://portal.example.sk"),
         "{csp}"
     );
-    assert_eq!(headers[header::X_FRAME_OPTIONS], "SAMEORIGIN");
+    assert!(headers.get(header::X_FRAME_OPTIONS).is_none());
 }
 
 #[tokio::test]
@@ -636,6 +638,23 @@ async fn get_on_host(root: &std::path::Path, host: &str, uri: &str) -> axum::res
     )
     .await
     .unwrap()
+}
+
+/// AP-122: on its own origin an App may be framed by the Portal, which opens it under its header,
+/// and by nobody else; no `X-Frame-Options` refuses the Portal's frame.
+#[tokio::test]
+async fn on_the_apps_origin_only_the_portal_frames_an_app() {
+    let dir = app_root("framed", &[("index.html", INDEX)]);
+    let response = get_on_host(dir.path(), "example.org", "/apps/air-quality/").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .unwrap();
+    assert!(
+        csp.ends_with("frame-ancestors https://portal.example.org"),
+        "{csp}"
+    );
+    assert!(response.headers().get(header::X_FRAME_OPTIONS).is_none());
 }
 
 /// T-2476: an app served on the Portal's own origin would reach the Portal API with the

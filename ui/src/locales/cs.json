@@ -1843,6 +1843,15 @@
       "failed": "Build failed",
       "notBuilt": "No build is served yet"
     },
+    "openPage": {
+      "details": "Podrobnosti aplikace",
+      "newWindow": "Otevřít v novém okně",
+      "served": "Běží commit {commit}",
+      "frameTitle": "{title}, aplikace",
+      "notOpen": "Zatím tu není co otevřít. Podrobnosti aplikace říkají, co bude dál.",
+      "signInHint": "Chce aplikace přihlášení a zůstává prázdná?",
+      "signInAgain": "Přihlásit se znovu"
+    },
     "retire": {
       "title": "Retire {name}",
       "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",

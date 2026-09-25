@@ -1843,6 +1843,15 @@
       "failed": "Build failed",
       "notBuilt": "No build is served yet"
     },
+    "openPage": {
+      "details": "App-Details",
+      "newWindow": "In neuem Fenster öffnen",
+      "served": "Läuft auf Commit {commit}",
+      "frameTitle": "{title}, die Anwendung",
+      "notOpen": "Hier gibt es noch nichts zu öffnen. Die App-Details sagen, wie es weitergeht.",
+      "signInHint": "Fragt die App nach einer Anmeldung und bleibt leer?",
+      "signInAgain": "Erneut anmelden"
+    },
     "retire": {
       "title": "Retire {name}",
       "body": "Retiring takes the app away from {visibility}: its address stops answering once the change is approved.",
