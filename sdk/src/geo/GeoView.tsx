@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
-import type { GeoJSONSource } from "maplibre-gl";
+import type { ExpressionSpecification, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { mapWorkerReady, NO_BASEMAP, styleFor } from "../sdk/map";
 import { mapColors } from "../sdk/tokens";
@@ -66,6 +66,29 @@ export function featuresOf(value: Geometry | GeoFeature | GeoFeature[] | null | 
   return [{ type: "Feature", id: "geometry", geometry: value as Geometry }];
 }
 
+/**
+ * An area's fill: the one drawn colour, or with a `ramp` the tokens' `map.low`→`map.high` over the
+ * feature's numeric `value` property, and the drawn colour for an area that holds none (a
+ * choropleth, AP-123). The colours are the tokens'; a feature only ever carries a number.
+ */
+export function fillOf(
+  drawn: string,
+  ramp: [number, number] | undefined,
+  colors: { low: string; high: string },
+): string | ExpressionSpecification {
+  if (!ramp) {
+    return drawn;
+  }
+  // Stops must rise: one value alone is drawn at the low end.
+  const high = ramp[1] > ramp[0] ? ramp[1] : ramp[0] + 1;
+  return [
+    "case",
+    ["==", ["typeof", ["get", "value"]], "number"],
+    ["interpolate", ["linear"], ["get", "value"], ramp[0], colors.low, high, colors.high],
+    drawn,
+  ];
+}
+
 export function GeoView({
   value,
   selectedId,
@@ -73,6 +96,7 @@ export function GeoView({
   accent,
   basemap,
   label = "Geometry",
+  ramp,
 }: {
   value: Geometry | GeoFeature | GeoFeature[] | null;
   /** The feature drawn as chosen; `null` draws none of them chosen. */
@@ -83,6 +107,8 @@ export function GeoView({
   basemap?: string;
   /** What a screen reader calls the map, since the map itself says nothing. */
   label?: string;
+  /** The range of the features' numeric `value`: areas are filled on the tokens' ramp over it. */
+  ramp?: [number, number];
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -135,7 +161,10 @@ export function GeoView({
           type: "fill",
           source: SOURCE,
           filter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false],
-          paint: { "fill-color": drawn, "fill-opacity": ["case", ["get", "chosen"], 0.45, 0.2] },
+          paint: {
+            "fill-color": fillOf(drawn, ramp, colors),
+            "fill-opacity": ramp ? ["case", ["get", "chosen"], 0.9, 0.7] : ["case", ["get", "chosen"], 0.45, 0.2],
+          },
         });
         instance?.addLayer({
           id: "lines",
@@ -175,6 +204,17 @@ export function GeoView({
     // The map is built once and every later value reaches it through `setData`, as in `MapView`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Another indicator is another range: the fill follows it without rebuilding the map.
+  const low = ramp?.[0];
+  const high = ramp?.[1];
+  useEffect(() => {
+    if (ready && low !== undefined && high !== undefined) {
+      map.current?.setPaintProperty("areas", "fill-color", fillOf(drawn, [low, high], colors));
+    }
+    // `colors` and `drawn` are the tokens', read once per render and equal between renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, low, high]);
 
   const fitted = useRef(false);
   useEffect(() => {

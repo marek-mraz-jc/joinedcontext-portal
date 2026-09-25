@@ -20,12 +20,17 @@ export function DistrictChart({
   unit,
   bars,
   s,
+  marked = null,
+  onMark,
 }: {
   id: string;
   title: string;
   unit: string;
   bars: Bar[];
   s: Strings;
+  /** The district picked on the map, drawn marked; with `onMark` each name is that choice by keyboard. */
+  marked?: string | null;
+  onMark?: (territory: string) => void;
 }) {
   const max = Math.max(0, ...bars.map((bar) => bar.value));
   const format = new Intl.NumberFormat(s.locale, { maximumFractionDigits: 2 });
@@ -40,8 +45,19 @@ export function DistrictChart({
           const name = s.territory[bar.territory] ?? bar.territory;
           const share = max > 0 ? Math.max(0, bar.value / max) : 0;
           return (
-            <li key={bar.territory} className="bar-row">
-              <span className="bar-label">{name}</span>
+            <li key={bar.territory} className={bar.territory === marked ? "bar-row marked" : "bar-row"}>
+              {onMark ? (
+                <button
+                  type="button"
+                  className="bar-label"
+                  aria-pressed={bar.territory === marked}
+                  onClick={() => onMark(bar.territory)}
+                >
+                  {name}
+                </button>
+              ) : (
+                <span className="bar-label">{name}</span>
+              )}
               <span className="bar-track" aria-hidden="true">
                 <span className="bar" style={{ "--share": share } as CSSProperties} />
               </span>

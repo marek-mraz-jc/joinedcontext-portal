@@ -33,9 +33,9 @@ spec:
   lifecycle: published
   embeddable: true
   dataNeeds:
-    # One space: the reconciler renders one Endpoint per app (AP-04), and the app's own is on the
-    # region's indicators. The city's endpoint arrives in the served configuration's `endpoints`
-    # (SDK-02) and is read with the same reader's token.
+    # Its own space first: the reconciler renders one Endpoint per app from it (AP-04), and the
+    # app's own is on the region's indicators. The city's endpoint arrives in the served
+    # configuration's `endpoints` (SDK-02) and is read with the same reader's token.
     - contextSpaceRef:
         kind: ContextSpace
         name: bbsk-kpi
@@ -43,6 +43,16 @@ spec:
       # PF-54 fixes the attribute set; the app reads all of it and writes none of it.
       attrs: [name, currentValue, calculationPeriod, calculationFormula, derivedFrom, computedBy, updatedAt]
       operations: [queryEntity, retrieveEntity]
+      representations: [ngsi-ld]
+    # The further space (AP-04, T-2933): the district outlines of the region's register, read only
+    # through that space's public Endpoint `bbsk-registre`. Compiled into no grant: that endpoint
+    # already answers anyone, and the map draws each district in the colour of its indicator.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: bbsk-registre
+      types: [AdministrativeArea]
+      attrs: [name, divisionLevel, location]
+      operations: [queryEntity]
       representations: [ngsi-ld]
   limits:
     requestsPerMinute: 120
