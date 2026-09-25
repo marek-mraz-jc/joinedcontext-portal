@@ -162,7 +162,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_list",
             title: "List People",
-            description: "Searches the people of the organization's realm and pages them. Needs `read` on Person at organization scope",
+            description: "Searches the organization's people, a page at a time",
             input: list_schema,
             output: page_schema,
             annotations: annotations(true, false, true),
@@ -194,7 +194,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_get",
             title: "Get Person",
-            description: "One person with their groups, platform roles and application roles. Needs `read` on Person",
+            description: "One person with their groups and roles",
             input: || id_schema("The person's Keycloak user id"),
             output: person_schema,
             annotations: annotations(true, false, true),
@@ -214,7 +214,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_create",
             title: "Create Person",
-            description: "Creates a person and sends the realm's execute-actions e-mail; without SMTP the route answers a temporary password once and the operation never does. Needs `create` on Person",
+            description: "Creates a person and sends the sign-up e-mail",
             input: create_schema,
             output: created_schema,
             annotations: annotations(false, false, false),
@@ -240,7 +240,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_edit",
             title: "Edit Person",
-            description: "Edits the name, the e-mail (verified again) or the language. Needs `update` on Person and every right the person holds",
+            description: "Edits a person's name, e-mail or language",
             input: edit_schema,
             output: person_schema,
             annotations: annotations(false, false, true),
@@ -273,7 +273,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_disable",
             title: "Disable Person",
-            description: "Disables the person and ends every session. Needs `disable` on Person; never the caller or the last Organization Administrator",
+            description: "Disables a person and ends their sessions; never the caller or the last Organization Administrator",
             input: || id_schema("The person's Keycloak user id"),
             output: person_schema,
             annotations: annotations(false, true, true),
@@ -294,7 +294,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_enable",
             title: "Enable Person",
-            description: "Enables a disabled person. Needs `disable` on Person",
+            description: "Enables a disabled person",
             input: || id_schema("The person's Keycloak user id"),
             output: person_schema,
             annotations: annotations(false, false, true),
@@ -315,7 +315,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_person_sign_out",
             title: "Sign Person Out",
-            description: "Ends every session of the person. Needs `disable` on Person and every right the person holds",
+            description: "Ends every session of a person",
             input: || id_schema("The person's Keycloak user id"),
             output: signed_out_schema,
             annotations: annotations(false, true, true),

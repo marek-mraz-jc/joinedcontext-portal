@@ -78,7 +78,7 @@ fn app_of(
         .is_some_and(|git| !git.is_null());
     Ok((
         app,
-        on_forge.then(|| gitea.for_repository(repository::name(project, name))),
+        on_forge.then(|| gitea.for_application(repository::name(project, name))),
     ))
 }
 

@@ -63,7 +63,13 @@ const MINTED = {
 };
 
 function renderAccess(
-  options: { keysStatus?: number; identity?: typeof IDENTITY; grants?: unknown[]; accounts?: unknown } = {},
+  options: {
+    keysStatus?: number;
+    identity?: typeof IDENTITY;
+    grants?: unknown[];
+    accounts?: unknown;
+    claim?: { status: number; body: unknown };
+  } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     // The generated client hands over a `Request`; the gateway call is a plain `fetch(url)`.
@@ -84,6 +90,9 @@ function renderAccess(
     }
     if (path.endsWith("/permissions/me") && options.grants) {
       return json({ grants: options.grants });
+    }
+    if (path.includes("/keys/claims/") && method === "GET") {
+      return json(options.claim?.body ?? {}, options.claim?.status ?? 404);
     }
     if (path.endsWith("/keys") && method === "GET") {
       return json(KEYS, options.keysStatus ?? 200);
@@ -254,6 +263,85 @@ describe("service accounts view", () => {
     expect(
       fetchMock.mock.calls.some((call) => String((call[0] as Request).url ?? call[0]).includes("/keys")),
     ).toBe(false);
+  });
+});
+
+const CLAIM_ID = "c7e1f0a94b2d6e8f13a5c9d7b0e4f261";
+const CLAIM_PAGE = `/projects/banskabystrica/settings/service-accounts?account=vendorx-parking-push&claim=${CLAIM_ID}`;
+const CLAIM = {
+  claim: { id: CLAIM_ID, url: `https://portal.example.org${CLAIM_PAGE}`, expiresAt: "2026-09-25T10:15:00Z" },
+  account: "vendorx-parking-push",
+  action: "mint",
+  credential: "legacy-push",
+};
+
+/**
+ * PF-104: a key an MCP client asked for. The client was answered a link to this page and no
+ * token; the person who asked opens it, sees what it will do, and only their confirmation mints
+ * the key, shown once as any other. A link that has expired or is not theirs says to ask again.
+ */
+describe("a key claim opened from its link", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    document.cookie = "jc_csrf=csrf-token-value";
+    Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // The link stays in the address bar until the dialog is closed; the tests after these
+    // render the same page without it.
+    window.history.replaceState({}, "", "/projects/banskabystrica/settings/service-accounts");
+  });
+
+  it("says what it will mint, mints only when the person confirms, and shows the key once", async () => {
+    window.history.pushState({}, "", CLAIM_PAGE);
+    const fetchMock = renderAccess({ claim: { status: 200, body: CLAIM } });
+
+    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
+    expect(await within(asked).findByText(/Mint a new key for the credential legacy-push of vendorx-parking-push/)).toBeInTheDocument();
+    const posts = () => fetchMock.mock.calls.map((call) => call[0]).filter((call) => call instanceof Request && call.method === "POST");
+    expect(posts()).toHaveLength(0);
+
+    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.claim.confirmMint }));
+
+    const shown = await screen.findByRole("dialog", { name: en.access.keys.newTitle });
+    expect((within(shown).getByLabelText(en.access.keys.token) as HTMLInputElement).value).toBe(MINTED.token);
+    const used = posts()[0] as Request;
+    expect(new URL(used.url).pathname).toBe(
+      `/api/v1/projects/banskabystrica/serviceaccounts/vendorx-parking-push/keys/claims/${CLAIM_ID}`,
+    );
+    expect(used.headers.get("x-csrf-token")).toBe("csrf-token-value");
+    // The address forgets the claim, so a reload does not open a spent link again.
+    expect(window.location.search).toBe("");
+    await expectNoAxeViolations(document.body);
+  });
+
+  it("says a link that has expired, was used or is someone else's opens nothing, and mints nothing", async () => {
+    window.history.pushState({}, "", CLAIM_PAGE);
+    const fetchMock = renderAccess({ claim: { status: 404, body: { title: "Not Found", status: 404 } } });
+
+    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
+    expect(await within(asked).findByRole("alert")).toHaveTextContent(en.access.keys.claim.gone);
+    expect(within(asked).queryByRole("button", { name: en.access.keys.claim.confirmMint })).not.toBeInTheDocument();
+
+    await userEvent.click(within(asked).getAllByRole("button", { name: en.access.keys.done })[0]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(window.location.search).toBe("");
+    expect(fetchMock.mock.calls.some((call) => call[0] instanceof Request && call[0].method === "POST")).toBe(false);
+  });
+
+  it("names the key a rotation replaces and the overlap it keeps", async () => {
+    window.history.pushState({}, "", CLAIM_PAGE);
+    renderAccess({
+      claim: { status: 200, body: { ...CLAIM, action: "rotate", keyId: "3f9c2a7b1d4e8f06", overlapHours: 1 } },
+    });
+
+    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
+    expect(
+      await within(asked).findByText(/Rotate key 3f9c2a7b1d4e8f06 of vendorx-parking-push: .* keeps working for 1 hour\./),
+    ).toBeInTheDocument();
+    expect(within(asked).getByRole("button", { name: en.access.keys.claim.confirmRotate })).toBeInTheDocument();
   });
 });
 

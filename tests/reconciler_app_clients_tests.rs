@@ -13,7 +13,9 @@
 
 use std::sync::Arc;
 
-use joinedcontext_portal::reconciler::app_clients::{audience_mapper, desired, AppClientSync};
+use joinedcontext_portal::reconciler::app_clients::{
+    audience_mapper, desired, record, AppClientSync,
+};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
@@ -535,7 +537,7 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
     answer(&keycloak, "/clients/uuid-a/protocol-mappers/models", json!([
         edited,
         mapper("m-old", "ep-gone"),
-        // A mapper of another kind is not this wave's.
+        // Another kind under the wave's prefix is still not an audience the App reads (T-2857).
         { "id": "m-theirs", "name": "audience-by-hand", "protocolMapper": "oidc-hardcoded-claim-mapper", "config": {} },
     ]))
     .await;
@@ -566,6 +568,7 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
         writes,
         vec![
             format!("DELETE {REALM}/clients/uuid-a/protocol-mappers/models/m-old"),
+            format!("DELETE {REALM}/clients/uuid-a/protocol-mappers/models/m-theirs"),
             format!("POST {REALM}/clients/uuid-a/protocol-mappers/models"),
             format!("PUT {REALM}/clients/uuid-a/protocol-mappers/models/m-app"),
         ]
@@ -583,7 +586,107 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
     )
     .await;
     assert_eq!(written[0]["config"]["access.token.claim"], "true");
-    assert_eq!(outcome.drift.len(), 2, "{:?}", outcome.drift);
+    assert_eq!(outcome.drift.len(), 3, "{:?}", outcome.drift);
+    assert_eq!(
+        outcome.removed_mappers,
+        vec!["oidc-hardcoded-claim-mapper mapper audience-by-hand".to_owned()]
+    );
+}
+
+/// A client whose mappers are exactly the App's audiences: nothing to read back as wrong.
+async fn only_the_apps_audience(keycloak: &MockServer, extra: Vec<Value>) {
+    answer(keycloak, "/clients/uuid-a/roles", json!([])).await;
+    let mut held = vec![mapper("m-app", "app-alerts")];
+    held.extend(extra);
+    answer(
+        keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        Value::Array(held),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_mapper_the_app_does_not_declare_is_removed_and_the_app_names_it() {
+    // T-2857: FGAP bounds which clients portal-api manages, never what a mapper writes, so a
+    // hardcoded claim put on the client would mint tokens with a role the App never gave.
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    only_the_apps_audience(
+        &keycloak,
+        vec![
+            json!({ "id": "m-claim", "name": "everyone-admin", "protocolMapper": "oidc-hardcoded-claim-mapper",
+                    "config": { "claim.name": "realm_access.roles", "claim.value": "org-admin-7f3a" } }),
+            json!({ "id": "m-aud", "name": "other\nendpoint", "protocolMapper": "oidc-audience-mapper",
+                    "config": { "included.custom.audience": "ep-someone-else" } }),
+        ],
+    )
+    .await;
+    writes_succeed(&keycloak).await;
+    let mut app = alerts(json!({}));
+    app.status = Some(serde_json::from_value(json!({ "phase": "Live" })).expect("a status"));
+    let mirror = mirror_with(vec![app]);
+
+    let run = sync(&keycloak).converge(&mirror).await;
+
+    let outcome = &run.outcomes[0];
+    assert_eq!(outcome.error, None, "{outcome:?}");
+    let mut writes = wrote(&keycloak).await;
+    writes.sort();
+    assert_eq!(
+        writes,
+        vec![
+            format!("DELETE {REALM}/clients/uuid-a/protocol-mappers/models/m-aud"),
+            format!("DELETE {REALM}/clients/uuid-a/protocol-mappers/models/m-claim"),
+        ]
+    );
+    // Type and name only, the control character stripped; never the claim it wrote.
+    assert_eq!(
+        outcome.removed_mappers,
+        vec![
+            "oidc-hardcoded-claim-mapper mapper everyone-admin".to_owned(),
+            "oidc-audience-mapper mapper otherendpoint".to_owned(),
+        ]
+    );
+    assert!(!format!("{outcome:?}").contains("org-admin-7f3a"));
+
+    record(&mirror, &run.outcomes);
+    let status = mirror
+        .find(|env| env.kind == "App" && env.metadata.name == "alerts")
+        .and_then(|env| env.status)
+        .expect("the App's status");
+    let condition = status
+        .conditions
+        .iter()
+        .find(|c| c.r#type == "ClientSynced")
+        .expect("the condition");
+    assert_eq!(condition.reason.as_deref(), Some("MapperRemoved"));
+    let message = condition.message.as_deref().unwrap_or_default();
+    assert!(message.contains("everyone-admin"), "{message}");
+    assert!(!message.contains("org-admin-7f3a"), "{message}");
+}
+
+#[tokio::test]
+async fn a_client_with_only_the_apps_audiences_is_not_written_and_the_app_keeps_its_status() {
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    only_the_apps_audience(&keycloak, Vec::new()).await;
+    writes_succeed(&keycloak).await;
+    let mut app = alerts(json!({}));
+    app.status = Some(serde_json::from_value(json!({ "phase": "Live" })).expect("a status"));
+    let mirror = mirror_with(vec![app]);
+
+    let run = sync(&keycloak).converge(&mirror).await;
+    record(&mirror, &run.outcomes);
+
+    assert_eq!(run.outcomes[0].error, None, "{:?}", run.outcomes[0]);
+    assert!(wrote(&keycloak).await.is_empty());
+    assert!(run.outcomes[0].removed_mappers.is_empty());
+    let status = mirror
+        .find(|env| env.kind == "App" && env.metadata.name == "alerts")
+        .and_then(|env| env.status)
+        .expect("the App's status");
+    assert!(status.conditions.is_empty(), "{:?}", status.conditions);
 }
 
 #[tokio::test]

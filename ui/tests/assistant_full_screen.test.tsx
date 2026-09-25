@@ -272,4 +272,20 @@ describe("the assistant on full screen", () => {
     await screen.findByRole("table");
     await expectNoAxeViolations(view.container);
   });
+
+  // T-2854: below md there is no room for a column beside the page. In the page's row the
+  // docked panel squeezed the page to no width and its positioned controls ("Publish this app")
+  // painted through the panel at 400 px; below md it covers the screen as full screen does.
+  it("docked, covers the screen below md and is a column beside the page from md", async () => {
+    screenWide(false);
+    renderDock({ layout: "side" });
+    const panel = await screen.findByRole("complementary", { name: en.agentRun.conversation.title });
+    expect(panel).toHaveAttribute("data-layout", "side");
+    const classes = panel.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["fixed", "inset-x-0", "top-14", "bottom-0", "z-40", "bg-surface"]));
+    expect(classes).toEqual(expect.arrayContaining(["md:sticky", "md:inset-auto", "md:z-auto", "md:shrink-0", "md:w-96"]));
+    // Nothing unprefixed keeps it in the page's row below md.
+    expect(classes).not.toContain("w-full");
+    expect(classes).not.toContain("shrink-0");
+  });
 });

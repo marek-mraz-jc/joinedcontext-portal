@@ -110,6 +110,8 @@ pub struct Syncer {
     registrations: Option<Arc<super::registrations::RegistrationSync>>,
     /// The seed-entity drift scan and what its last run found (CC-21, UI-25, UI-26).
     drift: Option<(Arc<super::drift::Watch>, Arc<super::drift::Store>)>,
+    /// The daily data-quality run (DM-70); the leader starts it when it is due.
+    quality: Option<Arc<crate::quality::Scanner>>,
     subscriptions: Option<Arc<super::subscriptions::SubscriptionSync>>,
     /// `None` when no Keycloak admin client is configured: the `Group` manifests are then read
     /// and served, and the realm is written by nobody (PF-63).
@@ -124,6 +126,9 @@ pub struct Syncer {
     /// what the edge file is composed with (AP-112). Never logged.
     app_client_secrets:
         Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>>,
+    /// The federated client of every ServiceAccount bound to a workload (PF-47). `None` without
+    /// a login client: such an account then has no client, and its workload no identity.
+    workload_clients: Option<Arc<super::workload_clients::WorkloadClientSync>>,
     /// The APISIX file the edge serves, composed from helm's base and every published App's
     /// routes (ADR-N-030, AP-112), with the settings that say where each App runs. `None`
     /// outside a cluster: the edge then serves helm's base alone.
@@ -190,11 +195,13 @@ impl Syncer {
             streams: None,
             registrations: None,
             drift: None,
+            quality: None,
             subscriptions: None,
             groups: None,
             people: None,
             app_clients: None,
             app_client_secrets: Arc::default(),
+            workload_clients: None,
             edge_file: None,
             app_hosts: None,
             activity: None,
@@ -305,6 +312,15 @@ impl Syncer {
         self
     }
 
+    /// Makes each run bring every workload-bound ServiceAccount's client to its manifest (PF-47).
+    pub fn with_workload_clients(
+        mut self,
+        clients: Arc<super::workload_clients::WorkloadClientSync>,
+    ) -> Self {
+        self.workload_clients = Some(clients);
+        self
+    }
+
     /// Makes each run write the edge's APISIX file with every published App's routes (AP-112).
     pub fn with_edge_file(
         mut self,
@@ -361,6 +377,11 @@ impl Syncer {
 
     /// Makes each run compare the seed entities the repository declares against what the
     /// spaces hold, and keep the answer where the API reads it (CC-21).
+    pub fn with_quality(mut self, scanner: Arc<crate::quality::Scanner>) -> Self {
+        self.quality = Some(scanner);
+        self
+    }
+
     pub fn with_drift(
         mut self,
         watch: Arc<super::drift::Watch>,
@@ -1143,6 +1164,7 @@ impl Syncer {
         //     back replace the last run's, so a retired App's secret is gone with its client.
         if let Some(clients) = self.app_clients.as_ref() {
             let run = clients.converge(&fresh_mirror).await;
+            super::app_clients::record(&fresh_mirror, &run.outcomes);
             for outcome in &run.outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
@@ -1168,6 +1190,22 @@ impl Syncer {
                     .app_client_secrets
                     .write()
                     .unwrap_or_else(|poisoned| poisoned.into_inner()) = run.secrets;
+            }
+        }
+
+        // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
+        //      is read back: no secret opens such a client.
+        if let Some(clients) = self.workload_clients.as_ref() {
+            for outcome in clients.converge(&fresh_mirror).await {
+                match (&outcome.error, outcome.drift.is_empty()) {
+                    (Some(err), _) => {
+                        tracing::warn!(account = %outcome.app, error = %err, "workload client did not converge")
+                    }
+                    (None, false) => {
+                        tracing::info!(account = %outcome.app, drift = %outcome.drift.join("; "), "workload client brought back to the account")
+                    }
+                    (None, true) => {}
+                }
             }
         }
 
@@ -1409,6 +1447,10 @@ impl Syncer {
                     // same thing, and the second must not look like the first on the page.
                     Err(err) => tracing::warn!(error = %err, "the drift scan did not complete"),
                 }
+            }
+            // 9. Data quality (DM-70): once a day, in the background; the sync never waits.
+            if let Some(scanner) = self.quality.as_ref() {
+                scanner.start_if_due();
             }
         }
 

@@ -427,6 +427,16 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
     grants
 }
 
+/// Whether one of a ServiceAccount's roles names a `Role` (§2a), so the account acts on the
+/// Portal and its client's tokens carry the Portal's audience (PF-47).
+pub(crate) fn account_holds_portal_role(mirror: &Mirror, spec: &ServiceAccountSpec) -> bool {
+    let organization = roles(mirror, ORG_NAMESPACE);
+    spec.roles.iter().any(|granted| {
+        Reach::of(&granted.scope)
+            .is_some_and(|reach| role_of(mirror, &organization, &reach, &granted.role).is_some())
+    })
+}
+
 /// The account a bearer token speaks for (PF-46, PF-49): its `azp` is the derived client id of
 /// exactly one `ServiceAccount`, and its user is that client's own service account, so a person
 /// who signed in through some client is never mistaken for it. An id two accounts derive is

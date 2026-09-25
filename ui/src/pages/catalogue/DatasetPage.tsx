@@ -355,7 +355,13 @@ function SnippetBlock({ item }: { item: Snippet }): JSX.Element {
           {copied ? t("catalogue.use.copied") : t("catalogue.use.copyShort")}
         </Button>
       </div>
-      <pre className="overflow-x-auto rounded-md bg-surface-muted p-3 font-mono text-caption text-fg">
+      {/* A long line scrolls sideways, so the block takes the keyboard focus that scrolls it
+          (axe scrollable-region-focusable) and is named by its heading. */}
+      <pre
+        aria-label={title}
+        tabIndex={0}
+        className="focus-ring overflow-x-auto rounded-md bg-surface-muted p-3 font-mono text-caption text-fg"
+      >
         <code>{item.code}</code>
       </pre>
     </Card>

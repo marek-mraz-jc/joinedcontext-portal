@@ -121,6 +121,10 @@ pub struct Config {
     /// neutral joinedcontext defaults, which is what an installation without branding looks
     /// like; it is never an error.
     pub branding_file: Option<String>,
+    /// The directory the ConfigMap `jc-validation-results` is mounted at (`JC_HEALTH_DIR`;
+    /// OPS-53): one digest per validation check, read on every request to
+    /// `/api/v1/organization/health`. `None` answers an empty list; it is never an error.
+    pub health_dir: Option<String>,
     /// PostgreSQL connection string of the preferences tier (`JC_PORTAL_DATABASE_URL`,
     /// UI-09). A secret: it carries a password, so it is redacted in `Debug`. `None` runs the Portal without preferences: those routes answer
     /// 503, everything else works.
@@ -237,6 +241,7 @@ impl std::fmt::Debug for Config {
             .field("artifact_store", &self.artifact_store)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
+            .field("health_dir", &self.health_dir)
             .field(
                 "database_url",
                 &self.database_url.as_ref().map(|_| "[redacted]"),
@@ -411,7 +416,14 @@ fn build_pod_settings(
 /// A pod-backed App also needs (AP-108):
 ///
 /// - `JC_PORTAL_APPS_REGISTRY` — the host, and port if any, of the forge's container registry;
-///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`.
+///   an App's image is composed as `{registry}/{forge organization}/app-{name}@{digest}`, the
+///   organization being the applications' own when they have one of their own.
+/// - `JC_GITEA_APPS_OWNER` — the forge organization the generated applications' repositories,
+///   packages and images live in, apart from the configuration's (PF-105); the configuration's
+///   organization when unset.
+/// - `JC_GITEA_APPS_TOKEN` — the token of the applications' own machine user, which writes their
+///   repositories and packages and nothing of the configuration's; set with the owner or not at
+///   all.
 /// - `JC_PORTAL_APPS_PULL_SECRET_NAME` — the name of the `dockerconfigjson` Secret in the apps
 ///   namespace a node pulls app images with (a forge token that reads packages only).
 /// - `JC_PORTAL_APISIX_NAMESPACE` — the namespace the installation runs APISIX in, the only one
@@ -466,12 +478,16 @@ fn app_settings(
                     ),
                 });
             }
-            let owner = set("JC_GITEA_OWNER").ok_or_else(|| ConfigError::Invalid {
-                var: "JC_PORTAL_APPS_REGISTRY",
-                reason:
-                    "the images live under the forge's organization, and JC_GITEA_OWNER is not set"
+            // The applications' organization when there is one (PF-105): their images are
+            // published there, beside their repositories.
+            let owner = set("JC_GITEA_APPS_OWNER")
+                .or_else(|| set("JC_GITEA_OWNER"))
+                .ok_or_else(|| ConfigError::Invalid {
+                    var: "JC_PORTAL_APPS_REGISTRY",
+                    reason: "the images live under the forge's organization, and JC_GITEA_OWNER \
+                             is not set"
                         .to_owned(),
-            })?;
+                })?;
             Some(format!("{registry}/{owner}"))
         }
     };
@@ -1162,6 +1178,7 @@ impl Config {
         let app_tests = app_tests(&lookup)?;
         let basemap = basemap_config(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
+        let health_dir = lookup("JC_HEALTH_DIR").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
         let bootstrap_admins = lookup("JC_PORTAL_BOOTSTRAP_ADMINS")
             .map(|v| v.trim().to_owned())
@@ -1224,6 +1241,7 @@ impl Config {
             apps_cache_dir,
             apps_url,
             branding_file,
+            health_dir,
             database_url,
             bootstrap_admins,
             journey_users,
@@ -1272,6 +1290,7 @@ impl Config {
             apps_cache_dir: None,
             apps_url: None,
             branding_file: None,
+            health_dir: None,
             database_url: None,
             // The dev realm's approver role: a test session that carries it may do everything,
             // one that does not is bound by whatever Role/RoleBinding the test puts in the mirror.
@@ -1734,6 +1753,21 @@ mod tests {
         );
         assert_eq!(dev.pull_secret.as_deref(), Some("app-registry"));
         assert_eq!(dev.apisix_namespace, "dev");
+
+        // PF-105: an installation whose applications have their own organization publishes and
+        // pulls their images there.
+        let apart = Config::from_vars(with(vec![
+            ("JC_PORTAL_APPS_REGISTRY", "2.28.67.127.sslip.io"),
+            ("JC_GITEA_OWNER", "joinedcontext"),
+            ("JC_GITEA_APPS_OWNER", "joinedcontext-apps"),
+        ]))
+        .unwrap()
+        .app_settings
+        .unwrap();
+        assert_eq!(
+            apart.image_of("air-quality", "sha256:ab").as_deref(),
+            Some("2.28.67.127.sslip.io/joinedcontext-apps/app-air-quality@sha256:ab")
+        );
 
         for (var, value) in [
             ("JC_PORTAL_APPS_REGISTRY", "https://forge.example.org"),

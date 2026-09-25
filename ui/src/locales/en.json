@@ -413,7 +413,41 @@
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first."
     },
-    "segment": "ids: {segment}"
+    "segment": "ids: {segment}",
+    "quality": {
+      "title": "Data quality",
+      "notYet": "Not checked yet: the platform checks this space's data once a day.",
+      "nothingToCheck": "No entities to check",
+      "valid": "{share} valid",
+      "rulesFailing": "{count, plural, =0 {no rule failing} one {# rule failing} other {# rules failing}}",
+      "allFresh": "fresh",
+      "stale": "{count, plural, one {# pipeline stale} other {# pipelines stale}}",
+      "checkedAt": "{count, plural, one {# entity} other {# entities}} checked {when}.",
+      "truncated": "Only the first 20,000 were read.",
+      "rulesCaption": "The rules the space's entities break",
+      "rule": "Rule",
+      "attribute": "Attribute",
+      "entities": "Entities",
+      "examples": "Examples",
+      "wholeEntity": "the entity itself",
+      "examplesHidden": "Only people who read the space's entities see which ones",
+      "freshnessCaption": "How recent each pipeline's data is",
+      "pipeline": "Pipeline",
+      "type": "Type",
+      "newest": "Newest",
+      "target": "Expected within",
+      "state": "State",
+      "anyType": "any type",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "paused": "Paused",
+      "states": {
+        "fresh": "Fresh",
+        "stale": "Stale",
+        "empty": "Empty",
+        "untargeted": "No target"
+      }
+    }
   },
   "endpoints": {
     "check": "Check",
@@ -1380,6 +1414,18 @@
         "credential": "Credential",
         "expires": "Expires",
         "lastUsed": "Last used"
+      },
+      "claim": {
+        "title": "A key your MCP client asked for",
+        "hint": "Confirm it here to see the key. Your MCP client was not given it.",
+        "mint": "Mint a new key for the credential {credential} of {account}.",
+        "rotate": "Rotate key {keyId} of {account}: a successor is minted, and the current key keeps working for {hours, plural, one {# hour} other {# hours}}.",
+        "expires": "The new key expires {date}.",
+        "until": "This link works until {time}.",
+        "confirmMint": "Mint and show the key",
+        "confirmRotate": "Rotate and show the key",
+        "cancel": "Not now",
+        "gone": "This link has expired, was already used, or belongs to someone else. Ask for the key again from your MCP client."
       }
     },
     "matrix": {
@@ -2132,6 +2178,13 @@
       "noOthers": "No other group holds this role.",
       "give": "Give this role to a group",
       "groupsUnreadable": "Your role does not list the organization's groups."
+    },
+    "check": {
+      "green": "Working",
+      "red": "Failing",
+      "amber": "Not checked lately",
+      "line": "Checked {when}",
+      "lineWithReason": "Checked {when}: {reason}"
     }
   },
   "appLifecycle": {
@@ -3479,7 +3532,8 @@
       "groups": "Groups",
       "service-accounts": "Service accounts",
       "projects": "Projects",
-      "setup": "Setup"
+      "setup": "Setup",
+      "health": "Health"
     },
     "settings": {
       "title": "Settings",
@@ -3701,6 +3755,37 @@
           "title": "Backups",
           "hint": "Scheduled database backups to object storage (postgres.backups)."
         }
+      }
+    },
+    "health": {
+      "title": "Validation health",
+      "lead": "Every check that validates this installation, from its last published run: drift and the supply chain, conformance, the authorization matrix, performance budgets, the restore drill and the live sweep.",
+      "hidden": "Only an administrator of the organization can see the validation health.",
+      "caption": "The validation checks and their last run",
+      "check": "Check",
+      "state": "State",
+      "lastRun": "Last run",
+      "results": "Results",
+      "trend": "Last 7 days",
+      "failures": "Failures",
+      "empty": "No check has published a result yet",
+      "emptyHint": "Each check publishes its result after it runs; the first ones appear after the next hourly batch.",
+      "unreadableHint": "The published result is not one this page can read; publish it again.",
+      "counts": "{pass} passed, {fail} failed, {error} errors, {skip} skipped",
+      "trendLabel": "{runs, plural, one {# run} other {# runs}} in 7 days, {red} of them red",
+      "showFailures": "{count, plural, one {Show # failure} other {Show # failures}}",
+      "task": "(task {task})",
+      "states": {
+        "green": "Green",
+        "red": "Red",
+        "stale": "Stale",
+        "unreadable": "Unreadable"
+      },
+      "summary": {
+        "green": "Everything green",
+        "red": "{count, plural, one {# check red} other {# checks red}}",
+        "stale": "{count, plural, one {# check stale} other {# checks stale}}",
+        "unreadable": "{count, plural, one {# result unreadable} other {# results unreadable}}"
       }
     }
   },

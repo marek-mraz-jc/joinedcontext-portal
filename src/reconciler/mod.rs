@@ -21,6 +21,7 @@ pub mod realm;
 pub mod registrations;
 pub mod streams;
 pub mod subscriptions;
+pub mod workload_clients;
 
 pub use daemon::{SyncError, SyncStatus, Syncer};
 pub use leader::Leadership;
