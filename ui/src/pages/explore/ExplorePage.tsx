@@ -10,7 +10,7 @@ import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, useModelSource } from "../../components/entities/filters";
+import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, relationsOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select } from "../../components/ui";
 import { writesOf } from "../access/EffectivePermissions";
@@ -114,6 +114,8 @@ export function ExplorePage({
   const slots = useMemo(() => filterSlotsOf(modelSource, query.type), [modelSource, query.type]);
   // An enum slot is edited and filtered in the grid by picking its values (UI-86).
   const enums = useMemo(() => enumsOfModel(modelSource, query.type, locale), [modelSource, query.type, locale]);
+  // A relationship end is picked from the target's entities the person can read (UI-84).
+  const relations = useMemo(() => relationsOfModel(modelSource, query.type), [modelSource, query.type]);
   const access = useAccess(slug);
   const denied = useMemo(
     () => deniedAttributes(access.data, query.type, slots, t),
@@ -332,6 +334,8 @@ export function ExplorePage({
           project={project}
           config={config}
           enums={enums}
+          relations={relations}
+          onOpenRelationship={setSelected}
           onRows={onRows}
           renderers={renderers}
           toolbar={

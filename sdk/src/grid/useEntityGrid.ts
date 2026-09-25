@@ -10,6 +10,7 @@ import { andQ, opsForKind, queryFromFilters } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
 import type { AttributeChange, EntityChange } from "./apply";
 import type { EnumOption } from "../enums";
+import type { RelationEnd } from "../relations";
 
 export type MetaKey = "observedAt" | "unit" | "datasetId" | "createdAt" | "modifiedAt";
 
@@ -74,6 +75,13 @@ export interface GridLabels {
   refusedHere: string;
   /** Said beside a stored value the attribute's enum does not list (UI-86). */
   notInList: string;
+  /** A relationship cell's picker: "Search School", nothing found, remove a target (UI-84). */
+  relationSearch: string;
+  relationNone: string;
+  relationRemove: string;
+  relationFailed: string;
+  /** Said after a computed end's list when the page's read reached its limit. */
+  relationMore: string;
 }
 
 /**
@@ -134,6 +142,11 @@ export const DEFAULT_LABELS: GridLabels = {
   applying: "Applying…",
   refusedHere: "refused",
   notInList: "not in the list",
+  relationSearch: "Search",
+  relationNone: "Nothing you can read matches",
+  relationRemove: "Remove",
+  relationFailed: "The search failed",
+  relationMore: "and more",
 };
 
 export interface VisibleColumn {
@@ -156,6 +169,12 @@ export interface UseEntityGridOptions {
    * them (`enumOptions`): such a column is edited and filtered by picking (UI-86).
    */
   enums?: Record<string, EnumOption[]>;
+  /**
+   * The relationship ends of the type, by attribute name, as the model states them: a stored end
+   * is edited by picking entities of its target, a computed end (`inverseOf`) is a read-only list
+   * of the entities pointing back (UI-84, DM-67).
+   */
+  relations?: Record<string, RelationEnd>;
 }
 
 export interface EntityGrid {
@@ -218,6 +237,7 @@ function buildColumns(
   rows: RichRow[],
   shown: Record<string, MetaKey[]>,
   labels: GridLabels,
+  relations: Record<string, RelationEnd> = {},
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
@@ -230,7 +250,12 @@ function buildColumns(
     cols.push({ key: "entity:modifiedAt", attr: null, meta: null, label: labels.modifiedAt, pinned: false });
   }
 
-  const attrList = config.columns.length > 0 ? config.columns.map((c) => c.attr) : attributesOf(rows);
+  // The model's relationship ends are columns even on a page where no entity holds one yet: an
+  // empty end is what a person comes to fill, and a computed end is never in a row at all.
+  const attrList =
+    config.columns.length > 0
+      ? config.columns.map((c) => c.attr)
+      : [...new Set([...attributesOf(rows), ...Object.keys(relations)])];
   const colMap = new Map<string, GridColumn>();
   for (const c of config.columns) {
     colMap.set(c.attr, c);
@@ -353,7 +378,7 @@ export function filterKindOf(
 }
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations } = options;
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
 
   // Internal state (uncontrolled)
@@ -401,7 +426,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const cancelledRef = useRef(false);
   const nonceRef = useRef(0);
 
-  const columns = useMemo(() => buildColumns(config, rows, shown, labels), [config, rows, shown, labels]);
+  const columns = useMemo(() => buildColumns(config, rows, shown, labels, relations), [config, rows, shown, labels, relations]);
   // Sorting orders the loaded page only; the server's order decides which rows are on it (UI-66).
   const sortedRows = useMemo(() => {
     if (!sort) return rows;
@@ -427,8 +452,9 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           kind: filterKindOf(column, config, rows, enums),
           options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
         }))
-        .filter((column) => opsForKind(column.kind).length > 0),
-    [columns, config, rows, enums],
+        // A computed end is not stored, so no `q` can ask about it.
+        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf)),
+    [columns, config, rows, enums, relations],
   );
 
   // What the endpoint is asked for: the typed query when the person took it over, else the row's.
@@ -456,12 +482,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           unitCode: one?.unitCode,
           // The cell's own kind decides how it is written: a geometry as a GeoProperty, so the
           // attribute keeps the type the model gave it (UI-72).
-          kind: one?.kind === "relationship" ? "relationship" : one?.kind === "geo" ? "geo" : "property",
+          // A model's relationship end is one even where the entity has no target on it yet.
+          kind: one?.kind === "relationship" || relations?.[attribute] ? "relationship" : one?.kind === "geo" ? "geo" : "property",
         };
       });
       return { id, changes };
     });
-  }, [edits, rows]);
+  }, [edits, rows, relations]);
 
   // The question the source is asked, written out as a string, because the fetch must depend on the
   // question and not on the identity of the objects it is built from. `askedQuery` comes from the
