@@ -232,6 +232,9 @@ impl AgentStore {
             });
         }
 
+        if next.is_terminal() {
+            crate::telemetry::run_finished(&run.kind, next);
+        }
         if let Some(pool) = &self.db {
             db::update_agent_run_status(pool, id, next.as_str(), error, next.is_terminal())
                 .await

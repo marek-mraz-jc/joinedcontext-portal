@@ -2304,6 +2304,21 @@
       "title": "Fortschritt",
       "usage": "{steps} Schritte, {tokens} Tokens verbraucht."
     },
+    "timeSpent": {
+      "title": "Wohin die Zeit ging",
+      "model": "Modell",
+      "tools": "Werkzeuge",
+      "waiting": "Wartet auf Sie",
+      "modelCall": "Modellaufruf",
+      "modelCallOf": "Modellaufruf ({model})",
+      "waitingStep": "Wartet auf Ihre Antwort",
+      "failed": "fehlgeschlagen",
+      "slowest": "Langsamster Schritt: {step}, {took}.",
+      "caption": "Alle gemessenen Schritte des Laufs der Reihe nach",
+      "started": "Beginn",
+      "step": "Schritt",
+      "took": "Dauer"
+    },
     "conversation": {
       "details": "{count, plural, one {Details (# Zeile)} other {Details (# Zeilen)}}",
       "title": "Gespräch",

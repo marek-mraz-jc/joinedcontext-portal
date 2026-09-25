@@ -705,23 +705,20 @@ async fn an_app_is_served_on_the_apps_origin() {
 #[tokio::test]
 async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
     let dir = app_root("csrf-cookie", &[("index.html", INDEX)]);
-    let config = Config {
-        apps_dir: Some(dir.path().to_string_lossy().into_owned()),
-        ..Config::for_tests()
-    };
-    let session: String = common::cookie(&config, common::person("jana"))
-        .split("; ")
-        .filter(|part| !part.starts_with("jc_csrf="))
-        .collect::<Vec<_>>()
-        .join("; ");
+    let config = edge_config(dir.path());
+    let token = common::REALM.person_token("air-quality", "jana", &[]);
     let app = server::app(
         AppState::new(config, None).with_mirror(mirror_with_app(app_spec("published"))),
     );
-    let csrf_cookie = |cookie: Option<&str>| {
+    let csrf_cookie = |signed_in: bool, cookie: Option<&str>| {
         let app = app.clone();
         let cookie = cookie.map(str::to_owned);
+        let token = signed_in.then(|| token.clone());
         async move {
             let mut request = Request::builder().uri("/apps/air-quality/");
+            if let Some(token) = token {
+                request = request.header("x-access-token", token);
+            }
             if let Some(cookie) = cookie {
                 request = request.header(header::COOKIE, cookie);
             }
@@ -740,7 +737,7 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
         }
     };
 
-    let issued = csrf_cookie(Some(&session))
+    let issued = csrf_cookie(true, None)
         .await
         .expect("a CSRF cookie for the signed-in person");
     assert!(
@@ -748,30 +745,49 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
         "{issued}"
     );
     assert_eq!(
-        csrf_cookie(None).await,
+        csrf_cookie(false, None).await,
         None,
         "nothing for an anonymous visitor"
     );
-    let held = format!("{session}; jc_csrf=already-held");
-    assert_eq!(csrf_cookie(Some(&held)).await, None, "a held token is kept");
+    assert_eq!(
+        csrf_cookie(true, Some("jc_csrf=already-held")).await,
+        None,
+        "a held token is kept"
+    );
 }
 
-/// One request for the app as `identity`, or anonymously.
+/// A Portal behind the edge, trusting the process's realm, serving the apps under `root`.
+fn edge_config(root: &std::path::Path) -> Config {
+    let realm = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("a realm");
+    Config {
+        apps_dir: Some(root.to_string_lossy().into_owned()),
+        trust_edge_token: true,
+        ..realm
+    }
+}
+
+/// One request for the app with the edge's `token`, or anonymously.
 async fn get_as(
     root: &std::path::Path,
     mirror: Arc<Mirror>,
-    identity: Option<joinedcontext_portal::auth::session::Identity>,
+    token: Option<String>,
     uri: &str,
 ) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
-    let config = Config {
-        apps_dir: Some(root.to_string_lossy().into_owned()),
-        ..Config::for_tests()
-    };
+    let config = edge_config(root);
     let mut request = Request::builder()
         .uri(uri)
         .header(header::ACCEPT_LANGUAGE, "en");
-    if let Some(identity) = identity {
-        request = request.header(header::COOKIE, common::cookie(&config, identity));
+    if let Some(token) = token {
+        request = request.header("x-access-token", token);
     }
     let app = server::app(AppState::new(config, None).with_mirror(mirror));
     let response = app
@@ -820,9 +836,16 @@ async fn a_person_without_a_role_is_refused_with_the_roles_and_no_member() {
         "roles-refused",
         &[("index.html", INDEX), ("app.js", BUNDLE_JS)],
     );
+    // Petra holds no role of this App; the Portal's own login and another App's token are not
+    // this App's, whatever roles they carry (AP-92).
+    let petra = common::REALM.person_token("air-quality", "petra", &[]);
+    let portal = common::REALM.person_token_of("portal-api", "portal-api", "jana", &["steward"]);
+    let other = common::REALM.person_token("other", "jana", &["steward"]);
     for (who, uri) in [
-        (Some(common::person("petra")), "/apps/air-quality/"),
-        (Some(common::person("petra")), "/apps/air-quality/app.js"),
+        (Some(petra.clone()), "/apps/air-quality/"),
+        (Some(petra), "/apps/air-quality/app.js"),
+        (Some(portal), "/apps/air-quality/"),
+        (Some(other), "/apps/air-quality/"),
         (None, "/apps/air-quality/"),
     ] {
         let (status, headers, body) = get_as(dir.path(), roles_app(), who, uri).await;
@@ -850,9 +873,9 @@ async fn a_person_without_a_role_is_refused_with_the_roles_and_no_member() {
 #[tokio::test]
 async fn a_member_is_served_the_index_with_their_roles_and_no_store() {
     let dir = app_root("roles-served", &[("index.html", INDEX)]);
-    let mut jana = common::person("jana");
-    jana.roles = vec!["platform-admin".into()];
-    jana.groups = vec!["ovzdusie-operations".into()];
+    // The token's realm roles and other clients' roles are left out; its roles of this App's
+    // client come in the order the manifest declares them.
+    let jana = common::REALM.person_token("air-quality", "jana", &["steward", "viewer"]);
     let (status, headers, body) =
         get_as(dir.path(), roles_app(), Some(jana), "/apps/air-quality/").await;
     assert_eq!(status, StatusCode::OK);
@@ -861,7 +884,7 @@ async fn a_member_is_served_the_index_with_their_roles_and_no_store() {
         served_config(&body)["user"],
         serde_json::json!({
             "id": "sub-jana",
-            "name": "jana",
+            "name": "jana@hel.fi",
             "email": "jana@hel.fi",
             "roles": ["viewer", "steward"]
         })

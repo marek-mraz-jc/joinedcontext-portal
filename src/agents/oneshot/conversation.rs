@@ -158,7 +158,20 @@ impl Driver {
         }
     }
 
+    /// One turn of the conversation: the answer to `text`, timed from the message to the answer
+    /// however it ends (AG-72, T-2771).
     pub(crate) async fn converse(
+        &self,
+        conversation: &[(String, String)],
+        text: &str,
+    ) -> Result<String, String> {
+        let started = std::time::Instant::now();
+        let answer = self.answer_turn(conversation, text).await;
+        crate::telemetry::answered(started.elapsed().as_secs_f64());
+        answer
+    }
+
+    async fn answer_turn(
         &self,
         conversation: &[(String, String)],
         text: &str,

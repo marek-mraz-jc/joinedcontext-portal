@@ -2304,6 +2304,21 @@
       "title": "Průběh",
       "usage": "{steps} kroků, spotřebováno {tokens} tokenů."
     },
+    "timeSpent": {
+      "title": "Kam šel čas",
+      "model": "Model",
+      "tools": "Nástroje",
+      "waiting": "Čeká se na vás",
+      "modelCall": "Volání modelu",
+      "modelCallOf": "Volání modelu ({model})",
+      "waitingStep": "Čeká se na vaši odpověď",
+      "failed": "selhalo",
+      "slowest": "Nejpomalejší krok: {step}, {took}.",
+      "caption": "Všechny měřené kroky běhu v pořadí",
+      "started": "Začátek",
+      "step": "Krok",
+      "took": "Trvání"
+    },
     "conversation": {
       "details": "{count, plural, one {Podrobnosti (# řádek)} few {Podrobnosti (# řádky)} other {Podrobnosti (# řádků)}}",
       "title": "Rozhovor",

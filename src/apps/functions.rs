@@ -18,7 +18,6 @@ use axum::Json;
 
 use super::static_host::{
     app_root, integrity_of, is_origin, published_app, served_config, sri_sha384, to_apps_origin,
-    OptionalUser,
 };
 use crate::api::agent_runs::{invoke, is_function_name, InvokeError, RefusedStatus};
 use crate::auth::session::EDGE_TOKEN_HEADER;
@@ -32,7 +31,6 @@ pub const MAX_BODY_BYTES: usize = 256 * 1024;
 const BUNDLE: &str = "functions.js";
 
 pub(super) async fn call(
-    OptionalUser(user): OptionalUser,
     State(state): State<AppState>,
     headers: HeaderMap,
     uri: Uri,
@@ -54,8 +52,8 @@ pub(super) async fn call(
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
-    let identity = user.as_ref().map(|user| &user.0.identity);
-    if !super::roles::may_open(&spec, identity) {
+    let person = super::roles::person(&state, &headers, &spec, &name).await;
+    if !super::roles::may_open(&spec, person.as_ref()) {
         return not_found();
     }
     let token = edge_token(&state, &headers);
@@ -102,7 +100,7 @@ pub(super) async fn call(
         "method": "POST",
         "query": query,
         "body": input,
-        "user": super::roles::app_user(&spec, identity),
+        "user": super::roles::app_user(person.as_ref()),
     });
     let modules = BTreeMap::from([
         ("@app/functions.js".to_owned(), bundle),
