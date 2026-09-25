@@ -11,7 +11,7 @@
 //! an id is whatever the mapping produced, and a message can quote the source.
 
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::RwLock;
 
 /// The label of the outcome sink in a rendered stream, which the metrics leave out.
@@ -345,6 +345,52 @@ impl LogStore {
         }
     }
 
+    /// Drops the runs and the log of every pipeline a project `loaded` no longer holds, as
+    /// [`crate::pipeline_outcomes::RejectedStore::forget_gone`] does with the refused records.
+    pub async fn forget_gone(
+        &self,
+        loaded: &BTreeMap<String, HashSet<String>>,
+    ) -> Result<(), sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let scope: Vec<&str> = loaded.keys().map(String::as_str).collect();
+                let (projects, pipelines): (Vec<&str>, Vec<&str>) = loaded
+                    .iter()
+                    .flat_map(|(project, names)| {
+                        names.iter().map(move |n| (project.as_str(), n.as_str()))
+                    })
+                    .unzip();
+                let mut tx = pool.begin().await?;
+                for statement in [
+                    "DELETE FROM pipeline_log r WHERE r.project = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM \
+                     UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
+                     WHERE k.project = r.project AND k.pipeline = r.pipeline)",
+                    "DELETE FROM pipeline_runs r WHERE r.project = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM \
+                     UNNEST($2::text[], $3::text[]) AS k(project, pipeline) \
+                     WHERE k.project = r.project AND k.pipeline = r.pipeline)",
+                ] {
+                    sqlx::query(statement)
+                        .bind(&scope)
+                        .bind(&projects)
+                        .bind(&pipelines)
+                        .execute(&mut *tx)
+                        .await?;
+                }
+                tx.commit().await
+            }
+            Inner::Memory(map) => {
+                map.write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .retain(|(project, pipeline), _| {
+                        loaded
+                            .get(project)
+                            .is_none_or(|names| names.contains(pipeline))
+                    });
+                Ok(())
+            }
+        }
+    }
+
     /// The pipeline's runs, the one with the latest line first, at most `limit`.
     pub async fn runs(
         &self,
@@ -572,6 +618,32 @@ mod tests {
         let kept = &store.lines("p", "x", "r", 1, None).await.expect("line")[0];
         assert_eq!(kept.record_id, crate::pipeline_outcomes::MASK);
         assert!(!kept.message.contains("abc123def456"), "{}", kept.message);
+    }
+
+    #[tokio::test]
+    async fn a_pipeline_that_is_gone_takes_its_runs_and_log_with_it() {
+        let store = LogStore::new(None);
+        for (project, pipeline) in [("p", "kept"), ("p", "deleted"), ("q", "unread")] {
+            store
+                .append(project, pipeline, "r", &[line("urn", Outcome::Sent, "")])
+                .await
+                .expect("kept");
+        }
+        // `q` did not stage this sync: none of its pipelines is in the mirror, and it keeps them.
+        let loaded = BTreeMap::from([("p".to_owned(), HashSet::from(["kept".to_owned()]))]);
+        store.forget_gone(&loaded).await.expect("forgotten");
+        assert_eq!(store.runs("q", "unread", 10).await.expect("runs").len(), 1);
+        assert_eq!(store.runs("p", "kept", 10).await.expect("runs").len(), 1);
+        assert!(store
+            .runs("p", "deleted", 10)
+            .await
+            .expect("runs")
+            .is_empty());
+        assert!(store
+            .lines("p", "deleted", "r", 10, None)
+            .await
+            .expect("lines")
+            .is_empty());
     }
 
     #[test]

@@ -159,6 +159,12 @@ pub struct Syncer {
     /// database: a challenge that did not outlive a restart would fail every published record.
     domains:
         Option<Arc<crate::domain_verification::Verifier<crate::domain_verification::NetLookup>>>,
+    /// Each pipeline's refused records and run log (PL-61, PL-62): a pipeline the repository no
+    /// longer holds takes them with it. `None` keeps them, which a unit test's syncer does.
+    pipeline_outcomes: Option<(
+        Arc<crate::pipeline_outcomes::RejectedStore>,
+        Arc<crate::pipeline_log::LogStore>,
+    )>,
 }
 
 impl Syncer {
@@ -195,6 +201,7 @@ impl Syncer {
             webhook_secrets: None,
             ckan: None,
             domains: None,
+            pipeline_outcomes: None,
         }
     }
 
@@ -262,6 +269,16 @@ impl Syncer {
     /// Makes each run tell the activity feed what it applied (OPS-48, UI-31).
     pub fn with_activity(mut self, activity: ActivityStore) -> Self {
         self.activity = Some(activity);
+        self
+    }
+
+    /// Forgets the refused records and the log of a pipeline once it is gone (PL-61, PL-62).
+    pub fn with_pipeline_outcomes(
+        mut self,
+        rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
+        log: Arc<crate::pipeline_log::LogStore>,
+    ) -> Self {
+        self.pipeline_outcomes = Some((rejected, log));
         self
     }
 
@@ -850,6 +867,32 @@ impl Syncer {
         let refused = self
             .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
             .await;
+
+        // 5a*. A pipeline the repository no longer holds takes its refused records and its log
+        //      with it (PL-61, PL-62); a paused one is still in the repository and keeps them.
+        //      Only the leader, only after a sync that loaded, and only in a project this sync
+        //      read: a project whose repository did not stage holds nothing in the mirror.
+        //      ponytail: a deleted project's rows stay (it holds nothing to compare against);
+        //      drop them with the project's archive when PF-77 grows a data purge.
+        if let Some((rejected, log)) = self.pipeline_outcomes.as_ref() {
+            let mut loaded: std::collections::BTreeMap<String, std::collections::HashSet<String>> =
+                Default::default();
+            for envelope in fresh_mirror.matching(|_| true) {
+                let Some(project) = envelope.metadata.namespace else {
+                    continue;
+                };
+                let names = loaded.entry(project).or_default();
+                if envelope.kind == "Pipeline" {
+                    names.insert(envelope.metadata.name);
+                }
+            }
+            if let Err(error) = rejected.forget_gone(&loaded).await {
+                tracing::warn!(%error, "the refused records of deleted pipelines were not dropped");
+            }
+            if let Err(error) = log.forget_gone(&loaded).await {
+                tracing::warn!(%error, "the run logs of deleted pipelines were not dropped");
+            }
+        }
 
         // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
         //     validation stage of its space's model at the version the space pins now (PL-60).
