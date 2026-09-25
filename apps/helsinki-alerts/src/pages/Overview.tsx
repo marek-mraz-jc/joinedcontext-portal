@@ -1,4 +1,4 @@
-import { useEntities, useFunction, useMe } from "@joinedcontext/sdk";
+import { Card, Grid, Page, useEntities, useFunction, useMe } from "@joinedcontext/sdk";
 import { Loading, Problem } from "../components/states";
 import { StatTiles } from "../components/StatTiles";
 import { ALERT } from "../alerts";
@@ -27,11 +27,10 @@ export function Overview() {
   const summary = useFunction<Summary>("summary", {});
   const me = useMe();
   return (
-    <section className="app-page" aria-label="Overview">
+    <Page label="Overview">
       <Problem error={error} />
       <StatTiles rows={rows} loading={loading} tiles={[{ label: "Alerts", agg: "count" }]} />
-      <article className="app-card" aria-label="Summary">
-        <h2>Summary</h2>
+      <Card title="Summary">
         {summary.loading && <Loading />}
         <Problem error={summary.error} onRetry={summary.reload} />
         {summary.data && (
@@ -41,15 +40,15 @@ export function Overview() {
                 ? `Oldest open alert: ${summary.data.oldestOpen.name ?? summary.data.oldestOpen.id}, issued ${summary.data.oldestOpen.dateIssued}`
                 : "No alert is open."}
             </p>
-            <div className="app-grid">
+            <Grid columns={2}>
               <Counts label="By category" counts={summary.data.byCategory} />
               <Counts label="By subCategory" counts={summary.data.bySubCategory} />
-            </div>
+            </Grid>
             {summary.data.ownRecords !== undefined && <p>Alerts stewards added: {summary.data.ownRecords}</p>}
           </>
         )}
-      </article>
+      </Card>
       {me && <p className="app-muted">Signed in as {me.name ?? me.email ?? me.id}{me.roles?.length ? ` · ${me.roles.join(", ")}` : ""}</p>}
-    </section>
+    </Page>
   );
 }
