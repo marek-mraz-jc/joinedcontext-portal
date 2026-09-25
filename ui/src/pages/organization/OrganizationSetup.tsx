@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
-import { ORG_NAMESPACE } from "../../api/manifest";
-import { allows, usePermissions } from "../../api/permissions";
+import { useAdministers } from "../../api/permissions";
 import { Alert, Badge, buttonClass, PageFailed, PageLoading } from "../../components/ui";
 
 /**
@@ -52,16 +51,6 @@ function State({ done }: { done: boolean }): JSX.Element {
       {done ? t("organization.setup.done") : t("organization.setup.todo")}
     </Badge>
   );
-}
-
-/** Whether the person approves changes to the organization (`org-admin`), the rule the setup read is behind. */
-function useAdministers(): { known: boolean; administers: boolean } {
-  const permissions = usePermissions(ORG_NAMESPACE);
-  return {
-    known: !permissions.isLoading,
-    // No document (the read failed): the page asks and the API decides, as `allows` does.
-    administers: !permissions.isLoading && allows(permissions.data, "Organization", "approve"),
-  };
 }
 
 export function OrganizationSetup({ anchor }: { anchor: string }): JSX.Element {

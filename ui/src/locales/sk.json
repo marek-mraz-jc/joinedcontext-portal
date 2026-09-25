@@ -70,7 +70,7 @@
     "workspaces": "Kópie",
     "policies": "Politiky",
     "subscriptions": "Odbery",
-    "organization": "Organizácia",
+    "organization": "Administrácia",
     "settings": "Nastavenia projektu",
     "profile": "Váš účet",
     "catalogue": "Katalóg"
@@ -1579,7 +1579,6 @@
   },
   "export": {
     "title": "Stiahnuť konfiguráciu",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Všetko, čo projekt {project} deklaruje, tak ako to je v repozitári.",
     "hintResource": "Manifest {name}, tak ako je v repozitári.",
@@ -3554,7 +3553,8 @@
       "organization": "Každý prihlásený človek organizácie",
       "members": "Iba ľudia, ktorých menuje väzba"
     },
-    "title": "Organizácia",
+    "title": "Administrácia",
+    "adminOnly": "Táto stránka je pre administrátorov organizácie. O to, čo tu potrebujete, požiadajte niektorého z nich.",
     "lead": "Čo je rovnaké v každom projekte: nastavenia organizácie, jej členovia, roly, skupiny a servisné účty a jej projekty. Každá zmena sa tu navrhuje a schvaľuje.",
     "tabsLabel": "Časti organizácie",
     "tab": {
@@ -3602,7 +3602,8 @@
       "emptyHint": "Prvý otvoríte tlačidlom Nový projekt.",
       "own": "{count, plural, =0 {Žiadne vlastné} one {# vlastné} few {# vlastné} other {# vlastných}}",
       "throughOrganization": "{count, plural, one {# cez organizáciu} few {# cez organizáciu} other {# cez organizáciu}}",
-      "settings": "Nastavenia"
+      "settings": "Nastavenia",
+      "export": "Exportovať"
     },
     "people": {
       "title": "Ľudia",

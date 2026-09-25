@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "./client";
+import { ORG_NAMESPACE } from "./manifest";
 import type { components } from "./schema";
 
 /** What the caller may do in one project, from the bindings of the organization repository (PF-50). */
@@ -77,6 +78,19 @@ export function usePermissions(project: string) {
 }
 
 /** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
+/**
+ * Whether the caller administers the organization: `approve` on `Organization`, which the seeded
+ * `org-admin` holds (PF-56, UI-75). `known` is false until the permissions document is read.
+ */
+export function useAdministers(): { known: boolean; administers: boolean } {
+  const permissions = usePermissions(ORG_NAMESPACE);
+  return {
+    known: !permissions.isLoading,
+    // No document (the read failed): the page asks and the API decides, as `allows` does.
+    administers: !permissions.isLoading && allows(permissions.data, "Organization", "approve"),
+  };
+}
+
 export interface GrantedRule {
   kinds?: string[];
   verbs?: string[];

@@ -80,6 +80,16 @@ const VIEWER = {
   grants: [{ role: "viewer", binding: "everyone", rule: { kinds: ["Pipeline", "Project"], verbs: ["read"] } }],
 } as unknown as Effective;
 
+/** Administers the organization and holds nothing else: reads no binding, deletes no project. */
+const BARE_ADMIN = {
+  project: "org",
+  bootstrap: false,
+  grants: [
+    { role: "viewer", binding: "everyone", rule: { kinds: ["Pipeline", "Project"], verbs: ["read"] } },
+    { role: "org-approver", binding: "approvers", rule: { kinds: ["Organization"], verbs: ["approve"] } },
+  ],
+} as unknown as Effective;
+
 interface World {
   permissions?: Effective;
 }
@@ -130,7 +140,7 @@ describe("the Organization page", () => {
   it("names itself once and offers the nine tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
-    const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
+    const tabs = within(await screen.findByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       en.organization.tab.settings,
       en.organization.tab.people,
@@ -181,9 +191,24 @@ describe("the Organization page", () => {
     expect(screen.queryByText("jan@hel.fi")).not.toBeInTheDocument();
   });
 
-  // PF-59, security: anybody else is told who can see them, and the list is never fetched.
+  // UI-75, UI-87 (T-2879): the page is an organization administrator's. Anybody else is told
+  // whose it is, meets no tab, and none of its data is asked for.
+  it("tells a person who does not administer the organization whose page it is, and fetches nothing of it", async () => {
+    const { requests } = renderAt("projects", { permissions: VIEWER });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.projectImport.button })).not.toBeInTheDocument();
+    // The shell's own reads (permissions, branding) go; nothing of the organization does.
+    expect(requests.filter((request) => request.includes("/projects/org/") || request.endsWith("/api/v1/projects"))).toEqual([
+      "GET /api/v1/projects/org/permissions/me",
+    ]);
+  });
+
+  // PF-59, security: an administrator without `read` on RoleBinding is told who can see them,
+  // and the list is never fetched.
   it("tells a person who may not read the bindings who can, and fetches none", async () => {
-    const { requests } = renderAt("members", { permissions: VIEWER });
+    const { requests } = renderAt("members", { permissions: BARE_ADMIN });
     expect(await screen.findByText(en.organization.members.hidden)).toBeInTheDocument();
     expect(requests.filter((request) => request.includes("/rolebindings"))).toEqual([]);
     expect(screen.queryByText("ida@hel.fi")).not.toBeInTheDocument();
@@ -229,10 +254,10 @@ describe("the Organization page", () => {
     expect(screen.queryByText(/in this project/)).toBeNull();
   });
 
-  // UI-44: a viewer meets Delete disabled with the reason, and the count of bound people is not
-  // computed from bindings they may not read.
-  it("keeps Delete in place for a viewer, disabled with the reason, and shows no counts", async () => {
-    const { requests } = renderAt("projects", { permissions: VIEWER });
+  // UI-44: an administrator who may not delete projects meets Delete disabled with the reason,
+  // and the count of bound people is not computed from bindings they may not read.
+  it("keeps Delete in place for who may not delete, disabled with the reason, and shows no counts", async () => {
+    const { requests } = renderAt("projects", { permissions: BARE_ADMIN });
     const helsinki = await screen.findByRole("row", { name: /Helsinki city data/ });
     await waitFor(() => {
       expectDenied(
@@ -242,6 +267,21 @@ describe("the Organization page", () => {
     });
     expect(within(helsinki).getByText(en.organization.projects.peopleHidden)).toBeInTheDocument();
     expect(requests.filter((request) => request.includes("/rolebindings"))).toEqual([]);
+  });
+
+  // UI-87 (T-2879): the whole project's export and a project's import live here.
+  it("offers each project's export and the import of a project", async () => {
+    const user = userEvent.setup();
+    renderAt("projects");
+    const helsinki = await screen.findByRole("row", { name: /Helsinki city data/ });
+    await user.click(within(helsinki).getByRole("button", { name: en.organization.projects.export }));
+    const exporting = await screen.findByRole("dialog");
+    expect(within(exporting).getByRole("radio", { name: (name) => name.startsWith(en.export.formats.whole) })).toBeChecked();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: en.projectImport.button }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
   it("passes axe on every tab", async () => {

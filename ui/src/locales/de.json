@@ -70,7 +70,7 @@
     "workspaces": "Kopien",
     "policies": "Richtlinien",
     "subscriptions": "Abonnements",
-    "organization": "Organisation",
+    "organization": "Verwaltung",
     "settings": "Projekteinstellungen",
     "profile": "Ihr Konto",
     "catalogue": "Katalog"
@@ -1579,7 +1579,6 @@
   },
   "export": {
     "title": "Konfiguration herunterladen",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Alles, was Projekt {project} deklariert, so wie es im Repository steht.",
     "hintResource": "Das Manifest von {name}, so wie es im Repository steht.",
@@ -3554,7 +3553,8 @@
       "organization": "Jede angemeldete Person der Organisation",
       "members": "Nur, wen eine Bindung nennt"
     },
-    "title": "Organisation",
+    "title": "Verwaltung",
+    "adminOnly": "Diese Seite ist für die Administratoren der Organisation. Bitten Sie einen von ihnen um das, was Sie hier brauchen.",
     "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
     "tabsLabel": "Bereiche der Organisation",
     "tab": {
@@ -3602,7 +3602,8 @@
       "emptyHint": "Das erste eröffnen Sie mit Neues Projekt.",
       "own": "{count, plural, =0 {Keine eigenen} one {# eigene} other {# eigene}}",
       "throughOrganization": "{count, plural, one {# über die Organisation} other {# über die Organisation}}",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "export": "Exportieren"
     },
     "people": {
       "title": "Personen",

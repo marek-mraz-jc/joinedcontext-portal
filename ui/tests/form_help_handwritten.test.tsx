@@ -73,6 +73,12 @@ function renderPortal(path: string) {
         bootstrap: false,
         grants: [
           {
+            role: "org-admin",
+            binding: "admins",
+            scope: "organization",
+            rule: { kinds: ["Organization"], verbs: ["approve"] },
+          },
+          {
             role: "keeper",
             binding: "keepers",
             scope: "organization",

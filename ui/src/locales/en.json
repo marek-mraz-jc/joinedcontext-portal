@@ -70,7 +70,7 @@
     "workspaces": "Copies",
     "policies": "Policies",
     "subscriptions": "Subscriptions",
-    "organization": "Organization",
+    "organization": "Administration",
     "settings": "Project settings",
     "profile": "Your account",
     "catalogue": "Catalogue"
@@ -1579,7 +1579,6 @@
   },
   "export": {
     "title": "Download configuration",
-    "project": "Export",
     "action": "Export",
     "hintProject": "Everything project {project} declares, as it is in the repository.",
     "hintResource": "The manifest of {name}, as it is in the repository.",
@@ -3554,7 +3553,8 @@
       "organization": "Every signed-in person of the organization",
       "members": "Only the people a binding names"
     },
-    "title": "Organization",
+    "title": "Administration",
+    "adminOnly": "This page is for organization administrators. Ask one of them for what you need here.",
     "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
     "tabsLabel": "Parts of the organization",
     "tab": {
@@ -3602,7 +3602,8 @@
       "emptyHint": "Open the first one with New project.",
       "own": "{count, plural, =0 {None of its own} one {# of its own} other {# of its own}}",
       "throughOrganization": "{count, plural, one {# through the organization} other {# through the organization}}",
-      "settings": "Settings"
+      "settings": "Settings",
+      "export": "Export"
     },
     "people": {
       "title": "People",

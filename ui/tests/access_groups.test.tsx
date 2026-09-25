@@ -69,6 +69,12 @@ function renderAccess(verbs: string[]) {
         bootstrap: false,
         grants: [
           {
+            role: "org-admin",
+            binding: "admins",
+            scope: "organization",
+            rule: { kinds: ["Organization"], verbs: ["approve"] },
+          },
+          {
             role: "group-keeper",
             binding: "keepers",
             scope: "organization",
