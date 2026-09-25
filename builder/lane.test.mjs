@@ -1,6 +1,6 @@
 // node --test builder/lane.test.mjs (vite from sdk/node_modules for the bundle test)
 import { strict as assert } from "node:assert";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -385,4 +385,53 @@ test("the crates of a Cargo.lock are SBOM components, registry crates only", () 
     { type: "library", name: "axum", version: "0.8.4", purl: "pkg:cargo/axum@0.8.4" },
   ]);
   assert.deepEqual(cratesOf(""), []);
+});
+
+test("a fullstack build starts from a copy of the precompiled dependencies, times kept (AP-106, T-2794)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lane-seed-"));
+  const from = join(dir, "seed");
+  mkdirSync(join(from, "release", "deps"), { recursive: true });
+  const rlib = join(from, "release", "deps", "libserde-1.rlib");
+  writeFileSync(rlib, "compiled");
+  const built = new Date("2026-09-01T00:00:00Z");
+  utimesSync(rlib, built, built);
+  const to = join(dir, "job", "target");
+  mkdirSync(to, { recursive: true });
+  writeFileSync(join(to, "left-by-an-earlier-job"), "x");
+
+  assert.match(lane.seed(from, to), /are the start of this build/);
+  const copied = join(to, "release", "deps", "libserde-1.rlib");
+  assert.equal(readFileSync(copied, "utf8"), "compiled");
+  // Cargo reads a dependency as fresh by its output's time; a copy stamped now would still be
+  // fresh, but a copy older than its dependents would rebuild them.
+  assert.equal(statSync(copied).mtime.getTime(), built.getTime());
+  assert.equal(existsSync(join(to, "left-by-an-earlier-job")), false, "nothing of an earlier job survives");
+
+  // A copy, not a link: what the build writes never reaches the seed.
+  writeFileSync(copied, "rebuilt by the app");
+  assert.equal(readFileSync(rlib, "utf8"), "compiled");
+});
+
+test("a missing seed, or one that fails to copy, leaves an empty target and never fails the build", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lane-seed-"));
+  const to = join(dir, "target");
+  assert.match(lane.seed(join(dir, "absent"), to), /no precompiled dependencies/);
+  assert.deepEqual(readdirSync(to), []);
+
+  // Half a copy is worse than none: a torn artifact would be read as compiled.
+  const from = join(dir, "seed");
+  mkdirSync(join(from, "a"), { recursive: true });
+  writeFileSync(join(from, "a", "first.rlib"), "ok");
+  writeFileSync(join(from, "z-unreadable.rlib"), "secret");
+  chmodSync(join(from, "z-unreadable.rlib"), 0o000);
+  const root = process.getuid?.() === 0;
+  const said = lane.seed(from, to);
+  if (root) {
+    // root reads a mode-000 file, so there is nothing to fail here; the copy is whole.
+    assert.match(said, /are the start of this build/);
+  } else {
+    assert.match(said, /could not be copied .*: every crate is compiled/);
+    assert.deepEqual(readdirSync(to), []);
+  }
+  chmodSync(join(from, "z-unreadable.rlib"), 0o644);
 });
