@@ -5383,6 +5383,212 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/rejected": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Rejected Records",
+        "description": "The records the pipeline's validation stage refused and did not write, newest first, each with the rule it broke; secrets masked (PL-61).",
+        "operationId": "get_rejected",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Records per page, 1…100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Only records older than this id: the `next` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of rejected records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectedPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The list could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelines/{name}/rejected/retry": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Retry Rejected Records",
+        "description": "Replays the named rejected records once through the pipeline's current validation stage and its own write (PL-61): a record that passes now is written, one that still fails comes back with its rule. Needs propose on Pipeline.",
+        "operationId": "retry_rejected",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryRequest"
+              },
+              "example": {
+                "ids": [
+                  412,
+                  409
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The replay was handed to the runner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No ids, or more than 100",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may read the pipeline but not propose it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The pipeline's space names no model, so there is no stage to replay through",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No runner, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/revisions": {
       "get": {
         "tags": [
@@ -11215,6 +11421,15 @@
             "description": "Cumulative since the runner started, exactly as it reports them: a rate is the view's\njob, history is Prometheus' job (OPS-16). An absent field is not zero, it is a counter\nthis runner does not export.",
             "minimum": 0
           },
+          "rejected": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Records the validation stage refused since the runner started (PL-61): counted apart\nfrom `errors`, because a refused record is the stage working, not the stream failing.",
+            "minimum": 0
+          },
           "scrapedAt": {
             "type": "string",
             "description": "When the Portal read the runner, RFC 3339. The counters are as old as this instant."
@@ -11835,6 +12050,82 @@
           }
         }
       },
+      "Rejected": {
+        "type": "object",
+        "description": "One record the runner did not write.",
+        "required": [
+          "id",
+          "at",
+          "record",
+          "rule",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the runner refused it, RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its place in the list, which \"Retry after fix\" names."
+          },
+          "message": {
+            "type": "string",
+            "description": "What is wrong, in words."
+          },
+          "path": {
+            "type": "string",
+            "description": "The attribute the constraint is about."
+          },
+          "record": {
+            "description": "The record as the mapping produced it, secrets masked."
+          },
+          "rule": {
+            "type": "string",
+            "description": "The constraint it broke (a SHACL component, `type` or `id`, PL-59)."
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The step of `spec.steps` the record failed at, when it failed in a step and not in the\nvalidation stage."
+          }
+        }
+      },
+      "RejectedPage": {
+        "type": "object",
+        "description": "One page of a pipeline's rejected records.",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rejected"
+            }
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The `before` of the next page, when there is one."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many the pipeline holds, at most 1000 (PL-61).",
+            "minimum": 0
+          }
+        }
+      },
       "RelayedEvent": {
         "type": "object",
         "description": "What the proxy relays on behalf of a workspace it has already authenticated.",
@@ -12000,6 +12291,47 @@
           }
         ],
         "description": "What a proposal of one resource sends: the manifest, and beside it the draft the form holds\n(AG-61) and the files the manifest names but cannot contain (DM-39). Both are taken out of the\nbody before it is read as an envelope; the type is what the OpenAPI document says, so the\ngenerated client sends them without a cast (T-1488)."
+      },
+      "RetryAnswer": {
+        "type": "object",
+        "description": "What a replay sent to the runner, and what it could not send.",
+        "required": [
+          "replayed",
+          "masked"
+        ],
+        "properties": {
+          "masked": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Records left on the list because a value of theirs was masked when they were kept:\nreplaying the mask would write it. The pipeline's next read of its source brings them."
+          },
+          "replayed": {
+            "type": "integer",
+            "description": "Records replayed through the pipeline's current stage and write; one that still breaks\nthe model comes back to the list with its rule.",
+            "minimum": 0
+          }
+        }
+      },
+      "RetryRequest": {
+        "type": "object",
+        "description": "Which rejected records to replay.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The `id`s of the records, 1…100."
+          }
+        },
+        "additionalProperties": false
       },
       "Revision": {
         "type": "object",

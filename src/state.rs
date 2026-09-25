@@ -65,6 +65,12 @@ pub struct AppState {
     /// What authorises a run through the sync webhook route, by source (MF-44). Always present;
     /// empty until the reconciler has resolved a pass, so the door is shut before it is opened.
     pub webhook_secrets: Arc<crate::sync::webhook_secrets::Accepted>,
+    /// The compiled model of every space that names one: what the reconciler renders the
+    /// validation stage from and the rejected route names a rule by (PL-60, PL-61).
+    pub model_schemas: Arc<crate::pipeline_validation::ModelSchemas>,
+    /// The records each pipeline's stage refused (PL-61): durable with a database, in memory
+    /// without one.
+    pub rejected: Arc<crate::pipeline_outcomes::RejectedStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
     /// reconciler has run one, which is a different answer from "nothing drifted".
     pub drift: Arc<crate::reconciler::drift::Store>,
@@ -136,6 +142,8 @@ impl AppState {
             activity_events,
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
+            model_schemas: Arc::default(),
+            rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             drift_watch: None,
             kube: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
@@ -175,6 +183,9 @@ impl AppState {
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
+        self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
+            db.clone(),
+        )));
         self.db = Some(db);
         self
     }
@@ -218,6 +229,7 @@ impl AppState {
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
+        state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;
@@ -370,7 +382,19 @@ impl AppState {
                 _ => tracing::info!("no login client or no apps host: no App client is managed"),
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
-                syncer = syncer.with_streams(Arc::new(StreamDeployer::new(url)));
+                let deployer = StreamDeployer::new(url);
+                // A refused record reaches the Portal on the listener the test harness reaches
+                // (PL-61); without that address the stream writes as it did, unvalidated.
+                let deployer = match state.config.pipeline_test_capture_url.clone() {
+                    Some(internal) => {
+                        deployer.with_validation(internal, Arc::clone(&state.model_schemas))
+                    }
+                    None => {
+                        tracing::warn!("no internal listener address for the runner: pipelines are not validated before they write");
+                        deployer
+                    }
+                };
+                syncer = syncer.with_streams(Arc::new(deployer));
             } else {
                 tracing::info!("no pipeline runner: DataSource pipelines stay Pending");
             }

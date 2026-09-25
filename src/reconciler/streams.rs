@@ -5,7 +5,7 @@
 //! runner's actual response, never Git alone.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use jc_core::kinds::data_source::{check_class, DataSourceSpec, DataSourceType};
@@ -66,6 +66,10 @@ pub struct StreamDeployer {
     /// sent again, because the runner restarts a stream on every PUT and a periodic pipeline
     /// then emits on every pass instead of every period (PL-45, T-0659).
     rendered: Mutex<HashMap<(String, String), u64>>,
+    /// Where a refused record is posted (the Portal's internal listener, as the runner reaches
+    /// it) and the compiled model of each space: with both, every stream into a space that
+    /// names a model carries the validation stage (PL-60, PL-61).
+    validation: Option<(String, Arc<crate::pipeline_validation::ModelSchemas>)>,
 }
 
 /// The rendered config as one number, so two passes can tell an unchanged stream apart.
@@ -88,6 +92,58 @@ impl StreamDeployer {
             http,
             deployed: Mutex::new(HashSet::new()),
             rendered: Mutex::new(HashMap::new()),
+            validation: None,
+        }
+    }
+
+    /// Validates every record against its space's model before the write (PL-60): `internal`
+    /// is the base URL of the Portal's internal listener as the runner reaches it.
+    pub fn with_validation(
+        mut self,
+        internal: impl Into<String>,
+        schemas: Arc<crate::pipeline_validation::ModelSchemas>,
+    ) -> Self {
+        self.validation = Some((internal.into(), schemas));
+        self
+    }
+
+    /// The compiled models this deployer renders stages from, when it validates.
+    pub fn model_schemas(&self) -> Option<&Arc<crate::pipeline_validation::ModelSchemas>> {
+        self.validation.as_ref().map(|(_, schemas)| schemas)
+    }
+
+    /// Puts the validation stage into one rendered stream when every output writes into the
+    /// same space and that space names a model (PL-60). A stream that fans out into spaces of
+    /// different models is left without it and says so.
+    /// ponytail: one stage per stream; per-output stages are the upgrade when a fan-out needs them.
+    fn validated(&self, stream: &mut Value, project: &str, pipeline: &str, spaces: &[String]) {
+        let Some((internal, schemas)) = &self.validation else {
+            return;
+        };
+        let Some(space) = spaces.first() else {
+            return;
+        };
+        if spaces.iter().any(|other| other != space) {
+            tracing::warn!(
+                project,
+                pipeline,
+                "the outputs write into several spaces; the stream is not validated"
+            );
+            return;
+        }
+        let Some(schema) = schemas.get(project, space) else {
+            return;
+        };
+        let sink = format!(
+            "{}/internal/pipelines/{project}/{pipeline}/rejected",
+            internal.trim_end_matches('/')
+        );
+        if !crate::pipeline_validation::insert_stage(stream, &schema, &sink) {
+            tracing::warn!(
+                project,
+                pipeline,
+                "the stream has no batch split; the stage is not rendered"
+            );
         }
     }
 
@@ -212,12 +268,12 @@ impl StreamDeployer {
 
                 // What each output's Endpoint writes into: the space segment a mapping reads as
                 // `env("JC_SPACE")`, `JC_SPACE_2`, … (PL-57, PF-84).
-                let segments: Vec<String> = spec
+                let spaces: Vec<String> = spec
                     .outputs()
                     .iter()
                     .map(|output| {
                         let ep_name = output.target_endpoint.local_id();
-                        let space = mirror
+                        mirror
                             .get(&ns, "Endpoint", ep_name)
                             .and_then(|ep| {
                                 ep.spec.get("contextSpaceRef").and_then(|r| {
@@ -226,9 +282,12 @@ impl StreamDeployer {
                                         .map(str::to_owned)
                                 })
                             })
-                            .unwrap_or_default();
-                        crate::spaces::segment(mirror, &ns, &space)
+                            .unwrap_or_default()
                     })
+                    .collect();
+                let segments: Vec<String> = spaces
+                    .iter()
+                    .map(|space| crate::spaces::segment(mirror, &ns, space))
                     .collect();
                 // And what each source's Endpoint reads out of: the segment a mapping reads as
                 // `env("JC_SOURCE_SPACE")`. A pipeline that computes from another space records
@@ -302,6 +361,7 @@ impl StreamDeployer {
                     });
                     match rendered {
                         Ok(mut stream_json) => {
+                            self.validated(&mut stream_json, &ns, &name, &spaces);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
                             let outcome = self
@@ -416,6 +476,7 @@ impl StreamDeployer {
                 };
 
                 let mut stream_json = stream_json;
+                self.validated(&mut stream_json, &ns, &name, &spaces);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
                 let outcome = self
@@ -1403,7 +1464,7 @@ fn pipeline_oauth2(project: &str) -> serde_json::Value {
 /// it and flooded the gateway's log (T-1465). A token, a policy or the gateway can recover, so
 /// 401, 403, 429 and 5xx stay retried.
 /// ponytail: the whole batch drops with its one bad entity; per-entity 207 handling is the upgrade.
-fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
+pub(crate) fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
     serde_json::json!({
         "http_client": {
             "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert?options=update"),
@@ -2284,6 +2345,107 @@ output:
         let sent = server.received_requests().await.expect("recorded");
         let body = String::from_utf8_lossy(&sent.last().expect("a second PUT").body).to_string();
         assert!(body.contains(r#"+ \"helsinki\" +"#), "{body}");
+    }
+
+    fn air_model(version: &str) -> Arc<crate::pipeline_validation::ModelSchema> {
+        Arc::new(crate::pipeline_validation::ModelSchema::compile(
+            "helsinki",
+            version,
+            &serde_json::json!({ "definitions": { "BikeHireDockingStation": {
+                "additionalProperties": false,
+                "properties": { "id": { "type": "string" }, "name": { "type": "string", "x-ngsi-ld-kind": "Property" } }
+            }}}),
+            &["BikeHireDockingStation".to_owned()],
+            false,
+        ))
+    }
+
+    /// PL-60, PL-61: a stream into a space that names a model carries the stage and the
+    /// rejected sink right before the batch split, with the space written into the id rule; a
+    /// new model version is a new render, and a space with no model gets no stage.
+    #[tokio::test]
+    async fn a_stream_into_a_modelled_space_validates_before_it_splits_into_batches() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .and(wiremock::matchers::path("/streams/citybikes-free"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let schemas = Arc::new(crate::pipeline_validation::ModelSchemas::default());
+        let deployer = StreamDeployer::new(server.uri())
+            .with_validation("http://portal-internal:8081/", Arc::clone(&schemas));
+        let mirror = helsinki_test_mirror();
+        let bentos = Bentos::new();
+        let last = |requests: Vec<wiremock::Request>| -> Value {
+            serde_json::from_slice(&requests.last().expect("a PUT").body).expect("json")
+        };
+
+        // No model: the stream is what it was.
+        deployer
+            .converge(&mirror, &bentos, &Default::default())
+            .await;
+        let plain = last(server.received_requests().await.expect("recorded"));
+        assert!(!plain.to_string().contains("json_schema"), "{plain}");
+
+        schemas.replace(HashMap::from([(
+            ("helsinki".to_owned(), "helsinki".to_owned()),
+            air_model("1.0.0"),
+        )]));
+        deployer
+            .converge(&mirror, &bentos, &Default::default())
+            .await;
+        let staged = last(server.received_requests().await.expect("recorded"));
+        let processors = staged["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let at = |label: &str| processors.iter().position(|p| p["label"] == label);
+        let split = processors
+            .iter()
+            .position(|p| p.get("split").is_some())
+            .expect("the split");
+        let (validation, id_rule, rejected) = (
+            at("validation").expect("the stage"),
+            at("validation_id").expect("the id rule"),
+            at("rejected").expect("the sink"),
+        );
+        assert!(
+            validation < id_rule && id_rule < rejected && rejected < split,
+            "{processors:?}"
+        );
+        let text = staged.to_string();
+        assert!(
+            text.contains(
+                "http://portal-internal:8081/internal/pipelines/helsinki/citybikes-free/rejected"
+            ),
+            "{text}"
+        );
+        assert!(
+            !text.contains("env(\\\"JC_SPACE\\\")"),
+            "the space is written in: {text}"
+        );
+        assert_eq!(
+            staged["output"]["http_client"]["verb"], "POST",
+            "the write is unchanged"
+        );
+
+        // A changed model is a changed render: the stage the runner gets is the new one.
+        let mut changed = (*air_model("1.1.0")).clone();
+        changed
+            .classes
+            .insert("Alert".into(), serde_json::json!({}));
+        schemas.replace(HashMap::from([(
+            ("helsinki".to_owned(), "helsinki".to_owned()),
+            Arc::new(changed),
+        )]));
+        deployer
+            .converge(&mirror, &bentos, &Default::default())
+            .await;
+        let restaged = last(server.received_requests().await.expect("recorded"));
+        assert_ne!(restaged, staged);
+        assert!(
+            restaged.to_string().contains("this.type == \\\"Alert\\\""),
+            "{restaged}"
+        );
     }
 
     #[tokio::test]

@@ -11,6 +11,7 @@ use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Serialize;
+use serde_json::Value;
 use utoipa::ToSchema;
 
 use crate::auth::CurrentUser;
@@ -37,6 +38,10 @@ pub struct PipelineMetrics {
     pub sent: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<u64>,
+    /// Records the validation stage refused since the runner started (PL-61): counted apart
+    /// from `errors`, because a refused record is the stage working, not the stream failing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejected: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub buffer_depth: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -162,9 +167,12 @@ pub(crate) fn scrape(body: &str, pipeline: &str, scraped_at: String) -> Pipeline
                 *slot = Some(slot.unwrap_or(0) + sample.value as u64);
             }
         }
+        let staged = label(sample.labels, "label")
+            .is_some_and(|node| crate::pipeline_validation::STAGE_LABELS.contains(&node));
         match family {
             Family::Received => add(&mut metrics.received),
             Family::Sent => add(&mut metrics.sent),
+            Family::Errors if staged => add(&mut metrics.rejected),
             Family::Errors => add(&mut metrics.errors),
             Family::BufferDepth => add(&mut metrics.buffer_depth),
             Family::LatencyNs => {
@@ -279,11 +287,323 @@ fn now_rfc3339() -> String {
         .unwrap_or_default()
 }
 
-pub fn router() -> Router<AppState> {
-    Router::new().route(
-        "/projects/{project}/pipelines/{name}/metrics",
-        get(get_metrics),
+/// One page of a pipeline's rejected records.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RejectedPage {
+    pub items: Vec<crate::pipeline_outcomes::Rejected>,
+    /// How many the pipeline holds, at most 1000 (PL-61).
+    pub total: u64,
+    /// The `before` of the next page, when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<i64>,
+}
+
+#[derive(Debug, Default, serde::Deserialize, utoipa::IntoParams)]
+pub struct RejectedQuery {
+    /// Records per page, 1…100 (default 50).
+    pub limit: Option<usize>,
+    /// Only records older than this id: the `next` of the previous page.
+    pub before: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/rejected",
+    summary = "List Rejected Records",
+    description = "The records the pipeline's validation stage refused and did not write, newest first, each with the rule it broke; secrets masked (PL-61).",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+        RejectedQuery,
+    ),
+    responses(
+        (status = 200, description = "One page of rejected records", body = RejectedPage),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 503, description = "The list could not be read", body = ProblemDetails)
     )
+)]
+pub async fn get_rejected(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    axum::extract::Query(query): axum::extract::Query<RejectedQuery>,
+) -> Result<Json<RejectedPage>, ApiError> {
+    // Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59).
+    let not_found = || {
+        ApiError::NotFound(format!(
+            "pipeline '{name}' not found in project '{project}'"
+        ))
+    };
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !effective.may_read_project() || !effective.may_read("Pipeline") {
+        return Err(not_found());
+    }
+    if !is_dns1123(&project) || !is_dns1123(&name) {
+        return Err(not_found());
+    }
+    state
+        .mirror
+        .get(&project, "Pipeline", &name)
+        .ok_or_else(not_found)?;
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let unreadable = |error: sqlx::Error| {
+        tracing::warn!(%project, pipeline = %name, %error, "the rejected list could not be read");
+        ApiError::Unavailable("the rejected list could not be read; try again".into())
+    };
+    let items = state
+        .rejected
+        .list(&project, &name, limit, query.before)
+        .await
+        .map_err(unreadable)?;
+    let total = state
+        .rejected
+        .count(&project, &name)
+        .await
+        .map_err(unreadable)?;
+    let next = (items.len() == limit)
+        .then(|| items.last().map(|r| r.id))
+        .flatten();
+    Ok(Json(RejectedPage { items, total, next }))
+}
+
+/// Which rejected records to replay.
+#[derive(Debug, serde::Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RetryRequest {
+    /// The `id`s of the records, 1…100.
+    pub ids: Vec<i64>,
+}
+
+/// What a replay sent to the runner, and what it could not send.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RetryAnswer {
+    /// Records replayed through the pipeline's current stage and write; one that still breaks
+    /// the model comes back to the list with its rule.
+    pub replayed: usize,
+    /// Records left on the list because a value of theirs was masked when they were kept:
+    /// replaying the mask would write it. The pipeline's next read of its source brings them.
+    pub masked: Vec<i64>,
+}
+
+/// The longest a replay stream is left on the runner before it is deleted.
+const REPLAY_WINDOW: Duration = Duration::from_secs(15);
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/pipelines/{name}/rejected/retry",
+    summary = "Retry Rejected Records",
+    description = "Replays the named rejected records once through the pipeline's current validation stage and its own write (PL-61): a record that passes now is written, one that still fails comes back with its rule. Needs propose on Pipeline.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    request_body(content = RetryRequest, example = json!({ "ids": [412, 409] })),
+    responses(
+        (status = 202, description = "The replay was handed to the runner", body = RetryAnswer),
+        (status = 400, description = "No ids, or more than 100", body = ProblemDetails),
+        (status = 403, description = "The caller may read the pipeline but not propose it", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 409, description = "The pipeline's space names no model, so there is no stage to replay through", body = ProblemDetails),
+        (status = 503, description = "No runner, or it did not answer", body = ProblemDetails)
+    )
+)]
+pub async fn retry_rejected(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    Json(request): Json<RetryRequest>,
+) -> Result<(axum::http::StatusCode, Json<RetryAnswer>), ApiError> {
+    let not_found = || {
+        ApiError::NotFound(format!(
+            "pipeline '{name}' not found in project '{project}'"
+        ))
+    };
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !effective.may_read_project() || !effective.may_read("Pipeline") {
+        return Err(not_found());
+    }
+    if !is_dns1123(&project) || !is_dns1123(&name) {
+        return Err(not_found());
+    }
+    let pipeline = state
+        .mirror
+        .get(&project, "Pipeline", &name)
+        .ok_or_else(not_found)?;
+    if !effective.may("Pipeline", jc_core::kinds::Verb::Propose) {
+        return Err(ApiError::Denied(format!(
+            "replaying a rejected record writes through the pipeline, which needs propose on \
+             Pipeline in project {project}"
+        )));
+    }
+    if request.ids.is_empty() || request.ids.len() > 100 {
+        return Err(ApiError::BadRequest(
+            "name between 1 and 100 rejected records by their id".into(),
+        ));
+    }
+    let (space, slug) = replay_target(&state, &project, &pipeline.spec).ok_or_else(|| {
+        ApiError::Conflict(format!(
+            "pipeline '{name}' writes through no Endpoint this project holds"
+        ))
+    })?;
+    let schema = state.model_schemas.get(&project, &space).ok_or_else(|| {
+        ApiError::Conflict(format!(
+            "space '{space}' names no data model, so there is no stage to replay through; name \
+             its model in spec.dataModelRef (DM-61)"
+        ))
+    })?;
+    let runner = state
+        .config
+        .pipeline_runner_url
+        .as_deref()
+        .ok_or_else(|| ApiError::Unavailable("no pipeline runner is configured".into()))?
+        .replace("{project}", &project)
+        .trim_end_matches('/')
+        .to_owned();
+    let internal = state
+        .config
+        .pipeline_test_capture_url
+        .as_deref()
+        .ok_or_else(|| {
+            ApiError::Unavailable("no internal listener is configured for the runner".into())
+        })?;
+
+    let unreadable = |error: sqlx::Error| {
+        tracing::warn!(%project, pipeline = %name, %error, "the rejected list could not be read");
+        ApiError::Unavailable("the rejected list could not be read; try again".into())
+    };
+    // Only what carries no mask leaves the list: the rest stays, named in the answer.
+    let listed = state
+        .rejected
+        .list(&project, &name, crate::pipeline_outcomes::KEPT, None)
+        .await
+        .map_err(unreadable)?;
+    let (masked, clean): (Vec<_>, Vec<_>) = listed
+        .into_iter()
+        .filter(|record| request.ids.contains(&record.id))
+        .partition(|record| {
+            record
+                .record
+                .to_string()
+                .contains(crate::pipeline_outcomes::MASK)
+        });
+    let clean_ids: Vec<i64> = clean.iter().map(|record| record.id).collect();
+    let records: Vec<Value> = state
+        .rejected
+        .take(&project, &name, &clean_ids)
+        .await
+        .map_err(unreadable)?
+        .into_iter()
+        .map(|record| record.record)
+        .collect();
+    let answer = RetryAnswer {
+        replayed: records.len(),
+        masked: masked.iter().map(|record| record.id).collect(),
+    };
+    if records.is_empty() {
+        return Ok((axum::http::StatusCode::ACCEPTED, Json(answer)));
+    }
+
+    let sink = format!(
+        "{}/internal/pipelines/{project}/{name}/rejected",
+        internal.trim_end_matches('/')
+    );
+    let mut config = replay_stream(&records, &project, &slug);
+    crate::pipeline_validation::insert_stage(&mut config, &schema, &sink);
+    jcctl::bento::inject_space(
+        &mut config,
+        &[crate::spaces::segment(&state.mirror, &project, &space)],
+    );
+    let stream = format!(
+        "{runner}/streams/rejected-replay-{}",
+        crate::agents::share::slug()
+    );
+    let created = http().post(&stream).json(&config).send().await;
+    let accepted = matches!(&created, Ok(answer) if answer.status().is_success());
+    if !accepted {
+        // Nothing was replayed: the records go back on the list as they were.
+        for record in records {
+            let _ = state
+                .rejected
+                .reject(
+                    &project,
+                    &name,
+                    &record,
+                    &crate::pipeline_outcomes::Reason {
+                        rule: "runner".into(),
+                        path: String::new(),
+                        message: "the replay did not reach the runner; retry it".into(),
+                        step: None,
+                    },
+                )
+                .await;
+        }
+        tracing::warn!(%project, pipeline = %name, "the runner refused a replay stream");
+        return Err(ApiError::Unavailable(
+            "the pipeline runner did not answer".into(),
+        ));
+    }
+    // The stream ends after its one message; it is deleted once it has had its window.
+    tokio::spawn(async move {
+        tokio::time::sleep(REPLAY_WINDOW).await;
+        if let Err(error) = http().delete(&stream).send().await {
+            tracing::warn!(%error, "a replay stream was not deleted");
+        }
+    });
+    Ok((axum::http::StatusCode::ACCEPTED, Json(answer)))
+}
+
+/// The space and the Endpoint slug the pipeline's first output writes through.
+fn replay_target(state: &AppState, project: &str, spec: &Value) -> Option<(String, String)> {
+    let spec: jc_core::kinds::pipeline::PipelineSpec = serde_json::from_value(spec.clone()).ok()?;
+    let output = spec.outputs().into_iter().next()?;
+    let endpoint = state
+        .mirror
+        .get(project, "Endpoint", output.target_endpoint.local_id())?;
+    let space = crate::api::assistant::ref_name(&endpoint.spec["contextSpaceRef"])?;
+    let slug = endpoint.spec.get("slug")?.as_str()?.to_owned();
+    Some((space, slug))
+}
+
+/// One message holding the records, split into one per record, and the pipeline's own write
+/// in gateway-sized batches: the stage is put in before the split by the caller.
+fn replay_stream(records: &[Value], project: &str, slug: &str) -> Value {
+    use base64::Engine;
+    let encoded =
+        base64::engine::general_purpose::STANDARD.encode(Value::from(records.to_vec()).to_string());
+    serde_json::json!({
+        "input": { "generate": {
+            "count": 1,
+            "interval": "",
+            "mapping": format!("root = \"{encoded}\".decode(\"base64\")"),
+        }},
+        "pipeline": { "processors": [
+            { "unarchive": { "format": "json_array" } },
+            { "split": { "size": 1000 } },
+            { "archive": { "format": "json_array" } },
+        ]},
+        "output": crate::reconciler::streams::gateway_output(project, slug),
+    })
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/projects/{project}/pipelines/{name}/rejected/retry",
+            axum::routing::post(retry_rejected),
+        )
+        .route(
+            "/projects/{project}/pipelines/{name}/metrics",
+            get(get_metrics),
+        )
+        .route(
+            "/projects/{project}/pipelines/{name}/rejected",
+            get(get_rejected),
+        )
 }
 
 #[cfg(test)]
@@ -328,6 +648,27 @@ uptime_seconds 900
             metrics.latency_p99_ms,
             Some(42.5),
             "nanoseconds are shown as milliseconds"
+        );
+    }
+
+    /// PL-61: what the validation stage refused is counted as rejected, not as an error.
+    #[test]
+    fn the_stages_refusals_are_rejected_and_not_errors() {
+        let body = concat!(
+            "output_sent{label=\"output\",stream=\"aq\"} 90\n",
+            "processor_error{label=\"validation\",stream=\"aq\"} 7\n",
+            "processor_error{label=\"validation_id\",stream=\"aq\"} 2\n",
+            "processor_error{label=\"processor_0\",stream=\"aq\"} 1\n",
+            "output_error{label=\"output\",stream=\"aq\"} 3\n",
+        );
+        let metrics = scrape(body, "aq", "2026-09-25T10:00:00Z".into());
+        assert_eq!(metrics.sent, Some(90), "written");
+        assert_eq!(metrics.rejected, Some(9));
+        assert_eq!(metrics.errors, Some(4), "a step's error and a failed write");
+        assert_eq!(
+            scraped("aq-mqtt-ingest").rejected,
+            None,
+            "no stage, no count"
         );
     }
 

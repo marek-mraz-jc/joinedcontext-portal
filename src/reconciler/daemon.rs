@@ -823,8 +823,15 @@ impl Syncer {
             .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
             .await;
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47).
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
         if let Some(deployer) = self.streams.as_ref() {
+            if let Some(schemas) = deployer.model_schemas() {
+                schemas.replace(crate::pipeline_validation::load(
+                    &repository,
+                    scratch.path(),
+                ));
+            }
             let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
             // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
             // stream, the Portal says Live, and the counters are the only witness (T-0914). One
