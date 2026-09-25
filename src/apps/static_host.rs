@@ -257,7 +257,36 @@ pub(super) fn served_config(
     spec: &AppSpec,
     org_domain: &str,
 ) -> Option<serde_json::Value> {
-    use crate::agents::endpoints::{self, RunEndpoint, MAX_ENDPOINTS};
+    let unique = served_endpoints(mirror, project, name, spec);
+    let Some(primary) = unique.first().cloned() else {
+        if !spec.data_needs.is_empty() {
+            // The page renders the SDK's configuration error; this is the line that says why.
+            tracing::warn!(app = %name, project = %project, "static app reads no endpoint the platform holds");
+        }
+        return None;
+    };
+    let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
+    Some(serde_json::json!({
+        "slug": primary.slug,
+        "orgDomain": org_domain,
+        "space": primary.space,
+        "transport": "origin",
+        "appName": name,
+        "endpointName": primary.name,
+        "endpoints": crate::agents::endpoints::config(&unique, &needs),
+    }))
+}
+
+/// The endpoints an App reads, in the order [`served_config`] offers them, the primary first:
+/// also the audiences its Keycloak client puts in a token, so the gateway admits that token on
+/// each of them and nowhere else (AP-113).
+pub(crate) fn served_endpoints(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    name: &str,
+    spec: &AppSpec,
+) -> Vec<crate::agents::endpoints::RunEndpoint> {
+    use crate::agents::endpoints::{RunEndpoint, MAX_ENDPOINTS};
     use crate::api::assistant::ref_name;
 
     let of = |env: &crate::resource::ResourceEnvelope| {
@@ -330,23 +359,7 @@ pub(super) fn served_config(
         tracing::warn!(app = %name, count = unique.len(), "static app resolves more endpoints than one app may read");
         unique.truncate(MAX_ENDPOINTS);
     }
-    let Some(primary) = unique.first().cloned() else {
-        if !spec.data_needs.is_empty() {
-            // The page renders the SDK's configuration error; this is the line that says why.
-            tracing::warn!(app = %name, project = %project, "static app reads no endpoint the platform holds");
-        }
-        return None;
-    };
-    let needs = serde_json::to_value(&spec.data_needs).unwrap_or_default();
-    Some(serde_json::json!({
-        "slug": primary.slug,
-        "orgDomain": org_domain,
-        "space": primary.space,
-        "transport": "origin",
-        "appName": name,
-        "endpointName": primary.name,
-        "endpoints": endpoints::config(&unique, &needs),
-    }))
+    unique
 }
 
 /// The index with its `#jc-config` element, first thing in the head so it is the one

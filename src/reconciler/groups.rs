@@ -403,7 +403,7 @@ impl GroupSync {
 }
 
 /// The few characters an address may carry that a query string may not (`+` above all).
-fn urlencoding(value: &str) -> String {
+pub(super) fn urlencoding(value: &str) -> String {
     value
         .chars()
         .map(|c| match c {
