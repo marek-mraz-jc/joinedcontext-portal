@@ -720,21 +720,6 @@ fn in_group(identity: &Identity, group: &str) -> bool {
     identity.groups.iter().any(|g| g == group) || identity.roles.iter().any(|r| r == group)
 }
 
-/// The roles of an App this person holds, computed from the verified identity against
-/// `spec.access` and in the order `spec.roles` declares them (AP-92). Nothing the caller sends
-/// counts: no token claim of its own, no cookie, no query.
-pub fn app_roles(identity: &Identity, spec: &jc_core::kinds::AppSpec) -> Vec<String> {
-    spec.roles
-        .iter()
-        .filter(|role| {
-            spec.access.iter().any(|access| {
-                access.role == role.name && access.subjects.iter().any(|s| is_subject(identity, s))
-            })
-        })
-        .map(|role| role.name.clone())
-        .collect()
-}
-
 fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
     if let Some(user) = &subject.user {
         return identity

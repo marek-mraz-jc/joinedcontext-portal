@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
 import * as lane from "./lane.mjs";
-import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, ociImage, outputsOf, propose, refusedDependencies, sbomOf, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
+import { appOf, artifactScope, bundleFunctions, cratesOf, functionEntries, lockManifest, missingFromStore, ociImage, outputsOf, propose, refusedDependencies, sbomOf, SDK_SPEC, uploadArtifact, withBuild, writeLayout } from "./lane.mjs";
 
 const template = { dependencies: { react: "^19", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "^8" } };
 
@@ -42,6 +42,120 @@ test("every sample application passes the lane's package check against the templ
     }
   }
   assert.ok(seen >= 4, `only ${seen} sample packages found`);
+});
+
+// AP-127 (T-2724): the runner image's store holds every package its template's lockfile names
+// for the runner's platform; another platform's binaries and the SDK directory are not asked for.
+const LOCK = `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+
+packages:
+
+  '@deck.gl/core@9.4.0':
+    resolution: {integrity: sha512-x}
+
+  '@joinedcontext/sdk@file:..':
+    resolution: {directory: .., type: directory}
+
+  '@rolldown/binding-darwin-arm64@1.2.11':
+    resolution: {integrity: sha512-x}
+    cpu: [arm64]
+    os: [darwin]
+
+  lightningcss-linux-x64-musl@1.33.0:
+    resolution: {integrity: sha512-x}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  fsevents-free@1.0.0:
+    resolution: {integrity: sha512-x}
+    os: ['!darwin']
+
+  react@19.3.0:
+    resolution: {integrity: sha512-x}
+
+snapshots:
+
+  left-pad@1.0.0: {}
+`;
+const linux = { os: "linux", cpu: "x64", libc: "glibc" };
+
+test("a store holding every package of the lockfile for its platform passes", () => {
+  const folders = ["@deck.gl+core@9.4.0_@luma.gl+core@9.4.2", "react@19.3.0", "fsevents-free@1.0.0", "lock.yaml"];
+  assert.deepEqual(missingFromStore(LOCK, folders, linux), []);
+});
+
+test("a package the lockfile names and the store lacks is named, peers or not", () => {
+  assert.deepEqual(missingFromStore(LOCK, ["react@19.3.0"], linux), ["@deck.gl/core@9.4.0", "fsevents-free@1.0.0"]);
+  // Another version of the same package is not the one the lockfile pins.
+  assert.deepEqual(missingFromStore(LOCK, ["@deck.gl+core@9.4.1", "react@19.3.0", "fsevents-free@1.0.0"], linux), ["@deck.gl/core@9.4.0"]);
+});
+
+test("the lockfile's os, cpu and libc decide which binaries a platform's store must hold", () => {
+  const all = ["@deck.gl+core@9.4.0", "react@19.3.0", "fsevents-free@1.0.0"];
+  assert.deepEqual(missingFromStore(LOCK, all, { os: "linux", cpu: "x64", libc: "musl" }), ["lightningcss-linux-x64-musl@1.33.0"]);
+  assert.deepEqual(missingFromStore(LOCK, all, { os: "darwin", cpu: "arm64", libc: "glibc" }), ["@rolldown/binding-darwin-arm64@1.2.11"]);
+  assert.deepEqual(missingFromStore("lockfileVersion: '9.0'\n\npackages: {}\n", [], linux), []);
+});
+
+test("the template's manifest takes the SDK from the directory above, and nothing else changes", () => {
+  const pkg = { name: "jc-app", dependencies: { react: "19.3.0", "@joinedcontext/sdk": "0.1.0" }, devDependencies: { vite: "8.3.0" } };
+  assert.deepEqual(lockManifest(pkg), { ...pkg, dependencies: { react: "19.3.0", "@joinedcontext/sdk": SDK_SPEC } });
+  assert.equal(pkg.dependencies["@joinedcontext/sdk"], "0.1.0", "the input is not changed");
+  assert.throws(() => lockManifest({ dependencies: { react: "19.3.0" } }), /does not depend on @joinedcontext\/sdk/);
+});
+
+/** `{ name: { specifier, version } }` of a pnpm v9 lockfile's root importer. */
+function rootImporter(lock) {
+  const found = {};
+  let inRoot = false;
+  let name = "";
+  for (const line of lock.split("\n")) {
+    if (/^\S/.test(line)) inRoot = false;
+    if (line === "  .:") inRoot = true;
+    else if (/^  \S/.test(line)) inRoot = false;
+    if (!inRoot) continue;
+    const dep = /^      '?([^':]+)'?:$/.exec(line);
+    if (dep) found[(name = dep[1])] = {};
+    const field = /^        (specifier|version): (.+)$/.exec(line);
+    if (field && name) found[name][field[1]] = field[2];
+  }
+  return found;
+}
+
+// AP-126 (T-2724): every package of the template pinned to one version, its committed lockfile
+// written from exactly that manifest (the runner image installs it frozen), and each pin the
+// version the SDK's own lockfile tests with, so an app builds with what the SDK was tested on.
+test("the template pins every package exactly, as its lockfile and the SDK's lockfile do", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const pkg = JSON.parse(readFileSync(join(root, "sdk/template/package.json"), "utf8"));
+  const wanted = { ...lockManifest(pkg).dependencies, ...pkg.devDependencies };
+  for (const [name, version] of Object.entries(wanted)) {
+    if (name === "@joinedcontext/sdk") continue;
+    assert.match(version, /^\d+\.\d+\.\d+$/, `${name} is pinned to ${version}, not one exact version`);
+  }
+  const locked = rootImporter(readFileSync(join(root, "sdk/template/pnpm-lock.yaml"), "utf8"));
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(locked).map(([name, { specifier }]) => [name, specifier]).sort()),
+    Object.fromEntries(Object.entries(wanted).sort()),
+    "sdk/template/pnpm-lock.yaml is not written from sdk/template/package.json: run `node builder/lane.mjs lock-manifest sdk/template`, `pnpm install --lockfile-only --ignore-scripts` there, and restore package.json",
+  );
+  const sdk = rootImporter(readFileSync(join(root, "sdk/pnpm-lock.yaml"), "utf8"));
+  let shared = 0;
+  for (const [name, version] of Object.entries(wanted)) {
+    if (!sdk[name]) continue;
+    shared += 1;
+    assert.equal(sdk[name].version.split("(")[0], version, `the SDK tests with ${name} ${sdk[name].version.split("(")[0]}, the template pins ${version}`);
+  }
+  assert.ok(shared >= 15, `only ${shared} packages shared with the SDK`);
 });
 
 // SDK-24, AP-82 (T-2649). On the lane an app's packages are links into the template's store,

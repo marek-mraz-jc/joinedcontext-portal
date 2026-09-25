@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { columnKind, displayName, format, pointOf } from "@joinedcontext/sdk";
 import type { Cell, Row } from "@joinedcontext/sdk";
 import { Empty } from "./states";
+import { t } from "../i18n";
 
 export function EntityDetail({
   row,
@@ -15,7 +16,7 @@ export function EntityDetail({
   onClose?: () => void;
 }): React.JSX.Element {
   if (!row) {
-    return <Empty>Select an entity to see its details.</Empty>;
+    return <Empty>{t("detail.none")}</Empty>;
   }
 
   const resolvedAttrs =
@@ -48,7 +49,7 @@ export function EntityDetail({
       <header>
         <h2>{title ?? displayName(row)}</h2>
         {onClose && (
-          <button type="button" aria-label="Close" onClick={onClose}>
+          <button type="button" aria-label={t("detail.close")} onClick={onClose}>
             ×
           </button>
         )}

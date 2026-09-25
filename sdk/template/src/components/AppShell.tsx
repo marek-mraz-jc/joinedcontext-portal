@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMe } from "@joinedcontext/sdk";
 import { Empty, ErrorBoundary } from "./states";
+import { t } from "../i18n";
 
 export interface Page {
   id: string;
@@ -85,7 +86,7 @@ export function AppShell({
     <div className="jc-shell">
       <header className="jc-header">
         <h1>{title}</h1>
-        <nav aria-label="Pages">
+        <nav aria-label={t("nav.label")}>
           {pages.map((page) => (
             <button
               key={page.id}
@@ -104,7 +105,7 @@ export function AppShell({
         {activePage ? (
           <ErrorBoundary key={activePage.id}>{activePage.render()}</ErrorBoundary>
         ) : (
-          <Empty>No pages.</Empty>
+          <Empty>{t("nav.none")}</Empty>
         )}
       </main>
     </div>

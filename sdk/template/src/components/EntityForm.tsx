@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { columnKind, fieldOf, format, optionLabel, pointOf, useAccess, useClient, useSave, useSchema } from "@joinedcontext/sdk";
 import type { Cell, Field, LanguageMap, Row } from "@joinedcontext/sdk";
 import { Problem } from "./states";
+import { t } from "../i18n";
 
 export function parseInput(field: Field, text: string): { value: Cell } | { error: string } {
   if (text.trim() === "") {
@@ -10,13 +11,13 @@ export function parseInput(field: Field, text: string): { value: Cell } | { erro
   if (field.input === "number") {
     const num = Number(text);
     if (Number.isNaN(num)) {
-      return { error: "must be a number" };
+      return { error: t("form.number") };
     }
     if (field.min !== undefined && num < field.min) {
-      return { error: `must be at least ${field.min}` };
+      return { error: t("form.atLeast", { min: field.min }) };
     }
     if (field.max !== undefined && num > field.max) {
-      return { error: `must be at most ${field.max}` };
+      return { error: t("form.atMost", { max: field.max }) };
     }
     return { value: num };
   }
@@ -32,11 +33,11 @@ export function parseInput(field: Field, text: string): { value: Cell } | { erro
         return { value: { type: "Point", coordinates: [lon, lat] } };
       }
     }
-    return { error: 'must be "lat, lon"' };
+    return { error: t("form.point") };
   }
   if (field.input === "select") {
     if (field.options && !field.options.some((option) => option.value === text)) {
-      return { error: `must be one of ${field.options.map(optionLabel).join(", ")}` };
+      return { error: t("form.oneOf", { options: field.options.map(optionLabel).join(", ") }) };
     }
     return { value: text };
   }
@@ -47,7 +48,7 @@ export function parseInput(field: Field, text: string): { value: Cell } | { erro
     try {
       const re = new RegExp("^(?:" + field.pattern + ")$");
       if (!re.test(text)) {
-        return { error: "does not match the expected format" };
+        return { error: t("form.pattern") };
       }
     } catch {
       // ignore invalid regex pattern
@@ -88,6 +89,7 @@ export function EntityForm({
   title,
   onSaved,
   onCancel,
+  endpoint,
 }: {
   type: string;
   row?: Row | null;
@@ -96,10 +98,12 @@ export function EntityForm({
   title?: string;
   onSaved?: (id: string) => void;
   onCancel?: () => void;
+  /** The endpoint the type is written through, in an application reading several (SDK-02). */
+  endpoint?: string;
 }): React.JSX.Element {
   const { schema, typeSchema } = useSchema(type);
   const save = useSave();
-  const { can } = useAccess();
+  const { can } = useAccess(endpoint);
   const client = useClient();
   const language = client.config.language ?? "en";
 
@@ -257,7 +261,7 @@ export function EntityForm({
           }
         }
       }
-      const newId = await save.create(type, attrs, localId.trim() || undefined);
+      const newId = await save.create(type, attrs, localId.trim() || undefined, endpoint ? { endpoint } : undefined);
       if (newId) {
         onSaved?.(newId);
       }
@@ -304,16 +308,16 @@ export function EntityForm({
     <form
       className="jc-form"
       noValidate
-      aria-label={title ?? (row ? "Edit " + type : "New " + type)}
+      aria-label={title ?? t(row ? "form.edit" : "form.new", { type })}
       onSubmit={(e) => void handleSubmit(e)}
     >
       <div className="jc-form-fields">
         {!row && (
           <label className="jc-field">
-            <span>Local id</span>
+            <span>{t("form.localId")}</span>
             <input
               name="localId"
-              aria-label="Local id"
+              aria-label={t("form.localId")}
               value={localId}
               onChange={(e) => setLocalId(e.target.value)}
             />
@@ -377,7 +381,7 @@ export function EntityForm({
                   onChange={(e) => setDraft((d) => ({ ...d, [name]: e.target.value }))}
                 >
                   <option value="">—</option>
-                  {outside && <option value={val}>{`${val} (not in the list)`}</option>}
+                  {outside && <option value={val}>{t("form.notInList", { value: val })}</option>}
                   {spec.options?.map((opt) => (
                     <option key={opt.value} value={opt.value} title={opt.description}>
                       {optionLabel(opt)}
@@ -418,7 +422,7 @@ export function EntityForm({
                 <input
                   type="text"
                   aria-label={name}
-                  placeholder="lat, lon"
+                  placeholder={t("form.latLon")}
                   value={val}
                   disabled={disabled}
                   title={reason}
@@ -461,11 +465,11 @@ export function EntityForm({
       <div className="jc-form-actions">
         {onCancel && (
           <button type="button" onClick={onCancel}>
-            Cancel
+            {t("form.cancel")}
           </button>
         )}
         <button type="submit" disabled={submitDisabled} title={submitTitle}>
-          {save.saving ? "Saving…" : "Save"}
+          {save.saving ? t("form.saving") : t("form.save")}
         </button>
       </div>
     </form>

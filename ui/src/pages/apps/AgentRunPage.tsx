@@ -8,6 +8,7 @@ import type { Change } from "../../api/manifest";
 import { previewSrc, usePreviewBridge } from "./previewBridge";
 import { RunPublication } from "./RunPublication";
 import { RunTimeline } from "./RunTimeline";
+import { RunTimeSpent } from "./RunTimeSpent";
 import { TERMINAL_STATES, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { rememberRun } from "../../assistant/state";
@@ -194,6 +195,7 @@ export function AgentRunPage({
         </section>
 
         <RunTimeline status={record.status} steps={record.steps} tokensUsed={record.tokensUsed} />
+        <RunTimeSpent events={events} />
 
         {(record.firstFrameMs != null || record.firstVersionMs != null) && (
           <div className="flex flex-wrap gap-4 text-xs text-fg-muted" data-testid="run-timings">
