@@ -374,7 +374,7 @@ describe("the space's own data", () => {
       "AirQualityObserved",
       "AirQualityStation",
     ]);
-    expect(await screen.findByText("12 GQ")).toBeInTheDocument();
+    expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
 
     const reads = fetchMock.mock.calls
       .map((call) => urlOf(call[0]))

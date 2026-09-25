@@ -240,7 +240,8 @@ function buildColumns(
     const gridCol = colMap.get(attr);
     const label = gridCol?.label ?? attr;
     const pinned = gridCol?.pinned ?? false;
-    cols.push({ key: attr, attr, meta: null, label, pinned });
+    const symbol = unitSymbol(unitOfColumn(rows, attr));
+    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned });
 
     const metaKeys = shown[attr] ?? [];
     for (const meta of metaKeys) {
@@ -249,6 +250,22 @@ function buildColumns(
   }
 
   return cols;
+}
+
+/**
+ * The one unit a column's values are in, when every value that states a unit states the same
+ * (DM-06): the header then carries its symbol, `PM10 (µg/m³)`. Two units in one column name
+ * none, and each cell keeps its own.
+ */
+function unitOfColumn(rows: RichRow[], attr: string): string | undefined {
+  const codes = new Set<string>();
+  for (const row of rows) {
+    const cell = row.cells[attr];
+    for (const one of Array.isArray(cell) ? cell : cell ? [cell] : []) {
+      if (one.kind === "property" && one.unitCode) codes.add(one.unitCode);
+    }
+  }
+  return codes.size === 1 ? [...codes][0] : undefined;
 }
 
 function metaOf(cell: RichCell, meta: MetaKey): string | undefined {

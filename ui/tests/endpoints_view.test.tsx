@@ -465,7 +465,7 @@ describe("what an endpoint answers", () => {
     const { fetchMock, dialog } = await openData();
 
     expect(within(dialog).getByLabelText(en.endpoints.data.type)).toHaveValue("AirQualityObserved");
-    expect(await within(dialog).findByText("12 GQ")).toBeInTheDocument();
+    expect(await within(dialog).findByText("12 µg/m³")).toBeInTheDocument();
     const reads = fetchMock.mock.calls
       .map((call) => callOf(call[0], call[1] as RequestInit | undefined).url)
       .filter((url) => url.pathname.includes("/ngsi-ld/v1/entities"));
@@ -513,7 +513,7 @@ describe("what an endpoint answers", () => {
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: en.endpoints.data.action }));
     const dialog = await screen.findByRole("dialog");
-    await within(dialog).findByText("12 GQ");
+    await within(dialog).findByText("12 µg/m³");
     // The attribute the endpoint hides has no column, and its value is nowhere on the page.
     expect(within(dialog).queryByRole("columnheader", { name: /sensorSerial/ })).toBeNull();
     expect(within(dialog).queryByText("SN-9")).toBeNull();
@@ -579,7 +579,7 @@ describe("what an endpoint answers", () => {
     const dialog = await findFormPage();
     // Folded until a person asks for it: the form is long enough already.
     await userEvent.click(within(dialog).getByText(en.endpoints.data.title));
-    expect(await within(dialog).findByText("12 GQ")).toBeInTheDocument();
+    expect(await within(dialog).findByText("12 µg/m³")).toBeInTheDocument();
   });
 });
 

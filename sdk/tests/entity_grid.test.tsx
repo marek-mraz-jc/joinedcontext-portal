@@ -64,6 +64,7 @@ describe("EntityGrid", () => {
     render(<EntityGrid config={air} source={fixtureSource([station])} />);
     const cell = await screen.findByText("12 µg/m³");
     expect(cell.closest("td")).toHaveAttribute("title", "microgram per cubic metre (GQ)");
+    expect(screen.getByRole("columnheader", { name: /PM10 \(µg\/m³\)/ })).toBeInTheDocument();
   });
 
   it("toggles observedAt column via header menu", async () => {
