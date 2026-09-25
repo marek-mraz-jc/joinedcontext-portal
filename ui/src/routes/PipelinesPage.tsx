@@ -13,7 +13,7 @@ import { ChangeNotice } from "../components/ChangeNotice";
 import { TypeLink } from "../pages/models/ModelLinks";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
-import { PipelineEditorDialog } from "../pages/pipelines/PipelineEditor";
+import { PipelineEditorDialog, expiryWindow } from "../pages/pipelines/PipelineEditor";
 import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import { PipelineRunsDialog } from "../pages/pipelines/PipelineRuns";
 import type { PipelineForm, toEnvelope } from "../pages/pipelines/PipelineEditor";
@@ -50,6 +50,7 @@ interface PipelineSpec {
   secretRefs?: SecretRef[];
   source?: { dataSourceRef?: { name?: string } | string };
   output?: { type?: string };
+  expiry?: { after?: string };
 }
 
 /** The data source a pipeline reads, by name, when it names one. */
@@ -452,6 +453,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                   <div className="mt-0.5 text-caption text-fg-subtle">
                     {t("pipelines.writesType")}{" "}
                     <TypeLink project={project} type={spec.output.type} className="font-mono" />
+                  </div>
+                ) : null}
+                {typeof spec.expiry?.after === "string" ? (
+                  <div className="mt-0.5 text-caption text-fg-subtle">
+                    {t("pipelines.expiryRemoves", { window: expiryWindow(spec.expiry.after, locale) })}
                   </div>
                 ) : null}
               </TableCell>

@@ -30,7 +30,7 @@ function MockEditor({ value, onChange }: { value: string; onChange?: (value: str
 vi.mock("../src/pages/models/MonacoSourceView", () => ({ default: MockEditor }));
 
 const { App } = await import("../src/App");
-const { completeOutput, endpointUrn, firstShape, fromManifest, toEnvelope, toForm } = await import(
+const { completeOutput, endpointUrn, expiryWindow, firstShape, fromManifest, toEnvelope, toForm } = await import(
   "../src/pages/pipelines/PipelineEditor"
 );
 const { aggregateBloblang, attributesOf, sourceKindOf } = await import(
@@ -341,6 +341,29 @@ describe("pipeline editor", () => {
     expect(spec.enabled).toBe(false);
     expect(spec.policyRef).toEqual({ kind: "Policy", name: "ingest-write" });
     expect(spec.publish).toEqual({ ckanInstanceRef: "opendata" });
+  });
+
+  /// PL-64, PL-65: expiry round-trips, an emptied one is removed, and the window reads as words.
+  it("writes an expiry the form holds, drops an emptied one, and says the window in words", () => {
+    const expiring = {
+      ...EXISTING,
+      spec: { ...EXISTING.spec, expiry: { after: "14d", types: ["Vehicle"] } },
+    } as Manifest;
+    const form = toForm(expiring);
+    expect(form.expiry).toEqual({ after: "14d", types: ["Vehicle"] });
+    const written = toEnvelope("banskabystrica", form, expiring).spec as Record<string, unknown>;
+    expect(written.expiry).toEqual({ after: "14d", types: ["Vehicle"] });
+
+    // Clearing both fields turns it off: absent, never an empty object the manifest refuses.
+    for (const emptied of [{}, { after: "", types: [] }, { types: [] }]) {
+      const off = toEnvelope("banskabystrica", { ...form, expiry: emptied }, expiring);
+      expect(off.spec).not.toHaveProperty("expiry");
+    }
+
+    expect(expiryWindow("14d", "en")).toBe("14 days");
+    expect(expiryWindow("1h", "en")).toBe("1 hour");
+    expect(expiryWindow("2d", "de")).toBe("2 Tage");
+    expect(expiryWindow("weekly", "en")).toBe("weekly");
   });
 
   it("reads a manifest back into the form, and refuses one with no name", () => {

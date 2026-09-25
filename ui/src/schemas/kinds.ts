@@ -1178,6 +1178,28 @@ export function pipelineSchema(
         title: t("pipelines.field.allowFeedback"),
         description: t("pipelines.field.allowFeedbackHint"),
       },
+      // Off unless filled: nothing is ever deleted automatically without it (PL-64, PL-65).
+      expiry: {
+        type: "object",
+        title: t("pipelines.field.expiry"),
+        description: t("pipelines.field.expiryHint"),
+        properties: {
+          after: {
+            type: "string",
+            title: t("pipelines.field.expiryAfter"),
+            pattern: "^[1-9][0-9]*[hd]$",
+          },
+          types: {
+            type: "array",
+            title: t("pipelines.field.expiryTypes"),
+            items: entityType(t("pipelines.field.expiryType")),
+            maxItems: 20,
+            uniqueItems: true,
+          },
+        },
+        // A window sweeps the types it names; an emptied list is the form's, not a choice.
+        dependencies: { after: ["types"] },
+      },
       secretRefs: {
         type: "array",
         title: t("pipelines.field.secrets"),
@@ -1227,6 +1249,7 @@ export const pipelineUiSchema: UiSchema = {
     "targetEndpoint",
     "output",
     "allowFeedback",
+    "expiry",
     "secretRefs",
     "quotas",
     "*",

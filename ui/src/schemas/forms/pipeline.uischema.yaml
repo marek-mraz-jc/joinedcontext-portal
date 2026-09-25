@@ -38,6 +38,7 @@ spec:
       targetEndpoint,
       output,
       allowFeedback,
+      expiry,
       secretRefs,
       quotas,
     ]
@@ -61,12 +62,12 @@ spec:
         cs: Další možnosti
         de: Weitere Optionen
       description:
-        en: Schedule, the kind of step, output, feedback, secrets and quotas; the defaults are safe.
-        sk: Plán, druh kroku, výstup, spätná väzba, tajomstvá a kvóty; predvolené hodnoty sú bezpečné.
-        cs: Plán, druh kroku, výstup, zpětná vazba, tajemství a kvóty; výchozí hodnoty jsou bezpečné.
-        de: Zeitplan, Art des Schritts, Ausgabe, Rückmeldung, Geheimnisse und Kontingente; die Vorgaben sind sicher.
+        en: Schedule, the kind of step, output, feedback, removal of stale entities, secrets and quotas; the defaults are safe.
+        sk: Plán, druh kroku, výstup, spätná väzba, odstraňovanie zastaraných entít, tajomstvá a kvóty; predvolené hodnoty sú bezpečné.
+        cs: Plán, druh kroku, výstup, zpětná vazba, odstraňování zastaralých entit, tajemství a kvóty; výchozí hodnoty jsou bezpečné.
+        de: Zeitplan, Art des Schritts, Ausgabe, Rückmeldung, Entfernen veralteter Entitäten, Geheimnisse und Kontingente; die Vorgaben sind sicher.
       folded: true
-      fields: [schedule, period, source, compute, output, allowFeedback, secretRefs, quotas]
+      fields: [schedule, period, source, compute, output, allowFeedback, expiry, secretRefs, quotas]
   fields:
     name:
       help:
@@ -221,6 +222,18 @@ spec:
         sk: Povoľuje trvalej pipeline spracovávať entity pochádzajúce z jej vlastného výstupného priestoru.
         cs: Povoluje trvalé pipeline zpracovávat entity pocházející z jejího vlastního výstupního prostoru.
         de: Erlaubt einer dauerhaften Pipeline, Entitäten aus ihrem eigenen Ausgaberaum zu verarbeiten.
+    expiry.after:
+      help:
+        en: How long an entity may go without an update before it is removed, in hours or days.
+        sk: Ako dlho môže entita zostať bez aktualizácie, kým sa odstráni, v hodinách alebo dňoch.
+        cs: Jak dlouho může entita zůstat bez aktualizace, než se odstraní, v hodinách nebo dnech.
+        de: Wie lange eine Entität ohne Aktualisierung bleiben darf, bevor sie entfernt wird, in Stunden oder Tagen.
+    expiry.types:
+      help:
+        en: The entity types this pipeline writes; entities of other types are never removed.
+        sk: Typy entít, ktoré táto pipeline zapisuje; entity iných typov sa nikdy neodstránia.
+        cs: Typy entit, které tato pipeline zapisuje; entity jiných typů se nikdy neodstraní.
+        de: Die Entitätstypen, die diese Pipeline schreibt; Entitäten anderer Typen werden nie entfernt.
     secretRefs[].name:
       help:
         en: Name of the stored secret containing credentials required by this pipeline.
