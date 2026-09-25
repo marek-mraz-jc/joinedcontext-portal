@@ -72,7 +72,14 @@
     "organization": "Organization",
     "settings": "Project settings",
     "profile": "Your account",
-    "catalogue": "Catalogue"
+    "catalogue": "Catalogue",
+    "dataagreements": "Data agreements",
+    "blueprints": "Blueprints",
+    "agentprofiles": "Agent profiles",
+    "dataoffers": "Data offers",
+    "dataspaceparticipants": "Data space",
+    "environments": "Environments",
+    "projections": "Model projections"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -321,7 +328,11 @@
     "emptyHintFor": {
       "uischemas": "Nothing in this project changes a form. Every form ships with its own arrangement; the organization changes one in portal/forms/ of its configuration repository, not here."
     },
-    "lead": "Everything of this kind the project holds. Each row opens what it names."
+    "lead": "Everything of this kind the project holds. Each row opens what it names.",
+    "new": "New {kind}",
+    "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
+    "propose": "Propose change",
+    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form."
   },
   "spaces": {
     "lead": "The named collections of context data this project holds; every entity lives in exactly one.",
@@ -2327,7 +2338,9 @@
       "artifacts": "Compiled artifacts",
       "bloblang": "Bloblang file",
       "gatewayIr": "Gateway mapping file"
-    }
+    },
+    "name": "Name",
+    "badName": "The name is lower-case letters, digits and hyphens, at most 63, starting and ending with a letter or digit."
   },
   "syncSources": {
     "title": "Sync sources",
@@ -3601,6 +3614,10 @@
       "service-accounts": "Service accounts",
       "projects": "Projects",
       "setup": "Setup",
+      "blueprints": "Blueprints",
+      "agentprofiles": "Agent profiles",
+      "dataspaceparticipants": "Data space",
+      "environments": "Environments",
       "health": "Health",
       "endpoints": "All endpoints"
     },
@@ -4309,6 +4326,51 @@
     "missingUnitCode": {
       "fill": "Fill in the model's unit",
       "refuse": "Refuse the write"
+    },
+    "agreementRole": {
+      "provider": "Provider: this project shares",
+      "consumer": "Consumer: this project reads"
+    },
+    "agreementState": {
+      "requested": "Requested",
+      "offered": "Offered",
+      "accepted": "Accepted",
+      "finalized": "Finalized",
+      "terminated": "Terminated"
+    },
+    "riskClass": {
+      "green": "Green: applied without review",
+      "yellow": "Yellow: one approver",
+      "red": "Red: approver and confirmation"
+    },
+    "profileRole": {
+      "steward": "Steward: Portal operations, no internet",
+      "builder": "Builder: coding tools and an allow-list of hosts"
+    },
+    "modelProvider": {
+      "openai-compatible": "OpenAI-compatible",
+      "anthropic": "Anthropic"
+    },
+    "reasoningEffort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "agentTool": {
+      "shell": "Shell",
+      "cargo": "Cargo",
+      "pnpm": "pnpm",
+      "git": "Git",
+      "playwright": "Playwright"
+    },
+    "agentVerb": {
+      "read": "Read",
+      "propose": "Propose",
+      "write": "Write"
+    },
+    "connectorEngine": {
+      "rainbow": "Rainbow",
+      "edc": "Eclipse Dataspace Components"
     }
   },
   "picker": {
@@ -4508,6 +4570,135 @@
       "ODC_BY": "Open Data Commons Attribution",
       "ODC_ODBL": "Open Data Commons Open Database Licence",
       "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    }
+  },
+  "dataagreements": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "offerRef": "Data offer",
+      "remoteParticipant": "Other participant",
+      "agreementId": "Agreement identifier",
+      "state": "State",
+      "validity": "Validity",
+      "validFrom": "Valid from",
+      "validTo": "Valid until",
+      "tokenSecretRef": "Transfer token",
+      "secretName": "Secret name",
+      "secretKey": "Key in the secret",
+      "constraints": "Query limits",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
+    }
+  },
+  "blueprints": {
+    "field": {
+      "name": "Name",
+      "version": "Version",
+      "category": "Category",
+      "riskClass": "Risk class",
+      "allowedRoles": "Roles that may run it",
+      "role": "Role",
+      "parameterSchema": "Parameter schema (JSON)",
+      "templates": "Templates",
+      "templateName": "Template name",
+      "template": "Template"
+    }
+  },
+  "agentprofiles": {
+    "field": {
+      "name": "Name",
+      "role": "Role",
+      "runtime": "Runtime",
+      "image": "Image",
+      "digest": "Image digest",
+      "model": "Model",
+      "provider": "Provider",
+      "modelName": "Model name",
+      "maxTokensPerRun": "Tokens per run",
+      "reasoningEffort": "Reasoning effort",
+      "limits": "Limits",
+      "stepsPerRun": "Steps per run",
+      "wallClock": "Longest run",
+      "concurrentRuns": "Runs at once in the organization",
+      "requestsPerMinute": "Requests per minute",
+      "maxResponseBytes": "Largest response (bytes)",
+      "egress": "Internet access",
+      "allowedHosts": "Hosts it may reach",
+      "host": "Host",
+      "maxBytesPerRun": "Bytes it may read per run",
+      "tools": "Tools",
+      "workspace": "Workspace",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "ephemeralStorage": "Scratch storage",
+      "access": "What it may reach",
+      "operations": "Operations",
+      "operation": "Operation",
+      "kinds": "Kinds",
+      "kind": "Kind",
+      "verbs": "What it may do",
+      "endpoints": "Endpoints",
+      "endpoint": "Endpoint"
+    }
+  },
+  "dataoffers": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "endpointRefs": "Offered endpoints",
+      "endpoint": "Endpoint",
+      "policy": "Offer (ODRL, JSON)",
+      "containsPersonalData": "Contains personal data",
+      "purpose": "Purpose (DPV)"
+    }
+  },
+  "dataspaceparticipants": {
+    "field": {
+      "name": "Name",
+      "did": "Participant identifier (did:web)",
+      "credentialIssuer": "Credential issuer",
+      "connectorUrl": "Connector address",
+      "engine": "Connector engine",
+      "trustAnchors": "Trusted issuers",
+      "trustAnchor": "Trusted issuer (did:web)"
+    }
+  },
+  "environments": {
+    "field": {
+      "name": "Name",
+      "orgDomain": "Organization domain here",
+      "hosts": "Hosts",
+      "component": "Component",
+      "host": "Host",
+      "images": "Image digests",
+      "digest": "Digest",
+      "secrets": "Secret backend",
+      "backend": "Backend",
+      "mount": "Mount",
+      "features": "Feature flags",
+      "feature": "Flag",
+      "enabled": "On"
+    }
+  },
+  "projections": {
+    "field": {
+      "name": "Name",
+      "contextSpaceRef": "Context space",
+      "dataModelRef": "Data model",
+      "dataModel": "Model",
+      "version": "Major version",
+      "classes": "Exposed classes",
+      "class": "Class",
+      "slots": "Slots kept",
+      "slot": "Slot",
+      "filter": "Filter",
+      "q": "Query filter",
+      "scopeQ": "Scope filter",
+      "geoQ": "Area filter",
+      "temporalQ": "Time filter"
     }
   }
 }

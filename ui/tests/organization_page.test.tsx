@@ -128,7 +128,7 @@ afterEach(() => {
 
 describe("the Organization page", () => {
   // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers an administrator the ten tabs, the address's one selected", async () => {
+  it("names itself once and offers an administrator the fourteen tabs, the address's one selected", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     await screen.findByRole("tab", { name: en.organization.tab.endpoints });
@@ -140,6 +140,10 @@ describe("the Organization page", () => {
       en.organization.tab.roles,
       en.organization.tab.groups,
       en.organization.tab["service-accounts"],
+      en.organization.tab.blueprints,
+      en.organization.tab.agentprofiles,
+      en.organization.tab.dataspaceparticipants,
+      en.organization.tab.environments,
       en.organization.tab.projects,
       en.organization.tab.setup,
       en.organization.tab.health,
@@ -174,7 +178,7 @@ describe("the Organization page", () => {
       } as unknown as Effective,
     });
     await screen.findByRole("tab", { name: en.organization.tab.settings });
-    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(9));
+    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(13));
     expect(screen.queryByRole("tab", { name: en.organization.tab.endpoints })).not.toBeInTheDocument();
   });
 

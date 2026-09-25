@@ -17,6 +17,7 @@ import {
 } from "./mapping";
 import type { Alignment, Derivation } from "./mapping";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
+import { DNS1123 } from "../../schemas/kinds";
 import {
   Alert,
   Badge,
@@ -81,6 +82,7 @@ function major(version: string): string {
  */
 export function mappingManifest(
   project: string,
+  name: string,
   space: string,
   source: MappingModel,
   target: MappingModel,
@@ -89,7 +91,6 @@ export function mappingManifest(
   example: string,
   produced: Record<string, unknown>,
 ) {
-  const name = `${source.name}-to-${target.name}`;
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Mapping",
@@ -128,6 +129,11 @@ export function MappingsEditor({
   const [targetName, setTargetName] = useState(models[1]?.name ?? models[0]?.name ?? "");
   const [derivations, setDerivations] = useState<Derivation[] | undefined>(undefined);
   const [example, setExample] = useState(EXAMPLE);
+  // The name the pair makes until the person types another (T-1547): a project may map one pair
+  // twice, and a mapping is not bound to the one name its models give it.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const name = typedName ?? `${sourceName}-to-${targetName}`;
+  const badName = name.length > 63 || !new RegExp(DNS1123).test(name);
 
   const source = useParsed(models, sourceName);
   const target = useParsed(models, targetName);
@@ -175,6 +181,8 @@ export function MappingsEditor({
   const refusal =
     sourceName === targetName
       ? t("mappings.sameModel")
+      : badName
+        ? t("mappings.badName")
       : parsedExample.error !== undefined
         ? parsedExample.error
         : missingRequired.length > 0
@@ -224,6 +232,18 @@ export function MappingsEditor({
             ))}
           </Select>
         </label>
+        {project ? (
+          <label className="flex flex-col gap-1 text-body font-medium text-fg">
+            {t("mappings.name")}
+            <Input
+              value={name}
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={badName || undefined}
+              onChange={(event) => setTypedName(event.target.value)}
+            />
+          </label>
+        ) : null}
         <div className="flex items-center gap-1.5 pb-1 text-body">
           <span className="text-fg-muted">{t("mappings.lane")}</span>
           <LifecycleBadge kind="lane" value={lane} />
@@ -245,6 +265,7 @@ export function MappingsEditor({
               proposal.mutation.mutate({
                 body: mappingManifest(
                   project,
+                  name,
                   space,
                   sourceModel,
                   targetModel,
