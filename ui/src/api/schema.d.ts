@@ -1404,7 +1404,7 @@ export interface paths {
         put?: never;
         /**
          * Run A Blueprint
-         * @description Expands one of the organisation's blueprints with the parameters given, as a change a person approves.
+         * @description Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.
          */
         post: operations["start_flow"];
         delete?: never;
