@@ -39,11 +39,34 @@ pub fn bundle_head(bundle: &[u8]) -> Option<String> {
         .filter(|commit| commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
-/// Every application repository of `project`, as `(App name, forge repository)`: the repository
-/// each App's `source.git` names. The index lists it under the App's name, a DNS-1123 label as
-/// the index requires, where the forge's is `{project}_{app}` (AP-75). One that is not in this
-/// forge's organization is refused by name, because an export that left it out would import an
-/// application with no source (MF-45).
+/// The forge repository an App's `source.git` names, `None` for an App with no `source.git`. One
+/// that is not in this forge's applications organization is refused by name, because an export
+/// that left it out would import an application with no source (MF-45).
+pub(crate) fn application_repository(
+    app: &crate::resource::ResourceEnvelope,
+    forge: &GiteaClient,
+) -> Result<Option<String>, ApiError> {
+    let Some(url) = app.spec.pointer("/source/git/url").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    let mut segments = url.trim_end_matches('/').rsplit('/');
+    let name = segments.next().unwrap_or_default().trim_end_matches(".git");
+    let owner = segments.next().unwrap_or_default();
+    let applications = forge.applications().owner;
+    if owner != applications || name.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "the App '{}' builds from {url}, which is not a repository of this forge's \
+             organization '{applications}'; a git export carries only the forge's \
+             repositories (MF-45)",
+            app.metadata.name
+        )));
+    }
+    Ok(Some(name.to_owned()))
+}
+
+/// Every application repository of `project`, as `(App name, forge repository)`. The index lists
+/// it under the App's name, a DNS-1123 label as the index requires, where the forge's is
+/// `{project}_{app}` (AP-75).
 fn application_repositories(
     state: &AppState,
     project: &str,
@@ -54,25 +77,64 @@ fn application_repositories(
         .list(project, "App", &crate::store::ListOptions::default());
     let mut names = Vec::new();
     for app in apps.items {
-        let Some(url) = app.spec.pointer("/source/git/url").and_then(Value::as_str) else {
-            continue;
-        };
-        let mut segments = url.trim_end_matches('/').rsplit('/');
-        let name = segments.next().unwrap_or_default().trim_end_matches(".git");
-        let owner = segments.next().unwrap_or_default();
-        let applications = forge.applications().owner;
-        if owner != applications || name.is_empty() {
-            return Err(ApiError::Conflict(format!(
-                "the App '{}' builds from {url}, which is not a repository of this forge's \
-                 organization '{applications}'; a git export carries only the forge's \
-                 repositories (MF-45)",
-                app.metadata.name
-            )));
+        if let Some(repository) = application_repository(&app, forge)? {
+            names.push((app.metadata.name.clone(), repository));
         }
-        names.push((app.metadata.name.clone(), name.to_owned()));
     }
     names.sort();
     Ok(names)
+}
+
+/// One repository's default branch as the forge bundles it: the bundle, the head it ends at, and
+/// its tags as `{commit} refs/tags/{tag}` lines (empty when it has none). A bundle that ends
+/// elsewhere than the head read before it is refused: the branch moved (MF-46).
+pub(crate) async fn take(
+    name: &str,
+    repository: &GiteaClient,
+) -> Result<(Vec<u8>, String, String), ApiError> {
+    let branch = repository.default_branch().await?;
+    let head = repository.branch_head(&branch).await?;
+    let bundle = repository.bundle(&branch).await?;
+    match bundle_head(&bundle) {
+        Some(bundled) if bundled == head => {}
+        Some(bundled) => {
+            return Err(ApiError::Conflict(format!(
+                "the repository '{name}' moved from {head} to {bundled} during the export; \
+                 export again"
+            )))
+        }
+        None => {
+            return Err(ApiError::Internal(format!(
+                "the forge's bundle of '{name}' is not a git bundle"
+            )))
+        }
+    }
+    let tags: String = repository
+        .list_tags()
+        .await?
+        .into_iter()
+        .map(|(tag, commit)| format!("{commit} refs/tags/{tag}\n"))
+        .collect();
+    Ok((bundle, head, tags))
+}
+
+/// The files as one zip archive, stored: a bundle is a packfile, compressed already.
+pub(crate) fn stored_zip(entries: &[(String, Vec<u8>)]) -> Result<Vec<u8>, ApiError> {
+    let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for (path, bytes) in entries {
+        writer
+            .start_file(path, stored)
+            .map_err(|err| ApiError::Internal(format!("archive entry failed: {err}")))?;
+        writer
+            .write_all(bytes)
+            .map_err(|e| ApiError::Internal(format!("archive write failed: {e}")))?;
+    }
+    let cursor = writer
+        .finish()
+        .map_err(|err| ApiError::Internal(format!("archive did not close: {err}")))?;
+    Ok(cursor.into_inner())
 }
 
 /// The export of `project`, whose own repository `forge` speaks to (MF-45).
@@ -95,25 +157,7 @@ pub async fn archive(
     let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut repositories = Vec::new();
     for (name, repository, role) in sources {
-        let branch = repository.default_branch().await?;
-        let head = repository.branch_head(&branch).await?;
-        let bundle = repository.bundle(&branch).await?;
-        // The branch may move between the two reads; a bundle that ends elsewhere than the head
-        // the index would list is not exported (MF-46).
-        match bundle_head(&bundle) {
-            Some(bundled) if bundled == head => {}
-            Some(bundled) => {
-                return Err(ApiError::Conflict(format!(
-                    "the repository '{name}' moved from {head} to {bundled} during the export; \
-                     export again"
-                )))
-            }
-            None => {
-                return Err(ApiError::Internal(format!(
-                    "the forge's bundle of '{name}' is not a git bundle"
-                )))
-            }
-        }
+        let (bundle, head, tags) = take(&name, &repository).await?;
         let file = format!("{name}.bundle");
         entries.push((file.clone(), bundle));
         // The project's own file at that head, where an import reads the parameters it declares
@@ -129,12 +173,6 @@ pub async fn archive(
                 })?;
             entries.push(("project.yaml".to_owned(), own.content.into_bytes()));
         }
-        let tags: String = repository
-            .list_tags()
-            .await?
-            .into_iter()
-            .map(|(tag, commit)| format!("{commit} refs/tags/{tag}\n"))
-            .collect();
         if !tags.is_empty() {
             entries.push((format!("{name}.tags"), tags.into_bytes()));
         }
@@ -210,23 +248,8 @@ pub async fn archive(
         .map_err(|e| ApiError::Internal(format!("the bundle index did not serialise: {e}")))?;
     entries.push(("bundle.yaml".to_owned(), index.into_bytes()));
 
-    let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    // A bundle is a packfile, compressed already.
-    let stored =
-        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-    for (path, bytes) in &entries {
-        writer
-            .start_file(path, stored)
-            .map_err(|err| ApiError::Internal(format!("archive entry failed: {err}")))?;
-        writer
-            .write_all(bytes)
-            .map_err(|e| ApiError::Internal(format!("archive write failed: {e}")))?;
-    }
-    let cursor = writer
-        .finish()
-        .map_err(|err| ApiError::Internal(format!("archive did not close: {err}")))?;
     Ok(Archive {
-        bytes: cursor.into_inner(),
+        bytes: stored_zip(&entries)?,
         head,
     })
 }

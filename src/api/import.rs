@@ -1042,8 +1042,8 @@ fn renamed(name: &str, origin: &str) -> String {
 /// One extractor consumes the body, so the dispatch is here rather than in the signature: a
 /// wizard posts `multipart/form-data` with the file and the option fields beside it, and
 /// `jcctl` posts JSON.
-/// The multipart body of a git import: the archive as `file`, `parameters` as a JSON object,
-/// `displayName` and `dryRun` (MF-45, CC-88).
+/// The multipart body of a git or App import: the archive as `file`, `parameters` as a JSON
+/// object, `displayName`, `name` and `dryRun` (MF-45, CC-88, UI-87).
 async fn read_git_request(
     state: &AppState,
     request: Request,
@@ -1080,12 +1080,17 @@ async fn read_git_request(
                 input.display_name = Some(String::from_utf8_lossy(&data).trim().to_owned())
                     .filter(|name| !name.is_empty())
             }
+            "name" => {
+                input.name = Some(String::from_utf8_lossy(&data).trim().to_owned())
+                    .filter(|name| !name.is_empty())
+            }
             "dryRun" => {
                 input.dry_run = matches!(String::from_utf8_lossy(&data).trim(), "true" | "All")
             }
             other => {
                 return Err(ApiError::BadRequest(format!(
-                    "a git import takes file, parameters, displayName and dryRun, not '{other}'"
+                    "a git import takes file, parameters, displayName, name and dryRun, not \
+                     '{other}'"
                 )))
             }
         }
@@ -1181,7 +1186,7 @@ async fn read_request(
     params(
         ("project" = String, Path, description = "Project the bundle is imported into"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' to validate and plan without proposing"),
-        ("format" = Option<String>, Query, description = "'git': the archive of a format=git export, landing as the new project of the path (layout 2)"),
+        ("format" = Option<String>, Query, description = "'git': the archive of a format=git export, landing as the new project of the path (layout 2); 'app': the archive of an App export, landing as a new App of the project (UI-87)"),
     ),
     request_body(
         content(
@@ -1204,7 +1209,7 @@ async fn read_request(
         (status = 200, description = "Dry run: what the import would do", body = ImportReport),
         (status = 400, description = "The bundle was refused", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "format=git by anybody who may not open a project (PF-65) or does not administer the organization (UI-87)", body = ProblemDetails),
+        (status = 403, description = "format=git by anybody who may not open a project (PF-65), format=git or format=app by anybody who does not administer the organization (UI-87)", body = ProblemDetails),
         (status = 409, description = "A resource already exists and the policy is 'fail', or the bundle has no fresh check of its own (`verdict_required`, PF-57)", body = ProblemDetails),
         (status = 501, description = "Importing from a URL is not implemented", body = ProblemDetails),
         (status = 503, description = "No repository configured", body = ProblemDetails),
@@ -1237,9 +1242,29 @@ pub async fn import(
                     .await?;
             return Ok((status, Json(body)).into_response());
         }
+        Some("app") => {
+            // Before the body, as for a project (UI-87): who may not read the project learns
+            // nothing more, who does not administer the organization is refused.
+            if !crate::permissions::for_request(&state, &user.0.identity, &project)
+                .may_read_project()
+            {
+                return Err(ApiError::NotFound(format!("project '{project}' not found")));
+            }
+            crate::permissions::require_organization_admin(
+                &state,
+                &user.0.identity,
+                "importing an application",
+            )?;
+            let (bytes, mut input) = read_git_request(&state, request).await?;
+            input.dry_run |= query.dry_run.as_deref() == Some("All");
+            let (status, body) =
+                crate::api::app_transfer::import(&state, &user.0.identity, &project, &bytes, input)
+                    .await?;
+            return Ok((status, Json(body)).into_response());
+        }
         Some(other) => {
             return Err(ApiError::BadRequest(format!(
-                "format '{other}' is not git; a bundle or manifests import without one"
+                "format '{other}' is neither git nor app; a bundle or manifests import without one"
             )))
         }
     }

@@ -28,6 +28,8 @@ pub struct GitImport {
     /// Values for the parameters `project.yaml` declares (CC-88).
     pub parameters: serde_json::Map<String, Value>,
     pub display_name: Option<String>,
+    /// `format=app` only: the App's name in the project it lands in (UI-87).
+    pub name: Option<String>,
     pub dry_run: bool,
 }
 
@@ -58,7 +60,7 @@ pub struct GitImportPlan {
 
 /// The archive's files by path. An entry that leaves the root, or an archive past the upload
 /// limits, is refused before anything is read into the import.
-fn unpack(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, ApiError> {
+pub(crate) fn unpack(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, ApiError> {
     const MAX_ENTRIES: usize = 256;
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))
         .map_err(|err| ApiError::BadRequest(format!("the upload is not a zip archive: {err}")))?;
@@ -104,7 +106,7 @@ fn unpack(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, ApiError> {
 }
 
 /// The tags of `{name}.tags`, `(commit, refs/tags/{tag})`; a line that is not one is refused.
-fn tags(text: &[u8], name: &str) -> Result<Vec<(String, String)>, ApiError> {
+pub(crate) fn tags(text: &[u8], name: &str) -> Result<Vec<(String, String)>, ApiError> {
     let text = std::str::from_utf8(text)
         .map_err(|_| ApiError::BadRequest(format!("{name}.tags is not text")))?;
     text.lines()
@@ -127,6 +129,45 @@ fn tags(text: &[u8], name: &str) -> Result<Vec<(String, String)>, ApiError> {
             }
         })
         .collect()
+}
+
+/// MF-42, MF-46: every file the index names is there and is what was exported, every bundle it
+/// lists carries a checksum, and each bundle ends at the head the index lists; nothing else counts.
+pub(crate) fn verify_files(
+    index: &Bundle,
+    files: &BTreeMap<String, Vec<u8>>,
+) -> Result<(), ApiError> {
+    for listed in &index.spec.files {
+        let bytes = files.get(&listed.path).ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "bundle.yaml lists {}, which the archive does not hold",
+                listed.path
+            ))
+        })?;
+        if format!("{:x}", Sha256::digest(bytes)) != listed.sha256 {
+            return Err(ApiError::BadRequest(format!(
+                "{} is not the file that was exported: its SHA-256 differs from bundle.yaml (MF-42)",
+                listed.path
+            )));
+        }
+    }
+    for repository in &index.spec.repositories {
+        if !index.spec.files.iter().any(|f| f.path == repository.file) {
+            return Err(ApiError::BadRequest(format!(
+                "the bundle of '{}' carries no checksum in bundle.yaml (MF-42)",
+                repository.name
+            )));
+        }
+        if crate::api::export_git::bundle_head(&files[&repository.file]).as_deref()
+            != Some(repository.head.as_str())
+        {
+            return Err(ApiError::BadRequest(format!(
+                "{} does not end at {}, the head bundle.yaml lists for '{}' (MF-46)",
+                repository.file, repository.head, repository.name
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Every check that runs before anything is created: the index, each file's checksum, the
@@ -169,37 +210,7 @@ fn check(bytes: &[u8]) -> Result<Checked, ApiError> {
             "bundle.yaml lists no project repository, or more than one (MF-45)".into(),
         ));
     }
-    // MF-42: every file the index names is there and is what was exported; nothing else counts.
-    for listed in &index.spec.files {
-        let bytes = files.get(&listed.path).ok_or_else(|| {
-            ApiError::BadRequest(format!(
-                "bundle.yaml lists {}, which the archive does not hold",
-                listed.path
-            ))
-        })?;
-        if format!("{:x}", Sha256::digest(bytes)) != listed.sha256 {
-            return Err(ApiError::BadRequest(format!(
-                "{} is not the file that was exported: its SHA-256 differs from bundle.yaml (MF-42)",
-                listed.path
-            )));
-        }
-    }
-    for repository in &index.spec.repositories {
-        if !index.spec.files.iter().any(|f| f.path == repository.file) {
-            return Err(ApiError::BadRequest(format!(
-                "the bundle of '{}' carries no checksum in bundle.yaml (MF-42)",
-                repository.name
-            )));
-        }
-        if crate::api::export_git::bundle_head(&files[&repository.file]).as_deref()
-            != Some(repository.head.as_str())
-        {
-            return Err(ApiError::BadRequest(format!(
-                "{} does not end at {}, the head bundle.yaml lists for '{}' (MF-46)",
-                repository.file, repository.head, repository.name
-            )));
-        }
-    }
+    verify_files(&index, &files)?;
     if !index.spec.files.iter().any(|f| f.path == "project.yaml") {
         return Err(ApiError::BadRequest(
             "bundle.yaml carries no checksum of project.yaml; export again (MF-42)".into(),
@@ -248,6 +259,11 @@ pub async fn import(
     input: GitImport,
 ) -> Result<(StatusCode, Value), ApiError> {
     crate::api::projects::may_open(state, identity)?;
+    if input.name.is_some() {
+        return Err(ApiError::BadRequest(
+            "a project import takes its name from the path; 'name' belongs to format=app".into(),
+        ));
+    }
     if state.mirror.layout() != 2 {
         return Err(ApiError::Conflict(
             "a git import lands a project in a repository of its own, and this organization \

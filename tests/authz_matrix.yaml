@@ -336,6 +336,10 @@ routes:
     rule: "project-read, and org-admin (PF-03) for a whole project (UI-87)"
     expect: [401, 403, 403, 403, 403, 404, 404, 403]
     note: "the row asks for the whole project, which is an organization administrator's (UI-87); the administrator's 404 is the project the fixture does not hold, and a reader who names manifests passes (export_api_tests)"
+  - route: GET /projects/{project}/apps/{name}/export
+    rule: "project-read, and org-admin (PF-03) (UI-87)"
+    expect: [401, 403, 403, 403, 403, allow, 404, 403]
+    note: "one App is an organization administrator's to export (UI-87); the administrator passes the checks, and the fixture's App names no source.git repository to bundle, which is 409 (app_transfer_tests)"
   - route: GET /projects/{project}/federation-graph
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

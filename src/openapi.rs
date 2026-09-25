@@ -92,6 +92,7 @@ use crate::tools::model_tools::{
         crate::api::pipelines::get_runs,
         crate::api::pipelines::get_run_log,
         crate::api::export::export,
+        crate::api::app_transfer::export,
         crate::api::import::import,
         crate::api::export::revisions,
         crate::api::permissions::permissions_me,

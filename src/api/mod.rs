@@ -2,6 +2,7 @@ pub mod activity;
 pub mod agent_runs;
 pub mod app_build;
 pub mod app_me;
+pub mod app_transfer;
 pub mod assistant;
 pub mod basemap;
 pub mod blueprints;
@@ -70,6 +71,7 @@ pub fn router() -> Router<AppState> {
         .merge(activity::router())
         .merge(drift::router())
         .merge(export::router())
+        .merge(app_transfer::router())
         .merge(federation::router())
         .merge(forms::router())
         .merge(import::router())

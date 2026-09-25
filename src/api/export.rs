@@ -389,7 +389,7 @@ fn bundle_files(included: &[&Exported]) -> Vec<jc_core::kinds::BundleFile> {
 }
 
 /// One manifest of an export as the index lists it (MF-17).
-fn bundle_item(envelope: &ResourceEnvelope, path: &str) -> jc_core::kinds::BundleItem {
+pub(crate) fn bundle_item(envelope: &ResourceEnvelope, path: &str) -> jc_core::kinds::BundleItem {
     let namespace = envelope.metadata.namespace.clone().filter(|namespace| {
         !resource::belongs_to_the_organization(&envelope.kind, Some(namespace))
     });
@@ -738,7 +738,7 @@ fn readme(
     get,
     path = "/api/v1/projects/{project}/export",
     summary = "Export Project",
-    description = "The project's manifests as one bundle, narrowed to the kinds and names asked for.",
+    description = "The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

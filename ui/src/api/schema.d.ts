@@ -941,6 +941,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export App
+         * @description One App as its repository's git bundle beside its manifest, for an organization administrator (UI-87).
+         */
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/me": {
         parameters: {
             query?: never;
@@ -1402,7 +1422,7 @@ export interface paths {
         };
         /**
          * Export Project
-         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for.
+         * @description The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.
          */
         get: operations["export"];
         put?: never;
@@ -7263,6 +7283,74 @@ export interface operations {
             };
         };
     };
+    export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive: the App's bundle, its tags, app.yaml and bundle.yaml */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization (UI-87) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or App, or not one the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The App builds from outside the forge's applications organization, or its repository moved during the export */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -9033,7 +9121,7 @@ export interface operations {
             query?: {
                 /** @description Set to 'All' to validate and plan without proposing */
                 dryRun?: string;
-                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2) */
+                /** @description 'git': the archive of a format=git export, landing as the new project of the path (layout 2); 'app': the archive of an App export, landing as a new App of the project (UI-87) */
                 format?: string;
             };
             header?: never;
@@ -9110,7 +9198,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description format=git by anybody who may not open a project (PF-65) or does not administer the organization (UI-87) */
+            /** @description format=git by anybody who may not open a project (PF-65), format=git or format=app by anybody who does not administer the organization (UI-87) */
             403: {
                 headers: {
                     [name: string]: unknown;
