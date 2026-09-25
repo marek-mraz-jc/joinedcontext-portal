@@ -223,14 +223,12 @@ spec:
         cs: Povoluje trvalé pipeline zpracovávat entity pocházející z jejího vlastního výstupního prostoru.
         de: Erlaubt einer dauerhaften Pipeline, Entitäten aus ihrem eigenen Ausgaberaum zu verarbeiten.
     expiry.after:
-      placeholder: 14d
       help:
         en: How long an entity may go without an update before it is removed, in hours or days.
         sk: Ako dlho môže entita zostať bez aktualizácie, kým sa odstráni, v hodinách alebo dňoch.
         cs: Jak dlouho může entita zůstat bez aktualizace, než se odstraní, v hodinách nebo dnech.
         de: Wie lange eine Entität ohne Aktualisierung bleiben darf, bevor sie entfernt wird, in Stunden oder Tagen.
     expiry.types:
-      placeholder: [Vehicle]
       help:
         en: The entity types this pipeline writes; entities of other types are never removed.
         sk: Typy entít, ktoré táto pipeline zapisuje; entity iných typov sa nikdy neodstránia.

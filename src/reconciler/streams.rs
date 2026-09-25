@@ -2498,7 +2498,9 @@ output:
         let sent = server.received_requests().await.expect("recorded");
         let sweep = sent
             .iter()
-            .find(|r| r.url.path() == "/streams/citybikes-free.expiry")
+            .find(|r| {
+                r.method.as_str() == "PUT" && r.url.path() == "/streams/citybikes-free.expiry"
+            })
             .expect("the sweep was sent");
         let body: Value = serde_json::from_slice(&sweep.body).expect("json");
         assert!(body
