@@ -1201,7 +1201,10 @@
     },
     "assistant": {
       "open-and-ask": {
-        "liveOwed": "T-2729",
+        "live": {
+          "spec": "assistant-page.spec.ts",
+          "test": "a steward asks from the assistant page, gets an answer, and finds the conversation listed"
+        },
         "assistant": "jc_ask",
         "routes": [
           "POST /api/v1/projects/{project}/assistant/conversations"
