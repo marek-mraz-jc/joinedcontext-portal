@@ -35,6 +35,13 @@ describe("the pickers a schema asks for", () => {
     ).toEqual({ prompt: { "ui:widget": "textarea" } });
   });
 
+  // EP-02, CC-28 (T-1571): the Portal mints an Endpoint's slug when the flow starts.
+  it("hides a slug the Portal mints, so nobody is asked to type one", () => {
+    expect(
+      pickers(schema({ endpointSlug: { type: "string", "x-jc-widget": "endpointSlug" } }), { project: "helsinki" }),
+    ).toEqual({ endpointSlug: { "ui:widget": "hidden" } });
+  });
+
   it("leaves a property that asks for no widget alone", () => {
     // Everything else about the form still comes from the schema: a property with no hint is
     // rendered by RJSF's own input, and an empty entry would override that with nothing.
