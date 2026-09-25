@@ -30,7 +30,7 @@ for (const { who, scheme } of VIEWS) {
       if (who === "a steward") await page.setExtraHTTPHeaders(edge("steward"));
       await page.setViewportSize(size);
       await page.goto(BASE);
-      await expect(page.getByRole("heading", { name: "Kallio" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Kallio", exact: true })).toBeVisible();
       if (who === "a steward") {
         await expect(page.getByRole("form", { name: "New station" })).toBeVisible();
         await page.getByRole("button", { name: "Edit Kallio" }).click();
