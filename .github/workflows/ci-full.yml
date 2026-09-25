@@ -171,6 +171,10 @@ jobs:
               && pnpm install --no-frozen-lockfile; fi && pnpm build \
               && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
+          # The pointed name and the lockfile it wrote are this run's, not the app's: put the
+          # committed tree back for the steps after (T-2984).
+          git checkout -- 'apps/*/ui/package.json'
+          git clean -fq -- 'apps/*/ui/pnpm-lock.yaml'
       # The same flows for an application at the root of its own repository (T-2596), built from
       # the tree copied out with the SDK linked from this checkout, as the fast lane tests it.
       - if: steps.has.outputs.ui == 'yes'
