@@ -59,6 +59,23 @@ createServer((request, response) => {
     const who = (request.headers.authorization ?? "").replace("Bearer token-for-", "");
     return send(response, 200, { id: `f:1:demo.${who}`, name: who, roles: [isSteward(request) ? "steward" : "viewer"] });
   }
+  // One day of a station, as the temporal surface answers it (T-2925's chart): a reading every
+  // three hours up to now, so the chart has a line to draw rather than an error to show.
+  const temporal = /^\/ngsi-ld\/v1\/temporal\/entities\/([^/]+)$/.exec(pathname);
+  if (temporal && request.method === "GET") {
+    const station = stations.get(decodeURIComponent(temporal[1]));
+    if (!station) {
+      return send(response, 404, { type: "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", title: "Not found", status: 404, detail: "no such station" });
+    }
+    const now = Date.now();
+    const series = (base) =>
+      Array.from({ length: 8 }, (_, step) => ({
+        type: "Property",
+        value: Math.round((base + (step % 3) * 2.5) * 10) / 10,
+        observedAt: new Date(now - (7 - step) * 3 * 3600_000).toISOString(),
+      }));
+    return send(response, 200, { id: station.id, type: station.type, pm10: series(30), pm25: series(18) });
+  }
   if (pathname === "/ngsi-ld/v1/entities" && request.method === "GET") {
     return send(response, 200, [...stations.values()]);
   }
