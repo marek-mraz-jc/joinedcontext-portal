@@ -1,0 +1,13 @@
+# T-2733: the assistant workflow as one conversation (Testing/07 §3, AG-87).
+workflow: assistant
+as: steward
+says:
+  - "Which endpoints of this project publish air quality?"
+expect:
+  calls:
+    - tool: jc_endpoint_list_all
+  outcome: answer
+# A viewer may not propose an App, so the conversation itself is refused (403, AG-70).
+refusal:
+  as: viewer
+  says: "Do this for me: which endpoints of this project publish air quality?"
