@@ -874,6 +874,6 @@ mod tests {
         assert!(!pack.contains("list_types") && !pack.contains("list_attributes"));
         assert!(pack.contains("describe_schema") && pack.contains("query_entities"));
         // The gateway's own argument names: `type` is not one of describe_schema's.
-        assert!(pack.contains(r#""format": "linkml""#) && pack.contains(r#""entityType""#));
+        assert!(pack.contains(r#""format":"linkml""#) && pack.contains(r#""entityType""#));
     }
 }
