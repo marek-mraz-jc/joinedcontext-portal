@@ -2677,7 +2677,8 @@
       "all": "Alle",
       "live": "Laufend",
       "ended": "Beendet",
-      "mine": "Nur meine"
+      "mine": "Nur meine",
+      "testRuns": "Testläufe zeigen"
     },
     "kinds": {
       "conversation": "Unterhaltung",
@@ -2726,7 +2727,8 @@
     "showMore": "{count} weitere zeigen (noch {left})",
     "table": {
       "name": "Name"
-    }
+    },
+    "testRun": "Testlauf"
   },
   "activity": {
     "title": "Activity",

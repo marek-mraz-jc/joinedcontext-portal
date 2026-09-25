@@ -127,6 +127,10 @@ pub struct Config {
     /// `RoleBinding` can be written into an empty repository (`JC_PORTAL_BOOTSTRAP_ADMINS`,
     /// default `portal-approver`; T-0526, PF-50).
     pub bootstrap_admins: String,
+    /// The usernames the Portal's own live journeys sign in as, the only people whose runs may
+    /// carry `X-JC-Run-Origin: journey` (`JC_PORTAL_JOURNEY_USERS`, comma-separated; default
+    /// none, so no one can mark a run; AG-93, T-2816).
+    pub journey_users: Vec<String>,
     /// The client the reconciler manages the realm's groups with: a `ServiceAccount` client
     /// holding `manage-users` and `query-groups` of `realm-management` and nothing else
     /// (`JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID` and `JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET`, a
@@ -976,6 +980,15 @@ impl Config {
             .map(|v| v.trim().to_owned())
             .filter(|v| !v.is_empty())
             .unwrap_or_else(|| Self::DEFAULT_BOOTSTRAP_ADMINS.to_owned());
+        let journey_users = lookup("JC_PORTAL_JOURNEY_USERS")
+            .map(|v| {
+                v.split(',')
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // Both halves or neither: an id without a secret would send an unauthenticated token
         // request every tick and log a refusal every time.
@@ -1025,6 +1038,7 @@ impl Config {
             branding_file,
             database_url,
             bootstrap_admins,
+            journey_users,
             keycloak_admin,
             app_settings,
             agent_settings,
@@ -1069,6 +1083,7 @@ impl Config {
             // The dev realm's approver role: a test session that carries it may do everything,
             // one that does not is bound by whatever Role/RoleBinding the test puts in the mirror.
             bootstrap_admins: "portal-approver".to_owned(),
+            journey_users: Vec::new(),
             keycloak_admin: None,
         }
     }
