@@ -645,6 +645,14 @@
         "part_run_cards.test.tsx"
       ]
     },
+    "src/pages/apps/ChangeFollowCard.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "change_follow_card.test.tsx"
+      ]
+    },
     "src/pages/apps/ConversationPanel.tsx": {
       "controls": {
         "Button": 4
@@ -986,7 +994,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "endpoint_admits_person.test.ts",

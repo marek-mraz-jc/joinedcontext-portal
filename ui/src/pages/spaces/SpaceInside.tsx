@@ -22,9 +22,14 @@ import { useIdentity } from "../../auth/AuthProvider";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, useModelSource } from "../../components/entities/filters";
 import { localId, textOf } from "../apps/QueryResultCard";
+import { useSourceOf } from "../models/ModelPage";
+import { ModelViews } from "../models/ModelViews";
+import { ProposeLink } from "../models/ModelsList";
 import {
+  Alert,
   Badge,
   Button,
+  EmptyState,
   Field,
   Icon,
   PageFailed,
@@ -472,6 +477,85 @@ function Section({ title, children }: { title: ReactNode; children: ReactNode })
   );
 }
 
+/**
+ * The space's data model, one click from the space (T-2762; DM-61, DM-62): its title and
+ * version, a link to its own page, Edit for a person who may propose it, and the diagram, form
+ * and YAML views read-only. A space without one offers Create and Import, prefilled for it.
+ */
+function SpaceModel({
+  project,
+  space,
+  model,
+  models,
+}: {
+  project: string;
+  space: string;
+  model: Manifest | undefined;
+  models: Pick<UseQueryResult, "isPending" | "isError" | "error" | "refetch">;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const source = useSourceOf(project, model);
+  if (model === undefined) {
+    if (models.isPending || models.isError) {
+      return <SectionState query={models} empty={null} />;
+    }
+    return (
+      <EmptyState
+        icon="models"
+        title={t("spaces.inside.modelEmpty")}
+        description={t("spaces.inside.modelEmptyLead")}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <ProposeLink project={project} search={{ new: "blank", space }} variant="primary">
+              {t("spaces.inside.modelCreate")}
+            </ProposeLink>
+            <ProposeLink project={project} search={{ new: "sdm", space }}>
+              {t("spaces.inside.modelImport")}
+            </ProposeLink>
+          </div>
+        }
+      />
+    );
+  }
+  const name = model.metadata.name;
+  const title = localized(model.metadata.title, i18n.language, name);
+  const version = typeof model.spec.version === "string" ? model.spec.version : undefined;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex flex-wrap items-center gap-2 text-body">
+          <Link
+            to="/projects/$project/models/$name"
+            params={{ project, name }}
+            className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+          >
+            {title}
+          </Link>
+          {title !== name ? <span className="font-mono text-caption text-fg-muted">{name}</span> : null}
+          {version ? <span className="font-mono text-caption text-fg-muted">v{version}</span> : null}
+        </p>
+        <ProposeLink project={project} search={{ edit: name }}>
+          {t("models.page.edit")}
+        </ProposeLink>
+      </div>
+      {source.isError ? (
+        <Alert tone="danger" role="alert">
+          <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
+          <Button size="sm" className="mt-2" onClick={() => void source.refetch()}>
+            {t("app.error.retry")}
+          </Button>
+        </Alert>
+      ) : source.data === undefined ? (
+        <p role="status" className="text-body text-fg-muted">
+          {t("models.source.loading")}
+        </p>
+      ) : (
+        <ModelViews source={source.data} name={name} id="space-model-views" />
+      )}
+    </div>
+  );
+}
+
 /** What a Context Space holds: its entity types with live counts, its endpoints and policies. */
 export function SpaceInside({ project, name }: { project: string; name: string }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -545,6 +629,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         <LifecycleBadge kind="phase" value={manifest.status?.phase} />
       </div>
 
+      <Section title={t("spaces.inside.model")}>
+        <SpaceModel project={project} space={name} model={model} models={models} />
+      </Section>
+
       <Section title={t("spaces.inside.types")}>
         {model === undefined ? (
           <SectionState query={models} empty={t("spaces.inside.noModel")} />
@@ -555,7 +643,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         ) : (
           <>
             <p className="text-body text-fg-muted">
-              {t("spaces.field.dataModel")}: <span className="font-mono">{model.metadata.name}</span>
+              {t("spaces.field.dataModel")}:{" "}
+              <Link
+                to="/projects/$project/models/$name"
+                params={{ project, name: model.metadata.name }}
+                className="focus-ring font-mono text-primary-soft-fg underline-offset-2 hover:underline"
+              >
+                {model.metadata.name}
+              </Link>
               {readEndpoint ? (
                 <>
                   {" · "}

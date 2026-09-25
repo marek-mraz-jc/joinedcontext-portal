@@ -342,7 +342,12 @@
       "noPolicies": "Priestor zatiaľ nemá politiku.",
       "assignee": "Príjemca",
       "operations": "Operácie",
-      "copyId": "Skopírovať identifikátor {id}"
+      "copyId": "Skopírovať identifikátor {id}",
+      "model": "Dátový model",
+      "modelEmpty": "Tento priestor zatiaľ nemá dátový model",
+      "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
+      "modelCreate": "Vytvoriť dátový model",
+      "modelImport": "Importovať Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2298,6 +2303,38 @@
       "copyId": "Kopírovať celý identifikátor",
       "copied": "Skopírované",
       "table": "Tabuľka v odpovedi"
+    },
+    "follow": {
+      "title": "Ako {name} prejde do prevádzky",
+      "aChange": "zmenu",
+      "proposed": "Navrhnuté: {kind} {name}",
+      "reading": "Načítava sa zmena…",
+      "unread": "Zmenu sa nepodarilo načítať",
+      "rejected": "Zamietnuté: nič sa nezmenilo",
+      "approved": "Schválené",
+      "waiting": "Čaká na osobu, ktorá smie v tomto projekte schvaľovať zmeny {kind}",
+      "red": "Zmena červeného pruhu sa schvaľuje na vlastnej stránke, kde sa znova napíše jej názov.",
+      "approve": "Schváliť",
+      "deploy": "Po schválení prejde do prevádzky",
+      "deploying": "Nasadzuje sa…",
+      "live": "V prevádzke",
+      "open": "{kind} je v prevádzke: otvoriť",
+      "stage": {
+        "done": "Hotovo",
+        "working": "Prebieha",
+        "waiting": "Čaká",
+        "failed": "Zlyhalo",
+        "later": "Zatiaľ nie"
+      },
+      "test": {
+        "later": "Otestuje sa po spustení",
+        "reading": "Číta sa niekoľko riadkov z {name} vaším menom…",
+        "read": "{count, plural, one {Prečítaný # riadok} few {Prečítané # riadky} other {Prečítaných # riadkov}} z {total} {type} z {name}",
+        "empty": "{name} je v prevádzke a zatiaľ nemá žiadne entity",
+        "failed": "Testovacie čítanie zlyhalo",
+        "again": "Čítať znova",
+        "explore": "Otvoriť v Prieskumníkovi"
+      }
     }
   },
   "assistant": {

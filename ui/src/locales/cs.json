@@ -342,7 +342,12 @@
       "noPolicies": "Prostor zatím nemá politiku.",
       "assignee": "Příjemce",
       "operations": "Operace",
-      "copyId": "Zkopírovat identifikátor {id}"
+      "copyId": "Zkopírovat identifikátor {id}",
+      "model": "Datový model",
+      "modelEmpty": "Tento prostor zatím nemá datový model",
+      "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
+      "modelCreate": "Vytvořit datový model",
+      "modelImport": "Importovat Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2298,6 +2303,38 @@
       "copyId": "Kopírovat celý identifikátor",
       "copied": "Zkopírováno",
       "table": "Tabulka v odpovědi"
+    },
+    "follow": {
+      "title": "Jak {name} přejde do provozu",
+      "aChange": "změnu",
+      "proposed": "Navrženo: {kind} {name}",
+      "reading": "Načítá se změna…",
+      "unread": "Změnu se nepodařilo načíst",
+      "rejected": "Zamítnuto: nic se nezměnilo",
+      "approved": "Schváleno",
+      "waiting": "Čeká na osobu, která smí v tomto projektu schvalovat změny {kind}",
+      "red": "Změna červeného pruhu se schvaluje na vlastní stránce, kde se znovu napíše její název.",
+      "approve": "Schválit",
+      "deploy": "Po schválení přejde do provozu",
+      "deploying": "Nasazuje se…",
+      "live": "V provozu",
+      "open": "{kind} je v provozu: otevřít",
+      "stage": {
+        "done": "Hotovo",
+        "working": "Probíhá",
+        "waiting": "Čeká",
+        "failed": "Selhalo",
+        "later": "Zatím ne"
+      },
+      "test": {
+        "later": "Otestuje se po spuštění",
+        "reading": "Čte se několik řádků z {name} vaším jménem…",
+        "read": "{count, plural, one {Přečten # řádek} few {Přečteny # řádky} other {Přečteno # řádků}} z {total} {type} z {name}",
+        "empty": "{name} je v provozu a zatím nemá žádné entity",
+        "failed": "Testovací čtení selhalo",
+        "again": "Číst znovu",
+        "explore": "Otevřít v Průzkumníku"
+      }
     }
   },
   "assistant": {

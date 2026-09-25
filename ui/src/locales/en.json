@@ -342,7 +342,12 @@
       "noPolicies": "This space has no policy yet.",
       "assignee": "Assignee",
       "operations": "Operations",
-      "copyId": "Copy the id {id}"
+      "copyId": "Copy the id {id}",
+      "model": "Data model",
+      "modelEmpty": "This space has no data model yet",
+      "modelEmptyLead": "A data model names the space's entity types and their attributes. Create one or import a Smart Data Model for this space.",
+      "modelCreate": "Create a data model",
+      "modelImport": "Import a Smart Data Model"
     },
     "complete": {
       "spacePlaceholder": "city-bikes",
@@ -2298,6 +2303,38 @@
       "copyId": "Copy the whole id",
       "copied": "Copied",
       "table": "A table in the answer"
+    },
+    "follow": {
+      "title": "How {name} goes live",
+      "aChange": "a change",
+      "proposed": "Proposed the {kind} {name}",
+      "reading": "Reading the change…",
+      "unread": "The change could not be read",
+      "rejected": "Rejected: nothing was changed",
+      "approved": "Approved",
+      "waiting": "Waits for a person who may approve {kind} changes in this project",
+      "red": "A red-lane change is approved on its own page, where its name is typed back.",
+      "approve": "Approve",
+      "deploy": "Goes live once approved",
+      "deploying": "Deploying…",
+      "live": "Live",
+      "open": "The {kind} is live: open it",
+      "stage": {
+        "done": "Done",
+        "working": "In progress",
+        "waiting": "Waiting",
+        "failed": "Failed",
+        "later": "Not yet"
+      },
+      "test": {
+        "later": "Tested once live",
+        "reading": "Reading a few rows of {name} as you…",
+        "read": "{count, plural, one {Read # row} other {Read # rows}} of {total} {type} from {name}",
+        "empty": "{name} is live and holds no entities yet",
+        "failed": "The test read failed",
+        "again": "Read again",
+        "explore": "Open it in Explore"
+      }
     }
   },
   "assistant": {
