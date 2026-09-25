@@ -4063,7 +4063,7 @@
       "lead": "Vyberte endpoint, zkontrolujte jeho popis do katalogu, prohlédněte si náhled záznamu a navrhněte ho. Datová sada se v katalogu zobrazí po schválení.",
       "steps": "Kroky",
       "step": {
-        "pick": "1. Endpoint",
+        "pick": "1. Koncový bod",
         "describe": "2. Popis",
         "preview": "3. Náhled"
       },
