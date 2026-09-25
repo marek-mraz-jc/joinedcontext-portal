@@ -1709,7 +1709,19 @@
       "openClass": "Open {name} in the structure view",
       "more": "and {count} more",
       "from": "from {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "A solid line with no arrow is a relationship, named by its field and the inverse. The number at each end says how many entities of that class one entity at the other end is joined to: 1 exactly one, 0..1 at most one, 1..* at least one, * any number.",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fit": "Fit",
+      "zoomLevel": "Zoom {percent} %",
+      "openRelationship": "Open the relationship {name} / {inverse} between {source} and {target}",
+      "addRelationship": "Add a relationship from {name}",
+      "table": "Relationships in the drawing",
+      "tableRelationship": "Relationship",
+      "tableField": "Field",
+      "tableInverse": "Inverse",
+      "tableMultiplicity": "Multiplicity"
     },
     "field": {
       "name": "Name",

@@ -1709,7 +1709,19 @@
       "openClass": "{name} in der Struktur öffnen",
       "more": "und {count} weitere",
       "from": "aus {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Eine durchgezogene Linie ohne Pfeil ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "fit": "Einpassen",
+      "zoomLevel": "Zoom {percent} %",
+      "openRelationship": "Beziehung {name} / {inverse} zwischen {source} und {target} öffnen",
+      "addRelationship": "Beziehung von {name} hinzufügen",
+      "table": "Beziehungen in der Zeichnung",
+      "tableRelationship": "Beziehung",
+      "tableField": "Feld",
+      "tableInverse": "Inverses Feld",
+      "tableMultiplicity": "Multiplizität"
     },
     "field": {
       "name": "Name",

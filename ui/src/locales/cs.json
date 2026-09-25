@@ -1709,7 +1709,19 @@
       "openClass": "Otevřít {name} ve struktuře",
       "more": "a dalších {count}",
       "from": "z {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
+      "zoomIn": "Přiblížit",
+      "zoomOut": "Oddálit",
+      "fit": "Přizpůsobit",
+      "zoomLevel": "Přiblížení {percent} %",
+      "openRelationship": "Otevřít vztah {name} / {inverse} mezi {source} a {target}",
+      "addRelationship": "Přidat vztah z {name}",
+      "table": "Vztahy v nákresu",
+      "tableRelationship": "Vztah",
+      "tableField": "Pole",
+      "tableInverse": "Inverzní pole",
+      "tableMultiplicity": "Násobnost"
     },
     "field": {
       "name": "Název",

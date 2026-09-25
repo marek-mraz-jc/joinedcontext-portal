@@ -1709,7 +1709,19 @@
       "openClass": "Otvoriť {name} v štruktúre",
       "more": "a ďalších {count}",
       "from": "z {name}",
-      "enumBox": "Enum {name}: {values}"
+      "enumBox": "Enum {name}: {values}",
+      "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
+      "zoomIn": "Priblížiť",
+      "zoomOut": "Oddialiť",
+      "fit": "Prispôsobiť",
+      "zoomLevel": "Priblíženie {percent} %",
+      "openRelationship": "Otvoriť vzťah {name} / {inverse} medzi {source} a {target}",
+      "addRelationship": "Pridať vzťah z {name}",
+      "table": "Vzťahy v nákrese",
+      "tableRelationship": "Vzťah",
+      "tableField": "Pole",
+      "tableInverse": "Inverzné pole",
+      "tableMultiplicity": "Násobnosť"
     },
     "field": {
       "name": "Názov",

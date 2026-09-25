@@ -859,9 +859,23 @@ export interface GraphNode {
 export interface GraphEdge {
   from: string;
   to: string;
-  kind: "is_a" | "mixin" | "range" | "enum";
-  /** The slot whose range draws the line, for a `range` or an `enum` edge. */
+  kind: "is_a" | "mixin" | "range" | "enum" | "relationship";
+  /** The slot whose range draws the line, for a `range` or an `enum` edge; a relationship's source slot. */
   label?: string;
+  /** A relationship's other end: the slot on `to` pointing back (DM-64). */
+  inverse?: string;
+  cardinality?: Cardinality;
+  /** How many `from` entities one `to` entity is joined to, and the other way round (DM-65). */
+  fromMultiplicity?: Multiplicity;
+  toMultiplicity?: Multiplicity;
+}
+
+export type Multiplicity = "1" | "0..1" | "1..*" | "*";
+
+/** How many entities of the other class one end holds: its `multivalued` and `required` flags. */
+export function multiplicity(end: RelationshipEnd): Multiplicity {
+  if (end.required) return end.multivalued ? "1..*" : "1";
+  return end.multivalued ? "*" : "0..1";
 }
 
 /**
@@ -909,6 +923,9 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     });
   }
 
+  // A relationship is one line, not one per end; its ends draw no `range` line of their own.
+  const pairs = relationshipsOf(model).relationships;
+  const ends = new Set(pairs.flatMap((pair) => [pair.source, pair.target].map((end) => `${end.class}.${end.slot}`)));
   const edges: GraphEdge[] = [];
   for (const klass of model.classes) {
     if (klass.is_a !== undefined && byName.has(klass.is_a)) {
@@ -920,12 +937,28 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       }
     }
     for (const slot of classSlots(model, klass)) {
+      if (ends.has(`${klass.name}.${slot.name}`)) {
+        continue;
+      }
       if (slot.range !== undefined && byName.has(slot.range)) {
         edges.push({ from: klass.name, to: slot.range, kind: "range", label: slot.name });
       } else if (slot.range !== undefined && enumNames.has(slot.range)) {
         edges.push({ from: klass.name, to: slot.range, kind: "enum", label: slot.name });
       }
     }
+  }
+  for (const pair of pairs) {
+    edges.push({
+      from: pair.source.class,
+      to: pair.target.class,
+      kind: "relationship",
+      label: pair.source.slot,
+      inverse: pair.target.slot,
+      cardinality: pair.cardinality,
+      // At the target's end of the line: how many targets one source holds, and back.
+      toMultiplicity: multiplicity(pair.source),
+      fromMultiplicity: multiplicity(pair.target),
+    });
   }
   return { nodes, edges };
 }
