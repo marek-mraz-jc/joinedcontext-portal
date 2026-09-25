@@ -11,6 +11,7 @@ import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Checkbox, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
 import { Link } from "@tanstack/react-router";
@@ -61,12 +62,14 @@ const TABS: Tab[] = ["import", "editor"];
 const DRAFT_DEBOUNCE_MS = 600;
 
 /**
- * A free-typed or LinkML name as a manifest name: lower-case letters, digits and `-` (DM-57).
+ * A free-typed or LinkML name as a manifest name: lower-case letters, digits and `-` (DM-57), a
+ * camel-case word split where it turns upper-case (`AirQualityObserved` → `air-quality-observed`).
  * `undefined` when nothing is left, which is what keeps Save out of reach for an unnamed draft.
  */
 function manifestName(name: string): string | undefined {
   const slug = name
     .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "");
@@ -330,13 +333,13 @@ export function ModelsPage({
     if (space) {
       setNewSpace(space);
     }
+    // Into an empty editor the import is a new model, as an inferred one is: nothing published
+    // to compare against or to read, named after the upstream model and renamable before Save
+    // creates it (T-2847).
     if (!editing) {
-      setChosen({
-        source: imported,
-        version: "1.0.0",
-        lifecycle: "draft",
-        name: catalogueModel.name,
-      });
+      setChosen(undefined);
+      setEditing(undefined);
+      setNewName(manifestName(catalogueModel.name) ?? "");
     }
     setTab("editor");
   };
@@ -432,9 +435,12 @@ export function ModelsPage({
         actions={
           targetName && (!creating || (newSpace && !spaceTakenBy)) ? (
             <>
-              <Button size="sm" onClick={handleCheck} disabled={checking || saving || taken}>
-                {t("models.source.saveCheck")}
-              </Button>
+              {/* Refused where they stand for a person who may not propose (UI-44, T-2848). */}
+              <PermissionGuard project={project} kind="DataModel" verb="propose">
+                <Button size="sm" onClick={handleCheck} disabled={checking || saving || taken}>
+                  {t("models.source.saveCheck")}
+                </Button>
+              </PermissionGuard>
               {severity === "breaking" ? (
                 <Checkbox
                   label={t("models.source.confirmBreaking", { version: nextVersion })}
@@ -442,21 +448,23 @@ export function ModelsPage({
                   onChange={(event) => setBreakingConfirmed(event.target.checked)}
                 />
               ) : null}
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={handleSave}
-                disabled={
-                  saving ||
-                  checking ||
-                  taken ||
-                  blocking > 0 ||
-                  (severity === "breaking" && !breakingConfirmed)
-                }
-                disabledReason={blocking > 0 ? t("models.source.fixErrors", { count: blocking }) : undefined}
-              >
-                {t("models.source.save")}
-              </Button>
+              <PermissionGuard project={project} kind="DataModel" verb="propose">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleSave}
+                  disabled={
+                    saving ||
+                    checking ||
+                    taken ||
+                    blocking > 0 ||
+                    (severity === "breaking" && !breakingConfirmed)
+                  }
+                  disabledReason={blocking > 0 ? t("models.source.fixErrors", { count: blocking }) : undefined}
+                >
+                  {t("models.source.save")}
+                </Button>
+              </PermissionGuard>
               {published ? (
                 <DeleteResourceAction
                   target={{ project, kind: "DataModel", plural: "datamodels", name: published.name }}

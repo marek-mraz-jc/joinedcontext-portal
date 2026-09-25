@@ -493,6 +493,104 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     expect(await screen.findByText(/mr-91/i)).toBeInTheDocument();
   });
 
+  it("refuses Check and Save where they stand for a person who may not propose a DataModel (T-2848, UI-44)", async () => {
+    const user = userEvent.setup();
+    const reader = { project: "ovzdusie", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };
+    const fetchMock = vi.fn().mockImplementation((req: RequestInfo | URL) => {
+      const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      if (urlStr.includes("/permissions/me")) {
+        return Promise.resolve(new Response(JSON.stringify(reader), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      if (urlStr.includes("/datamodels/air-quality/source")) {
+        return Promise.resolve(new Response(PUBLISHED_LINKML, { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+    global.fetch = fetchMock;
+
+    renderWithClient(<ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />);
+
+    const reason = en.permissions.denied.replaceAll("''", "'").replace("{verb}", "propose").replace("{kind}", "DataModel");
+    for (const name of [en.models.source.saveCheck, en.models.source.save]) {
+      const button = await screen.findByRole("button", { name });
+      await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+      expect(button).toHaveAccessibleDescription(reason);
+      await user.click(button);
+    }
+    const writes = requests(fetchMock).filter((r) => r.method !== "GET");
+    expect(writes).toEqual([]);
+  });
+
+  it("creates a Smart Data Model imported into an empty editor as a new model in the space picked (T-2847)", async () => {
+    const user = userEvent.setup();
+    const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+    const air = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "air" }, spec: {} };
+    const catalogue = {
+      refreshedAt: "2026-09-06T04:00:00Z",
+      stale: false,
+      subjects: [
+        {
+          name: "dataModel.Environment",
+          title: "Environment",
+          models: [
+            {
+              id: "dataModel.Environment/AirQualityObserved",
+              name: "AirQualityObserved",
+              description: "An observation of air quality conditions.",
+              attributes: ["dateObserved"],
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockImplementation((req: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      const method = init?.method ?? (req instanceof Request ? req.method : "GET");
+      const json = (body: unknown, status = 200) =>
+        Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+      if (urlStr.includes("/tools/sdm-catalog")) return json(catalogue);
+      if (urlStr.includes("/tools/import-sdm")) return json({ linkml: PUBLISHED_LINKML.replace("name: air-quality", "name: AirQualityObserved") });
+      if (urlStr.includes("/datamodels/") && method === "PUT") {
+        return json(
+          {
+            apiVersion: "joinedcontext.com/v1alpha1",
+            kind: "Change",
+            metadata: { name: "mr-92", namespace: "ovzdusie" },
+            status: { phase: "PendingApproval", lane: "green", plan: { create: 2, update: 0, delete: 0 } },
+          },
+          202,
+        );
+      }
+      if (urlStr.includes("/datamodels/")) return json({ status: 404, title: "Not Found" }, 404);
+      if (urlStr.includes("/spaces")) return json(list([air]));
+      return json(list([]));
+    });
+    global.fetch = fetchMock;
+    window.history.replaceState(null, "", "/?new=sdm");
+    try {
+      renderWithClient(<ModelsPage project="ovzdusie" />);
+      await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+      await user.selectOptions(await screen.findByLabelText(en.models.sdm.space), "air");
+      await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
+
+      // Still a new model: named in DNS form from the upstream model, and the person can rename it.
+      expect(await screen.findByLabelText(en.models.create.name)).toHaveValue("air-quality-observed");
+      expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /save model/i }));
+      await waitFor(() => {
+        expect(requests(fetchMock)).toContainEqual({
+          url: "/api/v1/projects/ovzdusie/datamodels/air-quality-observed/source?space=air",
+          method: "PUT",
+        });
+      });
+      // Nothing read or wrote a model the project does not have.
+      expect(requests(fetchMock).filter((r) => r.url.includes("/datamodels/AirQualityObserved"))).toEqual([]);
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   it("refuses a second model for a space that has one, even when the address names the space (DM-61, T-2765)", async () => {
     const user = userEvent.setup();
     const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
@@ -681,7 +779,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       await waitFor(() => {
         expect(drafts).toHaveLength(1);
       });
-      expect(drafts[0]).toContain("/drafts/DataModel/Vehicle");
+      // Kept under the manifest name Save would create, not the upstream class name (T-2847).
+      expect(drafts[0]).toContain("/drafts/DataModel/vehicle");
     });
 
     it("opens the draft the URL names, with its source and its space", async () => {
