@@ -18,6 +18,7 @@ import { fromAppEnvelope, toAppEnvelope } from "./appForm";
 import type { AppForm } from "./appForm";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
+import { AppCheckChip, useAppChecks } from "./AppCheckChip";
 import { Icon } from "../../components/ui/icons";
 import { requestOpen } from "../../assistant/state";
 import { AppBuildState, runState, useAppBuild, useRebuild } from "./AppBuildPanel";
@@ -239,6 +240,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
     refetchInterval: runId === null ? 15000 : false,
   });
   const endpointTitles = useEndpointTitles(project);
+  const appChecks = useAppChecks(project);
 
   const publish = useMutation({
     mutationFn: async ({ app, lifecycle }: { app: Manifest; lifecycle: Lifecycle }) => {
@@ -393,6 +395,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
               <AppIcon />
               <h2 className="line-clamp-2 text-sm font-semibold">{title}</h2>
               <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
+              {spec.lifecycle === "published" ? <AppCheckChip check={appChecks.get(app.metadata.name)} /> : null}
               {spec.visibility ? (
                 <p className="text-xs text-fg-muted">
                   {t("apps.visibility", { visibility: spec.visibility })}

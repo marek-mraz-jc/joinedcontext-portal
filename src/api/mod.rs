@@ -31,11 +31,13 @@ pub mod pipeline_test;
 pub mod pipelines;
 pub mod preferences;
 pub mod projects;
+pub mod quality;
 pub mod resources;
 pub mod service_accounts;
 pub mod setup;
 pub mod sync;
 pub mod sync_sources;
+pub mod validation;
 pub mod webhook;
 pub mod workspaces;
 
@@ -79,9 +81,11 @@ pub fn router() -> Router<AppState> {
         .merge(pipelines::router())
         .merge(preferences::router())
         .merge(projects::router())
+        .merge(quality::router())
         .merge(service_accounts::router())
         .merge(sync::router())
         .merge(sync_sources::router())
+        .merge(validation::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));

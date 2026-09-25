@@ -41,7 +41,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
       - run: cd sdk && pnpm install --frozen-lockfile && pnpm build
-      - run: cargo test --workspace --all-targets --all-features
+      # Every test binary runs: without --no-fail-fast the first failing one hid the rest
+      # (resource_mutate_tests was red for hours behind kit_pass_tests, T-2859).
+      - run: cargo test --workspace --all-targets --all-features --no-fail-fast
         env:
           JC_PREVIEW_OUT: "${{ runner.temp }}/preview"
           JC_PORTAL_TEST_DATABASE_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
