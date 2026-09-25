@@ -43,6 +43,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/mcp", "the MCP door itself, which dispatches this registry"),
 ("GET", "/metrics", "the Prometheus scrape"),
 ("GET", "/openapi.json", "the API document"),
+("GET", "/organization/health", "the validation checks' published results, about the installation and not a project's data (OPS-53)"),
 ("GET", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
 ("POST", "/organization/people", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),
 ("GET", "/organization/people/{id}", "people live in the realm and not in a manifest; the operations registry reaches manifests (ADR-N-031, PF-90)"),

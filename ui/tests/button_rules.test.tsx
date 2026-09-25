@@ -39,6 +39,7 @@ const PAGES = [
   "/organization/members",
   "/organization/people",
   "/organization/projects",
+  "/organization/health",
   "/organization/groups/new",
   `/projects/${PROJECT}/settings`,
   `/projects/${PROJECT}/settings/general`,

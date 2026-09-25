@@ -30,6 +30,7 @@ import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { People } from "./People";
+import { ValidationHealth } from "./ValidationHealth";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
 export const ORGANIZATION_TABS = [
@@ -40,6 +41,7 @@ export const ORGANIZATION_TABS = [
   "groups",
   "service-accounts",
   "projects",
+  "health",
 ] as const;
 
 export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
@@ -256,6 +258,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
+        {tab === "health" ? <ValidationHealth /> : null}
       </div>
     </div>
   );

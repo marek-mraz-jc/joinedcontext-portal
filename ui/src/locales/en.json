@@ -3361,7 +3361,8 @@
       "roles": "Roles",
       "groups": "Groups",
       "service-accounts": "Service accounts",
-      "projects": "Projects"
+      "projects": "Projects",
+      "health": "Health"
     },
     "settings": {
       "title": "Settings",
@@ -3519,6 +3520,37 @@
         "copy": "Copy",
         "copied": "Copied to the clipboard.",
         "done": "Done"
+      }
+    },
+    "health": {
+      "title": "Validation health",
+      "lead": "Every check that validates this installation, from its last published run: drift and the supply chain, conformance, the authorization matrix, performance budgets, the restore drill and the live sweep.",
+      "hidden": "Only an administrator of the organization can see the validation health.",
+      "caption": "The validation checks and their last run",
+      "check": "Check",
+      "state": "State",
+      "lastRun": "Last run",
+      "results": "Results",
+      "trend": "Last 7 days",
+      "failures": "Failures",
+      "empty": "No check has published a result yet",
+      "emptyHint": "Each check publishes its result after it runs; the first ones appear after the next hourly batch.",
+      "unreadableHint": "The published result is not one this page can read; publish it again.",
+      "counts": "{pass} passed, {fail} failed, {error} errors, {skip} skipped",
+      "trendLabel": "{runs, plural, one {# run} other {# runs}} in 7 days, {red} of them red",
+      "showFailures": "{count, plural, one {Show # failure} other {Show # failures}}",
+      "task": "(task {task})",
+      "states": {
+        "green": "Green",
+        "red": "Red",
+        "stale": "Stale",
+        "unreadable": "Unreadable"
+      },
+      "summary": {
+        "green": "Everything green",
+        "red": "{count, plural, one {# check red} other {# checks red}}",
+        "stale": "{count, plural, one {# check stale} other {# checks stale}}",
+        "unreadable": "{count, plural, one {# result unreadable} other {# results unreadable}}"
       }
     }
   },

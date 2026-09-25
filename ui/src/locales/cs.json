@@ -3361,7 +3361,8 @@
       "roles": "Role",
       "groups": "Skupiny",
       "service-accounts": "Servisní účty",
-      "projects": "Projekty"
+      "projects": "Projekty",
+      "health": "Stav ověření"
     },
     "settings": {
       "title": "Nastavení",
@@ -3519,6 +3520,37 @@
         "copy": "Kopírovat",
         "copied": "Zkopírováno do schránky.",
         "done": "Hotovo"
+      }
+    },
+    "health": {
+      "title": "Stav ověření",
+      "lead": "Každá kontrola, která ověřuje tuto instalaci, podle jejího posledního zveřejněného běhu: odchylky a dodavatelský řetězec, shoda se standardy, matice oprávnění, výkonnostní limity, zkouška obnovy a živá prověrka.",
+      "hidden": "Stav ověření vidí pouze administrátor organizace.",
+      "caption": "Ověřovací kontroly a jejich poslední běh",
+      "check": "Kontrola",
+      "state": "Stav",
+      "lastRun": "Poslední běh",
+      "results": "Výsledky",
+      "trend": "Posledních 7 dní",
+      "failures": "Selhání",
+      "empty": "Žádná kontrola zatím nezveřejnila výsledek",
+      "emptyHint": "Každá kontrola zveřejní výsledek po svém běhu; první se objeví po nejbližší hodinové dávce.",
+      "unreadableHint": "Zveřejněný výsledek tato stránka neumí přečíst; zveřejněte ho znovu.",
+      "counts": "{pass} úspěšných, {fail} selhaných, {error} chyb, {skip} přeskočených",
+      "trendLabel": "{runs, plural, one {# běh} few {# běhy} other {# běhů}} za 7 dní, z toho {red} červených",
+      "showFailures": "{count, plural, one {Zobrazit # selhání} few {Zobrazit # selhání} other {Zobrazit # selhání}}",
+      "task": "(úkol {task})",
+      "states": {
+        "green": "Zelená",
+        "red": "Červená",
+        "stale": "Neaktuální",
+        "unreadable": "Nečitelná"
+      },
+      "summary": {
+        "green": "Vše je zelené",
+        "red": "{count, plural, one {# kontrola červená} few {# kontroly červené} other {# kontrol červených}}",
+        "stale": "{count, plural, one {# kontrola neaktuální} few {# kontroly neaktuální} other {# kontrol neaktuálních}}",
+        "unreadable": "{count, plural, one {# výsledek nečitelný} few {# výsledky nečitelné} other {# výsledků nečitelných}}"
       }
     }
   },

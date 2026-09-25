@@ -661,6 +661,58 @@
         }
       }
     },
+    "/api/v1/organization/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Validation Health",
+        "description": "The last published result of every validation check, with its state. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (OPS-53, PF-03).",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Every published check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationHealth"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The results directory cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people": {
       "get": {
         "tags": [
@@ -10421,6 +10473,40 @@
           }
         }
       },
+      "CheckHealth": {
+        "type": "object",
+        "required": [
+          "check",
+          "state"
+        ],
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/CheckState"
+          }
+        }
+      },
+      "CheckState": {
+        "type": "string",
+        "enum": [
+          "green",
+          "red",
+          "stale",
+          "unreadable"
+        ]
+      },
       "CkanStatus": {
         "type": "object",
         "description": "The CKAN picture of one project.",
@@ -10549,6 +10635,39 @@
           "replace",
           "rename"
         ]
+      },
+      "Counts": {
+        "type": "object",
+        "description": "How many results of one run ended in each verdict.",
+        "required": [
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
       },
       "CreatePerson": {
         "type": "object",
@@ -10694,6 +10813,52 @@
             "description": "The tabular representation the rows are read through."
           }
         }
+      },
+      "Digest": {
+        "type": "object",
+        "description": "What `scripts/publish-health.py` writes for one check.",
+        "required": [
+          "check",
+          "at",
+          "everyHours",
+          "counts"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "check": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "everyHours": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Failure"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            }
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "DomainVerification": {
         "type": "object",
@@ -11117,6 +11282,40 @@
           }
         },
         "additionalProperties": false
+      },
+      "Failure": {
+        "type": "object",
+        "description": "One result of the last run that did not pass, and the open task it filed.",
+        "required": [
+          "key",
+          "verdict",
+          "title"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "task": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FailureVerdict"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailureVerdict": {
+        "type": "string",
+        "enum": [
+          "fail",
+          "error"
+        ]
       },
       "FederationGraph": {
         "type": "object",
@@ -12889,6 +13088,44 @@
           }
         }
       },
+      "Point": {
+        "type": "object",
+        "description": "One earlier run, for the trend.",
+        "required": [
+          "at",
+          "pass",
+          "fail",
+          "error",
+          "skip"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "skip": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
       "Preferences": {
         "type": "object",
         "properties": {
@@ -14374,6 +14611,20 @@
           "strict",
           "lax"
         ]
+      },
+      "ValidationHealth": {
+        "type": "object",
+        "required": [
+          "checks"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckHealth"
+            }
+          }
+        }
       },
       "Verdict": {
         "type": "object",

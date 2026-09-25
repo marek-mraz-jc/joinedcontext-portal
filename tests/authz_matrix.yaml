@@ -103,6 +103,9 @@ routes:
   - route: GET /openapi.json
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /organization/health
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
   - route: GET /organization/people
     rule: "people-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
