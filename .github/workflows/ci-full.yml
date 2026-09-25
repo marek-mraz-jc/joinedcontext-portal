@@ -164,7 +164,11 @@ jobs:
           set -eu
           for app in apps/*/ui; do
             [ -f "$app/playwright.config.ts" ] || continue
-            (cd "$app" && pnpm install --frozen-lockfile && pnpm build \
+            # An app with a lockfile installs from it frozen; one without names the SDK as the
+            # template does, pointed here at this checkout as the fast lane does (T-2912).
+            (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
+              npm pkg set "dependencies.@joinedcontext/sdk=link:$GITHUB_WORKSPACE/sdk" \
+              && pnpm install --no-frozen-lockfile; fi && pnpm build \
               && pnpm exec playwright install --with-deps chromium && pnpm e2e)
           done
       # The same flows for an application at the root of its own repository (T-2596), built from

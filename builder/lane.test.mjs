@@ -39,7 +39,15 @@ test("every sample application passes the lane's package check against the templ
     for (const manifest of [join(root, "apps", name, "package.json"), join(root, "apps", name, "ui/package.json")]) {
       if (!existsSync(manifest)) continue;
       seen += 1;
-      assert.deepEqual(refusedDependencies(JSON.parse(readFileSync(manifest, "utf8")), real), [], manifest);
+      const pkg = JSON.parse(readFileSync(manifest, "utf8"));
+      assert.deepEqual(refusedDependencies(pkg, real), [], manifest);
+      // T-2912: the repository is the app's folder alone, so the SDK is named as the template names
+      // it; a link out of the tree resolves in this monorepo and nowhere in the forge.
+      if (pkg.dependencies?.["@joinedcontext/sdk"] !== undefined) {
+        assert.equal(pkg.dependencies["@joinedcontext/sdk"], real.dependencies["@joinedcontext/sdk"], manifest);
+      }
+      const lock = join(manifest, "..", "pnpm-lock.yaml");
+      if (existsSync(lock)) assert.doesNotMatch(readFileSync(lock, "utf8"), /(link|file):\.\.\//, lock);
     }
   }
   assert.ok(seen >= 4, `only ${seen} sample packages found`);

@@ -12,7 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@joinedcontext/sdk": "link:../../../sdk",
+    "@joinedcontext/sdk": "0.1.0",
     "maplibre-gl": "^6.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

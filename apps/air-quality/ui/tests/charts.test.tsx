@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { Chart } from "../src/Chart";
 import { basemapOf } from "../src/StationMap";
-import { BAND_COLOUR, bandOf, historyOf, LIMITS, stationFeatures } from "../src/quality";
+import { BAND_COLOUR, bandOf, historyOf, LIMITS, stationFeatures, type StationCollection } from "../src/quality";
 import type { Station } from "../src/api";
 import { Map as FakeMap } from "./maplibre";
 
@@ -77,9 +77,9 @@ describe("what a reading means", () => {
 
   it("puts one feature on the map per station with a position, in its band's colour", () => {
     const collection = stationFeatures(stations);
-    expect(collection.features.map((feature) => feature.properties?.id)).toEqual([KALLIO, KUMPULA]);
-    expect(collection.features[0].properties?.colour).toBe(BAND_COLOUR.fair);
-    expect(collection.features[1].properties?.colour).toBe(BAND_COLOUR.good);
+    expect(collection.features.map((feature) => feature.properties.id)).toEqual([KALLIO, KUMPULA]);
+    expect(collection.features[0].properties.colour).toBe(BAND_COLOUR.fair);
+    expect(collection.features[1].properties.colour).toBe(BAND_COLOUR.good);
   });
 });
 
@@ -136,7 +136,7 @@ describe("the page", () => {
 
     const [map] = FakeMap.built;
     await waitFor(() => expect(map.sources.stations).toBeDefined());
-    const drawn = map.sources.stations.data as GeoJSON.FeatureCollection;
+    const drawn = map.sources.stations.data as StationCollection;
     expect(drawn.features).toHaveLength(2);
     expect(map.layers[0]).toMatchObject({ type: "circle", paint: { "circle-color": ["get", "colour"] } });
 

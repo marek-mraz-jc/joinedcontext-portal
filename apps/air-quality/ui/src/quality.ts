@@ -76,8 +76,20 @@ export function historyOf(entity: unknown): History {
   return { pm10: pointsOf(record.pm10), pm25: pointsOf(record.pm25) };
 }
 
+/**
+ * A station as a map point. Declared here rather than taken from the ambient `GeoJSON` namespace,
+ * which only an install brings in: the build lane links the template's store and has none (T-2935).
+ */
+export type StationFeature = {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: { id: string; name: string; colour: string };
+};
+
+export type StationCollection = { type: "FeatureCollection"; features: StationFeature[] };
+
 /** The stations with a position, as GeoJSON points carrying their id, name and band. */
-export function stationFeatures(stations: Station[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+export function stationFeatures(stations: Station[]): StationCollection {
   return {
     type: "FeatureCollection",
     features: stations.flatMap((station) =>
